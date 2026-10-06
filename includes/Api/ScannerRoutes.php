@@ -158,7 +158,7 @@ class ScannerRoutes {
         $all_files = [];
 
         // Determine scannable filesystem files based on scan profile
-        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads'], true)) {
+        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity'], true)) {
             // Targeted deep engines do not queue filesystem files
             $all_files = [];
         } elseif ($target === 'filesystem_only' || $target === 'full') {
@@ -331,6 +331,14 @@ class ScannerRoutes {
             // Detect .php, .sh, or suspicious file extensions inside wp-content/uploads
             $uploads_scanner = new UploadsScanner();
             $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+        } elseif ($target === 'crontab_audit') {
+            // Crontab & WP-Cron scheduled tasks audit
+            $cron_scanner = new CronScanner();
+            $all_deep_findings = array_merge($all_deep_findings, $cron_scanner->scan((string) $scan_id));
+        } elseif ($target === 'core_integrity') {
+            // WordPress Core files integrity check against official checksums
+            $core_integrity = new CoreIntegrity();
+            $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
         } elseif ($target === 'filesystem_only') {
             // Filesystem-only scan: no additional deep audit engines needed
         } else {

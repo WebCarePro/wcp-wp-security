@@ -32,4 +32,9 @@ v:1.2.0 - 2026-10-07
   * Designed glowing progress card with dynamic gradient striping, rotating engine radar, live elapsed time ticker, and target profile badge.
   * Added synchronized step-by-step audit stage notifications customized per target profile (Uploads Executables, Unknown Files, Spam & DB, Filesystem, Passwords, Outdated Software).
   * Updated composer.json with author Mir Alamin and PHP >= 8.3 requirement.
+- Added Targeted Scans for Crontab / Persistence Audit & WordPress Core Integrity:
+  * Enhanced CronScanner (includes/WordPress/CronScanner.php) to inspect Linux system crontabs (crontab -l, /var/spool/cron, /etc/crontab, /etc/cron.d/) and WordPress virtual wp-cron array for remote piped downloads (curl|bash), reverse shells, /dev/tcp pipes, base64 decode executions, and tasks executing scripts in uploads/temp folders.
+  * Added dedicated WordPress Core Integrity scan verifying official cryptographic checksums for wp-admin, wp-includes, and root core files with reverse reconciliation for unauthorized scripts.
+  * Integrated dedicated action cards in Targeted Scans UI with real-time multi-stage animated progress tracking.
+  * Expanded automated test suite to 22 passing unit & integration checks.
 
