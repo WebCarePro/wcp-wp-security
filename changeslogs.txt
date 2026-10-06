@@ -42,5 +42,11 @@ v:1.2.0 - 2026-10-07
   * Added auto-healing for stale scan locks in `start_scan` to automatically clear orphaned locks if previous queue expired.
   * Handled completed queue transitions gracefully in `process_batch` to prevent 404 scan_not_found errors.
   * Fixed array-to-string conversion notice in `PluginIntegrity.php` when handling complex checksum schemas.
+- Implemented Persistent Running Scan State & Auto-Resumption on Page Refresh:
+  * Added REST API endpoint `/wcp-scanner/v1/scan/active` to query current running scan lock state, scanned files, total files, and execution phase.
+  * Added REST API endpoint `/wcp-scanner/v1/scan/abort` to cancel active scans cleanly, release concurrency locks, and remove queue transients.
+  * Built client-side auto-resumption in `src/App.tsx`: upon page reload/refresh (F5), detects any running scan (Targeted or Dashboard), displays the active progress bar with current progress and stages, and continues processing batches and deep audits seamlessly until completion.
+  * Added sticky persistent active scan banner across all tabs (Dashboard, Targeted Scans, Logs, Backup, Server Info) with live progress percentage, quick 'View Scan' tab switcher, and emergency 'Stop Scan' controls.
+  * Added 'Stop Scan' buttons to both dashboard progress container and targeted scan progress card.
 
 

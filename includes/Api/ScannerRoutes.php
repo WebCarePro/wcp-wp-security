@@ -17,6 +17,7 @@ use WCP\Scanner\Findings\RiskScorer;
 use WCP\Scanner\Quarantine\QuarantineManager;
 use WCP\Scanner\Scan\ScanLock;
 use WCP\Scanner\Filesystem\UploadsScanner;
+use WCP\Scanner\WordPress\CronScanner;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -55,6 +56,20 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/scan/latest', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_latest_scan'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Get currently active running scan
+        register_rest_route(self::NAMESPACE, '/scan/active', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_active_scan'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Abort running scan
+        register_rest_route(self::NAMESPACE, '/scan/abort', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'abort_scan'],
             'permission_callback' => $permission,
         ]);
 
@@ -142,17 +157,22 @@ class ScannerRoutes {
         // Check for concurrent active scan lock
         $locked_id = ScanLock::get_locked_scan_id();
         if ($locked_id) {
-            $queue = get_transient("wcp_scan_queue_{$locked_id}");
-            // Auto-heal: If queue expired or empty, the lock is stale. Release it so a fresh scan can proceed!
-            if (!is_array($queue) || empty($queue)) {
+            $table_scans = $wpdb->prefix . 'wcp_scans';
+            $existing_scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_scans} WHERE id = %d", $locked_id), ARRAY_A);
+            if (!$existing_scan || $existing_scan['status'] !== 'running') {
                 ScanLock::release($locked_id);
             } else {
+                $queue = get_transient("wcp_scan_queue_{$locked_id}");
+                $remaining = is_array($queue) ? count($queue) : 0;
                 return rest_ensure_response([
-                    'success'     => true,
-                    'scan_id'     => $locked_id,
-                    'total_files' => count($queue),
-                    'status'      => 'running',
-                    'resumed'     => true
+                    'success'       => true,
+                    'scan_id'       => $locked_id,
+                    'scan_target'   => $existing_scan['scan_target'],
+                    'total_files'   => (int) $existing_scan['total_files'],
+                    'scanned_files' => (int) $existing_scan['scanned_files'],
+                    'remaining'     => $remaining,
+                    'status'        => 'running',
+                    'resumed'       => true,
                 ]);
             }
         }
@@ -313,9 +333,23 @@ class ScannerRoutes {
         // Keep lock alive
         ScanLock::heartbeat($scan_id);
 
+        // If scan is already completed, return results directly (idempotent for reconnects)
+        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_scans} WHERE id = %d", $scan_id), ARRAY_A);
+        if ($scan_row && $scan_row['status'] === 'completed') {
+            $all_scan_issues = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table_issues} WHERE scan_id = %d", $scan_id
+            ), ARRAY_A);
+            $scorer = new RiskScorer();
+            $summary = $scorer->calculate($all_scan_issues);
+            return rest_ensure_response([
+                'success' => true,
+                'summary' => $summary,
+                'status'  => 'completed'
+            ]);
+        }
+
         if (empty($target)) {
-            $saved_target = $wpdb->get_var($wpdb->prepare("SELECT scan_target FROM $table_scans WHERE id = %d", $scan_id));
-            $target = $saved_target ?: 'plugins_themes';
+            $target = $scan_row ? ($scan_row['scan_target'] ?? 'plugins_themes') : 'plugins_themes';
         }
 
         $all_deep_findings = [];
@@ -632,5 +666,82 @@ class ScannerRoutes {
         header('Content-Length: ' . filesize($path));
         readfile($path);
         exit;
+    }
+
+    public static function get_active_scan(\WP_REST_Request $request) {
+        global $wpdb;
+
+        $table_scans = $wpdb->prefix . 'wcp_scans';
+        $locked_id = ScanLock::get_locked_scan_id();
+
+        if (!$locked_id) {
+            // Clean up any stray scans marked 'running' whose locks have expired or died
+            $wpdb->query("UPDATE {$table_scans} SET status = 'interrupted', completed_at = NOW() WHERE status = 'running'");
+            return rest_ensure_response([
+                'is_running' => false,
+            ]);
+        }
+
+        $running_scan = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_scans} WHERE id = %d",
+            $locked_id
+        ), ARRAY_A);
+
+        if (!$running_scan || $running_scan['status'] !== 'running') {
+            ScanLock::release($locked_id);
+            return rest_ensure_response([
+                'is_running' => false,
+            ]);
+        }
+
+        // Lock heartbeat
+        ScanLock::heartbeat($locked_id);
+
+        $queue = get_transient("wcp_scan_queue_{$locked_id}");
+        $remaining = is_array($queue) ? count($queue) : 0;
+        $total = (int) $running_scan['total_files'];
+        $scanned = (int) $running_scan['scanned_files'];
+
+        return rest_ensure_response([
+            'is_running'     => true,
+            'scan_id'        => $locked_id,
+            'scan_target'    => $running_scan['scan_target'],
+            'status'         => 'running',
+            'scanned_files'  => $scanned,
+            'total_files'    => $total,
+            'remaining'      => $remaining,
+            'issues_found'   => (int) $running_scan['issues_found'],
+            'phase'          => ($remaining > 0) ? 'batch' : 'deep_audit',
+            'created_at'     => $running_scan['created_at'],
+            'elapsed'        => max(1, time() - strtotime($running_scan['created_at'])),
+        ]);
+    }
+
+    public static function abort_scan(\WP_REST_Request $request) {
+        global $wpdb;
+
+        $table_scans = $wpdb->prefix . 'wcp_scans';
+        $scan_id = (int) $request->get_param('scan_id');
+        if (!$scan_id) {
+            $scan_id = ScanLock::get_locked_scan_id();
+        }
+
+        if ($scan_id) {
+            $wpdb->update($table_scans, [
+                'status'       => 'aborted',
+                'completed_at' => current_time('mysql'),
+            ], ['id' => $scan_id]);
+            delete_transient("wcp_scan_queue_{$scan_id}");
+            ScanLock::release($scan_id);
+        }
+
+        // Also release any active scan lock and ensure any hanging scans are aborted
+        ScanLock::release();
+        $wpdb->query("UPDATE {$table_scans} SET status = 'aborted', completed_at = NOW() WHERE status = 'running'");
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => 'Scan successfully aborted and lock released.',
+        ]);
     }
 }
