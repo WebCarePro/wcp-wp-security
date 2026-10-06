@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build and distribution archives
+*.zip
+
+# Environment & OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE & Editor configs
+.vscode/
+.idea/

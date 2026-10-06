@@ -1,0 +1,31 @@
+v:1.2.0 - 2026-10-07
+- Bumped plugin and package version to 1.2.0.
+- Implemented Dedicated Sub-Pages & Tabs Navigation:
+  * Server & Environment Info: Comprehensive audit of PHP runtime (memory, execution time, upload limits, display errors, disabled functions), MySQL statistics (host, charset, database size in MB), Web server & OS, critical security PHP extensions (openssl, curl, zip, zlib, opcache, mbstring, gd, sodium), and security-sensitive file permissions (wp-config.php, .htaccess, wp-content, uploads).
+  * One-Click Database Backup Vault: Memory-safe chunked SQL dump engine with Gzip compression stored in protected vault (wp-content/wcp-backups/) guarded by .htaccess and index.php with streaming downloads and deletion management.
+  * Scan Logs & Audit History: Independent per-scan logging with target profile, duration, scanned items count, issues found, risk score, and detailed inspection modal for historical scans.
+  * Targeted Single-Purpose Audits: Rapid standalone scans for:
+    - Unknown Files Finder (core, plugins, and themes reverse integrity reconciliation).
+    - Spam Content & Database Audit (posts, pages, comments, and options for blackhat pharma SEO, hidden iframes, scam redirects).
+    - Filesystem Security Only (directory permissions, dangerous symlinks, executable uploads).
+    - User Password Strength & Admin Audit (dictionary checks against hashes, username enumeration leaks, privilege escalation, with "Administrator Accounts Only" filter).
+    - Outdated Software Audit (WordPress core, active/inactive plugins, and installed themes version checks).
+- Registered new submenus in AdminMenu.php with synchronized initialTab state for direct deep linking.
+- Built REST API routes for /server-info, /backup/create, /backup/list, /backup/delete, /backup/download, /scan/history, and /scan/history/{id}.
+- Updated wcp_scans database table migration to include scan_target tracking with dbDelta and alter-table fallback.
+- Added Quarantine Shield: strictly blocked quarantining of critical WordPress bootstrap files (wp-config.php, .htaccess, index.php, etc.) in QuarantineManager.php.
+- Added Reverse Integrity Reconciliation: detected unrecognized/foreign files in CoreIntegrity.php, PluginIntegrity.php, and ThemeIntegrity.php regardless of extension.
+- Calibrated Malware Heuristics and SerializedDataScanner to prevent false positives on transients, embeds, and scanner self-code.
+- Expanded automated test suite in test-suite.php to 19 passing unit & integration checks.
+- Dynamic Browser URL Synchronization: Connected tab navigation to HTML5 History pushState and popstate event listeners so clicking Dashboard, Targeted Scans, Scan Logs, Database Backup Vault, and Server Info updates the browser URL (e.g. ?page=wcp-scanner-logs) and synchronizes WordPress sidebar menu active highlights without reloading.
+- Implemented Clear Scan Logs Feature: Added REST API route /scan/history/clear and UI button in Scan Logs & History tab to purge historical scan runs, and cleared all old test scan logs from database.
+- Hardened Database Backup Vault Permissions & Fallback: Added automatic 0775 permission enforcement and automatic fallback to wp-content/uploads/wcp-backups/ if the primary directory lacks write permissions for the web server user (www-data). Updated list, delete, and download handlers to cross-search all vault storage locations seamlessly.
+- Added Targeted Scan Option - Uploads Executables & Suspicious Files Audit:
+  * Created UploadsScanner (includes/Filesystem/UploadsScanner.php) to recursively audit wp-content/uploads/ for dangerous executable extensions (.php, .php3-.php8, .phtml, .phar, .inc, .hphp, .pht, .sh, .bash, .zsh, .ksh, .csh, .pl, .cgi, .py, .rb, .exe, .bat, .cmd, .bin, .elf, .so, .dll, .vbs, .jsp, .asp, .aspx).
+  * Detects stealth double extensions (e.g. image.png.php, photo.jpg.sh, doc.php.jpg) to protect against server MIME/execution bypasses.
+  * Audits uploads directory for rogue web server configs (.htaccess, web.config) attempting to override script execution prohibitions.
+  * Analyzes media files for polyglot/disguised PHP tags (<?php, <?=) embedded inside benign-looking images or assets.
+  * Added dedicated UI card under Targeted Scans tab with fast-path execution and integrated into full site scans.
+  * Expanded automated test suite in test-suite.php to 20 passing unit & integration checks.
+- Initialized Git repository tracking and configured .gitignore for clean version control.
+

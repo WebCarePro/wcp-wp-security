@@ -1,0 +1,19 @@
+{
+  "name": "wcp/wp-scanner",
+  "description": "WordPress Security & Malware Scanner",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "WCP Dev Team"
+    }
+  ],
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "WCP\\Scanner\\": "includes/"
+    }
+  }
+}
