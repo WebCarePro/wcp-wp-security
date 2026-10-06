@@ -9,6 +9,11 @@ vendor/
 .DS_Store
 Thumbs.db
 *.log
+# Local Docker & Test Environment
+compose.yaml
+uploads.ini
+tests/
+AGENTS.md
 
 # IDE & Editor configs
 .vscode/
