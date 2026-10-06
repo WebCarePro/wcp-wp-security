@@ -69,8 +69,9 @@ class PluginIntegrity {
                 }
 
                 $actual_hash = md5_file($absolute_path);
+                $expected_hash_str = is_array($expected_hash) ? ($expected_hash['hash'] ?? json_encode($expected_hash)) : (string) $expected_hash;
                 
-                if ($actual_hash !== $expected_hash) {
+                if (!empty($expected_hash_str) && is_string($expected_hash) && $actual_hash !== $expected_hash) {
                     $findings[] = new Finding([
                         'engine'      => 'integrity-plugin',
                         'type'        => 'modified_plugin_file',
@@ -78,7 +79,7 @@ class PluginIntegrity {
                         'confidence'  => 90, // Modified != malicious
                         'file_path'   => $absolute_path,
                         'description' => "Plugin file differs from the official checksum: {$plugin_data['Name']}",
-                        'evidence'    => "Expected: $expected_hash, Actual: $actual_hash"
+                        'evidence'    => "Expected: {$expected_hash_str}, Actual: {$actual_hash}"
                     ]);
                 }
             }

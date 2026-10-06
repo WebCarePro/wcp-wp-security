@@ -37,4 +37,10 @@ v:1.2.0 - 2026-10-07
   * Added dedicated WordPress Core Integrity scan verifying official cryptographic checksums for wp-admin, wp-includes, and root core files with reverse reconciliation for unauthorized scripts.
   * Integrated dedicated action cards in Targeted Scans UI with real-time multi-stage animated progress tracking.
   * Expanded automated test suite to 22 passing unit & integration checks.
+- Hardened REST API Communication & Scan Resilience:
+  * Implemented resilient client-side `apiRequest` adapter resolving requests against localized `rest_url()` with nonce authentication for both plain and rewrite permalink structures.
+  * Added auto-healing for stale scan locks in `start_scan` to automatically clear orphaned locks if previous queue expired.
+  * Handled completed queue transitions gracefully in `process_batch` to prevent 404 scan_not_found errors.
+  * Fixed array-to-string conversion notice in `PluginIntegrity.php` when handling complex checksum schemas.
+
 

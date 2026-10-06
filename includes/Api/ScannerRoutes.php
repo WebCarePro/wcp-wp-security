@@ -143,13 +143,18 @@ class ScannerRoutes {
         $locked_id = ScanLock::get_locked_scan_id();
         if ($locked_id) {
             $queue = get_transient("wcp_scan_queue_{$locked_id}");
-            return rest_ensure_response([
-                'success'     => true,
-                'scan_id'     => $locked_id,
-                'total_files' => is_array($queue) ? count($queue) : 0,
-                'status'      => 'running',
-                'resumed'     => true
-            ]);
+            // Auto-heal: If queue expired or empty, the lock is stale. Release it so a fresh scan can proceed!
+            if (!is_array($queue) || empty($queue)) {
+                ScanLock::release($locked_id);
+            } else {
+                return rest_ensure_response([
+                    'success'     => true,
+                    'scan_id'     => $locked_id,
+                    'total_files' => count($queue),
+                    'status'      => 'running',
+                    'resumed'     => true
+                ]);
+            }
         }
 
         $target = sanitize_text_field($request->get_param('target') ?: 'plugins_themes');
@@ -210,7 +215,18 @@ class ScannerRoutes {
         ScanLock::heartbeat($scan_id);
 
         $queue = get_transient("wcp_scan_queue_{$scan_id}");
-        if ($queue === false) {
+        if ($queue === false || !is_array($queue)) {
+            // Check if scan exists in DB to prevent hard 404 failure
+            $scan_exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wcp_scans WHERE id = %d", $scan_id));
+            if ($scan_exists) {
+                return rest_ensure_response([
+                    'success'     => true,
+                    'is_finished' => true,
+                    'remaining'   => 0,
+                    'processed'   => 0,
+                    'last_file'   => '',
+                ]);
+            }
             return new \WP_Error('scan_not_found', 'Scan queue expired or not found', ['status' => 404]);
         }
 
