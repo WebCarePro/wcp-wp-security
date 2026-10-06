@@ -27,5 +27,5 @@ v:1.2.0 - 2026-10-07
   * Analyzes media files for polyglot/disguised PHP tags (<?php, <?=) embedded inside benign-looking images or assets.
   * Added dedicated UI card under Targeted Scans tab with fast-path execution and integrated into full site scans.
   * Expanded automated test suite in test-suite.php to 20 passing unit & integration checks.
-- Initialized Git repository tracking and configured .gitignore to exclude non-plugin environment files (compose.yaml, uploads.ini, tests/, and internal files).
+- Initialized Git repository tracking and configured .gitignore to exclude non-plugin environment files (compose.yaml, uploads.ini, tests/, AGENTS.md) and frontend source build files (src/, package.json, package-lock.json) leaving only production plugin files in repository.
 

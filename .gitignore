@@ -15,6 +15,11 @@ uploads.ini
 tests/
 AGENTS.md
 
+# Frontend Source (compiled files in build/ are deployed)
+src/
+package.json
+package-lock.json
+
 # IDE & Editor configs
 .vscode/
 .idea/
