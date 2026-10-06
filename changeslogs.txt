@@ -28,4 +28,8 @@ v:1.2.0 - 2026-10-07
   * Added dedicated UI card under Targeted Scans tab with fast-path execution and integrated into full site scans.
   * Expanded automated test suite in test-suite.php to 20 passing unit & integration checks.
 - Initialized Git repository tracking and configured .gitignore to exclude non-plugin environment files (compose.yaml, uploads.ini, tests/, AGENTS.md) and frontend source build files (src/, package.json, package-lock.json) leaving only production plugin files in repository.
+- Implemented Animated Real-Time Progress Bar for Targeted Scans:
+  * Designed glowing progress card with dynamic gradient striping, rotating engine radar, live elapsed time ticker, and target profile badge.
+  * Added synchronized step-by-step audit stage notifications customized per target profile (Uploads Executables, Unknown Files, Spam & DB, Filesystem, Passwords, Outdated Software).
+  * Updated composer.json with author Mir Alamin and PHP >= 8.3 requirement.
 
