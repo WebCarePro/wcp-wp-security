@@ -52,6 +52,8 @@ v:1.4.0 - 2026-10-09
   * Sanitized and unslashed all `$_SERVER` and `$_GET` global variables using `wp_unslash()` and `sanitize_text_field()` / `sanitize_key()`.
   * Added backtick identifier escaping around dynamic table names across `OptionScanner.php`, `ContentScanner.php`, `UserScanner.php`, `Migration.php`, `ScannerRoutes.php`, `Scheduler.php`, `QuarantineManager.php`, and `FindingRepository.php`.
   * Removed debug `error_log()` statements from production catch blocks in `DirectoryWalker.php`, `UploadsScanner.php`, `CoreIntegrity.php`, `PluginIntegrity.php`, and `ThemeIntegrity.php`.
+- Dynamic Plugin Version Engine Badge:
+  * Replaced hardcoded "Engine v1.2.0 Active" header badge with dynamic localized plugin version (`● Engine v{version} Active`) powered by `wcpScannerSettings.version`, keeping UI display permanently in sync with `WCP_SCANNER_VERSION`.
 - Expanded Automated Test Suite:
   * Added unit & integration tests covering SettingsManager defaults, save/export/import round-trips, Cron sync, REST API settings endpoints, and AIService key validation.
   * Test suite in `tests/test-suite.php` verified with 36 passing tests (36 Passed, 0 Failed).

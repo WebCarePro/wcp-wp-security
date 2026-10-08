@@ -159,6 +159,7 @@ class AdminMenu {
                 'siteUrl'    => get_site_url(),
                 'siteName'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
                 'initialTab' => $active_tab,
+                'version'    => WCP_SCANNER_VERSION,
             ]);
         }
 
