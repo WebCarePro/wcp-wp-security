@@ -44,7 +44,8 @@ v:1.4.0 - 2026-10-09
   * Added accordion row expansion (`ChevronDown` / `ChevronRight`) allowing full inspection of isolated malicious code snippets, database post details, and CVE advisory grids without layout distortion or table column stretching.
   * Added real-time severity filter dropdown and search keyword filter inside historical scan inspections.
 - WordPress.org Submission & Plugin Check Hardening:
-  * Synchronized readme.txt and main file headers: aligned `Stable tag: 1.4.0`, `Requires at least: 6.0`, `Tested up to: 7.1`, and `Requires PHP: 7.4`.
+  * Synchronized readme.txt and main file headers: aligned `Author: Mir Alamin`, `Author URI: https://webcarespro.com`, `Stable tag: 1.4.0`, `Requires at least: 7.0`, `Tested up to: 7.1`, and `Requires PHP: 8.3`.
+  * Included dedicated "About WebCare Pro" and author profile sections in readme.txt.
   * Created `languages/` directory satisfying the `Domain Path` header requirements.
   * Replaced PHP core `parse_url()` with `wp_parse_url()` in `URLScanner.php` and `OptionScanner.php`.
   * Replaced `date()` with `gmdate()` in `SettingsManager.php` and `DatabaseBackup.php` to prevent timezone skew.

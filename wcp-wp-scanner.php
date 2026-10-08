@@ -4,9 +4,10 @@
  * Plugin URI:        https://webcarespro.com
  * Description:       Advanced WordPress Security & Malware Scanner with Core File Integrity, Heuristic Threat Analysis, and Modern React Dashboard.
  * Version:           1.4.0
- * Requires at least: 6.0
- * Requires PHP:      7.4
+ * Requires at least: 7.0
+ * Requires PHP:      8.3
  * Author:            Mir Alamin
+ * Author URI:        https://webcarespro.com
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       wcp-wp-scanner
