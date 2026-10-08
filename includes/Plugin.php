@@ -25,6 +25,9 @@ class Plugin {
     private function init() {
         AdminMenu::register();
         \WCP\Scanner\System\Scheduler::register();
+        
+        $audit_logger = new \WCP\Scanner\System\AuditLogger();
+        $audit_logger->init();
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

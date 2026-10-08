@@ -109,53 +109,10 @@ class ContentScanner {
             }
         }
 
-        // 2. Scan Approved Comments
-        $comments_table = $wpdb->prefix . 'comments';
-        $last_comment_id = 0;
-
-        while (true) {
-            if ($monitor->is_nearing_limits()) {
-                break;
-            }
-
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $comments = $wpdb->get_results($wpdb->prepare(
-                "SELECT comment_ID, comment_author_url, comment_content 
-                 FROM `{$comments_table}` 
-                 WHERE comment_ID > %d AND comment_approved = '1'
-                 ORDER BY comment_ID ASC 
-                 LIMIT %d",
-                $last_comment_id,
-                $batch_size
-            ), ARRAY_A);
-
-            if (empty($comments)) {
-                break;
-            }
-
-            foreach ($comments as $comment) {
-                $last_comment_id = (int) $comment['comment_ID'];
-
-                $comment_text = $comment['comment_author_url'] . "\n" . $comment['comment_content'];
-
-                $spam_hits = $this->spam_detector->analyze($comment_text);
-                foreach ($spam_hits as $hit) {
-                    $findings[] = new Finding([
-                        'engine'      => 'content-comments',
-                        'type'        => 'comment_' . $hit['type'],
-                        'severity'    => 'medium',
-                        'confidence'  => $hit['confidence'],
-                        'file_path'   => "comment:{$comment['comment_ID']}",
-                        'description' => "Spam detected in approved comment: " . $hit['desc'],
-                        'evidence'    => $hit['evidence']
-                    ]);
-                }
-            }
-
-            if (count($comments) < $batch_size) {
-                break;
-            }
-        }
+        // 2. Scan Comments (Delegated to dedicated CommentScanner)
+        $comment_scanner = new CommentScanner();
+        $comment_findings = $comment_scanner->scan($scan_id, $batch_size);
+        $findings = array_merge($findings, $comment_findings);
 
         return $findings;
     }

@@ -45,6 +45,17 @@ v:1.4.0 - 2026-10-09
   * Added real-time severity filter dropdown and search keyword filter inside historical scan inspections.
 - WordPress.org Submission & Plugin Check Hardening:
   * Synchronized readme.txt and main file headers: aligned `Author: Mir Alamin`, `Author URI: https://webcarespro.com`, `Stable tag: 1.4.0`, `Requires at least: 7.0`, `Tested up to: 7.1`, and `Requires PHP: 8.3`.
+- Advanced File System Malware Detection (Deep Inspection):
+  * Built `WCP\Scanner\Malware\DeobfuscationEngine` to safely extract and scan payloads hidden inside nested `base64_decode`, `gzinflate`, and `str_rot13` calls without using dangerous `eval()` execution.
+  * Added `WCP\Scanner\Malware\KnownHashDetector` with O(1) hash lookups against known high-profile webshells (c99, r57, b374k, WSO).
+  * Built `WCP\Scanner\Integrity\ImportantFileFIM` File Integrity Monitor to strictly monitor `.htaccess`, `wp-config.php`, and `index.php` for unexpected top-level malicious injections (e.g., hidden `eval()` or RFI via `file_get_contents`).
+- Comprehensive Database Malware Scanning (SEO Spam & Backdoors):
+  * Upgraded `HTMLAnalyzer` to explicitly hunt for malicious `<script>` and `<iframe>` tag injections inside `wp_posts` and `wp_postmeta`.
+  * Built `WCP\Scanner\Content\CommentScanner` to deeply scan the `wp_comments` table for Cross-Site Scripting (XSS) payloads and phishing URLs.
+  * (Pre-existing validation handles Rogue admin detection via `UserScanner` and hidden active plugins / hijacked siteurls via `OptionScanner`).
+- Professional Remediation & User Audit Logging:
+  * Built `WCP\Scanner\Quarantine\CoreRepairManager` (Auto-Cure functionality) to safely surgically repair infected core files by downloading the exact pristine replacement from the official `core.svn.wordpress.org` repository without breaking the site.
+  * Added `WCP\Scanner\System\AuditLogger` which hooks into core WordPress actions to maintain a forensic log trail (`wp-content/wcp-logs/audit.log`) tracking logins, failed authentications, plugin activations, and theme switches.
   * Included dedicated "About WebCare Pro" and author profile sections in readme.txt.
   * Created `languages/` directory satisfying the `Domain Path` header requirements.
   * Replaced PHP core `parse_url()` with `wp_parse_url()` in `URLScanner.php` and `OptionScanner.php`.

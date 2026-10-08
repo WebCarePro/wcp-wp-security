@@ -4,6 +4,7 @@ namespace WCP\Scanner\Api;
 use WCP\Scanner\Scanner\Engine;
 use WCP\Scanner\Filesystem\FileScanner;
 use WCP\Scanner\Integrity\CoreIntegrity;
+use WCP\Scanner\Integrity\ImportantFileFIM;
 use WCP\Scanner\Integrity\PluginIntegrity;
 use WCP\Scanner\Database\DatabaseScanner;
 use WCP\Scanner\Content\ContentScanner;
@@ -15,6 +16,7 @@ use WCP\Scanner\Backup\DatabaseBackup;
 use WCP\Scanner\Findings\CorrelationEngine;
 use WCP\Scanner\Findings\RiskScorer;
 use WCP\Scanner\Quarantine\QuarantineManager;
+use WCP\Scanner\Quarantine\CoreRepairManager;
 use WCP\Scanner\Scan\ScanLock;
 use WCP\Scanner\Filesystem\UploadsScanner;
 use WCP\Scanner\WordPress\CronScanner;
@@ -162,6 +164,12 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/quarantine/(?P<id>\d+)/restore', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'restore_quarantine'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/quarantine/repair', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'repair_core_file'],
             'permission_callback' => $permission,
         ]);
 
@@ -470,14 +478,18 @@ class ScannerRoutes {
         } elseif ($target === 'core_integrity') {
             // WordPress Core files integrity check against official checksums
             $core_integrity = new CoreIntegrity();
+            $important_fim = new ImportantFileFIM();
             $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+            $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
         } elseif ($target === 'filesystem_only') {
             // Filesystem-only scan: no additional deep audit engines needed
         } else {
             // Full or plugins_themes: run all engines
             $core_integrity = new CoreIntegrity();
             $plugin_integrity = new PluginIntegrity();
+            $important_fim = new ImportantFileFIM();
             $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+            $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
             $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
 
             $db_scanner = new DatabaseScanner();
@@ -1194,5 +1206,28 @@ class ScannerRoutes {
         } catch (\Exception $e) {
             return new \WP_Error('ai_models_update_error', $e->getMessage(), ['status' => 400]);
         }
+    }
+
+    /**
+     * Safely repair an infected core file by pulling the pristine version from WP.org.
+     */
+    public static function repair_core_file(\WP_REST_Request $request) {
+        $file_path = sanitize_text_field($request->get_param('file_path'));
+        $issue_id = (int) $request->get_param('issue_id');
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_params', 'File path is required.', ['status' => 400]);
+        }
+
+        $repair_manager = new CoreRepairManager();
+        $result = $repair_manager->repair_core_file($file_path);
+
+        if ($result['success'] && $issue_id) {
+            global $wpdb;
+            $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+            $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
+        }
+
+        return rest_ensure_response($result);
     }
 }
