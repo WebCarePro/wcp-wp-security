@@ -24,6 +24,7 @@ class Plugin {
 
     private function init() {
         AdminMenu::register();
+        \WCP\Scanner\System\Scheduler::register();
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

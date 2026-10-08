@@ -31,8 +31,8 @@ class OptionScanner {
         $home = get_option('home');
 
         if (!empty($siteurl) && !empty($home)) {
-            $parsed_siteurl = parse_url($siteurl, PHP_URL_HOST);
-            $parsed_home = parse_url($home, PHP_URL_HOST);
+            $parsed_siteurl = wp_parse_url($siteurl, PHP_URL_HOST);
+            $parsed_home = wp_parse_url($home, PHP_URL_HOST);
             if ($parsed_siteurl && $parsed_home && strtolower($parsed_siteurl) !== strtolower($parsed_home)) {
                 $findings[] = new Finding([
                     'engine'      => 'database-options',
@@ -47,9 +47,10 @@ class OptionScanner {
         }
 
         // 2. Check for oversized autoloaded options (denial of service / hidden payloads)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $large_options = $wpdb->get_results(
             "SELECT option_name, LENGTH(option_value) AS value_len 
-             FROM {$options_table} 
+             FROM `{$options_table}` 
              WHERE autoload = 'yes' OR autoload = 'on' 
              HAVING value_len > 500000 
              ORDER BY value_len DESC LIMIT 10"

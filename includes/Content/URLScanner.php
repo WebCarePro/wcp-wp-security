@@ -11,7 +11,7 @@ class URLScanner {
 
     public function __construct() {
         $home = get_option('home');
-        $this->site_host = $home ? parse_url($home, PHP_URL_HOST) : null;
+        $this->site_host = $home ? wp_parse_url($home, PHP_URL_HOST) : null;
     }
 
     /**
@@ -35,7 +35,7 @@ class URLScanner {
         $urls = array_unique($matches[0]);
 
         foreach ($urls as $url) {
-            $parsed = parse_url($url);
+            $parsed = wp_parse_url($url);
             if (!isset($parsed['host'])) {
                 continue;
             }

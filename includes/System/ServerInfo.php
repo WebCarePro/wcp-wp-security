@@ -38,10 +38,10 @@ class ServerInfo {
         $db_size_mb = round($db_size_bytes / (1024 * 1024), 2);
 
         // 3. Web Server & OS
-        $server_software = $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown';
+        $server_software = isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown';
         $server_os = php_uname('s') . ' ' . php_uname('r');
         $server_arch = php_uname('m');
-        $server_ip = $_SERVER['SERVER_ADDR'] ?? gethostbyname(gethostname());
+        $server_ip = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : gethostbyname(gethostname());
 
         // 4. Critical Extensions Check
         $critical_extensions = [

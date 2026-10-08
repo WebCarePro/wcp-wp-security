@@ -99,6 +99,13 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Vulnerabilities & Outdated Software Report
+        register_rest_route(self::NAMESPACE, '/vulnerabilities/report', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_vulnerabilities_report'],
+            'permission_callback' => $permission,
+        ]);
+
         // Database Backup
         register_rest_route(self::NAMESPACE, '/backup/create', [
             'methods'             => 'POST',
@@ -121,6 +128,20 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/backup/download', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'download_backup'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Secure File Content Viewer
+        register_rest_route(self::NAMESPACE, '/file/view', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'view_file_content'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Secure Post/Page Content Viewer
+        register_rest_route(self::NAMESPACE, '/post/view', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'view_post_content'],
             'permission_callback' => $permission,
         ]);
 
@@ -149,6 +170,62 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'list_quarantine'],
             'permission_callback' => $permission,
         ]);
+
+        // Settings Endpoints
+        register_rest_route(self::NAMESPACE, '/settings', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/settings/export', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'export_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/settings/import', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'import_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/settings/reset', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reset_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        // AI Threat Analysis & Connection Test Endpoints
+        register_rest_route(self::NAMESPACE, '/ai/test', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'test_ai_connection'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/ai/analyze', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'analyze_code_with_ai'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/ai/models', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_ai_models'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/ai/models/update', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_ai_models'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -158,7 +235,8 @@ class ScannerRoutes {
         $locked_id = ScanLock::get_locked_scan_id();
         if ($locked_id) {
             $table_scans = $wpdb->prefix . 'wcp_scans';
-            $existing_scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_scans} WHERE id = %d", $locked_id), ARRAY_A);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $existing_scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $locked_id), ARRAY_A);
             if (!$existing_scan || $existing_scan['status'] !== 'running') {
                 ScanLock::release($locked_id);
             } else {
@@ -302,8 +380,9 @@ class ScannerRoutes {
         }
 
         $scanned_so_far = $total_files - $remaining;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $current_issues_total = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_issues WHERE scan_id = %d", $scan_id
+            "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
         ));
 
         $wpdb->update($table_scans, [
@@ -334,16 +413,19 @@ class ScannerRoutes {
         ScanLock::heartbeat($scan_id);
 
         // If scan is already completed, return results directly (idempotent for reconnects)
-        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_scans} WHERE id = %d", $scan_id), ARRAY_A);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
         if ($scan_row && $scan_row['status'] === 'completed') {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $all_scan_issues = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM {$table_issues} WHERE scan_id = %d", $scan_id
+                "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
             ), ARRAY_A);
             $scorer = new RiskScorer();
             $summary = $scorer->calculate($all_scan_issues);
             return rest_ensure_response([
                 'success' => true,
                 'summary' => $summary,
+                'issues'  => self::enrich_issues($all_scan_issues),
                 'status'  => 'completed'
             ]);
         }
@@ -437,14 +519,16 @@ class ScannerRoutes {
         }
 
         // Calculate final risk score across all findings
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $all_scan_issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_issues} WHERE scan_id = %d", $scan_id
+            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
         ), ARRAY_A);
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($all_scan_issues);
 
-        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at FROM {$table_scans} WHERE id = %d", $scan_id), ARRAY_A);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
         $duration = 1;
         if ($scan_row && !empty($scan_row['created_at'])) {
             $duration = max(1, time() - strtotime($scan_row['created_at']));
@@ -464,6 +548,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success'     => true,
             'summary'     => $summary,
+            'issues'      => self::enrich_issues($all_scan_issues),
             'status'      => 'completed'
         ]);
     }
@@ -475,7 +560,8 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
         $table_files = $wpdb->prefix . 'wcp_scan_files';
 
-        $latest_scan = $wpdb->get_row("SELECT * FROM $table_scans ORDER BY id DESC LIMIT 1", ARRAY_A);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $latest_scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
         if (!$latest_scan) {
             return rest_ensure_response([
                 'has_scan' => false,
@@ -486,13 +572,16 @@ class ScannerRoutes {
             ]);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_issues WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
+            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
             $latest_scan['id']
         ), ARRAY_A);
+        $issues = self::enrich_issues($issues);
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $scanned_files = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_files WHERE scan_id = %d ORDER BY id ASC",
+            "SELECT * FROM `{$table_files}` WHERE scan_id = %d ORDER BY id ASC",
             $latest_scan['id']
         ), ARRAY_A);
 
@@ -558,8 +647,9 @@ class ScannerRoutes {
         global $wpdb;
         $table_scans = $wpdb->prefix . 'wcp_scans';
         $limit = (int) ($request->get_param('limit') ?: 50);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $history = $wpdb->get_results(
-            $wpdb->prepare("SELECT * FROM $table_scans ORDER BY id DESC LIMIT %d", $limit),
+            $wpdb->prepare("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT %d", $limit),
             ARRAY_A
         );
         return rest_ensure_response([
@@ -574,9 +664,12 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
         $table_files = $wpdb->prefix . 'wcp_scan_files';
 
-        $wpdb->query("TRUNCATE TABLE $table_scans");
-        $wpdb->query("TRUNCATE TABLE $table_issues");
-        $wpdb->query("TRUNCATE TABLE $table_files");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query("TRUNCATE TABLE `{$table_scans}`");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query("TRUNCATE TABLE `{$table_issues}`");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query("TRUNCATE TABLE `{$table_files}`");
 
         ScanLock::release(ScanLock::get_locked_scan_id() ?: 0);
 
@@ -593,17 +686,21 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
         $table_files = $wpdb->prefix . 'wcp_scan_files';
 
-        $scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_scans WHERE id = %d", $scan_id), ARRAY_A);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
         if (!$scan) {
             return new \WP_Error('scan_not_found', 'Scan log not found', ['status' => 404]);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_issues WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
+            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
             $scan_id
         ), ARRAY_A);
+        $issues = self::enrich_issues($issues);
 
-        $files_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_files WHERE scan_id = %d", $scan_id));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $files_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `{$table_files}` WHERE scan_id = %d", $scan_id));
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
@@ -621,6 +718,14 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             'info'    => ServerInfo::get_info(),
+        ]);
+    }
+
+    public static function get_vulnerabilities_report(\WP_REST_Request $request) {
+        $report = UpdateScanner::get_detailed_report();
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $report,
         ]);
     }
 
@@ -676,14 +781,16 @@ class ScannerRoutes {
 
         if (!$locked_id) {
             // Clean up any stray scans marked 'running' whose locks have expired or died
-            $wpdb->query("UPDATE {$table_scans} SET status = 'interrupted', completed_at = NOW() WHERE status = 'running'");
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query("UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running'");
             return rest_ensure_response([
                 'is_running' => false,
             ]);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $running_scan = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table_scans} WHERE id = %d",
+            "SELECT * FROM `{$table_scans}` WHERE id = %d",
             $locked_id
         ), ARRAY_A);
 
@@ -737,11 +844,355 @@ class ScannerRoutes {
 
         // Also release any active scan lock and ensure any hanging scans are aborted
         ScanLock::release();
-        $wpdb->query("UPDATE {$table_scans} SET status = 'aborted', completed_at = NOW() WHERE status = 'running'");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query("UPDATE `{$table_scans}` SET status = 'aborted', completed_at = NOW() WHERE status = 'running'");
 
         return rest_ensure_response([
             'success' => true,
             'message' => 'Scan successfully aborted and lock released.',
         ]);
+    }
+
+    /**
+     * Enrich findings with real-time WordPress post/page URLs, edit links, and file metadata.
+     *
+     * @param array $issues
+     * @return array
+     */
+    public static function enrich_issues(array $issues) {
+        $norm_abspath = wp_normalize_path(ABSPATH);
+
+        foreach ($issues as &$item) {
+            $filePath = $item['file_path'] ?? '';
+            $engine = $item['engine'] ?? '';
+            $type = $item['type'] ?? '';
+
+            // 0. Check if finding is WordPress Updates / CVE Advisory
+            if ($engine === 'wordpress-updates' || in_array($type, ['outdated_core', 'vulnerable_core', 'outdated_plugin', 'vulnerable_plugin', 'outdated_theme', 'vulnerable_theme'])) {
+                $item['is_software_update'] = true;
+                $evidence = $item['evidence'] ?? '';
+                if (!empty($evidence) && is_string($evidence)) {
+                    $decoded = json_decode($evidence, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $item['cves'] = $decoded['cves'] ?? [];
+                        $item['has_cve'] = !empty($decoded['has_cve']);
+                        $item['is_outdated'] = !empty($decoded['is_outdated']);
+                        $item['installed_version'] = $decoded['installed'] ?? '';
+                        $item['latest_version'] = $decoded['latest'] ?? '';
+                        $item['component_name'] = $decoded['name'] ?? '';
+                        $item['component_type'] = $decoded['type'] ?? '';
+                        $item['update_url'] = $decoded['update_url'] ?? '';
+                    }
+                }
+            }
+
+            // 1. Check if finding is a WordPress Post or Page
+            if (preg_match('/^post:(\d+)/i', $filePath, $matches)) {
+                $postId = (int) $matches[1];
+                $post = get_post($postId);
+                if ($post) {
+                    $item['is_post'] = true;
+                    $item['post_id'] = $postId;
+                    $item['post_title'] = $post->post_title ?: __('(Untitled)', 'wcp-wp-scanner');
+                    $item['post_type'] = $post->post_type;
+                    $item['view_url'] = get_permalink($postId) ?: '';
+                    $item['edit_url'] = get_edit_post_link($postId, 'raw') ?: admin_url("post.php?post={$postId}&action=edit");
+                }
+            } 
+            // 2. Check if finding is a WordPress Comment
+            elseif (preg_match('/^comment:(\d+)/i', $filePath, $matches)) {
+                $commentId = (int) $matches[1];
+                $comment = get_comment($commentId);
+                if ($comment) {
+                    $item['is_comment'] = true;
+                    $item['comment_id'] = $commentId;
+                    $item['view_url'] = get_comment_link($comment) ?: '';
+                    $item['edit_url'] = admin_url("comment.php?action=editcomment&c={$commentId}");
+                }
+            } 
+            // 3. Otherwise treat as a Filesystem finding
+            else {
+                $item['is_file'] = true;
+                $cleanPath = ltrim(str_replace(['../', '..\\'], '', $filePath), '/\\');
+                $fullPath = wp_normalize_path(ABSPATH . $cleanPath);
+
+                if (!file_exists($fullPath) && file_exists($filePath)) {
+                    $fullPath = wp_normalize_path($filePath);
+                }
+
+                $realPath = realpath($fullPath);
+                $isInsideRoot = $realPath && (strpos(wp_normalize_path($realPath), $norm_abspath) === 0);
+
+                $item['file_exists'] = $isInsideRoot && file_exists($realPath);
+                $item['can_view'] = $item['file_exists'] && is_readable($realPath);
+            }
+        }
+        unset($item);
+
+        return $issues;
+    }
+
+    /**
+     * Safely read and return file content for code inspection popup modal.
+     */
+    public static function view_file_content(\WP_REST_Request $request) {
+        $raw_path = sanitize_text_field($request->get_param('file_path') ?: ($request->get_param('path') ?: ''));
+        if (empty($raw_path)) {
+            return new \WP_Error('missing_path', __('File path parameter is required.', 'wcp-wp-scanner'), ['status' => 400]);
+        }
+
+        // Clean path and ensure inside ABSPATH
+        $raw_path = str_replace(['../', '..\\'], '', $raw_path);
+        $norm_abspath = wp_normalize_path(ABSPATH);
+
+        $target_full = '';
+        if (file_exists($raw_path)) {
+            $target_full = wp_normalize_path($raw_path);
+        } else {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($raw_path, '/\\'));
+            if (file_exists($candidate)) {
+                $target_full = $candidate;
+            }
+        }
+
+        if (empty($target_full) || !file_exists($target_full)) {
+            return new \WP_Error('file_not_found', __('File does not exist or has been removed from server.', 'wcp-wp-scanner'), ['status' => 404]);
+        }
+
+        $real_path = realpath($target_full);
+        $real_abs = realpath(ABSPATH);
+
+        if (!$real_path || !$real_abs || strpos(wp_normalize_path($real_path), wp_normalize_path($real_abs)) !== 0) {
+            return new \WP_Error('forbidden_path', __('Access to this file path is restricted outside WordPress root.', 'wcp-wp-scanner'), ['status' => 403]);
+        }
+
+        if (!is_readable($real_path)) {
+            return new \WP_Error('unreadable_file', __('File is not readable due to server permissions.', 'wcp-wp-scanner'), ['status' => 403]);
+        }
+
+        $file_size = (int) filesize($real_path);
+        $max_read = 750 * 1024; // 750KB limit to protect memory
+        $is_truncated = $file_size > $max_read;
+
+        $content = file_get_contents($real_path, false, null, 0, $max_read);
+        if ($content === false) {
+            return new \WP_Error('read_error', __('Failed to read file content.', 'wcp-wp-scanner'), ['status' => 500]);
+        }
+
+        $perms = substr(sprintf('%o', fileperms($real_path)), -4);
+        $lines = explode("\n", $content);
+        $line_count = count($lines);
+
+        $rel_path = str_replace(wp_normalize_path(ABSPATH), '', wp_normalize_path($real_path));
+        $rel_path = ltrim($rel_path, '/\\');
+
+        return rest_ensure_response([
+            'success'        => true,
+            'filename'       => basename($real_path),
+            'file_path'      => $rel_path,
+            'full_path'      => $real_path,
+            'size_bytes'     => $file_size,
+            'size_formatted' => size_format($file_size, 2),
+            'permissions'    => $perms,
+            'is_writable'    => is_writable($real_path),
+            'line_count'     => $line_count,
+            'content'        => $content,
+            'is_truncated'   => $is_truncated,
+        ]);
+    }
+
+    /**
+     * Safely read and return post/page content for inspection popup modal.
+     */
+    public static function view_post_content(\WP_REST_Request $request) {
+        $post_id = (int) $request->get_param('post_id');
+        if (!$post_id) {
+            $path = sanitize_text_field($request->get_param('path') ?: '');
+            if (preg_match('/^post:(\d+)/i', $path, $matches)) {
+                $post_id = (int) $matches[1];
+            }
+        }
+
+        if (!$post_id) {
+            return new \WP_Error('missing_post_id', __('Valid post ID is required.', 'wcp-wp-scanner'), ['status' => 400]);
+        }
+
+        $post = get_post($post_id);
+        if (!$post) {
+            return new \WP_Error('post_not_found', __('The requested post or page was not found.', 'wcp-wp-scanner'), ['status' => 404]);
+        }
+
+        return rest_ensure_response([
+            'success'      => true,
+            'post_id'      => $post_id,
+            'title'        => $post->post_title ?: __('(Untitled)', 'wcp-wp-scanner'),
+            'post_type'    => $post->post_type,
+            'post_status'  => $post->post_status,
+            'author'       => get_the_author_meta('display_name', $post->post_author),
+            'content'      => $post->post_content,
+            'view_url'     => get_permalink($post_id) ?: '',
+            'edit_url'     => get_edit_post_link($post_id, 'raw') ?: admin_url("post.php?post={$post_id}&action=edit"),
+            'date'         => $post->post_date,
+            'modified'     => $post->post_modified,
+        ]);
+    }
+
+    /**
+     * Get plugin settings
+     */
+    public static function get_settings(\WP_REST_Request $request) {
+        $settings = \WCP\Scanner\System\SettingsManager::get_settings();
+        $next_run = wp_next_scheduled(\WCP\Scanner\System\SettingsManager::CRON_HOOK);
+        return rest_ensure_response([
+            'success'        => true,
+            'settings'       => $settings,
+            'next_scheduled' => $next_run ? date_i18n('Y-m-d H:i:s', $next_run) : null,
+            'current_time'   => current_time('mysql'),
+        ]);
+    }
+
+    /**
+     * Save plugin settings
+     */
+    public static function save_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params();
+        if (!is_array($params)) {
+            $params = $request->get_body_params();
+        }
+
+        $saved = \WCP\Scanner\System\SettingsManager::save_settings((array) $params);
+        $next_run = wp_next_scheduled(\WCP\Scanner\System\SettingsManager::CRON_HOOK);
+
+        return rest_ensure_response([
+            'success'        => true,
+            'message'        => __('Settings successfully saved.', 'wcp-wp-scanner'),
+            'settings'       => $saved,
+            'next_scheduled' => $next_run ? date_i18n('Y-m-d H:i:s', $next_run) : null,
+        ]);
+    }
+
+    /**
+     * Export settings as downloadable JSON payload
+     */
+    public static function export_settings(\WP_REST_Request $request) {
+        $data = \WCP\Scanner\System\SettingsManager::export_settings();
+        return rest_ensure_response([
+            'success' => true,
+            'export'  => $data,
+        ]);
+    }
+
+    /**
+     * Import settings from uploaded JSON payload
+     */
+    public static function import_settings(\WP_REST_Request $request) {
+        $payload = $request->get_json_params();
+        if (empty($payload)) {
+            $raw = $request->get_body();
+            if (!empty($raw)) {
+                $payload = json_decode($raw, true);
+            }
+            if (empty($payload)) {
+                $payload = $request->get_body_params();
+            }
+        }
+        if (empty($payload) || !is_array($payload)) {
+            return new \WP_Error('invalid_import', __('Invalid JSON data.', 'wcp-wp-scanner'), ['status' => 400]);
+        }
+
+        try {
+            $imported = \WCP\Scanner\System\SettingsManager::import_settings($payload);
+            return rest_ensure_response([
+                'success'  => true,
+                'message'  => __('Settings successfully imported and applied.', 'wcp-wp-scanner'),
+                'settings' => $imported,
+            ]);
+        } catch (\Exception $e) {
+            return new \WP_Error('import_failed', $e->getMessage(), ['status' => 400]);
+        }
+    }
+
+    /**
+     * Reset settings to factory defaults
+     */
+    public static function reset_settings(\WP_REST_Request $request) {
+        $defaults = \WCP\Scanner\System\SettingsManager::reset_defaults();
+        return rest_ensure_response([
+            'success'  => true,
+            'message'  => __('Settings have been reset to factory defaults.', 'wcp-wp-scanner'),
+            'settings' => $defaults,
+        ]);
+    }
+
+    /**
+     * Test AI connection
+     */
+    public static function test_ai_connection(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $provider = sanitize_text_field($params['provider'] ?? 'openai');
+        $api_key  = trim($params['api_key'] ?? '');
+        $model    = sanitize_text_field($params['model'] ?? '');
+
+        // If key is masked or empty, fall back to stored key
+        if ($api_key === '' || $api_key === '••••••••') {
+            $settings = \WCP\Scanner\System\SettingsManager::get_settings();
+            if ($provider === 'gemini') {
+                $api_key = $settings['gemini_api_key'] ?? '';
+                if (!$model) $model = $settings['gemini_model'] ?? 'gemini-3.8-flash';
+            } elseif ($provider === 'claude') {
+                $api_key = $settings['claude_api_key'] ?? '';
+                if (!$model) $model = $settings['claude_model'] ?? 'claude-sonnet-5-5';
+            } else {
+                $api_key = $settings['openai_api_key'] ?? '';
+                if (!$model) $model = $settings['openai_model'] ?? 'gpt-6.1-sol';
+            }
+        }
+
+        $result = \WCP\Scanner\System\AIService::test_connection($provider, $api_key, $model);
+        if (empty($result['success'])) {
+            return new \WP_Error('ai_test_failed', $result['error'] ?? 'AI Test Connection Failed', ['status' => 400]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Run AI forensic analysis on code or suspicious finding
+     */
+    public static function analyze_code_with_ai(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        try {
+            $analysis = \WCP\Scanner\System\AIService::analyze_code($params);
+            return rest_ensure_response($analysis);
+        } catch (\Exception $e) {
+            return new \WP_Error('ai_analysis_error', $e->getMessage(), ['status' => 400]);
+        }
+    }
+
+    /**
+     * Get available AI model catalog
+     */
+    public static function get_ai_models(\WP_REST_Request $request) {
+        $catalog = \WCP\Scanner\System\AIService::get_available_models();
+        return rest_ensure_response([
+            'success' => true,
+            'catalog' => $catalog,
+        ]);
+    }
+
+    /**
+     * Check provider APIs for new agent releases and update catalog & settings
+     */
+    public static function update_ai_models(\WP_REST_Request $request) {
+        try {
+            $params = $request->get_json_params() ?: [];
+            $auto_upgrade = !isset($params['auto_upgrade']) || !empty($params['auto_upgrade']);
+            $result = \WCP\Scanner\System\AIService::check_and_update_models($auto_upgrade);
+            $settings = \WCP\Scanner\System\SettingsManager::get_settings();
+            $result['settings'] = $settings;
+            return rest_ensure_response($result);
+        } catch (\Exception $e) {
+            return new \WP_Error('ai_models_update_error', $e->getMessage(), ['status' => 400]);
+        }
     }
 }

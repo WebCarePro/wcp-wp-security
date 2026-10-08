@@ -209,7 +209,7 @@ class DatabaseBackup {
                         'filename'   => $file,
                         'size_mb'    => round($size / (1024 * 1024), 2),
                         'size_bytes' => $size,
-                        'created'    => date('Y-m-d H:i:s', $mtime),
+                        'created'    => gmdate('Y-m-d H:i:s', $mtime),
                         'timestamp'  => $mtime,
                     ];
                 }

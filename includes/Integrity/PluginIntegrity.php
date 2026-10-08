@@ -128,7 +128,7 @@ class PluginIntegrity {
                         }
                     }
                 } catch (\Exception $e) {
-                    error_log("WCP PluginIntegrity reverse check error: " . $e->getMessage());
+                    // Suppress plugin checksum exceptions silently
                 }
             }
         }

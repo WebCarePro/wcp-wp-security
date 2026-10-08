@@ -89,9 +89,11 @@ class Migration {
         dbDelta($sql4);
 
         // Ensure scan_target column exists if upgraded
-        $col_check = $wpdb->get_results("SHOW COLUMNS FROM $scans_table LIKE 'scan_target'");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'scan_target'");
         if (empty($col_check)) {
-            $wpdb->query("ALTER TABLE $scans_table ADD COLUMN scan_target varchar(50) NOT NULL DEFAULT 'plugins_themes' AFTER status");
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN scan_target varchar(50) NOT NULL DEFAULT 'plugins_themes' AFTER status");
         }
 
         update_option('wcp_scanner_db_version', '1.4.0');

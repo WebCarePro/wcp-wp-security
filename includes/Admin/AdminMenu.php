@@ -72,6 +72,36 @@ class AdminMenu {
             'wcp-scanner-server',
             [__CLASS__, 'render_app_container']
         );
+
+        // Submenu: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Vulnerabilities & Updates', 'wcp-wp-scanner'),
+            __('Vulnerabilities', 'wcp-wp-scanner'),
+            'manage_options',
+            'wcp-scanner-vulnerabilities',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Submenu: Settings
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Scanner Settings & AI Configuration', 'wcp-wp-scanner'),
+            __('Settings', 'wcp-wp-scanner'),
+            'manage_options',
+            'wcp-scanner-settings',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Submenu: About & Services
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('About WebCare Pro & Services', 'wcp-wp-scanner'),
+            __('About & Services', 'wcp-wp-scanner'),
+            'manage_options',
+            'wcp-scanner-about',
+            [__CLASS__, 'render_app_container']
+        );
     }
 
     public static function render_app_container() {
@@ -85,10 +115,14 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-logs',
             'security-scanner_page_wcp-scanner-backup',
             'security-scanner_page_wcp-scanner-server',
+            'security-scanner_page_wcp-scanner-vulnerabilities',
+            'security-scanner_page_wcp-scanner-settings',
+            'security-scanner_page_wcp-scanner-about',
         ];
 
         // Also check query param fallback
-        $current_page = sanitize_key($_GET['page'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $current_page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
         $is_wcp_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'wcp-scanner') !== false || $current_page === 'wcp-security-scanner';
 
         if (!$is_wcp_page) {
@@ -100,6 +134,9 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-logs') $active_tab = 'logs';
         elseif ($current_page === 'wcp-scanner-backup') $active_tab = 'backup';
         elseif ($current_page === 'wcp-scanner-server') $active_tab = 'server';
+        elseif ($current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
+        elseif ($current_page === 'wcp-scanner-settings') $active_tab = 'settings';
+        elseif ($current_page === 'wcp-scanner-about') $active_tab = 'about';
 
         $asset_file = WCP_SCANNER_PATH . 'build/index.asset.php';
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
@@ -120,6 +157,7 @@ class AdminMenu {
                 'root'       => esc_url_raw(rest_url('wcp-scanner/v1')),
                 'nonce'      => wp_create_nonce('wp_rest'),
                 'siteUrl'    => get_site_url(),
+                'siteName'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
                 'initialTab' => $active_tab,
             ]);
         }

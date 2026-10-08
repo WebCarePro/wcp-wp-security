@@ -3,9 +3,9 @@
  * Plugin Name:       WCP WP Security Scanner
  * Plugin URI:        https://webcarespro.com
  * Description:       Advanced WordPress Security & Malware Scanner with Core File Integrity, Heuristic Threat Analysis, and Modern React Dashboard.
- * Version:           1.2.0
- * Requires at least: 7.0
- * Requires PHP:      8.3
+ * Version:           1.4.0
+ * Requires at least: 6.0
+ * Requires PHP:      7.4
  * Author:            Mir Alamin
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('WCP_SCANNER_VERSION', '1.2.0');
+define('WCP_SCANNER_VERSION', '1.4.0');
 define('WCP_SCANNER_FILE', __FILE__);
 define('WCP_SCANNER_PATH', plugin_dir_path(__FILE__));
 define('WCP_SCANNER_URL', plugin_dir_url(__FILE__));

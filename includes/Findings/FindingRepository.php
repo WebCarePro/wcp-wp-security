@@ -55,8 +55,9 @@ class FindingRepository {
         global $wpdb;
         $table = $wpdb->prefix . 'wcp_scan_issues';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
+            "SELECT * FROM `{$table}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
             $scan_id
         ), ARRAY_A);
 

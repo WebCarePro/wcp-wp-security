@@ -41,9 +41,10 @@ class ContentScanner {
                 break;
             }
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $posts = $wpdb->get_results($wpdb->prepare(
                 "SELECT ID, post_title, post_content, post_type, post_status 
-                 FROM {$posts_table} 
+                 FROM `{$posts_table}` 
                  WHERE ID > %d AND post_status IN ('publish', 'future', 'draft', 'private')
                  ORDER BY ID ASC 
                  LIMIT %d",
@@ -117,9 +118,10 @@ class ContentScanner {
                 break;
             }
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $comments = $wpdb->get_results($wpdb->prepare(
                 "SELECT comment_ID, comment_author_url, comment_content 
-                 FROM {$comments_table} 
+                 FROM `{$comments_table}` 
                  WHERE comment_ID > %d AND comment_approved = '1'
                  ORDER BY comment_ID ASC 
                  LIMIT %d",

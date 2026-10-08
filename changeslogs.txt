@@ -1,3 +1,145 @@
+v:1.4.0 - 2026-10-09
+- Created Comprehensive Documentation `features.md`:
+  * Documented all current features (Heuristic analysis, Core/Plugin integrity, Uploads audit, DB scanner, Crontab audit, CVE intelligence, quarantine vault, database backup, system info).
+  * Outlined future roadmap (Scheduled scans, email alerts, AI code forensics, settings import/export, WAF lite, file integrity monitor, auto-cure remediation).
+- Added Dedicated "Scanner Settings & Automation" Page & Submenu:
+  * Registered dedicated WordPress admin submenu under Security Scanner (`Security Scanner -> Settings`, slug `wcp-scanner-settings`).
+  * Dedicated side submenu navigation only: removed "Settings & Automation" tab button from the top horizontal tabs header so the top bar remains clean and focused solely on scanner operations.
+  * Dedicated standalone settings experience: hidden top scanner header and horizontal nav tabs when on the Settings page, giving full focus to settings configurations.
+  * Whitelisted submenu hook (`security-scanner_page_wcp-scanner-settings`) and localized navigation state for deep linking, browser history pushState/popState, and sidebar highlighting.
+- Automated Scheduled Scanning Engine:
+  * Built background WP-Cron scheduling engine in `WCP\Scanner\System\Scheduler` and `SettingsManager`.
+  * Configurable recurring frequencies: Hourly, Twice Daily, Daily, or Once Weekly.
+  * Off-peak execution time configuration (HH:MM server time).
+  * Selectable scan scope: Plugins & Themes, Full WordPress Tree, Core Integrity, or Uploads audit.
+  * Real-time next execution timestamp calculation and display.
+- Email Security Notifications & Incident Alerts:
+  * Configurable alert recipients (multiple comma/newline-separated email addresses).
+  * Customizable minimum severity threshold (Critical only, High & Critical, Medium+, or All findings).
+  * Rich, responsive HTML incident email template complete with site context, risk score meter, threat count badges, top detected threat breakdown with code paths, and 1-click admin dashboard CTA link.
+  * Optional email dispatch on clean scans and known software CVE advisories.
+- Multi-Provider AI Cybersecurity Intelligence Integration:
+  * Built `WCP\Scanner\System\AIService` supporting the latest generation production AI models: Google Gemini (Gemini 3.8 Flash, 3.8 Flash Cyber, 3.1 Pro), OpenAI ChatGPT (GPT-6.1 Sol, GPT-6 Astra, GPT-6 Luna), and Anthropic Claude (Claude Sonnet 5.5, Claude Opus 5.5, Claude Haiku 5.5).
+  * Outdated legacy models (such as deprecated Gemini 1.5) replaced with latest high-intelligence default agents. Added lightweight low-token agents (`Gemini 3.5 Flash-Lite` and `Gemini 3.1 Flash-Lite`) to minimize token consumption and provide 2-second ultra-fast forensic code analysis.
+  * Added 1-Click "Check & Update AI Agent Versions" feature: queries provider APIs to automatically discover newly released model versions (such as future Gemini 3.9) and seamlessly upgrades active configurations and dropdown options without requiring plugin code rewrites.
+  * Enhanced AI API timeout to 90s with runtime execution limit expansion (`@set_time_limit(120)`) to resolve cURL error 28 timeout exceptions during comprehensive forensic code evaluations.
+  * Added automatic resilient fallback: if Google Gemini signals high traffic, overloaded spikes, or rate exhaustion on heavy models, the engine automatically routes to `gemini-3.5-flash-lite` without failing the user's scan inspection.
+  * Optimized "Test AI Connection" ping to use an ultra-compact payload with a 16-token limit, reducing latency from 30+ seconds to under 1-2 seconds.
+  * Secure API key vault storage with masked key inputs and toggleable show/hide passwords.
+  * 1-Click "Test AI Connection" ping verification with real-time health indicator.
+  * Interactive "Analyze with AI" Forensic Modal integrated directly inside the Source Code Inspector window: sends suspicious code snippet, filename, and threat vector to AI for automated de-obfuscation, plain-English mechanics explanation, threat verification, and surgical remediation advice.
+- Settings Import & Export Engine:
+  * 1-Click "Export Settings to JSON" for agency fleets to back up and duplicate security configurations.
+  * 1-Click "Import Settings from JSON" with validation to rapidly deploy uniform security policies across client sites.
+  * "Reset to Factory Defaults" safeguard with confirmation modal.
+- Scanner Performance & Developer Hardening Options:
+  * Batch size throttle control (25, 50, 100, 200 files per batch) to adapt to shared vs dedicated hosting environments.
+  * Temporary runtime memory limit override (256M, 512M, 1024M).
+  * Maximum file size heuristic limit to skip oversized archive/media files from regex parsing.
+  * Custom directory and file exclusion lists (e.g., cache folders, node_modules, log files).
+  * Developer security tweaks: advice on `DISALLOW_FILE_EDIT`, generator tag removal, and `.env` / `.git` sensitive file exposure checks.
+- Redesigned "Scan Logs & History" UI & Formatting:
+  * Upgraded historical scan run log table to modern dashboard table layout (`wcp-table-modern`), adding target profile badges with human-readable labels, status indicators, and formatted file counts.
+  * Modernized "Inspection Findings" report card into an expandable/collapsible findings table matching the main Dashboard aesthetics.
+  * Added accordion row expansion (`ChevronDown` / `ChevronRight`) allowing full inspection of isolated malicious code snippets, database post details, and CVE advisory grids without layout distortion or table column stretching.
+  * Added real-time severity filter dropdown and search keyword filter inside historical scan inspections.
+- WordPress.org Submission & Plugin Check Hardening:
+  * Synchronized readme.txt and main file headers: aligned `Stable tag: 1.4.0`, `Requires at least: 6.0`, `Tested up to: 7.1`, and `Requires PHP: 7.4`.
+  * Created `languages/` directory satisfying the `Domain Path` header requirements.
+  * Replaced PHP core `parse_url()` with `wp_parse_url()` in `URLScanner.php` and `OptionScanner.php`.
+  * Replaced `date()` with `gmdate()` in `SettingsManager.php` and `DatabaseBackup.php` to prevent timezone skew.
+  * Sanitized and unslashed all `$_SERVER` and `$_GET` global variables using `wp_unslash()` and `sanitize_text_field()` / `sanitize_key()`.
+  * Added backtick identifier escaping around dynamic table names across `OptionScanner.php`, `ContentScanner.php`, `UserScanner.php`, `Migration.php`, `ScannerRoutes.php`, `Scheduler.php`, `QuarantineManager.php`, and `FindingRepository.php`.
+  * Removed debug `error_log()` statements from production catch blocks in `DirectoryWalker.php`, `UploadsScanner.php`, `CoreIntegrity.php`, `PluginIntegrity.php`, and `ThemeIntegrity.php`.
+- Expanded Automated Test Suite:
+  * Added unit & integration tests covering SettingsManager defaults, save/export/import round-trips, Cron sync, REST API settings endpoints, and AIService key validation.
+  * Test suite in `tests/test-suite.php` verified with 36 passing tests (36 Passed, 0 Failed).
+
+v:1.3.0 - 2026-10-08
+- Added Dedicated "About Us & Services" Sub-Page:
+  * Registered dedicated WordPress admin submenu under Security Scanner (`Security Scanner -> About & Services`, slug `wcp-scanner-about`).
+  * Dedicated side submenu navigation only: removed "About & Services" button from the top horizontal tabs header so the top bar remains clean and focused solely on core scanner functions.
+  * Whitelisted submenu hook (`security-scanner_page_wcp-scanner-about`) and localized initialTab state for direct deep linking.
+  * Updated About Us description: *"WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux & cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available."*
+  * Hyperlinked WhatsApp, Email, Upwork verified profile (https://www.upwork.com/freelancers/~0162afa9a578170c67), and Microsoft Teams meeting link (https://teams.live.com/l/invite/FEAI60zv48mwbIKhA?v=g1).
+  * Dynamic site-aware prebuilt messages: automatically populates WhatsApp and Email inquiries with the active WordPress site's title and domain name (`siteName` and `siteUrl`).
+  * Implemented Interactive Services Catalog with category filters (All, Security & Malware, Server & SysAdmin, Speed & Performance, Care, Migration & Agency) showcasing all 10 core services with short technical descriptions, feature lists, badges, and direct links to canonical service pages on https://webcarespro.com/services:
+    - Website Hack Recovery & Security (Emergency malware/backdoor cleanup, Google blacklist delisting, WAF protection)
+    - Website Speed Optimization (Sub-100ms TTFB, 100/100 Core Web Vitals, Redis object caching, FastCGI)
+    - Managed Server Administration (Linux root VPS/dedicated hardening, high-concurrency Nginx tuning, UFW/CSF firewalls)
+    - Expert Web Maintenance (24/7 proactive uptime monitoring, automated offsite cloud backups, safe staging updates)
+    - Zero-Downtime Website Transfers (Painless server migrations, WooCommerce order delta syncing, database integrity)
+    - Server & Web Troubleshooting (HTTP 500/502/503 fixes, fatal PHP memory crash repair, "No Fix, No Fee" guarantee)
+    - Domain & DNS Setup (Cloudflare Edge Caching, bot defense, SPF/DKIM/DMARC email deliverability records)
+    - Web Hosting Management (cPanel & Plesk administration, SSL auto-renewals, PHP version upgrades)
+    - White-Label Agency Support (Invisible behind-the-scenes server partner for agencies, 15-min SLA, NDA protected)
+    - AI-Ready Web Development (Modern Next.js web apps, WebMCP protocol & llms.txt discovery readiness, JSON-LD Schema)
+  * Integrated "Why Businesses Rely On WebCare Pro" 4-pillar value cards and 24/7 Emergency Contact & Consultation CTA banner with direct phone/WhatsApp (+8801322691090), email (hello@webcarespro.com), and website links.
+  * Engineered fully mobile-responsive CSS layout with touch-friendly controls, responsive grids, and subtle micro-animations.
+  * Bumped plugin and package version to 1.3.0.
+- Added Source File Code Inspection Popup Window & Modal:
+  * Created secure REST API endpoint `/wcp-scanner/v1/file/view` protected by `manage_options` permissions and strict directory traversal prevention (`realpath()` validated against `ABSPATH`).
+  * Supports read limit of 750KB with truncation protection, returning line count, byte size, octal permissions, writability indicator, and raw source code.
+  * Built dark-themed IDE code viewer modal (`#090d16` / `#050811`) with numbered gutter, real-time in-file search filtering, and copy-to-clipboard functionality.
+  * Intelligent Threat Line Highlighting: Automatically scrolls to and highlights the flagged line of malicious code with glowing red styling and threat vector badge.
+  * Quick action controls: "Jump to Line", "Copy Code", "Quarantine File", and "Close" with Escape key shortcut support.
+  * Added instant "View" / "View File" action buttons across Dashboard Findings, Scanned Files List, Targeted Audit results, and Scan Logs History.
+- Added Post & Page Malware / Spam Inspection & Direct WordPress Editor Navigation:
+  * Created secure REST API endpoint `/wcp-scanner/v1/post/view` to fetch post metadata, status, author, live permalink (`view_url`), admin edit URL (`edit_url`), and raw database content.
+  * Automatic Finding Enrichment: `ScannerRoutes::enrich_issues()` parses findings to identify post/page targets (`post:123`), attaching direct frontend URLs and WordPress admin edit links (`post.php?post=ID&action=edit`).
+  * Direct Table Actions for Posts/Pages:
+    - "Edit Page / Post": One-click button with `Edit3` icon linking directly to native WordPress block/classic editor in a new tab for immediate remediation or deletion.
+    - "Visit URL": Clickable live permalink with `Globe` icon opening the live page in a new tab.
+    - "Inspect": Dedicated Post/Page Forensic popup modal displaying metadata, threat analysis with detected payload snippet, and raw database content viewer.
+  * Added distinct visual badges (`[PAGE #ID]` and `[POST #ID]`) to distinguish database content threats from filesystem script threats.
+- Modernized and Enhanced Interface:
+  * Polished animations, glassmorphism modal backdrop, refined pill badges, and enhanced responsive layouts.
+  * Expanded automated test suite in `tests/test-suite.php` to 27 passing unit and integration checks.
+- Added Outdated WordPress Core, Themes & Plugins Detection with Known CVE References:
+  * Semver comparison engine matching installed Core, Plugins, and Themes against known vulnerable ranges.
+  * Built offline-resilient, curated CVE intelligence database across WordPress Core, popular plugins (Elementor, WooCommerce, LiteSpeed Cache, Contact Form 7, Essential Addons, Wordfence, WPForms, Advanced Custom Fields, All-in-One WP Migration, File Manager, Duplicator), and popular themes (Astra, OceanWP, Enfold, Avada, Divi, GeneratePress).
+  * Direct CVE References mapping: CVE ID, CVSS score, severity badge, affected version range, fixed-in version, vulnerability description, and official NIST NVD advisory links (`https://nvd.nist.gov/vuln/detail/CVE-...`).
+  * Automatic Finding Enrichment: `ScannerRoutes::enrich_issues()` parses evidence payloads into component metadata, installed & latest versions, CVE list, and direct WordPress update administrative URLs (`update-core.php`, `plugins.php`, `themes.php`).
+  * Interactive UI Elements:
+    - Dedicated type badges (`CORE`, `THEME`, `PLUGIN`) with distinct color palettes.
+    - Clickable CVE pill buttons (`CVE-XXXX [CVSS 9.8]`) directly on table rows across Dashboard, Targeted Audits, and Log History.
+    - Direct "Update Now" / "Update Software" action buttons linking straight to WordPress native update managers.
+    - Dedicated CVE Forensic Intelligence Modal: Displays full CVSS severity pills, detailed exploit vector descriptions, remediation recommendations, fixed versions, and direct NIST NVD references.
+- Added Dedicated "Vulnerabilities & Updates" Sub-Page:
+  * Registered dedicated WordPress admin submenu under Security Scanner (`Security Scanner -> Vulnerabilities`, slug `wcp-scanner-vulnerabilities`).
+  * Dedicated side submenu navigation only: kept the top horizontal navigation tabs focused and clean, routing `wcp-scanner-vulnerabilities` exclusively via the WordPress side menu.
+  * Resolved React runtime `Fragment` reference bug in `VulnerabilitiesPage.tsx` by importing `Fragment` from `@wordpress/element`.
+  * Built REST API endpoint `/wcp-scanner/v1/vulnerabilities/report` powered by `UpdateScanner::get_detailed_report()` compiling a complete audit of WordPress Core, all installed plugins, and all installed themes.
+  * Created dedicated `VulnerabilitiesPage.tsx` interface featuring:
+    - Executive Metric Cards: Total Components, Vulnerable (with active CVEs), Outdated (update ready), and Clean & Up-To-Date.
+    - Real-Time Interactive Filters: Status toggles (All, Vulnerable with CVEs, Outdated Only, Secure), Component Type filter (Core, Plugins, Themes), and instant search querying.
+    - Full Details Component Rows: Displays component name, active status, installed version, latest release version, slug, author, and direct update links.
+    - Expandable CVE Forensic Cards: Reveals full vulnerability advisories, CVE IDs, CVSS scores, remediation recommendations, fixed-in versions, and clickable NIST NVD advisory links.
+- Added Official vs. Premium/Custom Provenance & Unknown Foreign File Detection to Vulnerabilities Page:
+  * Backend Origin Classification: `UpdateScanner::get_detailed_report()` inspects update transients and queries `ChecksumProvider` official release manifests, categorizing each plugin and theme as either `official` (verified against WordPress.org repository) or `premium_custom` (third-party commercial, bespoke, or private distribution).
+  * Unknown/Foreign File Detection in Official Packages: For all official plugins and themes, recursively audits directories against the official WordPress.org checksum manifest, cataloging any foreign/unlisted files (relative path, byte size, executable status flag, and full server path).
+  * Executive Summary Metrics: Added "Origin & Catalog" summary card (Official vs. Custom breakdown) and "Unknown / Foreign Files" threat metric card alerting administrators to unverified files.
+  * Interactive Provenance Filters: Added secondary filter strip with options for "All Origins", "Official WordPress.org", "Premium / Custom Themes & Plugins", and "Contains Unknown Files".
+  * Visual Badges in Table:
+    - Added distinct origin badges: `[OFFICIAL WP.ORG]` (emerald green badge) and `[PREMIUM / CUSTOM]` (purple badge).
+    - Added high-visibility warning pill `[⚠️ X Unknown File(s)]` for official packages containing unverified files.
+  * Detailed Forensic Inspector in Expanded Rows:
+    - Component Origin Advisory banner clarifying whether integrity is verified against WordPress.org manifests or managed by private vendor updates, with direct links to vendor homepages.
+    - Unknown Files Forensic Inspector table listing file paths, human-readable byte sizes, full server paths, and highlighting executable PHP scripts (`.php`, `.phtml`, etc.) which often indicate web shells or backdoor persistence.
+  * Modern, Clean & Friendly UI Overhaul:
+    - Replaced heavy borders and redundant text with modern compact stat cards, refined typography, and subtle micro-shadows.
+    - Integrated clean pill filter buttons with active contrast colors for instant status and origin switching.
+    - Built streamlined unified filter & search panel with segmented type buttons and input search.
+    - Re-architected catalog table columns to lead with component name, type, and origin provenance badges with friendly status pills (`UP TO DATE`, `UPDATE READY`, `CRITICAL`), soft hover transitions, and alert highlighting.
+  * Modernized Main Dashboard & Scanner Page:
+    - Redesigned top navigation tabs with sleek contrast active pills (`#0f172a`) and smooth transitions.
+    - Upgraded top metrics overview to modern stat cards with soft icon accent containers (`Security Health`, `Critical Threats`, `Medium & Low Warnings`, `Scanned Scope`).
+    - Styled Comprehensive Security Audit hero box with dark radial glowing background, clear typography, and elevated CTA button.
+    - Modernized Findings, Quarantine Vault, and Scanned Files tabs with clean segmented control and real-time counter pills.
+    - Upgraded Findings table to modern borderless rows, alert row micro-highlighting, consolidated Threat/Vector columns, and polished mitigation action buttons (`Edit Post`, `Inspect`, `View File`, `Quarantine`).
+  * Expanded automated test suite in `tests/test-suite.php` to 30 passing unit and integration checks.
+
+
 v:1.2.0 - 2026-10-07
 - Bumped plugin and package version to 1.2.0.
 - Implemented Dedicated Sub-Pages & Tabs Navigation:

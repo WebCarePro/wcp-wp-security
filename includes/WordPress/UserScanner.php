@@ -109,10 +109,11 @@ class UserScanner {
 
         // 3. Orphaned Post Author Detection
         // Find posts authored by IDs that don't exist in wp_users
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $orphaned = $wpdb->get_results(
             "SELECT p.ID, p.post_title, p.post_type, p.post_author 
-             FROM {$posts_table} p 
-             LEFT JOIN {$users_table} u ON p.post_author = u.ID 
+             FROM `{$posts_table}` p 
+             LEFT JOIN `{$users_table}` u ON p.post_author = u.ID 
              WHERE u.ID IS NULL AND p.post_status IN ('publish', 'future', 'draft') 
              LIMIT 50"
         );

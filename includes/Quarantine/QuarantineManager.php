@@ -204,7 +204,8 @@ class QuarantineManager {
     public function list_records() {
         global $wpdb;
         $table = $wpdb->prefix . 'wcp_quarantine';
-        $results = $wpdb->get_results("SELECT * FROM {$table} ORDER BY id DESC", ARRAY_A);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY id DESC", ARRAY_A);
         return is_array($results) ? $results : [];
     }
 }

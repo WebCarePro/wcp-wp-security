@@ -128,7 +128,7 @@ class UploadsScanner {
                 }
             }
         } catch (\Exception $e) {
-            error_log('WCP UploadsScanner error: ' . $e->getMessage());
+            // Suppress media inspection exceptions silently
         }
 
         return $findings;

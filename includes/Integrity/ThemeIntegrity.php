@@ -128,7 +128,7 @@ class ThemeIntegrity {
                         }
                     }
                 } catch (\Exception $e) {
-                    error_log("WCP ThemeIntegrity reverse check error: " . $e->getMessage());
+                    // Suppress theme checksum exceptions silently
                 }
             }
         }

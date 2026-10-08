@@ -41,8 +41,7 @@ class DirectoryWalker {
                 }
             }
         } catch (\Exception $e) {
-            // Log permission issues or recursion errors, but don't crash
-            error_log('WCP Scanner DirectoryWalker Error: ' . $e->getMessage());
+            // Suppress filesystem traversal exceptions silently
         }
 
         return $files;

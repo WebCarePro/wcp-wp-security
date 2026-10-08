@@ -125,7 +125,7 @@ class CoreIntegrity {
                     }
                 }
             } catch (\Exception $e) {
-                error_log("WCP CoreIntegrity reverse check error: " . $e->getMessage());
+                // Suppress core checksum exceptions silently
             }
         }
 
