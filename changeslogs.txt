@@ -51,7 +51,7 @@ v:1.4.0 - 2026-10-09
   * Replaced `date()` with `gmdate()` in `SettingsManager.php` and `DatabaseBackup.php` to prevent timezone skew.
   * Sanitized and unslashed all `$_SERVER` and `$_GET` global variables using `wp_unslash()` and `sanitize_text_field()` / `sanitize_key()`.
   * Added backtick identifier escaping around dynamic table names across `OptionScanner.php`, `ContentScanner.php`, `UserScanner.php`, `Migration.php`, `ScannerRoutes.php`, `Scheduler.php`, `QuarantineManager.php`, and `FindingRepository.php`.
-  * Removed debug `error_log()` statements from production catch blocks in `DirectoryWalker.php`, `UploadsScanner.php`, `CoreIntegrity.php`, `PluginIntegrity.php`, and `ThemeIntegrity.php`.
+  * Removed redundant `Plugin URI` from `wcp-wp-scanner.php` to resolve WordPress.org validation error where `Plugin URI` and `Author URI` were identical, keeping `Author URI: https://webcarespro.com`.
 - Dynamic Plugin Version Engine Badge:
   * Replaced hardcoded "Engine v1.2.0 Active" header badge with dynamic localized plugin version (`● Engine v{version} Active`) powered by `wcpScannerSettings.version`, keeping UI display permanently in sync with `WCP_SCANNER_VERSION`.
 - Expanded Automated Test Suite:
