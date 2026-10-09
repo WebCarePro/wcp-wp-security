@@ -905,7 +905,7 @@ class ScannerRoutes {
                 if ($post) {
                     $item['is_post'] = true;
                     $item['post_id'] = $postId;
-                    $item['post_title'] = $post->post_title ?: __('(Untitled)', 'wcp-wp-scanner');
+                    $item['post_title'] = $post->post_title ?: __('(Untitled)', 'wcp-security-scanner');
                     $item['post_type'] = $post->post_type;
                     $item['view_url'] = get_permalink($postId) ?: '';
                     $item['edit_url'] = get_edit_post_link($postId, 'raw') ?: admin_url("post.php?post={$postId}&action=edit");
@@ -950,7 +950,7 @@ class ScannerRoutes {
     public static function view_file_content(\WP_REST_Request $request) {
         $raw_path = sanitize_text_field($request->get_param('file_path') ?: ($request->get_param('path') ?: ''));
         if (empty($raw_path)) {
-            return new \WP_Error('missing_path', __('File path parameter is required.', 'wcp-wp-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_path', __('File path parameter is required.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
         // Clean path and ensure inside ABSPATH
@@ -968,18 +968,18 @@ class ScannerRoutes {
         }
 
         if (empty($target_full) || !file_exists($target_full)) {
-            return new \WP_Error('file_not_found', __('File does not exist or has been removed from server.', 'wcp-wp-scanner'), ['status' => 404]);
+            return new \WP_Error('file_not_found', __('File does not exist or has been removed from server.', 'wcp-security-scanner'), ['status' => 404]);
         }
 
         $real_path = realpath($target_full);
         $real_abs = realpath(ABSPATH);
 
         if (!$real_path || !$real_abs || strpos(wp_normalize_path($real_path), wp_normalize_path($real_abs)) !== 0) {
-            return new \WP_Error('forbidden_path', __('Access to this file path is restricted outside WordPress root.', 'wcp-wp-scanner'), ['status' => 403]);
+            return new \WP_Error('forbidden_path', __('Access to this file path is restricted outside WordPress root.', 'wcp-security-scanner'), ['status' => 403]);
         }
 
         if (!is_readable($real_path)) {
-            return new \WP_Error('unreadable_file', __('File is not readable due to server permissions.', 'wcp-wp-scanner'), ['status' => 403]);
+            return new \WP_Error('unreadable_file', __('File is not readable due to server permissions.', 'wcp-security-scanner'), ['status' => 403]);
         }
 
         $file_size = (int) filesize($real_path);
@@ -988,7 +988,7 @@ class ScannerRoutes {
 
         $content = file_get_contents($real_path, false, null, 0, $max_read);
         if ($content === false) {
-            return new \WP_Error('read_error', __('Failed to read file content.', 'wcp-wp-scanner'), ['status' => 500]);
+            return new \WP_Error('read_error', __('Failed to read file content.', 'wcp-security-scanner'), ['status' => 500]);
         }
 
         $perms = substr(sprintf('%o', fileperms($real_path)), -4);
@@ -1026,18 +1026,18 @@ class ScannerRoutes {
         }
 
         if (!$post_id) {
-            return new \WP_Error('missing_post_id', __('Valid post ID is required.', 'wcp-wp-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_post_id', __('Valid post ID is required.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
         $post = get_post($post_id);
         if (!$post) {
-            return new \WP_Error('post_not_found', __('The requested post or page was not found.', 'wcp-wp-scanner'), ['status' => 404]);
+            return new \WP_Error('post_not_found', __('The requested post or page was not found.', 'wcp-security-scanner'), ['status' => 404]);
         }
 
         return rest_ensure_response([
             'success'      => true,
             'post_id'      => $post_id,
-            'title'        => $post->post_title ?: __('(Untitled)', 'wcp-wp-scanner'),
+            'title'        => $post->post_title ?: __('(Untitled)', 'wcp-security-scanner'),
             'post_type'    => $post->post_type,
             'post_status'  => $post->post_status,
             'author'       => get_the_author_meta('display_name', $post->post_author),
@@ -1077,7 +1077,7 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'success'        => true,
-            'message'        => __('Settings successfully saved.', 'wcp-wp-scanner'),
+            'message'        => __('Settings successfully saved.', 'wcp-security-scanner'),
             'settings'       => $saved,
             'next_scheduled' => $next_run ? date_i18n('Y-m-d H:i:s', $next_run) : null,
         ]);
@@ -1109,14 +1109,14 @@ class ScannerRoutes {
             }
         }
         if (empty($payload) || !is_array($payload)) {
-            return new \WP_Error('invalid_import', __('Invalid JSON data.', 'wcp-wp-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_import', __('Invalid JSON data.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
         try {
             $imported = \WCP\Scanner\System\SettingsManager::import_settings($payload);
             return rest_ensure_response([
                 'success'  => true,
-                'message'  => __('Settings successfully imported and applied.', 'wcp-wp-scanner'),
+                'message'  => __('Settings successfully imported and applied.', 'wcp-security-scanner'),
                 'settings' => $imported,
             ]);
         } catch (\Exception $e) {
@@ -1131,7 +1131,7 @@ class ScannerRoutes {
         $defaults = \WCP\Scanner\System\SettingsManager::reset_defaults();
         return rest_ensure_response([
             'success'  => true,
-            'message'  => __('Settings have been reset to factory defaults.', 'wcp-wp-scanner'),
+            'message'  => __('Settings have been reset to factory defaults.', 'wcp-security-scanner'),
             'settings' => $defaults,
         ]);
     }

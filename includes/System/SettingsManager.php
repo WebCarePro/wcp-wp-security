@@ -219,7 +219,7 @@ class SettingsManager {
      */
     public static function import_settings(array $payload): array {
         if (empty($payload['settings']) || !is_array($payload['settings'])) {
-            throw new \Exception(__('Invalid settings backup file format.', 'wcp-wp-scanner'));
+            throw new \Exception(__('Invalid settings backup file format.', 'wcp-security-scanner'));
         }
 
         return self::save_settings($payload['settings']);

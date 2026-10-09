@@ -20,7 +20,8 @@ class Engine {
         }
 
         // Avoid false positives on scanner's own rule definitions
-        if (strpos(str_replace('\\', '/', $filepath), 'wcp-wp-scanner/includes/Scanner/Rules.php') !== false) {
+        $norm_filepath = str_replace('\\', '/', $filepath);
+        if (strpos($norm_filepath, '/includes/Scanner/Rules.php') !== false) {
             return $issues;
         }
 
@@ -91,7 +92,7 @@ class Engine {
         foreach ($iterator as $item) {
             if ($item->isFile()) {
                 $pathname = str_replace('\\', '/', $item->getPathname());
-                if (strpos($pathname, '/plugins/wcp-wp-scanner/') !== false) {
+                if (strpos($pathname, '/plugins/wcp-wp-scanner/') !== false || strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
                     continue; // Do not enqueue scanner's own files
                 }
                 $ext = strtolower($item->getExtension());

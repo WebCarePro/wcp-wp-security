@@ -14,8 +14,8 @@ class AdminMenu {
     public static function add_menu_page() {
         // Main Menu: Dashboard
         add_menu_page(
-            __('Security Scanner', 'wcp-wp-scanner'),
-            __('Security Scanner', 'wcp-wp-scanner'),
+            __('Security Scanner', 'wcp-security-scanner'),
+            __('Security Scanner', 'wcp-security-scanner'),
             'manage_options',
             'wcp-security-scanner',
             [__CLASS__, 'render_app_container'],
@@ -26,8 +26,8 @@ class AdminMenu {
         // Submenu: Dashboard
         add_submenu_page(
             'wcp-security-scanner',
-            __('Scanner Dashboard', 'wcp-wp-scanner'),
-            __('Dashboard', 'wcp-wp-scanner'),
+            __('Scanner Dashboard', 'wcp-security-scanner'),
+            __('Dashboard', 'wcp-security-scanner'),
             'manage_options',
             'wcp-security-scanner',
             [__CLASS__, 'render_app_container']
@@ -36,8 +36,8 @@ class AdminMenu {
         // Submenu: Targeted Scans
         add_submenu_page(
             'wcp-security-scanner',
-            __('Targeted Security Audits', 'wcp-wp-scanner'),
-            __('Targeted Scans', 'wcp-wp-scanner'),
+            __('Targeted Security Audits', 'wcp-security-scanner'),
+            __('Targeted Scans', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-tools',
             [__CLASS__, 'render_app_container']
@@ -46,8 +46,8 @@ class AdminMenu {
         // Submenu: Scan Logs & History
         add_submenu_page(
             'wcp-security-scanner',
-            __('Scan Logs & Audit History', 'wcp-wp-scanner'),
-            __('Scan Logs', 'wcp-wp-scanner'),
+            __('Scan Logs & Audit History', 'wcp-security-scanner'),
+            __('Scan Logs', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-logs',
             [__CLASS__, 'render_app_container']
@@ -56,8 +56,8 @@ class AdminMenu {
         // Submenu: Database Backup
         add_submenu_page(
             'wcp-security-scanner',
-            __('Database Backup Vault', 'wcp-wp-scanner'),
-            __('Database Backup', 'wcp-wp-scanner'),
+            __('Database Backup Vault', 'wcp-security-scanner'),
+            __('Database Backup', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-backup',
             [__CLASS__, 'render_app_container']
@@ -66,8 +66,8 @@ class AdminMenu {
         // Submenu: Server Info
         add_submenu_page(
             'wcp-security-scanner',
-            __('Server & PHP Environment Info', 'wcp-wp-scanner'),
-            __('Server Info', 'wcp-wp-scanner'),
+            __('Server & PHP Environment Info', 'wcp-security-scanner'),
+            __('Server Info', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-server',
             [__CLASS__, 'render_app_container']
@@ -76,8 +76,8 @@ class AdminMenu {
         // Submenu: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
         add_submenu_page(
             'wcp-security-scanner',
-            __('Vulnerabilities & Updates', 'wcp-wp-scanner'),
-            __('Vulnerabilities', 'wcp-wp-scanner'),
+            __('Vulnerabilities & Updates', 'wcp-security-scanner'),
+            __('Vulnerabilities', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-vulnerabilities',
             [__CLASS__, 'render_app_container']
@@ -86,8 +86,8 @@ class AdminMenu {
         // Submenu: Settings
         add_submenu_page(
             'wcp-security-scanner',
-            __('Scanner Settings & AI Configuration', 'wcp-wp-scanner'),
-            __('Settings', 'wcp-wp-scanner'),
+            __('Scanner Settings & AI Configuration', 'wcp-security-scanner'),
+            __('Settings', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-settings',
             [__CLASS__, 'render_app_container']
@@ -96,8 +96,8 @@ class AdminMenu {
         // Submenu: About & Services
         add_submenu_page(
             'wcp-security-scanner',
-            __('About WebCare Pro & Services', 'wcp-wp-scanner'),
-            __('About & Services', 'wcp-wp-scanner'),
+            __('About WebCare Pro & Services', 'wcp-security-scanner'),
+            __('About & Services', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-about',
             [__CLASS__, 'render_app_container']

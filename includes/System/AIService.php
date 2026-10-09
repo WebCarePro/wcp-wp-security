@@ -11,7 +11,7 @@ class AIService {
      */
     public static function test_connection(string $provider, string $api_key, string $model): array {
         if (empty($api_key)) {
-            return ['success' => false, 'error' => __('API key is required.', 'wcp-wp-scanner')];
+            return ['success' => false, 'error' => __('API key is required.', 'wcp-security-scanner')];
         }
 
         $prompt = 'Ping test. Reply with OK.';
@@ -20,7 +20,7 @@ class AIService {
             $response = self::call_provider($provider, $api_key, $model, 'You are an AI diagnostic tester.', $prompt, 0.1, 16);
             return [
                 'success' => true,
-                'message' => __('AI connection established successfully!', 'wcp-wp-scanner'),
+                'message' => __('AI connection established successfully!', 'wcp-security-scanner'),
                 'provider'=> $provider,
                 'model'   => $model,
                 'preview' => trim(substr($response, 0, 100)),
@@ -56,7 +56,7 @@ class AIService {
         }
 
         if (empty($api_key)) {
-            throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings.', 'wcp-wp-scanner'));
+            throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings.', 'wcp-security-scanner'));
         }
 
         $code = $data['code'] ?? '';
@@ -65,7 +65,7 @@ class AIService {
         $flagged_line = $data['line_number'] ?? null;
 
         if (empty($code)) {
-            throw new \Exception(__('No code snippet provided for AI forensic analysis.', 'wcp-wp-scanner'));
+            throw new \Exception(__('No code snippet provided for AI forensic analysis.', 'wcp-security-scanner'));
         }
 
         // Limit code sent to avoid excessive token costs
@@ -465,7 +465,7 @@ class AIService {
 
         return [
             'success'     => true,
-            'message'     => __('AI Agent models updated to the latest available releases.', 'wcp-wp-scanner'),
+            'message'     => __('AI Agent models updated to the latest available releases.', 'wcp-security-scanner'),
             'catalog'     => $catalog,
             'discovered'  => $discovered,
             'updated_at'  => current_time('mysql'),

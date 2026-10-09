@@ -61,13 +61,19 @@ v:1.4.0 - 2026-10-09
   * Replaced PHP core `parse_url()` with `wp_parse_url()` in `URLScanner.php` and `OptionScanner.php`.
   * Replaced `date()` with `gmdate()` in `SettingsManager.php` and `DatabaseBackup.php` to prevent timezone skew.
   * Sanitized and unslashed all `$_SERVER` and `$_GET` global variables using `wp_unslash()` and `sanitize_text_field()` / `sanitize_key()`.
-  * Added backtick identifier escaping around dynamic table names across `OptionScanner.php`, `ContentScanner.php`, `UserScanner.php`, `Migration.php`, `ScannerRoutes.php`, `Scheduler.php`, `QuarantineManager.php`, and `FindingRepository.php`.
   * Removed redundant `Plugin URI` from `wcp-wp-scanner.php` to resolve WordPress.org validation error where `Plugin URI` and `Author URI` were identical, keeping `Author URI: https://webcarespro.com`.
+  * Resolved WordPress.org automated scan error `Generic.PHP.ForbiddenFunctions.Found`: Replaced forbidden PHP function call `str_rot13()` with `strtr()` character translation in `DeobfuscationEngine.php`.
+  * Resolved WordPress.org automated scan error `hidden_files`: Excluded `.gitignore` and all hidden dotfiles from the distribution release archive.
+  * Resolved WordPress.org automated scan warning `unexpected_markdown_file`: Relocated `features.md` out of the plugin root into `docs/features.md`.
+  * Resolved WordPress.org automated scan warning `textdomain_mismatch`: Updated `Text Domain` header in `wcp-wp-scanner.php` from `wcp-wp-scanner` to `wcp-security-scanner` to match the official slug, and synchronized all `__()` translation calls and self-exclusion paths across the plugin.
+  * Resolved WordPress.org automated scan warning `plugin_header_nonexistent_domain_path`: Added `languages/index.php` so that the `languages/` directory is never omitted during zip packaging.
+  * Added automated packaging script `npm run package` (`scripts/package.js`) generating verified, production-compliant `wcp-security-scanner.zip`.
+  * Enhanced Uploads Media & Image Forensics in `UploadsScanner.php`: added binary executable magic bytes verification (detects Windows PE "MZ", Linux ELF "\x7fELF", macOS Mach-O, and Unix shebang "#!" disguised as images), SVG vector graphic XSS inspection (detects `<script>`, inline event handlers, `javascript:` URIs, `<foreignObject>`, and HTML embedders), and deep EXIF / trailing payload scans to catch webshells appended after image EOF markers.
 - Dynamic Plugin Version Engine Badge:
   * Replaced hardcoded "Engine v1.2.0 Active" header badge with dynamic localized plugin version (`● Engine v{version} Active`) powered by `wcpScannerSettings.version`, keeping UI display permanently in sync with `WCP_SCANNER_VERSION`.
 - Expanded Automated Test Suite:
-  * Added unit & integration tests covering SettingsManager defaults, save/export/import round-trips, Cron sync, REST API settings endpoints, and AIService key validation.
-  * Test suite in `tests/test-suite.php` verified with 36 passing tests (36 Passed, 0 Failed).
+  * Added unit & integration tests covering SettingsManager defaults, save/export/import round-trips, Cron sync, REST API settings endpoints, AIService key validation, and uploads image forensics (binary spoofing, SVG XSS, and image polyglots).
+  * Test suite in `tests/test-suite.php` verified with 37 passing tests (37 Passed, 0 Failed).
 
 v:1.3.0 - 2026-10-08
 - Added Dedicated "About Us & Services" Sub-Page:

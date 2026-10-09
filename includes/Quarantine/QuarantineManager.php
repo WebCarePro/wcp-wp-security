@@ -81,7 +81,7 @@ class QuarantineManager {
             ];
         }
 
-        if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false) {
+        if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false || strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
             return [
                 'success' => false,
                 'message' => "Action Blocked: Cannot quarantine security scanner plugin files."

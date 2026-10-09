@@ -20,7 +20,7 @@ class Scheduler {
             if (!isset($schedules['weekly'])) {
                 $schedules['weekly'] = [
                     'interval' => 7 * DAY_IN_SECONDS,
-                    'display'  => __('Once Weekly', 'wcp-wp-scanner'),
+                    'display'  => __('Once Weekly', 'wcp-security-scanner'),
                 ];
             }
             return $schedules;

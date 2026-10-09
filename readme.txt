@@ -34,7 +34,7 @@ WebCare Pro helps businesses build, secure, optimize, and manage high-performanc
 
 == Installation ==
 
-1. Upload the `wcp-wp-scanner` folder to your `/wp-content/plugins/` directory.
+1. Upload the `wcp-security-scanner` folder to your `/wp-content/plugins/` directory.
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 3. Navigate to **Security Scanner** in the WordPress admin sidebar.
 4. Click **Start Scan Now** to analyze your site.

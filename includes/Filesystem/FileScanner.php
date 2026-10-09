@@ -38,7 +38,7 @@ class FileScanner {
 
         // Self-Exclusion: Do not scan the scanner's own plugin files or tests
         $norm_path = str_replace('\\', '/', $file_path);
-        if (strpos($norm_path, '/plugins/wcp-wp-scanner/') !== false || strpos($norm_path, '/tests/') !== false) {
+        if (strpos($norm_path, '/plugins/wcp-wp-scanner/') !== false || strpos($norm_path, '/plugins/wcp-security-scanner/') !== false || strpos($norm_path, '/tests/') !== false) {
             return $findings;
         }
 
