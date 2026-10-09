@@ -17,13 +17,13 @@ class TableScanner {
             'regex'      => '/<script[\s\S]*?>[\s\S]*?<\/script>/i',
             'severity'   => 'high',
             'confidence' => 85,
-            'desc'       => 'Injected <script> tag detected in database content.'
+            'desc'       => 'Injected script element tag detected in database content.'
         ],
         'iframe_injection' => [
             'regex'      => '/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/i',
             'severity'   => 'high',
             'confidence' => 85,
-            'desc'       => 'Injected <iframe> tag detected in database content.'
+            'desc'       => 'Injected iframe element tag detected in database content.'
         ],
         'malicious_event_handler' => [
             'regex'      => '/\b(onload|onerror|onclick|onmouseover)\s*=\s*["\']?\s*(javascript:|eval|window\.location|document\.cookie)/i',

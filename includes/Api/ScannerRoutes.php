@@ -278,8 +278,8 @@ class ScannerRoutes {
                 $all_files = array_merge($all_files, Engine::get_scannable_files($path, 3000));
             }
         } else { // default plugins_themes
-            $paths[] = WP_CONTENT_DIR . '/plugins';
-            $paths[] = WP_CONTENT_DIR . '/themes';
+            $paths[] = WP_PLUGIN_DIR;
+            $paths[] = get_theme_root();
             foreach ($paths as $path) {
                 $all_files = array_merge($all_files, Engine::get_scannable_files($path, 2500));
             }
@@ -347,7 +347,7 @@ class ScannerRoutes {
 
         foreach ($files_to_process as $filepath) {
             $findings = $file_scanner->scan_file($filepath, (string) $scan_id);
-            $rel_path = str_replace(untrailingslashit(ABSPATH) . '/', '', str_replace('\\', '/', $filepath));
+            $rel_path = ltrim(str_replace(wp_normalize_path(ABSPATH), '', wp_normalize_path($filepath)), '/');
             $file_size = @filesize($filepath) ?: 0;
             $file_status = !empty($findings) ? 'threat' : 'clean';
 

@@ -54,7 +54,7 @@ class HTMLAnalyzer {
         }
 
         // 4. Suspicious remote script injections in content
-        // Normally, posts should NOT contain <script src="..."> tags (they are filtered by KSES, but if DB is compromised directly they appear)
+        // Normally, posts should NOT contain script source tags (filtered by KSES unless DB compromised directly)
         if (preg_match('/<script\s+[^>]*src\s*=\s*["\'](http[^"\']+)["\'][^>]*>/i', $html, $matches)) {
             // Ignore common legit embeds if we want, but in post_content ANY remote script is usually bad
             $src = $matches[1];

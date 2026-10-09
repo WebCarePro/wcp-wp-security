@@ -1,3 +1,17 @@
+v:1.4.1 - 2026-10-10
+- WordPress.org Official Plugin Review Compliance & Hardening:
+  * Resolved Trademark / Discouraged Naming Guidelines: Renamed display name from `WCP WP Security Scanner` to `WCP Security Scanner` across `wcp-wp-scanner.php`, `readme.txt`, email notification templates, and settings export metadata. Preserved clean approved slug `wcp-security-scanner`.
+  * Fixed Readme Short Description Length: Shortened header description in `readme.txt` to 147 characters (under the strict 150-character limit required by the WordPress plugin directory).
+  * Documented External Third-Party Services (Guideline #6): Added dedicated `== External Services ==` section in `readme.txt` disclosing official WordPress.org Checksum API, Google Gemini API, OpenAI API, and Anthropic Claude API with exact purposes, data payloads, triggers, and clickable links to official Terms of Service and Privacy Policies.
+  * Added Public Source Code & Build Instructions (Guidelines #1 & #4): Added `== Source Code & Build ==` in `readme.txt` linking to public GitHub development repository and detailing build steps. Included non-minified `src/` directory and `package.json` in distribution zip packager.
+  * Corrected File & Directory Location Functions: Replaced hardcoded `WP_CONTENT_DIR . '/plugins'` with `WP_PLUGIN_DIR`, `WP_CONTENT_DIR . '/mu-plugins'` with `WPMU_PLUGIN_DIR`, themes path with `get_theme_root()`, and uploads path with `wp_upload_dir()['basedir']`. Replaced hardcoded version.php path with `ABSPATH . WPINC . '/version.php'`.
+  * Hardened and Relocated Data Storage (Quarantine, Logs, Backups): Consolidated all plugin file creation into `wp-content/uploads/wcp-security-scanner/` (`/logs/`, `/quarantine/`, `/backups/`) strictly guarded with `.htaccess` (`Require all denied`) and silent `index.php`.
+  * Refactored Core Repair to Prohibit Core Overwriting: Removed all direct file writes (`file_put_contents`, `rename`) to ABSPATH and core directories (`wp-admin`, `wp-includes`) in `CoreRepairManager`. Replaced with compliant guidance directing administrators to WordPress core's native updater (`update-core.php`) or WP-CLI (`wp core download --force`).
+  * Enforced Trailing Slash Directory Boundary Check: Fixed ABSPATH root prefix validation in `QuarantineManager` using `wp_normalize_path` with trailing directory separator to prevent sibling directory traversal. Strictly blocked quarantine or restore operations on core directories.
+  * Resolved False-Positive `<script>` Enqueue Flags: Neutralized literal `<script>` and `<iframe>` strings in malware definition descriptions (`UploadsScanner.php`, `TableScanner.php`, `HTMLAnalyzer.php`) to prevent static analysis regex false positives.
+  * Hardened Input Sanitization: Sanitized and validated `$_SERVER['REMOTE_ADDR']` using `filter_var(..., FILTER_VALIDATE_IP)` and stripped newlines to eliminate audit log injection risks in `AuditLogger.php`.
+  * Updated Authorship & Contributors: Set sole contributor to `miralamin` in `readme.txt` to align directly with official WordPress.org account and resolve ownership/freelance ambiguity.
+
 v:1.4.0 - 2026-10-09
 - Created Comprehensive Documentation `features.md`:
   * Documented all current features (Heuristic analysis, Core/Plugin integrity, Uploads audit, DB scanner, Crontab audit, CVE intelligence, quarantine vault, database backup, system info).

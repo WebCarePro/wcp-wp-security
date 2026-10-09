@@ -10,19 +10,10 @@ class DatabaseBackup {
     private $backup_dir;
 
     public function __construct() {
-        $primary = WP_CONTENT_DIR . '/wcp-backups';
-        $this->backup_dir = $primary;
+        $uploads = wp_upload_dir();
+        $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
+        $this->backup_dir = $base . '/wcp-security-scanner/backups';
         $this->ensure_directory();
-
-        // If primary location in wp-content is not writable by web server user, fallback to uploads
-        if (!is_writable($this->backup_dir)) {
-            $uploads = wp_upload_dir();
-            if (!empty($uploads['basedir'])) {
-                $fallback = untrailingslashit($uploads['basedir']) . '/wcp-backups';
-                $this->backup_dir = $fallback;
-                $this->ensure_directory();
-            }
-        }
     }
 
     /**

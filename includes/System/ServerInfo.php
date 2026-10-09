@@ -64,12 +64,15 @@ class ServerInfo {
         $ssl_active = is_ssl();
         $multisite = is_multisite();
 
+        $upload_dir = wp_upload_dir();
+        $uploads_basedir = !empty($upload_dir['basedir']) ? $upload_dir['basedir'] : '';
+
         // 6. Security Critical File Permissions
         $permissions = [
             'wp-config.php' => file_exists(ABSPATH . 'wp-config.php') ? substr(sprintf('%o', fileperms(ABSPATH . 'wp-config.php')), -4) : 'N/A',
             '.htaccess'     => file_exists(ABSPATH . '.htaccess') ? substr(sprintf('%o', fileperms(ABSPATH . '.htaccess')), -4) : 'N/A',
             'wp-content'    => is_dir(WP_CONTENT_DIR) ? substr(sprintf('%o', fileperms(WP_CONTENT_DIR)), -4) : 'N/A',
-            'uploads'       => is_dir(WP_CONTENT_DIR . '/uploads') ? substr(sprintf('%o', fileperms(WP_CONTENT_DIR . '/uploads')), -4) : 'N/A',
+            'uploads'       => (!empty($uploads_basedir) && is_dir($uploads_basedir)) ? substr(sprintf('%o', fileperms($uploads_basedir)), -4) : 'N/A',
         ];
 
         return [

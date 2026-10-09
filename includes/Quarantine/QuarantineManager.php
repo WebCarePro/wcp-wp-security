@@ -10,7 +10,9 @@ class QuarantineManager {
     private $quarantine_dir;
 
     public function __construct() {
-        $this->quarantine_dir = WP_CONTENT_DIR . '/wcp-quarantine';
+        $uploads = wp_upload_dir();
+        $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
+        $this->quarantine_dir = $base . '/wcp-security-scanner/quarantine';
         $this->ensure_quarantine_directory();
     }
 
@@ -53,10 +55,21 @@ class QuarantineManager {
             return ['success' => false, 'message' => 'Target file does not exist or is a directory.'];
         }
 
-        // Security check: Must reside within WordPress installation root
-        $real_root = realpath(ABSPATH);
-        if (strpos($real_path, $real_root) !== 0) {
+        // Security check: Must reside within WordPress installation root with directory boundary check
+        $real_root = wp_normalize_path(untrailingslashit(ABSPATH)) . '/';
+        $normalized_real = wp_normalize_path($real_path);
+        if (strpos($normalized_real, $real_root) !== 0) {
             return ['success' => false, 'message' => 'Security violation: File resides outside ABSPATH.'];
+        }
+
+        // Prohibit quarantining files inside core directories (wp-admin, wp-includes)
+        $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';
+        $wp_admin_dir = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
+        if (strpos($normalized_real, $wp_includes_dir) === 0 || strpos($normalized_real, $wp_admin_dir) === 0) {
+            return [
+                'success' => false,
+                'message' => "Action Blocked: Core WordPress directory files cannot be quarantined directly."
+            ];
         }
 
         // Critical system protection: Never allow quarantining essential bootstrap or config files
@@ -72,7 +85,6 @@ class QuarantineManager {
         ];
 
         $basename = strtolower(basename($real_path));
-        $normalized_real = str_replace('\\', '/', $real_path);
 
         if (in_array($basename, $protected_basenames, true)) {
             return [
@@ -161,6 +173,20 @@ class QuarantineManager {
         }
 
         $dest_path = $record['original_path'];
+
+        // Security check: Destination must reside within ABSPATH boundary
+        $real_root = wp_normalize_path(untrailingslashit(ABSPATH)) . '/';
+        $normalized_dest = wp_normalize_path($dest_path);
+        if (strpos($normalized_dest, $real_root) !== 0) {
+            return ['success' => false, 'message' => 'Security violation: Restore destination resides outside ABSPATH.'];
+        }
+
+        // Prohibit restoring directly into WordPress core directories
+        $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';
+        $wp_admin_dir = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
+        if (strpos($normalized_dest, $wp_includes_dir) === 0 || strpos($normalized_dest, $wp_admin_dir) === 0) {
+            return ['success' => false, 'message' => 'Action Blocked: Cannot restore files directly into WordPress core system directories.'];
+        }
 
         // Ensure destination directory exists
         $dest_dir = dirname($dest_path);

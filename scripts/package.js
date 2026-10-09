@@ -25,11 +25,13 @@ const includeFiles = [
   'wcp-wp-scanner.php',
   'readme.txt',
   'composer.json',
+  'package.json',
   'README.md',
 ];
 
 const includeDirs = [
   'build',
+  'src',
   'includes',
   'languages',
 ];

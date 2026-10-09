@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name:       WCP WP Security Scanner
- * Description:       Advanced WordPress Security & Malware Scanner with Core File Integrity, Heuristic Threat Analysis, and Modern React Dashboard.
+ * Plugin Name:       WCP Security Scanner
+ * Description:       Advanced security & malware scanner with core file integrity checks, heuristic threat analysis, and modern React dashboard.
  * Version:           1.4.0
  * Requires at least: 7.0
  * Requires PHP:      8.3

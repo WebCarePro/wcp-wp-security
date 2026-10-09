@@ -70,7 +70,7 @@ class UpdateScanner {
                 'type'         => !empty($core_cves) ? 'vulnerable_core' : 'outdated_core',
                 'severity'     => $severity,
                 'confidence'   => 100,
-                'file_path'    => ABSPATH . 'wp-includes/version.php',
+                'file_path'    => ABSPATH . WPINC . '/version.php',
                 'description'  => $desc,
                 'evidence'     => wp_json_encode($evidence_payload),
                 'code_snippet' => !empty($core_cves) ? 'CVE References: ' . implode(', ', array_column($core_cves, 'cve_id')) : "Current: {$wp_version}, Available: {$core_latest}"
@@ -190,7 +190,7 @@ class UpdateScanner {
                     'type'         => !empty($theme_cves) ? 'vulnerable_theme' : 'outdated_theme',
                     'severity'     => $severity,
                     'confidence'   => 100,
-                    'file_path'    => WP_CONTENT_DIR . "/themes/{$theme_slug}",
+                    'file_path'    => get_theme_root() . "/{$theme_slug}",
                     'description'  => $desc,
                     'evidence'     => wp_json_encode($evidence_payload),
                     'code_snippet' => !empty($theme_cves) ? 'CVE References: ' . implode(', ', array_column($theme_cves, 'cve_id')) : "Installed: v{$cur_version}, Latest: v{$new_version}"

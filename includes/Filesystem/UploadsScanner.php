@@ -42,10 +42,10 @@ class UploadsScanner {
     public function scan($scan_id) {
         $findings = [];
 
-        $upload_dir_info = function_exists('wp_upload_dir') ? wp_upload_dir() : [];
-        $uploads_path = !empty($upload_dir_info['basedir']) ? $upload_dir_info['basedir'] : WP_CONTENT_DIR . '/uploads';
+        $upload_dir_info = wp_upload_dir();
+        $uploads_path = !empty($upload_dir_info['basedir']) ? $upload_dir_info['basedir'] : '';
 
-        if (!is_dir($uploads_path)) {
+        if (empty($uploads_path) || !is_dir($uploads_path)) {
             return $findings;
         }
 
@@ -266,7 +266,7 @@ class UploadsScanner {
             ]);
         }
 
-        // Check for script tags: <script, <script>, </script>
+        // Check for script tags in SVG content
         if (preg_match('/<script\b[^>]*>/i', $content, $m)) {
             return new Finding([
                 'engine'       => 'uploads-scanner',
@@ -275,8 +275,8 @@ class UploadsScanner {
                 'confidence'   => 98,
                 'file_path'    => $real_path,
                 'code_snippet' => substr($m[0], 0, 200),
-                'description'  => "SVG image '{$basename}' contains executable <script> tags leading to Stored Cross-Site Scripting (XSS).",
-                'evidence'     => "Found active '<script>' tag in SVG vector image file."
+                'description'  => "SVG image '{$basename}' contains executable script element leading to Stored Cross-Site Scripting (XSS).",
+                'evidence'     => "Found active script element in SVG vector image file."
             ]);
         }
 

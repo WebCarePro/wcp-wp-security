@@ -41,8 +41,8 @@ class PersistenceScanner {
     public function scan($scan_id) {
         $findings = [];
 
-        // 1. Audit wp-content/mu-plugins/
-        $mu_dir = WP_CONTENT_DIR . '/mu-plugins';
+        // 1. Audit mu-plugins directory
+        $mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
         if (is_dir($mu_dir)) {
             $mu_files = glob($mu_dir . '/*.php');
             if (!empty($mu_files)) {

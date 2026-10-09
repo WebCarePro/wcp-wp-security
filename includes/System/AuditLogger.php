@@ -11,7 +11,8 @@ class AuditLogger {
     private $log_file;
 
     public function __construct() {
-        $this->log_dir = WP_CONTENT_DIR . '/wcp-logs';
+        $upload_dir = wp_upload_dir();
+        $this->log_dir = untrailingslashit($upload_dir['basedir']) . '/wcp-security-scanner/logs';
         $this->log_file = $this->log_dir . '/audit.log';
     }
 
@@ -29,6 +30,11 @@ class AuditLogger {
         $htaccess = $this->log_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
             @file_put_contents($htaccess, "Require all denied\nDeny from all\n");
+        }
+
+        $index = $this->log_dir . '/index.php';
+        if (!file_exists($index)) {
+            @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
         }
     }
 
@@ -57,13 +63,17 @@ class AuditLogger {
 
     private function write_log($event_type, $message) {
         $timestamp = gmdate('Y-m-d H:i:s');
-        $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+        $raw_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $ip_address = filter_var($raw_ip, FILTER_VALIDATE_IP) ? $raw_ip : 'UNKNOWN';
         
         $current_user = wp_get_current_user();
-        $username = ($current_user && $current_user->exists()) ? $current_user->user_login : 'System/Guest';
+        $username = ($current_user && $current_user->exists()) ? sanitize_user($current_user->user_login) : 'System/Guest';
+
+        $clean_event = sanitize_key($event_type);
+        $clean_message = str_replace(["\r", "\n"], ' ', sanitize_text_field($message));
 
         // Format: [TIMESTAMP] [IP] [USER] [EVENT] Message
-        $log_entry = sprintf("[%s] [IP: %s] [User: %s] [%s] %s" . PHP_EOL, $timestamp, $ip_address, $username, $event_type, $message);
+        $log_entry = sprintf("[%s] [IP: %s] [User: %s] [%s] %s" . PHP_EOL, $timestamp, $ip_address, $username, $clean_event, $clean_message);
 
         @file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
     }
