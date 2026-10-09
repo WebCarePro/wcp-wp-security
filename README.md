@@ -1,7 +1,7 @@
 # WCP Security Scanner
 
 <p align="center">
-  <img src="https://webcarespro.com/wp-content/uploads/2024/02/webcarepro-logo.png" alt="WebCare Pro Logo" width="180" onerror="this.style.display='none'"/>
+  <img src="https://webcarespro.com/icon-192.png" alt="WebCare Pro Logo" width="180" onerror="this.style.display='none'"/>
 </p>
 
 <p align="center">
