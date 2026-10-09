@@ -96,6 +96,6 @@ class Migration {
             $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN scan_target varchar(50) NOT NULL DEFAULT 'plugins_themes' AFTER status");
         }
 
-        update_option('wcp_scanner_db_version', '1.4.0');
+        update_option('wcp_scanner_db_version', '1.4.1');
     }
 }

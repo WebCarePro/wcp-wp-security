@@ -17,6 +17,7 @@ v:1.4.1 - 2026-10-10
   * Updated Comprehensive Documentation `docs/features.md`: Expanded features documentation with deep architectural design principles, multi-vector scanning capabilities, AI integration specs, developer controls, clean uninstall lifecycle details, and extended future roadmap (v1.5.0+).
   * Created Comprehensive GitHub Documentation `README.md`: Built full GitHub README featuring enterprise badges, multi-vector scanner highlights, detailed WebCare Pro company overview, specialized services catalog, tech stack specifications, WordPress.org guideline compliance summary, and verified Upwork profile / social channels / contact methods.
   * Synchronized Complete Features Catalog in `readme.txt`: Expanded WordPress.org plugin directory `readme.txt` with the comprehensive, categorized features lists matching `README.md` and `features.md` (Multi-Vector Scanning, CVE Engine, Forensics/Quarantine, Database Vault, AI Forensics, and Clean Uninstall).
+  * Enforced Strict Version Synchronization: Synchronized version `1.4.1` from `changeslogs.txt` across `wcp-wp-scanner.php` (header `* Version: 1.4.1` and `WCP_SCANNER_VERSION`), `readme.txt` (`Stable tag: 1.4.1`), `package.json` (`"version": "1.4.1"`), and `includes/Database/Migration.php` (`wcp_scanner_db_version`), and codified the permanent rule in `AGENTS.md`.
 
 v:1.4.0 - 2026-10-09
 - Created Comprehensive Documentation `features.md`:
