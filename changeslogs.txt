@@ -14,6 +14,7 @@ v:1.4.1 - 2026-10-10
   * Added WordPress 7.0+ Core AI Client Bridge: Integrated detection and fallback hooks for `wp_ai_client()` in `AIService.php` to enable site-level AI credentials alongside direct provider APIs.
   * Added Clean Uninstall & Database Purge Engine: Created `uninstall.php` adhering to official WordPress standards to automatically drop all 4 custom database tables (`wcp_scans`, `wcp_scan_issues`, `wcp_scan_files`, `wcp_quarantine`), delete options/transients, unschedule cron events, and clean upload storage upon deletion. Added `delete_data_on_uninstall` toggle in Scanner Settings (enabled by default) with ability to disable to preserve audit logs across reinstalls. Unscheduled cron on deactivation hook in `wcp-wp-scanner.php`.
   * Added Dedicated "Data & Cleanup" Settings Tab & Multi-Location Discoverability: Added a dedicated "Data & Cleanup" tab with a high-visibility badge in the React Settings interface with complete breakdown of dropped tables/assets and safety policies. Mirrored quick toggle inside the "Engine & Hardening" tab and added a quick status indicator badge in the Settings page top header.
+  * Updated Comprehensive Documentation `docs/features.md`: Expanded features documentation with deep architectural design principles, multi-vector scanning capabilities, AI integration specs, developer controls, clean uninstall lifecycle details, and extended future roadmap (v1.5.0+).
 
 v:1.4.0 - 2026-10-09
 - Created Comprehensive Documentation `features.md`:
