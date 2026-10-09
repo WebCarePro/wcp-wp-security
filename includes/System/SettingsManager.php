@@ -54,6 +54,9 @@ class SettingsManager {
             'disable_file_editing'     => false,
             'hide_wp_version'          => false,
             'block_sensitive_files'    => false, // .env, .git, etc.
+
+            // 7. Cleanup & Data Privacy on Plugin Uninstall (Enabled by default)
+            'delete_data_on_uninstall' => true,
         ];
     }
 
@@ -156,6 +159,9 @@ class SettingsManager {
         $clean['disable_file_editing']  = !empty($input['disable_file_editing']);
         $clean['hide_wp_version']       = !empty($input['hide_wp_version']);
         $clean['block_sensitive_files'] = !empty($input['block_sensitive_files']);
+
+        // 7. Cleanup & Data Privacy on Plugin Uninstall
+        $clean['delete_data_on_uninstall'] = isset($input['delete_data_on_uninstall']) ? !empty($input['delete_data_on_uninstall']) : true;
 
         update_option(self::OPTION_KEY, $clean);
 

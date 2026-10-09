@@ -50,7 +50,7 @@ register_activation_hook(__FILE__, function () {
 });
 
 register_deactivation_hook(__FILE__, function () {
-    // Optional cleanup or cron unschedule
+    wp_clear_scheduled_hook('wcp_scanner_scheduled_scan_cron');
 });
 
 // Initialize the plugin

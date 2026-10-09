@@ -27,6 +27,7 @@ const includeFiles = [
   'composer.json',
   'package.json',
   'README.md',
+  'uninstall.php',
 ];
 
 const includeDirs = [
