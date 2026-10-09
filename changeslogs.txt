@@ -16,6 +16,7 @@ v:1.4.1 - 2026-10-10
   * Added Dedicated "Data & Cleanup" Settings Tab & Multi-Location Discoverability: Added a dedicated "Data & Cleanup" tab with a high-visibility badge in the React Settings interface with complete breakdown of dropped tables/assets and safety policies. Mirrored quick toggle inside the "Engine & Hardening" tab and added a quick status indicator badge in the Settings page top header.
   * Updated Comprehensive Documentation `docs/features.md`: Expanded features documentation with deep architectural design principles, multi-vector scanning capabilities, AI integration specs, developer controls, clean uninstall lifecycle details, and extended future roadmap (v1.5.0+).
   * Created Comprehensive GitHub Documentation `README.md`: Built full GitHub README featuring enterprise badges, multi-vector scanner highlights, detailed WebCare Pro company overview, specialized services catalog, tech stack specifications, WordPress.org guideline compliance summary, and verified Upwork profile / social channels / contact methods.
+  * Synchronized Complete Features Catalog in `readme.txt`: Expanded WordPress.org plugin directory `readme.txt` with the comprehensive, categorized features lists matching `README.md` and `features.md` (Multi-Vector Scanning, CVE Engine, Forensics/Quarantine, Database Vault, AI Forensics, and Clean Uninstall).
 
 v:1.4.0 - 2026-10-09
 - Created Comprehensive Documentation `features.md`:
