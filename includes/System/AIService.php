@@ -55,8 +55,8 @@ class AIService {
             $model = !empty($data['model']) ? $data['model'] : ($settings['openai_model'] ?? 'gpt-6.1-sol');
         }
 
-        if (empty($api_key)) {
-            throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings.', 'wcp-security-scanner'));
+        if (empty($api_key) && !self::has_core_ai_client()) {
+            throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect the WordPress Core AI Client.', 'wcp-security-scanner'));
         }
 
         $code = $data['code'] ?? '';
@@ -101,9 +101,48 @@ class AIService {
     }
 
     /**
-     * Dispatch API call to selected AI provider
+     * Check if WordPress Core AI Client (introduced in WordPress 7.0+) is available.
+     */
+    public static function has_core_ai_client(): bool {
+        return function_exists('wp_ai_client') || class_exists('\\WP_AI_Client');
+    }
+
+    /**
+     * Optional wrapper for WordPress Core AI Client on WordPress 7.0+
+     */
+    private static function call_core_ai_client(string $system, string $user, float $temp, int $max_tokens = 1200): ?string {
+        if (function_exists('wp_ai_client')) {
+            try {
+                $client = wp_ai_client();
+                if ($client && method_exists($client, 'prompt')) {
+                    $result = $client->prompt($user, [
+                        'system_instruction' => $system,
+                        'temperature'        => $temp,
+                        'max_tokens'         => $max_tokens,
+                    ]);
+                    if (!empty($result)) {
+                        return is_string($result) ? $result : ($result['text'] ?? null);
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Fall back to direct provider if core client is unconfigured
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Dispatch API call to selected AI provider (with Core AI Client compatibility)
      */
     private static function call_provider(string $provider, string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
+        // If site runs WordPress 7.0+ Core AI Client and no custom key is provided, prefer Core AI Client
+        if (empty($api_key) && self::has_core_ai_client()) {
+            $core_response = self::call_core_ai_client($system, $user, $temp, $max_tokens);
+            if (!empty($core_response)) {
+                return $core_response;
+            }
+        }
+
         if ($provider === 'gemini') {
             return self::call_gemini($api_key, $model, $system, $user, $temp, $max_tokens);
         } elseif ($provider === 'claude') {

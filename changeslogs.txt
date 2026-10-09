@@ -11,6 +11,7 @@ v:1.4.1 - 2026-10-10
   * Resolved False-Positive `<script>` Enqueue Flags: Neutralized literal `<script>` and `<iframe>` strings in malware definition descriptions (`UploadsScanner.php`, `TableScanner.php`, `HTMLAnalyzer.php`) to prevent static analysis regex false positives.
   * Hardened Input Sanitization: Sanitized and validated `$_SERVER['REMOTE_ADDR']` using `filter_var(..., FILTER_VALIDATE_IP)` and stripped newlines to eliminate audit log injection risks in `AuditLogger.php`.
   * Updated Authorship & Contributors: Set sole contributor to `miralamin` in `readme.txt` to align directly with official WordPress.org account and resolve ownership/freelance ambiguity.
+  * Added WordPress 7.0+ Core AI Client Bridge: Integrated detection and fallback hooks for `wp_ai_client()` in `AIService.php` to enable site-level AI credentials alongside direct provider APIs.
 
 v:1.4.0 - 2026-10-09
 - Created Comprehensive Documentation `features.md`:
