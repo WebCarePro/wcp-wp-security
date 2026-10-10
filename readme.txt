@@ -128,6 +128,13 @@ WebCare Pro helps businesses build, secure, optimize, and manage high-performanc
 3. Navigate to **Security Scanner** in the WordPress admin sidebar.
 4. Click **Start Scan Now** to analyze your site.
 
+== Privacy & Data Protection Guarantee ==
+
+* **Zero Tracking or Telemetry**: WCP Security Scanner does NOT track, collect, store, or sell any personal data, analytics, or browsing habits from your WordPress website, its visitors, or its administrators.
+* **No Sensitive Data Transmission**: The plugin operates entirely on your local server. It does NOT transmit sensitive credentials, passwords, database contents, client customer records, or private site data to any third-party server or external cloud.
+* **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.
+* **Explicit User-Initiated Integrations Only**: External connections (such as WordPress.org checksums, threat intel feeds, Cloudflare edge sync, AI forensic assistance, or Slack/Discord webhooks) only occur when explicitly configured or initiated by the site administrator, transmitting only non-sensitive diagnostic parameters strictly necessary for the requested feature.
+
 == External Services ==
 
 This plugin connects to external services to provide file integrity verification and optional AI-assisted code forensic analysis:
