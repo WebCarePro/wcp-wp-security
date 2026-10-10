@@ -102,11 +102,17 @@ class SettingsManager {
             'session_lock_ip'                    => false,
             'session_idle_timeout'               => 120, // Minutes before inactive session is revoked
 
-            // 11. DevSecOps Chat Webhooks (Slack & Discord)
+            // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
             'slack_enabled'                      => false,
             'slack_webhook_url'                  => '',
             'discord_enabled'                    => false,
             'discord_webhook_url'                => '',
+            'clickup_enabled'                    => false,
+            'clickup_webhook_url'                => '',
+            'asana_enabled'                      => false,
+            'asana_webhook_url'                  => '',
+            'generic_webhook_enabled'            => false,
+            'generic_webhook_url'                => '',
             'webhook_notify_on_critical'         => true,
             'webhook_notify_on_fim'              => true,
             'webhook_notify_on_waf_block'        => false,
@@ -269,11 +275,17 @@ class SettingsManager {
         $clean['session_lock_ip']          = !empty($input['session_lock_ip']);
         $clean['session_idle_timeout']      = max(0, min(1440, (int) ($input['session_idle_timeout'] ?? 120)));
 
-        // 11. DevSecOps Chat Webhooks (Slack & Discord)
+        // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
         $clean['slack_enabled']                 = !empty($input['slack_enabled']);
         $clean['slack_webhook_url']             = esc_url_raw(trim($input['slack_webhook_url'] ?? ''));
         $clean['discord_enabled']               = !empty($input['discord_enabled']);
         $clean['discord_webhook_url']           = esc_url_raw(trim($input['discord_webhook_url'] ?? ''));
+        $clean['clickup_enabled']               = !empty($input['clickup_enabled']);
+        $clean['clickup_webhook_url']           = esc_url_raw(trim($input['clickup_webhook_url'] ?? ''));
+        $clean['asana_enabled']                 = !empty($input['asana_enabled']);
+        $clean['asana_webhook_url']             = esc_url_raw(trim($input['asana_webhook_url'] ?? ''));
+        $clean['generic_webhook_enabled']       = !empty($input['generic_webhook_enabled']);
+        $clean['generic_webhook_url']           = esc_url_raw(trim($input['generic_webhook_url'] ?? ''));
         $clean['webhook_notify_on_critical']    = isset($input['webhook_notify_on_critical']) ? !empty($input['webhook_notify_on_critical']) : true;
         $clean['webhook_notify_on_fim']         = isset($input['webhook_notify_on_fim']) ? !empty($input['webhook_notify_on_fim']) : true;
         $clean['webhook_notify_on_waf_block']   = !empty($input['webhook_notify_on_waf_block']);

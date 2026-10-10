@@ -197,10 +197,12 @@ An enterprise-grade, lightweight WordPress security, malware detection, integrit
 
 ---
 
-### 16. DevSecOps Chat Webhooks (Slack & Discord)
+### 16. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
 - **Real-Time Security Notifications**: Delivers rich Block Kit (Slack) and Embed (Discord) alert cards when critical vulnerabilities are found, files are altered, or attacks are blocked.
+- **Automated DevSecOps Ticket Dispatch**: Automatically converts security threats, malware discoveries, and FIM file changes into actionable task tickets in ClickUp and Asana with priority flags, tags, and direct dashboard URLs.
+- **Custom Enterprise Automation Webhook**: Dispatches structured REST JSON payloads to Zapier, Make.com, n8n, or custom SIEM pipelines to automate incident response workflows.
 - **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
-- **Live Webhook Testing API**: 1-click test button inside Scanner Settings to verify webhook URL configuration instantly.
+- **Live Webhook Testing API**: 1-click test buttons inside Scanner Settings to verify webhook URL configuration instantly with real-time delivery status feedback.
 
 ---
 

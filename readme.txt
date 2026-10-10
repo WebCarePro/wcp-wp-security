@@ -106,10 +106,12 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **External Rootkit & Uploads Hook Traps**: Detects hook callbacks originating outside WordPress root (auto_prepend_file or system rootkits) and callbacks executing inside wp-content/uploads/ (webshell callbacks).
 * **Dangerous Native Function Registration Defense**: Detects dangerous native PHP functions (eval, assert, shell_exec, system, passthru) attached directly as WordPress filter callbacks.
 
-= DevSecOps Chat Webhooks (Slack & Discord) =
+= DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n) =
 * **Real-Time Security Notifications**: Delivers rich Block Kit (Slack) and Embed (Discord) alert cards when critical vulnerabilities are found, files are altered, or attacks are blocked.
+* **Automated DevSecOps Ticket Dispatch**: Automatically generates tracking tasks in ClickUp and Asana with forensic data, severity tags, and dashboard links.
+* **Custom Enterprise Automation Webhook**: Dispatches structured JSON payloads to Zapier, Make.com, n8n, or custom SIEM pipelines to automate incident response workflows.
 * **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
-* **Live Webhook Testing API**: 1-click test button inside Scanner Settings to verify webhook URL configuration instantly.
+* **Live Webhook Testing API**: 1-click test buttons inside Scanner Settings to verify webhook configurations instantly.
 
 = Author =
 * **Author**: Mir Alamin
@@ -186,7 +188,31 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://discord.com/terms
 * Privacy Policy: https://discord.com/privacy
 
-8. Cloudflare API v4 (Optional)
+8. ClickUp Automation API (Optional)
+* Service: ClickUp (https://clickup.com).
+* Purpose: Creates automated DevSecOps tasks or notifies ClickUp lists on critical security threats.
+* Data Sent: Task name, description with site name, risk score, findings count, and incident timestamp.
+* When: Only if configured and enabled by the administrator in Scanner Settings.
+* Terms of Service: https://clickup.com/terms
+* Privacy Policy: https://clickup.com/privacy
+
+9. Asana API & Automations (Optional)
+* Service: Asana Inc. (https://asana.com).
+* Purpose: Creates automated project management tasks on security findings.
+* Data Sent: Task title, forensic notes, site name, risk score, and incident timestamp.
+* When: Only if configured and enabled by the administrator in Scanner Settings.
+* Terms of Service: https://asana.com/terms
+* Privacy Policy: https://asana.com/privacy
+
+10. Generic Automation Webhooks (Zapier, Make.com, n8n) (Optional)
+* Service: User-specified automation endpoints (Zapier, Make.com, n8n, or custom SIEM webhook receivers).
+* Purpose: Dispatches structured JSON event payloads to trigger custom enterprise DevSecOps automation workflows.
+* Data Sent: JSON event payload with event type, site name, site URL, risk score, issue count, and timestamp.
+* When: Only if configured and enabled by the administrator in Scanner Settings.
+* Terms of Service: Governed by the user's selected endpoint service provider.
+* Privacy Policy: Governed by the user's selected endpoint service provider.
+
+11. Cloudflare API v4 (Optional)
 * Service: Cloudflare Inc. (https://api.cloudflare.com/client/v4).
 * Purpose: Deploys edge WAF rules, wp-login rate limiting, and IP access block rules to Cloudflare CDN, and purges edge cache.
 * Data Sent: Zone ID, WAF ruleset configurations, and blocked malicious IP addresses when explicitly initiated or configured for auto-sync.
