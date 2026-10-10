@@ -36,6 +36,11 @@ class FileIntegrityMonitor {
             'timeframe_hours'  => $hours,
         ];
 
+        // Identify custom or commercial/premium components to skip from official WP.org baseline
+        $custom_components = $this->get_custom_and_premium_components();
+        $custom_plugin_slugs = $custom_components['plugins'];
+        $custom_theme_slugs = $custom_components['themes'];
+
         $dirs_to_check = [];
 
         // 1. Core directories and root
@@ -119,6 +124,27 @@ class FileIntegrityMonitor {
                             continue;
                         }
 
+                        // Skip files inside custom or premium plugins (no official WP.org baseline)
+                        if ($cat === 'plugins') {
+                            $rel_to_plugins = ltrim(str_replace(wp_normalize_path(WP_PLUGIN_DIR), '', $file_path), '/');
+                            $plugin_parts = explode('/', $rel_to_plugins, 2);
+                            $p_slug = $plugin_parts[0];
+                            if (isset($custom_plugin_slugs[$p_slug])) {
+                                continue;
+                            }
+                        }
+
+                        // Skip files inside custom or premium themes (no official WP.org baseline)
+                        if ($cat === 'themes') {
+                            $theme_root_norm = wp_normalize_path(function_exists('get_theme_root') ? get_theme_root() : WP_CONTENT_DIR . '/themes');
+                            $rel_to_themes = ltrim(str_replace($theme_root_norm, '', $file_path), '/');
+                            $theme_parts = explode('/', $rel_to_themes, 2);
+                            $t_slug = $theme_parts[0];
+                            if (isset($custom_theme_slugs[$t_slug])) {
+                                continue;
+                            }
+                        }
+
                         // For uploads directory: only flag PHP, script files, or .htaccess
                         if ($cat === 'uploads') {
                             $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
@@ -174,9 +200,14 @@ class FileIntegrityMonitor {
         }
 
         return [
-            'stats'   => $stats,
-            'total'   => $total_found,
-            'changes' => $changes,
+            'stats'          => $stats,
+            'total'          => $total_found,
+            'changes'        => $changes,
+            'skipped_custom' => [
+                'plugins' => array_values($custom_components['plugins']),
+                'themes'  => array_values($custom_components['themes']),
+                'count'   => count($custom_components['plugins']) + count($custom_components['themes']),
+            ],
         ];
     }
 
@@ -315,7 +346,11 @@ class FileIntegrityMonitor {
             $plugin_slug = $parts[0];
             $internal_file = isset($parts[1]) ? $parts[1] : '';
 
-            if ($plugin_slug && $internal_file) {
+            $custom_components = $this->get_custom_and_premium_components();
+            if (isset($custom_components['plugins'][$plugin_slug])) {
+                $comp = $custom_components['plugins'][$plugin_slug];
+                $diff_message = "Custom/Premium Plugin ({$comp['name']}): Excluded from official repository baselines. Displaying local inspection view.";
+            } elseif ($plugin_slug && $internal_file) {
                 // Find plugin version
                 $version = $this->get_plugin_version_by_slug($plugin_slug);
                 if ($version) {
@@ -331,12 +366,26 @@ class FileIntegrityMonitor {
                     }
                 }
             }
+        } elseif (strpos($rel_path, 'wp-content/themes/') === 0) {
+            $category = 'theme';
+            $theme_rel = substr($rel_path, strlen('wp-content/themes/'));
+            $parts = explode('/', $theme_rel, 2);
+            $theme_slug = $parts[0];
+            $internal_file = isset($parts[1]) ? $parts[1] : '';
+
+            $custom_components = $this->get_custom_and_premium_components();
+            if (isset($custom_components['themes'][$theme_slug])) {
+                $comp = $custom_components['themes'][$theme_slug];
+                $diff_message = "Custom/Premium Theme ({$comp['name']}): Excluded from official repository baselines. Displaying local inspection view.";
+            }
         }
 
         // If official content not found, compare with empty or analyze local
         if ($official_content === null) {
             $official_content = '';
-            $diff_message = 'Official repository baseline is unavailable for this custom file. Displaying local inspection view.';
+            if (empty($diff_message)) {
+                $diff_message = 'Official repository baseline is unavailable for this custom file. Displaying local inspection view.';
+            }
         } else {
             $diff_message = 'Comparing against official bit-for-bit repository source.';
         }
@@ -528,5 +577,177 @@ class FileIntegrityMonitor {
             'additions' => $additions,
             'deletions' => $deletions,
         ];
+    }
+
+    /**
+     * Identify custom or commercial/premium plugins and themes that are not hosted
+     * on the official public WordPress.org repository.
+     *
+     * @return array ['plugins' => [...], 'themes' => [...]]
+     */
+    public function get_custom_and_premium_components() {
+        $cache_key = 'wcp_fim_custom_components_v1';
+        $cached = get_transient($cache_key);
+        if ($cached !== false && is_array($cached)) {
+            return $cached;
+        }
+
+        $custom_plugins = [];
+        $custom_themes = [];
+
+        // 1. Detect Custom & Premium Plugins
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $all_plugins = function_exists('get_plugins') ? get_plugins() : [];
+        $update_plugins = get_site_transient('update_plugins');
+
+        $checked_plugins = (!empty($update_plugins) && is_object($update_plugins) && !empty($update_plugins->checked)) ? $update_plugins->checked : [];
+        $response_plugins = (!empty($update_plugins) && is_object($update_plugins) && !empty($update_plugins->response)) ? $update_plugins->response : [];
+        $no_update_plugins = (!empty($update_plugins) && is_object($update_plugins) && !empty($update_plugins->no_update)) ? $update_plugins->no_update : [];
+
+        $commercial_domains = [
+            'woocommerce.com', 'codecanyon.net', 'themeforest.net', 'envato.com',
+            'elegantthemes.com', 'gravityforms.com', 'wpengine.com', 'yoast.com/premium',
+            'elementor.com/pro', 'crocoblock.com', 'wpml.org', 'advancedcustomfields.com/pro',
+            'wpmudev.com', 'ithemes.com', 'solidwp.com', 'stellarwp.com'
+        ];
+
+        foreach ($all_plugins as $plugin_file => $plugin_data) {
+            $slug = dirname($plugin_file);
+            if ($slug === '.' || empty($slug)) {
+                $slug = sanitize_title(pathinfo($plugin_file, PATHINFO_FILENAME));
+            }
+
+            $name = !empty($plugin_data['Name']) ? $plugin_data['Name'] : $slug;
+            $version = !empty($plugin_data['Version']) ? $plugin_data['Version'] : '';
+            $author = !empty($plugin_data['Author']) ? wp_strip_all_tags($plugin_data['Author']) : '';
+            $plugin_uri = strtolower($plugin_data['PluginURI'] ?? '');
+            $author_uri = strtolower($plugin_data['AuthorURI'] ?? '');
+
+            $is_wporg = false;
+            $type = 'custom';
+            $reason = 'Not hosted on WordPress.org repository baseline';
+
+            // Check if known commercial store
+            foreach ($commercial_domains as $domain) {
+                if (strpos($plugin_uri, $domain) !== false || strpos($author_uri, $domain) !== false) {
+                    $type = 'premium';
+                    $reason = "Commercial extension ({$domain})";
+                    break;
+                }
+            }
+
+            // If found in WordPress.org update response or no_update
+            if (isset($response_plugins[$plugin_file]) || isset($no_update_plugins[$plugin_file])) {
+                $is_wporg = true;
+            } elseif (!empty($checked_plugins) && isset($checked_plugins[$plugin_file])) {
+                // WordPress core checked it on api.wordpress.org, and it was not found
+                $is_wporg = false;
+            } else {
+                // Check transient or quick checksum head
+                $chk_cache = get_transient("wcp_is_wporg_plugin_{$slug}");
+                if ($chk_cache === 'yes') {
+                    $is_wporg = true;
+                } elseif ($chk_cache === 'no') {
+                    $is_wporg = false;
+                } else {
+                    // Fast remote check
+                    $test_url = "https://downloads.wordpress.org/plugin-checksums/{$slug}/{$version}.json";
+                    $res = wp_remote_head($test_url, ['timeout' => 3]);
+                    if (!is_wp_error($res) && wp_remote_retrieve_response_code($res) === 200) {
+                        $is_wporg = true;
+                        set_transient("wcp_is_wporg_plugin_{$slug}", 'yes', 7 * DAY_IN_SECONDS);
+                    } else {
+                        $is_wporg = false;
+                        set_transient("wcp_is_wporg_plugin_{$slug}", 'no', 7 * DAY_IN_SECONDS);
+                    }
+                }
+            }
+
+            if (!$is_wporg) {
+                $custom_plugins[$slug] = [
+                    'slug'    => $slug,
+                    'name'    => $name,
+                    'version' => $version,
+                    'author'  => $author,
+                    'type'    => $type,
+                    'reason'  => $reason,
+                ];
+            }
+        }
+
+        // 2. Detect Custom & Premium Themes
+        $all_themes = function_exists('wp_get_themes') ? wp_get_themes() : [];
+        $update_themes = get_site_transient('update_themes');
+
+        $checked_themes = (!empty($update_themes) && is_object($update_themes) && !empty($update_themes->checked)) ? $update_themes->checked : [];
+        $response_themes = (!empty($update_themes) && is_object($update_themes) && !empty($update_themes->response)) ? $update_themes->response : [];
+        $no_update_themes = (!empty($update_themes) && is_object($update_themes) && !empty($update_themes->no_update)) ? $update_themes->no_update : [];
+
+        $bundled_themes = [
+            'twentytwentyfive', 'twentytwentyfour', 'twentytwentythree', 'twentytwentytwo',
+            'twentytwentyone', 'twentytwenty', 'twentynineteen', 'twentyseventeen',
+            'twentysixteen', 'twentyfifteen', 'twentyfourteen', 'twentythirteen',
+            'twentytwelve', 'twentyeleven', 'twentyten'
+        ];
+
+        foreach ($all_themes as $theme_slug => $theme_obj) {
+            $is_wporg = false;
+            $type = 'custom';
+            $name = $theme_obj->get('Name') ?: $theme_slug;
+            $version = $theme_obj->get('Version') ?: '';
+            $author = wp_strip_all_tags($theme_obj->get('Author') ?: '');
+            $theme_uri = strtolower($theme_obj->get('ThemeURI') ?: '');
+            $author_uri = strtolower($theme_obj->get('AuthorURI') ?: '');
+
+            // Core default themes are always official
+            if (in_array(strtolower($theme_slug), $bundled_themes, true) || strpos(strtolower($theme_slug), 'twenty') === 0) {
+                $is_wporg = true;
+            } elseif ($theme_obj->parent()) {
+                // Child theme is custom
+                $is_wporg = false;
+                $type = 'child_theme';
+                $reason = 'Custom Child Theme';
+            } elseif (isset($response_themes[$theme_slug]) || isset($theme_no_update[$theme_slug])) {
+                $is_wporg = true;
+            } elseif (!empty($checked_themes) && isset($checked_themes[$theme_slug])) {
+                $is_wporg = false;
+                $reason = 'Not hosted on WordPress.org repository baseline';
+            } else {
+                // Check if commercial domains
+                foreach ($commercial_domains as $domain) {
+                    if (strpos($theme_uri, $domain) !== false || strpos($author_uri, $domain) !== false) {
+                        $type = 'premium';
+                        $reason = "Commercial Theme ({$domain})";
+                        break;
+                    }
+                }
+                if ($type !== 'premium') {
+                    $is_wporg = false;
+                    $reason = 'Custom or Third-Party Theme';
+                }
+            }
+
+            if (!$is_wporg) {
+                $custom_themes[$theme_slug] = [
+                    'slug'    => $theme_slug,
+                    'name'    => $name,
+                    'version' => $version,
+                    'author'  => $author,
+                    'type'    => $type,
+                    'reason'  => $reason,
+                ];
+            }
+        }
+
+        $result = [
+            'plugins' => $custom_plugins,
+            'themes'  => $custom_themes,
+        ];
+
+        set_transient($cache_key, $result, 6 * HOUR_IN_SECONDS);
+        return $result;
     }
 }
