@@ -1,7 +1,7 @@
 === WCP Security Scanner ===
 Contributors: miralamin
 Donate link: https://webcarespro.com
-Tags: security, malware, scanner, integrity, firewall, 2fa
+Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
