@@ -1153,6 +1153,17 @@ class ScannerRoutes {
                     $item['edit_url'] = admin_url("comment.php?action=editcomment&c={$commentId}");
                 }
             } 
+            // 3. Check if finding is a WordPress User Account
+            elseif (preg_match('/^user:(\d+)/i', $filePath, $matches)) {
+                $userId = (int) $matches[1];
+                $user = get_userdata($userId);
+                if ($user) {
+                    $item['is_user'] = true;
+                    $item['user_id'] = $userId;
+                    $item['user_login'] = $user->user_login;
+                    $item['edit_url'] = admin_url("user-edit.php?user_id={$userId}");
+                }
+            } 
             // 3. Otherwise treat as a Filesystem finding
             else {
                 $cleanPath = ltrim(str_replace(['../', '..\\'], '', $filePath), '/\\');
