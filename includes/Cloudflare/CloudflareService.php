@@ -270,9 +270,15 @@ class CloudflareService {
 
         $proxy_status = self::check_proxy_status($zone_id);
 
+        // Mask zone ID for UI presentation to prevent plain text exposure on screen
+        $masked_zone = strlen($zone_id) > 8
+            ? substr($zone_id, 0, 4) . '••••••••••••••••••••' . substr($zone_id, -4)
+            : '••••••••••••••••';
+
         return [
             'configured'       => true,
-            'zone_id'          => $zone_id,
+            'zone_id'          => $masked_zone,
+            'has_zone_id'      => true,
             'zone_name'        => $verify['zone_name'],
             'site_root_domain' => $site_root_domain,
             'has_token'        => true,

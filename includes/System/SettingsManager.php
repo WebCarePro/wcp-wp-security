@@ -336,13 +336,15 @@ class SettingsManager {
         // 12. Cloudflare Edge Defense Integration (Encrypted with SecretVault)
         $clean['cloudflare_enabled']        = !empty($input['cloudflare_enabled']);
         $in_cf_token                        = trim($input['cloudflare_api_token'] ?? '');
-        $cf_token_val                       = ($in_cf_token === '' || $in_cf_token === '••••••••')
+        $is_masked_token                    = $in_cf_token === '' || strpos($in_cf_token, '••') !== false;
+        $cf_token_val                       = $is_masked_token
             ? \WCP\Scanner\Security\SecretVault::decrypt($current['cloudflare_api_token'] ?? '')
             : sanitize_text_field($in_cf_token);
         $clean['cloudflare_api_token']      = \WCP\Scanner\Security\SecretVault::encrypt($cf_token_val);
 
         $in_zone_id                         = trim($input['cloudflare_zone_id'] ?? '');
-        $zone_id_val                        = ($in_zone_id === '' || $in_zone_id === '••••••••')
+        $is_masked_zone                     = $in_zone_id === '' || strpos($in_zone_id, '••') !== false;
+        $zone_id_val                        = $is_masked_zone
             ? \WCP\Scanner\Security\SecretVault::decrypt($current['cloudflare_zone_id'] ?? '')
             : sanitize_text_field($in_zone_id);
         $clean['cloudflare_zone_id']        = \WCP\Scanner\Security\SecretVault::encrypt($zone_id_val);
