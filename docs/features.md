@@ -220,7 +220,18 @@ An enterprise-grade, lightweight WordPress security, malware detection, integrit
 
 ---
 
-### 18. Privacy, Zero Telemetry & Data Sovereignty Architecture
+### 18. Cryptographic Secret Vault & Database Encryption at Rest
+- **Military-Grade AES-256-CBC Encryption**: All sensitive third-party API tokens and infrastructure credentials (Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, Anthropic Claude API keys) are encrypted using AES-256-CBC with `OPENSSL_RAW_DATA` before being saved to `wp_options` under `wcp_scanner_settings`.
+- **Dynamic 256-bit Key Derivation**: Encryption keys are dynamically derived via SHA-256 using site-specific WordPress secret salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`), ensuring ciphertexts cannot be decrypted outside the host site.
+- **Per-Record Cryptographic Initialization Vectors**: Every encryption call utilizes a unique, cryptographically random 16-byte initialization vector (`random_bytes(16)`), meaning the exact same secret produces a completely different ciphertext on each save.
+- **Zero Plaintext Database Exposure**: Database backups, `.sql.gz` snapshots, staging migrations, and unauthorized database access (via SQLi or compromised phpMyAdmin) reveal only ciphertext strings prefixed with `wcp_enc:`.
+- **Transparent In-Memory Decryption**: `SettingsManager::get()` and `SettingsManager::get_settings()` transparently decrypt credentials in memory during authorized runtime API calls with zero database or hook overhead.
+- **UI Password Masking & Visibility Controls**: Administrative interfaces display credentials masked as bullets (`••••••••`) by default, backed by interactive Show/Hide eye toggles and a verified `✓ Encrypted in Vault` badge.
+
+---
+
+### 19. Privacy, Zero Telemetry & Data Sovereignty Architecture
+- **Cryptographic Encryption at Rest for All Sensitive Data**: All API keys, tokens, and sensitive integration credentials are encrypted using AES-256-CBC with cryptographically random IVs before database writes. They are never saved in plain text.
 - **Zero Remote Tracking & Telemetry**: The plugin collects zero analytics, visitor metrics, browsing activity, or server telemetry.
 - **No Sensitive Data Exfiltration**: Never transmits passwords, database records, client data, wp-config credentials, or sensitive files to external servers or cloud services.
 - **100% On-Premise Core Processing**: All scanning algorithms, heuristic analyzers, file integrity checks, brute force defenders, 2FA cryptographic calculations, and firewall rules operate locally within your WordPress PHP and MySQL runtime.

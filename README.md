@@ -27,7 +27,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (17 Modern Security Engines)
+## 🌟 Comprehensive Feature Catalog (18 Modern Security Engines)
 
 ### 1. Multi-Vector Security & Malware Scanning
 - **Deep Heuristic PHP Code Analysis**: Scans for webshells, backdoors, Trojan droppers, and remote access tools (variants of c99, r57, b374k, WSO, China Chopper). Detects obfuscation patterns including nested `eval(base64_decode())`, `gzinflate()`, `str_rot13()`, dynamic variable functions, hex/octal encodings, and malicious file header spoofs.
@@ -139,6 +139,13 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Cloudflare Free Rate Limiting Integration**: Deploys an edge rate limiter on `wp-login.php` (10 requests / 10s per IP) to neutralize credential stuffing.
 - **Bi-Directional WAF Auto-Ban Sync**: When WCP Local WAF detects high-threat attacks (SQL injection, webshell uploads, directory traversal), it automatically pushes the attacking IP to Cloudflare Edge IP Access Rules.
 - **1-Click CDN Cache Purge**: Instant global edge cache purge from WordPress admin with zero latency.
+
+### 18. Cryptographic Secret Vault & Database Encryption at Rest
+- **Military-Grade AES-256-CBC Algorithm**: All third-party API credentials, secret tokens, and sensitive infrastructure parameters—including Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
+- **Dynamic 256-bit Key Derivation & Random IVs**: Each secret is encrypted with a cryptographically secure, randomized 16-byte initialization vector (`random_bytes(16)`), derived using a SHA-256 hash of WordPress secret salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`). Identical tokens produce completely different ciphertexts upon every save.
+- **Zero Plaintext Database Exposure**: Database backups, `.sql` dumps, staging exports, and unauthorized database access (SQLi, phpMyAdmin compromises) reveal only ciphertext strings prefixed with `wcp_enc:`, eliminating credential leakage.
+- **Transparent In-Memory Decryption**: Decrypts credentials on the fly in memory only when executing authorized API requests (`CloudflareService`, `AIService`), ensuring zero performance penalty and 100% backend transparency.
+- **Interface Password Masking & Visibility Toggles**: All sensitive credentials in administrative panels default to masked bullet placeholders (`••••••••`) with one-click `Show`/`Hide` eye toggles and a verified `✓ Encrypted in Vault` badge.
 
 ---
 
