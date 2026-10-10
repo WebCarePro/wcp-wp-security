@@ -141,11 +141,11 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **1-Click CDN Cache Purge**: Instant global edge cache purge from WordPress admin with zero latency.
 
 ### 18. Cryptographic Secret Vault & Database Encryption at Rest
-- **Military-Grade AES-256-CBC Algorithm**: All third-party API credentials, secret tokens, and sensitive infrastructure parameters—including Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
+- **Military-Grade AES-256-CBC Algorithm**: All third-party API credentials, webhook endpoints, and sensitive infrastructure tokens—including Slack incoming webhooks, Discord channel webhooks, ClickUp automation webhooks, Asana task webhooks, Generic automation URLs (Zapier, Make.com, n8n), Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
 - **Dynamic 256-bit Key Derivation & Random IVs**: Each secret is encrypted with a cryptographically secure, randomized 16-byte initialization vector (`random_bytes(16)`), derived using a SHA-256 hash of WordPress secret salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`). Identical tokens produce completely different ciphertexts upon every save.
-- **Zero Plaintext Database Exposure**: Database backups, `.sql` dumps, staging exports, and unauthorized database access (SQLi, phpMyAdmin compromises) reveal only ciphertext strings prefixed with `wcp_enc:`, eliminating credential leakage.
-- **Transparent In-Memory Decryption**: Decrypts credentials on the fly in memory only when executing authorized API requests (`CloudflareService`, `AIService`), ensuring zero performance penalty and 100% backend transparency.
-- **Interface Password Masking & Visibility Toggles**: All sensitive credentials in administrative panels default to masked bullet placeholders (`••••••••`) with one-click `Show`/`Hide` eye toggles and a verified `✓ Encrypted in Vault` badge.
+- **Zero Plaintext Database Exposure**: Database backups, `.sql` dumps, staging exports, and unauthorized database access (SQLi, phpMyAdmin compromises) reveal only ciphertext strings prefixed with `wcp_enc:`, eliminating credential and webhook leakage.
+- **Transparent In-Memory Decryption**: Decrypts credentials on the fly in memory only when executing authorized API requests (`CloudflareService`, `AIService`) or dispatching webhook security alerts (`WebhookService`), ensuring zero performance penalty and 100% backend transparency.
+- **Interface Password Masking & Visibility Toggles**: All sensitive credentials and webhook endpoints in administrative panels default to masked bullet placeholders (`••••••••`) with one-click `Show`/`Hide` eye toggles and a verified `✓ Encrypted in Vault` badge.
 
 ---
 

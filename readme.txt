@@ -121,11 +121,11 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **1-Click CDN Cache Purge**: Instant global edge cache purge directly from the WordPress administration panel.
 
 = Cryptographic Secret Vault & Database Encryption at Rest =
-* **Military-Grade AES-256-CBC Encryption**: All third-party API credentials, secret tokens, and sensitive infrastructure parameters—including Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (wp_options).
+* **Military-Grade AES-256-CBC Encryption**: All sensitive third-party API credentials, webhook endpoints, and infrastructure tokens—including Slack webhook URLs, Discord channel webhooks, ClickUp automation webhooks, Asana task webhooks, Generic automation URLs (Zapier, Make, n8n), Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (wp_options).
 * **Per-Record Cryptographic Salt & Dynamic Initialization Vectors**: Every encrypted secret receives a cryptographically secure random 16-byte initialization vector (IV via random_bytes) combined with unique 256-bit encryption keys derived from WordPress secret salts (AUTH_KEY, AUTH_SALT, SECURE_AUTH_KEY).
 * **Zero Plaintext Database Exposure**: Eliminates plain text credential exposure in database backups, SQL dumps, or phpMyAdmin queries.
-* **Transparent Runtime In-Memory Decryption**: Decrypts sensitive tokens on the fly in memory only when performing authorized API operations, ensuring seamless compatibility with zero performance overhead.
-* **UI Password Masking & Visibility Controls**: Credentials in administrative interfaces are masked by default with bullet characters and include toggleable show/hide controls and vault verification badges.
+* **Transparent Runtime In-Memory Decryption**: Decrypts sensitive tokens on the fly in memory only when performing authorized API operations or dispatching webhook alerts, ensuring seamless compatibility with zero performance overhead.
+* **UI Password Masking & Visibility Controls**: Credentials and webhook endpoints in administrative interfaces are masked by default with bullet characters and include toggleable show/hide controls and vault verification badges.
 
 = Author =
 * **Author**: Mir Alamin
@@ -144,7 +144,7 @@ WebCare Pro helps businesses build, secure, optimize, and manage high-performanc
 
 == Privacy & Data Protection Guarantee ==
 
-* **Cryptographic Encryption at Rest for All Sensitive Data**: All API keys, tokens, and sensitive integration credentials (Cloudflare Tokens, Zone IDs, OpenAI, Gemini, Claude) are encrypted using AES-256-CBC with cryptographically random IVs before being written to the database. They are never stored as plain text.
+* **Cryptographic Encryption at Rest for All Sensitive Data**: All API keys, tokens, webhook URLs, and sensitive integration credentials (Slack, Discord, ClickUp, Asana, Zapier, Cloudflare, OpenAI, Gemini, Claude) are encrypted using AES-256-CBC with cryptographically random IVs before being written to the database. They are never stored as plain text.
 * **Zero Tracking or Telemetry**: WCP Security Scanner does NOT track, collect, store, or sell any personal data, analytics, or browsing habits from your WordPress website, its visitors, or its administrators.
 * **No Sensitive Data Transmission**: The plugin operates entirely on your local server. It does NOT transmit sensitive credentials, passwords, database contents, client customer records, or private site data to any third-party server or external cloud.
 * **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.

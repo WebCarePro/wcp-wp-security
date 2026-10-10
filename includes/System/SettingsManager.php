@@ -153,7 +153,18 @@ class SettingsManager {
         $merged = array_merge($defaults, $saved);
 
         // Transparently decrypt sensitive credentials at runtime & auto-migrate plaintext in DB if needed
-        $sensitive_keys = ['cloudflare_api_token', 'cloudflare_zone_id', 'openai_api_key', 'gemini_api_key', 'claude_api_key'];
+        $sensitive_keys = [
+            'cloudflare_api_token',
+            'cloudflare_zone_id',
+            'openai_api_key',
+            'gemini_api_key',
+            'claude_api_key',
+            'slack_webhook_url',
+            'discord_webhook_url',
+            'clickup_webhook_url',
+            'asana_webhook_url',
+            'generic_webhook_url',
+        ];
         $needs_db_migration = false;
         $updated_saved = $saved;
 
@@ -174,11 +185,16 @@ class SettingsManager {
             update_option(self::OPTION_KEY, $updated_saved);
         }
 
-        // Mask API keys for security in UI output
-        $merged['has_openai_key']     = !empty($merged['openai_api_key']);
-        $merged['has_gemini_key']     = !empty($merged['gemini_api_key']);
-        $merged['has_claude_key']     = !empty($merged['claude_api_key']);
-        $merged['has_cloudflare_key'] = !empty($merged['cloudflare_api_token']);
+        // Mask API keys and credentials for security in UI output
+        $merged['has_openai_key']          = !empty($merged['openai_api_key']);
+        $merged['has_gemini_key']          = !empty($merged['gemini_api_key']);
+        $merged['has_claude_key']          = !empty($merged['claude_api_key']);
+        $merged['has_cloudflare_key']      = !empty($merged['cloudflare_api_token']);
+        $merged['has_slack_webhook']       = !empty($merged['slack_webhook_url']);
+        $merged['has_discord_webhook']     = !empty($merged['discord_webhook_url']);
+        $merged['has_clickup_webhook']     = !empty($merged['clickup_webhook_url']);
+        $merged['has_asana_webhook']       = !empty($merged['asana_webhook_url']);
+        $merged['has_generic_webhook']     = !empty($merged['generic_webhook_url']);
 
         return $merged;
     }
@@ -317,17 +333,47 @@ class SettingsManager {
         $clean['session_idle_timeout']      = max(0, min(1440, (int) ($input['session_idle_timeout'] ?? 120)));
 
 
-        // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
+        // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n - Encrypted with SecretVault)
         $clean['slack_enabled']                 = !empty($input['slack_enabled']);
-        $clean['slack_webhook_url']             = esc_url_raw(trim($input['slack_webhook_url'] ?? ''));
+        $in_slack                               = trim($input['slack_webhook_url'] ?? '');
+        $is_masked_slack                        = $in_slack === '' || strpos($in_slack, '••') !== false;
+        $slack_val                              = $is_masked_slack
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['slack_webhook_url'] ?? '')
+            : esc_url_raw($in_slack);
+        $clean['slack_webhook_url']             = \WCP\Scanner\Security\SecretVault::encrypt($slack_val);
+
         $clean['discord_enabled']               = !empty($input['discord_enabled']);
-        $clean['discord_webhook_url']           = esc_url_raw(trim($input['discord_webhook_url'] ?? ''));
+        $in_discord                             = trim($input['discord_webhook_url'] ?? '');
+        $is_masked_discord                      = $in_discord === '' || strpos($in_discord, '••') !== false;
+        $discord_val                            = $is_masked_discord
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['discord_webhook_url'] ?? '')
+            : esc_url_raw($in_discord);
+        $clean['discord_webhook_url']           = \WCP\Scanner\Security\SecretVault::encrypt($discord_val);
+
         $clean['clickup_enabled']               = !empty($input['clickup_enabled']);
-        $clean['clickup_webhook_url']           = esc_url_raw(trim($input['clickup_webhook_url'] ?? ''));
+        $in_clickup                             = trim($input['clickup_webhook_url'] ?? '');
+        $is_masked_clickup                      = $in_clickup === '' || strpos($in_clickup, '••') !== false;
+        $clickup_val                            = $is_masked_clickup
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['clickup_webhook_url'] ?? '')
+            : esc_url_raw($in_clickup);
+        $clean['clickup_webhook_url']           = \WCP\Scanner\Security\SecretVault::encrypt($clickup_val);
+
         $clean['asana_enabled']                 = !empty($input['asana_enabled']);
-        $clean['asana_webhook_url']             = esc_url_raw(trim($input['asana_webhook_url'] ?? ''));
+        $in_asana                               = trim($input['asana_webhook_url'] ?? '');
+        $is_masked_asana                        = $in_asana === '' || strpos($in_asana, '••') !== false;
+        $asana_val                              = $is_masked_asana
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['asana_webhook_url'] ?? '')
+            : esc_url_raw($in_asana);
+        $clean['asana_webhook_url']             = \WCP\Scanner\Security\SecretVault::encrypt($asana_val);
+
         $clean['generic_webhook_enabled']       = !empty($input['generic_webhook_enabled']);
-        $clean['generic_webhook_url']           = esc_url_raw(trim($input['generic_webhook_url'] ?? ''));
+        $in_generic                             = trim($input['generic_webhook_url'] ?? '');
+        $is_masked_generic                      = $in_generic === '' || strpos($in_generic, '••') !== false;
+        $generic_val                            = $is_masked_generic
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['generic_webhook_url'] ?? '')
+            : esc_url_raw($in_generic);
+        $clean['generic_webhook_url']           = \WCP\Scanner\Security\SecretVault::encrypt($generic_val);
+
         $clean['webhook_notify_on_critical']    = isset($input['webhook_notify_on_critical']) ? !empty($input['webhook_notify_on_critical']) : true;
         $clean['webhook_notify_on_fim']         = isset($input['webhook_notify_on_fim']) ? !empty($input['webhook_notify_on_fim']) : true;
         $clean['webhook_notify_on_waf_block']   = !empty($input['webhook_notify_on_waf_block']);
