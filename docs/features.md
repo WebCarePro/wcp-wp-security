@@ -218,3 +218,11 @@ An enterprise-grade, lightweight WordPress security, malware detection, integrit
 - **Bi-Directional WAF Auto-Ban Sync**: When WCP Local WAF detects high-threat attacks (SQL injection, webshell uploads, directory traversal), it automatically pushes the attacking IP to Cloudflare Edge IP Access Rules.
 - **1-Click CDN Cache Purge**: Instant global edge cache purge from WordPress admin with zero latency.
 
+---
+
+### 18. Privacy, Zero Telemetry & Data Sovereignty Architecture
+- **Zero Remote Tracking & Telemetry**: The plugin collects zero analytics, visitor metrics, browsing activity, or server telemetry.
+- **No Sensitive Data Exfiltration**: Never transmits passwords, database records, client data, wp-config credentials, or sensitive files to external servers or cloud services.
+- **100% On-Premise Core Processing**: All scanning algorithms, heuristic analyzers, file integrity checks, brute force defenders, 2FA cryptographic calculations, and firewall rules operate locally within your WordPress PHP and MySQL runtime.
+- **Explicit Administrator Consent for APIs**: External APIs (such as WordPress.org checksums, public threat feeds, optional AI analysis, Cloudflare edge controls, or webhook alerts) only connect when explicitly enabled and initiated by the administrator.
+
