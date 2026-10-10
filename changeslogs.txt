@@ -176,6 +176,7 @@ v:1.5.0 - 2026-10-10
   * Baseline Comparison for `wp-config.php`: Since `wp-config.php` does not exist in the official WordPress GitHub/SVN core repositories, the diff engine automatically compares local `wp-config.php` against the pristine official WordPress `wp-config-sample.php` baseline.
   * Automatic Credentials & Secrets Masking: Securely masks sensitive database credentials (`DB_PASSWORD`, `DB_USER`, `DB_NAME`, `DB_HOST`), table prefixes, and authentication secret salts (`AUTH_KEY`, `SECURE_AUTH_KEY`, `LOGGED_IN_KEY`, `NONCE_KEY`, etc.) with `********` before computing diffs or transmitting line content across the REST API, eliminating secret exposure risks in client browsers.
   * Resilient Myers/LCS Diff Computing & UTF-8 Sanitation: Added fast paths for empty baseline comparisons, safeguarded array bounds against negative index lookups during LCS backtracking, and sanitized all line output with `UploadsScanner::sanitize_utf8()` to guarantee valid JSON responses.
+  * WAF Edge Protection Bypass for Authenticated Diff Queries: Switched File Integrity diff queries to use `POST` with JSON body payload (`{ "file_path": filePath }`) rather than `GET` query strings, completely eliminating Cloudflare edge WAF blocks on sensitive root filenames (`wp-config.php`, `.env`, `.htaccess`).
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

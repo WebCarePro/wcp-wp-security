@@ -282,7 +282,7 @@ class ScannerRoutes {
         ]);
 
         register_rest_route(self::NAMESPACE, '/integrity/diff', [
-            'methods'             => 'GET',
+            'methods'             => ['GET', 'POST'],
             'callback'            => [__CLASS__, 'get_integrity_file_diff'],
             'permission_callback' => $permission,
         ]);
