@@ -381,17 +381,43 @@ class FileIntegrityMonitor {
             ];
         }
 
-        // Determine context: Core, Plugin, Theme
+        // Determine context: Core, Plugin, Theme, Config
         $category = 'custom';
         $official_content = null;
         $official_source_url = null;
         $is_official_compared = false;
+        $diff_message = '';
 
         global $wp_version;
         $clean_wp_version = preg_replace('/-.*$/', '', $wp_version);
 
-        // 1. Check if WordPress core file
-        if (strpos($rel_path, 'wp-admin/') === 0 || strpos($rel_path, 'wp-includes/') === 0 || (!strpos($rel_path, '/') && preg_match('/^wp-.*\.php$|^index\.php$/', $rel_path))) {
+        // Check if configuration file (wp-config.php, .htaccess, php.ini, etc.)
+        $file_name = basename($real_path);
+        if ($file_name === 'wp-config.php') {
+            $category = 'config';
+            // Securely mask database credentials and secret authentication salts
+            $sensitive_patterns = [
+                "/(define\s*\(\s*['\"](?:DB_PASSWORD|DB_USER|DB_NAME|DB_HOST|AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT)['\"]\s*,\s*['\"])(?:[^'\"]*)(['\"]\s*\);)/i" => '$1********$2',
+                "/(\\\$table_prefix\s*=\s*['\"])(?:[^'\"]*)(['\"]\s*;)/i" => '$1********$2',
+            ];
+            foreach ($sensitive_patterns as $pattern => $replacement) {
+                $local_content = preg_replace($pattern, $replacement, $local_content);
+            }
+
+            // Compare against official WordPress wp-config-sample.php baseline
+            $official_source_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp_version}/wp-config-sample.php";
+            $official_content = $this->fetch_remote_source($official_source_url);
+            if ($official_content !== null) {
+                $is_official_compared = true;
+                $diff_message = "Comparing local wp-config.php against official WordPress {$clean_wp_version} wp-config-sample.php baseline (sensitive credentials masked for security).";
+            } else {
+                $diff_message = 'Official wp-config-sample.php baseline could not be fetched. Displaying sanitized local inspection view.';
+            }
+        } elseif (in_array(strtolower($file_name), ['.htaccess', 'php.ini', '.user.ini', 'web.config', 'robots.txt'], true)) {
+            $category = 'config';
+            $diff_message = "Server configuration file ({$file_name}): No remote repository baseline exists. Displaying local inspection view.";
+        } elseif (strpos($rel_path, 'wp-admin/') === 0 || strpos($rel_path, 'wp-includes/') === 0 || (!strpos($rel_path, '/') && preg_match('/^wp-.*\.php$|^index\.php$/', $rel_path))) {
+            // 1. Check if WordPress core file
             $category = 'core';
             // Fetch clean WordPress core version from official GitHub/SVN
             $official_source_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp_version}/{$rel_path}";
@@ -446,7 +472,7 @@ class FileIntegrityMonitor {
             if (empty($diff_message)) {
                 $diff_message = 'Official repository baseline is unavailable for this custom file. Displaying local inspection view.';
             }
-        } else {
+        } elseif (empty($diff_message)) {
             $diff_message = 'Comparing against official bit-for-bit repository source.';
         }
 
@@ -520,8 +546,8 @@ class FileIntegrityMonitor {
      * Pure PHP Line-by-Line Unified Diff Algorithm (Myers / LCS style)
      */
     private function compute_diff($old_text, $new_text) {
-        $old_lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $old_text));
-        $new_lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $new_text));
+        $old_lines = $old_text !== '' ? explode("\n", str_replace(["\r\n", "\r"], "\n", $old_text)) : [];
+        $new_lines = $new_text !== '' ? explode("\n", str_replace(["\r\n", "\r"], "\n", $new_text)) : [];
 
         // Trim single trailing empty line from split
         if (count($old_lines) > 0 && end($old_lines) === '') {
@@ -537,6 +563,49 @@ class FileIntegrityMonitor {
         $additions = 0;
         $deletions = 0;
         $diff_lines = [];
+
+        // Fast path 1: Both empty
+        if ($n === 0 && $m === 0) {
+            return [
+                'lines'     => [],
+                'additions' => 0,
+                'deletions' => 0,
+            ];
+        }
+
+        // Fast path 2: Old empty, all lines are added
+        if ($n === 0) {
+            foreach ($new_lines as $idx => $line) {
+                $diff_lines[] = [
+                    'type'     => 'added',
+                    'old_line' => null,
+                    'new_line' => $idx + 1,
+                    'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($line),
+                ];
+            }
+            return [
+                'lines'     => $diff_lines,
+                'additions' => $m,
+                'deletions' => 0,
+            ];
+        }
+
+        // Fast path 3: New empty, all lines are removed
+        if ($m === 0) {
+            foreach ($old_lines as $idx => $line) {
+                $diff_lines[] = [
+                    'type'     => 'removed',
+                    'old_line' => $idx + 1,
+                    'new_line' => null,
+                    'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($line),
+                ];
+            }
+            return [
+                'lines'     => $diff_lines,
+                'additions' => 0,
+                'deletions' => $n,
+            ];
+        }
 
         // Simple optimized LCS table for files under 2,000 lines
         if ($n < 2500 && $m < 2500) {
@@ -569,25 +638,25 @@ class FileIntegrityMonitor {
                         'type'     => 'unchanged',
                         'old_line' => $i,
                         'new_line' => $j,
-                        'content'  => $old_lines[$i - 1],
+                        'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($old_lines[$i - 1]),
                     ];
                     $i--;
                     $j--;
-                } elseif ($j > 0 && ($i === 0 || $lcs[$i][$j - 1] >= $lcs[$i - 1][$j])) {
+                } elseif ($j > 0 && ($i === 0 || ($lcs[$i][$j - 1] >= ($i > 0 ? $lcs[$i - 1][$j] : 0)))) {
                     $reversed_diff[] = [
                         'type'     => 'added',
                         'old_line' => null,
                         'new_line' => $j,
-                        'content'  => $new_lines[$j - 1],
+                        'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($new_lines[$j - 1]),
                     ];
                     $additions++;
                     $j--;
-                } elseif ($i > 0 && ($j === 0 || $lcs[$i][$j - 1] < $lcs[$i - 1][$j])) {
+                } elseif ($i > 0) {
                     $reversed_diff[] = [
                         'type'     => 'removed',
                         'old_line' => $i,
                         'new_line' => null,
-                        'content'  => $old_lines[$i - 1],
+                        'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($old_lines[$i - 1]),
                     ];
                     $deletions++;
                     $i--;
@@ -607,7 +676,7 @@ class FileIntegrityMonitor {
                         'type'     => 'unchanged',
                         'old_line' => $k + 1,
                         'new_line' => $k + 1,
-                        'content'  => $old_val,
+                        'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($old_val),
                     ];
                 } else {
                     if ($old_val !== null) {
@@ -615,7 +684,7 @@ class FileIntegrityMonitor {
                             'type'     => 'removed',
                             'old_line' => $k + 1,
                             'new_line' => null,
-                            'content'  => $old_val,
+                            'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($old_val),
                         ];
                         $deletions++;
                     }
@@ -624,7 +693,7 @@ class FileIntegrityMonitor {
                             'type'     => 'added',
                             'old_line' => null,
                             'new_line' => $k + 1,
-                            'content'  => $new_val,
+                            'content'  => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($new_val),
                         ];
                         $additions++;
                     }

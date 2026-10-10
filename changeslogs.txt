@@ -171,6 +171,11 @@ v:1.5.0 - 2026-10-10
   * Prominent "Current Session" Badge & Visual Highlighting: Styled the active administrator session card on `?page=wcp-scanner-auth` with a high-visibility badge (`● Current Session`), accent border (`2px solid #0284c7`), card elevation, and glowing active indicator dot on the user avatar.
   * Accidental Self-Termination Safeguard: Automatically hides the destructive "Terminate Session" button on the user's active session and replaces it with a reassuring `This Device (Active)` indicator pill.
   * REST API Session Identification Resilience: Enhanced `SessionSentinel::get_active_sessions()` with multi-layered session token resolution (inspecting `wp_get_session_token()`, decrypting `$_COOKIE[LOGGED_IN_COOKIE]`, and smart client IP/user ID fallback) to guarantee the current active session is accurately detected and highlighted in REST API contexts.
+- Enhanced File Integrity Monitoring (FIM) & Config Diff Viewer Security:
+  * Resolved "Diff Calculation Error: The response is not a valid JSON response" when inspecting `wp-config.php` and root configuration files.
+  * Baseline Comparison for `wp-config.php`: Since `wp-config.php` does not exist in the official WordPress GitHub/SVN core repositories, the diff engine automatically compares local `wp-config.php` against the pristine official WordPress `wp-config-sample.php` baseline.
+  * Automatic Credentials & Secrets Masking: Securely masks sensitive database credentials (`DB_PASSWORD`, `DB_USER`, `DB_NAME`, `DB_HOST`), table prefixes, and authentication secret salts (`AUTH_KEY`, `SECURE_AUTH_KEY`, `LOGGED_IN_KEY`, `NONCE_KEY`, etc.) with `********` before computing diffs or transmitting line content across the REST API, eliminating secret exposure risks in client browsers.
+  * Resilient Myers/LCS Diff Computing & UTF-8 Sanitation: Added fast paths for empty baseline comparisons, safeguarded array bounds against negative index lookups during LCS backtracking, and sanitized all line output with `UploadsScanner::sanitize_utf8()` to guarantee valid JSON responses.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
