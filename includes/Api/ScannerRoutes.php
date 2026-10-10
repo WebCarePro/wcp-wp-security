@@ -1700,12 +1700,35 @@ class ScannerRoutes {
     }
 
     public static function get_integrity_file_diff(\WP_REST_Request $request) {
-        $file_path = $request->get_param('file_path');
+        $file_path = $request->get_param('file_path') ?: $request->get_param('path');
+        if (empty($file_path)) {
+            $json_params = $request->get_json_params();
+            if (!empty($json_params['file_path'])) {
+                $file_path = $json_params['file_path'];
+            } elseif (!empty($json_params['path'])) {
+                $file_path = $json_params['path'];
+            }
+        }
+
         if (empty($file_path)) {
             return new \WP_Error('missing_file_path', __('Missing required file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
         $file_path = sanitize_text_field(wp_unslash($file_path));
+
+        // Support base64 encoded path to avoid WAF false positives on sensitive filenames in URL
+        if (strpos($file_path, 'b64:') === 0) {
+            $decoded = base64_decode(substr($file_path, 4), true);
+            if ($decoded !== false && is_string($decoded)) {
+                $file_path = $decoded;
+            }
+        } elseif (preg_match('/^[a-zA-Z0-9+\/]+=*$/', $file_path) && strlen($file_path) >= 8) {
+            $decoded = base64_decode($file_path, true);
+            if ($decoded !== false && is_string($decoded) && (strpos($decoded, '/') !== false || strpos($decoded, '\\') !== false || strpos($decoded, '.php') !== false)) {
+                $file_path = $decoded;
+            }
+        }
+
         $fim = new \WCP\Scanner\Integrity\FileIntegrityMonitor();
         $diff_data = $fim->get_file_diff($file_path);
 
