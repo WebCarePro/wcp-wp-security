@@ -164,7 +164,9 @@ v:1.5.0 - 2026-10-10
   * Interactive Administrative Controls: Added active remembered device indicator and 1-click "Revoke All Remembered Devices" action in the 2FA dashboard tab (`AuthSecurityPage.tsx`), plus configurable device remember enable/disable toggle and expiration duration slider (1 to 90 days, default 7 days) in the Login & Rate-Limiting Settings tab.
 - Enhanced Cloudflare Edge Defense Integration & 1-Click Token Pre-Configuration:
   * 1-Click Pre-configured Cloudflare Token Template URL: Added prominent "1-Click Pre-configure Cloudflare Token ↗" button in `FirewallPage.tsx` linking directly to Cloudflare's API token generation interface with the token name and all 4 required permissions (`Zone.Zone: Read`, `Zone.Zone WAF: Edit`, `Zone.Firewall Services: Edit`, and `Zone.Cache Purge: Purge`) pre-populated automatically via `permissionGroupKeys`.
-  * Hardened IP Block Error Messaging: Enhanced `CloudflareService::block_ip()` with contextual guidance specifically notifying administrators to grant `Zone > Firewall Services: Edit` permissions when Cloudflare returns an authentication error code on IP Access Rules endpoints.
+  * Zone ID Persistence & Domain Display: Retained active Zone ID and connected domain name across page reloads in `FirewallPage.tsx` and returned `zone_id` in `CloudflareService::get_status()`.
+  * 1-Click Disconnect Cloudflare: Added "Disconnect Cloudflare" button that clears API tokens, Zone IDs, and auto-sync settings from the database via REST route `POST /wcp-scanner/v1/cloudflare/disconnect`.
+  * Cloudflare Free Plan Ruleset Compatibility: Updated `block_uploads_exec` WAF rule expression to use standard `http.request.uri.path.extension in {"php" ...}` instead of the regex `matches` operator, fixing the "not entitled: the use of operator Matches is not allowed" error on Cloudflare Free and Pro plans.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

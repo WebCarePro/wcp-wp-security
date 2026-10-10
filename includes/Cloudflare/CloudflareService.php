@@ -151,7 +151,9 @@ class CloudflareService {
 
         return [
             'configured'     => true,
+            'zone_id'        => $zone_id,
             'zone_name'      => $verify['zone_name'],
+            'has_token'      => true,
             'plan'           => $verify['plan'],
             'active_rules'   => $active_rules,
             'rate_limiting'  => $rate_limit,
@@ -186,7 +188,7 @@ class CloudflareService {
                 'title'       => 'Uploads Directory Webshell Execution Trap',
                 'description' => 'Stops direct HTTP execution of .php, .sh, or shell scripts disguised inside wp-content/uploads/ at the edge.',
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "/wp-content/uploads/" and http.request.uri.path matches "\\.(php[0-9]?|phtml|phar|sh|bash|py|pl|exe|cgi)$")',
+                'expression'  => '(http.request.uri.path contains "/wp-content/uploads/" and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})',
             ],
             'block_author_scan' => [
                 'id'          => 'wcp_block_author_scan',
@@ -478,5 +480,24 @@ class CloudflareService {
 
         $err = $res['errors'][0]['message'] ?? __('Failed to purge Cloudflare cache.', 'wcp-security-scanner');
         return ['success' => false, 'message' => $err];
+    }
+
+    /**
+     * Disconnect Cloudflare and wipe API token and Zone ID from database
+     *
+     * @return array
+     */
+    public static function disconnect(): array {
+        SettingsManager::update_settings([
+            'cloudflare_enabled'        => false,
+            'cloudflare_api_token'      => '',
+            'cloudflare_zone_id'        => '',
+            'cloudflare_auto_sync_bans' => false,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => __('Cloudflare disconnected and API token removed successfully.', 'wcp-security-scanner'),
+        ];
     }
 }

@@ -451,6 +451,12 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'purge_cloudflare_cache'],
             'permission_callback' => $permission,
         ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/disconnect', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'disconnect_cloudflare'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -2067,6 +2073,11 @@ class ScannerRoutes {
         $files  = !empty($params['files']) && is_array($params['files']) ? array_map('esc_url_raw', $params['files']) : null;
 
         $result = \WCP\Scanner\Cloudflare\CloudflareService::purge_cache($files);
+        return rest_ensure_response($result);
+    }
+
+    public static function disconnect_cloudflare(\WP_REST_Request $request) {
+        $result = \WCP\Scanner\Cloudflare\CloudflareService::disconnect();
         return rest_ensure_response($result);
     }
 }
