@@ -39,6 +39,7 @@ v:1.5.0 - 2026-10-10
   * 1-Click WhatsApp Quick Assistance: Integrated dynamic WhatsApp link with pre-built message containing current website title and domain name (`Hello WebCare Pro, I need technical assistance with my website "[SiteName]" ([Domain]).`).
   * Direct Pre-Filled Support Email: Integrated `mailto:` link pre-populated with diagnostic site title, domain, and issue description template.
   * Verified Social & Professional Channels: Added direct cards for Upwork Top Rated Plus profile (Mir Alamin, 100% Job Success), Microsoft Teams live meeting, GitHub Organization (`github.com/WebCarePro`), and official website (`webcarespro.com`).
+  * Contextual Support Hyperlinks & Deep-Linking Across Threat Interfaces: Added direct 1-click support banners and action buttons across Main Scan Findings, Targeted Scan Results, and Scan Audit Log detail drawers to instantly deep-link WordPress administrators to Settings > Support whenever malware or security anomalies are detected.
   * Confidentiality & NDA Guarantee: Emphasized encrypted handling of client inquiries and credentials.
 - WordPress.org Official Plugin Review Compliance & Hardening:
   * Resolved Trademark / Discouraged Naming Guidelines: Renamed display name from `WCP WP Security Scanner` to `WCP Security Scanner` across `wcp-wp-scanner.php`, `readme.txt`, email notification templates, and settings export metadata. Preserved clean approved slug `wcp-security-scanner`.
