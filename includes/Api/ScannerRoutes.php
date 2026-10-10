@@ -362,7 +362,14 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/auth/2fa/revoke-trusted-devices', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_2fa_trusted_devices'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/auth/unlock-ip', [
+
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'unlock_locked_ip'],
             'permission_callback' => $permission,
@@ -1798,20 +1805,24 @@ class ScannerRoutes {
         $user     = wp_get_current_user();
 
         return rest_ensure_response([
-            'auth_2fa_enabled'         => !empty($settings['auth_2fa_enabled']),
-            'login_hardening_enabled'  => !empty($settings['login_hardening_enabled']),
-            'login_max_retries'        => (int) ($settings['login_max_retries'] ?? 5),
-            'login_lockout_duration'   => (int) ($settings['login_lockout_duration'] ?? 15),
-            'session_sentinel_enabled' => !empty($settings['session_sentinel_enabled']),
-            'session_block_concurrent' => !empty($settings['session_block_concurrent']),
-            'session_lock_ip'          => !empty($settings['session_lock_ip']),
-            'session_idle_timeout'     => (int) ($settings['session_idle_timeout'] ?? 120),
-            'user_2fa_enabled'         => \WCP\Scanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
-            'user_login'               => $user ? $user->user_login : '',
-            'user_email'               => $user ? $user->user_email : '',
-            'lockouts'                 => array_values(\WCP\Scanner\Auth\LoginHardening::get_locked_ips()),
-            'stats'                    => \WCP\Scanner\Auth\LoginHardening::get_stats(),
-            'active_sessions'          => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
+            'auth_2fa_enabled'          => !empty($settings['auth_2fa_enabled']),
+            'auth_2fa_remember_device'  => !empty($settings['auth_2fa_remember_device']),
+            'auth_2fa_remember_days'    => (int) ($settings['auth_2fa_remember_days'] ?? 7),
+            'login_hardening_enabled'   => !empty($settings['login_hardening_enabled']),
+            'login_max_retries'         => (int) ($settings['login_max_retries'] ?? 5),
+            'login_lockout_duration'    => (int) ($settings['login_lockout_duration'] ?? 15),
+            'session_sentinel_enabled'  => !empty($settings['session_sentinel_enabled']),
+            'session_block_concurrent'  => !empty($settings['session_block_concurrent']),
+            'session_lock_ip'           => !empty($settings['session_lock_ip']),
+            'session_idle_timeout'      => (int) ($settings['session_idle_timeout'] ?? 120),
+            'user_2fa_enabled'          => \WCP\Scanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
+            'user_login'                => $user ? $user->user_login : '',
+            'user_email'                => $user ? $user->user_email : '',
+            'trusted_devices_count'     => count(\WCP\Scanner\Auth\TwoFactorAuth::get_trusted_devices($user_id)),
+            'trusted_devices'           => \WCP\Scanner\Auth\TwoFactorAuth::get_trusted_devices($user_id),
+            'lockouts'                  => array_values(\WCP\Scanner\Auth\LoginHardening::get_locked_ips()),
+            'stats'                     => \WCP\Scanner\Auth\LoginHardening::get_stats(),
+            'active_sessions'           => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
         ]);
     }
 
@@ -1881,6 +1892,19 @@ class ScannerRoutes {
             'message' => __('Two-Factor Authentication (2FA) has been disabled.', 'wcp-security-scanner'),
         ]);
     }
+
+    /**
+     * Auth Security: Revoke All Trusted Devices
+     */
+    public static function revoke_2fa_trusted_devices() {
+        $user_id = get_current_user_id();
+        \WCP\Scanner\Auth\TwoFactorAuth::revoke_all_trusted_devices($user_id);
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('All remembered/trusted devices have been revoked. 2FA verification will be required on all browsers.', 'wcp-security-scanner'),
+        ]);
+    }
+
 
     /**
      * Auth Security: Unlock IP

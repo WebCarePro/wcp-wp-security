@@ -15,10 +15,12 @@ if (!defined('ABSPATH')) {
  */
 class TwoFactorAuth {
 
-    const META_ENABLED      = '_wcp_2fa_enabled';
-    const META_SECRET       = '_wcp_2fa_secret';
-    const META_BACKUP_CODES = '_wcp_2fa_backup_codes';
-    const SESSION_TRANSIENT = 'wcp_2fa_pending_';
+    const META_ENABLED         = '_wcp_2fa_enabled';
+    const META_SECRET          = '_wcp_2fa_secret';
+    const META_BACKUP_CODES    = '_wcp_2fa_backup_codes';
+    const META_TRUSTED_DEVICES = '_wcp_2fa_trusted_devices';
+    const SESSION_TRANSIENT    = 'wcp_2fa_pending_';
+    const COOKIE_DEVICE        = 'wcp_2fa_trusted_device';
 
     /**
      * Initialize 2FA hooks
@@ -27,7 +29,10 @@ class TwoFactorAuth {
         // Intercept WordPress authentication
         add_filter('authenticate', [__CLASS__, 'filter_authenticate'], 50, 3);
         add_action('login_form_wcp_2fa', [__CLASS__, 'render_2fa_challenge_screen']);
+        // Revoke trusted devices on password reset for security
+        add_action('password_reset', [__CLASS__, 'on_password_reset'], 10, 2);
     }
+
 
     /**
      * Check if 2FA is globally enabled in settings
@@ -208,8 +213,218 @@ class TwoFactorAuth {
         delete_user_meta($user_id, self::META_ENABLED);
         delete_user_meta($user_id, self::META_SECRET);
         delete_user_meta($user_id, self::META_BACKUP_CODES);
+        delete_user_meta($user_id, self::META_TRUSTED_DEVICES);
+        self::clear_trusted_device_cookie();
         return true;
     }
+
+    /**
+     * Hook: On user password reset, purge all trusted devices
+     */
+    public static function on_password_reset($user, $new_pass = '') {
+        if ($user instanceof \WP_User) {
+            self::revoke_all_trusted_devices($user->ID);
+        }
+    }
+
+    /**
+     * Check if "Remember Device" feature is allowed in settings
+     */
+    public static function is_remember_device_enabled(): bool {
+        $settings = SettingsManager::get_settings();
+        return !empty($settings['auth_2fa_remember_device']);
+    }
+
+    /**
+     * Get number of days to remember trusted devices (default 7 days)
+     */
+    public static function get_remember_device_days(): int {
+        $settings = SettingsManager::get_settings();
+        $days     = (int) ($settings['auth_2fa_remember_days'] ?? 7);
+        return max(1, min(90, $days));
+    }
+
+    /**
+     * Check if the current client request is an authenticated trusted device for a user
+     */
+    public static function is_trusted_device(int $user_id): bool {
+        if (!self::is_remember_device_enabled()) {
+            return false;
+        }
+
+        if (empty($_COOKIE[self::COOKIE_DEVICE])) {
+            return false;
+        }
+
+        $raw_cookie = sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE_DEVICE]));
+        if (empty($raw_cookie) || strpos($raw_cookie, ':') === false) {
+            return false;
+        }
+
+        list($cookie_user_id, $token) = explode(':', $raw_cookie, 2);
+        if ((int) $cookie_user_id !== $user_id || empty($token)) {
+            return false;
+        }
+
+        $devices = get_user_meta($user_id, self::META_TRUSTED_DEVICES, true);
+        if (!is_array($devices) || empty($devices)) {
+            return false;
+        }
+
+        $now          = time();
+        $token_hash   = hash('sha256', $token);
+        $found        = false;
+        $active_list  = [];
+
+        foreach ($devices as $id => $device) {
+            // Prune expired devices
+            if (empty($device['expires_at']) || $device['expires_at'] < $now) {
+                continue;
+            }
+
+            if (hash_equals($device['token_hash'], $token_hash)) {
+                $found = true;
+                // Update last used timestamp
+                $device['last_used'] = current_time('mysql');
+            }
+
+            $active_list[$id] = $device;
+        }
+
+        // Persist cleaned up list if any expired were pruned or last_used was updated
+        if (count($active_list) !== count($devices) || $found) {
+            update_user_meta($user_id, self::META_TRUSTED_DEVICES, $active_list);
+        }
+
+        return $found;
+    }
+
+    /**
+     * Issue a cryptographically secure trusted device cookie and save hash in user meta
+     */
+    public static function set_trusted_device(int $user_id, int $days = 7): bool {
+        if (!self::is_remember_device_enabled()) {
+            return false;
+        }
+
+        $token        = wp_generate_password(48, false);
+        $token_hash   = hash('sha256', $token);
+        $days         = $days > 0 ? $days : self::get_remember_device_days();
+        $expires_at   = time() + ($days * DAY_IN_SECONDS);
+        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
+        $ip           = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $device_id    = wp_generate_password(16, false);
+
+        $devices = get_user_meta($user_id, self::META_TRUSTED_DEVICES, true);
+        if (!is_array($devices)) {
+            $devices = [];
+        }
+
+        // Prune expired devices & keep maximum 10 active devices per user
+        $now         = time();
+        $active_list = [];
+        foreach ($devices as $id => $d) {
+            if (!empty($d['expires_at']) && $d['expires_at'] > $now) {
+                $active_list[$id] = $d;
+            }
+        }
+
+        if (count($active_list) >= 10) {
+            // Remove oldest
+            array_shift($active_list);
+        }
+
+        $active_list[$device_id] = [
+            'id'          => $device_id,
+            'token_hash'  => $token_hash,
+            'expires_at'  => $expires_at,
+            'created_at'  => current_time('mysql'),
+            'last_used'   => current_time('mysql'),
+            'ip'          => $ip,
+            'user_agent'  => $user_agent,
+            'days'        => $days,
+        ];
+
+        update_user_meta($user_id, self::META_TRUSTED_DEVICES, $active_list);
+
+        // Set hardened cookie: HttpOnly, Secure, SameSite=Lax
+        $cookie_value = $user_id . ':' . $token;
+        $cookie_path  = COOKIEPATH ?: '/';
+        $cookie_domain = COOKIE_DOMAIN ?: '';
+        $is_ssl       = is_ssl();
+
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie(self::COOKIE_DEVICE, $cookie_value, [
+                'expires'  => $expires_at,
+                'path'     => $cookie_path,
+                'domain'   => $cookie_domain,
+                'secure'   => $is_ssl,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        } else {
+            setcookie(self::COOKIE_DEVICE, $cookie_value, $expires_at, $cookie_path, $cookie_domain, $is_ssl, true);
+        }
+
+        return true;
+    }
+
+    /**
+     * Clear the trusted device cookie from the browser
+     */
+    public static function clear_trusted_device_cookie() {
+        $cookie_path   = COOKIEPATH ?: '/';
+        $cookie_domain = COOKIE_DOMAIN ?: '';
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie(self::COOKIE_DEVICE, '', [
+                'expires'  => time() - 3600,
+                'path'     => $cookie_path,
+                'domain'   => $cookie_domain,
+                'secure'   => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        } else {
+            setcookie(self::COOKIE_DEVICE, '', time() - 3600, $cookie_path, $cookie_domain, is_ssl(), true);
+        }
+    }
+
+    /**
+     * Revoke all trusted devices for a user
+     */
+    public static function revoke_all_trusted_devices(int $user_id): bool {
+        delete_user_meta($user_id, self::META_TRUSTED_DEVICES);
+        self::clear_trusted_device_cookie();
+        return true;
+    }
+
+    /**
+     * Get active trusted devices list for a user
+     */
+    public static function get_trusted_devices(int $user_id): array {
+        $devices = get_user_meta($user_id, self::META_TRUSTED_DEVICES, true);
+        if (!is_array($devices)) {
+            return [];
+        }
+
+        $now    = time();
+        $output = [];
+        foreach ($devices as $d) {
+            if (!empty($d['expires_at']) && $d['expires_at'] > $now) {
+                $output[] = [
+                    'id'         => $d['id'] ?? '',
+                    'ip'         => $d['ip'] ?? '',
+                    'user_agent' => $d['user_agent'] ?? '',
+                    'created_at' => $d['created_at'] ?? '',
+                    'last_used'  => $d['last_used'] ?? '',
+                    'expires_at' => $d['expires_at'] ?? 0,
+                    'days'       => $d['days'] ?? 7,
+                ];
+            }
+        }
+        return $output;
+    }
+
 
     /**
      * Build provisioning URI for QR code generators
@@ -254,19 +469,29 @@ class TwoFactorAuth {
             return $user;
         }
 
+        // Check if current browser is a verified trusted device (e.g. remembered for 7 days)
+        if (self::is_trusted_device($user->ID)) {
+            return $user; // Trusted device bypass granted!
+        }
+
         // Check if 2FA code was submitted
         $auth_code = isset($_POST['wcp_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['wcp_2fa_code'])) : '';
         $secret    = self::get_user_secret($user->ID);
 
         if (!empty($auth_code)) {
+            $code_valid = false;
             // Check TOTP code
             if ($secret && self::verify_code($secret, $auth_code)) {
-                return $user; // Authentication passed!
+                $code_valid = true;
+            } elseif (self::verify_and_consume_backup_code($user->ID, $auth_code)) {
+                $code_valid = true;
             }
 
-            // Check emergency backup code
-            if (self::verify_and_consume_backup_code($user->ID, $auth_code)) {
-                return $user; // Backup code valid and consumed!
+            if ($code_valid) {
+                if (!empty($_POST['wcp_2fa_remember_device'])) {
+                    self::set_trusted_device($user->ID, self::get_remember_device_days());
+                }
+                return $user; // Authentication passed!
             }
 
             // Invalid code submitted
@@ -317,7 +542,9 @@ class TwoFactorAuth {
             wp_die(__('Invalid user session.', 'wcp-security-scanner'));
         }
 
-        $error_msg = '';
+        $remember_device_allowed = self::is_remember_device_enabled();
+        $remember_days           = self::get_remember_device_days();
+        $error_msg               = '';
 
         // Handle Form Submission
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wcp_2fa_code'])) {
@@ -336,6 +563,11 @@ class TwoFactorAuth {
             if ($valid) {
                 // Delete session transient
                 delete_transient(self::SESSION_TRANSIENT . $pending_key);
+
+                // Handle "Remember this device"
+                if (!empty($_POST['wcp_2fa_remember_device']) && $remember_device_allowed) {
+                    self::set_trusted_device($user_id, $remember_days);
+                }
 
                 // Complete authentication
                 wp_set_auth_cookie($user_id, !empty($session['remember']));
@@ -380,6 +612,16 @@ class TwoFactorAuth {
                 </label>
                 <input type="text" name="wcp_2fa_code" id="wcp_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="numeric" placeholder="123456" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
             </p>
+
+            <?php if ($remember_device_allowed): ?>
+                <p style="margin: 14px 0 6px 0; display: flex; align-items: center; gap: 8px;">
+                    <label for="wcp_2fa_remember_device" style="font-size: 13px; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="wcp_2fa_remember_device" id="wcp_2fa_remember_device" value="1" checked style="accent-color: #0284c7; width: 16px; height: 16px; margin: 0;" />
+                        <span><?php printf(esc_html__('Remember this device for %d days', 'wcp-security-scanner'), (int) $remember_days); ?></span>
+                    </label>
+                </p>
+            <?php endif; ?>
+
             <p class="submit" style="margin-top: 18px;">
                 <input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="<?php esc_attr_e('Verify & Continue', 'wcp-security-scanner'); ?>" style="width: 100%; border-radius: 8px; background: #0284c7; border-color: #0284c7; height: 42px; font-weight: 600;" />
             </p>
@@ -395,3 +637,4 @@ class TwoFactorAuth {
         exit;
     }
 }
+

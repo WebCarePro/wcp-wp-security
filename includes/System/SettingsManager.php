@@ -94,6 +94,8 @@ class SettingsManager {
 
             // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
             'auth_2fa_enabled'                   => true,
+            'auth_2fa_remember_device'           => true,
+            'auth_2fa_remember_days'             => 7, // Days to remember trusted device (default 7 days)
             'login_hardening_enabled'            => true,
             'login_max_retries'                  => 5,
             'login_lockout_duration'             => 15,
@@ -266,14 +268,17 @@ class SettingsManager {
         $clean['threat_intel_block_blacklisted_ips'] = isset($input['threat_intel_block_blacklisted_ips']) ? !empty($input['threat_intel_block_blacklisted_ips']) : true;
 
         // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
-        $clean['auth_2fa_enabled']        = isset($input['auth_2fa_enabled']) ? !empty($input['auth_2fa_enabled']) : true;
-        $clean['login_hardening_enabled'] = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
-        $clean['login_max_retries']       = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
-        $clean['login_lockout_duration']  = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
-        $clean['session_sentinel_enabled'] = isset($input['session_sentinel_enabled']) ? !empty($input['session_sentinel_enabled']) : true;
-        $clean['session_block_concurrent'] = !empty($input['session_block_concurrent']);
-        $clean['session_lock_ip']          = !empty($input['session_lock_ip']);
+        $clean['auth_2fa_enabled']          = isset($input['auth_2fa_enabled']) ? !empty($input['auth_2fa_enabled']) : true;
+        $clean['auth_2fa_remember_device']  = isset($input['auth_2fa_remember_device']) ? !empty($input['auth_2fa_remember_device']) : true;
+        $clean['auth_2fa_remember_days']    = max(1, min(90, (int) ($input['auth_2fa_remember_days'] ?? 7)));
+        $clean['login_hardening_enabled']   = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
+        $clean['login_max_retries']         = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
+        $clean['login_lockout_duration']    = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
+        $clean['session_sentinel_enabled']  = isset($input['session_sentinel_enabled']) ? !empty($input['session_sentinel_enabled']) : true;
+        $clean['session_block_concurrent']  = !empty($input['session_block_concurrent']);
+        $clean['session_lock_ip']           = !empty($input['session_lock_ip']);
         $clean['session_idle_timeout']      = max(0, min(1440, (int) ($input['session_idle_timeout'] ?? 120)));
+
 
         // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
         $clean['slack_enabled']                 = !empty($input['slack_enabled']);
