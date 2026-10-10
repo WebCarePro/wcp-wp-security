@@ -129,7 +129,19 @@ class SettingsManager {
     }
 
     /**
-     * Retrieve all settings merged with defaults
+     * Get a specific setting by key with decrypted value.
+     *
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
+    public static function get(string $key, $default = null) {
+        $settings = self::get_settings();
+        return array_key_exists($key, $settings) ? $settings[$key] : $default;
+    }
+
+    /**
+     * Retrieve all settings merged with defaults and decrypted.
      */
     public static function get_settings(): array {
         $saved = get_option(self::OPTION_KEY, []);
@@ -139,6 +151,28 @@ class SettingsManager {
 
         $defaults = self::get_defaults();
         $merged = array_merge($defaults, $saved);
+
+        // Transparently decrypt sensitive credentials at runtime & auto-migrate plaintext in DB if needed
+        $sensitive_keys = ['cloudflare_api_token', 'cloudflare_zone_id', 'openai_api_key', 'gemini_api_key', 'claude_api_key'];
+        $needs_db_migration = false;
+        $updated_saved = $saved;
+
+        foreach ($sensitive_keys as $k) {
+            if (!empty($merged[$k])) {
+                $raw_val = (string) $merged[$k];
+                if (!\WCP\Scanner\Security\SecretVault::is_encrypted($raw_val)) {
+                    // Plaintext credential found in DB - encrypt it immediately for storage
+                    $updated_saved[$k] = \WCP\Scanner\Security\SecretVault::encrypt($raw_val);
+                    $needs_db_migration = true;
+                } else {
+                    $merged[$k] = \WCP\Scanner\Security\SecretVault::decrypt($raw_val);
+                }
+            }
+        }
+
+        if ($needs_db_migration && !empty($saved)) {
+            update_option(self::OPTION_KEY, $updated_saved);
+        }
 
         // Mask API keys for security in UI output
         $merged['has_openai_key']     = !empty($merged['openai_api_key']);
@@ -191,23 +225,26 @@ class SettingsManager {
             ? $input['ai_provider'] 
             : 'openai';
 
-        // Preserve existing keys if incoming is masked or empty
+        // Preserve existing keys if incoming is masked or empty, and securely encrypt for database storage
         $in_openai = trim($input['openai_api_key'] ?? '');
-        $clean['openai_api_key'] = ($in_openai === '' || $in_openai === '••••••••') 
-            ? ($current['openai_api_key'] ?? '') 
+        $openai_val = ($in_openai === '' || $in_openai === '••••••••') 
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['openai_api_key'] ?? '') 
             : sanitize_text_field($in_openai);
+        $clean['openai_api_key'] = \WCP\Scanner\Security\SecretVault::encrypt($openai_val);
         $clean['openai_model'] = sanitize_text_field($input['openai_model'] ?? 'gpt-6.1-sol');
 
         $in_gemini = trim($input['gemini_api_key'] ?? '');
-        $clean['gemini_api_key'] = ($in_gemini === '' || $in_gemini === '••••••••') 
-            ? ($current['gemini_api_key'] ?? '') 
+        $gemini_val = ($in_gemini === '' || $in_gemini === '••••••••') 
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['gemini_api_key'] ?? '') 
             : sanitize_text_field($in_gemini);
+        $clean['gemini_api_key'] = \WCP\Scanner\Security\SecretVault::encrypt($gemini_val);
         $clean['gemini_model'] = sanitize_text_field($input['gemini_model'] ?? 'gemini-3.8-flash');
 
         $in_claude = trim($input['claude_api_key'] ?? '');
-        $clean['claude_api_key'] = ($in_claude === '' || $in_claude === '••••••••') 
-            ? ($current['claude_api_key'] ?? '') 
+        $claude_val = ($in_claude === '' || $in_claude === '••••••••') 
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['claude_api_key'] ?? '') 
             : sanitize_text_field($in_claude);
+        $clean['claude_api_key'] = \WCP\Scanner\Security\SecretVault::encrypt($claude_val);
         $clean['claude_model'] = sanitize_text_field($input['claude_model'] ?? 'claude-sonnet-5-5');
 
         $clean['ai_temperature']           = max(0.0, min(1.0, floatval($input['ai_temperature'] ?? 0.2)));
@@ -296,13 +333,20 @@ class SettingsManager {
         $clean['webhook_notify_on_waf_block']   = !empty($input['webhook_notify_on_waf_block']);
         $clean['webhook_notify_on_scan_finish'] = isset($input['webhook_notify_on_scan_finish']) ? !empty($input['webhook_notify_on_scan_finish']) : true;
 
-        // 12. Cloudflare Edge Defense Integration
+        // 12. Cloudflare Edge Defense Integration (Encrypted with SecretVault)
         $clean['cloudflare_enabled']        = !empty($input['cloudflare_enabled']);
         $in_cf_token                        = trim($input['cloudflare_api_token'] ?? '');
-        $clean['cloudflare_api_token']      = ($in_cf_token === '' || $in_cf_token === '••••••••')
-            ? ($current['cloudflare_api_token'] ?? '')
+        $cf_token_val                       = ($in_cf_token === '' || $in_cf_token === '••••••••')
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['cloudflare_api_token'] ?? '')
             : sanitize_text_field($in_cf_token);
-        $clean['cloudflare_zone_id']        = sanitize_text_field(trim($input['cloudflare_zone_id'] ?? ''));
+        $clean['cloudflare_api_token']      = \WCP\Scanner\Security\SecretVault::encrypt($cf_token_val);
+
+        $in_zone_id                         = trim($input['cloudflare_zone_id'] ?? '');
+        $zone_id_val                        = ($in_zone_id === '' || $in_zone_id === '••••••••')
+            ? \WCP\Scanner\Security\SecretVault::decrypt($current['cloudflare_zone_id'] ?? '')
+            : sanitize_text_field($in_zone_id);
+        $clean['cloudflare_zone_id']        = \WCP\Scanner\Security\SecretVault::encrypt($zone_id_val);
+
         $clean['cloudflare_auto_sync_bans'] = !empty($input['cloudflare_auto_sync_bans']);
 
         update_option(self::OPTION_KEY, $clean);
