@@ -35,6 +35,11 @@ v:1.5.0 - 2026-10-10
   * Attack Flood Rate-Limiter: Built-in 60-second transient rate-limiter prevents channel notification spamming during high-volume DDoS, brute-force, or vulnerability probe storms.
   * Live Multi-Platform Webhook Testing API: Implemented authenticated REST endpoint `POST /wcp-scanner/v1/notifications/test-webhook` allowing administrators to test Slack, Discord, ClickUp, Asana, and Automation endpoints with instant visual delivery feedback.
   * Dedicated "DevSecOps Webhooks" Settings Interface: Added dedicated tab under Scanner Settings with configuration panels for Slack, Discord, ClickUp, Asana, and Automation webhooks, live toggle switches, individual event notification filters (Critical Threats, Scan Finished, FIM Changes, WAF Blocks), and 1-click test alert triggers.
+- Built Dedicated "Support & Socials" Hub Under Scanner Settings:
+  * 1-Click WhatsApp Quick Assistance: Integrated dynamic WhatsApp link with pre-built message containing current website title and domain name (`Hello WebCare Pro, I need technical assistance with my website "[SiteName]" ([Domain]).`).
+  * Direct Pre-Filled Support Email: Integrated `mailto:` link pre-populated with diagnostic site title, domain, and issue description template.
+  * Verified Social & Professional Channels: Added direct cards for Upwork Top Rated Plus profile (Mir Alamin, 100% Job Success), Microsoft Teams live meeting, GitHub Organization (`github.com/WebCarePro`), and official website (`webcarespro.com`).
+  * Confidentiality & NDA Guarantee: Emphasized encrypted handling of client inquiries and credentials.
 - WordPress.org Official Plugin Review Compliance & Hardening:
   * Resolved Trademark / Discouraged Naming Guidelines: Renamed display name from `WCP WP Security Scanner` to `WCP Security Scanner` across `wcp-wp-scanner.php`, `readme.txt`, email notification templates, and settings export metadata. Preserved clean approved slug `wcp-security-scanner`.
   * Fixed Readme Short Description Length: Shortened header description in `readme.txt` to 147 characters (under the strict 150-character limit required by the WordPress plugin directory).
