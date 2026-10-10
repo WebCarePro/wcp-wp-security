@@ -12,10 +12,12 @@ class DatabaseScanner {
 
     private $table_scanner;
     private $option_scanner;
+    private $rogue_admin_detector;
 
     public function __construct() {
         $this->table_scanner = new TableScanner();
         $this->option_scanner = new OptionScanner();
+        $this->rogue_admin_detector = new RogueAdminAnomalyDetector();
     }
 
     /**
@@ -33,7 +35,11 @@ class DatabaseScanner {
         $option_findings = $this->option_scanner->scan_options($scan_id);
         $findings = array_merge($findings, $option_findings);
 
-        // 2. Discover all tables
+        // 2. Audit Rogue Administrators & Database Micro-Anomalies
+        $rogue_findings = $this->rogue_admin_detector->scan((string) $scan_id);
+        $findings = array_merge($findings, $rogue_findings);
+
+        // 3. Discover all tables
         $tables = $this->table_scanner->get_tables();
 
         foreach ($tables as $table) {

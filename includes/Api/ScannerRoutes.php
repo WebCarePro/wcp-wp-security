@@ -386,6 +386,13 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Rogue Administrator & Database Anomaly Audit
+        register_rest_route(self::NAMESPACE, '/database/rogue-admin-audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_rogue_admin_audit'],
+            'permission_callback' => $permission,
+        ]);
+
         // DevSecOps Webhook Testing
         register_rest_route(self::NAMESPACE, '/notifications/test-webhook', [
             'methods'             => 'POST',
@@ -636,9 +643,13 @@ class ScannerRoutes {
         } elseif ($target === 'core_integrity') {
             // WordPress Core files integrity check against official checksums
             $core_integrity = new CoreIntegrity();
-            $important_fim = new ImportantFileFIM();
             $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
-            $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
+        } elseif ($target === 'rogue_admin') {
+            // Rogue Administrator & Database Micro-Anomaly Audit
+            $rogue_detector = new \WCP\Scanner\Database\RogueAdminAnomalyDetector();
+            $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
+            $user_scanner = new UserScanner();
+            $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
         } elseif ($target === 'filesystem_only') {
             // Filesystem-only scan: no additional deep audit engines needed
         } else {
@@ -1742,6 +1753,17 @@ class ScannerRoutes {
             'success'  => true,
             'message'  => __('Session successfully revoked.', 'wcp-security-scanner'),
             'sessions' => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
+        ]);
+    }
+
+    /**
+     * Database: Get Rogue Administrator & Micro-Anomaly Audit
+     */
+    public static function get_rogue_admin_audit(\WP_REST_Request $request) {
+        $audit = \WCP\Scanner\Database\RogueAdminAnomalyDetector::audit_users_and_anomalies();
+        return rest_ensure_response([
+            'success' => true,
+            'audit'   => $audit,
         ]);
     }
 

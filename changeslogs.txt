@@ -99,6 +99,15 @@ v:1.5.0 - 2026-10-10
   * 1-Click Remote Session Revocation: Added instant "Terminate Session" and "Revoke All Other Sessions" capabilities directly from the administrative interface.
   * Dedicated "Active Sessions Sentinel" Tab: Added interactive device session inspector to `AuthSecurityPage.tsx` displaying client IP, current device indicator, browser/OS badges, last active timestamps, and avatar profiles.
   * Registered authenticated REST API endpoints: `GET /wcp-scanner/v1/auth/sessions/list` and `POST /wcp-scanner/v1/auth/sessions/revoke`.
+- Built Database Micro-Anomaly & Rogue Administrator Trap (AI-Era Modern Defense Phase 3):
+  * Rogue Administrator & Ghost Capability Detector: Created `RogueAdminAnomalyDetector.php` performing deep cross-table relational integrity auditing between `wp_users` and `wp_usermeta`.
+  * Stealth User Injections: Identifies users created in `wp_users` that bypass standard registration hooks and lack capabilities metadata, flagging zombie rootkit entries.
+  * Ghost/Orphaned Capability Hunting: Uncovers orphaned capability rows in `wp_usermeta` pointing to non-existent user IDs, a classic sign of incomplete malware cleanups or persistent backdoor triggers.
+  * Inconsistent Privilege Escalation Trap: Audits administrator capabilities vs `wp_user_level`, detecting accounts granted raw admin access where `user_level` does not match standard 10.
+  * Malicious Transients & DB Rootkit Probing: Recursively inspects `wp_options` for hidden backdoor keys and transient names concealing encoded execution payloads (`eval`, `base64_decode`, `gzinflate`, `system`).
+  * Seamless Scanner Integration: Integrated into `DatabaseScanner::scan()` to run automatically during all comprehensive scans, and added a dedicated "Rogue Admin & DB Anomalies" profile to the Targeted Scans suite.
+  * Registered authenticated REST API endpoint: `GET /wcp-scanner/v1/database/rogue-admin-audit`.
+
 
 
 
