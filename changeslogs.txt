@@ -6,6 +6,12 @@ v:1.5.0 - 2026-10-10
   * Dedicated "Firewall (WAF)" React Management Tab: Live metrics (Total Blocked Attacks, 24h Blocks, Active Status), real-time incident stream table with 1-click log purge, 1-click current IP whitelisting, Learning Mode toggle (audit-only logging), and individual rule toggles.
   * Custom Branded 403 Forbidden Screen: Returns responsive dark-themed block notice with unique incident reference IDs, client IP, and triggered attack categories.
   * Incident Logging Table: Created `wp_wcp_firewall_logs` table with automated rate-limiting to prevent log flooding, and integrated with `uninstall.php` clean purge.
+- Built Real-Time File Integrity Monitoring (FIM) & Visual Code Diff Viewer (Roadmap Feature 2):
+  * Filesystem Modification Engine: `FileIntegrityMonitor.php` monitors WordPress Core, active Plugins, Themes, and Uploads directories with customizable historical timeframes (24 hours, 48 hours, 7 days, 30 days).
+  * Threat Heuristics on Modified Files: Automatically flags modified core files, suspicious script injections in uploads directory, and presence of dangerous execution functions (`eval`, `base64_decode`, `assert`, `shell_exec`).
+  * Bit-for-Bit Visual Code Diff Viewer: Pure PHP Myers/LCS diff algorithm comparing local server files against official WordPress.org release mirrors (GitHub/SVN) with caching transient.
+  * Dedicated "File Integrity (FIM)" React Dashboard Tab & Modal: Real-time file change metric cards, multi-scope filtering (All, Core, Plugins, Themes, Uploads), instant path search, and interactive fullscreen Git-style code diff modal with syntax line numbers and addition/deletion counters (`+X` / `-Y`).
+  * Direct Integration with Scan Issues: Added 1-click "Visual Code Diff (FIM)" button directly inside Scan Issues details table to inspect altered core or plugin files instantly.
 - WordPress.org Official Plugin Review Compliance & Hardening:
   * Resolved Trademark / Discouraged Naming Guidelines: Renamed display name from `WCP WP Security Scanner` to `WCP Security Scanner` across `wcp-wp-scanner.php`, `readme.txt`, email notification templates, and settings export metadata. Preserved clean approved slug `wcp-security-scanner`.
   * Fixed Readme Short Description Length: Shortened header description in `readme.txt` to 147 characters (under the strict 150-character limit required by the WordPress plugin directory).

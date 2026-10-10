@@ -259,6 +259,19 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'toggle_firewall'],
             'permission_callback' => $permission,
         ]);
+
+        // File Integrity Monitoring (FIM) & Code Diff Endpoints
+        register_rest_route(self::NAMESPACE, '/integrity/recent-changes', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_integrity_recent_changes'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/integrity/diff', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_integrity_file_diff'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1287,5 +1300,29 @@ class ScannerRoutes {
             'enabled' => $enabled,
             'status'  => \WCP\Scanner\Firewall\FirewallEngine::get_status(),
         ]);
+    }
+
+    public static function get_integrity_recent_changes(\WP_REST_Request $request) {
+        $hours = (int) ($request->get_param('hours') ?: 48);
+        $category = sanitize_key($request->get_param('category') ?: 'all');
+        $limit = (int) ($request->get_param('limit') ?: 150);
+
+        $fim = new \WCP\Scanner\Integrity\FileIntegrityMonitor();
+        $data = $fim->get_recent_changes($hours, $category, $limit);
+
+        return rest_ensure_response($data);
+    }
+
+    public static function get_integrity_file_diff(\WP_REST_Request $request) {
+        $file_path = $request->get_param('file_path');
+        if (empty($file_path)) {
+            return new \WP_Error('missing_file_path', __('Missing required file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $file_path = sanitize_text_field(wp_unslash($file_path));
+        $fim = new \WCP\Scanner\Integrity\FileIntegrityMonitor();
+        $diff_data = $fim->get_file_diff($file_path);
+
+        return rest_ensure_response($diff_data);
     }
 }

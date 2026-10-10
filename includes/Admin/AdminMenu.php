@@ -93,6 +93,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: File Integrity Monitoring (FIM) & Code Diff
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
+            __('File Integrity (FIM)', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-fim',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Settings
         add_submenu_page(
             'wcp-security-scanner',
@@ -127,6 +137,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-server',
             'security-scanner_page_wcp-scanner-vulnerabilities',
             'security-scanner_page_wcp-scanner-firewall',
+            'security-scanner_page_wcp-scanner-fim',
             'security-scanner_page_wcp-scanner-settings',
             'security-scanner_page_wcp-scanner-about',
         ];
@@ -147,6 +158,7 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-server') $active_tab = 'server';
         elseif ($current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
         elseif ($current_page === 'wcp-scanner-firewall') $active_tab = 'firewall';
+        elseif ($current_page === 'wcp-scanner-fim') $active_tab = 'fim';
         elseif ($current_page === 'wcp-scanner-settings') $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about') $active_tab = 'about';
 
