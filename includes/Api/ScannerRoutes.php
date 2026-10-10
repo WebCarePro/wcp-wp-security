@@ -407,6 +407,43 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'test_chat_webhook'],
             'permission_callback' => $permission,
         ]);
+
+        // Cloudflare Edge Defense Endpoints
+        register_rest_route(self::NAMESPACE, '/cloudflare/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_cloudflare_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/verify', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'verify_cloudflare_credentials'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/deploy-rules', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'deploy_cloudflare_rules'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/rate-limiting', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_cloudflare_rate_limiting'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/sync-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'block_cloudflare_ip'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/purge-cache', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'purge_cloudflare_cache'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1818,6 +1855,61 @@ class ScannerRoutes {
         $url      = !empty($params['webhook_url']) ? esc_url_raw(trim($params['webhook_url'])) : null;
 
         $result = \WCP\Scanner\Notifications\WebhookService::send_test($platform, $url);
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Cloudflare Edge Defense Handlers
+     */
+    public static function get_cloudflare_status(\WP_REST_Request $request) {
+        $status = \WCP\Scanner\Cloudflare\CloudflareService::get_status();
+        $definitions = \WCP\Scanner\Cloudflare\CloudflareService::get_rule_definitions();
+        return rest_ensure_response([
+            'success'     => true,
+            'status'      => $status,
+            'definitions' => $definitions,
+        ]);
+    }
+
+    public static function verify_cloudflare_credentials(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $token   = !empty($params['token']) ? trim(sanitize_text_field($params['token'])) : null;
+        $zone_id = !empty($params['zone_id']) ? trim(sanitize_text_field($params['zone_id'])) : null;
+
+        $result = \WCP\Scanner\Cloudflare\CloudflareService::verify_zone($zone_id, $token);
+        return rest_ensure_response($result);
+    }
+
+    public static function deploy_cloudflare_rules(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $rules  = is_array($params['rules'] ?? null) ? $params['rules'] : [];
+
+        $result = \WCP\Scanner\Cloudflare\CloudflareService::deploy_custom_rules($rules);
+        return rest_ensure_response($result);
+    }
+
+    public static function toggle_cloudflare_rate_limiting(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $enable = !empty($params['enabled']);
+
+        $result = \WCP\Scanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable);
+        return rest_ensure_response($result);
+    }
+
+    public static function block_cloudflare_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip     = sanitize_text_field($params['ip'] ?? '');
+        $reason = sanitize_text_field($params['reason'] ?? 'Manual block via Security Scanner');
+
+        $result = \WCP\Scanner\Cloudflare\CloudflareService::block_ip($ip, $reason);
+        return rest_ensure_response($result);
+    }
+
+    public static function purge_cloudflare_cache(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $files  = !empty($params['files']) && is_array($params['files']) ? array_map('esc_url_raw', $params['files']) : null;
+
+        $result = \WCP\Scanner\Cloudflare\CloudflareService::purge_cache($files);
         return rest_ensure_response($result);
     }
 }

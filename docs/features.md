@@ -201,3 +201,18 @@ An enterprise-grade, lightweight WordPress security, malware detection, integrit
 - **Real-Time Security Notifications**: Delivers rich Block Kit (Slack) and Embed (Discord) alert cards when critical vulnerabilities are found, files are altered, or attacks are blocked.
 - **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
 - **Live Webhook Testing API**: 1-click test button inside Scanner Settings to verify webhook URL configuration instantly.
+
+---
+
+### 17. Cloudflare Edge Defense & Zero-Resource WAF (100% Free Plan Compatible)
+- **Zero-Resource Threat Interception**: Stops automated attacks at Cloudflare's Global Anycast Edge before requests ever reach your origin server or consume PHP and MySQL resources.
+- **1-Click Free Plan Cloudflare Edge Rules Deployment**:
+  - *XML-RPC & Amplification Shield*: Drops pingback and brute force spray targeting `/xmlrpc.php` at the edge.
+  - *Sensitive Files & Dotfiles Armor*: Rejects probes for `wp-config.php`, `.env`, `.git`, `composer.json`, and database dumps before disk access.
+  - *Uploads Directory Webshell Trap*: Direct edge block on HTTP execution of scripts (`.php`, `.sh`, `.py`, `.exe`) in `wp-content/uploads/`.
+  - *Author Enumeration Recon Shield*: Prevents username harvesting via `?author=1` and `/wp-json/wp/v2/users`.
+  - *Login Portal Threat Defense*: Deploys non-intrusive Cloudflare Turnstile / Managed Challenge for automated bots targeting `wp-login.php`.
+- **Cloudflare Free Rate Limiting Integration**: Deploys an edge rate limiter on `wp-login.php` (10 requests / 10s per IP) to neutralize credential stuffing.
+- **Bi-Directional WAF Auto-Ban Sync**: When WCP Local WAF detects high-threat attacks (SQL injection, webshell uploads, directory traversal), it automatically pushes the attacking IP to Cloudflare Edge IP Access Rules.
+- **1-Click CDN Cache Purge**: Instant global edge cache purge from WordPress admin with zero latency.
+

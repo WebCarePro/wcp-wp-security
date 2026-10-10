@@ -186,6 +186,14 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://discord.com/terms
 * Privacy Policy: https://discord.com/privacy
 
+8. Cloudflare API v4 (Optional)
+* Service: Cloudflare Inc. (https://api.cloudflare.com/client/v4).
+* Purpose: Deploys edge WAF rules, wp-login rate limiting, and IP access block rules to Cloudflare CDN, and purges edge cache.
+* Data Sent: Zone ID, WAF ruleset configurations, and blocked malicious IP addresses when explicitly initiated or configured for auto-sync.
+* When: Only when the administrator enters their Cloudflare API Token and Zone ID in the Cloudflare Edge Defense tab and deploys rules, purges cache, or blocks an IP.
+* Terms of Service: https://www.cloudflare.com/terms/
+* Privacy Policy: https://www.cloudflare.com/privacypolicy/
+
 == Source Code & Build ==
 
 This plugin is open-source under GPLv2 or later. Non-minified React and JavaScript source files are included directly in the `src/` directory.
@@ -202,6 +210,7 @@ To compile the React admin application from source:
 
 = 1.5.0 =
 * Added Web Application Firewall (WAF Lite) with real-time early request filtering, virtual patching, and custom 403 Forbidden screen.
+* Added Cloudflare Edge Defense & Zero-Resource WAF (100% Free Plan Compatible) with 1-click Edge Rulesets, wp-login.php rate limiting, bi-directional auto-ban sync, and 1-click CDN cache purge.
 * Added Real-Time File Integrity Monitoring (FIM) with pure PHP Myers/LCS visual code diff viewer against WordPress.org SVN release mirrors.
 * Added One-Click Malware Remediation / Auto-Cure Engine with webshell stripping, official WordPress.org restoration, and automatic rollback safety backups.
 * Added Cloud Threat Intelligence & Community Botnet IP Blacklists with zero-day CVE site correlation and O(1) in-memory subnet matching.

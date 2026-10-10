@@ -398,6 +398,21 @@ class FirewallEngine {
                 'ip_address' => $ip,
             ]);
         }
+
+        // Auto-sync banned IP to Cloudflare Edge Access Rules if enabled
+        if ($action === 'blocked') {
+            $settings = SettingsManager::get_settings();
+            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WCP\\Scanner\\Cloudflare\\CloudflareService')) {
+                // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
+                $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
+                if (in_array($rule['category'], $critical_categories, true)) {
+                    \WCP\Scanner\Cloudflare\CloudflareService::block_ip(
+                        $ip,
+                        "WCP WAF Auto-Ban: {$rule['category']} probe"
+                    );
+                }
+            }
+        }
     }
 
     /**

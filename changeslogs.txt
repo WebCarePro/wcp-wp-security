@@ -125,7 +125,13 @@ v:1.5.0 - 2026-10-10
 - Resolved Targeted Scan JSON Response Errors:
   * Hook Sentinel & LotL Traps Fix: Resolved PHP Fatal Error (`Class "WCP\Scanner\Api\PersistenceScanner" not found`) by importing `use WCP\Scanner\WordPress\PersistenceScanner;` in `includes/Api/ScannerRoutes.php`.
   * Uploads Executables Audit Resilience & UTF-8 Sanitation: Enhanced `includes/Filesystem/UploadsScanner.php` with safe directory iteration using `CATCH_GET_CHILD` to prevent unreadable directory exceptions, added a safety file inspection ceiling, and implemented `sanitize_utf8()` to strip malformed non-UTF-8 binary bytes from extracted preview snippets and evidence payloads, preventing JSON encoding failures (`JSON_ERROR_UTF8`).
-  * Deep Audit Error Shielding: Wrapped the deep audit execution routine in `ScannerRoutes::run_deep_audit()` inside a resilient `try...catch (\Throwable $e)` block that releases `ScanLock` and returns clean, structured JSON REST error responses in edge cases.
+- Built Cloudflare Edge Defense & Zero-Resource WAF (100% Free Plan Compatible):
+  * Created `CloudflareService.php`: Integrates Cloudflare v4 REST API (Rulesets API, Rate Limiting, IP Access Rules, Cache Purge).
+  * 1-Click Free Plan Edge WAF Ruleset Deployment: Deploys 5 targeted WordPress edge firewall rules (XML-RPC & Amplification Shield, Sensitive Files & Dotfiles Armor, Uploads Directory Webshell Execution Trap, Author Enumeration Recon Shield, and Login Portal Managed Challenge/Turnstile) using `PUT /zones/{zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint`.
+  * Cloudflare Free Rate Limiter: Deploys an edge rate limiting rule on `/wp-login.php` (10 requests / 10s per IP) to mitigate brute-force attacks with zero server resource consumption.
+  * Real-Time Local WAF Auto-Ban Edge Sync: When the local WAF blocks high-threat probes (SQLi, PHP Injection, Path Traversal), it automatically pushes the offending IP to Cloudflare Edge IP Access Rules.
+  * Instant CDN Cache Purge: Added 1-click global edge cache purge tool with real-time feedback in `FirewallPage.tsx`.
+  * Dedicated Cloudflare Tab: Added a modern, dedicated "Cloudflare Edge Defense" management tab inside the Firewall (WAF) dashboard with token verification, zone information, and rule deployment toggles.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

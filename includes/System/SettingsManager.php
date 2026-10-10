@@ -111,6 +111,12 @@ class SettingsManager {
             'webhook_notify_on_fim'              => true,
             'webhook_notify_on_waf_block'        => false,
             'webhook_notify_on_scan_finish'      => true,
+
+            // 12. Cloudflare Edge Defense Integration
+            'cloudflare_enabled'                 => false,
+            'cloudflare_api_token'               => '',
+            'cloudflare_zone_id'                 => '',
+            'cloudflare_auto_sync_bans'          => false,
         ];
     }
 
@@ -127,9 +133,10 @@ class SettingsManager {
         $merged = array_merge($defaults, $saved);
 
         // Mask API keys for security in UI output
-        $merged['has_openai_key'] = !empty($merged['openai_api_key']);
-        $merged['has_gemini_key'] = !empty($merged['gemini_api_key']);
-        $merged['has_claude_key'] = !empty($merged['claude_api_key']);
+        $merged['has_openai_key']     = !empty($merged['openai_api_key']);
+        $merged['has_gemini_key']     = !empty($merged['gemini_api_key']);
+        $merged['has_claude_key']     = !empty($merged['claude_api_key']);
+        $merged['has_cloudflare_key'] = !empty($merged['cloudflare_api_token']);
 
         return $merged;
     }
@@ -271,6 +278,15 @@ class SettingsManager {
         $clean['webhook_notify_on_fim']         = isset($input['webhook_notify_on_fim']) ? !empty($input['webhook_notify_on_fim']) : true;
         $clean['webhook_notify_on_waf_block']   = !empty($input['webhook_notify_on_waf_block']);
         $clean['webhook_notify_on_scan_finish'] = isset($input['webhook_notify_on_scan_finish']) ? !empty($input['webhook_notify_on_scan_finish']) : true;
+
+        // 12. Cloudflare Edge Defense Integration
+        $clean['cloudflare_enabled']        = !empty($input['cloudflare_enabled']);
+        $in_cf_token                        = trim($input['cloudflare_api_token'] ?? '');
+        $clean['cloudflare_api_token']      = ($in_cf_token === '' || $in_cf_token === '••••••••')
+            ? ($current['cloudflare_api_token'] ?? '')
+            : sanitize_text_field($in_cf_token);
+        $clean['cloudflare_zone_id']        = sanitize_text_field(trim($input['cloudflare_zone_id'] ?? ''));
+        $clean['cloudflare_auto_sync_bans'] = !empty($input['cloudflare_auto_sync_bans']);
 
         update_option(self::OPTION_KEY, $clean);
 
