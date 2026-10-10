@@ -107,6 +107,11 @@ v:1.5.0 - 2026-10-10
   * Malicious Transients & DB Rootkit Probing: Recursively inspects `wp_options` for hidden backdoor keys and transient names concealing encoded execution payloads (`eval`, `base64_decode`, `gzinflate`, `system`).
   * Seamless Scanner Integration: Integrated into `DatabaseScanner::scan()` to run automatically during all comprehensive scans, and added a dedicated "Rogue Admin & DB Anomalies" profile to the Targeted Scans suite.
   * Registered authenticated REST API endpoint: `GET /wcp-scanner/v1/database/rogue-admin-audit`.
+- Built Bot Recon Defense & AI Scraper Shield (AI-Era Modern Defense Phase 4):
+  * Fake Search Engine Crawler Defense: Created `BotReconDefense.php` detecting requests spoofing genuine search engine crawlers (Googlebot, Bingbot, Slurp, DuckDuckBot, Yandex, Baiduspider). Verifies authenticity via reverse DNS PTR resolution followed by forward DNS A/AAAA confirmation with 24-hour transient caching to eliminate latency. Instantly blocks and logs unauthorized reconnaissance probes impersonating search bots.
+  * AI Content Harvester & Model Scraper Shield: Identifies and intercepts aggressive AI model scrapers (GPTBot, ChatGPT-User, CCBot, Bytespider, anthropic-ai, ClaudeBot, PerplexityBot, Diffbot, Cohere-ai) at the WAF level.
+  * Dynamic Virtual robots.txt Injection: Automatically injects standard Disallow directives for known AI scrapers into WordPress virtual `robots.txt` via the `robots_txt` filter when enabled.
+  * Dedicated WAF Controls: Added interactive toggle controls for Fake Search Engine Crawler Defense, AI Scraper Shield, and Dynamic robots.txt injection in `FirewallPage.tsx` with full backend persistence in `SettingsManager.php`.
 
 
 

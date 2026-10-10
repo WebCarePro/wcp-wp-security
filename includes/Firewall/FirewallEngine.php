@@ -18,6 +18,9 @@ class FirewallEngine {
         // Initialize Threat Intelligence Service
         ThreatIntelService::init();
 
+        // Initialize Bot Recon Defense & AI Scraper Shield
+        BotReconDefense::init();
+
         // Run early at plugins_loaded priority 0
         add_action('plugins_loaded', [__CLASS__, 'inspect_incoming_request'], 0);
 
@@ -132,6 +135,20 @@ class FirewallEngine {
                     self::render_block_page($rule_triggered, $client_ip);
                     exit;
                 }
+            }
+        }
+
+        // Check Bot Recon Defense & AI Scraper Shield
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
+        if ($bot_rule !== null) {
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($bot_rule, 'detected');
+            } else {
+                self::log_incident($bot_rule, 'blocked');
+                self::render_block_page($bot_rule, $client_ip);
+                exit;
             }
         }
 

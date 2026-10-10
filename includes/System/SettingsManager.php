@@ -84,6 +84,9 @@ class SettingsManager {
             'waf_disable_xmlrpc'       => false,
             'waf_login_rate_limit'     => true,
             'waf_whitelisted_ips'      => '',
+            'waf_block_fake_bots'      => true,
+            'waf_block_ai_scrapers'    => false,
+            'waf_dynamic_robots_ai'    => true,
 
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
@@ -241,6 +244,9 @@ class SettingsManager {
         $clean['waf_disable_xmlrpc']      = !empty($input['waf_disable_xmlrpc']);
         $clean['waf_login_rate_limit']    = isset($input['waf_login_rate_limit']) ? !empty($input['waf_login_rate_limit']) : true;
         $clean['waf_whitelisted_ips']     = sanitize_textarea_field($input['waf_whitelisted_ips'] ?? '');
+        $clean['waf_block_fake_bots']     = isset($input['waf_block_fake_bots']) ? !empty($input['waf_block_fake_bots']) : true;
+        $clean['waf_block_ai_scrapers']   = !empty($input['waf_block_ai_scrapers']);
+        $clean['waf_dynamic_robots_ai']   = isset($input['waf_dynamic_robots_ai']) ? !empty($input['waf_dynamic_robots_ai']) : true;
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;
