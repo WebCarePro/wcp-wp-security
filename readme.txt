@@ -131,6 +131,30 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://www.anthropic.com/legal/consumer-terms
 * Privacy Policy: https://www.anthropic.com/legal/privacy
 
+5. Community Botnet & Threat Intelligence Feeds
+* Service: Blocklist.de (https://lists.blocklist.de) and Stamparm Ipsum (https://raw.githubusercontent.com/stamparm/ipsum).
+* Purpose: Downloads publicly aggregated lists of known malicious botnet and brute-force IP addresses for firewall perimeter protection.
+* Data Sent: No user, site, or visitor data is transmitted. Only public plain-text threat lists are downloaded via standard HTTP GET.
+* When: Synchronized bi-daily (every 12 hours) via WP-Cron or when the administrator clicks "Sync Threat Intel Now".
+* Terms of Service: https://www.blocklist.de/en/tos.html
+* Privacy Policy: https://www.blocklist.de/en/privacy.html
+
+6. Slack Webhook API (Optional)
+* Service: Slack Technologies (https://hooks.slack.com).
+* Purpose: Sends optional security incident notifications (critical malware discoveries, WAF blocks) to the administrator's designated Slack channel.
+* Data Sent: Alert notification message, site name, threat severity, and incident timestamp.
+* When: Triggered only if configured and enabled by the administrator in Scanner Settings.
+* Terms of Service: https://slack.com/terms-of-service
+* Privacy Policy: https://slack.com/privacy-policy
+
+7. Discord Webhook API (Optional)
+* Service: Discord Inc. (https://discord.com/api/webhooks).
+* Purpose: Sends optional security incident notifications to the administrator's designated Discord channel.
+* Data Sent: Alert notification embed card, site name, threat severity, and incident timestamp.
+* When: Triggered only if configured and enabled by the administrator in Scanner Settings.
+* Terms of Service: https://discord.com/terms
+* Privacy Policy: https://discord.com/privacy
+
 == Source Code & Build ==
 
 This plugin is open-source under GPLv2 or later. Non-minified React and JavaScript source files are included directly in the `src/` directory.
@@ -142,3 +166,18 @@ To compile the React admin application from source:
 1. Ensure Node.js 18+ and npm are installed.
 2. In the plugin root, run `npm install`.
 3. Run `npm run build` to generate the production bundle in `build/index.js`.
+
+== Changelog ==
+
+= 1.5.0 =
+* Added Web Application Firewall (WAF Lite) with real-time early request filtering and virtual patching.
+* Added Real-Time File Integrity Monitoring (FIM) with pure PHP Myers/LCS visual code diff viewer against WordPress.org SVN release mirrors.
+* Added One-Click Malware Remediation / Auto-Cure Engine with webshell stripping, official WordPress.org restoration, and automatic rollback safety backups.
+* Added Cloud Threat Intelligence & Community Botnet IP Blacklists with zero-day CVE site correlation.
+* Added Multi-Factor Authentication (2FA) with RFC 6238 TOTP engine, emergency recovery codes, and brute-force login hardening.
+* Added DevSecOps Chat Webhooks for real-time Slack and Discord security notifications.
+* Added automatic detection and exclusion for harmless directory protection index.php files in uploads.
+* Added automatic recognition and exclusion for custom & premium plugins and themes in FIM.
+* Added clean 5-table database purge on plugin uninstall (uninstall.php).
+* Redesigned Scanner Settings with modern segmented pill navigation and animated toggle switches.
+
