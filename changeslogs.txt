@@ -166,7 +166,7 @@ v:1.5.0 - 2026-10-10
   * 1-Click Pre-configured Cloudflare Token Template URL: Added prominent "1-Click Pre-configure Cloudflare Token ↗" button in `FirewallPage.tsx` linking directly to Cloudflare's API token generation interface with the token name and all 4 required permissions (`Zone.Zone: Read`, `Zone.Zone WAF: Edit`, `Zone.Firewall Services: Edit`, and `Zone.Cache Purge: Purge`) pre-populated automatically via `permissionGroupKeys`.
   * Zone ID Persistence & Domain Display: Retained active Zone ID and connected domain name across page reloads in `FirewallPage.tsx` and returned `zone_id` in `CloudflareService::get_status()`.
   * 1-Click Disconnect Cloudflare: Added "Disconnect Cloudflare" button that clears API tokens, Zone IDs, and auto-sync settings from the database via REST route `POST /wcp-scanner/v1/cloudflare/disconnect`.
-  * Automatic Root Domain Zone Detection: Enhanced `CloudflareService::verify_zone()` with `extract_root_domain()` to automatically discover and map subdomains (e.g. `dev2.miralamin.win` -> `miralamin.win`) to their corresponding Cloudflare Zone ID when left blank, eliminating manual Zone ID entry.
+  * Cloudflare Proxy Status (Orange Cloud vs Grey Cloud) Detection: Added `CloudflareService::check_proxy_status()` to cross-examine incoming edge request headers, Cloudflare DNS records, and resolved Anycast IP ranges (`is_cloudflare_ip()`), displaying live Proxy Status badges in `FirewallPage.tsx` alerting users if the domain/subdomain is set to DNS-only (Grey Cloud).
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

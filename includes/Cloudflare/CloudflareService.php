@@ -238,6 +238,8 @@ class CloudflareService {
         $rate_limit = self::get_rate_limiting_status($zone_id);
         $ip_count = self::get_ip_rules_count($zone_id);
 
+        $proxy_status = self::check_proxy_status($zone_id);
+
         return [
             'configured'     => true,
             'zone_id'        => $zone_id,
@@ -248,7 +250,128 @@ class CloudflareService {
             'rate_limiting'  => $rate_limit,
             'ip_rules_count' => $ip_count,
             'auto_sync_bans' => !empty($settings['cloudflare_auto_sync_bans']),
+            'proxy_status'   => $proxy_status,
         ];
+    }
+
+    /**
+     * Check if the current WordPress site's domain / subdomain is proxied through Cloudflare (Orange Cloud)
+     *
+     * @param string|null $zone_id
+     * @return array
+     */
+    public static function check_proxy_status(?string $zone_id = null): array {
+        $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+        $is_proxied = false;
+        $detection_method = 'dns_records';
+        $details = '';
+
+        // 1. First, check direct active server request headers
+        $has_cf_headers = !empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_CF_RAY']);
+
+        // 2. Query Cloudflare API DNS Records if zone_id is available
+        if (!empty($zone_id)) {
+            $dns_res = self::request("zones/{$zone_id}/dns_records?name=" . urlencode($site_host) . '&per_page=5');
+            if (!empty($dns_res['success']) && isset($dns_res['result']) && is_array($dns_res['result'])) {
+                foreach ($dns_res['result'] as $record) {
+                    if (in_array(strtoupper($record['type'] ?? ''), ['A', 'AAAA', 'CNAME'], true)) {
+                        $is_proxied = !empty($record['proxied']);
+                        $detection_method = 'api_dns_record';
+                        $details = sprintf(
+                            __('DNS Record: %s (%s) → Proxied: %s', 'wcp-security-scanner'),
+                            $record['name'] ?? $site_host,
+                            $record['type'] ?? 'A',
+                            $is_proxied ? 'Orange Cloud (Active)' : 'Grey Cloud (DNS Only)'
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback to DNS resolution / CF IP Range Check if API returned no record or token lacked DNS permissions
+        if ($detection_method === 'dns_records' || empty($zone_id)) {
+            if ($has_cf_headers) {
+                $is_proxied = true;
+                $detection_method = 'server_headers';
+                $details = __('Active web requests are arriving via Cloudflare Edge (CF-Ray / CF-Connecting-IP verified).', 'wcp-security-scanner');
+            } else {
+                // Check resolved A records of site_host
+                $records = @dns_get_record($site_host, DNS_A);
+                $found_cf_ip = false;
+                if (!empty($records) && is_array($records)) {
+                    foreach ($records as $r) {
+                        $ip = $r['ip'] ?? '';
+                        if (!empty($ip) && self::is_cloudflare_ip($ip)) {
+                            $found_cf_ip = true;
+                            break;
+                        }
+                    }
+                }
+                if ($found_cf_ip) {
+                    $is_proxied = true;
+                    $detection_method = 'resolved_ip_range';
+                    $details = __('Site host resolves to Cloudflare Anycast IP proxy network.', 'wcp-security-scanner');
+                } else {
+                    $is_proxied = false;
+                    $detection_method = 'resolved_ip_range';
+                    $details = __('Domain DNS resolves directly to origin server (Grey Cloud / Not Proxied). Cloudflare Edge WAF rules will not intercept traffic until proxying is enabled.', 'wcp-security-scanner');
+                }
+            }
+        }
+
+        return [
+            'is_proxied' => (bool) $is_proxied,
+            'hostname'   => $site_host,
+            'method'     => $detection_method,
+            'details'    => $details,
+        ];
+    }
+
+    /**
+     * Check if an IPv4 address belongs to Cloudflare's Anycast Proxy ranges
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function is_cloudflare_ip(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return false;
+        }
+
+        $cf_ipv4_subnets = [
+            '103.21.244.0/22',
+            '103.22.200.0/22',
+            '103.31.4.0/22',
+            '104.16.0.0/13',
+            '104.24.0.0/14',
+            '108.162.192.0/18',
+            '131.0.72.0/22',
+            '141.101.64.0/18',
+            '162.158.0.0/15',
+            '172.64.0.0/13',
+            '173.245.48.0/20',
+            '188.114.96.0/20',
+            '190.93.240.0/20',
+            '197.234.240.0/22',
+            '198.41.128.0/17',
+        ];
+
+        $ip_long = ip2long($ip);
+        if ($ip_long === false) {
+            return false;
+        }
+
+        foreach ($cf_ipv4_subnets as $cidr) {
+            list($subnet, $bits) = explode('/', $cidr);
+            $subnet_long = ip2long($subnet);
+            $mask = -1 << (32 - (int) $bits);
+            if (($ip_long & $mask) === ($subnet_long & $mask)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
