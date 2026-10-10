@@ -54,6 +54,15 @@ v:1.5.0 - 2026-10-10
   * Created Comprehensive GitHub Documentation `README.md`: Built full GitHub README featuring enterprise badges, multi-vector scanner highlights, detailed WebCare Pro company overview, specialized services catalog, tech stack specifications, WordPress.org guideline compliance summary, and verified Upwork profile / social channels / contact methods.
   * Synchronized Complete Features Catalog in `readme.txt`: Expanded WordPress.org plugin directory `readme.txt` with the comprehensive, categorized features lists matching `README.md` and `features.md` (Multi-Vector Scanning, CVE Engine, Forensics/Quarantine, Database Vault, AI Forensics, and Clean Uninstall).
   * Enforced Strict Version Synchronization: Synchronized version `1.5.0` from `changeslogs.txt` across `wcp-wp-scanner.php` (header `* Version: 1.5.0` and `WCP_SCANNER_VERSION`), `readme.txt` (`Stable tag: 1.5.0`), `package.json` (`"version": "1.5.0"`), and `includes/Database/Migration.php` (`wcp_scanner_db_version`).
+- Cleaned Dashboard Top Menu Navigation & Streamlined Standalone Views:
+  * Cleaned the main scanner top tabs bar (`wcp-nav-tabs`) to exclusively display core scanner operations: "Dashboard & Scanner", "Targeted Scans", "Scan Logs & History", and "Database Backup Vault".
+  * Removed "Server & Environment Info", "Firewall (WAF)", "File Integrity (FIM)", and "Login & 2FA" from the top navigation bar while keeping them accessible via the WordPress admin side menu (`#adminmenu`).
+  * Provided dedicated layouts for standalone tools (Server Info, Firewall, File Integrity, Login & 2FA, Settings) with convenient `← Back to Scanner Dashboard` navigation buttons.
+- Redesigned and Modernized Scanner Settings Page:
+  * Replaced underline-based sub-tabs with modern segmented pill navigation featuring active pill highlights and subtle category badges.
+  * Replaced old raw HTML checkboxes across all settings tabs (Schedule Scans, Email Alerts, DevSecOps Webhooks, AI Forensics, Engine & Hardening, Data & Cleanup) with interactive modern `ToggleSwitch` controls featuring smooth animated sliders and badge indicators.
+  * Balanced multi-column cards and diagnostic widgets into responsive grid containers for improved visual hierarchy and readability.
+  * Integrated scheduler status pill and auto-purge indicator directly into the page header alongside quick "Reset Defaults" and "Save Settings" action buttons.
 
 
 v:1.4.0 - 2026-10-09
