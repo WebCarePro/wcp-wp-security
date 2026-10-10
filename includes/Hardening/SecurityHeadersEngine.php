@@ -172,9 +172,11 @@ class SecurityHeadersEngine {
         remove_action('wp_head', 'wp_generator');
         add_filter('the_generator', '__return_empty_string');
 
-        // Strip ?ver=X.X.X from enqueued styles & scripts for guest visitors
-        add_filter('style_loader_src', [__CLASS__, 'remove_version_query_string'], 999);
-        add_filter('script_loader_src', [__CLASS__, 'remove_version_query_string'], 999);
+        // Strip ?ver=X.X.X from enqueued styles & scripts for guest visitors on front-end
+        if (!is_admin()) {
+            add_filter('style_loader_src', [__CLASS__, 'remove_version_query_string'], 999);
+            add_filter('script_loader_src', [__CLASS__, 'remove_version_query_string'], 999);
+        }
     }
 
     /**
