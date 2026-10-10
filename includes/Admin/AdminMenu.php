@@ -103,6 +103,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: Login Security & 2FA
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
+            __('Login Security & 2FA', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-auth',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Settings
         add_submenu_page(
             'wcp-security-scanner',

@@ -73,6 +73,12 @@ class SettingsManager {
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
             'threat_intel_block_blacklisted_ips' => true,
+
+            // 10. Multi-Factor Authentication (2FA) & Login Hardening
+            'auth_2fa_enabled'                   => true,
+            'login_hardening_enabled'            => true,
+            'login_max_retries'                  => 5,
+            'login_lockout_duration'             => 15,
         ];
     }
 
@@ -195,6 +201,12 @@ class SettingsManager {
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;
         $clean['threat_intel_block_blacklisted_ips'] = isset($input['threat_intel_block_blacklisted_ips']) ? !empty($input['threat_intel_block_blacklisted_ips']) : true;
+
+        // 10. Multi-Factor Authentication (2FA) & Login Hardening
+        $clean['auth_2fa_enabled']        = isset($input['auth_2fa_enabled']) ? !empty($input['auth_2fa_enabled']) : true;
+        $clean['login_hardening_enabled'] = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
+        $clean['login_max_retries']       = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
+        $clean['login_lockout_duration']  = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
 
         update_option(self::OPTION_KEY, $clean);
 

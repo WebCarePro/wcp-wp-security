@@ -322,6 +322,43 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'get_threat_intel_cves'],
             'permission_callback' => $permission,
         ]);
+
+        // Multi-Factor Authentication (2FA) & Login Security Endpoints
+        register_rest_route(self::NAMESPACE, '/auth/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_auth_security_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/2fa/setup', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'setup_2fa_for_user'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/2fa/verify-setup', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'verify_and_enable_2fa'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/2fa/disable', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'disable_2fa_for_user'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/unlock-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'unlock_locked_ip'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/clear-lockouts', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'clear_all_lockouts'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1463,6 +1500,121 @@ class ScannerRoutes {
     public static function get_threat_intel_cves() {
         return rest_ensure_response([
             'cves' => \WCP\Scanner\Firewall\ThreatIntelService::get_cve_catalog(),
+        ]);
+    }
+
+    /**
+     * Auth Security: Get Status & Lockouts
+     */
+    public static function get_auth_security_status() {
+        $settings = \WCP\Scanner\System\SettingsManager::get_settings();
+        $user_id  = get_current_user_id();
+        $user     = wp_get_current_user();
+
+        return rest_ensure_response([
+            'auth_2fa_enabled'        => !empty($settings['auth_2fa_enabled']),
+            'login_hardening_enabled' => !empty($settings['login_hardening_enabled']),
+            'login_max_retries'       => (int) ($settings['login_max_retries'] ?? 5),
+            'login_lockout_duration'  => (int) ($settings['login_lockout_duration'] ?? 15),
+            'user_2fa_enabled'        => \WCP\Scanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
+            'user_login'              => $user ? $user->user_login : '',
+            'user_email'              => $user ? $user->user_email : '',
+            'lockouts'                => array_values(\WCP\Scanner\Auth\LoginHardening::get_locked_ips()),
+            'stats'                   => \WCP\Scanner\Auth\LoginHardening::get_stats(),
+        ]);
+    }
+
+    /**
+     * Auth Security: Generate 2FA Setup Package
+     */
+    public static function setup_2fa_for_user() {
+        $user_id = get_current_user_id();
+        $user    = wp_get_current_user();
+
+        $secret           = \WCP\Scanner\Auth\TwoFactorAuth::generate_secret(16);
+        $provisioning_uri = \WCP\Scanner\Auth\TwoFactorAuth::get_provisioning_uri($secret, $user->user_login);
+        $qr_data_uri      = \WCP\Scanner\Auth\TwoFactorAuth::get_qr_data_uri($provisioning_uri);
+        $backup_bundle    = \WCP\Scanner\Auth\TwoFactorAuth::generate_backup_codes(8);
+
+        // Store setup state in transient for 10 minutes
+        set_transient('wcp_2fa_setup_' . $user_id, [
+            'secret'       => $secret,
+            'hashed_codes' => $backup_bundle['hashed'],
+        ], 600);
+
+        return rest_ensure_response([
+            'secret'           => $secret,
+            'provisioning_uri' => $provisioning_uri,
+            'qr_code_url'      => $qr_data_uri,
+            'backup_codes'     => $backup_bundle['plain'],
+        ]);
+    }
+
+    /**
+     * Auth Security: Verify and Enable 2FA
+     */
+    public static function verify_and_enable_2fa(\WP_REST_Request $request) {
+        $user_id = get_current_user_id();
+        $params  = $request->get_json_params() ?: [];
+        $code    = sanitize_text_field($params['code'] ?? '');
+        $secret  = sanitize_text_field($params['secret'] ?? '');
+
+        $setup_state = get_transient('wcp_2fa_setup_' . $user_id);
+        if (!$setup_state || empty($setup_state['secret'])) {
+            return new \WP_Error('session_expired', __('2FA setup session expired. Please click "Setup 2FA" again.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $active_secret = $secret ?: $setup_state['secret'];
+
+        if (!\WCP\Scanner\Auth\TwoFactorAuth::verify_code($active_secret, $code)) {
+            return new \WP_Error('invalid_code', __('The 6-digit verification code you entered is invalid. Please check your authenticator clock and try again.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        \WCP\Scanner\Auth\TwoFactorAuth::enable_user($user_id, $active_secret, $setup_state['hashed_codes']);
+        delete_transient('wcp_2fa_setup_' . $user_id);
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Two-Factor Authentication (2FA) is now active on your account!', 'wcp-security-scanner'),
+        ]);
+    }
+
+    /**
+     * Auth Security: Disable 2FA
+     */
+    public static function disable_2fa_for_user() {
+        $user_id = get_current_user_id();
+        \WCP\Scanner\Auth\TwoFactorAuth::disable_user($user_id);
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Two-Factor Authentication (2FA) has been disabled.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    /**
+     * Auth Security: Unlock IP
+     */
+    public static function unlock_locked_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field($params['ip'] ?? '');
+        if (empty($ip)) {
+            return new \WP_Error('missing_ip', __('Missing IP parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+        \WCP\Scanner\Auth\LoginHardening::unlock_ip($ip);
+        return rest_ensure_response([
+            'success' => true,
+            'message' => sprintf(__('IP %s has been unlocked.', 'wcp-security-scanner'), $ip),
+        ]);
+    }
+
+    /**
+     * Auth Security: Clear all lockouts
+     */
+    public static function clear_all_lockouts() {
+        \WCP\Scanner\Auth\LoginHardening::clear_all_lockouts();
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('All temporary IP lockouts have been cleared.', 'wcp-security-scanner'),
         ]);
     }
 }

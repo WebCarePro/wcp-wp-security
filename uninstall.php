@@ -38,6 +38,7 @@ if ($delete_data) {
     delete_option('wcp_scanner_db_version');
     delete_option('wcp_remediation_backups');
     delete_option('wcp_threat_intel_last_sync');
+    delete_option('wcp_login_lockouts');
     delete_transient('wcp_scanner_ai_models_catalog');
     delete_transient('wcp_threat_intel_botnet_ips');
     delete_transient('wcp_threat_intel_cves');

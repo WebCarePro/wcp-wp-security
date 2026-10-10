@@ -30,6 +30,8 @@ class Plugin {
         $audit_logger->init();
 
         \WCP\Scanner\Firewall\FirewallEngine::init();
+        \WCP\Scanner\Auth\TwoFactorAuth::init();
+        \WCP\Scanner\Auth\LoginHardening::init();
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();
