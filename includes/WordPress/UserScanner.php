@@ -109,12 +109,23 @@ class UserScanner {
 
         // 3. Orphaned Post Author Detection
         // Find posts authored by IDs that don't exist in wp_users
+        // Exclude system/internal entity post types (nav menus, template parts, revisions, styles, etc.)
+        // where post_author is intentionally 0 or unassigned by WordPress Core.
+        $excluded_post_types = [
+            'wp_navigation', 'wp_template', 'wp_template_part', 'wp_global_styles', 
+            'nav_menu_item', 'revision', 'attachment', 'custom_css', 'oembed_cache'
+        ];
+        $post_type_placeholders = implode("', '", array_map('esc_sql', $excluded_post_types));
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $orphaned = $wpdb->get_results(
             "SELECT p.ID, p.post_title, p.post_type, p.post_author 
              FROM `{$posts_table}` p 
              LEFT JOIN `{$users_table}` u ON p.post_author = u.ID 
-             WHERE u.ID IS NULL AND p.post_status IN ('publish', 'future', 'draft') 
+             WHERE u.ID IS NULL 
+               AND p.post_author > 0 
+               AND p.post_type NOT IN ('{$post_type_placeholders}') 
+               AND p.post_status IN ('publish', 'future', 'draft') 
              LIMIT 50"
         );
 

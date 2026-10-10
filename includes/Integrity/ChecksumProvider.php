@@ -21,6 +21,12 @@ class ChecksumProvider {
         // Strip out extra version info for alpha/beta
         $version = preg_replace('/-.*$/', '', $version);
 
+        $cache_key = "wcp_core_chk_{$version}_{$locale}";
+        $cached = get_transient($cache_key);
+        if ($cached !== false && is_array($cached)) {
+            return $cached;
+        }
+
         $url = "https://api.wordpress.org/core/checksums/1.0/?version={$version}&locale={$locale}";
         
         $response = wp_remote_get($url, ['timeout' => 15]);
@@ -33,6 +39,7 @@ class ChecksumProvider {
         $data = json_decode($body, true);
 
         if (isset($data['checksums']) && is_array($data['checksums'])) {
+            set_transient($cache_key, $data['checksums'], 12 * HOUR_IN_SECONDS);
             return $data['checksums'];
         }
 
@@ -47,6 +54,12 @@ class ChecksumProvider {
      * @return array|null
      */
     public function get_plugin_checksums($plugin_slug, $version) {
+        $cache_key = "wcp_plugin_chk_{$plugin_slug}_{$version}";
+        $cached = get_transient($cache_key);
+        if ($cached !== false && is_array($cached)) {
+            return $cached;
+        }
+
         $url = "https://downloads.wordpress.org/plugin-checksums/{$plugin_slug}/{$version}.json";
         
         $response = wp_remote_get($url, ['timeout' => 10]);
@@ -64,6 +77,9 @@ class ChecksumProvider {
                 if (isset($info['md5'])) {
                     $checksums[$file] = $info['md5']; // WP.org uses MD5 for plugins generally, or sha256. 
                 }
+            }
+            if (!empty($checksums)) {
+                set_transient($cache_key, $checksums, 12 * HOUR_IN_SECONDS);
             }
             return $checksums;
         }

@@ -1155,7 +1155,6 @@ class ScannerRoutes {
             } 
             // 3. Otherwise treat as a Filesystem finding
             else {
-                $item['is_file'] = true;
                 $cleanPath = ltrim(str_replace(['../', '..\\'], '', $filePath), '/\\');
                 $fullPath = wp_normalize_path(ABSPATH . $cleanPath);
 
@@ -1167,7 +1166,10 @@ class ScannerRoutes {
                 $isInsideRoot = $realPath && (strpos(wp_normalize_path($realPath), $norm_abspath) === 0);
 
                 $item['file_exists'] = $isInsideRoot && file_exists($realPath);
-                $item['can_view'] = $item['file_exists'] && is_readable($realPath);
+                $item['is_dir'] = $item['file_exists'] && is_dir($realPath);
+                $item['is_file'] = $item['file_exists'] && is_file($realPath);
+                // Only allow viewing if it is a regular readable file (not a folder/directory)
+                $item['can_view'] = $item['is_file'] && is_readable($realPath);
             }
         }
         unset($item);
