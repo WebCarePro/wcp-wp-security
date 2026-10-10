@@ -212,24 +212,29 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
         $has_token = !empty($settings['cloudflare_api_token']);
 
+        $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+        $site_root_domain = self::extract_root_domain($site_host);
+
         if (!$has_token || empty($zone_id)) {
             return [
-                'configured'     => false,
-                'zone_name'      => '',
-                'plan'           => '',
-                'active_rules'   => [],
-                'rate_limiting'  => false,
-                'ip_rules_count' => 0,
-                'auto_sync_bans' => !empty($settings['cloudflare_auto_sync_bans']),
+                'configured'       => false,
+                'zone_name'        => '',
+                'site_root_domain' => $site_root_domain,
+                'plan'             => '',
+                'active_rules'     => [],
+                'rate_limiting'    => false,
+                'ip_rules_count'   => 0,
+                'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
             ];
         }
 
         $verify = self::verify_zone($zone_id);
         if (!$verify['success']) {
             return [
-                'configured'     => false,
-                'error'          => $verify['message'],
-                'auto_sync_bans' => !empty($settings['cloudflare_auto_sync_bans']),
+                'configured'       => false,
+                'error'            => $verify['message'],
+                'site_root_domain' => $site_root_domain,
+                'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
             ];
         }
 
@@ -241,16 +246,17 @@ class CloudflareService {
         $proxy_status = self::check_proxy_status($zone_id);
 
         return [
-            'configured'     => true,
-            'zone_id'        => $zone_id,
-            'zone_name'      => $verify['zone_name'],
-            'has_token'      => true,
-            'plan'           => $verify['plan'],
-            'active_rules'   => $active_rules,
-            'rate_limiting'  => $rate_limit,
-            'ip_rules_count' => $ip_count,
-            'auto_sync_bans' => !empty($settings['cloudflare_auto_sync_bans']),
-            'proxy_status'   => $proxy_status,
+            'configured'       => true,
+            'zone_id'          => $zone_id,
+            'zone_name'        => $verify['zone_name'],
+            'site_root_domain' => $site_root_domain,
+            'has_token'        => true,
+            'plan'             => $verify['plan'],
+            'active_rules'     => $active_rules,
+            'rate_limiting'    => $rate_limit,
+            'ip_rules_count'   => $ip_count,
+            'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
+            'proxy_status'     => $proxy_status,
         ];
     }
 
