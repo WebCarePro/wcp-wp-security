@@ -50,16 +50,30 @@ class UploadsScanner {
         }
 
         try {
+            $flags = \FilesystemIterator::KEY_AS_PATHNAME | \FilesystemIterator::CURRENT_AS_FILEINFO | \FilesystemIterator::SKIP_DOTS;
+            $dir_iterator = new \RecursiveDirectoryIterator($uploads_path, $flags);
             $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($uploads_path, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::SELF_FIRST
+                $dir_iterator,
+                \RecursiveIteratorIterator::SELF_FIRST,
+                \RecursiveIteratorIterator::CATCH_GET_CHILD // Silently skip unreadable subdirectories without crashing
             );
 
             $normalized_uploads = str_replace('\\', '/', rtrim($uploads_path, '/\\') . '/');
+            $files_inspected = 0;
+            $max_files_limit = 5000; // Safeguard against runaway memory/execution time in enormous media libraries
 
             foreach ($iterator as $item) {
-                if (!$item->isFile()) {
+                try {
+                    if (!$item->isFile()) {
+                        continue;
+                    }
+                } catch (\Throwable $e) {
                     continue;
+                }
+
+                $files_inspected++;
+                if ($files_inspected > $max_files_limit) {
+                    break;
                 }
 
                 $real_path = $item->getPathname();
@@ -79,7 +93,7 @@ class UploadsScanner {
                 $basename = $item->getBasename();
                 $lower_name = strtolower($basename);
                 $ext = strtolower($item->getExtension());
-                $file_size = (int) $item->getSize();
+                $file_size = (int) @$item->getSize();
 
                 // 1. Direct prohibited executable / shell extension
                 if (in_array($ext, $this->executable_extensions, true)) {
@@ -114,7 +128,7 @@ class UploadsScanner {
                             'severity'     => 'high',
                             'confidence'   => 95,
                             'file_path'    => $real_path,
-                            'code_snippet' => substr($content, 0, 250),
+                            'code_snippet' => self::sanitize_utf8(substr($content, 0, 250)),
                             'description'  => "Server configuration file '{$basename}' found inside uploads folder. Often used by attackers to override PHP execution restrictions.",
                             'evidence'     => "Found {$basename} with potential execution override in {$rel_path}"
                         ]);
@@ -165,8 +179,8 @@ class UploadsScanner {
                     }
                 }
             }
-        } catch (\Exception $e) {
-            // Suppress media inspection exceptions silently
+        } catch (\Throwable $e) {
+            // Suppress media inspection exceptions silently and return collected findings
         }
 
         return $findings;
@@ -406,11 +420,11 @@ class UploadsScanner {
     private function extract_context_snippet($content, $match) {
         $pos = strpos($content, $match);
         if ($pos === false) {
-            return substr($content, 0, 200);
+            return self::sanitize_utf8(substr($content, 0, 200));
         }
         $start = max(0, $pos - 40);
         $length = min(strlen($content) - $start, 200);
-        return substr($content, $start, $length);
+        return self::sanitize_utf8(substr($content, $start, $length));
     }
 
     /**
@@ -424,6 +438,32 @@ class UploadsScanner {
         if ($content === false) {
             return null;
         }
-        return substr($content, 0, 300);
+        return self::sanitize_utf8(substr($content, 0, 300));
+    }
+
+    /**
+     * Sanitize any binary or malformed string into valid UTF-8 for JSON encoding and REST responses.
+     *
+     * @param mixed $input
+     * @return string
+     */
+    public static function sanitize_utf8($input): string {
+        if (!is_string($input) || $input === '') {
+            return '';
+        }
+
+        // Convert non-printable bytes or invalid characters to UTF-8
+        if (function_exists('mb_convert_encoding')) {
+            $cleaned = mb_convert_encoding($input, 'UTF-8', 'UTF-8');
+        } elseif (function_exists('iconv')) {
+            $cleaned = @iconv('UTF-8', 'UTF-8//IGNORE', $input);
+        } else {
+            $cleaned = $input;
+        }
+
+        // Strip non-printable binary control codes except standard tabs/newlines
+        $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', ' ', (string) $cleaned);
+
+        return trim((string) $cleaned);
     }
 }

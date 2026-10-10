@@ -122,7 +122,11 @@ v:1.5.0 - 2026-10-10
 - Expanded Comprehensive Plugin Documentation across `readme.txt`, `README.md`, and `docs/features.md`:
   * Updated `readme.txt` with extended sections for all 16 enterprise modules (HTTP Security Headers, Session Sentinel, Rogue Admin Anomaly Trap, Bot Recon Defense & AI Scraper Shield, and Living-off-the-Land Hook Sentinel).
   * Expanded `README.md` and `docs/features.md` with complete architectural blueprints, comprehensive technical specifications for all 16 security engines, and full WebCare Pro professional services catalog.
-  * Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
+- Resolved Targeted Scan JSON Response Errors:
+  * Hook Sentinel & LotL Traps Fix: Resolved PHP Fatal Error (`Class "WCP\Scanner\Api\PersistenceScanner" not found`) by importing `use WCP\Scanner\WordPress\PersistenceScanner;` in `includes/Api/ScannerRoutes.php`.
+  * Uploads Executables Audit Resilience & UTF-8 Sanitation: Enhanced `includes/Filesystem/UploadsScanner.php` with safe directory iteration using `CATCH_GET_CHILD` to prevent unreadable directory exceptions, added a safety file inspection ceiling, and implemented `sanitize_utf8()` to strip malformed non-UTF-8 binary bytes from extracted preview snippets and evidence payloads, preventing JSON encoding failures (`JSON_ERROR_UTF8`).
+  * Deep Audit Error Shielding: Wrapped the deep audit execution routine in `ScannerRoutes::run_deep_audit()` inside a resilient `try...catch (\Throwable $e)` block that releases `ScanLock` and returns clean, structured JSON REST error responses in edge cases.
+- Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
 

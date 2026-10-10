@@ -20,6 +20,7 @@ use WCP\Scanner\Quarantine\CoreRepairManager;
 use WCP\Scanner\Scan\ScanLock;
 use WCP\Scanner\Filesystem\UploadsScanner;
 use WCP\Scanner\WordPress\CronScanner;
+use WCP\Scanner\WordPress\PersistenceScanner;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -616,135 +617,146 @@ class ScannerRoutes {
 
         $all_deep_findings = [];
 
-        if ($target === 'unknown_files') {
-            // Find only unknown files (core & plugins & themes)
-            $core_integrity = new CoreIntegrity();
-            $plugin_integrity = new PluginIntegrity();
-            $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
-            $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
-            // Filter strictly for unknown/unrecognized files
-            $all_deep_findings = array_filter($all_deep_findings, function ($f) {
-                $arr = is_array($f) ? $f : $f->to_array();
-                return in_array($arr['type'], ['unknown_core_file', 'unknown_plugin_file'], true);
-            });
-        } elseif ($target === 'spam_content') {
-            // Scan for spam posts/pages only
-            $content_scanner = new ContentScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 300));
-        } elseif ($target === 'user_security') {
-            // Password strength and privilege checks
-            $user_scanner = new UserScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, $admins_only));
-        } elseif ($target === 'outdated_software') {
-            // Check outdated WP core, plugins, themes
-            $update_scanner = new UpdateScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
-        } elseif ($target === 'suspicious_uploads') {
-            // Detect .php, .sh, or suspicious file extensions inside wp-content/uploads
-            $uploads_scanner = new UploadsScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
-        } elseif ($target === 'crontab_audit') {
-            // Crontab & WP-Cron scheduled tasks audit
-            $cron_scanner = new CronScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $cron_scanner->scan((string) $scan_id));
-        } elseif ($target === 'core_integrity') {
-            // WordPress Core files integrity check against official checksums
-            $core_integrity = new CoreIntegrity();
-            $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
-        } elseif ($target === 'rogue_admin') {
-            // Rogue Administrator & Database Micro-Anomaly Audit
-            $rogue_detector = new \WCP\Scanner\Database\RogueAdminAnomalyDetector();
-            $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
-            $user_scanner = new UserScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
-        } elseif ($target === 'hook_sentinel') {
-            // Living-off-the-Land (LotL) Native Hook Infiltration Sentinel
-            $hook_sentinel = new \WCP\Scanner\WordPress\HookInfiltrationSentinel();
-            $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
-            $persistence_scanner = new PersistenceScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
-        } elseif ($target === 'filesystem_only') {
-            // Filesystem-only scan: no additional deep audit engines needed
-        } else {
-            // Full or plugins_themes: run all engines
-            $core_integrity = new CoreIntegrity();
-            $plugin_integrity = new PluginIntegrity();
-            $important_fim = new ImportantFileFIM();
-            $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
-            $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
-            $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
+        try {
+            if ($target === 'unknown_files') {
+                // Find only unknown files (core & plugins & themes)
+                $core_integrity = new CoreIntegrity();
+                $plugin_integrity = new PluginIntegrity();
+                $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+                $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
+                // Filter strictly for unknown/unrecognized files
+                $all_deep_findings = array_filter($all_deep_findings, function ($f) {
+                    $arr = is_array($f) ? $f : $f->to_array();
+                    return in_array($arr['type'], ['unknown_core_file', 'unknown_plugin_file'], true);
+                });
+            } elseif ($target === 'spam_content') {
+                // Scan for spam posts/pages only
+                $content_scanner = new ContentScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 300));
+            } elseif ($target === 'user_security') {
+                // Password strength and privilege checks
+                $user_scanner = new UserScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, $admins_only));
+            } elseif ($target === 'outdated_software') {
+                // Check outdated WP core, plugins, themes
+                $update_scanner = new UpdateScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
+            } elseif ($target === 'suspicious_uploads') {
+                // Detect .php, .sh, or suspicious file extensions inside wp-content/uploads
+                $uploads_scanner = new UploadsScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+            } elseif ($target === 'crontab_audit') {
+                // Crontab & WP-Cron scheduled tasks audit
+                $cron_scanner = new CronScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $cron_scanner->scan((string) $scan_id));
+            } elseif ($target === 'core_integrity') {
+                // WordPress Core files integrity check against official checksums
+                $core_integrity = new CoreIntegrity();
+                $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+            } elseif ($target === 'rogue_admin') {
+                // Rogue Administrator & Database Micro-Anomaly Audit
+                $rogue_detector = new \WCP\Scanner\Database\RogueAdminAnomalyDetector();
+                $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
+                $user_scanner = new UserScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
+            } elseif ($target === 'hook_sentinel') {
+                // Living-off-the-Land (LotL) Native Hook Infiltration Sentinel
+                $hook_sentinel = new \WCP\Scanner\WordPress\HookInfiltrationSentinel();
+                $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
+                $persistence_scanner = new PersistenceScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
+            } elseif ($target === 'filesystem_only') {
+                // Filesystem-only scan: no additional deep audit engines needed
+            } else {
+                // Full or plugins_themes: run all engines
+                $core_integrity = new CoreIntegrity();
+                $plugin_integrity = new PluginIntegrity();
+                $important_fim = new ImportantFileFIM();
+                $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+                $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
+                $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
 
-            $db_scanner = new DatabaseScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
+                $db_scanner = new DatabaseScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
 
-            $content_scanner = new ContentScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
+                $content_scanner = new ContentScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
 
-            $wp_security = new WordPressSecurityScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
+                $wp_security = new WordPressSecurityScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
 
-            $update_scanner = new UpdateScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
+                $update_scanner = new UpdateScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
 
-            $uploads_scanner = new UploadsScanner();
-            $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
-        }
+                $uploads_scanner = new UploadsScanner();
+                $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+            }
 
-        // Cross-engine Correlation
-        $correlation = new CorrelationEngine();
-        $correlated = $correlation->correlate($all_deep_findings);
+            // Cross-engine Correlation
+            $correlation = new CorrelationEngine();
+            $correlated = $correlation->correlate($all_deep_findings);
 
-        foreach ($correlated as $f) {
-            $item = $f->to_array();
-            $wpdb->insert($table_issues, [
-                'scan_id'      => $scan_id,
-                'engine'       => $item['engine'],
-                'type'         => $item['type'],
-                'severity'     => $item['severity'],
-                'confidence'   => $item['confidence'],
-                'file_path'    => $item['file_path'],
-                'line_number'  => $item['line_number'] ?? null,
-                'code_snippet' => $item['code_snippet'] ?? null,
-                'evidence'     => $item['evidence'] ?? null,
-                'description'  => $item['description'],
-                'status'       => 'open',
-                'created_at'   => current_time('mysql'),
+            foreach ($correlated as $f) {
+                $item = $f->to_array();
+                $wpdb->insert($table_issues, [
+                    'scan_id'      => $scan_id,
+                    'engine'       => $item['engine'],
+                    'type'         => $item['type'],
+                    'severity'     => $item['severity'],
+                    'confidence'   => $item['confidence'],
+                    'file_path'    => $item['file_path'],
+                    'line_number'  => $item['line_number'] ?? null,
+                    'code_snippet' => UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
+                    'evidence'     => UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
+                    'description'  => $item['description'],
+                    'status'       => 'open',
+                    'created_at'   => current_time('mysql'),
+                ]);
+            }
+
+            // Calculate final risk score across all findings
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $all_scan_issues = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
+            ), ARRAY_A);
+
+            $scorer = new RiskScorer();
+            $summary = $scorer->calculate($all_scan_issues);
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+            $duration = 1;
+            if ($scan_row && !empty($scan_row['created_at'])) {
+                $duration = max(1, time() - strtotime($scan_row['created_at']));
+            }
+
+            $wpdb->update($table_scans, [
+                'status'        => 'completed',
+                'issues_found'  => count($all_scan_issues),
+                'risk_score'    => $summary['score'],
+                'duration'      => $duration,
+                'completed_at'  => current_time('mysql'),
+            ], ['id' => $scan_id]);
+
+            // Release the scan lock upon completion
+            ScanLock::release($scan_id);
+
+            return rest_ensure_response([
+                'success'     => true,
+                'summary'     => $summary,
+                'issues'      => self::enrich_issues($all_scan_issues),
+                'status'      => 'completed'
             ]);
+        } catch (\Throwable $e) {
+            ScanLock::release($scan_id);
+            error_log('[WCP Scanner] Error during deep audit: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+
+            return new \WP_Error(
+                'audit_error',
+                sprintf(__('Audit failed: %s', 'wcp-security-scanner'), $e->getMessage()),
+                ['status' => 500]
+            );
         }
-
-        // Calculate final risk score across all findings
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $all_scan_issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
-        ), ARRAY_A);
-
-        $scorer = new RiskScorer();
-        $summary = $scorer->calculate($all_scan_issues);
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
-        $duration = 1;
-        if ($scan_row && !empty($scan_row['created_at'])) {
-            $duration = max(1, time() - strtotime($scan_row['created_at']));
-        }
-
-        $wpdb->update($table_scans, [
-            'status'        => 'completed',
-            'issues_found'  => count($all_scan_issues),
-            'risk_score'    => $summary['score'],
-            'duration'      => $duration,
-            'completed_at'  => current_time('mysql'),
-        ], ['id' => $scan_id]);
-
-        // Release the scan lock upon completion
-        ScanLock::release($scan_id);
-
-        return rest_ensure_response([
-            'success'     => true,
-            'summary'     => $summary,
-            'issues'      => self::enrich_issues($all_scan_issues),
-            'status'      => 'completed'
-        ]);
     }
 
     public static function get_latest_scan(\WP_REST_Request $request) {
