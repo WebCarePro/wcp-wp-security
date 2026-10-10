@@ -2045,9 +2045,25 @@ class ScannerRoutes {
     }
 
     /**
+     * Helper to load CloudflareService reliably
+     */
+    private static function ensure_cloudflare_service(): bool {
+        if (!class_exists('\WCP\Scanner\Cloudflare\CloudflareService')) {
+            $file = WCP_SCANNER_PATH . 'includes/Cloudflare/CloudflareService.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+        return class_exists('\WCP\Scanner\Cloudflare\CloudflareService');
+    }
+
+    /**
      * Cloudflare Edge Defense Handlers
      */
     public static function get_cloudflare_status(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing on this installation.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $status = \WCP\Scanner\Cloudflare\CloudflareService::get_status();
         $definitions = \WCP\Scanner\Cloudflare\CloudflareService::get_rule_definitions();
         return rest_ensure_response([
@@ -2058,6 +2074,9 @@ class ScannerRoutes {
     }
 
     public static function verify_cloudflare_credentials(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing on this installation. Please reinstall or update the plugin zip.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $params  = $request->get_json_params() ?: [];
         $token   = !empty($params['token']) ? trim(sanitize_text_field($params['token'])) : null;
         $zone_id = !empty($params['zone_id']) ? trim(sanitize_text_field($params['zone_id'])) : null;
@@ -2067,6 +2086,9 @@ class ScannerRoutes {
     }
 
     public static function deploy_cloudflare_rules(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $params = $request->get_json_params() ?: [];
         $rules  = is_array($params['rules'] ?? null) ? $params['rules'] : [];
 
@@ -2075,6 +2097,9 @@ class ScannerRoutes {
     }
 
     public static function toggle_cloudflare_rate_limiting(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $params = $request->get_json_params() ?: [];
         $enable = !empty($params['enabled']);
 
@@ -2083,6 +2108,9 @@ class ScannerRoutes {
     }
 
     public static function block_cloudflare_ip(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $params = $request->get_json_params() ?: [];
         $ip     = sanitize_text_field($params['ip'] ?? '');
         $reason = sanitize_text_field($params['reason'] ?? 'Manual block via Security Scanner');
@@ -2092,6 +2120,9 @@ class ScannerRoutes {
     }
 
     public static function purge_cloudflare_cache(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $params = $request->get_json_params() ?: [];
         $files  = !empty($params['files']) && is_array($params['files']) ? array_map('esc_url_raw', $params['files']) : null;
 
@@ -2100,6 +2131,9 @@ class ScannerRoutes {
     }
 
     public static function disconnect_cloudflare(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
         $result = \WCP\Scanner\Cloudflare\CloudflareService::disconnect();
         return rest_ensure_response($result);
     }

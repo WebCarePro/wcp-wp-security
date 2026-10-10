@@ -198,7 +198,9 @@ v:1.5.0 - 2026-10-10
   * UI Masking & Toggle Visibility: Replaced plain text display of Zone IDs, API tokens, and webhook URLs in the Cloudflare Edge Defense setup panel (`FirewallPage.tsx`) and Settings Webhooks panel (`SettingsPage.tsx`) with password-masked inputs (`type="password"` with bullet placeholders `••••••••`), interactive Show/Hide eye toggles, and "✓ Encrypted in Vault" verification badges.
   * Transparent Runtime Decryption: Decrypts sensitive tokens on the fly when accessed via `SettingsManager::get()` or `SettingsManager::get_settings()`, ensuring all internal Cloudflare, AI engine, and webhook dispatch operations function seamlessly with zero code disruptions.
   * Instant Automatic In-Place DB Migration: Automatically detects legacy plaintext tokens, Zone IDs, and webhook URLs upon first read and immediately encrypts them in place in the database.
-  * Seamless Backward Compatibility: Supports `wcp_enc:` prefixed strings and handles legacy values gracefully without data loss or exceptions.
+- Resilient Cloudflare Service Loader & Exception Guarding:
+  * Added `ensure_cloudflare_service()` fallback in `ScannerRoutes.php` to directly load `includes/Cloudflare/CloudflareService.php` with explicit file and class existence checks, eliminating fatal 500 errors on environments with partial updates or case-sensitive autoloader lookup issues.
+  * Verified full packaging of `includes/Cloudflare/CloudflareService.php` into `wcp-security-scanner.zip`.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
