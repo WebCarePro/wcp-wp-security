@@ -6,6 +6,13 @@ v:1.5.0 - 2026-10-11
 - Encrypted Two-Factor Authentication (2FA) User Secrets at Rest:
   * Updated `TwoFactorAuth.php` to encrypt TOTP base32 user secrets (`_wcp_2fa_secret`) with AES-256-CBC via `SecretVault` before storing them in the WordPress `wp_usermeta` table.
   * Added transparent runtime decryption and auto-migration in `TwoFactorAuth::get_user_secret()` to safely convert existing plaintext 2FA secrets into encrypted vault strings without disrupting active user authenticators.
+- Consolidated & Strengthened Cloudflare Free Plan Custom WAF Edge Rules:
+  * Upgraded `CloudflareService.php` and `FirewallPage.tsx` rule definitions to maximize the 5 free Cloudflare Custom Rules slots into compound multi-vector defense policies:
+    1. WordPress Core & Sensitive System Armor (combines /xmlrpc.php, wp-config.php, .env, .git, .user.ini, debug.log, and package manifests).
+    2. Webshell & Direct Script Execution Trap (stops direct script execution across both uploads/ and upgrade/ directories).
+    3. Path Traversal & Code Injection Edge Shield (blocks LFI/RFI ../, /etc/passwd, base64_decode, eval, and null byte injections directly at the edge).
+    4. Recon & Username Harvesting Shield (blocks ?author= query scanners and REST user enumeration).
+    5. Login Portal Threat Defense (Managed Challenge Turnstile against automated bots targeting wp-login.php).
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):

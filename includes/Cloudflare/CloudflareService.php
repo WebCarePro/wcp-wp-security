@@ -412,37 +412,37 @@ class CloudflareService {
     }
 
     /**
-     * Get rule definitions for 5 Cloudflare Free Custom WAF Rules
+     * Get rule definitions for 5 Cloudflare Free Custom WAF Rules (Consolidated & Multi-Vector)
      *
      * @return array
      */
     public static function get_rule_definitions(): array {
         return [
-            'block_xmlrpc' => [
-                'id'          => 'wcp_block_xmlrpc',
-                'title'       => 'XML-RPC & Pingback Amplification Shield',
-                'description' => 'Instantly terminates brute-force pingback and password spray attacks targeting /xmlrpc.php at the Cloudflare edge.',
+            'block_core_sensitive' => [
+                'id'          => 'wcp_block_core_sensitive',
+                'title'       => 'WordPress Core & Sensitive System Armor',
+                'description' => 'Terminates /xmlrpc.php abuse, wp-config.php probes, .env, .git, .user.ini, debug.log, and package manifests in a single unified edge shield.',
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "/xmlrpc.php")',
-            ],
-            'block_sensitive' => [
-                'id'          => 'wcp_block_sensitive',
-                'title'       => 'Sensitive Files & Dotfiles Armor',
-                'description' => 'Drops automated probes seeking wp-config.php, .env, .git, and package manifests before they reach disk.',
-                'action'      => 'block',
-                'expression'  => '(http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/composer.json" "/package.json"})',
+                'expression'  => '(http.request.uri.path contains "/xmlrpc.php" or http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/.user.ini" "/wp-content/debug.log" "/composer.json" "/package.json"})',
             ],
             'block_uploads_exec' => [
                 'id'          => 'wcp_block_uploads_exec',
-                'title'       => 'Uploads Directory Webshell Execution Trap',
-                'description' => 'Stops direct HTTP execution of .php, .sh, or shell scripts disguised inside wp-content/uploads/ at the edge.',
+                'title'       => 'Webshell & Direct Script Execution Trap',
+                'description' => 'Stops direct HTTP execution of .php, .phtml, .phar, and shell scripts disguised inside wp-content/uploads/ or upgrade directories at the edge.',
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "/wp-content/uploads/" and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})',
+                'expression'  => '((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})',
             ],
-            'block_author_scan' => [
-                'id'          => 'wcp_block_author_scan',
-                'title'       => 'Author Scan & Username Harvesting Recon Shield',
-                'description' => 'Blocks bots scanning author parameter (?author=1) and enumerating usernames via public endpoints.',
+            'block_exploits_traversal' => [
+                'id'          => 'wcp_block_exploits_traversal',
+                'title'       => 'Path Traversal & Code Injection Edge Shield',
+                'description' => 'Blocks LFI/RFI directory traversal (../, /etc/passwd), dangerous PHP function wrappers (base64_decode, eval, system), and null byte injections.',
+                'action'      => 'block',
+                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")',
+            ],
+            'block_author_recon' => [
+                'id'          => 'wcp_block_author_recon',
+                'title'       => 'Recon & Username Harvesting Shield',
+                'description' => 'Blocks bots scanning author parameter (?author=1) and enumerating WordPress usernames via public REST endpoints.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
             ],
