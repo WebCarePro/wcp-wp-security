@@ -162,7 +162,9 @@ v:1.5.0 - 2026-10-10
   * Seamless Challenge Bypass: Authenticated requests presenting an active, unexpired, matching trusted device cookie automatically bypass the rotating 2FA TOTP prompt, preserving enterprise friction-free UX on verified admin devices.
   * Enterprise Revocation Safeguards: Password resets automatically purge all stored device tokens immediately. Disabling 2FA wipes all trusted devices and clears client cookies.
   * Interactive Administrative Controls: Added active remembered device indicator and 1-click "Revoke All Remembered Devices" action in the 2FA dashboard tab (`AuthSecurityPage.tsx`), plus configurable device remember enable/disable toggle and expiration duration slider (1 to 90 days, default 7 days) in the Login & Rate-Limiting Settings tab.
-  * Authenticated REST API Endpoint: Registered `POST /wcp-scanner/v1/auth/2fa/revoke-trusted-devices`.
+- Enhanced Cloudflare Edge Defense Integration & 1-Click Token Pre-Configuration:
+  * 1-Click Pre-configured Cloudflare Token Template URL: Added prominent "1-Click Pre-configure Cloudflare Token ↗" button in `FirewallPage.tsx` linking directly to Cloudflare's API token generation interface with the token name and all 4 required permissions (`Zone.Zone: Read`, `Zone.Zone WAF: Edit`, `Zone.Firewall Services: Edit`, and `Zone.Cache Purge: Purge`) pre-populated automatically via `permissionGroupKeys`.
+  * Hardened IP Block Error Messaging: Enhanced `CloudflareService::block_ip()` with contextual guidance specifically notifying administrators to grant `Zone > Firewall Services: Edit` permissions when Cloudflare returns an authentication error code on IP Access Rules endpoints.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

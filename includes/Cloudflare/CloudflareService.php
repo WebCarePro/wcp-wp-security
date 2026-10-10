@@ -444,6 +444,9 @@ class CloudflareService {
         }
 
         $err = $res['errors'][0]['message'] ?? __('Failed to block IP at Cloudflare Edge.', 'wcp-security-scanner');
+        if (stripos($err, 'Authentication error') !== false || stripos($err, 'actor does not have permission') !== false) {
+            $err .= ' ' . __('Ensure your Cloudflare API Token has "Zone > Firewall Services: Edit" permission.', 'wcp-security-scanner');
+        }
         return ['success' => false, 'message' => $err];
     }
 
