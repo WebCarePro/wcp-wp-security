@@ -612,7 +612,7 @@ class CloudflareService {
                 'description'       => self::WCP_RULE_TAG . ' wp-login.php Brute Force Rate Limiter',
                 'enabled'           => true,
                 'ratelimit'         => [
-                    'characteristics'     => ['cf.unique_visitor'],
+                    'characteristics'     => ['ip.src'],
                     'period'              => 10,
                     'requests_per_period' => 10,
                     'mitigation_timeout'  => 60,
