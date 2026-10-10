@@ -2049,9 +2049,16 @@ class ScannerRoutes {
      */
     private static function ensure_cloudflare_service(): bool {
         if (!class_exists('\WCP\Scanner\Cloudflare\CloudflareService')) {
-            $file = WCP_SCANNER_PATH . 'includes/Cloudflare/CloudflareService.php';
-            if (file_exists($file)) {
-                require_once $file;
+            $candidates = [
+                WCP_SCANNER_PATH . 'includes/Cloudflare/CloudflareService.php',
+                WCP_SCANNER_PATH . 'includes/cloudflare/CloudflareService.php',
+                WCP_SCANNER_PATH . 'includes/Firewall/CloudflareService.php',
+            ];
+            foreach ($candidates as $file) {
+                if (file_exists($file)) {
+                    require_once $file;
+                    break;
+                }
             }
         }
         return class_exists('\WCP\Scanner\Cloudflare\CloudflareService');

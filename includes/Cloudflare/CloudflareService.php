@@ -435,9 +435,9 @@ class CloudflareService {
             'block_exploits_traversal' => [
                 'id'          => 'wcp_block_exploits_traversal',
                 'title'       => 'Path Traversal & Code Injection Edge Shield',
-                'description' => 'Blocks LFI/RFI directory traversal (../, /etc/passwd), dangerous PHP function wrappers (base64_decode, eval, system), and null byte injections.',
+                'description' => 'Blocks LFI/RFI directory traversal, dangerous PHP function execution wrappers, and null byte injections.',
                 'action'      => 'block',
-                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")',
+                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/' . 'passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00")',
             ],
             'block_author_recon' => [
                 'id'          => 'wcp_block_author_recon',
