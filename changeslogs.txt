@@ -145,6 +145,11 @@ v:1.5.0 - 2026-10-10
   * Official WordPress.org Checksum Verification for FIM: Modified files detected within the active inspection timeframe (e.g., 24h/48h) are cross-referenced with official WordPress.org release checksums. Files matching official baselines bit-for-bit are marked as `Verified Clean` with reassuring green badges, avoiding alarming warnings when auditing fresh installations.
   * Configuration File Reclassification: Reclassified `wp-config.php`, `php.ini`, `.user.ini`, `.htaccess`, and server configuration files from generic "core" to `config` / `system`, accurately attributing them to standard site setup rather than unauthorized core tampering.
   * Refined High-Risk Counters: Authentic core and bundled theme files are prevented from inflating the "Core Files Altered" and "High-Risk Alterations" metric counters.
+- Enhanced Dashboard UX & Scan Results Professionalism:
+  * Resolved Folder & User Drawer Action Clutter: Cleaned the scan results expanded drawer and table rows to eliminate irrelevant file-only action buttons ("Auto-Cure: Restore WP.org Copy", "Auto-Cure: Strip Webshell", "Visual Code Diff (FIM)", and "View File") when findings represent directories (e.g., `plugin_checksums_unavailable`) or WordPress accounts (e.g., `username_enumeration_risk` on `user:1`).
+  * Built Dedicated User Security Finding Card: Displays user login, display name, assigned roles, and a direct "Open User Profile & Harden Settings" link with tailored hardening recommendations.
+  * Built Dedicated Directory Advisory Card: Clearly communicates directory integrity context without showing empty code boxes or missing-snippet notices.
+  * Added Real-Time Scan Execution & Resource Telemetry Bar: Displays comprehensive scan diagnostics directly above findings: total scan duration (`4.2s` / `1m 12s`), peak PHP RAM usage and percentage of server limit (`18.4 MB / 256M (7.2%)`), file processing throughput (`files/sec`), system CPU load average (`1m`, `5m`), and active scanning engines.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

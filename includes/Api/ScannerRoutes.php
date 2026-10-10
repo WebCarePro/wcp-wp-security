@@ -640,11 +640,13 @@ class ScannerRoutes {
             ), ARRAY_A);
             $scorer = new RiskScorer();
             $summary = $scorer->calculate($all_scan_issues);
+            $diagnostics = self::build_scan_diagnostics($scan_row);
             return rest_ensure_response([
-                'success' => true,
-                'summary' => $summary,
-                'issues'  => self::enrich_issues($all_scan_issues),
-                'status'  => 'completed'
+                'success'     => true,
+                'summary'     => $summary,
+                'issues'      => self::enrich_issues($all_scan_issues),
+                'diagnostics' => $diagnostics,
+                'status'      => 'completed'
             ]);
         }
 
@@ -775,6 +777,18 @@ class ScannerRoutes {
                 'completed_at'  => current_time('mysql'),
             ], ['id' => $scan_id]);
 
+            $completed_scan_row = [
+                'id'            => $scan_id,
+                'status'        => 'completed',
+                'issues_found'  => count($all_scan_issues),
+                'risk_score'    => $summary['score'],
+                'duration'      => $duration,
+                'scanned_files' => (int) ($scan_row['scanned_files'] ?? ($scan_row['total_files'] ?? 0)),
+                'total_files'   => (int) ($scan_row['total_files'] ?? 0),
+                'created_at'    => $scan_row['created_at'] ?? current_time('mysql'),
+            ];
+            $diagnostics = self::build_scan_diagnostics($completed_scan_row);
+
             // Release the scan lock upon completion
             ScanLock::release($scan_id);
 
@@ -782,6 +796,7 @@ class ScannerRoutes {
                 'success'     => true,
                 'summary'     => $summary,
                 'issues'      => self::enrich_issues($all_scan_issues),
+                'diagnostics' => $diagnostics,
                 'status'      => 'completed'
             ]);
         } catch (\Throwable $e) {
@@ -830,13 +845,15 @@ class ScannerRoutes {
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
+        $diagnostics = self::build_scan_diagnostics($latest_scan);
 
         return rest_ensure_response([
-            'has_scan' => true,
-            'scan'     => $latest_scan,
-            'summary'  => $summary,
-            'issues'   => $issues,
-            'files'    => $scanned_files,
+            'has_scan'    => true,
+            'scan'        => $latest_scan,
+            'summary'     => $summary,
+            'issues'      => $issues,
+            'files'       => $scanned_files,
+            'diagnostics' => $diagnostics,
         ]);
     }
 
@@ -947,6 +964,7 @@ class ScannerRoutes {
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
+        $diagnostics = self::build_scan_diagnostics($scan);
 
         return rest_ensure_response([
             'success'     => true,
@@ -954,6 +972,7 @@ class ScannerRoutes {
             'summary'     => $summary,
             'issues'      => $issues,
             'files_count' => $files_count,
+            'diagnostics' => $diagnostics,
         ]);
     }
 
@@ -1154,17 +1173,23 @@ class ScannerRoutes {
                 }
             } 
             // 3. Check if finding is a WordPress User Account
-            elseif (preg_match('/^user:(\d+)/i', $filePath, $matches)) {
-                $userId = (int) $matches[1];
-                $user = get_userdata($userId);
-                if ($user) {
-                    $item['is_user'] = true;
-                    $item['user_id'] = $userId;
-                    $item['user_login'] = $user->user_login;
-                    $item['edit_url'] = admin_url("user-edit.php?user_id={$userId}");
+            elseif (preg_match('/^user:(\d+)/i', $filePath, $matches) || $engine === 'wordpress-users' || strpos($filePath, 'user:') === 0) {
+                $userId = 0;
+                if (preg_match('/^user:(\d+)/i', $filePath, $matches)) {
+                    $userId = (int) $matches[1];
                 }
+                $user = $userId > 0 ? get_userdata($userId) : null;
+                $item['is_user'] = true;
+                $item['is_file'] = false;
+                $item['is_dir'] = false;
+                $item['can_view'] = false;
+                $item['user_id'] = $userId;
+                $item['user_login'] = $user ? $user->user_login : (preg_match('/\(([^)]+)\)/', $filePath, $m) ? $m[1] : 'user');
+                $item['user_display_name'] = $user ? $user->display_name : $item['user_login'];
+                $item['user_roles'] = $user ? implode(', ', (array) $user->roles) : 'user';
+                $item['edit_url'] = $userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url("users.php");
             } 
-            // 3. Otherwise treat as a Filesystem finding
+            // 4. Otherwise treat as a Filesystem finding
             else {
                 $cleanPath = ltrim(str_replace(['../', '..\\'], '', $filePath), '/\\');
                 $fullPath = wp_normalize_path(ABSPATH . $cleanPath);
@@ -1186,6 +1211,89 @@ class ScannerRoutes {
         unset($item);
 
         return $issues;
+    }
+
+    /**
+     * Build rich performance and system diagnostic telemetry for a scan.
+     *
+     * @param array $scan
+     * @return array
+     */
+    public static function build_scan_diagnostics(array $scan) {
+        $scan_id = (int) ($scan['id'] ?? 0);
+        $cached_diag = $scan_id > 0 ? get_transient("wcp_scan_diag_{$scan_id}") : null;
+
+        // Peak Memory
+        $peak_bytes = memory_get_peak_usage(true);
+        if ($cached_diag && !empty($cached_diag['peak_memory_bytes'])) {
+            $peak_bytes = max($peak_bytes, (int) $cached_diag['peak_memory_bytes']);
+        }
+        $peak_mb = round($peak_bytes / (1024 * 1024), 2);
+
+        // Memory Limit
+        $memory_limit_raw = ini_get('memory_limit') ?: '256M';
+        $limit_bytes = 256 * 1024 * 1024;
+        if (preg_match('/^(\d+)(.)$/i', $memory_limit_raw, $m)) {
+            $val = (int) $m[1];
+            $unit = strtoupper($m[2]);
+            if ($unit === 'G') $limit_bytes = $val * 1024 * 1024 * 1024;
+            elseif ($unit === 'M') $limit_bytes = $val * 1024 * 1024;
+            elseif ($unit === 'K') $limit_bytes = $val * 1024;
+        }
+        $memory_pct = $limit_bytes > 0 ? round(($peak_bytes / $limit_bytes) * 100, 1) : 0;
+
+        // Duration & Throughput
+        $duration = (int) ($scan['duration'] ?? 0);
+        if ($duration <= 0 && !empty($scan['created_at'])) {
+            $duration = max(1, time() - strtotime($scan['created_at']));
+        }
+        $duration = max(1, $duration);
+        $scanned_files = (int) ($scan['scanned_files'] ?? ($scan['total_files'] ?? 0));
+        $files_per_sec = round($scanned_files / $duration, 1);
+
+        // Format Duration
+        if ($duration < 60) {
+            $duration_fmt = "{$duration}s";
+        } else {
+            $mins = floor($duration / 60);
+            $secs = $duration % 60;
+            $duration_fmt = "{$mins}m {$secs}s";
+        }
+
+        // CPU Load Average
+        $cpu_load = null;
+        if (function_exists('sys_getloadavg')) {
+            $load = @sys_getloadavg();
+            if (is_array($load) && count($load) >= 3) {
+                $cpu_load = [
+                    '1m'  => round($load[0], 2),
+                    '5m'  => round($load[1], 2),
+                    '15m' => round($load[2], 2)
+                ];
+            }
+        }
+
+        // Server Environment details
+        $php_version = PHP_VERSION;
+        $php_sapi = php_sapi_name();
+        $server_os = php_uname('s');
+
+        return [
+            'duration_seconds'    => $duration,
+            'duration_formatted'  => $duration_fmt,
+            'peak_memory_mb'      => $peak_mb,
+            'peak_memory_fmt'     => "{$peak_mb} MB",
+            'memory_limit_raw'    => $memory_limit_raw,
+            'memory_percent'      => $memory_pct,
+            'scanned_files'       => $scanned_files,
+            'total_files'         => (int) ($scan['total_files'] ?? 0),
+            'files_per_second'    => $files_per_sec,
+            'cpu_load'            => $cpu_load,
+            'php_version'         => $php_version,
+            'php_sapi'            => $php_sapi,
+            'server_os'           => $server_os,
+            'engines_active'      => 10,
+        ];
     }
 
     /**
