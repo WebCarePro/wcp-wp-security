@@ -148,8 +148,12 @@ class FileIntegrityMonitor {
                         // For uploads directory: only flag PHP, script files, or .htaccess
                         if ($cat === 'uploads') {
                             $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
-                            $basename = basename($file_path);
+                            $basename = strtolower(basename($file_path));
                             if (!in_array($ext, ['php', 'phtml', 'php5', 'php7', 'pht', 'phps', 'inc'], true) && $basename !== '.htaccess') {
+                                continue;
+                            }
+                            // Ignore harmless directory index.php protection placeholders
+                            if (($basename === 'index.php' || $basename === 'index.html') && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($file_path)) {
                                 continue;
                             }
                         }

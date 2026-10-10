@@ -305,4 +305,86 @@ class SettingsManager {
         self::sync_cron_schedule($defaults);
         return self::get_settings();
     }
+
+    /**
+     * Test if a file path matches user-configured excluded paths/patterns.
+     *
+     * @param string $file_path
+     * @return bool
+     */
+    public static function is_path_excluded(string $file_path): bool {
+        $raw = self::get('excluded_paths');
+        if (empty($raw)) {
+            return false;
+        }
+
+        $normalized = str_replace('\\', '/', $file_path);
+        $lines = explode("\n", $raw);
+
+        foreach ($lines as $line) {
+            $pattern = trim($line);
+            if (empty($pattern) || strpos($pattern, '#') === 0) {
+                continue;
+            }
+            $pattern = str_replace('\\', '/', $pattern);
+            
+            // Substring or wildcard match
+            if (fnmatch("*{$pattern}*", $normalized) || fnmatch($pattern, $normalized) || stripos($normalized, trim($pattern, '*')) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Test if an index.php or index.html file in uploads is a harmless directory listing prevention placeholder.
+     *
+     * @param string $file_path
+     * @return bool
+     */
+    public static function is_safe_directory_index(string $file_path): bool {
+        if (!file_exists($file_path)) {
+            return false;
+        }
+
+        $file_size = @filesize($file_path);
+        // Harmless silence/protection files are always small (under 1KB)
+        if ($file_size === false || $file_size > 1024) {
+            return false;
+        }
+
+        // 0-byte file is completely safe
+        if ($file_size === 0) {
+            return true;
+        }
+
+        $content = @file_get_contents($file_path, false, null, 0, 1024);
+        if ($content === false) {
+            return false;
+        }
+
+        // Must NOT contain any dangerous execution functions, webshell signatures, or superglobals
+        if (preg_match('/(eval\s*\(|base64_decode\s*\(|assert\s*\(|system\s*\(|exec\s*\(|shell_exec\s*\(|passthru\s*\(|gzinflate\s*\(|gzuncompress\s*\(|create_function\s*\(|\$_POST|\$_GET|\$_REQUEST|\$_COOKIE|\$_SERVER)/i', $content)) {
+            return false;
+        }
+
+        // Standard WordPress "Silence is golden"
+        if (stripos($content, 'silence is golden') !== false) {
+            return true;
+        }
+
+        $trimmed = trim($content);
+        // Just empty PHP open/close tags
+        if ($trimmed === '<?php' || $trimmed === '<?php ?>' || $trimmed === '<?php ?>\n') {
+            return true;
+        }
+
+        // Exit / Die / 403 Forbidden header
+        if (preg_match('/^<\?php\s*(?:\/\/[^\r\n]*|\/\*.*?\*\/)?\s*(?:exit;?|die\s*\([^)]*\);?|header\s*\([^)]*\);?\s*exit;?)\s*(?:\?>)?\s*$/is', $trimmed)) {
+            return true;
+        }
+
+        return false;
+    }
 }

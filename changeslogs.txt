@@ -72,6 +72,11 @@ v:1.5.0 - 2026-10-10
   * Excludes files within custom or premium plugins and themes from File Integrity Monitoring (FIM) scans to prevent noise, false-positive execution signature alerts, and missing-mirror 404 errors.
   * Added a prominent "Custom & Premium Components Detected" notification panel to the FIM dashboard (`?page=wcp-scanner-fim`), displaying all excluded commercial/custom components with badges, versions, and exclusion reasons.
   * Updated Code Diff inspector to explicitly identify custom/premium files and explain that official WordPress.org repository baseline comparison is excluded.
+- Added Automatic Safe Directory Index Protection & Custom Exclusion Engine for Uploads:
+  * Implemented `SettingsManager::is_safe_directory_index()` to inspect harmless `index.php` files placed in the `wp-content/uploads/` tree (empty files, standard WordPress `// Silence is golden.` placeholders, and safe `exit;` directory listing prevention scripts) and automatically exclude them from `executable_in_uploads` alerts.
+  * Excluded plugin internal secure storage (`wp-content/uploads/wcp-security-scanner/` quarantine, backups, and logs) from uploads and filesystem scanners to eliminate false-positive alerts on internal security placeholders.
+  * Integrated user-configured `excluded_paths` pattern matching across `UploadsScanner` and `FileScanner` allowing administrators to whitelist custom folders or file patterns.
+  * Supported 1-click status updating ("Ignore") directly in the Scan Findings table to transition harmless items to "Ignored" status.
 
 
 v:1.4.0 - 2026-10-09

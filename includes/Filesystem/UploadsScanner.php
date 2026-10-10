@@ -64,6 +64,17 @@ class UploadsScanner {
 
                 $real_path = $item->getPathname();
                 $normalized_path = str_replace('\\', '/', $real_path);
+
+                // Exclude plugin's internal secure storage (quarantine, logs, backups) and common cache directories
+                if (preg_match('#/(wcp-security-scanner|node_modules|\.git|updraft|wfcache)/#i', $normalized_path)) {
+                    continue;
+                }
+
+                // Check user configured excluded paths
+                if (\WCP\Scanner\System\SettingsManager::is_path_excluded($normalized_path)) {
+                    continue;
+                }
+
                 $rel_path = str_replace($normalized_uploads, '', $normalized_path);
                 $basename = $item->getBasename();
                 $lower_name = strtolower($basename);
@@ -72,6 +83,11 @@ class UploadsScanner {
 
                 // 1. Direct prohibited executable / shell extension
                 if (in_array($ext, $this->executable_extensions, true)) {
+                    // Check if harmless WordPress directory listing prevention placeholder
+                    if (($lower_name === 'index.php' || $lower_name === 'index.html' || $lower_name === 'index.htm') && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($real_path)) {
+                        continue;
+                    }
+
                     $snippet = $this->extract_preview_snippet($real_path);
                     $findings[] = new Finding([
                         'engine'       => 'uploads-scanner',

@@ -57,18 +57,28 @@ class FileScanner {
         }
 
         // 3. Executable in uploads check
-        if (strpos(str_replace('\\', '/', $file_path), '/wp-content/uploads/') !== false) {
-            $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
-            if (in_array($ext, ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar'])) {
-                $findings[] = new Finding([
-                    'engine'      => 'filesystem',
-                    'type'        => 'executable_in_uploads',
-                    'severity'    => 'high',
-                    'confidence'  => 80,
-                    'file_path'   => $file_path,
-                    'description' => "Executable PHP file found in uploads directory.",
-                    'evidence'    => "Extension: $ext in /uploads/"
-                ]);
+        $norm_path = str_replace('\\', '/', $file_path);
+        if (strpos($norm_path, '/wp-content/uploads/') !== false) {
+            // Exclude plugin's internal secure storage (quarantine, logs, backups) and user exclusions
+            if (!preg_match('#/(wcp-security-scanner|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WCP\Scanner\System\SettingsManager::is_path_excluded($norm_path)) {
+                $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+                $basename = strtolower(basename($file_path));
+                if (in_array($ext, ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar'], true)) {
+                    // Check if harmless WordPress directory listing prevention placeholder
+                    if (($basename === 'index.php' || $basename === 'index.html' || $basename === 'index.htm') && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($file_path)) {
+                        // Harmless directory silence placeholder, ignore
+                    } else {
+                        $findings[] = new Finding([
+                            'engine'      => 'filesystem',
+                            'type'        => 'executable_in_uploads',
+                            'severity'    => 'high',
+                            'confidence'  => 80,
+                            'file_path'   => $file_path,
+                            'description' => "Executable PHP file found in uploads directory.",
+                            'evidence'    => "Extension: $ext in /uploads/"
+                        ]);
+                    }
+                }
             }
         }
 
