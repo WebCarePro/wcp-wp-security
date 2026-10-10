@@ -303,6 +303,25 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'rollback_remediation'],
             'permission_callback' => $permission,
         ]);
+
+        // Cloud Threat Intelligence & Community Blacklist Endpoints
+        register_rest_route(self::NAMESPACE, '/threat-intel/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_threat_intel_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/threat-intel/sync', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'sync_threat_intel'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/threat-intel/cves', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_threat_intel_cves'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1421,5 +1440,29 @@ class ScannerRoutes {
         $result = $manager->rollback_remediation($backup_id);
 
         return rest_ensure_response($result);
+    }
+
+    /**
+     * Threat Intelligence: Get Status
+     */
+    public static function get_threat_intel_status() {
+        return rest_ensure_response(\WCP\Scanner\Firewall\ThreatIntelService::get_status());
+    }
+
+    /**
+     * Threat Intelligence: Sync live data
+     */
+    public static function sync_threat_intel() {
+        $result = \WCP\Scanner\Firewall\ThreatIntelService::sync_threat_data();
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Threat Intelligence: Get CVE catalog
+     */
+    public static function get_threat_intel_cves() {
+        return rest_ensure_response([
+            'cves' => \WCP\Scanner\Firewall\ThreatIntelService::get_cve_catalog(),
+        ]);
     }
 }

@@ -15,6 +15,9 @@ class FirewallEngine {
      * Bootstrap the Firewall
      */
     public static function init() {
+        // Initialize Threat Intelligence Service
+        ThreatIntelService::init();
+
         // Run early at plugins_loaded priority 0
         add_action('plugins_loaded', [__CLASS__, 'inspect_incoming_request'], 0);
 
@@ -108,6 +111,28 @@ class FirewallEngine {
         // Check user IP whitelist
         if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
             return;
+        }
+
+        // Check Cloud Threat Intelligence Botnet / Malicious IP Blacklist
+        if (!empty($settings['threat_intel_enabled']) && !empty($settings['threat_intel_block_blacklisted_ips'])) {
+            if (ThreatIntelService::is_ip_blacklisted($client_ip)) {
+                $rule_triggered = [
+                    'id'          => 'THREAT-INTEL-BOTNET',
+                    'name'        => 'Global Botnet / Malicious IP Blacklist',
+                    'category'    => 'Threat Intelligence',
+                    'match_type'  => 'IP Reputation',
+                    'match_value' => $client_ip,
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                }
+            }
         }
 
         $env = self::detect_environment();
@@ -526,6 +551,7 @@ class FirewallEngine {
             'blocks_24h'         => $blocks_24h,
             'top_rules'          => $top_rules,
             'client_ip'          => self::get_client_ip(),
+            'threat_intel'       => ThreatIntelService::get_status(),
         ];
     }
 

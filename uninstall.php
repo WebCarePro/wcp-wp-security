@@ -37,10 +37,14 @@ if ($delete_data) {
     delete_option('wcp_scanner_settings');
     delete_option('wcp_scanner_db_version');
     delete_option('wcp_remediation_backups');
+    delete_option('wcp_threat_intel_last_sync');
     delete_transient('wcp_scanner_ai_models_catalog');
+    delete_transient('wcp_threat_intel_botnet_ips');
+    delete_transient('wcp_threat_intel_cves');
 
     // 3. Clear scheduled cron jobs
     wp_clear_scheduled_hook('wcp_scanner_scheduled_scan_cron');
+    wp_clear_scheduled_hook('wcp_scanner_threat_intel_cron_sync');
 
     // 4. Remove all plugin-created files in uploads (logs, quarantine, backups)
     $upload_dir = wp_upload_dir();

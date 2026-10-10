@@ -51,6 +51,7 @@ register_activation_hook(__FILE__, function () {
 
 register_deactivation_hook(__FILE__, function () {
     wp_clear_scheduled_hook('wcp_scanner_scheduled_scan_cron');
+    wp_clear_scheduled_hook('wcp_scanner_threat_intel_cron_sync');
 });
 
 // Initialize the plugin
