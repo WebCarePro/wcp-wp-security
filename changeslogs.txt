@@ -149,8 +149,16 @@ v:1.5.0 - 2026-10-10
   * Resolved Folder & User Drawer Action Clutter: Cleaned the scan results expanded drawer and table rows to eliminate irrelevant file-only action buttons ("Auto-Cure: Restore WP.org Copy", "Auto-Cure: Strip Webshell", "Visual Code Diff (FIM)", and "View File") when findings represent directories (e.g., `plugin_checksums_unavailable`) or WordPress accounts (e.g., `username_enumeration_risk` on `user:1`).
   * Built Dedicated User Security Finding Card: Displays user login, display name, assigned roles, and a direct "Open User Profile & Harden Settings" link with tailored hardening recommendations.
   * Built Dedicated Directory Advisory Card: Clearly communicates directory integrity context without showing empty code boxes or missing-snippet notices.
-  * Added Real-Time Scan Execution & Resource Telemetry Bar: Displays comprehensive scan diagnostics directly above findings: total scan duration (`4.2s` / `1m 12s`), peak PHP RAM usage and percentage of server limit (`18.4 MB / 256M (7.2%)`), file processing throughput (`files/sec`), system CPU load average (`1m`, `5m`), and active scanning engines.
+- Modernized Scan Logs & Audit History Interface:
+  * Overhauled Recorded Scan Runs Table: Formatted audit durations cleanly (e.g. `4.2s` / `1m 12s` with timer icons instead of raw integers), streamlined profile badges, and improved threat count indicators with status icons.
+  * Added Scan Execution & System Telemetry Bar to Historical Inspector: Integrated full server and resource diagnostics (Duration, Peak Memory vs PHP Limit, Processing Speed in files/sec, CPU Load Average, PHP runtime, active engines) into the Scan Log Detail Inspector header.
+  * Harmonized Finding Classifications for Folders & User Accounts in Scan Logs: Aligned the Historical Log findings table and expandable drawer with main dashboard standards:
+    - Added clean `USER` and `FOLDER` type badges.
+    - Updated Location and Mitigation columns so folders and user accounts don't trigger "View File" buttons or raw path displays.
+    - Added dedicated "WordPress User Account Security Finding" card with direct WordPress profile edit links and tailored hardening advice.
+    - Added dedicated "Directory Integrity Advisory" card eliminating empty code snippet boxes and missing snippet notices on folders.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
+
 
 
 

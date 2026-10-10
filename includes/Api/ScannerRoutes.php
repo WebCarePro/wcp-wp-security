@@ -912,11 +912,23 @@ class ScannerRoutes {
             $wpdb->prepare("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT %d", $limit),
             ARRAY_A
         );
+
+        $scans = [];
+        if (!empty($history)) {
+            foreach ($history as $row) {
+                $diag = self::build_scan_diagnostics($row);
+                $row['diagnostics'] = $diag;
+                $row['duration_formatted'] = $diag['duration_formatted'] ?? ($row['duration'] . 's');
+                $scans[] = $row;
+            }
+        }
+
         return rest_ensure_response([
             'success' => true,
-            'scans'   => $history ?: [],
+            'scans'   => $scans,
         ]);
     }
+
 
     public static function clear_scan_history(\WP_REST_Request $request) {
         global $wpdb;
