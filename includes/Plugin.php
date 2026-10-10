@@ -33,6 +33,7 @@ class Plugin {
         \WCP\Scanner\Hardening\SecurityHeadersEngine::init();
         \WCP\Scanner\Auth\TwoFactorAuth::init();
         \WCP\Scanner\Auth\LoginHardening::init();
+        \WCP\Scanner\Auth\SessionSentinel::init();
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

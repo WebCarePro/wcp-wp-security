@@ -373,6 +373,19 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Session Sentinel Endpoints
+        register_rest_route(self::NAMESPACE, '/auth/sessions/list', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_active_sessions_list'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/sessions/revoke', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_active_session'],
+            'permission_callback' => $permission,
+        ]);
+
         // DevSecOps Webhook Testing
         register_rest_route(self::NAMESPACE, '/notifications/test-webhook', [
             'methods'             => 'POST',
@@ -1579,15 +1592,20 @@ class ScannerRoutes {
         $user     = wp_get_current_user();
 
         return rest_ensure_response([
-            'auth_2fa_enabled'        => !empty($settings['auth_2fa_enabled']),
-            'login_hardening_enabled' => !empty($settings['login_hardening_enabled']),
-            'login_max_retries'       => (int) ($settings['login_max_retries'] ?? 5),
-            'login_lockout_duration'  => (int) ($settings['login_lockout_duration'] ?? 15),
-            'user_2fa_enabled'        => \WCP\Scanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
-            'user_login'              => $user ? $user->user_login : '',
-            'user_email'              => $user ? $user->user_email : '',
-            'lockouts'                => array_values(\WCP\Scanner\Auth\LoginHardening::get_locked_ips()),
-            'stats'                   => \WCP\Scanner\Auth\LoginHardening::get_stats(),
+            'auth_2fa_enabled'         => !empty($settings['auth_2fa_enabled']),
+            'login_hardening_enabled'  => !empty($settings['login_hardening_enabled']),
+            'login_max_retries'        => (int) ($settings['login_max_retries'] ?? 5),
+            'login_lockout_duration'   => (int) ($settings['login_lockout_duration'] ?? 15),
+            'session_sentinel_enabled' => !empty($settings['session_sentinel_enabled']),
+            'session_block_concurrent' => !empty($settings['session_block_concurrent']),
+            'session_lock_ip'          => !empty($settings['session_lock_ip']),
+            'session_idle_timeout'     => (int) ($settings['session_idle_timeout'] ?? 120),
+            'user_2fa_enabled'         => \WCP\Scanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
+            'user_login'               => $user ? $user->user_login : '',
+            'user_email'               => $user ? $user->user_email : '',
+            'lockouts'                 => array_values(\WCP\Scanner\Auth\LoginHardening::get_locked_ips()),
+            'stats'                    => \WCP\Scanner\Auth\LoginHardening::get_stats(),
+            'active_sessions'          => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
         ]);
     }
 
@@ -1682,6 +1700,48 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             'message' => __('All temporary IP lockouts have been cleared.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    /**
+     * Session Sentinel: Get active sessions list
+     */
+    public static function get_active_sessions_list() {
+        return rest_ensure_response([
+            'success'  => true,
+            'sessions' => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
+        ]);
+    }
+
+    /**
+     * Session Sentinel: Revoke session
+     */
+    public static function revoke_active_session(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $token   = sanitize_text_field($params['token'] ?? '');
+        $user_id = (int) ($params['user_id'] ?? 0);
+        $revoke_others = !empty($params['revoke_others']);
+
+        if ($revoke_others) {
+            $target_user_id = $user_id ?: get_current_user_id();
+            \WCP\Scanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id);
+            return rest_ensure_response([
+                'success' => true,
+                'message' => __('All other active sessions have been terminated.', 'wcp-security-scanner'),
+                'sessions' => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
+            ]);
+        }
+
+        if (empty($token) || empty($user_id)) {
+            return new \WP_Error('missing_params', __('Session token and user ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        \WCP\Scanner\Auth\SessionSentinel::terminate_session($user_id, $token, 'Revoked by administrator via Session Sentinel.');
+
+        return rest_ensure_response([
+            'success'  => true,
+            'message'  => __('Session successfully revoked.', 'wcp-security-scanner'),
+            'sessions' => \WCP\Scanner\Auth\SessionSentinel::get_active_sessions(),
         ]);
     }
 

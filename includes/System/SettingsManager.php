@@ -89,11 +89,15 @@ class SettingsManager {
             'threat_intel_enabled'               => true,
             'threat_intel_block_blacklisted_ips' => true,
 
-            // 10. Multi-Factor Authentication (2FA) & Login Hardening
+            // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
             'auth_2fa_enabled'                   => true,
             'login_hardening_enabled'            => true,
             'login_max_retries'                  => 5,
             'login_lockout_duration'             => 15,
+            'session_sentinel_enabled'           => true,
+            'session_block_concurrent'           => false,
+            'session_lock_ip'                    => false,
+            'session_idle_timeout'               => 120, // Minutes before inactive session is revoked
 
             // 11. DevSecOps Chat Webhooks (Slack & Discord)
             'slack_enabled'                      => false,
@@ -242,11 +246,15 @@ class SettingsManager {
         $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;
         $clean['threat_intel_block_blacklisted_ips'] = isset($input['threat_intel_block_blacklisted_ips']) ? !empty($input['threat_intel_block_blacklisted_ips']) : true;
 
-        // 10. Multi-Factor Authentication (2FA) & Login Hardening
+        // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
         $clean['auth_2fa_enabled']        = isset($input['auth_2fa_enabled']) ? !empty($input['auth_2fa_enabled']) : true;
         $clean['login_hardening_enabled'] = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
         $clean['login_max_retries']       = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
         $clean['login_lockout_duration']  = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
+        $clean['session_sentinel_enabled'] = isset($input['session_sentinel_enabled']) ? !empty($input['session_sentinel_enabled']) : true;
+        $clean['session_block_concurrent'] = !empty($input['session_block_concurrent']);
+        $clean['session_lock_ip']          = !empty($input['session_lock_ip']);
+        $clean['session_idle_timeout']      = max(0, min(1440, (int) ($input['session_idle_timeout'] ?? 120)));
 
         // 11. DevSecOps Chat Webhooks (Slack & Discord)
         $clean['slack_enabled']                 = !empty($input['slack_enabled']);

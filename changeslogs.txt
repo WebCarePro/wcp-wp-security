@@ -91,6 +91,15 @@ v:1.5.0 - 2026-10-10
   * Sensitive System File HTTP Probe Shield: Automatically returns 403 Forbidden on incoming requests attempting to read `.env`, `.git`, `.gitignore`, `.htaccess`, `.sql`, `.tar.gz`, `composer.json`, or config backups.
   * Dedicated "Headers & Hardening" Settings Experience: Added dedicated sub-tab in React Settings with live security grade audit badge (`A+`, `A`, `B`, `C`), protection checklist, individual modern toggle controls, and 1-click "Apply Recommended A+ Hardening" preset.
   * Registered authenticated REST API endpoints: `GET /wcp-scanner/v1/hardening/audit` and `POST /wcp-scanner/v1/hardening/apply-preset`.
+- Built Session Hijack Defense & Concurrent Admin Session Sentinel (AI-Era Modern Defense Phase 2):
+  * Active Session Sentinel: Created `SessionSentinel.php` tracking active authenticated administrative sessions using WordPress core `\WP_Session_Tokens` combined with real client IP, timestamp, and device browser/OS metadata.
+  * Session Token Hijacking & Cookie Replay Defense: Enforces Strict IP Lock option that immediately detects and revokes active sessions if request arrives from an unauthorized IP address mismatch.
+  * Single Session Enforcement (Anti-Concurrency): Blocks concurrent logins across administrator accounts by automatically terminating all prior active sessions when logging in from a new device.
+  * Configurable Idle Inactivity Timeout: Automatically expires and purges inactive administrator sessions after configurable period (default: 120 minutes).
+  * 1-Click Remote Session Revocation: Added instant "Terminate Session" and "Revoke All Other Sessions" capabilities directly from the administrative interface.
+  * Dedicated "Active Sessions Sentinel" Tab: Added interactive device session inspector to `AuthSecurityPage.tsx` displaying client IP, current device indicator, browser/OS badges, last active timestamps, and avatar profiles.
+  * Registered authenticated REST API endpoints: `GET /wcp-scanner/v1/auth/sessions/list` and `POST /wcp-scanner/v1/auth/sessions/revoke`.
+
 
 
 
