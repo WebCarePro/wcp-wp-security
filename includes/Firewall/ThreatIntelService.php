@@ -209,12 +209,15 @@ class ThreatIntelService {
 
         // Save sync metadata
         $meta = [
-            'last_sync'       => current_time('mysql'),
-            'last_sync_ts'    => time(),
-            'total_ips'       => count($blacklisted_ips),
-            'total_cves'      => count($cve_catalog),
-            'downloaded_ips'  => $downloaded_ips_count,
-            'status'          => 'active',
+            'success'               => true,
+            'last_sync'             => current_time('mysql'),
+            'last_sync_ts'          => time(),
+            'total_ips'             => count($blacklisted_ips),
+            'blacklisted_ips_count' => count($blacklisted_ips),
+            'total_cves'            => count($cve_catalog),
+            'cves_count'            => count($cve_catalog),
+            'downloaded_ips'        => $downloaded_ips_count,
+            'status'                => 'active',
         ];
         update_option(self::OPTION_META, $meta, false);
 
@@ -223,6 +226,15 @@ class ThreatIntelService {
         self::$cached_cidr_list = null;
 
         return $meta;
+    }
+
+    /**
+     * Alias for sync_threat_intelligence()
+     *
+     * @return array
+     */
+    public static function sync_threat_data(): array {
+        return self::sync_threat_intelligence();
     }
 
     /**
@@ -361,13 +373,103 @@ class ThreatIntelService {
     }
 
     /**
-     * Retrieve cached CVE database
+     * Check if a CVE target component is installed on this site and whether it is vulnerable
+     *
+     * @param string $target
+     * @param string $fixed_in
+     * @return array
+     */
+    public static function check_target_status(string $target, string $fixed_in): array {
+        global $wp_version;
+        $target_clean = strtolower(trim($target));
+
+        // 1. WordPress Core
+        if ($target_clean === 'wordpress core' || $target_clean === 'core') {
+            $current_core_ver = $wp_version ?? get_bloginfo('version');
+            $is_vuln = version_compare($current_core_ver, $fixed_in, '<');
+            return [
+                'is_installed'      => true,
+                'installed_version' => $current_core_ver,
+                'is_vulnerable'     => $is_vuln,
+                'status'            => $is_vuln ? 'vulnerable' : 'patched',
+                'component_name'    => 'WordPress Core',
+            ];
+        }
+
+        // 2. Plugins
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $all_plugins = function_exists('get_plugins') ? get_plugins() : [];
+        foreach ($all_plugins as $plugin_file => $plugin_data) {
+            $folder = dirname($plugin_file);
+            $base = basename($plugin_file, '.php');
+            if (
+                ($folder !== '.' && strtolower($folder) === $target_clean) ||
+                strtolower($base) === $target_clean ||
+                (isset($plugin_data['TextDomain']) && strtolower($plugin_data['TextDomain']) === $target_clean)
+            ) {
+                $ver = $plugin_data['Version'] ?? '0.0.0';
+                $is_vuln = version_compare($ver, $fixed_in, '<');
+                return [
+                    'is_installed'      => true,
+                    'installed_version' => $ver,
+                    'is_vulnerable'     => $is_vuln,
+                    'status'            => $is_vuln ? 'vulnerable' : 'patched',
+                    'component_name'    => $plugin_data['Name'] ?? $target,
+                ];
+            }
+        }
+
+        // 3. Themes
+        if (function_exists('wp_get_themes')) {
+            $themes = wp_get_themes();
+            foreach ($themes as $slug => $theme_obj) {
+                if (strtolower($slug) === $target_clean || strtolower($theme_obj->get_template()) === $target_clean) {
+                    $ver = $theme_obj->get('Version') ?: '0.0.0';
+                    $is_vuln = version_compare($ver, $fixed_in, '<');
+                    return [
+                        'is_installed'      => true,
+                        'installed_version' => $ver,
+                        'is_vulnerable'     => $is_vuln,
+                        'status'            => $is_vuln ? 'vulnerable' : 'patched',
+                        'component_name'    => $theme_obj->get('Name') ?: $target,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'is_installed'      => false,
+            'installed_version' => null,
+            'is_vulnerable'     => false,
+            'status'            => 'not_installed',
+            'component_name'    => $target,
+        ];
+    }
+
+    /**
+     * Retrieve cached CVE database with site correlation
      */
     public static function get_cve_catalog(): array {
         $catalog = get_option(self::OPTION_CVES, []);
         if (empty($catalog) || !is_array($catalog)) {
             $catalog = self::get_seed_cves();
         }
+
+        foreach ($catalog as &$cve) {
+            $target = $cve['target'] ?? '';
+            $fixed_in = $cve['fixed_in'] ?? '0.0.0';
+            $info = self::check_target_status($target, $fixed_in);
+            $cve['is_installed']       = $info['is_installed'];
+            $cve['installed_version']  = $info['installed_version'];
+            $cve['is_vulnerable']      = $info['is_vulnerable'];
+            $cve['site_status']        = $info['status'];
+            $cve['component_name']     = $info['component_name'];
+        }
+        unset($cve);
+
         return $catalog;
     }
 }

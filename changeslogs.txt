@@ -76,7 +76,11 @@ v:1.5.0 - 2026-10-10
   * Implemented `SettingsManager::is_safe_directory_index()` to inspect harmless `index.php` files placed in the `wp-content/uploads/` tree (empty files, standard WordPress `// Silence is golden.` placeholders, and safe `exit;` directory listing prevention scripts) and automatically exclude them from `executable_in_uploads` alerts.
   * Excluded plugin internal secure storage (`wp-content/uploads/wcp-security-scanner/` quarantine, backups, and logs) from uploads and filesystem scanners to eliminate false-positive alerts on internal security placeholders.
   * Integrated user-configured `excluded_paths` pattern matching across `UploadsScanner` and `FileScanner` allowing administrators to whitelist custom folders or file patterns.
-  * Supported 1-click status updating ("Ignore") directly in the Scan Findings table to transition harmless items to "Ignored" status.
+- Fixed Cloud Threat Intelligence Live Sync and Enhanced Site Vulnerability Correlation:
+  * Resolved `The response is not a valid JSON response` error during "Sync Threat Intel Now" by adding the missing `sync_threat_data()` alias method in `ThreatIntelService` and returning complete metadata properties (`success`, `blacklisted_ips_count`, `cves_count`).
+  * Enhanced `ThreatIntelService::get_cve_catalog()` and added `check_target_status()` to cross-examine each zero-day CVE against currently installed WordPress core, active plugins, and active themes.
+  * Added site installation status badges to the Threat Intel CVE feed (`Installed on Site — Vulnerable!`, `Installed on Site — Patched & Safe`, `Global Virtual Shield (Not installed on site)`).
+  * Added dedicated filter controls (`All Virtual Patches`, `Installed on This Site`, `Vulnerable`) and educational guidance banner explaining how global WAF virtual patches neutralize blind automated botnet probes before reaching the server.
 
 
 v:1.4.0 - 2026-10-09
