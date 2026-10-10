@@ -41,6 +41,9 @@ class FileIntegrityMonitor {
         $custom_plugin_slugs = $custom_components['plugins'];
         $custom_theme_slugs = $custom_components['themes'];
 
+        // Pre-fetch official core checksums to verify authentic installation files
+        $core_checksums = $this->provider->get_core_checksums();
+
         $dirs_to_check = [];
 
         // 1. Core directories and root
@@ -160,7 +163,7 @@ class FileIntegrityMonitor {
 
                         $mtime = $item->getMTime();
                         if ($mtime >= $threshold_time) {
-                            $change_item = $this->format_change_item($file_path, $mtime, $item->getSize(), $cat, $normalized_abs);
+                            $change_item = $this->format_change_item($file_path, $mtime, $item->getSize(), $cat, $normalized_abs, $core_checksums);
                             $this->tally_stats($stats, $change_item);
                             if ($category === 'all' || $change_item['category'] === $category) {
                                 $changes[] = $change_item;
@@ -181,7 +184,7 @@ class FileIntegrityMonitor {
                         $file_path = wp_normalize_path($file_path);
                         $mtime = @filemtime($file_path);
                         if ($mtime && $mtime >= $threshold_time) {
-                            $change_item = $this->format_change_item($file_path, $mtime, @filesize($file_path), 'core', $normalized_abs);
+                            $change_item = $this->format_change_item($file_path, $mtime, @filesize($file_path), 'core_root', $normalized_abs, $core_checksums);
                             $this->tally_stats($stats, $change_item);
                             if ($category === 'all' || $change_item['category'] === $category) {
                                 $changes[] = $change_item;
@@ -221,7 +224,10 @@ class FileIntegrityMonitor {
     private function tally_stats(&$stats, $item) {
         $stats['total_modified']++;
         if ($item['category'] === 'core') {
-            $stats['core_modified']++;
+            // Only count genuine core modifications (not verified authentic files)
+            if ($item['severity'] === 'critical' || $item['severity'] === 'high') {
+                $stats['core_modified']++;
+            }
         } elseif ($item['category'] === 'plugins') {
             $stats['plugins_modified']++;
         } elseif ($item['category'] === 'themes') {
@@ -236,27 +242,76 @@ class FileIntegrityMonitor {
     }
 
     /**
-     * Format a change record with risk evaluation
+     * Format a change record with risk evaluation and checksum verification
      */
-    private function format_change_item($file_path, $mtime, $size, $category, $normalized_abs) {
-        $rel_path = str_replace($normalized_abs, '', $file_path);
+    private function format_change_item($file_path, $mtime, $size, $category, $normalized_abs, $core_checksums = null) {
+        $rel_path = ltrim(str_replace($normalized_abs, '', $file_path), '/');
+        $basename = strtolower(basename($file_path));
         $severity = 'info';
         $risk_reason = 'Standard recent file modification';
         $is_suspicious = false;
+        $is_verified_clean = false;
 
-        // Threat heuristics on modified file
-        if ($category === 'uploads') {
+        // 1. Check if it's a configuration or server environment file
+        $config_files = ['wp-config.php', 'wp-config-sample.php', 'php.ini', '.user.ini', '.htaccess', 'web.config', 'nginx.conf'];
+        if (in_array($basename, $config_files, true)) {
+            $category = 'config';
+            if ($basename === 'wp-config.php') {
+                $severity = 'info';
+                $risk_reason = 'WordPress database & secret keys configuration file (Normal for installation)';
+            } elseif ($basename === 'php.ini' || $basename === '.user.ini') {
+                $severity = 'info';
+                $risk_reason = 'Server PHP runtime configuration file';
+            } elseif ($basename === '.htaccess') {
+                $severity = 'info';
+                $risk_reason = 'Web server permalink & rewrite configuration file';
+            } else {
+                $severity = 'info';
+                $risk_reason = 'Server configuration file';
+            }
+        } elseif ($category === 'uploads') {
             $severity = 'critical';
             $is_suspicious = true;
             $risk_reason = 'Executable script file modified or created inside uploads directory!';
         } elseif ($category === 'core' || $category === 'core_root') {
             $category = 'core';
-            $severity = 'high';
-            $risk_reason = 'WordPress core file was modified.';
+            
+            // Check if file is in official core checksums and matches MD5
+            if (!empty($core_checksums) && isset($core_checksums[$rel_path])) {
+                $local_hash = @md5_file($file_path);
+                if ($local_hash && hash_equals($core_checksums[$rel_path], $local_hash)) {
+                    $is_verified_clean = true;
+                    $severity = 'clean';
+                    $risk_reason = 'Authentic official core file (Checksum bit-for-bit verified with WordPress.org)';
+                } else {
+                    $severity = 'high';
+                    $is_suspicious = true;
+                    $risk_reason = 'WordPress core file altered from official WordPress.org release!';
+                }
+            } else {
+                // If it's a standard core root file like index.php, wp-login.php, wp-blog-header.php
+                if (!empty($core_checksums)) {
+                    $severity = 'info';
+                    $risk_reason = 'WordPress core installation file (Recent timestamp)';
+                } else {
+                    $severity = 'high';
+                    $risk_reason = 'WordPress core file was modified.';
+                }
+            }
+        } elseif ($category === 'themes') {
+            // Check if default bundled theme (twenty*) matches core checksums
+            if (!empty($core_checksums) && isset($core_checksums[$rel_path])) {
+                $local_hash = @md5_file($file_path);
+                if ($local_hash && hash_equals($core_checksums[$rel_path], $local_hash)) {
+                    $is_verified_clean = true;
+                    $severity = 'clean';
+                    $risk_reason = 'Authentic official theme file (Checksum bit-for-bit verified with WordPress.org)';
+                }
+            }
         }
 
-        // Content heuristic check on small/medium files
-        if ($size > 0 && $size < 1048576) { // under 1MB
+        // Content heuristic check on small/medium files for active web shells
+        if ($size > 0 && $size < 1048576 && !$is_verified_clean) { // under 1MB and not clean official file
             $content_sample = @file_get_contents($file_path, false, null, 0, 8192);
             if ($content_sample) {
                 if (preg_match('/(eval\s*\(|base64_decode\s*\(|assert\s*\(|system\s*\(|passthru\s*\(|shell_exec\s*\(|gzuncompress\s*\()/i', $content_sample)) {
@@ -268,18 +323,19 @@ class FileIntegrityMonitor {
         }
 
         return [
-            'file_path'      => $file_path,
-            'relative_path'  => $rel_path,
-            'filename'       => basename($file_path),
-            'category'       => $category,
-            'mtime'          => $mtime,
-            'modified_human' => human_time_diff($mtime, time()) . ' ago',
-            'modified_iso'   => gmdate('Y-m-d H:i:s', $mtime),
-            'size'           => $size,
-            'size_formatted' => size_format($size),
-            'severity'       => $severity,
-            'is_suspicious'  => $is_suspicious,
-            'risk_reason'    => $risk_reason,
+            'file_path'         => $file_path,
+            'relative_path'     => $rel_path,
+            'filename'          => basename($file_path),
+            'category'          => $category,
+            'mtime'             => $mtime,
+            'modified_human'    => human_time_diff($mtime, time()) . ' ago',
+            'modified_iso'      => gmdate('Y-m-d H:i:s', $mtime),
+            'size'              => $size,
+            'size_formatted'    => size_format($size),
+            'severity'          => $severity,
+            'is_suspicious'     => $is_suspicious,
+            'is_verified_clean' => $is_verified_clean,
+            'risk_reason'       => $risk_reason,
         ];
     }
 

@@ -141,7 +141,10 @@ v:1.5.0 - 2026-10-10
   * Cloudflare Free Rate Limiter: Deploys an edge rate limiting rule on `/wp-login.php` (10 requests / 10s per IP) to mitigate brute-force attacks with zero server resource consumption.
   * Real-Time Local WAF Auto-Ban Edge Sync: When the local WAF blocks high-threat probes (SQLi, PHP Injection, Path Traversal), it automatically pushes the offending IP to Cloudflare Edge IP Access Rules.
   * Instant CDN Cache Purge: Added 1-click global edge cache purge tool with real-time feedback in `FirewallPage.tsx`.
-  * Dedicated Cloudflare Tab: Added a modern, dedicated "Cloudflare Edge Defense" management tab inside the Firewall (WAF) dashboard with token verification, zone information, and rule deployment toggles.
+- Resolved Fresh Installation FIM Baseline False-Positives:
+  * Official WordPress.org Checksum Verification for FIM: Modified files detected within the active inspection timeframe (e.g., 24h/48h) are cross-referenced with official WordPress.org release checksums. Files matching official baselines bit-for-bit are marked as `Verified Clean` with reassuring green badges, avoiding alarming warnings when auditing fresh installations.
+  * Configuration File Reclassification: Reclassified `wp-config.php`, `php.ini`, `.user.ini`, `.htaccess`, and server configuration files from generic "core" to `config` / `system`, accurately attributing them to standard site setup rather than unauthorized core tampering.
+  * Refined High-Risk Counters: Authentic core and bundled theme files are prevented from inflating the "Core Files Altered" and "High-Risk Alterations" metric counters.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
