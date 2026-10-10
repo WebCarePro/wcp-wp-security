@@ -142,8 +142,26 @@ class CloudflareService {
         $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
         $candidate_domain = self::extract_root_domain($site_host);
 
-        // Fetch zones accessible by this token
-        $res = self::request('zones?per_page=50', 'GET', null, $token);
+        // Fetch zones accessible by this token.
+        // If the token is scoped to a "Specific zone" (e.g. miralamin.win), Cloudflare blocks generic `GET /zones`
+        // with "Unauthorized to access requested resource" (403/9109), but allows `GET /zones?name=miralamin.win`!
+        $res = null;
+        if (!empty($candidate_domain)) {
+            $res = self::request('zones?name=' . urlencode($candidate_domain), 'GET', null, $token);
+        }
+
+        if ((empty($res['success']) || empty($res['result'])) && !empty($site_host) && $site_host !== $candidate_domain) {
+            $res = self::request('zones?name=' . urlencode($site_host), 'GET', null, $token);
+        }
+
+        // Fallback to listing all accessible zones if specific domain lookup yielded no results or if token is all-zones scoped
+        if (empty($res['success']) || empty($res['result'])) {
+            $fallback_res = self::request('zones?per_page=50', 'GET', null, $token);
+            if (!empty($fallback_res['success']) && !empty($fallback_res['result'])) {
+                $res = $fallback_res;
+            }
+        }
+
         if (empty($res['success']) || !isset($res['result']) || !is_array($res['result'])) {
             $msg = $res['errors'][0]['message'] ?? __('Could not list zones. Please provide Zone ID manually.', 'wcp-security-scanner');
             return [
@@ -156,7 +174,10 @@ class CloudflareService {
         if (empty($zones)) {
             return [
                 'success' => false,
-                'message' => __('No accessible Cloudflare zones found for this token. Ensure your token has "Zone > Zone: Read" permissions.', 'wcp-security-scanner'),
+                'message' => sprintf(
+                    __('No matching Cloudflare zone found for "%s". Ensure your token has "Zone > Zone: Read" permissions for this domain, or enter your Zone ID manually.', 'wcp-security-scanner'),
+                    $candidate_domain ?: $site_host
+                ),
             ];
         }
 

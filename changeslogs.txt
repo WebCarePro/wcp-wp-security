@@ -167,6 +167,7 @@ v:1.5.0 - 2026-10-10
   * Zone ID Persistence & Domain Display: Retained active Zone ID and connected domain name across page reloads in `FirewallPage.tsx` and returned `zone_id` in `CloudflareService::get_status()`.
   * 1-Click Disconnect Cloudflare: Added "Disconnect Cloudflare" button that clears API tokens, Zone IDs, and auto-sync settings from the database via REST route `POST /wcp-scanner/v1/cloudflare/disconnect`.
   * Cloudflare Proxy Status (Orange Cloud vs Grey Cloud) Detection: Added `CloudflareService::check_proxy_status()` to cross-examine incoming edge request headers, Cloudflare DNS records, and resolved Anycast IP ranges (`is_cloudflare_ip()`), displaying live Proxy Status badges in `FirewallPage.tsx` alerting users if the domain/subdomain is set to DNS-only (Grey Cloud).
+  * Specific-Zone Scoped API Token Auto-Detection: Enhanced `CloudflareService::verify_zone()` to query `zones?name={domain}` directly against candidate root domains before attempting account-wide zone listings. This eliminates Cloudflare's 403 `Unauthorized to access requested resource` error when API tokens are restricted to a single specific domain.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
