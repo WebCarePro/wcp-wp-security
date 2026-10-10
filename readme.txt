@@ -1,7 +1,7 @@
 === WCP Security Scanner ===
 Contributors: miralamin
 Donate link: https://webcarespro.com
-Tags: security, malware, scanner, integrity, antivirus
+Tags: security, malware, scanner, integrity, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
@@ -13,7 +13,7 @@ Professional security & malware scanner with core integrity checks, heuristic th
 
 == Description ==
 
-WCP Security Scanner gives you enterprise-grade malware detection, core integrity auditing, and threat forensics inside an intuitive, modern React single-page dashboard. Engineered by WebCare Pro for high-performance sites, it provides deep visibility across your file system, WordPress core files, plugins, themes, database tables, cron jobs, and server configurations—without the performance bloat of traditional security tools.
+WCP Security Scanner gives you enterprise-grade malware detection, core integrity auditing, web application firewalling (WAF), session sentinel, rogue admin detection, and threat forensics inside an intuitive, modern React single-page dashboard. Engineered by WebCare Pro for high-performance sites, it provides deep visibility across your file system, WordPress core files, plugins, themes, database tables, cron jobs, active sessions, runtime hooks, and server configurations—without the performance bloat of traditional security tools.
 
 = Multi-Vector Security & Malware Scanning =
 * **Deep Heuristic PHP Code Analysis**: Scans for webshells, backdoors, Trojan droppers, and remote access tools (c99, r57, b374k, WSO, China Chopper). Detects obfuscated code patterns including nested eval(base64_decode()), gzinflate(), str_rot13(), dynamic variable functions, hex/octal encodings, and spoofed file headers.
@@ -74,6 +74,37 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **Pure PHP RFC 6238 TOTP Engine**: Compatible with Google Authenticator, Authy, 1Password, Bitwarden, and Microsoft Authenticator without external libraries.
 * **Native wp-login.php Interception**: Displays a responsive, branded two-factor verification challenge screen with support for rotating 6-digit TOTP codes and single-use emergency backup recovery codes.
 * **Brute Force Rate-Limiter**: Tracks failed login attempts per client IP with configurable thresholds and temporary lockout durations with countdown notices.
+
+= HTTP Security Headers & Site Hardening =
+* **Enterprise Security Headers Dispatcher**: Injects HSTS (with optional preload), X-Frame-Options (DENY/SAMEORIGIN), X-Content-Type-Options (nosniff), Referrer-Policy, Permissions-Policy, and Content-Security-Policy (CSP Lite).
+* **Runtime PHP Editor Lock**: Defuses file editor exploits by locking theme and plugin code editing at runtime via DISALLOW_FILE_EDIT.
+* **Reconnaissance & User Enumeration Defense**: Blocks author archive scraping (/?author=1) and strips sensitive user endpoints from public REST API queries. Strips WordPress version meta tags and enqueued asset query strings (?ver=).
+* **Sensitive File HTTP Probe Shield**: Returns 403 Forbidden on incoming requests attempting to read .env, .git, .htaccess, .sql, and composer.json.
+* **1-Click Hardening Presets**: Instant "Apply Recommended A+ Hardening" preset in Settings with live grade assessment badge (A+, A, B, C).
+
+= Session Sentinel & Anti-Hijack Defense =
+* **Active Administrative Session Inspector**: Real-time tracking of active user logins via WP_Session_Tokens with IP address, browser, OS, and timestamp telemetry.
+* **Strict IP Lock & Anti-Replay**: Automatically detects and revokes hijacked sessions if client IP shifts during an active login.
+* **Concurrent Login Block**: Enforces single-session policies by invalidating older sessions when an administrator logs in from a new machine.
+* **Configurable Idle Inactivity Revocation**: Automatically logs out abandoned admin sessions after configurable periods (default: 120m).
+* **1-Click Remote Termination**: Remotely terminate individual compromised sessions or revoke all other sessions with 1-click.
+
+= Database Micro-Anomaly & Rogue Administrator Trap =
+* **Stealth User Infiltration Detection**: Audits wp_users against wp_usermeta to catch zombie administrator accounts inserted directly via SQL that bypass standard WordPress registration hooks.
+* **Ghost & Orphaned Capability Hunting**: Uncovers orphaned capability rows in wp_usermeta pointing to non-existent user IDs left behind by malware droppers.
+* **Privilege Escalation Trap**: Catches privilege inconsistencies where administrator capabilities do not match standard user level 10.
+* **Database Rootkit & Transient Probe**: Recursively scans wp_options for obfuscated execution payloads (eval, base64_decode, gzinflate) hidden in transient names.
+
+= Bot Recon Defense & AI Scraper Shield =
+* **Fake Search Engine Crawler Defense**: Verifies claimed Googlebot, Bingbot, Slurp, and DuckDuckBot User-Agents via reverse DNS (PTR) and forward DNS (A/AAAA) lookups with 24-hour transient caching to block spoofed reconnaissance probes.
+* **AI Content Scraper & Harvester Shield**: Intercepts aggressive AI model scrapers (GPTBot, CCBot, Bytespider, ClaudeBot, PerplexityBot, Diffbot) at the WAF level.
+* **Dynamic Virtual robots.txt Injection**: Automatically generates and injects standard AI bot Disallow directives into virtual robots.txt.
+
+= Living-off-the-Land (LotL) Native Hook Infiltration Sentinel =
+* **Active Runtime Memory Hook Audit**: Uses reflection to inspect active runtime hook callbacks registered in $wp_filter across high-risk lifecycle actions (authenticate, wp_authenticate, template_redirect, wp_head, wp_footer, user_register, xmlrpc_call).
+* **Anonymous Closure & Credential Sniffer Detection**: Flags anonymous Closure functions attached to sensitive authentication and login hooks that could steal passwords.
+* **External Rootkit & Uploads Hook Traps**: Detects hook callbacks originating outside WordPress root (auto_prepend_file or system rootkits) and callbacks executing inside wp-content/uploads/ (webshell callbacks).
+* **Dangerous Native Function Registration Defense**: Detects dangerous native PHP functions (eval, assert, shell_exec, system, passthru) attached directly as WordPress filter callbacks.
 
 = DevSecOps Chat Webhooks (Slack & Discord) =
 * **Real-Time Security Notifications**: Delivers rich Block Kit (Slack) and Embed (Discord) alert cards when critical vulnerabilities are found, files are altered, or attacks are blocked.
@@ -170,14 +201,17 @@ To compile the React admin application from source:
 == Changelog ==
 
 = 1.5.0 =
-* Added Web Application Firewall (WAF Lite) with real-time early request filtering and virtual patching.
+* Added Web Application Firewall (WAF Lite) with real-time early request filtering, virtual patching, and custom 403 Forbidden screen.
 * Added Real-Time File Integrity Monitoring (FIM) with pure PHP Myers/LCS visual code diff viewer against WordPress.org SVN release mirrors.
 * Added One-Click Malware Remediation / Auto-Cure Engine with webshell stripping, official WordPress.org restoration, and automatic rollback safety backups.
-* Added Cloud Threat Intelligence & Community Botnet IP Blacklists with zero-day CVE site correlation.
+* Added Cloud Threat Intelligence & Community Botnet IP Blacklists with zero-day CVE site correlation and O(1) in-memory subnet matching.
 * Added Multi-Factor Authentication (2FA) with RFC 6238 TOTP engine, emergency recovery codes, and brute-force login hardening.
+* Added HTTP Security Headers Engine & 1-Click Hardening with HSTS, X-Frame-Options, CSP Lite, user enumeration defense, and sensitive file probe shield.
+* Added Active Session Sentinel with strict IP locking, concurrent login prevention, and remote session revocation.
+* Added Database Micro-Anomaly & Rogue Administrator Trap for stealth SQL user injections, ghost capabilities, and transient rootkits.
+* Added Bot Recon Defense & AI Scraper Shield with reverse DNS search crawler verification and dynamic robots.txt injection.
+* Added Living-off-the-Land (LotL) Native Hook Infiltration Sentinel auditing runtime $wp_filter for closures and malicious memory callbacks.
 * Added DevSecOps Chat Webhooks for real-time Slack and Discord security notifications.
-* Added automatic detection and exclusion for harmless directory protection index.php files in uploads.
-* Added automatic recognition and exclusion for custom & premium plugins and themes in FIM.
+* Added automatic detection and exclusion for harmless directory protection index.php files in uploads and custom/premium components in FIM.
 * Added clean 5-table database purge on plugin uninstall (uninstall.php).
 * Redesigned Scanner Settings with modern segmented pill navigation and animated toggle switches.
-

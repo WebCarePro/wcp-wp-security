@@ -119,6 +119,10 @@ v:1.5.0 - 2026-10-10
   * Uploads Execution Hook Trap: Flags executable hook callbacks residing in `wp-content/uploads/` directory, exposing active webshell hooks.
   * Dangerous Native Function Registration Defense: Detects dangerous native PHP functions (`eval`, `assert`, `shell_exec`, `system`, `passthru`) attached directly as WordPress filter callbacks.
   * Targeted & Full Scan Integration: Seamlessly integrated into `WordPressSecurityScanner::scan()` for full audits, added a dedicated "Hook Sentinel & LotL Traps" profile to Targeted Scans in `App.tsx`, and registered REST endpoint `GET /wcp-scanner/v1/hooks/audit`.
+- Expanded Comprehensive Plugin Documentation across `readme.txt`, `README.md`, and `docs/features.md`:
+  * Updated `readme.txt` with extended sections for all 16 enterprise modules (HTTP Security Headers, Session Sentinel, Rogue Admin Anomaly Trap, Bot Recon Defense & AI Scraper Shield, and Living-off-the-Land Hook Sentinel).
+  * Expanded `README.md` and `docs/features.md` with complete architectural blueprints, comprehensive technical specifications for all 16 security engines, and full WebCare Pro professional services catalog.
+  * Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
 
