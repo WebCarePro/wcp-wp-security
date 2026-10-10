@@ -47,7 +47,38 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **1-Click AI Code Forensics Modal**: Decodes obfuscated scripts in seconds, determines whether code is safe or malicious, assesses threat confidence, and generates clean surgical remediation patches.
 * **Performance & Developer Safeguards**: Configurable scan batch sizes (25 to 200 files/batch), memory limit overrides (256 MB to 1024 MB), heuristic file size thresholds, custom path exclusions (e.g., wp-content/cache/*), and 1-click generator tag hiding.
 * **Settings Import & Export**: 1-click JSON export and import for seamless fleet deployment across multi-site agency portfolios, plus factory reset safeguards.
-* **Clean Uninstall & Data Privacy**: Standard uninstall.php lifecycle script. When Auto-Remove All Data on Uninstall is active (default), deleting the plugin automatically drops all 4 custom tables (wp_wcp_scans, wp_wcp_scan_issues, wp_wcp_scan_files, wp_wcp_quarantine), removes options/transients, clears crons, and purges the upload storage folder.
+* **Clean Uninstall & Data Privacy**: Standard uninstall.php lifecycle script. When Auto-Remove All Data on Uninstall is active (default), deleting the plugin automatically drops all 5 custom tables (wp_wcp_scans, wp_wcp_scan_issues, wp_wcp_scan_files, wp_wcp_quarantine, wp_wcp_firewall_logs), removes options/transients, clears crons, and purges the upload storage folder.
+
+= Web Application Firewall (WAF Lite) & Virtual Patching =
+* **Real-Time Request Filtering**: Inspects incoming HTTP payloads at plugins_loaded (priority 0) with sub-millisecond evaluation before core WordPress queries execute.
+* **Attack Vector Shields**: Blocks SQL Injections (UNION SELECT, information_schema, benchmark), Cross-Site Scripting (XSS scripts/handlers), Path Traversal & LFI (/etc/passwd, php://filter), PHP code tag injections (<?php, eval, base64_decode, system), and XML-RPC exploitation.
+* **Smart Cloudflare & Coexistence**: Decodes visitor Real-IP from HTTP_CF_CONNECTING_IP with Cloudflare proxy range validation. Auto-negotiates with Wordfence, Sucuri, and Solid Security into Complementary Virtual Patching mode without hook conflicts.
+* **Live Incidents Stream & Controls**: Real-time blocked attack table, 1-click IP whitelisting, Learning Mode toggle (audit-only logging), and individual rule toggles. Custom dark-themed 403 Forbidden screen with incident reference IDs.
+
+= Real-Time File Integrity Monitoring (FIM) & Code Diff Viewer =
+* **Filesystem Change Tracker**: Monitors WordPress Core, active Plugins, Themes, and Uploads directories with customizable historical audit windows (24h, 48h, 7d, 30d).
+* **Custom & Premium Component Recognition**: Automatically identifies custom or commercial plugins/themes not hosted on WordPress.org, excluding them from repository baseline checks to prevent false-positive alarms.
+* **Bit-for-Bit Visual Code Diff Viewer**: Pure PHP Myers/LCS visual diff engine comparing modified server files against official WordPress.org release mirrors with side-by-side and unified views.
+
+= One-Click Malware Remediation & Auto-Cure Engine =
+* **Automated Webshell Stripping**: 1-click surgical neutralization of malicious code headers, obfuscated base64/eval wrappers, and backdoor includes while preserving legitimate file code with tokenizer syntax validation.
+* **Official WordPress.org Restoration**: 1-click replacement of infected or tampered plugin/theme files with authentic, bit-for-bit verified copies fetched directly from official release mirrors.
+* **Auto-Cure Safety Backups & Rollback Vault**: Creates timestamped safety backups in a secure directory before every remediation action, enabling instant 1-click restoration if needed.
+
+= Cloud Threat Intelligence & Botnet Feeds =
+* **Community Botnet IP Blacklists**: Synchronizes active botnet nodes and brute-force scanner pools from Blocklist.de, Stamparm Ipsum, and FireHOL. Performs static in-memory O(1) hash map and CIDR subnet matching (<0.05ms) to auto-drop botnet traffic at the perimeter.
+* **Zero-Day CVE Feed & Site Correlation**: Real-time zero-day vulnerability definitions with WAF virtual patching. Automatically correlates CVEs with installed WordPress Core, plugins, and themes, displaying status badges (Installed - Vulnerable, Installed - Patched, Global Virtual Shield) and filter controls.
+* **IP Reputation Diagnostic Tool**: Built-in checker to test client or visitor IPs against the active threat database.
+
+= Multi-Factor Authentication (2FA) & Login Hardening =
+* **Pure PHP RFC 6238 TOTP Engine**: Compatible with Google Authenticator, Authy, 1Password, Bitwarden, and Microsoft Authenticator without external libraries.
+* **Native wp-login.php Interception**: Displays a responsive, branded two-factor verification challenge screen with support for rotating 6-digit TOTP codes and single-use emergency backup recovery codes.
+* **Brute Force Rate-Limiter**: Tracks failed login attempts per client IP with configurable thresholds and temporary lockout durations with countdown notices.
+
+= DevSecOps Chat Webhooks (Slack & Discord) =
+* **Real-Time Security Notifications**: Delivers rich Block Kit (Slack) and Embed (Discord) alert cards when critical vulnerabilities are found, files are altered, or attacks are blocked.
+* **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
+* **Live Webhook Testing API**: 1-click test button inside Scanner Settings to verify webhook URL configuration instantly.
 
 = Author =
 * **Author**: Mir Alamin

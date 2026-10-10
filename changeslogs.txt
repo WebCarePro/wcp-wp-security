@@ -80,7 +80,9 @@ v:1.5.0 - 2026-10-10
   * Resolved `The response is not a valid JSON response` error during "Sync Threat Intel Now" by adding the missing `sync_threat_data()` alias method in `ThreatIntelService` and returning complete metadata properties (`success`, `blacklisted_ips_count`, `cves_count`).
   * Enhanced `ThreatIntelService::get_cve_catalog()` and added `check_target_status()` to cross-examine each zero-day CVE against currently installed WordPress core, active plugins, and active themes.
   * Added site installation status badges to the Threat Intel CVE feed (`Installed on Site — Vulnerable!`, `Installed on Site — Patched & Safe`, `Global Virtual Shield (Not installed on site)`).
-  * Added dedicated filter controls (`All Virtual Patches`, `Installed on This Site`, `Vulnerable`) and educational guidance banner explaining how global WAF virtual patches neutralize blind automated botnet probes before reaching the server.
+- Synchronized Complete Documentation Across README.md, readme.txt, and docs/features.md:
+  * Updated `README.md` and `readme.txt` to include full documentation for all 6 major v1.5.0 features: Web Application Firewall (WAF), File Integrity Monitoring (FIM), One-Click Auto-Cure & Safety Backups Vault, Cloud Threat Intelligence & Community Botnet Feeds, Two-Factor Authentication (2FA) & Login Hardening, and DevSecOps Chat Webhooks.
+  * Updated `docs/features.md` with implementation details for harmless uploads directory protection auto-exclusion, custom/premium component handling, zero-day CVE correlation, and the 5-table clean uninstall purge.
 
 
 v:1.4.0 - 2026-10-09
