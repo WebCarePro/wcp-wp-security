@@ -80,9 +80,11 @@ v:1.5.0 - 2026-10-10
   * Resolved `The response is not a valid JSON response` error during "Sync Threat Intel Now" by adding the missing `sync_threat_data()` alias method in `ThreatIntelService` and returning complete metadata properties (`success`, `blacklisted_ips_count`, `cves_count`).
   * Enhanced `ThreatIntelService::get_cve_catalog()` and added `check_target_status()` to cross-examine each zero-day CVE against currently installed WordPress core, active plugins, and active themes.
   * Added site installation status badges to the Threat Intel CVE feed (`Installed on Site — Vulnerable!`, `Installed on Site — Patched & Safe`, `Global Virtual Shield (Not installed on site)`).
-- Synchronized Complete Documentation Across README.md, readme.txt, and docs/features.md:
-  * Updated `README.md` and `readme.txt` to include full documentation for all 6 major v1.5.0 features: Web Application Firewall (WAF), File Integrity Monitoring (FIM), One-Click Auto-Cure & Safety Backups Vault, Cloud Threat Intelligence & Community Botnet Feeds, Two-Factor Authentication (2FA) & Login Hardening, and DevSecOps Chat Webhooks.
-  * Updated `docs/features.md` with implementation details for harmless uploads directory protection auto-exclusion, custom/premium component handling, zero-day CVE correlation, and the 5-table clean uninstall purge.
+- Fixed Header Refresh Button Responsiveness & Visual Feedback:
+  * Resolved non-responsive user experience on the header "Refresh" button by adding `isRefreshing` state, animated loading spinner (`wcp-spin-icon`), and a temporary green success confirmation pill (`Refreshed!`).
+  * Implemented `handleGlobalRefresh` in `App.tsx` to intelligently trigger data reloads according to the active tab (Dashboard, Targeted, Scan History, Backups, or Server Info).
+  * Fixed "Security Health" metric score inversion: corrected the display formula so a clean, threat-free site correctly renders `100/100` (`System healthy`) instead of displaying raw threat points (`0/100`).
+
 
 
 v:1.4.0 - 2026-10-09
