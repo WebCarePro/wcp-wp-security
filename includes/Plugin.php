@@ -30,6 +30,7 @@ class Plugin {
         $audit_logger->init();
 
         \WCP\Scanner\Firewall\FirewallEngine::init();
+        \WCP\Scanner\Hardening\SecurityHeadersEngine::init();
         \WCP\Scanner\Auth\TwoFactorAuth::init();
         \WCP\Scanner\Auth\LoginHardening::init();
 

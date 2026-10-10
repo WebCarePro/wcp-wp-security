@@ -210,6 +210,19 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // HTTP Security Headers & Hardening Endpoints
+        register_rest_route(self::NAMESPACE, '/hardening/audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_hardening_audit'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/hardening/apply-preset', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'apply_hardening_preset'],
+            'permission_callback' => $permission,
+        ]);
+
         // AI Threat Analysis & Connection Test Endpoints
         register_rest_route(self::NAMESPACE, '/ai/test', [
             'methods'             => 'POST',
@@ -1265,6 +1278,53 @@ class ScannerRoutes {
             'success'  => true,
             'message'  => __('Settings have been reset to factory defaults.', 'wcp-security-scanner'),
             'settings' => $defaults,
+        ]);
+    }
+
+    /**
+     * Audit HTTP security headers & site hardening status
+     */
+    public static function get_hardening_audit(\WP_REST_Request $request) {
+        $audit = \WCP\Scanner\Hardening\SecurityHeadersEngine::audit_hardening_status();
+        return rest_ensure_response([
+            'success' => true,
+            'audit'   => $audit,
+        ]);
+    }
+
+    /**
+     * Apply recommended A+ hardening preset
+     */
+    public static function apply_hardening_preset(\WP_REST_Request $request) {
+        $current = \WCP\Scanner\System\SettingsManager::get_settings();
+        
+        $preset = [
+            'header_hsts'                      => true,
+            'header_hsts_preload'              => false,
+            'header_x_frame_options'           => true,
+            'header_x_frame_options_mode'      => 'SAMEORIGIN',
+            'header_nosniff'                   => true,
+            'header_referrer_policy'           => true,
+            'header_referrer_policy_value'     => 'strict-origin-when-cross-origin',
+            'header_permissions_policy'        => true,
+            'header_permissions_policy_value'  => 'geolocation=(), camera=(), microphone=(), payment=()',
+            'header_xss_protection'            => true,
+            'disable_file_editing'             => true,
+            'block_user_enumeration'           => true,
+            'hide_wp_version'                  => true,
+            'block_sensitive_files'            => true,
+            'waf_disable_xmlrpc'               => true,
+        ];
+
+        $updated = array_merge($current, $preset);
+        $saved = \WCP\Scanner\System\SettingsManager::save_settings($updated);
+        $audit = \WCP\Scanner\Hardening\SecurityHeadersEngine::audit_hardening_status();
+
+        return rest_ensure_response([
+            'success'  => true,
+            'message'  => __('Recommended A+ Security Hardening preset applied successfully.', 'wcp-security-scanner'),
+            'settings' => $saved,
+            'audit'    => $audit,
         ]);
     }
 

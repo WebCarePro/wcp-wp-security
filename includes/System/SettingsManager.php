@@ -50,10 +50,25 @@ class SettingsManager {
             'excluded_paths'           => "wp-content/cache/*\nnode_modules/*\n*.log\n*.tar.gz\n*.zip",
             'custom_extensions'        => 'php, phtml, phps, inc, tpl',
 
-            // 6. Developer & Admin Security Tweaks
+            // 6. Developer & Admin Security Tweaks & HTTP Headers
             'disable_file_editing'     => false,
             'hide_wp_version'          => false,
             'block_sensitive_files'    => false, // .env, .git, etc.
+            'block_user_enumeration'   => true,  // Block ?author=1 and REST API user discovery
+
+            // HTTP Security Headers
+            'header_hsts'                      => true,
+            'header_hsts_preload'              => false,
+            'header_x_frame_options'           => true,
+            'header_x_frame_options_mode'      => 'SAMEORIGIN', // SAMEORIGIN or DENY
+            'header_nosniff'                   => true,
+            'header_referrer_policy'           => true,
+            'header_referrer_policy_value'     => 'strict-origin-when-cross-origin',
+            'header_permissions_policy'        => true,
+            'header_permissions_policy_value'  => 'geolocation=(), camera=(), microphone=(), payment=()',
+            'header_xss_protection'            => true,
+            'header_csp_enabled'               => false,
+            'header_csp_custom'                => '',
 
             // 7. Cleanup & Data Privacy on Plugin Uninstall (Enabled by default)
             'delete_data_on_uninstall' => true,
@@ -187,10 +202,25 @@ class SettingsManager {
         $clean['excluded_paths']    = sanitize_textarea_field($input['excluded_paths'] ?? $defaults['excluded_paths']);
         $clean['custom_extensions'] = sanitize_text_field($input['custom_extensions'] ?? $defaults['custom_extensions']);
 
-        // 6. Security Tweaks
+        // 6. Security Tweaks & HTTP Security Headers
         $clean['disable_file_editing']  = !empty($input['disable_file_editing']);
         $clean['hide_wp_version']       = !empty($input['hide_wp_version']);
         $clean['block_sensitive_files'] = !empty($input['block_sensitive_files']);
+        $clean['block_user_enumeration'] = isset($input['block_user_enumeration']) ? !empty($input['block_user_enumeration']) : true;
+
+        // HTTP Security Headers
+        $clean['header_hsts']                 = isset($input['header_hsts']) ? !empty($input['header_hsts']) : true;
+        $clean['header_hsts_preload']         = !empty($input['header_hsts_preload']);
+        $clean['header_x_frame_options']      = isset($input['header_x_frame_options']) ? !empty($input['header_x_frame_options']) : true;
+        $clean['header_x_frame_options_mode'] = in_array(strtoupper($input['header_x_frame_options_mode'] ?? ''), ['DENY', 'SAMEORIGIN'], true) ? strtoupper($input['header_x_frame_options_mode']) : 'SAMEORIGIN';
+        $clean['header_nosniff']              = isset($input['header_nosniff']) ? !empty($input['header_nosniff']) : true;
+        $clean['header_referrer_policy']      = isset($input['header_referrer_policy']) ? !empty($input['header_referrer_policy']) : true;
+        $clean['header_referrer_policy_value'] = sanitize_text_field($input['header_referrer_policy_value'] ?? 'strict-origin-when-cross-origin');
+        $clean['header_permissions_policy']   = isset($input['header_permissions_policy']) ? !empty($input['header_permissions_policy']) : true;
+        $clean['header_permissions_policy_value'] = sanitize_text_field($input['header_permissions_policy_value'] ?? 'geolocation=(), camera=(), microphone=(), payment=()');
+        $clean['header_xss_protection']       = isset($input['header_xss_protection']) ? !empty($input['header_xss_protection']) : true;
+        $clean['header_csp_enabled']          = !empty($input['header_csp_enabled']);
+        $clean['header_csp_custom']           = sanitize_text_field($input['header_csp_custom'] ?? '');
 
         // 7. Cleanup & Data Privacy on Plugin Uninstall
         $clean['delete_data_on_uninstall'] = isset($input['delete_data_on_uninstall']) ? !empty($input['delete_data_on_uninstall']) : true;
