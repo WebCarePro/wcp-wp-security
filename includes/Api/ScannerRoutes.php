@@ -234,6 +234,31 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'update_ai_models'],
             'permission_callback' => $permission,
         ]);
+
+        // Firewall (WAF Lite) Endpoints
+        register_rest_route(self::NAMESPACE, '/firewall/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_logs'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/clear-logs', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'clear_firewall_logs'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/toggle', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_firewall'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1229,5 +1254,38 @@ class ScannerRoutes {
         }
 
         return rest_ensure_response($result);
+    }
+
+    public static function get_firewall_status() {
+        return rest_ensure_response(\WCP\Scanner\Firewall\FirewallEngine::get_status());
+    }
+
+    public static function get_firewall_logs(\WP_REST_Request $request) {
+        $limit = (int) ($request->get_param('limit') ?: 50);
+        return rest_ensure_response([
+            'logs' => \WCP\Scanner\Firewall\FirewallEngine::get_logs($limit),
+        ]);
+    }
+
+    public static function clear_firewall_logs() {
+        $cleared = \WCP\Scanner\Firewall\FirewallEngine::clear_logs();
+        return rest_ensure_response([
+            'success' => $cleared,
+            'message' => 'Firewall incident logs cleared successfully.',
+        ]);
+    }
+
+    public static function toggle_firewall(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $enabled = !empty($params['enabled']);
+        $settings = \WCP\Scanner\System\SettingsManager::get_settings();
+        $settings['waf_enabled'] = $enabled;
+        \WCP\Scanner\System\SettingsManager::save_settings($settings);
+
+        return rest_ensure_response([
+            'success' => true,
+            'enabled' => $enabled,
+            'status'  => \WCP\Scanner\Firewall\FirewallEngine::get_status(),
+        ]);
     }
 }

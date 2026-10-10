@@ -57,6 +57,18 @@ class SettingsManager {
 
             // 7. Cleanup & Data Privacy on Plugin Uninstall (Enabled by default)
             'delete_data_on_uninstall' => true,
+
+            // 8. Web Application Firewall (WAF) Lite
+            'waf_enabled'              => true,
+            'waf_mode'                 => 'enabled', // 'enabled' | 'learning' | 'disabled'
+            'waf_complementary_mode'   => true, // Auto-negotiate if Wordfence/Cloudflare active
+            'waf_block_sqli'           => true,
+            'waf_block_xss'            => true,
+            'waf_block_traversal'      => true,
+            'waf_block_php_injection'  => true,
+            'waf_disable_xmlrpc'       => false,
+            'waf_login_rate_limit'     => true,
+            'waf_whitelisted_ips'      => '',
         ];
     }
 
@@ -162,6 +174,19 @@ class SettingsManager {
 
         // 7. Cleanup & Data Privacy on Plugin Uninstall
         $clean['delete_data_on_uninstall'] = isset($input['delete_data_on_uninstall']) ? !empty($input['delete_data_on_uninstall']) : true;
+
+        // 8. Web Application Firewall (WAF) Lite
+        $clean['waf_enabled']             = isset($input['waf_enabled']) ? !empty($input['waf_enabled']) : true;
+        $valid_waf_modes                  = ['enabled', 'learning', 'disabled'];
+        $clean['waf_mode']                = in_array($input['waf_mode'] ?? '', $valid_waf_modes, true) ? $input['waf_mode'] : 'enabled';
+        $clean['waf_complementary_mode']  = isset($input['waf_complementary_mode']) ? !empty($input['waf_complementary_mode']) : true;
+        $clean['waf_block_sqli']          = isset($input['waf_block_sqli']) ? !empty($input['waf_block_sqli']) : true;
+        $clean['waf_block_xss']           = isset($input['waf_block_xss']) ? !empty($input['waf_block_xss']) : true;
+        $clean['waf_block_traversal']     = isset($input['waf_block_traversal']) ? !empty($input['waf_block_traversal']) : true;
+        $clean['waf_block_php_injection'] = isset($input['waf_block_php_injection']) ? !empty($input['waf_block_php_injection']) : true;
+        $clean['waf_disable_xmlrpc']      = !empty($input['waf_disable_xmlrpc']);
+        $clean['waf_login_rate_limit']    = isset($input['waf_login_rate_limit']) ? !empty($input['waf_login_rate_limit']) : true;
+        $clean['waf_whitelisted_ips']     = sanitize_textarea_field($input['waf_whitelisted_ips'] ?? '');
 
         update_option(self::OPTION_KEY, $clean);
 

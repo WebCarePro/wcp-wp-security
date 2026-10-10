@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       WCP Security Scanner
  * Description:       Advanced security & malware scanner with core file integrity checks, heuristic threat analysis, and modern React dashboard.
- * Version:           1.4.1
+ * Version:           1.5.0
  * Requires at least: 7.0
  * Requires PHP:      8.3
  * Author:            Mir Alamin
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('WCP_SCANNER_VERSION', '1.4.1');
+define('WCP_SCANNER_VERSION', '1.5.0');
 define('WCP_SCANNER_FILE', __FILE__);
 define('WCP_SCANNER_PATH', plugin_dir_path(__FILE__));
 define('WCP_SCANNER_URL', plugin_dir_url(__FILE__));

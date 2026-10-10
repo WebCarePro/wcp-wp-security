@@ -83,6 +83,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: Firewall (WAF Lite)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
+            __('Firewall (WAF)', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-firewall',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Settings
         add_submenu_page(
             'wcp-security-scanner',
@@ -116,6 +126,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-backup',
             'security-scanner_page_wcp-scanner-server',
             'security-scanner_page_wcp-scanner-vulnerabilities',
+            'security-scanner_page_wcp-scanner-firewall',
             'security-scanner_page_wcp-scanner-settings',
             'security-scanner_page_wcp-scanner-about',
         ];
@@ -135,6 +146,7 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-backup') $active_tab = 'backup';
         elseif ($current_page === 'wcp-scanner-server') $active_tab = 'server';
         elseif ($current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
+        elseif ($current_page === 'wcp-scanner-firewall') $active_tab = 'firewall';
         elseif ($current_page === 'wcp-scanner-settings') $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about') $active_tab = 'about';
 

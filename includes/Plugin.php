@@ -29,6 +29,8 @@ class Plugin {
         $audit_logger = new \WCP\Scanner\System\AuditLogger();
         $audit_logger->init();
 
+        \WCP\Scanner\Firewall\FirewallEngine::init();
+
         add_action('rest_api_init', function () {
             ScannerRoutes::register();
         });
