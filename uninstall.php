@@ -36,6 +36,7 @@ if ($delete_data) {
     // 2. Delete plugin options and transients
     delete_option('wcp_scanner_settings');
     delete_option('wcp_scanner_db_version');
+    delete_option('wcp_remediation_backups');
     delete_transient('wcp_scanner_ai_models_catalog');
 
     // 3. Clear scheduled cron jobs

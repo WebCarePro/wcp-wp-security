@@ -272,6 +272,37 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'get_integrity_file_diff'],
             'permission_callback' => $permission,
         ]);
+
+        // One-Click Remediation & Auto-Cure Endpoints
+        register_rest_route(self::NAMESPACE, '/remediation/strip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_strip_webshell'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/remediation/restore-plugin', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_restore_plugin'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/remediation/restore-theme', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_restore_theme'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/remediation/backups', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_remediation_backups'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/remediation/rollback', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rollback_remediation'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1324,5 +1355,71 @@ class ScannerRoutes {
         $diff_data = $fim->get_file_diff($file_path);
 
         return rest_ensure_response($diff_data);
+    }
+
+    public static function remediate_strip_webshell(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        $result = $manager->strip_malware_injection($file_path, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function remediate_restore_plugin(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        $result = $manager->restore_official_plugin_file($file_path, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function remediate_restore_theme(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        $result = $manager->restore_official_theme_file($file_path, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function get_remediation_backups() {
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        return rest_ensure_response([
+            'backups' => $manager->get_backups(),
+        ]);
+    }
+
+    public static function rollback_remediation(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $backup_id = !empty($params['backup_id']) ? sanitize_text_field(wp_unslash($params['backup_id'])) : '';
+
+        if (empty($backup_id)) {
+            return new \WP_Error('missing_param', __('Missing backup_id parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        $result = $manager->rollback_remediation($backup_id);
+
+        return rest_ensure_response($result);
     }
 }
