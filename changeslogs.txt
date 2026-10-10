@@ -167,7 +167,10 @@ v:1.5.0 - 2026-10-10
   * Zone ID Persistence & Domain Display: Retained active Zone ID and connected domain name across page reloads in `FirewallPage.tsx` and returned `zone_id` in `CloudflareService::get_status()`.
   * 1-Click Disconnect Cloudflare: Added "Disconnect Cloudflare" button that clears API tokens, Zone IDs, and auto-sync settings from the database via REST route `POST /wcp-scanner/v1/cloudflare/disconnect`.
   * Cloudflare Proxy Status (Orange Cloud vs Grey Cloud) Detection: Added `CloudflareService::check_proxy_status()` to cross-examine incoming edge request headers, Cloudflare DNS records, and resolved Anycast IP ranges (`is_cloudflare_ip()`), displaying live Proxy Status badges in `FirewallPage.tsx` alerting users if the domain/subdomain is set to DNS-only (Grey Cloud).
-  * Specific-Zone Scoped API Token Auto-Detection: Enhanced `CloudflareService::verify_zone()` to query `zones?name={domain}` directly against candidate root domains before attempting account-wide zone listings. This eliminates Cloudflare's 403 `Unauthorized to access requested resource` error when API tokens are restricted to a single specific domain.
+- Enhanced Active Sessions Sentinel & Current Session UX:
+  * Prominent "Current Session" Badge & Visual Highlighting: Styled the active administrator session card on `?page=wcp-scanner-auth` with a high-visibility badge (`● Current Session`), accent border (`2px solid #0284c7`), card elevation, and glowing active indicator dot on the user avatar.
+  * Accidental Self-Termination Safeguard: Automatically hides the destructive "Terminate Session" button on the user's active session and replaces it with a reassuring `This Device (Active)` indicator pill.
+  * REST API Session Identification Resilience: Enhanced `SessionSentinel::get_active_sessions()` with multi-layered session token resolution (inspecting `wp_get_session_token()`, decrypting `$_COOKIE[LOGGED_IN_COOKIE]`, and smart client IP/user ID fallback) to guarantee the current active session is accurately detected and highlighted in REST API contexts.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 

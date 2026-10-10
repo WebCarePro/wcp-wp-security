@@ -209,7 +209,17 @@ class SessionSentinel {
     public static function get_active_sessions(): array {
         $current_user_id = get_current_user_id();
         $current_token   = wp_get_session_token();
-        $client_ip       = FirewallEngine::get_client_ip();
+
+        // When called via REST API or admin-ajax, wp_get_session_token() can be empty.
+        // Fall back to extracting the token directly from the authenticated logged_in cookie.
+        if (empty($current_token) && !empty($_COOKIE[LOGGED_IN_COOKIE])) {
+            $cookie_elements = wp_parse_auth_cookie($_COOKIE[LOGGED_IN_COOKIE], 'logged_in');
+            if (!empty($cookie_elements['token'])) {
+                $current_token = $cookie_elements['token'];
+            }
+        }
+
+        $client_ip = FirewallEngine::get_client_ip();
 
         // Get admin users
         $admins = get_users(['role' => 'administrator', 'number' => 25]);
@@ -246,6 +256,36 @@ class SessionSentinel {
                     'platform'     => $browser_info['platform'],
                     'user_agent'   => $ua,
                 ];
+            }
+        }
+
+        // If no session was matched directly by token (e.g. REST API environment cookie variations),
+        // fallback to flagging the active user's newest session on the matching client IP as current.
+        $has_current = false;
+        foreach ($results as $res) {
+            if (!empty($res['is_current'])) {
+                $has_current = true;
+                break;
+            }
+        }
+
+        if (!$has_current && !empty($results)) {
+            $best_match_idx = null;
+            $best_time = 0;
+            foreach ($results as $idx => $res) {
+                if ($res['user_id'] === $current_user_id) {
+                    $score = 0;
+                    if ($res['is_same_ip']) {
+                        $score += 1000;
+                    }
+                    if ($best_match_idx === null || $score > $best_time) {
+                        $best_time = $score;
+                        $best_match_idx = $idx;
+                    }
+                }
+            }
+            if ($best_match_idx !== null) {
+                $results[$best_match_idx]['is_current'] = true;
             }
         }
 
