@@ -113,8 +113,8 @@ class CloudflareService {
      * @return array
      */
     public static function verify_zone(?string $zone_id = null, ?string $token = null): array {
-        $settings = SettingsManager::get_settings();
-        $zid = $zone_id ?: ($settings['cloudflare_zone_id'] ?? '');
+        // If an explicit zone_id is provided in the call (or stored in DB when no parameter is passed at all)
+        $zid = !empty($zone_id) ? trim($zone_id) : '';
 
         // If zone ID is provided directly, verify it
         if (!empty($zid)) {
@@ -143,8 +143,7 @@ class CloudflareService {
         $candidate_domain = self::extract_root_domain($site_host);
 
         // Fetch zones accessible by this token.
-        // If the token is scoped to a "Specific zone" (e.g. miralamin.win), Cloudflare blocks generic `GET /zones`
-        // with "Unauthorized to access requested resource" (403/9109), but allows `GET /zones?name=miralamin.win`!
+        // 1. Query specific domain first (works for single-zone scoped tokens and avoids pagination issues)
         $res = null;
         if (!empty($candidate_domain)) {
             $res = self::request('zones?name=' . urlencode($candidate_domain), 'GET', null, $token);
@@ -154,7 +153,7 @@ class CloudflareService {
             $res = self::request('zones?name=' . urlencode($site_host), 'GET', null, $token);
         }
 
-        // Fallback to listing all accessible zones if specific domain lookup yielded no results or if token is all-zones scoped
+        // 2. Fallback to listing accessible zones if specific domain query returned empty and token has all-zones access
         if (empty($res['success']) || empty($res['result'])) {
             $fallback_res = self::request('zones?per_page=50', 'GET', null, $token);
             if (!empty($fallback_res['success']) && !empty($fallback_res['result'])) {
@@ -185,15 +184,20 @@ class CloudflareService {
         $matched_zone = null;
         foreach ($zones as $z) {
             $z_name = strtolower($z['name'] ?? '');
-            if ($z_name === strtolower($site_host) || $z_name === strtolower($candidate_domain)) {
+            if ($z_name === strtolower($candidate_domain) || $z_name === strtolower($site_host)) {
                 $matched_zone = $z;
                 break;
             }
         }
 
-        // If exact/root match not found, but token only has access to exactly 1 zone, use it
+        // Only fallback to the first zone if the token has access to strictly ONE single zone AND user didn't have a mismatch
         if (!$matched_zone && count($zones) === 1) {
-            $matched_zone = $zones[0];
+            $only_zone = $zones[0];
+            $z_name = strtolower($only_zone['name'] ?? '');
+            // Only auto-bind if the single accessible zone is relevant or root domain matches
+            if (empty($candidate_domain) || str_ends_with(strtolower($site_host), $z_name) || $z_name === strtolower($candidate_domain)) {
+                $matched_zone = $only_zone;
+            }
         }
 
         if ($matched_zone) {
