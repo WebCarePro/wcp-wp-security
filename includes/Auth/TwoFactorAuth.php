@@ -2,6 +2,7 @@
 namespace WCP\Scanner\Auth;
 
 use WCP\Scanner\System\SettingsManager;
+use WCP\Scanner\Security\SecretVault;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -53,11 +54,24 @@ class TwoFactorAuth {
     }
 
     /**
-     * Get user secret key
+     * Get user secret key (automatically decrypts encrypted secret and migrates plaintext)
      */
     public static function get_user_secret(int $user_id): ?string {
-        $secret = get_user_meta($user_id, self::META_SECRET, true);
-        return !empty($secret) ? (string) $secret : null;
+        $stored = get_user_meta($user_id, self::META_SECRET, true);
+        if (empty($stored)) {
+            return null;
+        }
+
+        $raw = (string) $stored;
+        if (!SecretVault::is_encrypted($raw)) {
+            // Auto-migrate plaintext secret to encrypted format in DB
+            $encrypted = SecretVault::encrypt($raw);
+            update_user_meta($user_id, self::META_SECRET, $encrypted);
+            return $raw;
+        }
+
+        $decrypted = SecretVault::decrypt($raw);
+        return !empty($decrypted) ? $decrypted : null;
     }
 
     /**
@@ -200,7 +214,8 @@ class TwoFactorAuth {
      * Enable 2FA for a user
      */
     public static function enable_user(int $user_id, string $secret, array $hashed_backup_codes): bool {
-        update_user_meta($user_id, self::META_SECRET, $secret);
+        $encrypted_secret = SecretVault::encrypt($secret);
+        update_user_meta($user_id, self::META_SECRET, $encrypted_secret);
         update_user_meta($user_id, self::META_BACKUP_CODES, $hashed_backup_codes);
         update_user_meta($user_id, self::META_ENABLED, 1);
         return true;

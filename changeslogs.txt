@@ -1,3 +1,12 @@
+v:1.5.0 - 2026-10-11
+- Automated Sensitive Credential & Webhook Masking on Settings Save & Reveal:
+  * Enhanced `SettingsPage.tsx` to automatically reset the active reveal toggle state (`showKey`) immediately upon saving settings, importing configuration, or restoring defaults.
+  * Implemented `getMaskedSecret` helper: when clicking the eye toggle on sensitive webhook URLs (Discord, Slack, ClickUp, Asana, Generic Webhooks) or AI keys (OpenAI, Gemini, Claude), secrets are displayed with partial masking (preserving service prefix and trailing characters while obfuscating the secret token with `••••••••`) to prevent full plaintext exposure on screen.
+  * Ensured revealed fields are rendered read-only while partially masked to prevent accidental truncation of live vault secrets.
+- Encrypted Two-Factor Authentication (2FA) User Secrets at Rest:
+  * Updated `TwoFactorAuth.php` to encrypt TOTP base32 user secrets (`_wcp_2fa_secret`) with AES-256-CBC via `SecretVault` before storing them in the WordPress `wp_usermeta` table.
+  * Added transparent runtime decryption and auto-migration in `TwoFactorAuth::get_user_secret()` to safely convert existing plaintext 2FA secrets into encrypted vault strings without disrupting active user authenticators.
+
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):
   * Early Request Filtering at `plugins_loaded` (priority 0) with zero-lag payload evaluation.
