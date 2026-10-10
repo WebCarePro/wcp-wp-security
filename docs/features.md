@@ -133,28 +133,29 @@ An enterprise-grade, lightweight WordPress security, malware detection, integrit
 
 ---
 
-## 🔮 Future Roadmap & Planned Features (v1.5.0+)
+## 🚀 Implemented Features (v1.5.0 Release)
 
-### 1. Web Application Firewall (WAF) Lite
+### 1. Web Application Firewall (WAF) Lite & Virtual Patching
 - **Virtual Patching Engine**: Proactive rule-based shielding against known CVE exploits before third-party plugin authors release official patches.
-- **Malicious Payload Inspection**: Real-time filtering of incoming `GET` and `POST` request parameters for SQL injection signatures (`UNION SELECT`), remote file inclusions (`http://`, `https://`), directory traversal attempts (`../`), and PHP opening tags (`<?php`).
-- **Brute Force & Endpoint Throttling**: Intelligent rate limiting on `wp-login.php` and `xmlrpc.php` to neutralize automated password guessing attacks.
+- **Malicious Payload Inspection**: Real-time filtering of incoming `GET` and `POST` request parameters for SQL injection signatures (`UNION SELECT`), Cross-Site Scripting (`<script>`, inline handlers), path traversal attempts (`../`), and PHP opening tags (`<?php`).
+- **Smart Cloudflare & Coexistence**: Automatic Cloudflare Real-IP extraction from `HTTP_CF_CONNECTING_IP` with proxy validation. Coexistence negotiation with Wordfence, Sucuri, and Solid Security.
 
-### 2. Real-Time File Integrity Monitoring (FIM)
-- **Filesystem Modification Tracker**: Background monitor flagging files modified or added within the last 24–48 hours.
-- **Visual Code Diff Viewer**: Git-style side-by-side visual diffs highlighting exact line additions, removals, and modifications in altered WordPress core, theme, or plugin files.
+### 2. Real-Time File Integrity Monitoring (FIM) & Visual Code Diff Viewer
+- **Filesystem Modification Tracker**: Background monitor flagging files modified or added within customizable timeframes (24h, 48h, 7d, 30d) across Core, Plugins, Themes, and Uploads.
+- **Visual Code Diff Viewer**: Git-style side-by-side and unified visual diffs comparing altered files against official WordPress.org SVN release mirrors.
 
 ### 3. One-Click Malware Remediation / Auto-Cure
-- **Automated Webshell Stripping**: 1-click automated neutralization of injected malware headers (such as `eval(base64_decode())` wrappers at the start of legitimate plugin files).
-- **Automated Core & Plugin Restoration**: Replaces infected or tampered files with fresh, bit-for-bit verified copies fetched directly from official WordPress.org repositories.
+- **Automated Webshell Stripping**: 1-click automated neutralization of prepended malware headers while preserving legitimate code integrity with PHP syntax validation.
+- **Automated Clean Restoration**: Replaces infected or tampered files with fresh, bit-for-bit verified copies fetched directly from official WordPress.org repositories.
+- **Safety Backups & Rollback Vault**: Automated timestamped backups before all remediation actions with 1-click instant rollback.
 
 ### 4. Cloud Threat Intelligence & Community Blacklists
-- **Live CVE Feed Synchronization**: Real-time synchronization with cloud security vulnerability databases for immediate zero-day definitions.
-- **Malicious IP & Botnet Blacklists**: Live synchronization with active global malicious IP databases to block botnet attacks at the earliest opportunity.
+- **Live CVE Feed Synchronization**: Real-time synchronization of critical WordPress vulnerability catalogs with severity badges and virtual patching rules.
+- **Malicious IP & Botnet Blacklists**: Live synchronization with active global malicious IP databases (Blocklist.de, FireHOL, Ipsum) with high-speed O(1) hash map and CIDR bitwise memory matching to auto-drop botnet requests at the firewall layer.
 
 ### 5. Multi-Factor Authentication & Login Hardening
-- **Time-Based One-Time Password (TOTP) 2FA**: Native 2FA support (Google Authenticator, Authy, 1Password) for Administrator and Editor roles.
-- **Custom Admin Login URL**: Ability to disguise the default `/wp-login.php` and `/wp-admin` URLs to prevent automated bot probes.
+- **Time-Based One-Time Password (TOTP) 2FA**: Native RFC 6238 TOTP engine (Google Authenticator, Authy, 1Password) with single-use emergency backup recovery codes.
+- **Brute Force Defense**: IP-based failed login attempt tracking with automated temporary lockouts and countdown notices.
 
 ### 6. DevSecOps Chat Webhook Integrations
-- **Slack & Discord Webhook Alerts**: Real-time notifications dispatched to team communication channels whenever high-severity threats or unauthorized administrative account creations occur.
+- **Slack & Discord Webhook Alerts**: Real-time rich notifications dispatched to team communication channels for critical vulnerability discoveries, unauthorized file integrity modifications, and WAF blocked attacks with built-in attack flood rate-limiting.

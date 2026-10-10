@@ -359,6 +359,13 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'clear_all_lockouts'],
             'permission_callback' => $permission,
         ]);
+
+        // DevSecOps Webhook Testing
+        register_rest_route(self::NAMESPACE, '/notifications/test-webhook', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'test_chat_webhook'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -1616,5 +1623,17 @@ class ScannerRoutes {
             'success' => true,
             'message' => __('All temporary IP lockouts have been cleared.', 'wcp-security-scanner'),
         ]);
+    }
+
+    /**
+     * Webhook Testing Endpoint
+     */
+    public static function test_chat_webhook(\WP_REST_Request $request) {
+        $params   = $request->get_json_params() ?: [];
+        $platform = sanitize_text_field($params['platform'] ?? 'slack');
+        $url      = !empty($params['webhook_url']) ? esc_url_raw(trim($params['webhook_url'])) : null;
+
+        $result = \WCP\Scanner\Notifications\WebhookService::send_test($platform, $url);
+        return rest_ensure_response($result);
     }
 }

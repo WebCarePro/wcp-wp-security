@@ -372,6 +372,15 @@ class FirewallEngine {
             ],
             ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
+
+        // Dispatch DevSecOps Webhook on blocked attack
+        if ($action === 'blocked' && class_exists('\\WCP\\Scanner\\Notifications\\WebhookService')) {
+            \WCP\Scanner\Notifications\WebhookService::send_waf_alert([
+                'category'   => $rule['category'],
+                'name'       => $rule['name'] ?? $rule['category'],
+                'ip_address' => $ip,
+            ]);
+        }
     }
 
     /**

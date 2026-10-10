@@ -145,6 +145,20 @@ class Scheduler {
      */
     public static function send_scan_notification(int $scan_id, int $total_issues, int $risk_score, string $target) {
         $settings = SettingsManager::get_settings();
+
+        global $wpdb;
+        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $issues = $wpdb->get_results($wpdb->prepare(
+            "SELECT severity, type, file_path, description FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')",
+            $scan_id
+        ), ARRAY_A) ?: [];
+
+        // Dispatch DevSecOps Webhooks (Slack & Discord)
+        if (class_exists('\\WCP\\Scanner\\Notifications\\WebhookService')) {
+            \WCP\Scanner\Notifications\WebhookService::send_scan_alert($scan_id, $total_issues, $risk_score, $target, $issues);
+        }
+
         if (empty($settings['email_alerts_enabled'])) {
             return;
         }
@@ -154,14 +168,6 @@ class Scheduler {
         if (empty($recipients)) {
             return;
         }
-
-        global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT severity, type, file_path, description FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')",
-            $scan_id
-        ), ARRAY_A);
 
         $critical_count = 0;
         $high_count = 0;

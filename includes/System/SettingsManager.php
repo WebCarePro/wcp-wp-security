@@ -79,6 +79,16 @@ class SettingsManager {
             'login_hardening_enabled'            => true,
             'login_max_retries'                  => 5,
             'login_lockout_duration'             => 15,
+
+            // 11. DevSecOps Chat Webhooks (Slack & Discord)
+            'slack_enabled'                      => false,
+            'slack_webhook_url'                  => '',
+            'discord_enabled'                    => false,
+            'discord_webhook_url'                => '',
+            'webhook_notify_on_critical'         => true,
+            'webhook_notify_on_fim'              => true,
+            'webhook_notify_on_waf_block'        => false,
+            'webhook_notify_on_scan_finish'      => true,
         ];
     }
 
@@ -207,6 +217,16 @@ class SettingsManager {
         $clean['login_hardening_enabled'] = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
         $clean['login_max_retries']       = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
         $clean['login_lockout_duration']  = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
+
+        // 11. DevSecOps Chat Webhooks (Slack & Discord)
+        $clean['slack_enabled']                 = !empty($input['slack_enabled']);
+        $clean['slack_webhook_url']             = esc_url_raw(trim($input['slack_webhook_url'] ?? ''));
+        $clean['discord_enabled']               = !empty($input['discord_enabled']);
+        $clean['discord_webhook_url']           = esc_url_raw(trim($input['discord_webhook_url'] ?? ''));
+        $clean['webhook_notify_on_critical']    = isset($input['webhook_notify_on_critical']) ? !empty($input['webhook_notify_on_critical']) : true;
+        $clean['webhook_notify_on_fim']         = isset($input['webhook_notify_on_fim']) ? !empty($input['webhook_notify_on_fim']) : true;
+        $clean['webhook_notify_on_waf_block']   = !empty($input['webhook_notify_on_waf_block']);
+        $clean['webhook_notify_on_scan_finish'] = isset($input['webhook_notify_on_scan_finish']) ? !empty($input['webhook_notify_on_scan_finish']) : true;
 
         update_option(self::OPTION_KEY, $clean);
 
