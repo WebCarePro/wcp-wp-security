@@ -77,7 +77,36 @@ class CloudflareService {
     }
 
     /**
+     * Extract root/apex domain from a hostname or URL
+     * (e.g. dev2.miralamin.win -> miralamin.win, sub.example.co.uk -> example.co.uk)
+     *
+     * @param string $host
+     * @return string
+     */
+    public static function extract_root_domain(string $host): string {
+        $host = strtolower(trim($host));
+        $host = preg_replace('#^https?://#i', '', $host);
+        $host = explode('/', $host)[0];
+        $host = explode(':', $host)[0];
+
+        $parts = explode('.', $host);
+        if (count($parts) <= 2) {
+            return $host;
+        }
+
+        // Check common two-part TLDs (e.g. co.uk, com.au, org.uk, edu.bd)
+        $last2 = implode('.', array_slice($parts, -2));
+        $two_part_tlds = ['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.au', 'net.au', 'org.au', 'co.nz', 'co.jp', 'com.br', 'edu.bd', 'com.bd'];
+        if (in_array($last2, $two_part_tlds, true) && count($parts) >= 3) {
+            return implode('.', array_slice($parts, -3));
+        }
+
+        return implode('.', array_slice($parts, -2));
+    }
+
+    /**
      * Verify credentials and retrieve Zone Information
+     * If zone_id is empty, attempts to auto-detect the zone from the current WordPress site's domain
      *
      * @param string|null $zone_id
      * @param string|null $token
@@ -87,29 +116,89 @@ class CloudflareService {
         $settings = SettingsManager::get_settings();
         $zid = $zone_id ?: ($settings['cloudflare_zone_id'] ?? '');
 
-        if (empty($zid)) {
+        // If zone ID is provided directly, verify it
+        if (!empty($zid)) {
+            $res = self::request("zones/{$zid}", 'GET', null, $token);
+            if (!empty($res['success']) && !empty($res['result'])) {
+                $zone = $res['result'];
+                return [
+                    'success'   => true,
+                    'zone_id'   => $zone['id'] ?? $zid,
+                    'zone_name' => $zone['name'] ?? '',
+                    'plan'      => $zone['plan']['name'] ?? 'Free',
+                    'status'    => $zone['status'] ?? 'active',
+                    'paused'    => !empty($zone['paused']),
+                ];
+            }
+
+            $msg = $res['errors'][0]['message'] ?? __('Failed to verify Cloudflare Zone credentials.', 'wcp-security-scanner');
             return [
                 'success' => false,
-                'message' => __('Cloudflare Zone ID is required.', 'wcp-security-scanner'),
+                'message' => $msg,
             ];
         }
 
-        $res = self::request("zones/{$zid}", 'GET', null, $token);
-        if (!empty($res['success']) && !empty($res['result'])) {
-            $zone = $res['result'];
+        // If Zone ID is empty, auto-detect zone from current WordPress home URL
+        $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+        $candidate_domain = self::extract_root_domain($site_host);
+
+        // Fetch zones accessible by this token
+        $res = self::request('zones?per_page=50', 'GET', null, $token);
+        if (empty($res['success']) || !isset($res['result']) || !is_array($res['result'])) {
+            $msg = $res['errors'][0]['message'] ?? __('Could not list zones. Please provide Zone ID manually.', 'wcp-security-scanner');
             return [
-                'success'   => true,
-                'zone_name' => $zone['name'] ?? '',
-                'plan'      => $zone['plan']['name'] ?? 'Free',
-                'status'    => $zone['status'] ?? 'active',
-                'paused'    => !empty($zone['paused']),
+                'success' => false,
+                'message' => $msg,
             ];
         }
 
-        $msg = $res['errors'][0]['message'] ?? __('Failed to verify Cloudflare Zone credentials.', 'wcp-security-scanner');
+        $zones = $res['result'];
+        if (empty($zones)) {
+            return [
+                'success' => false,
+                'message' => __('No accessible Cloudflare zones found for this token. Ensure your token has "Zone > Zone: Read" permissions.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Find match for candidate root domain or exact site host
+        $matched_zone = null;
+        foreach ($zones as $z) {
+            $z_name = strtolower($z['name'] ?? '');
+            if ($z_name === strtolower($site_host) || $z_name === strtolower($candidate_domain)) {
+                $matched_zone = $z;
+                break;
+            }
+        }
+
+        // If exact/root match not found, but token only has access to exactly 1 zone, use it
+        if (!$matched_zone && count($zones) === 1) {
+            $matched_zone = $zones[0];
+        }
+
+        if ($matched_zone) {
+            return [
+                'success'       => true,
+                'auto_detected' => true,
+                'zone_id'       => $matched_zone['id'],
+                'zone_name'     => $matched_zone['name'],
+                'plan'          => $matched_zone['plan']['name'] ?? 'Free',
+                'status'        => $matched_zone['status'] ?? 'active',
+                'paused'        => !empty($matched_zone['paused']),
+            ];
+        }
+
+        // List available zones for the user to choose from
+        $available_names = array_map(function($z) {
+            return $z['name'] . ' (' . $z['id'] . ')';
+        }, array_slice($zones, 0, 5));
+
         return [
             'success' => false,
-            'message' => $msg,
+            'message' => sprintf(
+                __('Could not auto-match "%s". Available zones: %s. Please enter your Zone ID manually.', 'wcp-security-scanner'),
+                $candidate_domain,
+                implode(', ', $available_names)
+            ),
         ];
     }
 

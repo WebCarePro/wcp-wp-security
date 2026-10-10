@@ -166,7 +166,7 @@ v:1.5.0 - 2026-10-10
   * 1-Click Pre-configured Cloudflare Token Template URL: Added prominent "1-Click Pre-configure Cloudflare Token ↗" button in `FirewallPage.tsx` linking directly to Cloudflare's API token generation interface with the token name and all 4 required permissions (`Zone.Zone: Read`, `Zone.Zone WAF: Edit`, `Zone.Firewall Services: Edit`, and `Zone.Cache Purge: Purge`) pre-populated automatically via `permissionGroupKeys`.
   * Zone ID Persistence & Domain Display: Retained active Zone ID and connected domain name across page reloads in `FirewallPage.tsx` and returned `zone_id` in `CloudflareService::get_status()`.
   * 1-Click Disconnect Cloudflare: Added "Disconnect Cloudflare" button that clears API tokens, Zone IDs, and auto-sync settings from the database via REST route `POST /wcp-scanner/v1/cloudflare/disconnect`.
-  * Cloudflare Free Plan Ruleset Compatibility: Updated `block_uploads_exec` WAF rule expression to use standard `http.request.uri.path.extension in {"php" ...}` instead of the regex `matches` operator, fixing the "not entitled: the use of operator Matches is not allowed" error on Cloudflare Free and Pro plans.
+  * Automatic Root Domain Zone Detection: Enhanced `CloudflareService::verify_zone()` with `extract_root_domain()` to automatically discover and map subdomains (e.g. `dev2.miralamin.win` -> `miralamin.win`) to their corresponding Cloudflare Zone ID when left blank, eliminating manual Zone ID entry.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
