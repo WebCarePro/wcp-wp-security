@@ -393,6 +393,13 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Living-off-the-Land (LotL) Hook Infiltration Audit
+        register_rest_route(self::NAMESPACE, '/hooks/audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_hook_sentinel_audit'],
+            'permission_callback' => $permission,
+        ]);
+
         // DevSecOps Webhook Testing
         register_rest_route(self::NAMESPACE, '/notifications/test-webhook', [
             'methods'             => 'POST',
@@ -434,7 +441,7 @@ class ScannerRoutes {
         $all_files = [];
 
         // Determine scannable filesystem files based on scan profile
-        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity'], true)) {
+        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel'], true)) {
             // Targeted deep engines do not queue filesystem files
             $all_files = [];
         } elseif ($target === 'filesystem_only' || $target === 'full') {
@@ -650,6 +657,12 @@ class ScannerRoutes {
             $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
             $user_scanner = new UserScanner();
             $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
+        } elseif ($target === 'hook_sentinel') {
+            // Living-off-the-Land (LotL) Native Hook Infiltration Sentinel
+            $hook_sentinel = new \WCP\Scanner\WordPress\HookInfiltrationSentinel();
+            $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
+            $persistence_scanner = new PersistenceScanner();
+            $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
         } elseif ($target === 'filesystem_only') {
             // Filesystem-only scan: no additional deep audit engines needed
         } else {
@@ -1764,6 +1777,23 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             'audit'   => $audit,
+        ]);
+    }
+
+    /**
+     * Living-off-the-Land (LotL) Hook Infiltration Audit
+     */
+    public static function get_hook_sentinel_audit(\WP_REST_Request $request) {
+        $sentinel = new \WCP\Scanner\WordPress\HookInfiltrationSentinel();
+        $findings = $sentinel->scan('manual_api_' . time());
+        $results = [];
+        foreach ($findings as $f) {
+            $results[] = $f->to_array();
+        }
+        return rest_ensure_response([
+            'success'  => true,
+            'count'    => count($results),
+            'findings' => $results,
         ]);
     }
 

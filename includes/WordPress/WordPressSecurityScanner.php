@@ -14,12 +14,14 @@ class WordPressSecurityScanner {
     private $persistence_scanner;
     private $config_scanner;
     private $cron_scanner;
+    private $hook_sentinel;
 
     public function __construct() {
         $this->user_scanner = new UserScanner();
         $this->persistence_scanner = new PersistenceScanner();
         $this->config_scanner = new ConfigScanner();
         $this->cron_scanner = new CronScanner();
+        $this->hook_sentinel = new HookInfiltrationSentinel();
     }
 
     /**
@@ -54,6 +56,12 @@ class WordPressSecurityScanner {
         if (!$monitor->is_nearing_limits()) {
             $cron_findings = $this->cron_scanner->scan($scan_id);
             $findings = array_merge($findings, $cron_findings);
+        }
+
+        // 5. Audit Living-off-the-Land Hook Infiltration Sentinel
+        if (!$monitor->is_nearing_limits()) {
+            $hook_findings = $this->hook_sentinel->scan($scan_id);
+            $findings = array_merge($findings, $hook_findings);
         }
 
         return $findings;
