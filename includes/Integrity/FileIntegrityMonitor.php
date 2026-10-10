@@ -39,62 +39,54 @@ class FileIntegrityMonitor {
         $dirs_to_check = [];
 
         // 1. Core directories and root
-        if ($category === 'all' || $category === 'core') {
-            $dirs_to_check[] = [
-                'path'      => ABSPATH . 'wp-admin',
-                'category'  => 'core',
-                'recursive' => true,
-            ];
-            $dirs_to_check[] = [
-                'path'      => ABSPATH . 'wp-includes',
-                'category'  => 'core',
-                'recursive' => true,
-            ];
-            $dirs_to_check[] = [
-                'path'      => ABSPATH,
-                'category'  => 'core_root',
-                'recursive' => false,
-            ];
-        }
+        $dirs_to_check[] = [
+            'path'      => ABSPATH . 'wp-admin',
+            'category'  => 'core',
+            'recursive' => true,
+        ];
+        $dirs_to_check[] = [
+            'path'      => ABSPATH . 'wp-includes',
+            'category'  => 'core',
+            'recursive' => true,
+        ];
+        $dirs_to_check[] = [
+            'path'      => ABSPATH,
+            'category'  => 'core_root',
+            'recursive' => false,
+        ];
 
         // 2. Plugins
-        if ($category === 'all' || $category === 'plugins') {
+        $dirs_to_check[] = [
+            'path'      => WP_PLUGIN_DIR,
+            'category'  => 'plugins',
+            'recursive' => true,
+        ];
+        if (defined('WPMU_PLUGIN_DIR') && is_dir(WPMU_PLUGIN_DIR)) {
             $dirs_to_check[] = [
-                'path'      => WP_PLUGIN_DIR,
+                'path'      => WPMU_PLUGIN_DIR,
                 'category'  => 'plugins',
                 'recursive' => true,
             ];
-            if (defined('WPMU_PLUGIN_DIR') && is_dir(WPMU_PLUGIN_DIR)) {
-                $dirs_to_check[] = [
-                    'path'      => WPMU_PLUGIN_DIR,
-                    'category'  => 'plugins',
-                    'recursive' => true,
-                ];
-            }
         }
 
         // 3. Themes
-        if ($category === 'all' || $category === 'themes') {
-            $theme_root = function_exists('get_theme_root') ? get_theme_root() : WP_CONTENT_DIR . '/themes';
-            if (is_dir($theme_root)) {
-                $dirs_to_check[] = [
-                    'path'      => $theme_root,
-                    'category'  => 'themes',
-                    'recursive' => true,
-                ];
-            }
+        $theme_root = function_exists('get_theme_root') ? get_theme_root() : WP_CONTENT_DIR . '/themes';
+        if (is_dir($theme_root)) {
+            $dirs_to_check[] = [
+                'path'      => $theme_root,
+                'category'  => 'themes',
+                'recursive' => true,
+            ];
         }
 
         // 4. Uploads (check for suspicious code files)
-        if ($category === 'all' || $category === 'uploads') {
-            $upload_dir = wp_upload_dir();
-            if (!empty($upload_dir['basedir']) && is_dir($upload_dir['basedir'])) {
-                $dirs_to_check[] = [
-                    'path'      => $upload_dir['basedir'],
-                    'category'  => 'uploads',
-                    'recursive' => true,
-                ];
-            }
+        $upload_dir = wp_upload_dir();
+        if (!empty($upload_dir['basedir']) && is_dir($upload_dir['basedir'])) {
+            $dirs_to_check[] = [
+                'path'      => $upload_dir['basedir'],
+                'category'  => 'uploads',
+                'recursive' => true,
+            ];
         }
 
         $normalized_abs = wp_normalize_path(ABSPATH);
@@ -140,7 +132,9 @@ class FileIntegrityMonitor {
                         if ($mtime >= $threshold_time) {
                             $change_item = $this->format_change_item($file_path, $mtime, $item->getSize(), $cat, $normalized_abs);
                             $this->tally_stats($stats, $change_item);
-                            $changes[] = $change_item;
+                            if ($category === 'all' || $change_item['category'] === $category) {
+                                $changes[] = $change_item;
+                            }
                         }
                     }
                 } catch (\Exception $e) {
@@ -159,7 +153,9 @@ class FileIntegrityMonitor {
                         if ($mtime && $mtime >= $threshold_time) {
                             $change_item = $this->format_change_item($file_path, $mtime, @filesize($file_path), 'core', $normalized_abs);
                             $this->tally_stats($stats, $change_item);
-                            $changes[] = $change_item;
+                            if ($category === 'all' || $change_item['category'] === $category) {
+                                $changes[] = $change_item;
+                            }
                         }
                     }
                 }

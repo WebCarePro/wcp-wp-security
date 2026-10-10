@@ -63,6 +63,10 @@ v:1.5.0 - 2026-10-10
   * Replaced old raw HTML checkboxes across all settings tabs (Schedule Scans, Email Alerts, DevSecOps Webhooks, AI Forensics, Engine & Hardening, Data & Cleanup) with interactive modern `ToggleSwitch` controls featuring smooth animated sliders and badge indicators.
   * Balanced multi-column cards and diagnostic widgets into responsive grid containers for improved visual hierarchy and readability.
   * Integrated scheduler status pill and auto-purge indicator directly into the page header alongside quick "Reset Defaults" and "Save Settings" action buttons.
+- Fixed File Integrity Monitoring (FIM) Scope Filter Stats Persistence:
+  * Resolved an issue on `?page=wcp-scanner-fim` where selecting an individual category filter tab (such as "Plugins" or "Core") caused the counters for other categories in the scope pills and top metric cards to display as 0.
+  * Updated `FileIntegrityMonitor::get_recent_changes` to always audit all target scopes when computing site-wide summary statistics (`total_modified`, `core_modified`, `plugins_modified`, `themes_modified`, `uploads_modified`, `high_risk_count`) before filtering returned items to the requested category.
+  * Preserved full site metrics and accurate category tab badges across all scope selections without reset or zero-out.
 
 
 v:1.4.0 - 2026-10-09
