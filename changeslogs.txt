@@ -29,6 +29,11 @@ v:1.5.1 - 2026-10-11
   * Aligned deep target audits across all engines (`CoreIntegrity`, `ImportantFileFIM`, `PluginIntegrity`, `DatabaseScanner`, `ContentScanner`, `WordPressSecurityScanner`, `UpdateScanner`, and `UploadsScanner`).
   * Fixed WP-Cron timezone scheduling in `SettingsManager::sync_cron_schedule()` using `get_gmt_from_date()` to convert local user schedule hours into accurate UTC timestamps.
   * Corrected cron hook display code in `SettingsPage.tsx` to match the active hook `wcp_scanner_scheduled_scan_event`.
+- Scan Logs Execution Origin Tracking (Manual Run vs Scheduled Auto Scan):
+  * Added `trigger_type` column (`manual` | `scheduled`) to the `wp_wcp_scans` table with auto-migration in `Migration.php` and `Plugin::init()`.
+  * Updated scan creation endpoints in `ScannerRoutes.php` and `Scheduler.php` to tag scans with their originating execution trigger.
+  * Enhanced "Recorded Scan Runs" table in `App.tsx` with a dedicated "Trigger" column featuring custom visual badges ("Manual Run" with console icon and "Scheduled Auto" with calendar/cron icon) and hover tooltips.
+  * Integrated trigger source indicator into the Inspection & Audit Findings Report detail modal header.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):

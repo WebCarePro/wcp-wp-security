@@ -512,6 +512,7 @@ class ScannerRoutes {
         $wpdb->insert($table_scans, [
             'status'        => 'running',
             'scan_target'   => $target,
+            'trigger_type'  => 'manual',
             'scanned_files' => 0,
             'total_files'   => count($all_files),
             'issues_found'  => 0,
@@ -932,6 +933,9 @@ class ScannerRoutes {
                 $diag = self::build_scan_diagnostics($row);
                 $row['diagnostics'] = $diag;
                 $row['duration_formatted'] = $diag['duration_formatted'] ?? ($row['duration'] . 's');
+                if (empty($row['trigger_type'])) {
+                    $row['trigger_type'] = 'manual';
+                }
                 $scans[] = $row;
             }
         }
@@ -986,6 +990,10 @@ class ScannerRoutes {
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $files_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `{$table_files}` WHERE scan_id = %d", $scan_id));
+
+        if (empty($scan['trigger_type'])) {
+            $scan['trigger_type'] = 'manual';
+        }
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);

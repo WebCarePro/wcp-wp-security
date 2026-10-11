@@ -20,6 +20,7 @@ class Migration {
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             status varchar(50) NOT NULL DEFAULT 'pending',
             scan_target varchar(50) NOT NULL DEFAULT 'plugins_themes',
+            trigger_type varchar(20) NOT NULL DEFAULT 'manual',
             scanned_files int(11) NOT NULL DEFAULT 0,
             total_files int(11) NOT NULL DEFAULT 0,
             issues_found int(11) NOT NULL DEFAULT 0,
@@ -116,6 +117,14 @@ class Migration {
             $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN scan_target varchar(50) NOT NULL DEFAULT 'plugins_themes' AFTER status");
         }
 
-        update_option('wcp_scanner_db_version', '1.5.0');
+        // Ensure trigger_type column exists if upgraded (manual vs scheduled)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $trigger_col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'trigger_type'");
+        if (empty($trigger_col_check)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN trigger_type varchar(20) NOT NULL DEFAULT 'manual' AFTER scan_target");
+        }
+
+        update_option('wcp_scanner_db_version', '1.5.1');
     }
 }

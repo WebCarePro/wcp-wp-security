@@ -23,6 +23,10 @@ class Plugin {
     }
 
     private function init() {
+        if (get_option('wcp_scanner_db_version') !== '1.5.1') {
+            \WCP\Scanner\Database\Migration::install();
+        }
+
         AdminMenu::register();
         \WCP\Scanner\System\Scheduler::register();
         

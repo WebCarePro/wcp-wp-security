@@ -72,6 +72,7 @@ class Scheduler {
          $wpdb->insert($table_scans, [
              'status'        => 'running',
              'scan_target'   => $target,
+             'trigger_type'  => 'scheduled',
              'scanned_files' => 0,
              'total_files'   => count($files),
              'issues_found'  => 0,
