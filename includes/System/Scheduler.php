@@ -214,7 +214,19 @@ class Scheduler {
              $correlation = new \WCP\Scanner\Findings\CorrelationEngine();
              $correlated = $correlation->correlate($all_deep_findings);
 
+             // Pre-load all existing findings already saved for this scan to prevent any duplicate insertions
+             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+             $existing_issues = $wpdb->get_results($wpdb->prepare(
+                 "SELECT engine, type, file_path, line_number, description FROM `{$table_issues}` WHERE scan_id = %d",
+                 $scan_id
+             ), ARRAY_A) ?: [];
+
              $inserted_signatures = [];
+             foreach ($existing_issues as $ex) {
+                 $sig = md5(($ex['engine'] ?? '') . '|' . ($ex['type'] ?? '') . '|' . ($ex['file_path'] ?? '') . '|' . ($ex['line_number'] ?? '') . '|' . ($ex['description'] ?? ''));
+                 $inserted_signatures[$sig] = true;
+             }
+
              foreach ($correlated as $finding) {
                  $f = is_array($finding) ? $finding : (method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding);
                  $sig = md5(($f['engine'] ?? '') . '|' . ($f['type'] ?? '') . '|' . ($f['file_path'] ?? ($f['target'] ?? '')) . '|' . ($f['line_number'] ?? '') . '|' . ($f['description'] ?? ''));

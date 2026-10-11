@@ -1,4 +1,25 @@
 v:1.12.0 - 2026-10-12
+- Complete Dashboard Rebuild & Next-Gen Cyber Command Center:
+  * Redesigned the primary Dashboard overview into a state-of-the-art security command center featuring a high-precision circular SVG Security Health Meter with dynamic color accents, live threat grades (A+ to F), and real-time posture indicators.
+  * Added 3 high-contrast interactive Threat Metric Cubes (Critical Exploits & Backdoors, File Integrity & Code Drift, and Software Vulnerabilities & CVE Advisories) with instant 1-click category filtering.
+  * Rebuilt the Audit Command Center with an ultra-sleek cyber console, interactive profile switchers (Fast Plugins & Themes vs Deep Full Tree), active engine telemetry indicators, dual-layer animated audit progress bars, and instant stop controls.
+  * Streamlined the Findings & Vault Hub with smart category pills (All, Critical & High, Integrity/FIM, Software CVEs, Content/Spam, User Accounts), real-time search, severity selectors, and monospace path breadcrumbs with 1-click clipboard copy.
+  * Highlighted individual finding action toolbars with distinct high-contrast mitigation buttons: prominent `Visual Code Diff (FIM)`, code viewer with threat line highlight, quarantine vault isolation, and auto-cure controls.
+- Finding Table Modern Zebra Shading & Visual Hierarchy Rebuild:
+  * Implemented an alternating zebra row background pattern across finding records: even rows render a clean, high-contrast base while odd rows render a subtle matching tint per severity level (soft rose for Critical, soft warm orange for High, soft amber for Medium, and soft sky blue for Low/Info).
+  * Added distinct 5px vertical severity indicator bars on row edges, crisp dividing borders, and reactive hover states so adjacent findings are immediately distinct.
+  * Rebuilt table cells with monotonic index numbers (#1, #2, ...), rounded monospace path pills with 1-click clipboard copy buttons and hover tooltips, and high-visibility status badges with pulsing threat dots.
+  * Standardized mitigation action buttons into modern, compact action chips (Visual Code Diff, View File, Quarantine, and Ignore).
+- Cron Hook & Database Option Non-File Categorization & Action Boundary Fix:
+  * Resolved an issue where cron hooks (`cron:hook:...`) and database options (`wp_options:cron`) were mistakenly tagged with the `FILE` badge and offered file-specific actions (`Visual Code Diff (FIM)`, `View File`, `Quarantine`).
+  * Restricted File Integrity Monitoring (FIM), file viewers, and quarantine isolation strictly to verified physical files on the server filesystem (`isPhysicalFile`).
+  * Added dedicated visual type badges and contextual pills for `CRON HOOK` (purple `#f3e8ff`), `HOOK` (`#ede9fe`), and `DB OPTION` (teal `#ccfbf1`) with custom clock and database icons.
+- Visual Code Diff (FIM) In-Page Modal Opening Fix & Resilient API Fallback:
+  * Fixed an issue where clicking the "Visual Code Diff (FIM)" button from the Dashboard did not display the overlay modal.
+  * Mounted `<VisualDiffModal>` with ultra-high z-index (`9999999`) to guarantee rendering above WordPress administrative bars and navigation elements.
+  * Enhanced `VisualDiffModal.tsx` API loader with automatic POST request payload support and fallback to safely encode paths, eliminating query string truncation or character encoding exceptions.
+  * Added defensive safety guards around diff statistics and line arrays, preventing unexpected null render exceptions.
+  * Connected auto-cure remediation callback directly to `loadLatestScan()` to ensure instantaneous live synchronization upon restoring or stripping malicious files.
 - High-Precision Microsecond & Millisecond Scan Execution Duration Tracking:
   * Upgraded `wp_wcp_scans` database schema with `started_at` (`datetime(3)`), `completed_at` (`datetime(3)`), and `duration_ms` (`int(11)`) columns to guarantee sub-second and millisecond tracking for all scan types.
   * Implemented `now_fractional_mysql()` and `format_duration_precise()` in `ScannerRoutes.php`: captures exact microtime at scan initialization and completion in WordPress local timezone without timestamp truncation.
@@ -14,6 +35,47 @@ v:1.12.0 - 2026-10-12
 - In-Page Visual Code Diff (FIM) Modal on Dashboard & Inspection Reports:
   * Extracted the Git-style code comparison viewer and 1-click Auto-Cure tools into a reusable `VisualDiffModal.tsx` component.
   * Updated the "Visual Code Diff (FIM)" action across the Dashboard findings table, detail inspector, and findings inspection reports to open the diff viewer directly in an overlay modal on the current screen without redirecting or switching active tabs.
+- Multi-Layer Finding Deduplication & Concurrency Lock Resolution:
+  * Resolved an issue where security findings appeared duplicated twice in scan results caused by concurrent execution between the idle active-scan resumption poller and initial deep-audit scan requests.
+  * Added active scan initiation locking in `App.tsx` (`isResumingRef`) to eliminate race conditions and prevent duplicate concurrent `/scan/deep-audit` background requests from dispatching.
+  * Upgraded `ScannerRoutes.php` and `Scheduler.php` to pre-load all existing findings for the target scan from `wp_wcp_scan_issues` into the signature cache prior to insertion, guaranteeing that repeated or re-entrant deep audits never insert duplicate rows into the database.
+  * Added automated database self-healing in `get_latest_scan()`: detects and prunes existing duplicate finding rows from past scans, keeping the canonical lowest issue ID and updating the recorded `issues_found` count.
+  * Implemented defensive fingerprint deduplication in `enrich_issues()` and client-side `uniqueIssues` memoization in `App.tsx` across the findings table, threat cubes, category pills, and header badges.
+- Unknown & Rogue File FIM Action Boundary Correction:
+  * Excluded unknown and extraneous files (`unknown_core_file`, `unknown_plugin_file`, `unknown_theme_file`, `disguised_php_in_uploads`, etc.) from displaying the "Visual Code Diff (FIM)" action button.
+  * Restricted FIM visual diffing strictly to verified modified components (`modified_core_file`, `modified_plugin_file`, `modified_theme_file`, `injected_wp_config`) that have an official pristine baseline on WordPress.org to diff against.
+  * Streamlined rogue and unknown file mitigations to clean `View File` (to inspect contents), `Quarantine` (to isolate or remove the file), and `Ignore`.
+- 1-Click Scheduled Cron Hook Removal & Database Deletion:
+  * Implemented `remediate_delete_cron_hook` endpoint and `handleDeleteCronHook` in `App.tsx` allowing administrators to safely unschedule and purge orphaned or malicious cron hooks (`orphaned_cron_hook`, `malicious_cron_hook_name`) directly from `wp_options:cron` via `wp_clear_scheduled_hook()`.
+  * Added protected system checks ensuring critical WordPress core cron tasks (`wp_version_check`, `wp_update_plugins`, `wp_scheduled_delete`, etc.) cannot be deleted.
+- Rogue & Unknown File Quarantine in Core Directories & Vault Purge:
+  * Refactored `QuarantineManager::quarantine_file()`: genuine WordPress core files in `wp-admin` and `wp-includes` remain protected via official checksum verification, but extraneous, unrecognized files (`unknown_core_file` like `hi.txt` or uploaded webshells) can now be safely quarantined and moved out of core directories.
+  * Added permanent vault file deletion (`delete_record` in `QuarantineManager` and `DELETE /quarantine/{id}` endpoint) with 1-click `Delete Permanently` action in the Quarantine Vault table.
+- Auto-Cure Remediation Resolution & Solved Issue State Synchronization:
+  * Resolved an issue where running "Auto-Cure: Restore Official WP.org Release" or "Auto-Cure: Strip Webshell" from the Visual Code Diff modal or inspector left findings marked as `OPEN` and kept all action buttons visible on the dashboard findings table.
+  * Extended `VisualDiffModal.tsx` to receive and forward `issueId` to `/remediation/restore-plugin`, `/remediation/restore-theme`, and `/remediation/strip` REST API remediation endpoints.
+  * Upgraded `RemediationManager.php` with `mark_file_issues_repaired()`: marks matching scan findings as `status = 'repaired'` in `wp_wcp_scan_issues` by both `issue_id` and normalized `file_path`, ensuring database persistence.
+  * Updated Findings Table in `App.tsx`: when an issue is solved/repaired, the STATUS badge updates to a green `SOLVED` chip and the "Mitigation & Actions" column buttons (`Visual Code Diff`, `View File`, `Quarantine`, `Ignore`) disappear, replaced by an "Issue Solved & Restored" badge with a Reopen toggle.
+  * Implemented optimistic client-side status synchronization in `App.tsx` on auto-cure completion for instant visual feedback without waiting for background scan re-polling.
+- Quarantine Button Exclusion for Protected & Modified Official Files:
+  * Implemented strict quarantine eligibility checks (`canQuarantineIssue` in `App.tsx` and defense-in-depth guards in `QuarantineManager.php`).
+  * Removed the Quarantine action button for critical WordPress core files and configurations (`wp-config.php`, `.htaccess`, `index.php`, etc.) where quarantining would trigger fatal database disconnections or complete site crashes.
+  * Removed the Quarantine button for modified official files (`modified_plugin_file`, `modified_theme_file`, `modified_core_file`, `injected_wp_config`): official files must be restored and auto-cured back to official release state, not removed to quarantine.
+  * Restricted the Quarantine action strictly to verified alien, rogue, and unknown files (`unknown_core_file`, `unknown_plugin_file`, `disguised_php_in_uploads`, standalone webshells/droppers) that have no legitimate place on the server.
+- Quarantine Vault Table Format & Action Button Overflow Fix:
+  * Resolved an issue where long vault storage filenames and wide column counts pushed the Quarantine Vault table beyond the card width, causing the Actions column (`Restore` and `Delete Permanently`) to be clipped off-screen.
+  * Consolidated isolated path, vault filename, and cryptographic SHA-256 into a single responsive column with 1-click clipboard copy, monospace pills, and structured metadata.
+  * Added responsive horizontal overflow container (`overflowX: 'auto'`) with alternating row zebra shading, ensuring both `Restore` and `Delete Permanently` buttons remain immediately visible and accessible on all viewport widths.
+- 1-Click Single-File WordPress Core Auto-Cure & Pristine WP.org Restoration:
+  * Engineered a dedicated single-file WordPress core restoration engine in `RemediationManager.php` (`restore_official_core_file`) and registered `POST /wcp-scanner/v1/remediation/restore-core` endpoint.
+  * Allows repairing modified core files inside `wp-admin`, `wp-includes`, or root directories back to pristine, bit-for-bit official WordPress.org release code matching the installed WordPress version without reinstalling WordPress or using external tools.
+  * Automatically creates a pre-restoration safety snapshot in the local backup vault before atomically replacing the file on disk.
+  * Added "Auto-Cure: Restore WP.org Core File" actions in both the Visual Code Diff modal (`VisualDiffModal.tsx`) and the findings table (`App.tsx`), with instant status resolution and mitigation button transition upon repair.
+- Comprehensive Documentation & Extended 21-Engine Architecture Catalog:
+  * Authored `features.md` as an exhaustive, deep-dive architectural reference documenting all 21 specialized security engines, UI subsystems, REST endpoints, and security mechanisms.
+  * Synchronized and expanded `README.md` and `readme.txt` with extended feature descriptions, 1.12.0 changelog details, and verified solo freelancer identity & tone.
+
+
 
 v:1.5.1 - 2026-10-11
 - Automated Sensitive Credential & Webhook Masking on Settings Save & Reveal:

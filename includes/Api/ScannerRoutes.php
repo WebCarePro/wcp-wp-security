@@ -168,6 +168,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/quarantine/(?P<id>\d+)', [
+            'methods'             => 'DELETE',
+            'callback'            => [__CLASS__, 'delete_quarantine'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/quarantine/repair', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'repair_core_file'],
@@ -312,6 +318,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/remediation/restore-core', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_restore_core'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/remediation/backups', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_remediation_backups'],
@@ -321,6 +333,12 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/remediation/rollback', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'rollback_remediation'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/remediation/delete-cron-hook', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_delete_cron_hook'],
             'permission_callback' => $permission,
         ]);
 
@@ -762,7 +780,19 @@ class ScannerRoutes {
             $correlation = new CorrelationEngine();
             $correlated = $correlation->correlate($all_deep_findings);
 
+            // Pre-load all existing findings already saved for this scan to prevent any duplicate insertions
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $existing_issues = $wpdb->get_results($wpdb->prepare(
+                "SELECT engine, type, file_path, line_number, description FROM `{$table_issues}` WHERE scan_id = %d",
+                $scan_id
+            ), ARRAY_A) ?: [];
+
             $inserted_signatures = [];
+            foreach ($existing_issues as $ex) {
+                $sig = md5(($ex['engine'] ?? '') . '|' . ($ex['type'] ?? '') . '|' . ($ex['file_path'] ?? '') . '|' . ($ex['line_number'] ?? '') . '|' . ($ex['description'] ?? ''));
+                $inserted_signatures[$sig] = true;
+            }
+
             foreach ($correlated as $f) {
                 $item = $f->to_array();
                 $sig = md5(($item['engine'] ?? '') . '|' . ($item['type'] ?? '') . '|' . ($item['file_path'] ?? '') . '|' . ($item['line_number'] ?? '') . '|' . ($item['description'] ?? ''));
@@ -920,6 +950,38 @@ class ScannerRoutes {
             ]);
         }
 
+        // Prune any duplicate issue rows for this scan to keep database clean
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $duplicates = $wpdb->get_results($wpdb->prepare(
+            "SELECT MIN(id) as keep_id, scan_id, engine, type, file_path, line_number, description, COUNT(*) as cnt 
+             FROM `{$table_issues}` 
+             WHERE scan_id = %d 
+             GROUP BY scan_id, engine, type, file_path, line_number, description 
+             HAVING cnt > 1",
+            $latest_scan['id']
+        ), ARRAY_A);
+
+        if (!empty($duplicates)) {
+            foreach ($duplicates as $dup) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM `{$table_issues}` 
+                     WHERE scan_id = %d AND engine = %s AND type = %s AND file_path = %s AND description = %s AND id != %d",
+                    $dup['scan_id'],
+                    $dup['engine'],
+                    $dup['type'],
+                    $dup['file_path'],
+                    $dup['description'],
+                    $dup['keep_id']
+                ));
+            }
+            // Update issues_found count on scan record
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $fixed_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d", $latest_scan['id']));
+            $wpdb->update($table_scans, ['issues_found' => $fixed_count], ['id' => $latest_scan['id']]);
+            $latest_scan['issues_found'] = $fixed_count;
+        }
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $issues = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
@@ -979,6 +1041,14 @@ class ScannerRoutes {
 
         $qm = new QuarantineManager();
         $result = $qm->restore_file($quarantine_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function delete_quarantine(\WP_REST_Request $request) {
+        $quarantine_id = (int) $request->get_param('id');
+        $qm = new QuarantineManager();
+        $result = $qm->delete_record($quarantine_id);
 
         return rest_ensure_response($result);
     }
@@ -1392,7 +1462,19 @@ class ScannerRoutes {
         }
         unset($item);
 
-        return $issues;
+        // Deduplicate identical issues by unique signature
+        $deduped = [];
+        $seen_signatures = [];
+        foreach ($issues as $entry) {
+            $sig = ($entry['engine'] ?? '') . '|' . ($entry['type'] ?? '') . '|' . ($entry['file_path'] ?? '') . '|' . ($entry['line_number'] ?? '') . '|' . ($entry['description'] ?? '');
+            if (isset($seen_signatures[$sig])) {
+                continue;
+            }
+            $seen_signatures[$sig] = true;
+            $deduped[] = $entry;
+        }
+
+        return $deduped;
     }
 
     /**
@@ -2062,6 +2144,21 @@ class ScannerRoutes {
         return rest_ensure_response($result);
     }
 
+    public static function remediate_restore_core(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        $result = $manager->restore_official_core_file($file_path, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
     public static function get_remediation_backups() {
         $manager = new \WCP\Scanner\Remediation\RemediationManager();
         return rest_ensure_response([
@@ -2081,6 +2178,56 @@ class ScannerRoutes {
         $result = $manager->rollback_remediation($backup_id);
 
         return rest_ensure_response($result);
+    }
+
+    public static function remediate_delete_cron_hook(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $hook_name = !empty($params['hook_name']) ? sanitize_text_field(wp_unslash($params['hook_name'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($hook_name) && !empty($params['file_path'])) {
+            $path = sanitize_text_field(wp_unslash($params['file_path']));
+            if (strpos($path, 'cron:hook:') === 0) {
+                $hook_name = substr($path, strlen('cron:hook:'));
+            } else {
+                $hook_name = $path;
+            }
+        }
+
+        if (empty($hook_name)) {
+            return new \WP_Error('missing_param', __('Missing hook_name parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        // Safety check: protect essential WordPress core cron hooks from being cleared
+        $protected_core_crons = [
+            'wp_version_check',
+            'wp_update_plugins',
+            'wp_update_themes',
+            'recovery_mode_clean_expired_keys',
+            'wp_scheduled_delete',
+            'delete_expired_transients',
+            'wp_privacy_delete_old_export_files',
+        ];
+
+        if (in_array($hook_name, $protected_core_crons, true)) {
+            return new \WP_Error('protected_core_hook', __('Cannot delete essential WordPress core system cron hooks.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
+        // Clear all scheduled instances of this cron hook
+        $cleared = wp_clear_scheduled_hook($hook_name);
+
+        if ($issue_id) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'wcp_scan_issues';
+            $wpdb->update($table, ['status' => 'repaired'], ['id' => $issue_id]);
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => sprintf(__('Scheduled cron hook "%s" was successfully removed from the WordPress database.', 'wcp-security-scanner'), $hook_name),
+            'cleared' => $cleared,
+            'hook'    => $hook_name,
+        ]);
     }
 
     /**

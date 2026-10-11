@@ -62,14 +62,22 @@ class QuarantineManager {
             return ['success' => false, 'message' => 'Security violation: File resides outside ABSPATH.'];
         }
 
-        // Prohibit quarantining files inside core directories (wp-admin, wp-includes)
+        // Prohibit quarantining genuine core files inside core directories (wp-admin, wp-includes).
+        // Unknown, extraneous, or rogue files injected by attackers CAN and should be quarantined.
         $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';
         $wp_admin_dir = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
         if (strpos($normalized_real, $wp_includes_dir) === 0 || strpos($normalized_real, $wp_admin_dir) === 0) {
-            return [
-                'success' => false,
-                'message' => "Action Blocked: Core WordPress directory files cannot be quarantined directly."
-            ];
+            $provider = new \WCP\Scanner\Integrity\ChecksumProvider();
+            $core_checksums = $provider->get_core_checksums();
+            $rel_file = ltrim(str_replace($real_root, '', $normalized_real), '/');
+
+            // If the file is part of the official WordPress core manifest, do not allow direct quarantine
+            if (!empty($core_checksums) && isset($core_checksums[$rel_file])) {
+                return [
+                    'success' => false,
+                    'message' => "Action Blocked: '{$rel_file}' is an official WordPress core system file. To safely restore legitimate core files, navigate to Dashboard -> Updates -> Re-install Core or use WP-CLI."
+                ];
+            }
         }
 
         // Critical system protection: Never allow quarantining essential bootstrap or config files
@@ -91,6 +99,19 @@ class QuarantineManager {
                 'success' => false,
                 'message' => "Action Blocked: '{$basename}' is a critical WordPress core bootstrap file and cannot be quarantined to prevent fatal website outages."
             ];
+        }
+
+        // Prohibit quarantining modified official files (which must be repaired/restored, not isolated)
+        if ($issue_id) {
+            $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $issue = $wpdb->get_row($wpdb->prepare("SELECT type FROM {$table_issues} WHERE id = %d", (int) $issue_id));
+            if ($issue && (strpos($issue->type, 'modified_') === 0 || strpos($issue->type, 'wp_config_') === 0 || $issue->type === 'injected_wp_config')) {
+                return [
+                    'success' => false,
+                    'message' => __('Action Blocked: This is an official component file that was modified. Please use Auto-Cure or code restoration rather than quarantine to avoid breaking website functionality.', 'wcp-security-scanner')
+                ];
+            }
         }
 
         if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false || strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
@@ -233,5 +254,29 @@ class QuarantineManager {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $results = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY id DESC", ARRAY_A);
         return is_array($results) ? $results : [];
+    }
+
+    /**
+     * Permanently delete a quarantined file from vault storage and remove database record.
+     *
+     * @param int $quarantine_id
+     * @return array
+     */
+    public function delete_record($quarantine_id) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wcp_quarantine';
+        $record = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table}` WHERE id = %d", (int) $quarantine_id), ARRAY_A);
+        if (!$record) {
+            return ['success' => false, 'message' => 'Quarantine record not found.'];
+        }
+
+        $vault_file = $this->quarantine_dir . '/' . $record['quarantine_filename'];
+        if (file_exists($vault_file)) {
+            @unlink($vault_file);
+        }
+
+        $wpdb->delete($table, ['id' => (int) $quarantine_id]);
+
+        return ['success' => true, 'message' => 'Quarantined file permanently deleted from vault storage.'];
     }
 }

@@ -149,9 +149,7 @@ class RemediationManager {
         }
 
         // Mark issue as repaired in database
-        if ($issue_id) {
-            $this->mark_issue_repaired($issue_id);
-        }
+        $this->mark_file_issues_repaired($real_path, $issue_id);
 
         $orig_size = strlen($original_content);
         $new_size = strlen($cleaned_content);
@@ -248,9 +246,7 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Could not write to file. Please check file permissions.'];
         }
 
-        if ($issue_id) {
-            $this->mark_issue_repaired($issue_id);
-        }
+        $this->mark_file_issues_repaired($real_path, $issue_id);
 
         return [
             'success'     => true,
@@ -336,9 +332,7 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Could not write to theme file.'];
         }
 
-        if ($issue_id) {
-            $this->mark_issue_repaired($issue_id);
-        }
+        $this->mark_file_issues_repaired($real_path, $issue_id);
 
         return [
             'success'     => true,
@@ -350,6 +344,106 @@ class RemediationManager {
             'backup_id'   => $backup_result['backup_id'],
             'theme_slug'  => $theme_slug,
             'version'     => $version,
+            'bytes_restored' => strlen($official_content),
+        ];
+    }
+
+    /**
+     * Restore an infected or modified WordPress core file with official WordPress.org repository source.
+     *
+     * @param string $file_path Absolute path to core file
+     * @param int|null $issue_id Optional scan issue ID
+     * @return array Result metadata
+     */
+    public function restore_official_core_file($file_path, $issue_id = null) {
+        $real_path = realpath($file_path);
+        if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
+            return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
+        }
+
+        $normalized_real = wp_normalize_path($real_path);
+        $normalized_abs = wp_normalize_path(ABSPATH);
+
+        // Security check: Must reside within ABSPATH
+        if (strpos($normalized_real, $normalized_abs) !== 0) {
+            return ['success' => false, 'message' => __('Action Blocked: File is outside the WordPress root directory.', 'wcp-security-scanner')];
+        }
+
+        $rel_file = ltrim(substr($normalized_real, strlen($normalized_abs)), '/');
+
+        // Explicitly forbid restoring wp-config.php, .htaccess, or config templates
+        $forbidden_basenames = ['wp-config.php', '.htaccess', 'php.ini', '.user.ini', 'web.config', 'robots.txt'];
+        if (in_array(strtolower(basename($real_path)), $forbidden_basenames, true)) {
+            return ['success' => false, 'message' => __('Action Blocked: Critical configuration files cannot be overwritten with standard core templates.', 'wcp-security-scanner')];
+        }
+
+        // Must be in wp-admin, wp-includes, or root core PHP file
+        $is_core_dir = (strpos($rel_file, 'wp-admin/') === 0 || strpos($rel_file, 'wp-includes/') === 0);
+        $is_root_core = (!strpos($rel_file, '/') && preg_match('/^wp-.*\.php$|^index\.php$/', $rel_file));
+
+        if (!$is_core_dir && !$is_root_core) {
+            return ['success' => false, 'message' => __('Action Blocked: Target file is not recognized as a WordPress core system file.', 'wcp-security-scanner')];
+        }
+
+        // Never modify scanner plugin files
+        if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false || strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
+            return ['success' => false, 'message' => __('Action Blocked: Cannot modify security scanner files.', 'wcp-security-scanner')];
+        }
+
+        global $wp_version;
+        $clean_version = preg_replace('/-.*$/', '', $wp_version);
+
+        // Fetch official clean source from WordPress.org SVN
+        $official_url = "https://core.svn.wordpress.org/tags/{$clean_version}/{$rel_file}";
+        $response = wp_remote_get($official_url, ['timeout' => 15, 'sslverify' => true]);
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            // Fallback to official WordPress GitHub release tag
+            $github_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_version}/{$rel_file}";
+            $response = wp_remote_get($github_url, ['timeout' => 15, 'sslverify' => true]);
+        }
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    __("Could not fetch official WordPress core release source for '%s' (WP v%s). Please verify server outbound internet connectivity.", 'wcp-security-scanner'),
+                    $rel_file,
+                    $clean_version
+                ),
+            ];
+        }
+
+        $official_content = wp_remote_retrieve_body($response);
+        if (empty($official_content)) {
+            return ['success' => false, 'message' => __('Retrieved official core source was unexpectedly empty. Action aborted for safety.', 'wcp-security-scanner')];
+        }
+
+        // Create safety backup before touching the file
+        $backup_result = $this->create_file_backup($real_path, 'official_core_restore');
+        if (!$backup_result['success']) {
+            return ['success' => false, 'message' => __('Failed to generate safety backup. Aborting for safety.', 'wcp-security-scanner')];
+        }
+
+        // Replace file with pristine official WordPress source
+        $written = @file_put_contents($real_path, $official_content, LOCK_EX);
+        if ($written === false) {
+            return ['success' => false, 'message' => __('Could not write to core file. Please check server filesystem permissions.', 'wcp-security-scanner')];
+        }
+
+        // Mark scan issues as repaired
+        $this->mark_file_issues_repaired($real_path, $issue_id);
+
+        return [
+            'success'        => true,
+            'message'        => sprintf(
+                __("Core file successfully restored to pristine official WordPress.org release (WP v%s: %s). Safety backup created in vault.", 'wcp-security-scanner'),
+                $clean_version,
+                $rel_file
+            ),
+            'backup_id'      => $backup_result['backup_id'],
+            'rel_file'       => $rel_file,
+            'wp_version'     => $clean_version,
             'bytes_restored' => strlen($official_content),
         ];
     }
@@ -433,13 +527,44 @@ class RemediationManager {
     }
 
     /**
-     * Mark issue as repaired in database
+     * Mark issue as repaired in database by ID
      */
     private function mark_issue_repaired($issue_id) {
+        if (!$issue_id) {
+            return;
+        }
         global $wpdb;
         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => (int) $issue_id]);
+    }
+
+    /**
+     * Mark issues associated with a file (and/or specific issue_id) as repaired in database
+     *
+     * @param string $file_path File path to match
+     * @param int|null $issue_id Optional scan issue ID
+     */
+    private function mark_file_issues_repaired($file_path, $issue_id = null) {
+        global $wpdb;
+        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+
+        if ($issue_id) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => (int) $issue_id]);
+        }
+
+        if (!empty($file_path)) {
+            $normalized = wp_normalize_path($file_path);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$table_issues} SET status = 'repaired' WHERE (file_path = %s OR file_path = %s) AND status != 'repaired'",
+                    $file_path,
+                    $normalized
+                )
+            );
+        }
     }
 
     /**
