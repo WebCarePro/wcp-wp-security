@@ -1,4 +1,4 @@
-v:1.5.2 - 2026-10-12
+v:1.12.0 - 2026-10-12
 - High-Precision Microsecond & Millisecond Scan Execution Duration Tracking:
   * Upgraded `wp_wcp_scans` database schema with `started_at` (`datetime(3)`), `completed_at` (`datetime(3)`), and `duration_ms` (`int(11)`) columns to guarantee sub-second and millisecond tracking for all scan types.
   * Implemented `now_fractional_mysql()` and `format_duration_precise()` in `ScannerRoutes.php`: captures exact microtime at scan initialization and completion in WordPress local timezone without timestamp truncation.
@@ -6,6 +6,14 @@ v:1.5.2 - 2026-10-12
   * Enhanced both manual dashboard scans, targeted single-engine audits, and scheduled background WP-Cron runs (`Scheduler.php`) to save microsecond execution timestamps and compute exact `duration_ms`.
   * Updated `App.tsx` and REST API telemetry to display high-resolution execution durations (e.g. `420ms`, `1.85s`, `18.4s`, `1m 5s`) with hover tooltips across the Recorded Scan Runs history table, inspection report header, and top dashboard widgets.
   * Added start and finish timestamp breakdown (`started_at` and `completed_at`) to the Inspection & Audit Findings Report detail banner.
+- Plugin Integrity Self-Exclusion & Multi-Engine Deduplication Safeguards:
+  * Resolved duplicate `plugin_checksums_unavailable` findings on `wcp-security-scanner` by automatically detecting the scanner plugin's basename and excluding both `wcp-security-scanner` and `wcp-wp-scanner` from third-party repository integrity checks.
+  * Added slug de-duplication inside `PluginIntegrity::verify()` to prevent duplicate verification runs when multiple PHP files reside in the same plugin folder.
+  * Enhanced `CorrelationEngine.php` to drop any self-targeted findings on scanner directories even without trailing slashes.
+  * Implemented strict findings deduplication signatures (`engine|type|file_path|line_number|description`) in both `ScannerRoutes.php` and `Scheduler.php` before database insertion to prevent identical findings from repeating in a single scan.
+- In-Page Visual Code Diff (FIM) Modal on Dashboard & Inspection Reports:
+  * Extracted the Git-style code comparison viewer and 1-click Auto-Cure tools into a reusable `VisualDiffModal.tsx` component.
+  * Updated the "Visual Code Diff (FIM)" action across the Dashboard findings table, detail inspector, and findings inspection reports to open the diff viewer directly in an overlay modal on the current screen without redirecting or switching active tabs.
 
 v:1.5.1 - 2026-10-11
 - Automated Sensitive Credential & Webhook Masking on Settings Save & Reveal:

@@ -30,11 +30,22 @@ class PluginIntegrity {
 
         $plugins = get_plugins();
 
+        $processed_slugs = [];
+        $scanner_basename = plugin_basename(WCP_SCANNER_FILE);
+        $scanner_slug = dirname($scanner_basename);
+
         foreach ($plugins as $plugin_file => $plugin_data) {
             $plugin_slug = dirname($plugin_file);
-            if ($plugin_slug === '.') {
-                continue; // Single file plugin, skip checksums usually
+            if (
+                $plugin_slug === '.' ||
+                $plugin_slug === $scanner_slug ||
+                $plugin_slug === 'wcp-security-scanner' ||
+                $plugin_slug === 'wcp-wp-scanner' ||
+                isset($processed_slugs[$plugin_slug])
+            ) {
+                continue; // Skip single file plugins, duplicate plugin files in same dir, and scanner's own directory
             }
+            $processed_slugs[$plugin_slug] = true;
 
             $version = $plugin_data['Version'];
             $checksums = $this->provider->get_plugin_checksums($plugin_slug, $version);

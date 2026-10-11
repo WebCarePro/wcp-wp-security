@@ -214,8 +214,15 @@ class Scheduler {
              $correlation = new \WCP\Scanner\Findings\CorrelationEngine();
              $correlated = $correlation->correlate($all_deep_findings);
 
+             $inserted_signatures = [];
              foreach ($correlated as $finding) {
                  $f = is_array($finding) ? $finding : (method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding);
+                 $sig = md5(($f['engine'] ?? '') . '|' . ($f['type'] ?? '') . '|' . ($f['file_path'] ?? ($f['target'] ?? '')) . '|' . ($f['line_number'] ?? '') . '|' . ($f['description'] ?? ''));
+                 if (isset($inserted_signatures[$sig])) {
+                     continue; // Skip exact duplicate finding for this scan
+                 }
+                 $inserted_signatures[$sig] = true;
+
                  $wpdb->insert($table_issues, [
                      'scan_id'      => $scan_id,
                      'engine'       => $f['engine'] ?? 'system',

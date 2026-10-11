@@ -762,8 +762,15 @@ class ScannerRoutes {
             $correlation = new CorrelationEngine();
             $correlated = $correlation->correlate($all_deep_findings);
 
+            $inserted_signatures = [];
             foreach ($correlated as $f) {
                 $item = $f->to_array();
+                $sig = md5(($item['engine'] ?? '') . '|' . ($item['type'] ?? '') . '|' . ($item['file_path'] ?? '') . '|' . ($item['line_number'] ?? '') . '|' . ($item['description'] ?? ''));
+                if (isset($inserted_signatures[$sig])) {
+                    continue; // Skip exact duplicate finding for this scan
+                }
+                $inserted_signatures[$sig] = true;
+
                 $wpdb->insert($table_issues, [
                     'scan_id'      => $scan_id,
                     'engine'       => $item['engine'],
