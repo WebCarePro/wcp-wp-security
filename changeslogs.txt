@@ -49,8 +49,12 @@ v:1.5.1 - 2026-10-11
   * Upgraded `App.tsx` with `monitorBackgroundScan()`: when an active scheduled scan is detected, the frontend enters a non-intrusive polling state every 2.5 seconds, dynamically updating the top banner ("Scheduled Auto Scan"), progress bar, scanned file counts, and audit stages without interfering with the server's background scan loop.
   * Added periodic idle scanner checking in `App.tsx` so users on the dashboard immediately observe scheduled scans when they fire in the background.
   * Overhauled cron scheduling timezone arithmetic in `SettingsManager::sync_cron_schedule()` using `wp_timezone()` and `DateTimeImmutable`: eliminated `mktime()` system offset discrepancies that previously miscalculated hourly UTC timestamps into the past (causing "Executing momentarily..." stalls).
-  * Added robust database fallback in `ScannerRoutes::get_active_scan()` to detect and recover running scans directly from `wp_wcp_scans` even if the lock transient had a timing gap.
   * Added "Run Scheduled Scan Now (Immediate Test)" button to Cron Engine & Diagnostics in `SettingsPage.tsx` backed by `/settings/trigger-cron` REST endpoint to allow immediate verification of scheduled audit routines.
+- Optimized "Scan Logs & History" with Deep-Link URL State & Auto-Scroll:
+  * Implemented deep-link query parameter `?page=wcp-scanner-logs&scanresults={id}` when expanding any historical audit record in `App.tsx`.
+  * Preserves database query efficiency and memory by on-demand lazy-loading only the selected scan's findings and telemetry payload rather than loading all scan results simultaneously.
+  * Added smooth auto-scrolling to the expanded "Inspection & Audit Findings Report" section (`#wcp-scan-log-inspector`) immediately upon clicking "View Findings".
+  * Integrated browser history support: Closing the report or using browser back/forward buttons cleanly restores the URL and selected state.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):
