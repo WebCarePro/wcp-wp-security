@@ -55,6 +55,7 @@ v:1.5.1 - 2026-10-11
   * Preserves database query efficiency and memory by on-demand lazy-loading only the selected scan's findings and telemetry payload rather than loading all scan results simultaneously.
   * Added smooth auto-scrolling to the expanded "Inspection & Audit Findings Report" section (`#wcp-scan-log-inspector`) immediately upon clicking "View Findings".
   * Integrated browser history support: Closing the report or using browser back/forward buttons cleanly restores the URL and selected state.
+  * Resolved `WordPress.WP.I18n.NonSingularStringLiteralText` compliance check in `ScannerRoutes.php` by formatting scan lock error message with `sprintf()` and string literal.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):

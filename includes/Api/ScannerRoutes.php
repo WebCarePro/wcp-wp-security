@@ -1609,7 +1609,15 @@ class ScannerRoutes {
     public static function trigger_cron_now(\WP_REST_Request $request) {
         $locked_id = ScanLock::get_locked_scan_id();
         if ($locked_id) {
-            return new \WP_Error('scan_locked', __('A scan is already actively running (ID: ' . $locked_id . ').', 'wcp-security-scanner'), ['status' => 409]);
+            return new \WP_Error(
+                'scan_locked',
+                sprintf(
+                    /* translators: %d: active scan ID */
+                    __('A scan is already actively running (ID: %d).', 'wcp-security-scanner'),
+                    $locked_id
+                ),
+                ['status' => 409]
+            );
         }
 
         // Run scheduled scan synchronously or trigger the hook
