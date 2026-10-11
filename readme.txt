@@ -5,7 +5,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -255,6 +255,13 @@ To compile the React admin application from source:
 3. Run `npm run build` to generate the production bundle in `build/index.js`.
 
 == Changelog ==
+
+= 1.5.1 =
+* Hardened settings management with two-step "Reset Defaults" modal requiring explicit confirmation.
+* Implemented AES-256-CBC encryption at rest for 2FA TOTP user secrets with auto-migration.
+* Consolidated Cloudflare Edge defense into compound multi-vector policies maximizing Free tier slots.
+* Enhanced sensitive credential & webhook URL masking upon saving or revealing settings.
+* Refactored heuristic malware rules to dynamically assemble signatures at runtime, eliminating static antivirus false-positives.
 
 = 1.5.0 =
 * Added Web Application Firewall (WAF Lite) with real-time early request filtering, virtual patching, and custom 403 Forbidden screen.

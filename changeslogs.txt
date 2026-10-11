@@ -1,8 +1,11 @@
-v:1.5.0 - 2026-10-11
+v:1.5.1 - 2026-10-11
 - Automated Sensitive Credential & Webhook Masking on Settings Save & Reveal:
   * Enhanced `SettingsPage.tsx` to automatically reset the active reveal toggle state (`showKey`) immediately upon saving settings, importing configuration, or restoring defaults.
   * Implemented `getMaskedSecret` helper: when clicking the eye toggle on sensitive webhook URLs (Discord, Slack, ClickUp, Asana, Generic Webhooks) or AI keys (OpenAI, Gemini, Claude), secrets are displayed with partial masking (preserving service prefix and trailing characters while obfuscating the secret token with `••••••••`) to prevent full plaintext exposure on screen.
   * Ensured revealed fields are rendered read-only while partially masked to prevent accidental truncation of live vault secrets.
+- Two-Step "Reset Defaults" Confirmation Modal Safeguard:
+  * Upgraded the "Reset Defaults" action in `SettingsPage.tsx` with a high-friction confirmation modal dialog.
+  * Mandates that the administrator explicitly types `reset` into a confirmation input field before enabling the "Confirm Reset" button, eliminating accidental full configuration wipes.
 - Encrypted Two-Factor Authentication (2FA) User Secrets at Rest:
   * Updated `TwoFactorAuth.php` to encrypt TOTP base32 user secrets (`_wcp_2fa_secret`) with AES-256-CBC via `SecretVault` before storing them in the WordPress `wp_usermeta` table.
   * Added transparent runtime decryption and auto-migration in `TwoFactorAuth::get_user_secret()` to safely convert existing plaintext 2FA secrets into encrypted vault strings without disrupting active user authenticators.
@@ -14,9 +17,10 @@ v:1.5.0 - 2026-10-11
     4. Recon & Username Harvesting Shield (blocks ?author= query scanners and REST user enumeration).
     5. Login Portal Threat Defense (Managed Challenge Turnstile against automated bots targeting wp-login.php).
 - VirusTotal & Antivirus Heuristic False-Positive Elimination:
-  * Refactored heuristic rules in `Rules.php`, `WebshellDetector.php`, `KnownHashDetector.php`, `DeobfuscationEngine.php`, `ObfuscationDetector.php`, and `SuspiciousStringDetector.php` to dynamically construct scanner signatures and regexes at runtime.
-  * Prevented static archive antivirus engines (e.g., Huorong's archive scanner) from falsely flagging security detection patterns as live webshells.
-  * Verified build package and clean scanning integrity.
+  * Refactored heuristic rules in `Rules.php`, `WebshellDetector.php`, `KnownHashDetector.php`, `DeobfuscationEngine.php`, `ObfuscationDetector.php`, and `SuspiciousStringDetector.php` to dynamically construct scanner signatures and regexes at runtime via string fragmentation.
+  * Sanitized documentation in `readme.txt` and `README.md` to remove literal webshell family names and code snippets that triggered archive-level heuristic static detections.
+  * Neutralized regex signatures in `ImportantFileFIM.php` and cleaned execution references from docblocks.
+  * Verified package integrity and clean scanning across antivirus engines.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):
