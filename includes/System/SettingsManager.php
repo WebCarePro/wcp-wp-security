@@ -426,18 +426,31 @@ class SettingsManager {
         }
 
         // Calculate next run time based on schedule_time (HH:MM in site's timezone)
-        $time_str = $settings['schedule_time'] ?: '02:00';
+        $time_str = !empty($settings['schedule_time']) ? $settings['schedule_time'] : '02:00';
         $parts = explode(':', $time_str);
         $hour = isset($parts[0]) ? (int) $parts[0] : 2;
         $minute = isset($parts[1]) ? (int) $parts[1] : 0;
 
-        $now = current_time('timestamp');
-        $target_time = mktime($hour, $minute, 0, (int) gmdate('m', $now), (int) gmdate('d', $now), (int) gmdate('Y', $now));
-        if ($target_time <= $now) {
-            $target_time += DAY_IN_SECONDS;
+        // Current site local date
+        $site_now = current_time('timestamp');
+        $site_date_str = sprintf(
+            '%04d-%02d-%02d %02d:%02d:00',
+            (int) gmdate('Y', $site_now),
+            (int) gmdate('m', $site_now),
+            (int) gmdate('d', $site_now),
+            $hour,
+            $minute
+        );
+
+        // Convert site local datetime string to UTC unix timestamp
+        $target_utc = (int) strtotime(get_gmt_from_date($site_date_str, 'Y-m-d H:i:s'));
+        $now_utc = time();
+
+        if ($target_utc <= $now_utc) {
+            $target_utc += DAY_IN_SECONDS;
         }
 
-        wp_schedule_event($target_time, $frequency, self::CRON_HOOK);
+        wp_schedule_event($target_utc, $frequency, self::CRON_HOOK);
     }
 
     /**

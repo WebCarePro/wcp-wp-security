@@ -1067,9 +1067,9 @@ class ScannerRoutes {
         $locked_id = ScanLock::get_locked_scan_id();
 
         if (!$locked_id) {
-            // Clean up any stray scans marked 'running' whose locks have expired or died
+            // Clean up any stale scans marked 'running' whose locks have expired or died (older than 5 minutes)
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query("UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running'");
+            $wpdb->query("UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)");
             return rest_ensure_response([
                 'is_running' => false,
             ]);

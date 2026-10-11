@@ -21,6 +21,14 @@ v:1.5.1 - 2026-10-11
   * Sanitized documentation in `readme.txt` and `README.md` to remove literal webshell family names and code snippets that triggered archive-level heuristic static detections.
   * Neutralized regex signatures in `ImportantFileFIM.php` and cleaned execution references from docblocks.
   * Verified package integrity and clean scanning across antivirus engines.
+- Scheduled Background Scan Architecture & Reliability Overhaul:
+  * Fixed scan lock acquisition in `Scheduler::run_scheduled_scan()`: background WP-Cron scans now acquire `ScanLock` upon execution so admin dashboard checks cannot prematurely mark active scheduled scans as interrupted.
+  * Guarded REST route `get_active_scan()` against prematurely marking recent scans as interrupted, respecting the lock timeout window.
+  * Replaced fatal `RiskScorer::calculate_for_scan()` invocation with `RiskScorer::calculate()` over scan issues to prevent PHP runtime termination.
+  * Upgraded filesystem scanner invocation in `Scheduler.php` to `FileScanner`, ensuring file inspection findings are persisted to `wp_wcp_scan_files` and `wp_wcp_scan_issues` with periodic lock heartbeat updates.
+  * Aligned deep target audits across all engines (`CoreIntegrity`, `ImportantFileFIM`, `PluginIntegrity`, `DatabaseScanner`, `ContentScanner`, `WordPressSecurityScanner`, `UpdateScanner`, and `UploadsScanner`).
+  * Fixed WP-Cron timezone scheduling in `SettingsManager::sync_cron_schedule()` using `get_gmt_from_date()` to convert local user schedule hours into accurate UTC timestamps.
+  * Corrected cron hook display code in `SettingsPage.tsx` to match the active hook `wcp_scanner_scheduled_scan_event`.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):
