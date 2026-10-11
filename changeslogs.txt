@@ -85,7 +85,7 @@ v:1.12.0 - 2026-10-12
   * Unified metric calculation in `App.tsx` across Cube 3, subtitle metadata, action buttons, and table category pills: subtext now transparently reports `{cveCount} CVE advisories • {medCount} site warnings`.
   * Synchronized the category filter pill (`CVEs & Warnings`) and table matcher (`categoryFilter === 'cve'`) to accurately filter and display both software CVE advisories, update requirements, and medium/low severity site configuration warnings.
 - WordPress Core Compatibility Header Standardization:
-  * Aligned `Requires at least` to `6.2` and `Tested up to` to `6.7` across `readme.txt`, `wcp-wp-scanner.php`, and `README.md` to ensure seamless WordPress.org directory validation and automated plugin review acceptance.
+  * Aligned `Requires at least` to `6.2` and `Tested up to` to `7.1` across `readme.txt` and `README.md` to resolve WordPress.org automated plugin linter check (`Tested up to: 6.7 < 7.1`).
 
 
 
