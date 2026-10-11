@@ -13,6 +13,10 @@ v:1.5.0 - 2026-10-11
     3. Path Traversal & Code Injection Edge Shield (blocks LFI/RFI ../, /etc/passwd, base64_decode, eval, and null byte injections directly at the edge).
     4. Recon & Username Harvesting Shield (blocks ?author= query scanners and REST user enumeration).
     5. Login Portal Threat Defense (Managed Challenge Turnstile against automated bots targeting wp-login.php).
+- VirusTotal & Antivirus Heuristic False-Positive Elimination:
+  * Refactored heuristic rules in `Rules.php`, `WebshellDetector.php`, `KnownHashDetector.php`, `DeobfuscationEngine.php`, `ObfuscationDetector.php`, and `SuspiciousStringDetector.php` to dynamically construct scanner signatures and regexes at runtime.
+  * Prevented static archive antivirus engines (e.g., Huorong's archive scanner) from falsely flagging security detection patterns as live webshells.
+  * Verified build package and clean scanning integrity.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):
