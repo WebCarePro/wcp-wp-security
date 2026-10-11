@@ -1435,16 +1435,47 @@ class ScannerRoutes {
     }
 
     /**
+     * Helper to build schedule time info payload
+     */
+    public static function build_schedule_time_info() {
+        $next_run_timestamp = wp_next_scheduled(\WCP\Scanner\System\SettingsManager::CRON_HOOK);
+        $now_utc = time();
+        $diff_seconds = $next_run_timestamp ? max(0, $next_run_timestamp - $now_utc) : 0;
+
+        $tz_string = get_option('timezone_string');
+        $gmt_offset = get_option('gmt_offset');
+        if (empty($tz_string)) {
+            $offset_sign = $gmt_offset >= 0 ? '+' : '-';
+            $offset_hours = abs((int) $gmt_offset);
+            $offset_mins = abs((int) (($gmt_offset - (int) $gmt_offset) * 60));
+            $tz_string = sprintf('UTC%s%02d:%02d', $offset_sign, $offset_hours, $offset_mins);
+        }
+
+        return [
+            'next_run_timestamp' => $next_run_timestamp ?: null,
+            'next_scheduled_wp'  => $next_run_timestamp ? date_i18n('Y-m-d H:i:s', $next_run_timestamp) : null,
+            'next_scheduled_gmt' => $next_run_timestamp ? gmdate('Y-m-d H:i:s', $next_run_timestamp) . ' GMT' : null,
+            'diff_seconds'       => $diff_seconds,
+            'current_wp_time'    => current_time('Y-m-d H:i:s'),
+            'current_gmt_time'   => gmdate('Y-m-d H:i:s') . ' GMT',
+            'timezone'           => $tz_string,
+            'gmt_offset'         => (float) $gmt_offset,
+        ];
+    }
+
+    /**
      * Get plugin settings
      */
     public static function get_settings(\WP_REST_Request $request) {
         $settings = \WCP\Scanner\System\SettingsManager::get_settings();
-        $next_run = wp_next_scheduled(\WCP\Scanner\System\SettingsManager::CRON_HOOK);
+        $time_info = self::build_schedule_time_info();
+
         return rest_ensure_response([
             'success'        => true,
             'settings'       => $settings,
-            'next_scheduled' => $next_run ? date_i18n('Y-m-d H:i:s', $next_run) : null,
-            'current_time'   => current_time('mysql'),
+            'next_scheduled' => $time_info['next_scheduled_wp'],
+            'schedule_time'  => $time_info,
+            'current_time'   => $time_info['current_wp_time'],
         ]);
     }
 
@@ -1458,13 +1489,14 @@ class ScannerRoutes {
         }
 
         $saved = \WCP\Scanner\System\SettingsManager::save_settings((array) $params);
-        $next_run = wp_next_scheduled(\WCP\Scanner\System\SettingsManager::CRON_HOOK);
+        $time_info = self::build_schedule_time_info();
 
         return rest_ensure_response([
             'success'        => true,
             'message'        => __('Settings successfully saved.', 'wcp-security-scanner'),
             'settings'       => $saved,
-            'next_scheduled' => $next_run ? date_i18n('Y-m-d H:i:s', $next_run) : null,
+            'next_scheduled' => $time_info['next_scheduled_wp'],
+            'schedule_time'  => $time_info,
         ]);
     }
 

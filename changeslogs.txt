@@ -34,6 +34,11 @@ v:1.5.1 - 2026-10-11
   * Updated scan creation endpoints in `ScannerRoutes.php` and `Scheduler.php` to tag scans with their originating execution trigger.
   * Enhanced "Recorded Scan Runs" table in `App.tsx` with a dedicated "Trigger" column featuring custom visual badges ("Manual Run" with console icon and "Scheduled Auto" with calendar/cron icon) and hover tooltips.
   * Integrated trigger source indicator into the Inspection & Audit Findings Report detail modal header.
+- Schedule Scan Diagnostics: WordPress Time, GMT Time & Live Relative Countdown:
+  * Enhanced REST API endpoints (`/settings`) in `ScannerRoutes.php` with `build_schedule_time_info()`, returning both WordPress local time and GMT/UTC timestamps, active timezone offsets, and exact second differentials.
+  * Upgraded `SettingsManager::sync_cron_schedule()` to calculate intervals properly across Hourly, Twice Daily, Daily, and Weekly frequencies.
+  * Added a prominent "Exact Time Until Next Scheduled Scan" live countdown ticker to `SettingsPage.tsx` rendering human-readable time intervals (e.g., "1 hour and 3 min and 5s later from now").
+  * Rendered side-by-side time diagnostic breakdowns showing Next Run in WordPress Local Time, Next Run in GMT/UTC, Current WordPress Time, Current GMT Time, and active WordPress Timezone indicator.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):

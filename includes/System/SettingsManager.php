@@ -425,29 +425,38 @@ class SettingsManager {
             wp_unschedule_event($timestamp, self::CRON_HOOK);
         }
 
-        // Calculate next run time based on schedule_time (HH:MM in site's timezone)
-        $time_str = !empty($settings['schedule_time']) ? $settings['schedule_time'] : '02:00';
-        $parts = explode(':', $time_str);
-        $hour = isset($parts[0]) ? (int) $parts[0] : 2;
-        $minute = isset($parts[1]) ? (int) $parts[1] : 0;
-
-        // Current site local date
-        $site_now = current_time('timestamp');
-        $site_date_str = sprintf(
-            '%04d-%02d-%02d %02d:%02d:00',
-            (int) gmdate('Y', $site_now),
-            (int) gmdate('m', $site_now),
-            (int) gmdate('d', $site_now),
-            $hour,
-            $minute
-        );
-
-        // Convert site local datetime string to UTC unix timestamp
-        $target_utc = (int) strtotime(get_gmt_from_date($site_date_str, 'Y-m-d H:i:s'));
         $now_utc = time();
 
-        if ($target_utc <= $now_utc) {
-            $target_utc += DAY_IN_SECONDS;
+        if ($frequency === 'hourly') {
+            // Next whole hour or +1 hour from now
+            $target_utc = $now_utc + HOUR_IN_SECONDS;
+        } elseif ($frequency === 'twicedaily') {
+            // Next 12 hours from now
+            $target_utc = $now_utc + (12 * HOUR_IN_SECONDS);
+        } else {
+            // Daily or Weekly at the configured schedule_time (in WordPress local timezone)
+            $time_str = !empty($settings['schedule_time']) ? $settings['schedule_time'] : '02:00';
+            $parts = explode(':', $time_str);
+            $hour = isset($parts[0]) ? (int) $parts[0] : 2;
+            $minute = isset($parts[1]) ? (int) $parts[1] : 0;
+
+            // Current site local date
+            $site_now = current_time('timestamp');
+            $site_date_str = sprintf(
+                '%04d-%02d-%02d %02d:%02d:00',
+                (int) gmdate('Y', $site_now),
+                (int) gmdate('m', $site_now),
+                (int) gmdate('d', $site_now),
+                $hour,
+                $minute
+            );
+
+            // Convert site local datetime string to UTC unix timestamp
+            $target_utc = (int) strtotime(get_gmt_from_date($site_date_str, 'Y-m-d H:i:s'));
+
+            if ($target_utc <= $now_utc) {
+                $target_utc += DAY_IN_SECONDS;
+            }
         }
 
         wp_schedule_event($target_utc, $frequency, self::CRON_HOOK);
