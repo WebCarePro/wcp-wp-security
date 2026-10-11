@@ -74,6 +74,8 @@ v:1.12.0 - 2026-10-12
 - Comprehensive Documentation & Extended 21-Engine Architecture Catalog:
   * Authored `features.md` as an exhaustive, deep-dive architectural reference documenting all 21 specialized security engines, UI subsystems, REST endpoints, and security mechanisms.
   * Synchronized and expanded `README.md` and `readme.txt` with extended feature descriptions, 1.12.0 changelog details, and verified solo freelancer identity & tone.
+  * Added featured spotlight callout, visual architecture comparison matrix, security shield badges, and dedicated deep-dive sections for the Cryptographic Secret Vault & AES-256-CBC Database Encryption at Rest in `README.md`.
+
 
 
 

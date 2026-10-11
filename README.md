@@ -15,6 +15,7 @@
   <a href="https://github.com/WebCarePro/wcp-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
   <a href="https://www.upwork.com/freelancers/~0162afa9a578170c67"><img src="https://img.shields.io/badge/Upwork-Top%20Rated%20Plus%20★%20100%25%20JSS-14A800.svg?logo=upwork" alt="Upwork Top Rated Plus"/></a>
   <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v1.12.0-orange.svg" alt="Release Version"/></a>
+  <a href="#-featured-spotlight-cryptographic-secret-vault--database-encryption-at-rest"><img src="https://img.shields.io/badge/Security-AES--256--CBC%20Vault%20Encrypted-blueviolet.svg?logo=securityscorecard&logoColor=white" alt="Cryptographic Secret Vault"/></a>
 </p>
 
 ---
@@ -24,6 +25,26 @@
 **WCP Security Scanner** is a modern, high-performance WordPress security, malware detection, and forensic auditing plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)). 
 
 Unlike heavy, bloated security plugins that degrade server performance with background overhead, WCP Security Scanner combines **memory-safe PHP batch auditing engines** with a responsive **React 18 single-page administrative dashboard**. It provides deep insight into your file system, WordPress core integrity, plugin and theme source code, database tables, cron jobs, active administrative sessions, runtime memory hooks, and server configurations—giving developers, sysadmins, and site owners complete visibility and control over their WordPress security posture.
+
+---
+
+## 🔐 Featured Spotlight: Cryptographic Secret Vault & Database Encryption at Rest
+
+> [!IMPORTANT]
+> **Zero Plaintext Credentials in Database or SQL Backups.**  
+> Unlike typical WordPress security plugins that store third-party API keys and incoming webhooks as raw plaintext inside `wp_options`, WCP Security Scanner implements a dedicated **Military-Grade AES-256-CBC Cryptographic Secret Vault**. Every webhook URL, Cloudflare API token, AI key, and 2FA user secret is encrypted at rest using dynamic 256-bit key derivation and per-record randomized 16-byte initialization vectors (`random_bytes(16)`).
+
+### 🛡️ How the Cryptographic Secret Vault Protects Your Infrastructure:
+
+| Security Dimension | Standard WordPress Plugins | WCP Security Scanner Vault |
+|:---|:---|:---|
+| **Database Storage (`wp_options`)** | ❌ Plaintext strings visible to anyone with database access | ✅ **AES-256-CBC Encrypted Ciphertext** (`wcp_enc:...`) |
+| **SQL Dumps & Database Backups** | ❌ Secrets exposed in plain text if backup files are compromised | ✅ **Completely unreadable encrypted strings** |
+| **phpMyAdmin & SQLi Exposure** | ❌ Scraped easily via unauthorized database queries | ✅ **Zero plaintext credential leakage** |
+| **Encryption Keys & Salting** | ❌ Static hardcoded strings or unencrypted options | ✅ **Derived from WP Salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`)** |
+| **Initialization Vectors (IV)** | ❌ Static or reused IV vectors | ✅ **Cryptographically random 16-byte IV generated per record** |
+| **Decryption Lifecycle** | ❌ Persisted in plain text on memory or disk | ✅ **Transient in-memory decryption ONLY during active API/webhook calls** |
+| **Admin UI Visibility** | ❌ Plaintext input fields or visible strings | ✅ **Auto-masked bullet placeholders (`••••••••`) with 1-click eye toggle** |
 
 ---
 
@@ -147,12 +168,16 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
 - **Live Webhook Testing API**: 1-click test buttons inside Scanner Settings to verify webhook URL configuration instantly with real-time delivery status feedback.
 
-### 18. Cryptographic Secret Vault & Database Encryption at Rest
-- **Military-Grade AES-256-CBC Algorithm**: All third-party API credentials, webhook endpoints, and sensitive infrastructure tokens—including Slack incoming webhooks, Discord channel webhooks, ClickUp automation webhooks, Asana task webhooks, Generic automation URLs (Zapier, Make.com, n8n), Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
+### 18. 🔐 Cryptographic Secret Vault & Database Encryption at Rest *(Key Security Architecture)*
+
+> **Enterprise-Grade Protection for All API Credentials, Webhook Endpoints & 2FA Secrets**
+
+- **Military-Grade AES-256-CBC Encryption**: All third-party API credentials, webhook endpoints, and sensitive infrastructure tokens—including Slack incoming webhooks, Discord channel webhooks, ClickUp automation webhooks, Asana task webhooks, Generic automation URLs (Zapier, Make.com, n8n), Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
 - **Dynamic 256-bit Key Derivation & Random IVs**: Each secret is encrypted with a cryptographically secure, randomized 16-byte initialization vector (`random_bytes(16)`), derived using a SHA-256 hash of WordPress secret salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`). Identical tokens produce completely different ciphertexts upon every save.
 - **Zero Plaintext Database Exposure**: Database backups, `.sql` dumps, staging exports, and unauthorized database access reveal only ciphertext strings prefixed with `wcp_enc:`.
-- **Transparent In-Memory Decryption**: Decrypts credentials on the fly in memory only when executing authorized API requests or dispatching webhook security alerts, ensuring zero performance penalty.
-- **Interface Password Masking & Visibility Toggles**: All sensitive credentials in administrative panels default to masked bullet placeholders (`••••••••`) with one-click show/hide eye toggles.
+- **Transparent In-Memory Decryption**: Decrypts credentials on the fly in memory only when executing authorized API requests or dispatching webhook security alerts, ensuring zero performance penalty and 100% backend transparency.
+- **Encrypted 2FA User Secrets at Rest**: TOTP base32 user secrets (`_wcp_2fa_secret`) stored in `wp_usermeta` are automatically encrypted with AES-256-CBC via `SecretVault` with seamless transparent runtime decryption.
+- **Interface Password Masking & Visibility Toggles**: All sensitive credentials in administrative panels default to masked bullet placeholders (`••••••••`) with one-click show/hide eye toggles and a verified `✓ Encrypted in Vault` indicator badge.
 
 ### 19. On-Demand Database Backup Vault (`.sql.gz`)
 - **One-Click Database Backup Vault**: Creates instant on-demand database dumps with automatic `.sql.gz` Gzip compression, size metadata indexing, and secure browser downloads.
