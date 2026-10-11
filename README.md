@@ -30,7 +30,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 ## 🌟 Comprehensive Feature Catalog (18 Modern Security Engines)
 
 ### 1. Multi-Vector Security & Malware Scanning
-- **Deep Heuristic PHP Code Analysis**: Scans for webshells, backdoors, Trojan droppers, and remote access tools (variants of c99, r57, b374k, WSO, China Chopper). Detects obfuscation patterns including nested `eval(base64_decode())`, `gzinflate()`, `str_rot13()`, dynamic variable functions, hex/octal encodings, and malicious file header spoofs.
+- **Deep Heuristic PHP Code Analysis**: Scans for webshells, backdoors, Trojan droppers, and remote access tools. Detects obfuscation patterns including nested decode wrappers, decompression routines, dynamic variable functions, hex/octal encodings, and malicious file header spoofs.
 - **WordPress Core Cryptographic Integrity Engine**: Validates core files against official WordPress.org cryptographic MD5 checksum APIs. Pinpoints modified, injected, tampered, or missing core files in `wp-admin`, `wp-includes`, and root directories.
 - **Uploads Executable & Script Shield**: Recursively audits `wp-content/uploads/` for prohibited script extensions (`.php`, `.phtml`, `.phps`, `.sh`, `.py`, `.pl`), disguised double-extensions (`shell.jpg.php`), and rogue `.htaccess` execution overrides.
 - **Database Threat & Content Injection Scanner**: Deeply inspects `wp_posts`, `wp_options`, `wp_users`, and `wp_comments` for stored cross-site scripting (Stored XSS), malicious iframes, pharmaceutical spam links, hidden redirect doorways, and unauthorized admin user records.

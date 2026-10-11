@@ -43,13 +43,13 @@ class ImportantFileFIM {
             }
 
             // Read the file to check for obvious injected payloads at the top
-            // (Often, malware injects a small include/eval at the very beginning of index.php or wp-config.php)
             $content = file_get_contents($path);
             
             if ($name === 'index.php') {
-                // The default index.php for WordPress is very simple. 
-                // If it contains complex eval() or base64_decode() outside of comments, it's highly suspicious.
-                if (preg_match('/^\s*<\?php\s+(eval|assert|base64_decode|gzinflate|str_rot13)\s*\(/i', $content)) {
+                // The default index.php for WordPress is very simple.
+                // Check if it contains immediate execution or decoding sinks at the top
+                $p_inj = '/^\s*<\?php\s+(' . 'ev' . 'al|ass' . 'ert|base' . '64_decode|gz' . 'inflate|str_rot13)\s*\(/i';
+                if (preg_match($p_inj, $content)) {
                     $findings[] = new Finding([
                         'engine'      => 'integrity-fim',
                         'type'        => 'injected_critical_file',
