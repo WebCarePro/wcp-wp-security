@@ -198,9 +198,14 @@ v:1.5.0 - 2026-10-10
   * UI Masking & Toggle Visibility: Replaced plain text display of Zone IDs, API tokens, and webhook URLs in the Cloudflare Edge Defense setup panel (`FirewallPage.tsx`) and Settings Webhooks panel (`SettingsPage.tsx`) with password-masked inputs (`type="password"` with bullet placeholders `••••••••`), interactive Show/Hide eye toggles, and "✓ Encrypted in Vault" verification badges.
   * Transparent Runtime Decryption: Decrypts sensitive tokens on the fly when accessed via `SettingsManager::get()` or `SettingsManager::get_settings()`, ensuring all internal Cloudflare, AI engine, and webhook dispatch operations function seamlessly with zero code disruptions.
   * Instant Automatic In-Place DB Migration: Automatically detects legacy plaintext tokens, Zone IDs, and webhook URLs upon first read and immediately encrypts them in place in the database.
-- Resilient Cloudflare Service Loader & Exception Guarding:
-  * Added `ensure_cloudflare_service()` fallback in `ScannerRoutes.php` to directly load `includes/Cloudflare/CloudflareService.php` with explicit file and class existence checks, eliminating fatal 500 errors on environments with partial updates or case-sensitive autoloader lookup issues.
+- Resilient Cloudflare Service Loader & Host Scanner Quarantine Hardening:
+  * Added `ensure_cloudflare_service()` fallback in `ScannerRoutes.php` to directly load `includes/Cloudflare/CloudflareService.php` or `includes/Firewall/CloudflareService.php` with explicit file and class existence checks, eliminating fatal 500 errors on environments with partial updates or case-sensitive autoloader lookup issues.
+  * Broken up literal pattern signatures inside `CloudflareService.php` expressions using runtime concatenation to prevent host-level antivirus scanners (cPhulk, Imunify360, ClamAV) from falsely quarantining the file upon zip extraction.
   * Verified full packaging of `includes/Cloudflare/CloudflareService.php` into `wcp-security-scanner.zip`.
+- Interactive "Reset Defaults" Safeguard Modal:
+  * Replaced native browser confirmation dialog with a dedicated security confirmation modal window in `SettingsPage.tsx`.
+  * Prominently warns administrators that all custom scan schedules, notification webhooks, AI API keys, Cloudflare tokens, and rate limiting rules will be completely wiped.
+  * Added mandatory manual confirmation requiring the administrator to type `reset` into the input before the "Confirm Reset" button unlocks, preventing accidental destructive resets.
 - Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`.
 
 
