@@ -776,11 +776,22 @@ class ScannerRoutes {
             $scorer = new RiskScorer();
             $summary = $scorer->calculate($all_scan_issues);
 
+            // Calculate duration accurately (supporting client_duration from browser or computing via current_time('timestamp'))
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
-            $duration = 1;
-            if ($scan_row && !empty($scan_row['created_at'])) {
-                $duration = max(1, time() - strtotime($scan_row['created_at']));
+            $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at, duration FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+            $client_duration = (int) $request->get_param('client_duration');
+            if ($client_duration > 0) {
+                $duration = $client_duration;
+            } elseif ($scan_row && !empty($scan_row['created_at'])) {
+                $created_ts = strtotime(get_gmt_from_date($scan_row['created_at'], 'Y-m-d H:i:s'));
+                if (!$created_ts) {
+                    $created_ts = strtotime($scan_row['created_at']);
+                    $duration = max(1, current_time('timestamp') - $created_ts);
+                } else {
+                    $duration = max(1, time() - $created_ts);
+                }
+            } else {
+                $duration = 1;
             }
 
             $wpdb->update($table_scans, [
@@ -1115,7 +1126,12 @@ class ScannerRoutes {
             'issues_found'   => (int) $running_scan['issues_found'],
             'phase'          => ($remaining > 0) ? 'batch' : 'deep_audit',
             'created_at'     => $running_scan['created_at'],
-            'elapsed'        => max(1, time() - strtotime($running_scan['created_at'])),
+            'elapsed'        => (function() use ($running_scan) {
+                if (empty($running_scan['created_at'])) return 1;
+                $gmt_ts = strtotime(get_gmt_from_date($running_scan['created_at'], 'Y-m-d H:i:s'));
+                if ($gmt_ts > 0) return max(1, time() - $gmt_ts);
+                return max(1, current_time('timestamp') - strtotime($running_scan['created_at']));
+            })(),
         ]);
     }
 
@@ -1278,7 +1294,12 @@ class ScannerRoutes {
         // Duration & Throughput
         $duration = (int) ($scan['duration'] ?? 0);
         if ($duration <= 0 && !empty($scan['created_at'])) {
-            $duration = max(1, time() - strtotime($scan['created_at']));
+            $created_ts = strtotime(get_gmt_from_date($scan['created_at'], 'Y-m-d H:i:s'));
+            if ($created_ts > 0) {
+                $duration = max(1, time() - $created_ts);
+            } else {
+                $duration = max(1, current_time('timestamp') - strtotime($scan['created_at']));
+            }
         }
         $duration = max(1, $duration);
         $scanned_files = (int) ($scan['scanned_files'] ?? ($scan['total_files'] ?? 0));
