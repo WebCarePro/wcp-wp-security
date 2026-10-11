@@ -23,7 +23,7 @@ class Plugin {
     }
 
     private function init() {
-        if (get_option('wcp_scanner_db_version') !== '1.5.1') {
+        if (get_option('wcp_scanner_db_version') !== '1.5.2') {
             \WCP\Scanner\Database\Migration::install();
         }
 

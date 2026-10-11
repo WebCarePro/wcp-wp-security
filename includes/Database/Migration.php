@@ -26,8 +26,10 @@ class Migration {
             issues_found int(11) NOT NULL DEFAULT 0,
             risk_score int(11) NOT NULL DEFAULT 0,
             duration int(11) NOT NULL DEFAULT 0,
+            duration_ms int(11) NOT NULL DEFAULT 0,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            completed_at datetime NULL,
+            started_at datetime(3) NULL,
+            completed_at datetime(3) NULL,
             PRIMARY KEY  (id)
         ) $charset_collate;";
 
@@ -125,6 +127,26 @@ class Migration {
             $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN trigger_type varchar(20) NOT NULL DEFAULT 'manual' AFTER scan_target");
         }
 
-        update_option('wcp_scanner_db_version', '1.5.1');
+        // Ensure duration_ms column exists for millisecond precision
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $ms_col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'duration_ms'");
+        if (empty($ms_col_check)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN duration_ms int(11) NOT NULL DEFAULT 0 AFTER duration");
+        }
+
+        // Ensure started_at column exists for exact scan start timestamp
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $started_col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'started_at'");
+        if (empty($started_col_check)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN started_at datetime(3) NULL AFTER created_at");
+        }
+
+        // Ensure completed_at supports millisecond precision if supported
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        @$wpdb->query("ALTER TABLE `{$scans_table}` MODIFY COLUMN completed_at datetime(3) NULL");
+
+        update_option('wcp_scanner_db_version', '1.5.2');
     }
 }

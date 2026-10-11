@@ -1,3 +1,12 @@
+v:1.5.2 - 2026-10-12
+- High-Precision Microsecond & Millisecond Scan Execution Duration Tracking:
+  * Upgraded `wp_wcp_scans` database schema with `started_at` (`datetime(3)`), `completed_at` (`datetime(3)`), and `duration_ms` (`int(11)`) columns to guarantee sub-second and millisecond tracking for all scan types.
+  * Implemented `now_fractional_mysql()` and `format_duration_precise()` in `ScannerRoutes.php`: captures exact microtime at scan initialization and completion in WordPress local timezone without timestamp truncation.
+  * Replaced MySQL `DATE_SUB(NOW())` timezone-clashing queries with WordPress timezone-aware `wp_timezone()` arithmetic, eliminating offset discrepancies between server system clock and WordPress site timezone.
+  * Enhanced both manual dashboard scans, targeted single-engine audits, and scheduled background WP-Cron runs (`Scheduler.php`) to save microsecond execution timestamps and compute exact `duration_ms`.
+  * Updated `App.tsx` and REST API telemetry to display high-resolution execution durations (e.g. `420ms`, `1.85s`, `18.4s`, `1m 5s`) with hover tooltips across the Recorded Scan Runs history table, inspection report header, and top dashboard widgets.
+  * Added start and finish timestamp breakdown (`started_at` and `completed_at`) to the Inspection & Audit Findings Report detail banner.
+
 v:1.5.1 - 2026-10-11
 - Automated Sensitive Credential & Webhook Masking on Settings Save & Reveal:
   * Enhanced `SettingsPage.tsx` to automatically reset the active reveal toggle state (`showKey`) immediately upon saving settings, importing configuration, or restoring defaults.

@@ -515,6 +515,9 @@ class ScannerRoutes {
         }
 
         $table_scans = $wpdb->prefix . 'wcp_scans';
+        $now_exact = self::now_fractional_mysql();
+        $start_micro = microtime(true);
+
         $wpdb->insert($table_scans, [
             'status'        => 'running',
             'scan_target'   => $target,
@@ -524,13 +527,16 @@ class ScannerRoutes {
             'issues_found'  => 0,
             'risk_score'    => 0,
             'duration'      => 0,
+            'duration_ms'   => 0,
             'created_at'    => current_time('mysql'),
+            'started_at'    => $now_exact,
         ]);
-        $scan_id = $wpdb->insert_id;
+        $scan_id = (int) $wpdb->insert_id;
 
         // Acquire lock
         ScanLock::acquire($scan_id);
 
+        set_transient("wcp_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
         set_transient("wcp_scan_queue_{$scan_id}", $all_files, HOUR_IN_SECONDS);
 
         return rest_ensure_response([
@@ -538,6 +544,7 @@ class ScannerRoutes {
             'scan_id'     => $scan_id,
             'total_files' => count($all_files),
             'status'      => 'running',
+            'started_at'  => $now_exact,
         ]);
     }
 
@@ -782,30 +789,72 @@ class ScannerRoutes {
             $scorer = new RiskScorer();
             $summary = $scorer->calculate($all_scan_issues);
 
-            // Calculate duration accurately (supporting client_duration from browser or computing via current_time('timestamp'))
+            // Calculate duration accurately with millisecond precision
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $scan_row = $wpdb->get_row($wpdb->prepare("SELECT created_at, duration FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+            $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+            $client_duration_ms = (int) $request->get_param('client_duration_ms');
             $client_duration = (int) $request->get_param('client_duration');
-            if ($client_duration > 0) {
-                $duration = $client_duration;
-            } elseif ($scan_row && !empty($scan_row['created_at'])) {
-                $created_ts = strtotime(get_gmt_from_date($scan_row['created_at'], 'Y-m-d H:i:s'));
-                if (!$created_ts) {
-                    $created_ts = strtotime($scan_row['created_at']);
-                    $duration = max(1, current_time('timestamp') - $created_ts);
-                } else {
-                    $duration = max(1, time() - $created_ts);
+            $start_micro = get_transient("wcp_scan_start_micro_{$scan_id}");
+            $completed_at_exact = self::now_fractional_mysql();
+
+            $duration_ms = 0;
+            $duration_sec = 0;
+
+            if ($start_micro && is_numeric($start_micro)) {
+                $calc_diff = microtime(true) - (float) $start_micro;
+                if ($calc_diff > 0) {
+                    $duration_ms = (int) round($calc_diff * 1000);
+                    $duration_sec = max(1, (int) round($calc_diff));
                 }
-            } else {
-                $duration = 1;
             }
+
+            if ($duration_ms <= 0 && $client_duration_ms > 0) {
+                $duration_ms = $client_duration_ms;
+                $duration_sec = max(1, (int) round($client_duration_ms / 1000));
+            } elseif ($duration_ms <= 0 && $client_duration > 0) {
+                $duration_sec = $client_duration;
+                $duration_ms = $client_duration * 1000;
+            } elseif ($duration_ms <= 0 && $scan_row) {
+                if (!empty($scan_row['started_at'])) {
+                    $start_dt = date_create($scan_row['started_at'], wp_timezone());
+                    $end_dt = date_create($completed_at_exact, wp_timezone());
+                    if ($start_dt && $end_dt) {
+                        $diff_sec = $end_dt->getTimestamp() - $start_dt->getTimestamp() + (($end_dt->format('u') - $start_dt->format('u')) / 1000000);
+                        if ($diff_sec > 0) {
+                            $duration_ms = (int) round($diff_sec * 1000);
+                            $duration_sec = max(1, (int) round($diff_sec));
+                        }
+                    }
+                }
+
+                if ($duration_ms <= 0 && !empty($scan_row['created_at'])) {
+                    $created_dt = date_create($scan_row['created_at'], wp_timezone());
+                    if ($created_dt) {
+                        $now_dt = date_create('now', wp_timezone());
+                        $diff_sec = max(0.1, $now_dt->getTimestamp() - $created_dt->getTimestamp());
+                        $duration_ms = (int) round($diff_sec * 1000);
+                        $duration_sec = max(1, (int) round($diff_sec));
+                    }
+                }
+            }
+
+            if ($duration_ms <= 0) {
+                $duration_ms = 100;
+                $duration_sec = 1;
+            }
+
+            delete_transient("wcp_scan_start_micro_{$scan_id}");
+
+            $started_at_db = !empty($scan_row['started_at']) ? $scan_row['started_at'] : ($scan_row['created_at'] ?? $completed_at_exact);
 
             $wpdb->update($table_scans, [
                 'status'        => 'completed',
                 'issues_found'  => count($all_scan_issues),
                 'risk_score'    => $summary['score'],
-                'duration'      => $duration,
-                'completed_at'  => current_time('mysql'),
+                'duration'      => $duration_sec,
+                'duration_ms'   => $duration_ms,
+                'started_at'    => $started_at_db,
+                'completed_at'  => $completed_at_exact,
             ], ['id' => $scan_id]);
 
             $completed_scan_row = [
@@ -813,10 +862,13 @@ class ScannerRoutes {
                 'status'        => 'completed',
                 'issues_found'  => count($all_scan_issues),
                 'risk_score'    => $summary['score'],
-                'duration'      => $duration,
+                'duration'      => $duration_sec,
+                'duration_ms'   => $duration_ms,
                 'scanned_files' => (int) ($scan_row['scanned_files'] ?? ($scan_row['total_files'] ?? 0)),
                 'total_files'   => (int) ($scan_row['total_files'] ?? 0),
                 'created_at'    => $scan_row['created_at'] ?? current_time('mysql'),
+                'started_at'    => $started_at_db,
+                'completed_at'  => $completed_at_exact,
             ];
             $diagnostics = self::build_scan_diagnostics($completed_scan_row);
 
@@ -1152,11 +1204,43 @@ class ScannerRoutes {
                 ? (($scanned >= $total && $total > 0) ? 'deep_audit' : 'batch')
                 : (($remaining > 0) ? 'batch' : 'deep_audit'),
             'created_at'     => $running_scan['created_at'],
-            'elapsed'        => (function() use ($running_scan) {
+            'started_at'     => $running_scan['started_at'] ?? $running_scan['created_at'],
+            'elapsed'        => (function() use ($running_scan, $locked_id) {
+                $start_micro = get_transient("wcp_scan_start_micro_{$locked_id}");
+                if ($start_micro && is_numeric($start_micro)) {
+                    $diff = microtime(true) - (float) $start_micro;
+                    if ($diff > 0) return max(1, (int) round($diff));
+                }
+                if (!empty($running_scan['started_at'])) {
+                    $start_dt = date_create($running_scan['started_at'], wp_timezone());
+                    if ($start_dt) {
+                        $now_dt = date_create('now', wp_timezone());
+                        return max(1, $now_dt->getTimestamp() - $start_dt->getTimestamp());
+                    }
+                }
                 if (empty($running_scan['created_at'])) return 1;
-                $gmt_ts = strtotime(get_gmt_from_date($running_scan['created_at'], 'Y-m-d H:i:s'));
-                if ($gmt_ts > 0) return max(1, time() - $gmt_ts);
-                return max(1, current_time('timestamp') - strtotime($running_scan['created_at']));
+                $created_dt = date_create($running_scan['created_at'], wp_timezone());
+                if ($created_dt) {
+                    $now_dt = date_create('now', wp_timezone());
+                    return max(1, $now_dt->getTimestamp() - $created_dt->getTimestamp());
+                }
+                return 1;
+            })(),
+            'elapsed_ms'     => (function() use ($running_scan, $locked_id) {
+                $start_micro = get_transient("wcp_scan_start_micro_{$locked_id}");
+                if ($start_micro && is_numeric($start_micro)) {
+                    $diff = microtime(true) - (float) $start_micro;
+                    if ($diff > 0) return (int) round($diff * 1000);
+                }
+                if (!empty($running_scan['started_at'])) {
+                    $start_dt = date_create($running_scan['started_at'], wp_timezone());
+                    if ($start_dt) {
+                        $now_dt = date_create('now', wp_timezone());
+                        $diff = $now_dt->getTimestamp() - $start_dt->getTimestamp() + (($now_dt->format('u') - $start_dt->format('u')) / 1000000);
+                        return max(100, (int) round($diff * 1000));
+                    }
+                }
+                return 1000;
             })(),
         ]);
     }
@@ -1170,10 +1254,26 @@ class ScannerRoutes {
             $scan_id = ScanLock::get_locked_scan_id();
         }
 
+        $now_exact = self::now_fractional_mysql();
+
         if ($scan_id) {
+            $start_micro = get_transient("wcp_scan_start_micro_{$scan_id}");
+            $duration_ms = 0;
+            $duration_sec = 0;
+            if ($start_micro && is_numeric($start_micro)) {
+                $calc_diff = microtime(true) - (float) $start_micro;
+                if ($calc_diff > 0) {
+                    $duration_ms = (int) round($calc_diff * 1000);
+                    $duration_sec = max(1, (int) round($calc_diff));
+                }
+            }
+            delete_transient("wcp_scan_start_micro_{$scan_id}");
+
             $wpdb->update($table_scans, [
                 'status'       => 'aborted',
-                'completed_at' => current_time('mysql'),
+                'duration'     => $duration_sec,
+                'duration_ms'  => $duration_ms,
+                'completed_at' => $now_exact,
             ], ['id' => $scan_id]);
             delete_transient("wcp_scan_queue_{$scan_id}");
             ScanLock::release($scan_id);
@@ -1182,7 +1282,7 @@ class ScannerRoutes {
         // Also release any active scan lock and ensure any hanging scans are aborted
         ScanLock::release();
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query("UPDATE `{$table_scans}` SET status = 'aborted', completed_at = NOW() WHERE status = 'running'");
+        $wpdb->query($wpdb->prepare("UPDATE `{$table_scans}` SET status = 'aborted', completed_at = %s WHERE status = 'running'", $now_exact));
 
         return rest_ensure_response([
             'success' => true,
@@ -1289,6 +1389,53 @@ class ScannerRoutes {
     }
 
     /**
+     * Get high-precision current timestamp in WordPress local time.
+     *
+     * @return string e.g. "2026-10-12 01:10:12.345"
+     */
+    public static function now_fractional_mysql() {
+        $micro = microtime(true);
+        $seconds = (int) $micro;
+        $millis = (int) round(($micro - $seconds) * 1000);
+        if ($millis >= 1000) {
+            $seconds++;
+            $millis = 0;
+        }
+        $date_str = wp_date('Y-m-d H:i:s', $seconds);
+        return sprintf('%s.%03d', $date_str, $millis);
+    }
+
+    /**
+     * Formats duration in seconds or fractional seconds into human-readable representation.
+     *
+     * @param float $duration_secs Duration in seconds (e.g. 0.42, 1.85, 65.2)
+     * @param int $duration_ms Duration in milliseconds (e.g. 420)
+     * @return string e.g. "420ms", "1.85s", "1m 5s"
+     */
+    public static function format_duration_precise($duration_secs, $duration_ms = 0) {
+        $ms = (int) $duration_ms;
+        if ($ms <= 0 && $duration_secs > 0) {
+            $ms = (int) round($duration_secs * 1000);
+        }
+
+        if ($ms < 1000 && $ms > 0) {
+            return "{$ms}ms";
+        }
+
+        $secs = $duration_secs > 0 ? $duration_secs : round($ms / 1000, 2);
+        if ($secs < 10) {
+            return sprintf('%.2fs', $secs);
+        } elseif ($secs < 60) {
+            return sprintf('%.1fs', $secs);
+        }
+
+        $total_sec = (int) round($secs);
+        $mins = floor($total_sec / 60);
+        $rem_sec = $total_sec % 60;
+        return "{$mins}m {$rem_sec}s";
+    }
+
+    /**
      * Build rich performance and system diagnostic telemetry for a scan.
      *
      * @param array $scan
@@ -1317,28 +1464,36 @@ class ScannerRoutes {
         }
         $memory_pct = $limit_bytes > 0 ? round(($peak_bytes / $limit_bytes) * 100, 1) : 0;
 
-        // Duration & Throughput
-        $duration = (int) ($scan['duration'] ?? 0);
-        if ($duration <= 0 && !empty($scan['created_at'])) {
-            $created_ts = strtotime(get_gmt_from_date($scan['created_at'], 'Y-m-d H:i:s'));
-            if ($created_ts > 0) {
-                $duration = max(1, time() - $created_ts);
-            } else {
-                $duration = max(1, current_time('timestamp') - strtotime($scan['created_at']));
+        // Accurate Duration & Throughput
+        $duration_ms = (int) ($scan['duration_ms'] ?? 0);
+        $duration_sec = isset($scan['duration']) ? (float) $scan['duration'] : 0.0;
+
+        if ($duration_ms > 0) {
+            $duration_sec = round($duration_ms / 1000, 3);
+        } elseif ($duration_sec <= 0 && !empty($scan['started_at']) && !empty($scan['completed_at'])) {
+            $start_dt = date_create_from_format('Y-m-d H:i:s.u', $scan['started_at']) ?: date_create($scan['started_at']);
+            $end_dt = date_create_from_format('Y-m-d H:i:s.u', $scan['completed_at']) ?: date_create($scan['completed_at']);
+            if ($start_dt && $end_dt) {
+                $diff = $end_dt->getTimestamp() - $start_dt->getTimestamp() + (($end_dt->format('u') - $start_dt->format('u')) / 1000000);
+                if ($diff > 0) {
+                    $duration_sec = round($diff, 3);
+                    $duration_ms = (int) round($diff * 1000);
+                }
+            }
+        } elseif ($duration_sec <= 0 && !empty($scan['created_at'])) {
+            $created_dt = date_create($scan['created_at'], wp_timezone());
+            if ($created_dt) {
+                $now_dt = date_create('now', wp_timezone());
+                $diff = $now_dt->getTimestamp() - $created_dt->getTimestamp();
+                $duration_sec = max(0.1, (float) $diff);
+                $duration_ms = (int) round($duration_sec * 1000);
             }
         }
-        $duration = max(1, $duration);
-        $scanned_files = (int) ($scan['scanned_files'] ?? ($scan['total_files'] ?? 0));
-        $files_per_sec = round($scanned_files / $duration, 1);
 
-        // Format Duration
-        if ($duration < 60) {
-            $duration_fmt = "{$duration}s";
-        } else {
-            $mins = floor($duration / 60);
-            $secs = $duration % 60;
-            $duration_fmt = "{$mins}m {$secs}s";
-        }
+        $duration_fmt = self::format_duration_precise($duration_sec, $duration_ms);
+        $scanned_files = (int) ($scan['scanned_files'] ?? ($scan['total_files'] ?? 0));
+        $effective_sec = max(0.1, $duration_sec);
+        $files_per_sec = round($scanned_files / $effective_sec, 1);
 
         // CPU Load Average
         $cpu_load = null;
@@ -1359,7 +1514,8 @@ class ScannerRoutes {
         $server_os = php_uname('s');
 
         return [
-            'duration_seconds'    => $duration,
+            'duration_seconds'    => round($duration_sec, 2),
+            'duration_ms'         => $duration_ms,
             'duration_formatted'  => $duration_fmt,
             'peak_memory_mb'      => $peak_mb,
             'peak_memory_fmt'     => "{$peak_mb} MB",

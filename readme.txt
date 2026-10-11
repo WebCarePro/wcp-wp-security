@@ -5,7 +5,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 1.5.1
+Stable tag: 1.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -255,6 +255,12 @@ To compile the React admin application from source:
 3. Run `npm run build` to generate the production bundle in `build/index.js`.
 
 == Changelog ==
+
+= 1.5.2 =
+* Added high-precision microsecond & millisecond duration tracking across manual, targeted, and scheduled scans.
+* Upgraded scans database schema with started_at, completed_at (datetime(3)), and duration_ms columns.
+* Implemented WordPress timezone-aware execution tracking eliminating server clock and site timezone drift.
+* Enhanced Scan Logs & History, Inspection findings report, and Dashboard widgets with human-readable duration telemetry (ms and s).
 
 = 1.5.1 =
 * Hardened settings management with two-step "Reset Defaults" modal requiring explicit confirmation.

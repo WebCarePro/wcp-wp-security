@@ -68,6 +68,9 @@ class Scheduler {
              }
          }
 
+         $now_exact = \WCP\Scanner\Api\ScannerRoutes::now_fractional_mysql();
+         $start_time = microtime(true);
+
          // Insert scan record
          $wpdb->insert($table_scans, [
              'status'        => 'running',
@@ -78,14 +81,15 @@ class Scheduler {
              'issues_found'  => 0,
              'risk_score'    => 0,
              'duration'      => 0,
+             'duration_ms'   => 0,
              'created_at'    => current_time('mysql'),
+             'started_at'    => $now_exact,
          ]);
          $scan_id = (int) $wpdb->insert_id;
 
          // Acquire exclusive scan lock so dashboard doesn't mark it interrupted
          ScanLock::acquire($scan_id);
-
-         $start_time = microtime(true);
+         set_transient("wcp_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
 
          try {
              $scanned_count = 0;
@@ -229,7 +233,10 @@ class Scheduler {
              }
 
              // 4. Calculate final risk score across all findings
-             $duration = max(1, (int) round(microtime(true) - $start_time));
+             $calc_sec = microtime(true) - $start_time;
+             $duration_ms = (int) round($calc_sec * 1000);
+             $duration = max(1, (int) round($calc_sec));
+             $completed_at_exact = \WCP\Scanner\Api\ScannerRoutes::now_fractional_mysql();
              // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
              $all_scan_issues = $wpdb->get_results($wpdb->prepare(
                  "SELECT * FROM `{$table_issues}` WHERE scan_id = %d",
@@ -247,24 +254,30 @@ class Scheduler {
                  'issues_found'  => $total_issues,
                  'risk_score'    => $risk_score,
                  'duration'      => $duration,
-                 'completed_at'  => current_time('mysql'),
+                 'duration_ms'   => $duration_ms,
+                 'completed_at'  => $completed_at_exact,
              ], ['id' => $scan_id]);
 
              // Release exclusive lock
              \WCP\Scanner\Scan\ScanLock::release($scan_id);
-            delete_transient("wcp_active_scan_file_{$scan_id}");
+             delete_transient("wcp_active_scan_file_{$scan_id}");
+             delete_transient("wcp_scan_start_micro_{$scan_id}");
 
              // 5. Send Alerts & Notifications
              self::send_scan_notification($scan_id, $total_issues, $risk_score, $target);
 
          } catch (\Throwable $e) {
              \WCP\Scanner\Scan\ScanLock::release($scan_id);
-            delete_transient("wcp_active_scan_file_{$scan_id}");
-             $duration = max(1, (int) round(microtime(true) - $start_time));
+             delete_transient("wcp_active_scan_file_{$scan_id}");
+             delete_transient("wcp_scan_start_micro_{$scan_id}");
+             $calc_sec = microtime(true) - $start_time;
+             $duration_ms = (int) round($calc_sec * 1000);
+             $duration = max(1, (int) round($calc_sec));
              $wpdb->update($table_scans, [
                  'status'       => 'interrupted',
                  'duration'     => $duration,
-                 'completed_at' => current_time('mysql'),
+                 'duration_ms'  => $duration_ms,
+                 'completed_at' => \WCP\Scanner\Api\ScannerRoutes::now_fractional_mysql(),
              ], ['id' => $scan_id]);
              error_log('[WCP Scanner] Scheduled scan failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
          }
