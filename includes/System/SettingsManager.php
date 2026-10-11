@@ -431,42 +431,26 @@ class SettingsManager {
         $target_hour = isset($parts[0]) ? (int) $parts[0] : 2;
         $target_minute = isset($parts[1]) ? (int) $parts[1] : 0;
 
-        // Current site local date and time components
-        $site_now = current_time('timestamp');
-        $site_year = (int) gmdate('Y', $site_now);
-        $site_month = (int) gmdate('m', $site_now);
-        $site_day = (int) gmdate('d', $site_now);
-        $site_cur_hour = (int) gmdate('H', $site_now);
-        $site_cur_min = (int) gmdate('i', $site_now);
+        // Use WordPress site timezone for clean datetime arithmetic
+        $tz = function_exists('wp_timezone') ? wp_timezone() : new \DateTimeZone(get_option('timezone_string') ?: 'UTC');
+        $site_now = new \DateTimeImmutable('now', $tz);
 
         if ($frequency === 'hourly') {
-            // Anchor to the specific minute of each hour (e.g. XX:10).
-            // If the specified minute in the current hour is already past, target the next hour at that minute.
-            $cand_hour = $site_cur_hour;
-            $cand_day = $site_day;
-            if ($target_minute <= $site_cur_min) {
-                $cand_hour++;
+            // Anchor to the specific minute of each hour (e.g. 11:59 -> :59 past the hour)
+            $cand = $site_now->setTime((int) $site_now->format('H'), $target_minute, 0);
+            if ($cand->getTimestamp() <= $now_utc) {
+                $cand = $cand->modify('+1 hour');
             }
-            // Build candidates using timestamp math in site local time
-            $site_cand_ts = mktime($cand_hour, $target_minute, 0, $site_month, $cand_day, $site_year);
-            $site_date_str = gmdate('Y-m-d H:i:s', $site_cand_ts);
-            $target_utc = (int) strtotime(get_gmt_from_date($site_date_str, 'Y-m-d H:i:s'));
+            $target_utc = $cand->getTimestamp();
 
-            // Ensure strictly in future
+            // Safety guard: guarantee target is in the future
             while ($target_utc <= $now_utc) {
                 $target_utc += HOUR_IN_SECONDS;
             }
         } elseif ($frequency === 'twicedaily') {
-            // Twice daily (every 12 hours) anchored to schedule_time (e.g. 01:10 and 13:10)
-            $site_date_str = sprintf(
-                '%04d-%02d-%02d %02d:%02d:00',
-                $site_year,
-                $site_month,
-                $site_day,
-                $target_hour,
-                $target_minute
-            );
-            $anchor_utc = (int) strtotime(get_gmt_from_date($site_date_str, 'Y-m-d H:i:s'));
+            // Twice daily (every 12 hours) anchored to schedule_time
+            $cand = $site_now->setTime($target_hour, $target_minute, 0);
+            $anchor_utc = $cand->getTimestamp();
 
             // Find nearest upcoming occurrence (every 12 hours from anchor)
             $target_utc = $anchor_utc;
@@ -477,18 +461,9 @@ class SettingsManager {
                 $target_utc -= (12 * HOUR_IN_SECONDS);
             }
         } else {
-            // Daily or Weekly at the configured schedule_time (in WordPress local timezone)
-            $site_date_str = sprintf(
-                '%04d-%02d-%02d %02d:%02d:00',
-                $site_year,
-                $site_month,
-                $site_day,
-                $target_hour,
-                $target_minute
-            );
-
-            // Convert site local datetime string to UTC unix timestamp
-            $target_utc = (int) strtotime(get_gmt_from_date($site_date_str, 'Y-m-d H:i:s'));
+            // Daily or Weekly at the configured schedule_time in site timezone
+            $cand = $site_now->setTime($target_hour, $target_minute, 0);
+            $target_utc = $cand->getTimestamp();
 
             if ($target_utc <= $now_utc) {
                 $target_utc += DAY_IN_SECONDS;

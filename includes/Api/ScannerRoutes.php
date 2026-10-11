@@ -211,6 +211,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/settings/trigger-cron', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'trigger_cron_now'],
+            'permission_callback' => $permission,
+        ]);
+
         // HTTP Security Headers & Hardening Endpoints
         register_rest_route(self::NAMESPACE, '/hardening/audit', [
             'methods'             => 'GET',
@@ -1085,13 +1091,27 @@ class ScannerRoutes {
         $table_scans = $wpdb->prefix . 'wcp_scans';
         $locked_id = ScanLock::get_locked_scan_id();
 
+        // If no lock option exists, check if there is an active scan record in the DB created recently
         if (!$locked_id) {
-            // Clean up any stale scans marked 'running' whose locks have expired or died (older than 5 minutes)
+            // Clean up any stale scans marked 'running' older than 10 minutes
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query("UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)");
-            return rest_ensure_response([
-                'is_running' => false,
-            ]);
+            $wpdb->query("UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+
+            // Fallback: check if any recent scan (< 5 mins) is legitimately running in database
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $recent_active = $wpdb->get_row(
+                "SELECT * FROM `{$table_scans}` WHERE status = 'running' AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) ORDER BY id DESC LIMIT 1",
+                ARRAY_A
+            );
+
+            if ($recent_active) {
+                $locked_id = (int) $recent_active['id'];
+                ScanLock::acquire($locked_id);
+            } else {
+                return rest_ensure_response([
+                    'is_running' => false,
+                ]);
+            }
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1578,6 +1598,27 @@ class ScannerRoutes {
             'message'  => __('Settings have been reset to factory defaults.', 'wcp-security-scanner'),
             'settings' => $defaults,
         ]);
+    }
+
+    /**
+     * Manually trigger the scheduled cron scan immediately (for test / on-demand cron execution)
+     */
+    public static function trigger_cron_now(\WP_REST_Request $request) {
+        $locked_id = ScanLock::get_locked_scan_id();
+        if ($locked_id) {
+            return new \WP_Error('scan_locked', __('A scan is already actively running (ID: ' . $locked_id . ').', 'wcp-security-scanner'), ['status' => 409]);
+        }
+
+        // Run scheduled scan synchronously or trigger the hook
+        try {
+            \WCP\Scanner\System\Scheduler::run_scheduled_scan();
+            return rest_ensure_response([
+                'success' => true,
+                'message' => __('Scheduled security scan was triggered and executed successfully.', 'wcp-security-scanner'),
+            ]);
+        } catch (\Throwable $e) {
+            return new \WP_Error('cron_trigger_failed', $e->getMessage(), ['status' => 500]);
+        }
     }
 
     /**
