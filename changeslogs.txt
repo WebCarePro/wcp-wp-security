@@ -80,7 +80,10 @@ v:1.12.0 - 2026-10-12
   * Authored `features.md` as an exhaustive, deep-dive architectural reference documenting all 21 specialized security engines, UI subsystems, REST endpoints, and security mechanisms.
   * Synchronized and expanded `README.md` and `readme.txt` with extended feature descriptions, 1.12.0 changelog details, and verified solo freelancer identity & tone.
   * Added featured spotlight callout, visual architecture comparison matrix, security shield badges, and dedicated deep-dive sections for the Cryptographic Secret Vault & AES-256-CBC Database Encryption at Rest in `README.md`.
-
+- CVEs & Warnings Threat Cube & Category Filter Synchronization:
+  * Resolved a discrepancy where Threat Metric Cube 3 displayed count "2" ("CVEs & Warnings") based on medium-severity site warnings, but the subtext read "0 CVE advisories • 0 spam" and clicking "Filter CVE Advisories" navigated to an empty table ("No Findings Match Active Filters").
+  * Unified metric calculation in `App.tsx` across Cube 3, subtitle metadata, action buttons, and table category pills: subtext now transparently reports `{cveCount} CVE advisories • {medCount} site warnings`.
+  * Synchronized the category filter pill (`CVEs & Warnings`) and table matcher (`categoryFilter === 'cve'`) to accurately filter and display both software CVE advisories, update requirements, and medium/low severity site configuration warnings.
 
 
 
