@@ -37,10 +37,11 @@ v:1.5.1 - 2026-10-11
 - Schedule Scan Diagnostics: WordPress Time, GMT Time & Live Relative Countdown:
   * Enhanced REST API endpoints (`/settings`) in `ScannerRoutes.php` with `build_schedule_time_info()`, returning both WordPress local time and GMT/UTC timestamps, active timezone offsets, and exact second differentials.
   * Upgraded `SettingsManager::sync_cron_schedule()` to calculate intervals properly across Hourly, Twice Daily, Daily, and Weekly frequencies.
-- Custom Scheduled Start Time for All Scan Frequencies (Hourly, Twice Daily, Daily, Weekly):
+- Custom Scheduled Start Time & Background Scan Progress Tracking:
   * Empowered users to set the specific start time (`schedule_time`) for Hourly and Twice Daily scans rather than arbitrarily starting 1 hour from the moment the settings were saved.
   * In Hourly mode, the cron event is anchored to the configured minute past the hour (e.g. setting `01:10` runs at `:10` past every hour, starting with the next upcoming `:10` minute mark).
   * In Twice Daily mode, the cron event is anchored every 12 hours from the configured time (e.g. `01:10` and `13:10`).
+  * Updated `Scheduler.php` to periodically persist real-time `scanned_files` counts to `wp_wcp_scans` during background execution so the dashboard and REST API (`/scan/active`) reflect live progress.
   * Updated `SettingsPage.tsx` with dynamic contextual guidance clarifying the anchored execution interval based on the selected frequency.
 
 v:1.5.0 - 2026-10-10

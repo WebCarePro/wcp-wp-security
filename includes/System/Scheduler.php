@@ -93,9 +93,12 @@ class Scheduler {
 
              // 2. Scan discovered filesystem files
              foreach ($files as $idx => $filepath) {
-                 // Refresh lock heartbeat every 25 files
+                 // Refresh lock heartbeat and persist progress count every 25 files
                  if ($idx > 0 && $idx % 25 === 0) {
                      \WCP\Scanner\Scan\ScanLock::heartbeat($scan_id);
+                     $wpdb->update($table_scans, [
+                         'scanned_files' => $scanned_count,
+                     ], ['id' => $scan_id]);
                  }
 
                  $findings = $file_scanner->scan_file($filepath, (string) $scan_id);
