@@ -2,8 +2,8 @@
 Contributors: miralamin
 Donate link: https://webcarespro.com
 Tags: security, malware, ai-security, firewall, 2fa
-Requires at least: 7.0
-Tested up to: 7.1
+Requires at least: 6.2
+Tested up to: 6.7
 Requires PHP: 8.3
 Stable tag: 1.12.0
 License: GPLv2 or later
