@@ -93,12 +93,13 @@ class Scheduler {
 
              // 2. Scan discovered filesystem files
              foreach ($files as $idx => $filepath) {
-                 // Refresh lock heartbeat and persist progress count every 25 files
-                 if ($idx > 0 && $idx % 25 === 0) {
+                 // Refresh lock heartbeat and persist progress count every 15 files
+                 if ($idx > 0 && $idx % 15 === 0) {
                      \WCP\Scanner\Scan\ScanLock::heartbeat($scan_id);
                      $wpdb->update($table_scans, [
                          'scanned_files' => $scanned_count,
                      ], ['id' => $scan_id]);
+                     set_transient("wcp_active_scan_file_{$scan_id}", $filepath, 120);
                  }
 
                  $findings = $file_scanner->scan_file($filepath, (string) $scan_id);
@@ -251,12 +252,14 @@ class Scheduler {
 
              // Release exclusive lock
              \WCP\Scanner\Scan\ScanLock::release($scan_id);
+            delete_transient("wcp_active_scan_file_{$scan_id}");
 
              // 5. Send Alerts & Notifications
              self::send_scan_notification($scan_id, $total_issues, $risk_score, $target);
 
          } catch (\Throwable $e) {
              \WCP\Scanner\Scan\ScanLock::release($scan_id);
+            delete_transient("wcp_active_scan_file_{$scan_id}");
              $duration = max(1, (int) round(microtime(true) - $start_time));
              $wpdb->update($table_scans, [
                  'status'       => 'interrupted',

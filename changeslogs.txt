@@ -43,6 +43,11 @@ v:1.5.1 - 2026-10-11
   * In Twice Daily mode, the cron event is anchored every 12 hours from the configured time (e.g. `01:10` and `13:10`).
   * Updated `Scheduler.php` to periodically persist real-time `scanned_files` counts to `wp_wcp_scans` during background execution so the dashboard and REST API (`/scan/active`) reflect live progress.
   * Updated `SettingsPage.tsx` with dynamic contextual guidance clarifying the anchored execution interval based on the selected frequency.
+- Live Dashboard & Scanner UI Monitoring for Scheduled Background Scans:
+  * Resolved issue where scheduled scans running in the background via WP-Cron were not visible on the main Dashboard & Scanner tabs.
+  * Enhanced `ScannerRoutes::get_active_scan()` to expose `trigger_type`, active scanning file (`last_file`), and accurately calculate remaining files when client batch queues are absent.
+  * Upgraded `App.tsx` with `monitorBackgroundScan()`: when an active scheduled scan is detected, the frontend enters a non-intrusive polling state every 2.5 seconds, dynamically updating the top banner ("Scheduled Auto Scan"), progress bar, scanned file counts, and audit stages without interfering with the server's background scan loop.
+  * Added periodic idle scanner checking in `App.tsx` so users on the dashboard immediately observe scheduled scans when they fire in the background.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):

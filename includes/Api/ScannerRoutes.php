@@ -1111,20 +1111,26 @@ class ScannerRoutes {
         ScanLock::heartbeat($locked_id);
 
         $queue = get_transient("wcp_scan_queue_{$locked_id}");
-        $remaining = is_array($queue) ? count($queue) : 0;
         $total = (int) $running_scan['total_files'];
         $scanned = (int) $running_scan['scanned_files'];
+        $trigger_type = !empty($running_scan['trigger_type']) ? $running_scan['trigger_type'] : 'manual';
+        $remaining = is_array($queue) ? count($queue) : max(0, $total - $scanned);
+        $last_file = get_transient("wcp_active_scan_file_{$locked_id}") ?: '';
 
         return rest_ensure_response([
             'is_running'     => true,
             'scan_id'        => $locked_id,
             'scan_target'    => $running_scan['scan_target'],
+            'trigger_type'   => $trigger_type,
             'status'         => 'running',
             'scanned_files'  => $scanned,
             'total_files'    => $total,
             'remaining'      => $remaining,
+            'last_file'      => $last_file,
             'issues_found'   => (int) $running_scan['issues_found'],
-            'phase'          => ($remaining > 0) ? 'batch' : 'deep_audit',
+            'phase'          => ($trigger_type === 'scheduled') 
+                ? (($scanned >= $total && $total > 0) ? 'deep_audit' : 'batch')
+                : (($remaining > 0) ? 'batch' : 'deep_audit'),
             'created_at'     => $running_scan['created_at'],
             'elapsed'        => (function() use ($running_scan) {
                 if (empty($running_scan['created_at'])) return 1;
