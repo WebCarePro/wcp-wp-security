@@ -997,6 +997,11 @@ class ScannerRoutes {
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
+        if ((int) $latest_scan['risk_score'] !== (int) $summary['score']) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->update($table_scans, ['risk_score' => (int) $summary['score']], ['id' => $latest_scan['id']]);
+            $latest_scan['risk_score'] = (int) $summary['score'];
+        }
         $diagnostics = self::build_scan_diagnostics($latest_scan);
 
         return rest_ensure_response([

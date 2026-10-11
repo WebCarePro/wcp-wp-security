@@ -23,9 +23,18 @@ class RiskScorer {
         ];
 
         $raw_score = 0;
+        $open_count = 0;
 
         foreach ($findings as $finding) {
             $f_data = is_array($finding) ? $finding : (method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding);
+            $status = strtolower($f_data['status'] ?? 'open');
+
+            // Quarantined, repaired, or ignored findings are neutralized and do NOT contribute to the active site risk score.
+            if ($status !== 'open') {
+                continue;
+            }
+
+            $open_count++;
             $severity = strtolower($f_data['severity'] ?? 'medium');
             $confidence = isset($f_data['confidence']) ? floatval($f_data['confidence']) : 100;
             // Normalize confidence to 0.0 - 1.0
@@ -79,7 +88,8 @@ class RiskScorer {
             'score'       => $risk_score,
             'level'       => $level,
             'counts'      => $counts,
-            'total'       => count($findings)
+            'total'       => $open_count,
+            'all_total'   => count($findings),
         ];
     }
 }

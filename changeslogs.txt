@@ -71,10 +71,16 @@ v:1.12.0 - 2026-10-12
   * Allows repairing modified core files inside `wp-admin`, `wp-includes`, or root directories back to pristine, bit-for-bit official WordPress.org release code matching the installed WordPress version without reinstalling WordPress or using external tools.
   * Automatically creates a pre-restoration safety snapshot in the local backup vault before atomically replacing the file on disk.
   * Added "Auto-Cure: Restore WP.org Core File" actions in both the Visual Code Diff modal (`VisualDiffModal.tsx`) and the findings table (`App.tsx`), with instant status resolution and mitigation button transition upon repair.
+- Dynamic Security Health Score & Remediated Threat Resolution:
+  * Resolved an issue where quarantining or permanently deleting files from the vault left the Security Health Meter degraded (e.g. at 71% Grade B) because past neutralized findings were still counted in the risk formula.
+  * Updated `RiskScorer.php` to calculate active threat risk scores strictly from `open` issues, excluding neutralized items (`quarantined`, `repaired`, `ignored`).
+  * Updated `QuarantineManager.php` (`delete_record`) to automatically update matching scan issue statuses to `repaired` upon permanent vault deletion.
+  * Updated `App.tsx` executive dashboard to reactively recompute live health score and Threat Cubes from active open issues, instantly transitioning the SVG gauge to 100% Grade A+ ("Clean & Protected") as soon as all threats are quarantined, repaired, or deleted.
 - Comprehensive Documentation & Extended 21-Engine Architecture Catalog:
   * Authored `features.md` as an exhaustive, deep-dive architectural reference documenting all 21 specialized security engines, UI subsystems, REST endpoints, and security mechanisms.
   * Synchronized and expanded `README.md` and `readme.txt` with extended feature descriptions, 1.12.0 changelog details, and verified solo freelancer identity & tone.
   * Added featured spotlight callout, visual architecture comparison matrix, security shield badges, and dedicated deep-dive sections for the Cryptographic Secret Vault & AES-256-CBC Database Encryption at Rest in `README.md`.
+
 
 
 

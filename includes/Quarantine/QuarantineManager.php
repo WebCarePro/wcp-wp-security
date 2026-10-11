@@ -155,10 +155,13 @@ class QuarantineManager {
 
         $quarantine_id = $wpdb->insert_id;
 
-        // Update issue status if issue_id provided
+        // Update issue status
+        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
         if ($issue_id) {
-            $issues_table = $wpdb->prefix . 'wcp_scan_issues';
             $wpdb->update($issues_table, ['status' => 'quarantined'], ['id' => $issue_id]);
+        }
+        if (!empty($real_path)) {
+            $wpdb->update($issues_table, ['status' => 'quarantined'], ['file_path' => $real_path]);
         }
 
         return [
@@ -234,10 +237,13 @@ class QuarantineManager {
             'restored_at' => current_time('mysql')
         ], ['id' => $quarantine_id]);
 
-        // If issue_id exists, set status back to open
-        if ($record['issue_id']) {
-            $issues_table = $wpdb->prefix . 'wcp_scan_issues';
-            $wpdb->update($issues_table, ['status' => 'open'], ['id' => $record['issue_id']]);
+        // If issue exists, set status back to open
+        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
+        if (!empty($record['issue_id'])) {
+            $wpdb->update($issues_table, ['status' => 'open'], ['id' => (int) $record['issue_id']]);
+        }
+        if (!empty($record['original_path'])) {
+            $wpdb->update($issues_table, ['status' => 'open'], ['file_path' => $record['original_path']]);
         }
 
         return ['success' => true, 'message' => 'File successfully restored to original location.'];
@@ -276,6 +282,15 @@ class QuarantineManager {
         }
 
         $wpdb->delete($table, ['id' => (int) $quarantine_id]);
+
+        // When permanently deleting from vault storage, mark matching scan issues as repaired/resolved
+        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
+        if (!empty($record['issue_id'])) {
+            $wpdb->update($issues_table, ['status' => 'repaired'], ['id' => (int) $record['issue_id']]);
+        }
+        if (!empty($record['original_path'])) {
+            $wpdb->update($issues_table, ['status' => 'repaired'], ['file_path' => $record['original_path']]);
+        }
 
         return ['success' => true, 'message' => 'Quarantined file permanently deleted from vault storage.'];
     }
