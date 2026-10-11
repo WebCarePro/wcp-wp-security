@@ -37,10 +37,11 @@ v:1.5.1 - 2026-10-11
 - Schedule Scan Diagnostics: WordPress Time, GMT Time & Live Relative Countdown:
   * Enhanced REST API endpoints (`/settings`) in `ScannerRoutes.php` with `build_schedule_time_info()`, returning both WordPress local time and GMT/UTC timestamps, active timezone offsets, and exact second differentials.
   * Upgraded `SettingsManager::sync_cron_schedule()` to calculate intervals properly across Hourly, Twice Daily, Daily, and Weekly frequencies.
-- Accurate Scan Duration Measurement & Timezone Rectification:
-  * Resolved duration calculation bug where `time()` (UTC) was subtracted from local WordPress MySQL timestamps (`created_at`), which previously yielded negative numbers on servers with positive GMT offsets and forced `max(1, ...)` to falsely report `1s`.
-  * Normalized duration calculations in `ScannerRoutes.php` (`run_deep_audit`, `get_active_scan`, and `build_scan_diagnostics`) using `get_gmt_from_date()` and `current_time('timestamp')` to ensure true elapsed seconds are measured regardless of site timezone configuration.
-  * Enhanced `App.tsx` dashboard and targeted scan loops to accurately record client elapsed seconds and supply `client_duration` directly to the audit completion API.
+- Custom Scheduled Start Time for All Scan Frequencies (Hourly, Twice Daily, Daily, Weekly):
+  * Empowered users to set the specific start time (`schedule_time`) for Hourly and Twice Daily scans rather than arbitrarily starting 1 hour from the moment the settings were saved.
+  * In Hourly mode, the cron event is anchored to the configured minute past the hour (e.g. setting `01:10` runs at `:10` past every hour, starting with the next upcoming `:10` minute mark).
+  * In Twice Daily mode, the cron event is anchored every 12 hours from the configured time (e.g. `01:10` and `13:10`).
+  * Updated `SettingsPage.tsx` with dynamic contextual guidance clarifying the anchored execution interval based on the selected frequency.
 
 v:1.5.0 - 2026-10-10
 - Built Web Application Firewall (WAF Lite) & Virtual Patching Engine (Roadmap Feature 1):
