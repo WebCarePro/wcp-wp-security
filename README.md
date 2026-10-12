@@ -14,8 +14,8 @@
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB.svg?logo=react" alt="React 18"/></a>
   <a href="https://github.com/WebCarePro/wcp-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
   <a href="https://www.upwork.com/freelancers/~0162afa9a578170c67"><img src="https://img.shields.io/badge/Upwork-Top%20Rated%20Plus%20★%20100%25%20JSS-14A800.svg?logo=upwork" alt="Upwork Top Rated Plus"/></a>
-  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v1.12.0-orange.svg" alt="Release Version"/></a>
-  <a href="#-featured-spotlight-cryptographic-secret-vault--database-encryption-at-rest"><img src="https://img.shields.io/badge/Security-AES--256--CBC%20Vault%20Encrypted-blueviolet.svg?logo=securityscorecard&logoColor=white" alt="Cryptographic Secret Vault"/></a>
+  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v1.13.0-orange.svg" alt="Release Version"/></a>
+  <a href="#-featured-spotlight-cryptographic-secret-vault--database-encryption-at-rest"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20AEAD%20Vault-blueviolet.svg?logo=securityscorecard&logoColor=white" alt="Cryptographic Secret Vault"/></a>
 </p>
 
 ---
@@ -31,18 +31,20 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 ## 🔐 Featured Spotlight: Cryptographic Secret Vault & Database Encryption at Rest
 
 > [!IMPORTANT]
-> **Zero Plaintext Credentials in Database or SQL Backups.**  
-> Unlike typical WordPress security plugins that store third-party API keys and incoming webhooks as raw plaintext inside `wp_options`, WCP Security Scanner implements a dedicated **Military-Grade AES-256-CBC Cryptographic Secret Vault**. Every webhook URL, Cloudflare API token, AI key, and 2FA user secret is encrypted at rest using dynamic 256-bit key derivation and per-record randomized 16-byte initialization vectors (`random_bytes(16)`).
+> **Zero Plaintext Credentials in Database or SQL Backups with Authenticated AEAD Encryption.**  
+> Unlike typical WordPress security plugins that store third-party API keys and incoming webhooks as raw plaintext inside `wp_options`, WCP Security Scanner implements a dedicated **Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault**. Every webhook URL, Cloudflare API token, AI key, and 2FA user secret is encrypted at rest using modern Authenticated Encryption with Associated Data (AEAD), 128-bit integrity authentication tags, randomized 12-byte initialization vectors (`random_bytes(12)`), and dynamic 256-bit key derivation with optional server-level `WCP_VAULT_KEY` environment isolation.
 
 ### 🛡️ How the Cryptographic Secret Vault Protects Your Infrastructure:
 
 | Security Dimension | Standard WordPress Plugins | WCP Security Scanner Vault |
 |:---|:---|:---|
-| **Database Storage (`wp_options`)** | ❌ Plaintext strings visible to anyone with database access | ✅ **AES-256-CBC Encrypted Ciphertext** (`wcp_enc:...`) |
+| **Database Storage (`wp_options`)** | ❌ Plaintext strings visible to anyone with database access | ✅ **AES-256-GCM Authenticated Ciphertext** (`wcp_gcm:...`) |
+| **Tamper & Bit-Flip Resistance** | ❌ None (or vulnerable to CBC padding oracle attacks) | ✅ **128-bit Cryptographic Authentication Tag** (tampering rejected immediately) |
 | **SQL Dumps & Database Backups** | ❌ Secrets exposed in plain text if backup files are compromised | ✅ **Completely unreadable encrypted strings** |
 | **phpMyAdmin & SQLi Exposure** | ❌ Scraped easily via unauthorized database queries | ✅ **Zero plaintext credential leakage** |
-| **Encryption Keys & Salting** | ❌ Static hardcoded strings or unencrypted options | ✅ **Derived from WP Salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`)** |
-| **Initialization Vectors (IV)** | ❌ Static or reused IV vectors | ✅ **Cryptographically random 16-byte IV generated per record** |
+| **Encryption Keys & Salting** | ❌ Static hardcoded strings or unencrypted options | ✅ **Derived from WP Salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`) or dedicated `WCP_VAULT_KEY`** |
+| **Key Isolation (DevOps)** | ❌ Tied solely to database or webroot | ✅ **Supports isolated `WCP_VAULT_KEY` in server environment outside webroot** |
+| **Initialization Vectors (IV)** | ❌ Static or reused IV vectors | ✅ **Cryptographically random 12-byte IV generated per record** |
 | **Decryption Lifecycle** | ❌ Persisted in plain text on memory or disk | ✅ **Transient in-memory decryption ONLY during active API/webhook calls** |
 | **Admin UI Visibility** | ❌ Plaintext input fields or visible strings | ✅ **Auto-masked bullet placeholders (`••••••••`) with 1-click eye toggle** |
 

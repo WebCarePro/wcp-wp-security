@@ -1,3 +1,10 @@
+v:1.13.0 - 2026-10-13
+- Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault Upgrade:
+  * Upgraded `SecretVault.php` from legacy AES-256-CBC to modern AES-256-GCM Authenticated Encryption with Associated Data (AEAD) featuring 128-bit cryptographic authentication tags (`$tag`) and randomized 12-byte initialization vectors (`random_bytes(12)`).
+  * Completely eliminates ciphertext malleability, bit-flipping vulnerabilities, and CBC padding oracle attacks by cryptographically verifying ciphertext integrity before decryption.
+  * Added decoupled `WCP_VAULT_KEY` key derivation support: site administrators, DevOps engineers, and Linux sysadmins can now define a dedicated encryption key via server environment variable (`getenv('WCP_VAULT_KEY')`) or in `wp-config.php`, completely isolating vault encryption from standard WordPress session authentication salts.
+  * Preserved full zero-downtime backwards compatibility with legacy `wcp_enc:` (`aes-256-cbc`) cipher strings while newly saved secrets transition automatically to authenticated `wcp_gcm:` format.
+
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:
   * Redesigned the primary Dashboard overview into a state-of-the-art security command center featuring a high-precision circular SVG Security Health Meter with dynamic color accents, live threat grades (A+ to F), and real-time posture indicators.
