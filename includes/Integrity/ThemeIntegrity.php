@@ -69,19 +69,54 @@ class ThemeIntegrity {
                     continue;
                 }
 
-                if (is_string($expected_hash) && strlen($expected_hash) === 32) {
-                    $actual_hash = md5_file($absolute_path);
-                    if ($actual_hash !== $expected_hash) {
-                        $findings[] = new Finding([
-                            'engine'      => 'integrity-theme',
-                            'type'        => 'modified_theme_file',
-                            'severity'    => 'medium',
-                            'confidence'  => 90,
-                            'file_path'   => $absolute_path,
-                            'description' => "Theme file differs from the official checksum: {$theme_data->get('Name')}",
-                            'evidence'    => "Expected: $expected_hash, Actual: $actual_hash"
-                        ]);
+                // Extract valid hashes and algorithm
+                $algo = 'md5';
+                $valid_hashes = [];
+                if (is_array($expected_hash)) {
+                    if (isset($expected_hash['algo']) && $expected_hash['algo'] === 'sha256') {
+                        $algo = 'sha256';
+                        $valid_hashes = (array) ($expected_hash['hash'] ?? []);
+                    } elseif (isset($expected_hash['md5'])) {
+                        $valid_hashes = (array) $expected_hash['md5'];
+                    } elseif (isset($expected_hash['hash'])) {
+                        $valid_hashes = (array) $expected_hash['hash'];
+                    } else {
+                        $valid_hashes = $expected_hash;
                     }
+                } elseif (is_string($expected_hash)) {
+                    $valid_hashes = [$expected_hash];
+                }
+
+                $valid_hashes = array_filter(array_map('strval', $valid_hashes));
+                if (empty($valid_hashes)) {
+                    continue;
+                }
+
+                $actual_hash = ($algo === 'sha256') ? hash_file('sha256', $absolute_path) : md5_file($absolute_path);
+                $is_modified = !in_array($actual_hash, $valid_hashes, true);
+
+                // If modified, also normalize line endings (CRLF vs LF) to prevent OS false positives
+                if ($is_modified && $algo === 'md5') {
+                    $raw_content = @file_get_contents($absolute_path);
+                    if ($raw_content !== false) {
+                        $normalized_hash = md5(str_replace("\r\n", "\n", $raw_content));
+                        if (in_array($normalized_hash, $valid_hashes, true)) {
+                            $is_modified = false;
+                        }
+                    }
+                }
+
+                if ($is_modified) {
+                    $expected_hash_str = implode(', ', $valid_hashes);
+                    $findings[] = new Finding([
+                        'engine'      => 'integrity-theme',
+                        'type'        => 'modified_theme_file',
+                        'severity'    => 'high',
+                        'confidence'  => 95,
+                        'file_path'   => wp_normalize_path($absolute_path),
+                        'description' => "Theme file differs from the official checksum: {$theme_data->get('Name')}",
+                        'evidence'    => "Expected: {$expected_hash_str}, Actual: {$actual_hash}"
+                    ]);
                 }
             }
 

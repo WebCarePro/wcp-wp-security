@@ -17,6 +17,13 @@ v:1.13.0 - 2026-10-13
   * Scope selector toggle: allows administrators to switch seamlessly between exporting filtered subsets or the entire findings set.
   * Server-Side Export Endpoint: implemented `/wcp-scanner/v1/scan/export` REST API route for automated headless and programmatic exports.
   * Fixed Export Dropdown Container Clipping: switched Findings hub and Scan Log Inspector card containers to overflow: visible, increased dropdown z-index to 99999, and added intelligent viewport collision detection to auto-flip the dropdown upwards when near the bottom of the screen.
+- Official Plugin & Theme File Modification Detection & Full Scan Pipeline Hardening:
+  * Fixed WordPress.org Checksum Array Handling: updated `PluginIntegrity.php` and `ThemeIntegrity.php` to properly evaluate arrays of valid MD5/SHA256 checksums returned by WordPress.org (handling CRLF vs LF line endings and translation revisions) instead of skipping multi-hash values.
+  * Cross-Platform Line Ending Normalization: added fallback LF line-ending normalization (`\r\n` to `\n`) to ensure legitimate Windows/Linux OS checkouts do not trigger false positives while strictly catching modified source code.
+  * Single-File Official Plugin Verification: added canonical WordPress.org slug resolution via `update_plugins` transient and `TextDomain`, enabling single-file plugins (such as Hello Dolly) to be fully verified, diffed against official SVN, and auto-restored.
+  * Elevated Modified Plugin & Theme Finding Severity: aligned `modified_plugin_file` and `modified_theme_file` with `modified_core_file` (`severity: high`, `confidence: 95`) so integrity modifications correctly surface under the Critical & High dashboard filter and contribute proper weighting to the health score.
+  * Integrated ThemeIntegrity into Full & Scheduled Scans: added `ThemeIntegrity` into `ScannerRoutes::run_deep_audit()` and `Scheduler::run_scheduled_scan()`, ensuring official theme modifications and rogue theme files are comprehensively audited during Full and Plugins & Themes scans.
+  * Fixed Cumulative Scanned Files Progress Reporting: corrected `ScannerRoutes::process_batch()` to compute `scanned_files` from total files minus remaining queue count, preventing batches from overwriting the running count in `wp_wcp_scans`.
 
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:

@@ -194,6 +194,9 @@ class Scheduler {
                  $plugin_integrity = new \WCP\Scanner\Integrity\PluginIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
 
+                 $theme_integrity = new \WCP\Scanner\Integrity\ThemeIntegrity();
+                 $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
+
                  $db_scanner = new \WCP\Scanner\Database\DatabaseScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
 

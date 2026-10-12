@@ -34,21 +34,61 @@ class PluginIntegrity {
         $scanner_basename = plugin_basename(WCP_SCANNER_FILE);
         $scanner_slug = dirname($scanner_basename);
 
-        foreach ($plugins as $plugin_file => $plugin_data) {
-            $plugin_slug = dirname($plugin_file);
-            if (
-                $plugin_slug === '.' ||
-                $plugin_slug === $scanner_slug ||
-                $plugin_slug === 'wcp-security-scanner' ||
-                $plugin_slug === 'wcp-wp-scanner' ||
-                isset($processed_slugs[$plugin_slug])
-            ) {
-                continue; // Skip single file plugins, duplicate plugin files in same dir, and scanner's own directory
-            }
-            $processed_slugs[$plugin_slug] = true;
+        // Fetch WordPress official update transient to resolve canonical slugs
+        $update_plugins = get_site_transient('update_plugins');
 
-            $version = $plugin_data['Version'];
-            $checksums = $this->provider->get_plugin_checksums($plugin_slug, $version);
+        foreach ($plugins as $plugin_file => $plugin_data) {
+            $plugin_dir_name = dirname($plugin_file);
+            $is_single_file = ($plugin_dir_name === '.' || empty($plugin_dir_name));
+
+            // Exclude scanner's own code
+            if (
+                $plugin_dir_name === $scanner_slug ||
+                $plugin_dir_name === 'wcp-security-scanner' ||
+                $plugin_dir_name === 'wcp-wp-scanner' ||
+                strpos($plugin_file, 'wcp-') === 0
+            ) {
+                continue;
+            }
+
+            // Determine canonical plugin slug
+            $canonical_slug = null;
+            if (!empty($update_plugins->no_update[$plugin_file]->slug)) {
+                $canonical_slug = $update_plugins->no_update[$plugin_file]->slug;
+            } elseif (!empty($update_plugins->response[$plugin_file]->slug)) {
+                $canonical_slug = $update_plugins->response[$plugin_file]->slug;
+            }
+
+            if ($is_single_file) {
+                $effective_slug = $canonical_slug ?: (!empty($plugin_data['TextDomain']) ? $plugin_data['TextDomain'] : basename($plugin_file, '.php'));
+            } else {
+                $effective_slug = $canonical_slug ?: $plugin_dir_name;
+            }
+
+            if (isset($processed_slugs[$effective_slug])) {
+                continue;
+            }
+            $processed_slugs[$effective_slug] = true;
+
+            $version = trim(preg_replace('/^v/i', '', (string) ($plugin_data['Version'] ?? '')));
+            if (empty($version)) {
+                continue;
+            }
+
+            // 1. Attempt checksum retrieval by effective slug
+            $checksums = $this->provider->get_plugin_checksums($effective_slug, $version);
+
+            // 2. Fallback to folder name if effective slug differed
+            if (!$checksums && !$is_single_file && $effective_slug !== $plugin_dir_name) {
+                $checksums = $this->provider->get_plugin_checksums($plugin_dir_name, $version);
+            }
+
+            // 3. Fallback to TextDomain
+            if (!$checksums && !empty($plugin_data['TextDomain']) && $plugin_data['TextDomain'] !== $effective_slug && $plugin_data['TextDomain'] !== $plugin_dir_name) {
+                $checksums = $this->provider->get_plugin_checksums($plugin_data['TextDomain'], $version);
+            }
+
+            $component_dir = $is_single_file ? WP_PLUGIN_DIR : (WP_PLUGIN_DIR . '/' . $plugin_dir_name);
 
             if (!$checksums) {
                 // Not from WP.org or checksums unavailable
@@ -57,56 +97,95 @@ class PluginIntegrity {
                     'type'        => 'plugin_checksums_unavailable',
                     'severity'    => 'info',
                     'confidence'  => 100,
-                    'file_path'   => WP_PLUGIN_DIR . '/' . $plugin_slug,
+                    'file_path'   => wp_normalize_path($component_dir),
                     'description' => "Integrity verification unavailable for plugin: {$plugin_data['Name']} (custom/premium plugin)."
                 ]);
                 continue;
             }
 
+            // 1. Forward verification: check missing & modified files
             foreach ($checksums as $file => $expected_hash) {
-                $absolute_path = WP_PLUGIN_DIR . '/' . $plugin_slug . '/' . $file;
+                $absolute_path = $is_single_file ? (WP_PLUGIN_DIR . '/' . $file) : ($component_dir . '/' . $file);
                 
                 if (!file_exists($absolute_path)) {
+                    // For single-file plugins, auxiliary files like readme.txt are not placed in WP_PLUGIN_DIR
+                    if ($is_single_file && $file !== basename($plugin_file)) {
+                        continue;
+                    }
                     $findings[] = new Finding([
                         'engine'      => 'integrity-plugin',
                         'type'        => 'missing_plugin_file',
-                        'severity'    => 'medium',
+                        'severity'    => 'high',
                         'confidence'  => 100,
-                        'file_path'   => $absolute_path,
+                        'file_path'   => wp_normalize_path($absolute_path),
                         'description' => "A plugin file is missing: {$plugin_data['Name']}",
                         'evidence'    => "File: $file"
                     ]);
                     continue;
                 }
 
-                $actual_hash = md5_file($absolute_path);
-                $expected_hash_str = is_array($expected_hash) ? ($expected_hash['hash'] ?? json_encode($expected_hash)) : (string) $expected_hash;
-                
-                if (!empty($expected_hash_str) && is_string($expected_hash) && $actual_hash !== $expected_hash) {
+                // Extract valid hashes and algorithm
+                $algo = 'md5';
+                $valid_hashes = [];
+                if (is_array($expected_hash)) {
+                    if (isset($expected_hash['algo']) && $expected_hash['algo'] === 'sha256') {
+                        $algo = 'sha256';
+                        $valid_hashes = (array) ($expected_hash['hash'] ?? []);
+                    } elseif (isset($expected_hash['md5'])) {
+                        $valid_hashes = (array) $expected_hash['md5'];
+                    } elseif (isset($expected_hash['hash'])) {
+                        $valid_hashes = (array) $expected_hash['hash'];
+                    } else {
+                        $valid_hashes = $expected_hash;
+                    }
+                } elseif (is_string($expected_hash)) {
+                    $valid_hashes = [$expected_hash];
+                }
+
+                $valid_hashes = array_filter(array_map('strval', $valid_hashes));
+                if (empty($valid_hashes)) {
+                    continue;
+                }
+
+                $actual_hash = ($algo === 'sha256') ? hash_file('sha256', $absolute_path) : md5_file($absolute_path);
+                $is_modified = !in_array($actual_hash, $valid_hashes, true);
+
+                // If modified, also normalize line endings (CRLF vs LF) to prevent OS false positives
+                if ($is_modified && $algo === 'md5') {
+                    $raw_content = @file_get_contents($absolute_path);
+                    if ($raw_content !== false) {
+                        $normalized_hash = md5(str_replace("\r\n", "\n", $raw_content));
+                        if (in_array($normalized_hash, $valid_hashes, true)) {
+                            $is_modified = false;
+                        }
+                    }
+                }
+
+                if ($is_modified) {
+                    $expected_hash_str = implode(', ', $valid_hashes);
                     $findings[] = new Finding([
                         'engine'      => 'integrity-plugin',
                         'type'        => 'modified_plugin_file',
-                        'severity'    => 'medium',
-                        'confidence'  => 90, // Modified != malicious
-                        'file_path'   => $absolute_path,
+                        'severity'    => 'high',
+                        'confidence'  => 95,
+                        'file_path'   => wp_normalize_path($absolute_path),
                         'description' => "Plugin file differs from the official checksum: {$plugin_data['Name']}",
                         'evidence'    => "Expected: {$expected_hash_str}, Actual: {$actual_hash}"
                     ]);
                 }
             }
 
-            // 2. Reverse reconciliation: detect ANY unknown/unlisted files inside official plugin directory (regardless of extension)
-            $plugin_dir = WP_PLUGIN_DIR . '/' . $plugin_slug;
-            $ignored_basenames = ['.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db'];
+            // 2. Reverse reconciliation: detect ANY unknown/unlisted files inside official plugin directory
+            if (!$is_single_file && is_dir($component_dir)) {
+                $ignored_basenames = ['.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db'];
 
-            if (is_dir($plugin_dir)) {
                 try {
                     $iterator = new \RecursiveIteratorIterator(
-                        new \RecursiveDirectoryIterator($plugin_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                        new \RecursiveDirectoryIterator($component_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
                         \RecursiveIteratorIterator::SELF_FIRST
                     );
 
-                    $normalized_plugin_dir = str_replace('\\', '/', rtrim($plugin_dir, '/\\') . '/');
+                    $normalized_plugin_dir = str_replace('\\', '/', rtrim($component_dir, '/\\') . '/');
 
                     foreach ($iterator as $item) {
                         if (!$item->isFile()) {
@@ -115,7 +194,7 @@ class PluginIntegrity {
 
                         $real_path = $item->getPathname();
                         $normalized_path = str_replace('\\', '/', $real_path);
-                        $rel_file = str_replace($normalized_plugin_dir, '', $normalized_path);
+                        $rel_file = ltrim(str_replace($normalized_plugin_dir, '', $normalized_path), '/');
                         $filename = strtolower($item->getBasename());
 
                         if (in_array($filename, $ignored_basenames, true)) {
@@ -132,9 +211,9 @@ class PluginIntegrity {
                                 'type'        => 'unknown_plugin_file',
                                 'severity'    => $is_executable ? 'high' : 'medium',
                                 'confidence'  => 95,
-                                'file_path'   => $real_path,
+                                'file_path'   => wp_normalize_path($real_path),
                                 'description' => "Unrecognized/unknown file found inside official plugin {$plugin_data['Name']}: {$rel_file}",
-                                'evidence'    => "File '{$rel_file}' is not part of the official WordPress.org release manifest for {$plugin_slug} v{$version}."
+                                'evidence'    => "File '{$rel_file}' is not part of the official WordPress.org release manifest for {$effective_slug} v{$version}."
                             ]);
                         }
                     }

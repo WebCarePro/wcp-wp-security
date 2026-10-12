@@ -6,6 +6,7 @@ use WCP\Scanner\Filesystem\FileScanner;
 use WCP\Scanner\Integrity\CoreIntegrity;
 use WCP\Scanner\Integrity\ImportantFileFIM;
 use WCP\Scanner\Integrity\PluginIntegrity;
+use WCP\Scanner\Integrity\ThemeIntegrity;
 use WCP\Scanner\Database\DatabaseScanner;
 use WCP\Scanner\Content\ContentScanner;
 use WCP\Scanner\WordPress\WordPressSecurityScanner;
@@ -649,7 +650,9 @@ class ScannerRoutes {
             set_transient("wcp_scan_queue_{$scan_id}", $queue, HOUR_IN_SECONDS);
         }
 
-        $scanned_so_far = $total_files - $remaining;
+        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT total_files FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+        $scan_total = (int) ($scan_row['total_files'] ?? 0);
+        $scanned_so_far = max(0, $scan_total - $remaining);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $current_issues_total = (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
@@ -762,10 +765,12 @@ class ScannerRoutes {
                 // Full or plugins_themes: run all engines
                 $core_integrity = new CoreIntegrity();
                 $plugin_integrity = new PluginIntegrity();
+                $theme_integrity = new ThemeIntegrity();
                 $important_fim = new ImportantFileFIM();
                 $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
                 $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
                 $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
+                $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
 
                 $db_scanner = new DatabaseScanner();
                 $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));

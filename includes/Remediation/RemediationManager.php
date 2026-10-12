@@ -199,6 +199,15 @@ class RemediationManager {
         $plugin_slug = $parts[0];
         $internal_file = isset($parts[1]) ? $parts[1] : '';
 
+        if (empty($internal_file) && substr($plugin_slug, -4) === '.php') {
+            $internal_file = $plugin_slug;
+            $update_plugins = get_site_transient('update_plugins');
+            $plugin_slug = $update_plugins->no_update[$internal_file]->slug ?? $update_plugins->response[$internal_file]->slug ?? basename($internal_file, '.php');
+            if ($plugin_slug === 'hello') {
+                $plugin_slug = 'hello-dolly';
+            }
+        }
+
         if (!$plugin_slug || !$internal_file) {
             return ['success' => false, 'message' => 'Invalid plugin directory structure.'];
         }
@@ -576,8 +585,21 @@ class RemediationManager {
         }
         $plugins = get_plugins();
         foreach ($plugins as $file => $data) {
-            if (dirname($file) === $slug) {
+            $dir = dirname($file);
+            if ($dir === $slug || $file === $slug || ($dir === '.' && (basename($file, '.php') === $slug || (!empty($data['TextDomain']) && $data['TextDomain'] === $slug)))) {
                 return !empty($data['Version']) ? $data['Version'] : null;
+            }
+        }
+        $update_plugins = get_site_transient('update_plugins');
+        if (!empty($update_plugins)) {
+            foreach (['no_update', 'response'] as $group) {
+                if (!empty($update_plugins->$group)) {
+                    foreach ($update_plugins->$group as $file => $obj) {
+                        if (!empty($obj->slug) && $obj->slug === $slug && !empty($plugins[$file]['Version'])) {
+                            return $plugins[$file]['Version'];
+                        }
+                    }
+                }
             }
         }
         return null;

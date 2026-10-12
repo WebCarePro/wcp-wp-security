@@ -54,6 +54,12 @@ class ChecksumProvider {
      * @return array|null
      */
     public function get_plugin_checksums($plugin_slug, $version) {
+        $plugin_slug = sanitize_title($plugin_slug);
+        $version = trim(preg_replace('/^v/i', '', (string) $version));
+        if (empty($plugin_slug) || empty($version)) {
+            return null;
+        }
+
         $cache_key = "wcp_plugin_chk_{$plugin_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
@@ -62,7 +68,10 @@ class ChecksumProvider {
 
         $url = "https://downloads.wordpress.org/plugin-checksums/{$plugin_slug}/{$version}.json";
         
-        $response = wp_remote_get($url, ['timeout' => 10]);
+        $response = wp_remote_get($url, [
+            'timeout'   => 15,
+            'sslverify' => true,
+        ]);
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
             return null;
         }
@@ -71,11 +80,17 @@ class ChecksumProvider {
         $data = json_decode($body, true);
 
         if (isset($data['files']) && is_array($data['files'])) {
-            // Reformat to match core checksums (file => hash)
+            // Reformat to match core checksums (file => hash/hashes)
             $checksums = [];
             foreach ($data['files'] as $file => $info) {
-                if (isset($info['md5'])) {
-                    $checksums[$file] = $info['md5']; // WP.org uses MD5 for plugins generally, or sha256. 
+                if (is_string($info)) {
+                    $checksums[$file] = $info;
+                } elseif (is_array($info)) {
+                    if (isset($info['md5'])) {
+                        $checksums[$file] = $info['md5']; // Can be string or array of MD5 hashes
+                    } elseif (isset($info['sha256'])) {
+                        $checksums[$file] = ['algo' => 'sha256', 'hash' => $info['sha256']];
+                    }
                 }
             }
             if (!empty($checksums)) {
