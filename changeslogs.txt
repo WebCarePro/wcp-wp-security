@@ -16,6 +16,7 @@ v:1.13.0 - 2026-10-13
   * Executive Audit Printable Report / PDF (.pdf): Generates an executive security audit report rendered in a print-optimized window (`window.print()`) featuring site branding, health posture gauge/grade, risk matrix breakdown, styled forensic findings table, and individual specialist attribution to Mir Alamin (WebCare Pro).
   * Scope selector toggle: allows administrators to switch seamlessly between exporting filtered subsets or the entire findings set.
   * Server-Side Export Endpoint: implemented `/wcp-scanner/v1/scan/export` REST API route for automated headless and programmatic exports.
+  * Fixed Export Dropdown Container Clipping: switched Findings hub and Scan Log Inspector card containers to overflow: visible, increased dropdown z-index to 99999, and added intelligent viewport collision detection to auto-flip the dropdown upwards when near the bottom of the screen.
 
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:
