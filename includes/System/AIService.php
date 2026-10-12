@@ -200,7 +200,7 @@ class AIService {
      */
     private static function call_gemini(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
         $model_name = $model ?: 'gemini-3.5-flash-lite';
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model_name}:generateContent?key=" . urlencode($api_key);
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model_name}:generateContent";
 
         $body = [
             'system_instruction' => [
@@ -222,7 +222,10 @@ class AIService {
 
         $response = wp_remote_post($url, [
             'timeout' => 90,
-            'headers' => ['Content-Type' => 'application/json'],
+            'headers' => [
+                'Content-Type'   => 'application/json',
+                'x-goog-api-key' => $api_key,
+            ],
             'body'    => wp_json_encode($body),
         ]);
 

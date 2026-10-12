@@ -2,7 +2,11 @@ v:1.13.0 - 2026-10-13
 - Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault Upgrade:
   * Upgraded `SecretVault.php` from legacy AES-256-CBC to modern AES-256-GCM Authenticated Encryption with Associated Data (AEAD) featuring 128-bit cryptographic authentication tags (`$tag`) and randomized 12-byte initialization vectors (`random_bytes(12)`).
   * Completely eliminates ciphertext malleability, bit-flipping vulnerabilities, and CBC padding oracle attacks by cryptographically verifying ciphertext integrity before decryption.
-  * Added decoupled `WCP_VAULT_KEY` key derivation support: site administrators, DevOps engineers, and Linux sysadmins can now define a dedicated encryption key via server environment variable (`getenv('WCP_VAULT_KEY')`) or in `wp-config.php`, completely isolating vault encryption from standard WordPress session authentication salts.
+  * Enforced Fail-Closed Encryption: eliminated all plaintext return fallbacks on cipher failure, throwing `\RuntimeException` to guarantee unencrypted credentials can never be persisted to `wp_options`.
+  * Removed Hardcoded Fallback Key: eliminated static fallback strings in `SecretVault::get_key()`; vault fails closed if neither `WCP_VAULT_KEY` nor valid WordPress core salts are present.
+  * Added 64-Character Hexadecimal Key Support: allows sysadmins to pass raw 32-byte binary keys encoded as 64 hex characters via `getenv('WCP_VAULT_KEY')`.
+  * Added Key Rotation Migration: implemented `SecretVault::rotate_record()` for safe, zero-downtime key rotation from old to new vault keys.
+  * Header-Based Google Gemini API Authentication: updated `AIService.php` to pass API credentials via `x-goog-api-key` HTTP headers instead of URL query parameters, preventing credential leakage in proxy and server access logs.
   * Preserved full zero-downtime backwards compatibility with legacy `wcp_enc:` (`aes-256-cbc`) cipher strings while newly saved secrets transition automatically to authenticated `wcp_gcm:` format.
 
 v:1.12.0 - 2026-10-12
