@@ -95,6 +95,13 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Scan Findings Export Endpoint (JSON, CSV)
+        register_rest_route(self::NAMESPACE, '/scan/export', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'export_scan_results'],
+            'permission_callback' => $permission,
+        ]);
+
         // Server Information
         register_rest_route(self::NAMESPACE, '/server-info', [
             'methods'             => 'GET',
@@ -1157,6 +1164,82 @@ class ScannerRoutes {
             'issues'      => $issues,
             'files_count' => $files_count,
             'diagnostics' => $diagnostics,
+        ]);
+    }
+
+    public static function export_scan_results(\WP_REST_Request $request) {
+        global $wpdb;
+        $scan_id = (int) $request->get_param('scan_id');
+        $format  = sanitize_key($request->get_param('format') ?: 'json');
+
+        $table_scans  = $wpdb->prefix . 'wcp_scans';
+        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+
+        if ($scan_id > 0) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+        } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
+        }
+
+        if (!$scan) {
+            return new \WP_Error('scan_not_found', 'No scan record found to export.', ['status' => 404]);
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $issues = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
+            (int) $scan['id']
+        ), ARRAY_A);
+        $issues = self::enrich_issues($issues);
+
+        $scorer  = new RiskScorer();
+        $summary = $scorer->calculate($issues);
+
+        if ($format === 'csv') {
+            $headers = ['ID', 'Severity', 'Engine', 'Threat Type', 'File / Target', 'Line Number', 'Status', 'Description'];
+            $output  = fopen('php://temp', 'r+');
+            fputcsv($output, $headers);
+
+            foreach ($issues as $issue) {
+                fputcsv($output, [
+                    $issue['id'] ?? '',
+                    strtoupper($issue['severity'] ?? 'low'),
+                    $issue['engine'] ?? '',
+                    $issue['type'] ?? '',
+                    $issue['file_path'] ?? '',
+                    $issue['line_number'] ?? '',
+                    $issue['status'] ?? 'open',
+                    $issue['description'] ?? '',
+                ]);
+            }
+
+            rewind($output);
+            $csv_data = stream_get_contents($output);
+            fclose($output);
+
+            return rest_ensure_response([
+                'success'  => true,
+                'format'   => 'csv',
+                'filename' => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.csv',
+                'csv_data' => $csv_data,
+            ]);
+        }
+
+        return rest_ensure_response([
+            'success'          => true,
+            'format'           => 'json',
+            'filename'         => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.json',
+            'report_generator' => 'WCP Security Scanner Pro',
+            'specialist'       => 'Mir Alamin (WebCare Pro)',
+            'site_url'         => get_site_url(),
+            'site_name'        => get_bloginfo('name'),
+            'exported_at'      => current_time('mysql'),
+            'scan'             => $scan,
+            'summary'          => $summary,
+            'findings_count'   => count($issues),
+            'findings'         => $issues,
         ]);
     }
 

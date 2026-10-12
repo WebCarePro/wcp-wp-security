@@ -8,6 +8,14 @@ v:1.13.0 - 2026-10-13
   * Added Key Rotation Migration: implemented `SecretVault::rotate_record()` for safe, zero-downtime key rotation from old to new vault keys.
   * Header-Based Google Gemini API Authentication: updated `AIService.php` to pass API credentials via `x-goog-api-key` HTTP headers instead of URL query parameters, preventing credential leakage in proxy and server access logs.
   * Preserved full zero-downtime backwards compatibility with legacy `wcp_enc:` (`aes-256-cbc`) cipher strings while newly saved secrets transition automatically to authenticated `wcp_gcm:` format.
+- Multi-Format Scan Results Export (JSON, CSV, Excel, PDF):
+  * Added `exportUtils.ts` and interactive `ExportResultsDropdown.tsx` component to the Findings & Vault Hub on the Dashboard and the Scan Logs Inspection view.
+  * JSON Export (.json): Generates complete structured audit payloads with scan metadata (ID, target, status, execution duration, timestamps, health score), risk breakdown metrics, and enriched finding objects.
+  * CSV Export (.csv): Generates RFC-4180 compliant comma-delimited spreadsheets with UTF-8 Byte Order Mark (BOM) for seamless character encoding in Microsoft Excel, including ID, severity, engine, threat vector, file path, line number, status, CVEs, and descriptions.
+  * Excel Workbook (.xls): Generates richly formatted spreadsheets with Microsoft Excel XML metadata, dark navy header styling (`#0f172a`), colored severity badge cells (Critical red, High orange, Medium amber, Low green, Info blue), monospace path typography, and an executive KPI summary card.
+  * Executive Audit Printable Report / PDF (.pdf): Generates an executive security audit report rendered in a print-optimized window (`window.print()`) featuring site branding, health posture gauge/grade, risk matrix breakdown, styled forensic findings table, and individual specialist attribution to Mir Alamin (WebCare Pro).
+  * Scope selector toggle: allows administrators to switch seamlessly between exporting filtered subsets or the entire findings set.
+  * Server-Side Export Endpoint: implemented `/wcp-scanner/v1/scan/export` REST API route for automated headless and programmatic exports.
 
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:

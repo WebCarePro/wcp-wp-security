@@ -272,6 +272,14 @@ To compile the React admin application from source:
 
 == Changelog ==
 
+= 1.13.0 =
+* Added multi-format scan findings export in JSON, CSV, formatted Excel (.xls), and print-ready PDF audit reports.
+* Added interactive Export Report toolbar dropdown on the Findings & Vault Hub and Scan Logs Inspection report with scope toggle (Filtered vs All).
+* Upgraded Secret Vault to AES-256-GCM AEAD authenticated encryption with 128-bit integrity tags, randomized IVs, and fail-closed security.
+* Added 64-hexadecimal key support and zero-downtime key rotation migration for WCP_VAULT_KEY.
+* Switched Google Gemini API authentication to x-goog-api-key HTTP headers to prevent credential leakage in proxy/server logs.
+* Updated compatibility to Requires at least: 7.0 and Tested up to: 7.1.
+
 = 1.12.0 =
 * Complete Cyber Command Center dashboard rebuild with SVG Security Health Meter, dynamic threat grades (A+ to F), and interactive Threat Metric Cubes.
 * Added In-Page Visual Code Diff (FIM) modal viewer with Git-style side-by-side additions and deletions.
