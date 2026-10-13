@@ -254,12 +254,13 @@ class PathValidator {
 
         // Ensure data is completely flushed to disk with fsync durability where supported
         $flushed = @fflush($handle);
+        $synced = true;
         if (function_exists('fsync')) {
-            @fsync($handle);
+            $synced = @fsync($handle);
         }
         $closed = @fclose($handle);
 
-        if (!$flushed || !$closed) {
+        if (!$flushed || !$synced || !$closed) {
             @unlink($tmp_file);
             return false;
         }
@@ -275,6 +276,7 @@ class PathValidator {
         // Attempt direct atomic replace via rename
         $renamed = @rename($tmp_file, $path);
         if ($renamed) {
+            self::sync_directory($dir);
             return true;
         }
 
@@ -286,8 +288,9 @@ class PathValidator {
             if ($displaced) {
                 $renamed = @rename($tmp_file, $path);
                 if ($renamed) {
-                    // Safe replacement succeeded: clean up backup
+                    // Safe replacement succeeded: clean up backup and sync directory
                     @unlink($dest_backup);
+                    self::sync_directory($dir);
                     return true;
                 }
 
@@ -309,6 +312,23 @@ class PathValidator {
 
         @unlink($tmp_file);
         return false;
+    }
+
+    /**
+     * Synchronize the containing directory on POSIX systems where supported
+     * to ensure directory entry modifications (renames) are crash-durable.
+     *
+     * @param string $dir
+     * @return void
+     */
+    private static function sync_directory(string $dir): void {
+        if (function_exists('fsync') && DIRECTORY_SEPARATOR === '/') {
+            $handle = @fopen($dir, 'r');
+            if ($handle !== false) {
+                @fsync($handle);
+                @fclose($handle);
+            }
+        }
     }
 
     /**
