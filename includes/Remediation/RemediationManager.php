@@ -144,9 +144,9 @@ class RemediationManager {
             ];
         }
 
-        // Write sanitized content
-        $bytes_written = @file_put_contents($real_path, $cleaned_content, LOCK_EX);
-        if ($bytes_written === false) {
+        // Atomically write sanitized content, preventing symlink follower races
+        $bytes_written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $cleaned_content, ABSPATH);
+        if (!$bytes_written) {
             return ['success' => false, 'message' => 'Filesystem write permission denied. Could not update file.'];
         }
 
@@ -249,9 +249,9 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Failed to generate safety backup. Aborting.'];
         }
 
-        // Replace file with official source
-        $written = @file_put_contents($real_path, $official_content, LOCK_EX);
-        if ($written === false) {
+        // Atomically replace file with official source, preventing symlink follower races
+        $written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        if (!$written) {
             return ['success' => false, 'message' => 'Could not write to file. Please check file permissions.'];
         }
 
@@ -343,8 +343,9 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Failed to generate safety backup.'];
         }
 
-        $written = @file_put_contents($real_path, $official_content, LOCK_EX);
-        if ($written === false) {
+        // Atomically replace theme file with official source, preventing symlink follower races
+        $written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        if (!$written) {
             return ['success' => false, 'message' => 'Could not write to theme file.'];
         }
 
@@ -439,9 +440,9 @@ class RemediationManager {
             return ['success' => false, 'message' => __('Failed to generate safety backup. Aborting for safety.', 'wcp-security-scanner')];
         }
 
-        // Replace file with pristine official WordPress source
-        $written = @file_put_contents($real_path, $official_content, LOCK_EX);
-        if ($written === false) {
+        // Atomically replace core file with pristine official source, preventing symlink follower races
+        $written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        if (!$written) {
             return ['success' => false, 'message' => __('Could not write to core file. Please check server filesystem permissions.', 'wcp-security-scanner')];
         }
 
@@ -562,7 +563,8 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Security restriction: Rollback destination resides outside WordPress root directory.'];
         }
 
-        if (@file_put_contents($original_path, $clean_data, LOCK_EX) === false) {
+        // Atomically restore backup to original path, preventing symlink follower races
+        if (!\WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
             return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
         }
 

@@ -363,14 +363,10 @@ class QuarantineManager {
             $clean_data = $payload;
         }
 
-        // Write restored plaintext to original destination
-        if (@file_put_contents($dest_path, $clean_data, LOCK_EX) === false) {
-            return ['success' => false, 'message' => 'Failed to restore file to original location. Check directory permissions.'];
-        }
-
-        // Restore original file permissions
-        if ($record['file_perms']) {
-            @chmod($dest_path, octdec($record['file_perms']));
+        // Atomically write restored plaintext to original destination, preventing symlink follower races
+        $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
+        if (!\WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
+            return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
         }
 
         // Unlink vault storage file

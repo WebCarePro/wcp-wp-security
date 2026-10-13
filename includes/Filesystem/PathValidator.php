@@ -142,8 +142,25 @@ class PathValidator {
     }
 
     /**
+     * Check if a path is absolute across POSIX and Windows systems.
+     *
+     * @param string $path
+     * @return bool
+     */
+    public static function is_absolute_path(string $path): bool {
+        if ($path === '') {
+            return false;
+        }
+        if ($path[0] === '/') {
+            return true;
+        }
+        return (preg_match('/^[a-zA-Z]:[\\\\\/]/', $path) === 1 || str_starts_with($path, '\\\\'));
+    }
+
+    /**
      * Check if a destination path is safe to create or write to.
      * Enforces root boundary containment, disallows stream wrappers / UNC paths,
+     * resolves relative symlink targets against the enclosing directory,
      * and strictly prohibits writing through unverified symlinks (preventing TOCTOU symlink attacks).
      *
      * @param string $path Target write path
@@ -155,10 +172,84 @@ class PathValidator {
             return false;
         }
 
-        // If target already exists as a symlink, verify its real target is also inside root
+        // If target already exists as a symlink, resolve its target relative to dirname($path)
         if (is_link($path)) {
-            $target = readlink($path);
-            if ($target === false || !self::is_inside_root($target, $root, true)) {
+            $raw_target = readlink($path);
+            if ($raw_target === false) {
+                return false;
+            }
+
+            // Relative symlinks must be evaluated relative to dirname($path), not getcwd()
+            $resolved_target = self::is_absolute_path($raw_target)
+                ? $raw_target
+                : dirname($path) . '/' . $raw_target;
+
+            if (!self::is_inside_root($resolved_target, $root, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Safely write content to disk atomically while preventing symlink follower / TOCTOU attacks.
+     * Writes to a cryptographically unique temporary file in the destination's directory
+     * and executes an atomic replace via rename(). If the destination is an existing symlink,
+     * it unlinks the symlink node directly rather than following it to write to an external target.
+     *
+     * @param string $path Destination file path
+     * @param string $content File contents to write
+     * @param string|null $root Approved root boundary
+     * @param int $perms Optional filesystem permissions (e.g. 0644)
+     * @return bool True on success
+     */
+    public static function safe_atomic_write(string $path, string $content, ?string $root = null, int $perms = 0644): bool {
+        if (!self::is_safe_write_target($path, $root)) {
+            return false;
+        }
+
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            if (function_exists('wp_mkdir_p')) {
+                wp_mkdir_p($dir);
+            } else {
+                @mkdir($dir, 0755, true);
+            }
+        }
+
+        if (!is_dir($dir) || !is_writable($dir)) {
+            return false;
+        }
+
+        // Generate cryptographically unique temporary file in the exact same directory
+        $tmp_file = $dir . '/.wcp_tmp_' . bin2hex(random_bytes(8)) . '.tmp';
+
+        // Write content to temporary file with exclusive lock
+        $written = @file_put_contents($tmp_file, $content, LOCK_EX);
+        if ($written === false) {
+            @unlink($tmp_file);
+            return false;
+        }
+
+        @chmod($tmp_file, $perms);
+
+        // Security: If destination is an existing symlink, unlink the symlink node itself
+        // so rename() cannot follow or replace a symlink pointer
+        if (is_link($path)) {
+            @unlink($path);
+        }
+
+        // Atomic replace
+        $renamed = @rename($tmp_file, $path);
+        if (!$renamed) {
+            // Windows fallback if destination file exists and locks prevent direct rename
+            if (file_exists($path)) {
+                @unlink($path);
+                $renamed = @rename($tmp_file, $path);
+            }
+            if (!$renamed) {
+                @unlink($tmp_file);
                 return false;
             }
         }
