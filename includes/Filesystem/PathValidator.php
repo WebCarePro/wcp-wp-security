@@ -222,15 +222,38 @@ class PathValidator {
             return false;
         }
 
-        // Generate cryptographically unique temporary file in the exact same directory
-        $tmp_file = $dir . '/.wcp_tmp_' . bin2hex(random_bytes(8)) . '.tmp';
+        // Exclusive creation of cryptographically unique temporary file in the destination's directory
+        $tmp_file = null;
+        $handle = false;
+        for ($i = 0; $i < 5; $i++) {
+            $candidate = $dir . '/.wcp_tmp_' . bin2hex(random_bytes(8)) . '.tmp';
+            $handle = @fopen($candidate, 'x+b'); // O_CREAT | O_EXCL
+            if ($handle !== false) {
+                $tmp_file = $candidate;
+                break;
+            }
+        }
 
-        // Write content to temporary file with exclusive lock
-        $written = @file_put_contents($tmp_file, $content, LOCK_EX);
-        if ($written === false) {
-            @unlink($tmp_file);
+        if ($handle === false || $tmp_file === null) {
             return false;
         }
+
+        // Write content and verify full byte write
+        $bytes_to_write = strlen($content);
+        $written_total = 0;
+        while ($written_total < $bytes_to_write) {
+            $chunk = substr($content, $written_total);
+            $bytes = @fwrite($handle, $chunk);
+            if ($bytes === false || $bytes <= 0) {
+                @fclose($handle);
+                @unlink($tmp_file);
+                return false;
+            }
+            $written_total += $bytes;
+        }
+
+        @fflush($handle);
+        @fclose($handle);
 
         @chmod($tmp_file, $perms);
 
@@ -240,21 +263,32 @@ class PathValidator {
             @unlink($path);
         }
 
-        // Atomic replace
+        // Attempt direct atomic replace via rename
         $renamed = @rename($tmp_file, $path);
-        if (!$renamed) {
-            // Windows fallback if destination file exists and locks prevent direct rename
-            if (file_exists($path)) {
-                @unlink($path);
+        if ($renamed) {
+            return true;
+        }
+
+        // Non-destructive fallback for platforms where destination locking prevents direct rename (e.g. Windows)
+        if (file_exists($path)) {
+            $dest_backup = $dir . '/.wcp_bak_' . bin2hex(random_bytes(8)) . '.tmp';
+            $displaced = @rename($path, $dest_backup);
+
+            if ($displaced) {
                 $renamed = @rename($tmp_file, $path);
-            }
-            if (!$renamed) {
-                @unlink($tmp_file);
-                return false;
+                if ($renamed) {
+                    // Safe replacement succeeded: clean up backup
+                    @unlink($dest_backup);
+                    return true;
+                }
+
+                // Replacement failed: rollback original file from backup to prevent data loss
+                @rename($dest_backup, $path);
             }
         }
 
-        return true;
+        @unlink($tmp_file);
+        return false;
     }
 
     /**
