@@ -25,7 +25,7 @@ Built with a modern **React 18 + TypeScript** administrative single-page dashboa
 15. [Bot Recon Defense & AI Scraper Shield](#15-bot-recon-defense--ai-scraper-shield)
 16. [Multi-Provider AI Code Forensics](#16-multi-provider-ai-code-forensics)
 17. [DevSecOps Chat & Enterprise Automation Webhooks](#17-devsecops-chat--enterprise-automation-webhooks)
-18. [Cryptographic Secret Vault (AES-256-CBC at Rest)](#18-cryptographic-secret-vault-aes-256-cbc-at-rest)
+18. [Cryptographic Secret Vault (Pure AES-256-GCM AEAD & Two-Phase Key Rotation)](#18-cryptographic-secret-vault-pure-aes-256-gcm-aead--two-phase-key-rotation)
 19. [On-Demand Database Backup Vault (`.sql.gz`)](#19-on-demand-database-backup-vault-sqlgz)
 20. [High-Precision Microsecond Telemetry & Diagnostics](#20-high-precision-microsecond-telemetry--diagnostics)
 21. [Data Privacy, Safety Policies & Clean Uninstall Lifecycle](#21-data-privacy-safety-policies--clean-uninstall-lifecycle)
@@ -75,6 +75,16 @@ Built with a modern **React 18 + TypeScript** administrative single-page dashboa
   - Detects Stored Cross-Site Scripting (Stored XSS) in post content and comments.
   - Identifies malicious `<iframe>` tags, external obfuscated `<script>` includes, and pharmaceutical SEO spam doorways.
   - Flags unauthorized hidden admin user records created directly via SQL.
+- **Hierarchical Resumable Cursor Engine:**
+  - Replaces slow numeric offset pagination with an opaque two-level hierarchical cursor (`phase`, `dir_stack`, `last_file`).
+  - Completely eliminates $O(N^2)$ filesystem re-traversal overhead on large sites by resuming directory traversal directly at the last processed file.
+  - Excludes non-essential and heavy trees (`.git`, `node_modules`, `vendor`, `cache`, `wfcache`, `updraft`, `.vault`, `.backups`, `.logs`) without recursion.
+  - Fast-path filtering skips harmless static media while strictly inspecting executables and disguised double extensions (`shell.jpg.php`).
+  - Constant memory footprint with cycle-safe non-symlink traversal.
+- **High-Throughput Findings Bulk Ingestion Layer:**
+  - Persists file audit and finding records using prepared multi-row SQL statements (`bulk_insert_files`, `bulk_insert_issues`) via `FindingsRepository`.
+  - Chunks queries at 80 rows per statement to stay safely beneath MySQL `max_allowed_packet` while avoiding table locks.
+  - Safe null parameter binding via `prepare_with_nulls` prevents SQL syntax corruption.
 - **Crontab & Scheduled Task Auditing:**
   - Audits Linux server-level crontab files (`/var/spool/cron`, `crontab -l`) for rogue persistence jobs.
   - Audits WordPress virtual `wp-cron` hooks in `wp_options:cron` for suspicious callbacks, piped curl/wget downloads, and orphaned hooks.
@@ -241,7 +251,7 @@ Built with a modern **React 18 + TypeScript** administrative single-page dashboa
 
 - **Pure PHP RFC 6238 TOTP Engine:** Compatible with Google Authenticator, Authy, 1Password, Bitwarden, and Microsoft Authenticator without external libraries.
 - **Native `wp-login.php` Interception:** Displays a responsive, branded two-factor verification challenge screen supporting rotating 6-digit TOTP codes and single-use emergency backup recovery codes.
-- **AES-256-CBC Encrypted User Secrets:** Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault.
+- **AES-256-GCM AEAD Encrypted User Secrets:** Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault with 128-bit authentication integrity tags and transparent in-memory runtime decryption.
 - **Brute Force Rate-Limiter:** Tracks failed login attempts per client IP with configurable thresholds and temporary lockout durations with countdown notices.
 
 ---
@@ -293,18 +303,28 @@ Built with a modern **React 18 + TypeScript** administrative single-page dashboa
 
 ---
 
-## 18. Cryptographic Secret Vault (AES-256-CBC at Rest)
+## 18. Cryptographic Secret Vault (Pure AES-256-GCM AEAD & Two-Phase Key Rotation)
 
-- **Military-Grade AES-256-CBC Encryption:** All sensitive third-party API credentials, webhook endpoints, and infrastructure tokens are encrypted at rest before being saved to `wp_options`:
+- **Pure AES-256-GCM Authenticated Encryption (AEAD):** All sensitive third-party API credentials, webhook endpoints, and infrastructure tokens are encrypted at rest before being saved to `wp_options`:
   - Slack webhooks, Discord webhooks, ClickUp webhooks, Asana webhooks, Generic automation URLs (Zapier, Make, n8n).
   - Cloudflare API Bearer Tokens and Cloudflare Zone IDs.
   - OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys.
-  - Two-Factor Authentication (2FA) TOTP user secrets.
-- **Dynamic 256-bit Key Derivation & Random IVs:**
-  - Each secret is encrypted with a cryptographically secure, randomized 16-byte initialization vector (`random_bytes(16)`).
-  - Keys derived using SHA-256 hashes of WordPress secret salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`).
-- **Zero Plaintext Database Exposure:** Database backups, SQL dumps, staging exports, and unauthorized database access reveal only ciphertexts prefixed with `wcp_enc:`.
-- **Transparent In-Memory Decryption:** Decrypts credentials on the fly in memory only when executing authorized API requests, ensuring zero performance penalty.
+  - Two-Factor Authentication (2FA) TOTP user secrets (`_wcp_2fa_secret`).
+- **Cryptographic Tamper-Proofing & Integrity Tags:**
+  - Encrypts payloads using AES-256-GCM with 128-bit authentication tags and randomized 12-byte initialization vectors (`random_bytes(12)`).
+  - Completely eliminates ciphertext malleability, bit-flipping vulnerabilities, and CBC padding oracle attacks by cryptographically verifying ciphertext integrity prior to decryption.
+  - Enforces strict fail-closed security: corrupted or tampered records fail decryption immediately by throwing `\RuntimeException`, preventing execution on tainted credentials.
+- **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`):**
+  - Robust state machine (`idle` → `preparing` → `migrating` → `verifying` → `committed`) manages zero-downtime key rotation.
+  - Dual-key background decrypt fallback: enables background requests, webhooks, and REST calls to decrypt using transitional old key material while key rotation is actively in flight.
+  - Ephemeral sealed key envelopes: transitional keys are sealed in-memory using `sodium_crypto_secretbox` (with AES-256-GCM fallback), storing cipher payloads and session-tied ephemeral keys in short-lived transients to prevent raw key exposure in `wp_options` or persistent caches.
+  - Pre-rotation single-row serialized backup & rollback: captures pre-migration encrypted secrets into an isolated snapshot (`wcp_vault_backup_{id}`) with atomic rollback (`VaultRotator::rollback()`) if verification detects any decryption discrepancy.
+  - Idempotent & resumable batch re-encryption with 32-byte binary key detection.
+- **Dynamic 256-bit Key Derivation:**
+  - Priority derivation: `WCP_VAULT_KEY` environment variable &rarr; `WCP_VAULT_KEY` constant in `wp-config.php` &rarr; SHA-256 hash of 4 WordPress core salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`, `SECURE_AUTH_SALT`).
+  - Supports 64-character hexadecimal keys representing raw 32-byte binary keys.
+- **Zero Plaintext Database Exposure:** Database backups, SQL dumps, staging exports, and unauthorized database access reveal only ciphertexts prefixed with `wcp_gcm:`.
+- **Transparent In-Memory Decryption:** Decrypts credentials on the fly in memory only when executing authorized API requests or dispatching webhooks, ensuring zero performance penalty.
 - **UI Password Masking:** Administrative interfaces mask secrets with bullet placeholders (`••••••••`) and provide 1-click show/hide toggles.
 
 ---

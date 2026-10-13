@@ -120,11 +120,12 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
 * **Live Webhook Testing API**: 1-click test buttons inside Scanner Settings to verify webhook configurations instantly.
 
-= 18. Cryptographic Secret Vault & Database Encryption at Rest =
-* **Military-Grade AES-256-CBC Encryption**: All sensitive third-party API credentials, webhook endpoints, and infrastructure tokens are encrypted at rest before being saved to the WordPress database (wp_options).
-* **Per-Record Cryptographic Salt & Dynamic Initialization Vectors**: Every encrypted secret receives a cryptographically secure random 16-byte initialization vector combined with unique 256-bit encryption keys derived from WordPress secret salts.
-* **Zero Plaintext Database Exposure**: Eliminates plain text credential exposure in database backups, SQL dumps, or phpMyAdmin queries.
-* **Transparent Runtime In-Memory Decryption**: Decrypts sensitive tokens on the fly in memory only when performing authorized API operations or dispatching webhook alerts.
+= 18. Authenticated Secret Vault & Two-Phase Key Rotation (AES-256-GCM AEAD) =
+* **Enterprise AES-256-GCM Authenticated Encryption (AEAD)**: All sensitive third-party API credentials, webhook endpoints, and tokens are protected with authenticated encryption at rest (wcp_gcm:...) featuring 128-bit authentication integrity tags and randomized 12-byte initialization vectors.
+* **Fail-Closed Tamper Proofing**: Eliminates ciphertext malleability, bit-flipping vulnerabilities, and padding oracle attacks by cryptographically verifying ciphertext integrity before decryption.
+* **Two-Phase Commit Key Rotation Orchestrator**: Built-in VaultRotator state machine enables zero-downtime key rotation with dual-key background decrypt fallback, ephemeral sodium-sealed key envelopes, and 1-click atomic rollback.
+* **Zero Plaintext Database Exposure**: Completely eliminates plaintext credential leaks in database backups, SQL dumps, or phpMyAdmin queries.
+* **Transparent In-Memory Decryption**: Decrypts sensitive tokens on the fly in memory only when performing authorized API operations or dispatching webhook alerts.
 * **UI Password Masking & Visibility Controls**: Credentials and webhook endpoints in administrative interfaces are masked by default with bullet characters and include toggleable show/hide controls.
 
 = 19. On-Demand Database Backup Vault =
@@ -160,7 +161,7 @@ WebCare Pro helps businesses build, secure, optimize, and manage high-performanc
 
 == Privacy & Data Protection Guarantee ==
 
-* **Cryptographic Encryption at Rest for All Sensitive Data**: All API keys, tokens, webhook URLs, and sensitive integration credentials (Slack, Discord, ClickUp, Asana, Zapier, Cloudflare, OpenAI, Gemini, Claude) are encrypted using AES-256-CBC with cryptographically random IVs before being written to the database. They are never stored as plain text.
+* **Cryptographic Encryption at Rest for All Sensitive Data**: All API keys, tokens, webhook URLs, and sensitive integration credentials (Slack, Discord, ClickUp, Asana, Zapier, Cloudflare, OpenAI, Gemini, Claude) are encrypted using AES-256-GCM Authenticated Encryption (AEAD) with 128-bit authentication tags and cryptographically random 12-byte IVs before being written to the database. They are never stored as plain text.
 * **Zero Tracking or Telemetry**: WCP Security Scanner does NOT track, collect, store, or sell any personal data, analytics, or browsing habits from your WordPress website, its visitors, or its administrators.
 * **No Sensitive Data Transmission**: The plugin operates entirely on your local server. It does NOT transmit sensitive credentials, passwords, database contents, client customer records, or private site data to any third-party server or external cloud.
 * **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.
@@ -273,10 +274,13 @@ To compile the React admin application from source:
 == Changelog ==
 
 = 1.13.0 =
-* Added multi-format scan findings export in JSON, CSV, formatted Excel (.xls), and print-ready PDF audit reports.
-* Added interactive Export Report toolbar dropdown on the Findings & Vault Hub and Scan Logs Inspection report with scope toggle (Filtered vs All).
-* Upgraded Secret Vault to AES-256-GCM AEAD authenticated encryption with 128-bit integrity tags, randomized IVs, and fail-closed security.
-* Added 64-hexadecimal key support and zero-downtime key rotation migration for WCP_VAULT_KEY.
+* Implemented Two-Phase Commit Vault Key Rotation Orchestrator (VaultRotator) with zero-downtime dual-key background decrypt fallback, ephemeral sodium-sealed key envelopes, and 1-click atomic rollback.
+* Replaced numeric offset filesystem pagination with Hierarchical Resumable Cursor (DirectoryWalker), completely eliminating O(N^2) directory re-traversal bottlenecks on large installations.
+* Added multi-row prepared statement database persistence (FindingsRepository) for wcp_scan_files and wcp_scan_issues, eliminating single-row MySQL lock contention.
+* Upgraded filesystem scan engine to phased directory streaming (plugins -> themes -> mu -> core -> uploads) with periodic garbage collection and real OS allocated memory monitoring (memory_get_usage(true)).
+* Upgraded Secret Vault to pure AES-256-GCM AEAD authenticated encryption with 128-bit integrity tags, randomized IVs, and fail-closed security, stripping all obsolete legacy CBC cipher code.
+* Added multi-format scan findings export in JSON, CSV, formatted Excel (.xls), and print-ready PDF audit reports with interactive Export Report dropdown.
+* Added 64-hexadecimal key support for WCP_VAULT_KEY.
 * Switched Google Gemini API authentication to x-goog-api-key HTTP headers to prevent credential leakage in proxy/server logs.
 * Updated compatibility to Requires at least: 7.0 and Tested up to: 7.1.
 

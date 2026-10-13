@@ -67,6 +67,8 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **WordPress Core Cryptographic Integrity Engine**: Validates core files against official WordPress.org cryptographic MD5 checksum APIs. Pinpoints modified, injected, tampered, or missing core files in `wp-admin`, `wp-includes`, and root directories.
 - **Uploads Executable & Script Shield**: Recursively audits `wp-content/uploads/` for prohibited script extensions (`.php`, `.phtml`, `.phps`, `.sh`, `.py`, `.pl`), disguised double-extensions (`shell.jpg.php`), and rogue `.htaccess` execution overrides.
 - **Database Threat & Content Injection Scanner**: Deeply inspects `wp_posts`, `wp_options`, `wp_users`, and `wp_comments` for stored cross-site scripting (Stored XSS), malicious iframes, pharmaceutical spam links, hidden redirect doorways, and unauthorized admin user records.
+- **Hierarchical Resumable Cursor Engine**: Replaces slow numeric offset pagination with an opaque two-level hierarchical cursor (`phase`, `dir_stack`, `last_file`), completely eliminating $O(N^2)$ filesystem re-traversals on large WordPress sites with constant-memory directory walking and cycle-safe non-symlink traversal.
+- **High-Throughput Findings Bulk Ingestion**: Persists file audit and finding records using prepared multi-row SQL batches (`bulk_insert_files`, `bulk_insert_issues`) capped at 80 rows per statement via `FindingsRepository`, staying safely under MySQL `max_allowed_packet` with safe null parameter binding and zero table lock contention.
 - **Crontab & Scheduled Task Auditing**: Audits both Linux server-level crontab files (`/var/spool/cron`, `crontab -l`) and WordPress virtual `wp-cron` hooks for unauthorized piped downloads (`curl | bash`, `wget | sh`), reverse shells, and persistence callbacks.
 - **User Account & Privilege Security**: Identifies weak administrator passwords, dormant superuser accounts, and suspicious newly created administrator accounts.
 - **Server Configuration Hardening Safeguards**: Checks permissions for `wp-config.php` and `.htaccess`, audits `WP_DEBUG` exposure flags, and validates protection against public access to `.env`, `.git`, `.user.ini`, and database dumps.
@@ -140,7 +142,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 ### 13. Multi-Factor Authentication (2FA) & Login Hardening
 - **Pure PHP RFC 6238 TOTP Engine**: Compatible with Google Authenticator, Authy, 1Password, Bitwarden, and Microsoft Authenticator without external libraries.
 - **Native wp-login.php Interception**: Displays a responsive, branded two-factor verification challenge screen with support for rotating 6-digit TOTP codes and single-use emergency backup recovery codes.
-- **AES-256-CBC Encrypted User Secrets**: Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault.
+- **AES-256-GCM AEAD Encrypted User Secrets**: Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault with 128-bit authentication integrity tags and transparent in-memory runtime decryption.
 - **Brute Force Rate-Limiter**: Tracks failed login attempts per client IP with configurable thresholds and temporary lockout durations with countdown notices.
 
 ### 14. HTTP Security Headers Engine & 1-Click Site Hardening
@@ -170,15 +172,15 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Attack Flood Protection**: Built-in 60-second rate-limiting prevents channel notification spamming during brute-force or DDoS storms.
 - **Live Webhook Testing API**: 1-click test buttons inside Scanner Settings to verify webhook URL configuration instantly with real-time delivery status feedback.
 
-### 18. 🔐 Cryptographic Secret Vault & Database Encryption at Rest *(Key Security Architecture)*
+### 18. 🔐 Authenticated Secret Vault & Two-Phase Key Rotation (AES-256-GCM AEAD)
 
 > **Enterprise-Grade Protection for All API Credentials, Webhook Endpoints & 2FA Secrets**
 
-- **Military-Grade AES-256-CBC Encryption**: All third-party API credentials, webhook endpoints, and sensitive infrastructure tokens—including Slack incoming webhooks, Discord channel webhooks, ClickUp automation webhooks, Asana task webhooks, Generic automation URLs (Zapier, Make.com, n8n), Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
-- **Dynamic 256-bit Key Derivation & Random IVs**: Each secret is encrypted with a cryptographically secure, randomized 16-byte initialization vector (`random_bytes(16)`), derived using a SHA-256 hash of WordPress secret salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`). Identical tokens produce completely different ciphertexts upon every save.
-- **Zero Plaintext Database Exposure**: Database backups, `.sql` dumps, staging exports, and unauthorized database access reveal only ciphertext strings prefixed with `wcp_enc:`.
+- **Enterprise AES-256-GCM Authenticated Encryption (AEAD)**: All third-party API credentials, webhook endpoints, and sensitive infrastructure tokens—including Slack incoming webhooks, Discord channel webhooks, ClickUp automation webhooks, Asana task webhooks, Generic automation URLs (Zapier, Make.com, n8n), Cloudflare API Bearer Tokens, Cloudflare Zone IDs, OpenAI API keys, Google Gemini API keys, and Anthropic Claude API keys—are encrypted at rest before being saved to the WordPress database (`wp_options` under option key `wcp_scanner_settings`).
+- **Cryptographic Tamper-Proofing & Integrity Tags**: Built strictly with Authenticated Encryption with Associated Data (AEAD) featuring 128-bit authentication integrity tags (`$tag`) and randomized 12-byte initialization vectors (`random_bytes(12)`). Completely eliminates ciphertext malleability, bit-flipping vulnerabilities, and padding oracle attacks by cryptographically verifying ciphertext integrity prior to decryption.
+- **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`)**: State machine (`idle` → `preparing` → `migrating` → `verifying` → `committed`) manages zero-downtime key rotation with dual-key background decrypt fallback, ephemeral sodium-sealed key envelopes (`sodium_crypto_secretbox`), and single-click atomic rollback (`VaultRotator::rollback()`).
+- **Zero Plaintext Database Exposure**: Database backups, `.sql` dumps, staging exports, and unauthorized database access reveal only ciphertext strings prefixed with `wcp_gcm:`.
 - **Transparent In-Memory Decryption**: Decrypts credentials on the fly in memory only when executing authorized API requests or dispatching webhook security alerts, ensuring zero performance penalty and 100% backend transparency.
-- **Encrypted 2FA User Secrets at Rest**: TOTP base32 user secrets (`_wcp_2fa_secret`) stored in `wp_usermeta` are automatically encrypted with AES-256-CBC via `SecretVault` with seamless transparent runtime decryption.
 - **Interface Password Masking & Visibility Toggles**: All sensitive credentials in administrative panels default to masked bullet placeholders (`••••••••`) with one-click show/hide eye toggles and a verified `✓ Encrypted in Vault` indicator badge.
 
 ### 19. On-Demand Database Backup Vault (`.sql.gz`)
