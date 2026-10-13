@@ -57,6 +57,17 @@ class ThemeIntegrity {
                 $absolute_path = $theme_dir . '/' . $file;
                 
                 if (!file_exists($absolute_path)) {
+                    // Ignore development/build artifacts present in SVN/GitHub repos but intentionally stripped in production core theme bundles
+                    $ignored_dev_files = [
+                        'package.json', 'package-lock.json', 'contributing.txt', 'contributing.md',
+                        'readme.md', 'changelog.md', 'changelog.txt', '.editorconfig', '.prettierrc',
+                        'composer.json', 'composer.lock', 'gruntfile.js', 'webpack.config.js',
+                        'style.min.css'
+                    ];
+                    if (in_array(strtolower(basename($file)), $ignored_dev_files, true)) {
+                        continue;
+                    }
+
                     $findings[] = new Finding([
                         'engine'      => 'integrity-theme',
                         'type'        => 'missing_theme_file',

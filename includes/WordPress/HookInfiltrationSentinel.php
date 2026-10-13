@@ -143,18 +143,39 @@ class HookInfiltrationSentinel {
 
             // Flag 1: Anonymous closure on sensitive credential/auth hooks
             if ($function instanceof \Closure) {
-                $is_auth_hook = in_array($hook_name, ['authenticate', 'wp_authenticate', 'wp_authenticate_user', 'user_register'], true);
-                if ($is_auth_hook) {
-                    $source_loc = $file_path ? basename($file_path) . ':' . $line_number : 'unknown';
-                    return [
-                        'type'        => 'closure_on_auth_hook',
-                        'severity'    => 'medium',
-                        'confidence'  => 85,
-                        'file_path'   => $file_path ?: 'runtime:memory',
-                        'line_number' => $line_number,
-                        'identifier'  => $identifier,
-                        'reason'      => "Anonymous closure attached to sensitive authentication hook '{$hook_name}' (source: {$source_loc}). Anonymous closures on auth hooks can hide password stealers.",
-                    ];
+                $is_password_hook = in_array($hook_name, ['authenticate', 'wp_authenticate', 'wp_authenticate_user'], true);
+                $is_register_hook = ($hook_name === 'user_register');
+
+                if ($is_password_hook || $is_register_hook) {
+                    $normalized_file = $file_path ? str_replace('\\', '/', $file_path) : '';
+
+                    // Whitelist official vendor files in reputable plugins (e.g. WooCommerce OrderAttribution, Wordfence audit log) and core
+                    $is_trusted_vendor = (
+                        strpos($normalized_file, '/plugins/woocommerce/') !== false ||
+                        strpos($normalized_file, '/plugins/wordfence/') !== false ||
+                        strpos($normalized_file, '/wp-includes/') !== false
+                    );
+
+                    // For user_register: legitimate plugins frequently use closures for order attribution or event logging.
+                    // Only flag if unlocated/eval closure or outside standard plugin/theme code.
+                    $is_valid_disk_file = $file_path && file_exists($file_path) && (
+                        strpos($normalized_file, '/wp-content/plugins/') !== false ||
+                        strpos($normalized_file, '/wp-content/themes/') !== false ||
+                        strpos($normalized_file, '/wp-content/mu-plugins/') !== false
+                    );
+
+                    if (!$is_trusted_vendor && !($is_register_hook && $is_valid_disk_file)) {
+                        $source_loc = $file_path ? basename($file_path) . ':' . $line_number : 'unknown';
+                        return [
+                            'type'        => 'closure_on_auth_hook',
+                            'severity'    => 'medium',
+                            'confidence'  => 85,
+                            'file_path'   => $file_path ?: 'runtime:memory',
+                            'line_number' => $line_number,
+                            'identifier'  => $identifier,
+                            'reason'      => "Anonymous closure attached to sensitive authentication hook '{$hook_name}' (source: {$source_loc}). Anonymous closures on auth hooks can hide password stealers.",
+                        ];
+                    }
                 }
             }
 

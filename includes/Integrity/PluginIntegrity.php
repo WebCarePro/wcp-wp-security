@@ -75,6 +75,9 @@ class PluginIntegrity {
                 continue;
             }
 
+            $is_premium_or_custom_dir = (bool) preg_match('/-(premium|pro|addon|addons|unlimited|disabled|master|main|dev)$/i', $plugin_dir_name);
+            $has_premium_title = (bool) preg_match('/\b(premium|pro|unlimited|commercial)\b/i', $plugin_data['Name'] ?? '');
+
             // 1. Attempt checksum retrieval by effective slug
             $checksums = $this->provider->get_plugin_checksums($effective_slug, $version);
 
@@ -83,9 +86,13 @@ class PluginIntegrity {
                 $checksums = $this->provider->get_plugin_checksums($plugin_dir_name, $version);
             }
 
-            // 3. Fallback to TextDomain
-            if (!$checksums && !empty($plugin_data['TextDomain']) && $plugin_data['TextDomain'] !== $effective_slug && $plugin_data['TextDomain'] !== $plugin_dir_name) {
-                $checksums = $this->provider->get_plugin_checksums($plugin_data['TextDomain'], $version);
+            // 3. Fallback to TextDomain ONLY for single-file plugins (e.g. hello.php) or when folder matches TextDomain.
+            // Never fallback to TextDomain if the directory has premium/custom indicators or if folder name differs,
+            // because commercial/premium extensions often share the free plugin's TextDomain.
+            if (!$checksums && !empty($plugin_data['TextDomain'])) {
+                if ($is_single_file || (!$is_premium_or_custom_dir && !$has_premium_title && $plugin_data['TextDomain'] === $plugin_dir_name)) {
+                    $checksums = $this->provider->get_plugin_checksums($plugin_data['TextDomain'], $version);
+                }
             }
 
             $component_dir = $is_single_file ? WP_PLUGIN_DIR : (WP_PLUGIN_DIR . '/' . $plugin_dir_name);
@@ -177,7 +184,11 @@ class PluginIntegrity {
 
             // 2. Reverse reconciliation: detect ANY unknown/unlisted files inside official plugin directory
             if (!$is_single_file && is_dir($component_dir)) {
-                $ignored_basenames = ['.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db'];
+                $ignored_basenames = [
+                    '.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db',
+                    '.gitignore', 'license', 'license.txt', 'readme.md', 'changelog.txt'
+                ];
+                $runtime_dirs = ['logs', 'storage', 'cache', 'caches', 'backups', 'temp', 'tmp'];
 
                 try {
                     $iterator = new \RecursiveIteratorIterator(
@@ -201,10 +212,24 @@ class PluginIntegrity {
                             continue;
                         }
 
+                        // Check if file is located inside common runtime/storage directories (e.g. storage/, logs/, cache/)
+                        $path_segments = explode('/', strtolower($rel_file));
+                        $is_in_runtime_dir = !empty(array_intersect($path_segments, $runtime_dirs));
+
                         // Flag any file not present in official release manifest
                         if (!isset($checksums[$rel_file])) {
                             $ext = strtolower($item->getExtension());
                             $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
+
+                            // Skip non-executable runtime files (e.g. storage/index.html, logs/debug.log)
+                            if ($is_in_runtime_dir && !$is_executable) {
+                                continue;
+                            }
+
+                            // If it's a directory silence guard in runtime folders (e.g. index.php with silent exit), skip
+                            if ($is_in_runtime_dir && in_array($filename, ['index.php', 'index.html'], true) && $item->getSize() < 500) {
+                                continue;
+                            }
 
                             $findings[] = new Finding([
                                 'engine'      => 'integrity-plugin',

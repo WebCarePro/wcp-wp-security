@@ -76,16 +76,21 @@ class UserScanner {
                 }
             }
 
-            // Display Name matches User Login (Username enumeration leak)
-            if ($user->display_name === $user->user_login) {
+            // Display Name matches User Login (Username enumeration leak) - restrict to elevated/privileged accounts
+            $roles = (array) $user->roles;
+            $privileged_roles = ['administrator', 'editor', 'author', 'shop_manager'];
+            $has_privileged_role = !empty(array_intersect($roles, $privileged_roles)) || $user->has_cap('edit_posts');
+
+            if ($has_privileged_role && $user->display_name === $user->user_login) {
+                $role_label = implode(', ', $roles) ?: 'privileged';
                 $findings[] = new Finding([
                     'engine'      => 'wordpress-users',
                     'type'        => 'username_enumeration_risk',
                     'severity'    => 'low',
                     'confidence'  => 85,
                     'file_path'   => "user:{$user->ID} ({$user->user_login})",
-                    'description' => "Public display name is identical to login username '{$user->user_login}'. Reveals account username to site visitors.",
-                    'evidence'    => "Display name equals login: {$user->user_login}"
+                    'description' => "Privileged account ({$role_label}) has public display name identical to login username '{$user->user_login}'. Exposes username to enumeration and brute-force attacks.",
+                    'evidence'    => "Display name equals login: {$user->user_login} (Roles: {$role_label})"
                 ]);
             }
         }
@@ -107,7 +112,7 @@ class UserScanner {
             }
         }
 
-        // 3. Orphaned Post Author Detection
+        // 4. Orphaned Post Author Detection
         // Find posts authored by IDs that don't exist in wp_users
         // Exclude system/internal entity post types (nav menus, template parts, revisions, styles, etc.)
         // where post_author is intentionally 0 or unassigned by WordPress Core.
@@ -126,19 +131,38 @@ class UserScanner {
                AND p.post_author > 0 
                AND p.post_type NOT IN ('{$post_type_placeholders}') 
                AND p.post_status IN ('publish', 'future', 'draft') 
-             LIMIT 50"
+             LIMIT 200"
         );
 
         if (!empty($orphaned)) {
+            // Aggregate findings by missing author ID to avoid flooding findings
+            $grouped_orphans = [];
             foreach ($orphaned as $post) {
+                $author_id = (int) $post->post_author;
+                if (!isset($grouped_orphans[$author_id])) {
+                    $grouped_orphans[$author_id] = [
+                        'count'        => 0,
+                        'types'        => [],
+                        'sample_id'    => $post->ID,
+                        'sample_title' => $post->post_title,
+                    ];
+                }
+                $grouped_orphans[$author_id]['count']++;
+                if (!in_array($post->post_type, $grouped_orphans[$author_id]['types'], true)) {
+                    $grouped_orphans[$author_id]['types'][] = $post->post_type;
+                }
+            }
+
+            foreach ($grouped_orphans as $author_id => $data) {
+                $types_str = implode(', ', $data['types']);
                 $findings[] = new Finding([
                     'engine'      => 'wordpress-users',
                     'type'        => 'orphaned_post_author',
                     'severity'    => 'medium',
                     'confidence'  => 95,
-                    'file_path'   => "post:{$post->ID} ({$post->post_type})",
-                    'description' => "Post references non-existent author user ID ({$post->post_author}). May indicate deleted accounts or unauthorized database manipulation.",
-                    'evidence'    => "Post ID: {$post->ID}, Missing Author ID: {$post->post_author}"
+                    'file_path'   => "author:{$author_id}",
+                    'description' => "{$data['count']} post(s) [type(s): {$types_str}] reference non-existent author user ID ({$author_id}). Sample: Post #{$data['sample_id']} ('{$data['sample_title']}'). May indicate deleted accounts or database integrity issues.",
+                    'evidence'    => "Author ID: {$author_id}, Affected Posts: {$data['count']}, Types: {$types_str}"
                 ]);
             }
         }
