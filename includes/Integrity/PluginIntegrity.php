@@ -132,6 +132,7 @@ class PluginIntegrity {
                         'classification' => $classification,
                         'display_title'  => $display_title,
                         'plugin_dir'     => $plugin_dir_name,
+                        'plugin_file'    => $plugin_file,
                         'plugin_name'    => $plugin_name,
                         'version'        => $version,
                     ]),

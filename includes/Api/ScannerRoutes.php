@@ -22,6 +22,7 @@ use WCP\Scanner\Scan\ScanLock;
 use WCP\Scanner\Filesystem\UploadsScanner;
 use WCP\Scanner\WordPress\CronScanner;
 use WCP\Scanner\WordPress\PersistenceScanner;
+use WCP\Scanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -153,6 +154,13 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/post/view', [
             'methods'             => ['GET', 'POST'],
             'callback'            => [__CLASS__, 'view_post_content'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Component Changelog Viewer (Plugins & Themes)
+        register_rest_route(self::NAMESPACE, '/component/changelog', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'get_component_changelog'],
             'permission_callback' => $permission,
         ]);
 
@@ -1776,6 +1784,18 @@ class ScannerRoutes {
                 } else {
                     $item['display_title'] = __('Custom or Premium Theme', 'wcp-security-scanner');
                 }
+
+                $meta = self::get_theme_forensics_meta($filePath, is_array($evidence_data) ? $evidence_data : []);
+                $item['component_meta'] = $meta;
+                $item['component_name'] = $meta['name'];
+                $item['installed_version'] = $meta['version'];
+                $item['latest_version'] = $meta['latest_version'];
+                $item['has_update'] = $meta['has_update'];
+                $item['author_name'] = $meta['author'];
+                $item['author_url'] = $meta['author_uri'];
+                $item['component_status'] = $meta['status_label'];
+                $item['last_updated'] = $meta['last_modified'];
+                $item['has_changelog'] = $meta['has_changelog'];
             }
             // 0c. Check if finding is Plugin Checksums Unavailable (Custom or Premium Plugin)
             elseif ($type === 'plugin_checksums_unavailable' || ($engine === 'integrity-plugin' && (strpos($filePath, '/plugins/') !== false || strpos($filePath, '\\plugins\\') !== false) && !preg_match('/\.[a-zA-Z0-9]{2,5}$/', $filePath))) {
@@ -1797,6 +1817,18 @@ class ScannerRoutes {
                 } else {
                     $item['display_title'] = __('Custom or Premium Plugin', 'wcp-security-scanner');
                 }
+
+                $meta = self::get_plugin_forensics_meta($filePath, is_array($evidence_data) ? $evidence_data : []);
+                $item['component_meta'] = $meta;
+                $item['component_name'] = $meta['name'];
+                $item['installed_version'] = $meta['version'];
+                $item['latest_version'] = $meta['latest_version'];
+                $item['has_update'] = $meta['has_update'];
+                $item['author_name'] = $meta['author'];
+                $item['author_url'] = $meta['author_uri'];
+                $item['component_status'] = $meta['status_label'];
+                $item['last_updated'] = $meta['last_modified'];
+                $item['has_changelog'] = $meta['has_changelog'];
             }
 
             // 1. Check if finding is a WordPress Post or Page
@@ -1971,6 +2003,26 @@ class ScannerRoutes {
                     $item['can_view'] = !empty($item['is_file']) && is_readable($realPath);
                 }
             }
+
+            // Attach component forensics for any theme or plugin finding if not already populated
+            if (empty($item['component_meta']) && !empty($filePath)) {
+                if (strpos($filePath, '/themes/') !== false || strpos($filePath, '\\themes\\') !== false) {
+                    if (preg_match('#[\\\\/]wp-content[\\\\/]themes[\\\\/]([^\\\\/]+)#i', $filePath, $tm)) {
+                        $theme_root = function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes');
+                        $theme_dir = wp_normalize_path($theme_root . '/' . $tm[1]);
+                        if (is_dir($theme_dir)) {
+                            $item['component_meta'] = self::get_theme_forensics_meta($theme_dir, ['theme_slug' => $tm[1]]);
+                        }
+                    }
+                } elseif (strpos($filePath, '/plugins/') !== false || strpos($filePath, '\\plugins\\') !== false) {
+                    if (preg_match('#[\\\\/]wp-content[\\\\/]plugins[\\\\/]([^\\\\/]+)#i', $filePath, $pm)) {
+                        $plugin_dir = wp_normalize_path(WP_PLUGIN_DIR . '/' . $pm[1]);
+                        if (is_dir($plugin_dir)) {
+                            $item['component_meta'] = self::get_plugin_forensics_meta($plugin_dir, ['plugin_dir' => $pm[1]]);
+                        }
+                    }
+                }
+            }
         }
         unset($item);
 
@@ -1987,6 +2039,371 @@ class ScannerRoutes {
         }
 
         return $deduped;
+    }
+
+    /**
+     * Extract deep forensic metadata for a WordPress theme directory.
+     *
+     * @param string $filePath
+     * @param array $evidence_data
+     * @return array
+     */
+    public static function get_theme_forensics_meta(string $filePath, array $evidence_data = []): array {
+        if (!function_exists('wp_get_theme')) {
+            require_once ABSPATH . 'wp-includes/theme.php';
+        }
+
+        $norm_path = wp_normalize_path($filePath);
+        $theme_slug = !empty($evidence_data['theme_slug']) ? $evidence_data['theme_slug'] : basename($norm_path);
+        $theme = wp_get_theme($theme_slug);
+
+        // Fallback: check if directory exists even if slug slightly differed
+        if (!$theme->exists() && file_exists($norm_path . '/style.css')) {
+            $all_themes = function_exists('wp_get_themes') ? wp_get_themes() : [];
+            foreach ($all_themes as $s => $t) {
+                if (wp_normalize_path($t->get_stylesheet_directory()) === $norm_path) {
+                    $theme = $t;
+                    $theme_slug = $s;
+                    break;
+                }
+            }
+        }
+
+        $name = $theme->exists() ? $theme->get('Name') : (!empty($evidence_data['theme_name']) ? $evidence_data['theme_name'] : $theme_slug);
+        $version = $theme->exists() ? (string) $theme->get('Version') : (!empty($evidence_data['version']) ? (string) $evidence_data['version'] : '');
+        $author = $theme->exists() ? wp_strip_all_tags($theme->get('Author')) : '';
+        $author_uri = $theme->exists() ? (string) $theme->get('AuthorURI') : '';
+        $theme_uri = $theme->exists() ? (string) $theme->get('ThemeURI') : '';
+        $description = $theme->exists() ? wp_strip_all_tags($theme->get('Description')) : '';
+        $requires_wp = $theme->exists() ? (string) $theme->get('RequiresWP') : '';
+        $requires_php = $theme->exists() ? (string) $theme->get('RequiresPHP') : '';
+        $text_domain = $theme->exists() ? (string) $theme->get('TextDomain') : '';
+
+        // Active state detection
+        $current_stylesheet = function_exists('get_stylesheet') ? get_stylesheet() : '';
+        $current_template = function_exists('get_template') ? get_template() : '';
+        $is_active_child = ($theme_slug === $current_stylesheet && $theme_slug !== $current_template);
+        $is_active_parent = ($theme_slug === $current_template);
+        $is_active = ($theme_slug === $current_stylesheet || $theme_slug === $current_template);
+
+        $parent_obj = $theme->exists() ? $theme->parent() : null;
+        $is_child = (bool) $parent_obj || !empty($evidence_data['is_child']) || strpos(strtolower($norm_path), '-child') !== false;
+        $parent_name = $parent_obj ? $parent_obj->get('Name') : (!empty($evidence_data['parent_theme']) ? $evidence_data['parent_theme'] : null);
+        $parent_version = $parent_obj ? (string) $parent_obj->get('Version') : null;
+
+        if ($is_active_child) {
+            $status_label = 'Active Child Theme';
+        } elseif ($is_active_parent && $current_stylesheet !== $current_template) {
+            $status_label = 'Active Parent Template';
+        } elseif ($is_active) {
+            $status_label = 'Active Theme';
+        } else {
+            $status_label = 'Inactive';
+        }
+
+        // Check latest version in update_themes transient
+        $latest_version = null;
+        $has_update = false;
+        $update_package = '';
+        $update_themes = get_site_transient('update_themes');
+        if (!empty($update_themes->response[$theme_slug])) {
+            $theme_update = (array) $update_themes->response[$theme_slug];
+            $latest_version = $theme_update['new_version'] ?? null;
+            $has_update = !empty($latest_version) && (!empty($version) ? version_compare($latest_version, $version, '>') : true);
+            $update_package = $theme_update['package'] ?? '';
+        } elseif (!empty($update_themes->checked[$theme_slug])) {
+            $latest_version = $update_themes->checked[$theme_slug];
+        }
+
+        // File stats and timestamps
+        $mtime = file_exists($norm_path) ? filemtime($norm_path) : (file_exists($norm_path . '/style.css') ? filemtime($norm_path . '/style.css') : 0);
+        $last_updated = $mtime ? gmdate('Y-m-d H:i:s', $mtime) . ' UTC' : 'Unknown';
+        $last_updated_human = $mtime ? human_time_diff($mtime, current_time('timestamp', 1)) . ' ago' : 'Unknown';
+
+        // Permissions
+        $folder_perms = file_exists($norm_path) ? substr(sprintf('%o', fileperms($norm_path)), -4) : '0755';
+        $style_css_path = $norm_path . '/style.css';
+        $file_perms = file_exists($style_css_path) ? substr(sprintf('%o', fileperms($style_css_path)), -4) : '0644';
+
+        // Check for changelog or readme file
+        $changelog_info = self::detect_component_changelog($norm_path);
+
+        return [
+            'type'                => 'theme',
+            'slug'                => $theme_slug,
+            'name'                => $name,
+            'version'             => $version,
+            'latest_version'      => $latest_version,
+            'has_update'          => $has_update,
+            'update_package'      => !empty($update_package),
+            'author'              => $author,
+            'author_uri'          => $author_uri,
+            'theme_uri'           => $theme_uri,
+            'description'         => $description,
+            'is_active'           => $is_active,
+            'is_child'            => $is_child,
+            'parent_name'         => $parent_name,
+            'parent_version'      => $parent_version,
+            'status_label'        => $status_label,
+            'requires_wp'         => $requires_wp,
+            'requires_php'        => $requires_php,
+            'text_domain'         => $text_domain,
+            'path'                => $norm_path,
+            'last_modified'       => $last_updated,
+            'last_modified_human' => $last_updated_human,
+            'folder_perms'        => $folder_perms,
+            'main_file_perms'     => $file_perms,
+            'main_file'           => file_exists($style_css_path) ? 'style.css' : '',
+            'has_changelog'       => $changelog_info['has_changelog'],
+            'changelog_file'      => $changelog_info['filename'],
+            'admin_url'           => admin_url('themes.php'),
+        ];
+    }
+
+    /**
+     * Extract deep forensic metadata for a WordPress plugin directory or file.
+     *
+     * @param string $filePath
+     * @param array $evidence_data
+     * @return array
+     */
+    public static function get_plugin_forensics_meta(string $filePath, array $evidence_data = []): array {
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $all_plugins = function_exists('get_plugins') ? get_plugins() : [];
+        $norm_path = wp_normalize_path($filePath);
+
+        $matched_file = '';
+        $matched_data = [];
+
+        // Check direct plugin_file from evidence_data first
+        if (!empty($evidence_data['plugin_file']) && isset($all_plugins[$evidence_data['plugin_file']])) {
+            $matched_file = $evidence_data['plugin_file'];
+            $matched_data = $all_plugins[$matched_file];
+        }
+
+        if (empty($matched_file)) {
+            $folder_name = !empty($evidence_data['plugin_dir']) ? $evidence_data['plugin_dir'] : basename($norm_path);
+            foreach ($all_plugins as $plugin_file => $data) {
+                $dir_name = dirname($plugin_file);
+                if ($dir_name === $folder_name || $plugin_file === $folder_name) {
+                    $matched_file = $plugin_file;
+                    $matched_data = $data;
+                    break;
+                }
+                $full_dir = wp_normalize_path(WP_PLUGIN_DIR . '/' . $dir_name);
+                if ($full_dir === $norm_path) {
+                    $matched_file = $plugin_file;
+                    $matched_data = $data;
+                    break;
+                }
+            }
+        }
+
+        $name = !empty($matched_data['Name']) ? $matched_data['Name'] : (!empty($evidence_data['plugin_name']) ? $evidence_data['plugin_name'] : basename($norm_path));
+        $version = !empty($matched_data['Version']) ? (string) $matched_data['Version'] : (!empty($evidence_data['version']) ? (string) $evidence_data['version'] : '');
+        $author = !empty($matched_data['Author']) ? wp_strip_all_tags($matched_data['Author']) : '';
+        $author_uri = (string) ($matched_data['AuthorURI'] ?? '');
+        $plugin_uri = (string) ($matched_data['PluginURI'] ?? '');
+        $description = !empty($matched_data['Description']) ? wp_strip_all_tags($matched_data['Description']) : '';
+        $requires_wp = (string) ($matched_data['RequiresWP'] ?? '');
+        $requires_php = (string) ($matched_data['RequiresPHP'] ?? '');
+        $text_domain = (string) ($matched_data['TextDomain'] ?? '');
+
+        // Active state detection
+        $is_active = false;
+        $network_active = false;
+        if (!empty($matched_file) && function_exists('is_plugin_active')) {
+            $is_active = is_plugin_active($matched_file);
+            if (is_multisite() && function_exists('is_plugin_active_for_network')) {
+                $network_active = is_plugin_active_for_network($matched_file);
+                if ($network_active) {
+                    $is_active = true;
+                }
+            }
+        }
+
+        if ($network_active) {
+            $status_label = 'Network Active';
+        } elseif ($is_active) {
+            $status_label = 'Active';
+        } else {
+            $status_label = 'Inactive';
+        }
+
+        // Check latest version in update_plugins transient
+        $latest_version = null;
+        $has_update = false;
+        $update_package = '';
+        $update_plugins = get_site_transient('update_plugins');
+        if (!empty($matched_file) && !empty($update_plugins->response[$matched_file])) {
+            $plugin_update = $update_plugins->response[$matched_file];
+            $latest_version = $plugin_update->new_version ?? null;
+            $has_update = !empty($latest_version) && (!empty($version) ? version_compare($latest_version, $version, '>') : true);
+            $update_package = $plugin_update->package ?? '';
+        } elseif (!empty($matched_file) && !empty($update_plugins->no_update[$matched_file])) {
+            $latest_version = $update_plugins->no_update[$matched_file]->new_version ?? $version;
+        }
+
+        // Timestamps
+        $main_file_full = (!empty($matched_file) && file_exists(WP_PLUGIN_DIR . '/' . $matched_file)) ? wp_normalize_path(WP_PLUGIN_DIR . '/' . $matched_file) : '';
+        $mtime = $main_file_full ? filemtime($main_file_full) : (file_exists($norm_path) ? filemtime($norm_path) : 0);
+        $last_updated = $mtime ? gmdate('Y-m-d H:i:s', $mtime) . ' UTC' : 'Unknown';
+        $last_updated_human = $mtime ? human_time_diff($mtime, current_time('timestamp', 1)) . ' ago' : 'Unknown';
+
+        // Permissions
+        $folder_perms = file_exists($norm_path) ? substr(sprintf('%o', fileperms($norm_path)), -4) : '0755';
+        $main_file_perms = $main_file_full ? substr(sprintf('%o', fileperms($main_file_full)), -4) : '0644';
+
+        // Changelog detection
+        $changelog_info = self::detect_component_changelog($norm_path);
+
+        return [
+            'type'                => 'plugin',
+            'slug'                => !empty($matched_file) ? dirname($matched_file) : basename($norm_path),
+            'plugin_file'         => $matched_file,
+            'name'                => $name,
+            'version'             => $version,
+            'latest_version'      => $latest_version,
+            'has_update'          => $has_update,
+            'update_package'      => !empty($update_package),
+            'author'              => $author,
+            'author_uri'          => $author_uri,
+            'plugin_uri'          => $plugin_uri,
+            'description'         => $description,
+            'is_active'           => $is_active,
+            'network_active'      => $network_active,
+            'status_label'        => $status_label,
+            'requires_wp'         => $requires_wp,
+            'requires_php'        => $requires_php,
+            'text_domain'         => $text_domain,
+            'path'                => $norm_path,
+            'last_modified'       => $last_updated,
+            'last_modified_human' => $last_updated_human,
+            'folder_perms'        => $folder_perms,
+            'main_file_perms'     => $main_file_perms,
+            'main_file'           => $matched_file ? basename($matched_file) : '',
+            'has_changelog'       => $changelog_info['has_changelog'],
+            'changelog_file'      => $changelog_info['filename'],
+            'admin_url'           => admin_url('plugins.php'),
+        ];
+    }
+
+    /**
+     * Inspect component folder for changelog or release history files.
+     *
+     * @param string $component_path
+     * @return array
+     */
+    public static function detect_component_changelog(string $component_path): array {
+        $candidates = [
+            'changelog.txt', 'CHANGELOG.txt',
+            'changelog.md', 'CHANGELOG.md',
+            'readme.txt', 'README.txt',
+            'readme.md', 'README.md',
+            'history.md', 'HISTORY.md',
+            'releases.md', 'RELEASES.md',
+            'docs/changelog.txt', 'docs/CHANGELOG.md'
+        ];
+
+        foreach ($candidates as $cand) {
+            $target = $component_path . '/' . $cand;
+            if (file_exists($target) && is_readable($target) && is_file($target)) {
+                return [
+                    'has_changelog' => true,
+                    'filename'      => basename($cand),
+                    'full_path'     => wp_normalize_path($target)
+                ];
+            }
+        }
+
+        return [
+            'has_changelog' => false,
+            'filename'      => '',
+            'full_path'     => ''
+        ];
+    }
+
+    /**
+     * Retrieve changelog content for a specific theme or plugin component.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public static function get_component_changelog(\WP_REST_Request $request) {
+        $raw_path = sanitize_text_field($request->get_param('path') ?: ($request->get_param('file_path') ?: ''));
+        $slug = sanitize_text_field($request->get_param('slug') ?: '');
+        $type = sanitize_key($request->get_param('type') ?: 'plugin'); // 'plugin' or 'theme'
+
+        $target_dir = '';
+        if (!empty($raw_path)) {
+            $raw_path = str_replace(['../', '..\\'], '', $raw_path);
+            if (file_exists($raw_path) && is_dir($raw_path)) {
+                $target_dir = wp_normalize_path($raw_path);
+            }
+        }
+
+        if (empty($target_dir) && !empty($slug)) {
+            if ($type === 'theme') {
+                $theme_root = function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes');
+                $candidate = wp_normalize_path($theme_root . '/' . $slug);
+                if (file_exists($candidate) && is_dir($candidate)) {
+                    $target_dir = $candidate;
+                }
+            } else {
+                $candidate = wp_normalize_path(WP_PLUGIN_DIR . '/' . $slug);
+                if (file_exists($candidate) && is_dir($candidate)) {
+                    $target_dir = $candidate;
+                }
+            }
+        }
+
+        if (empty($target_dir)) {
+            return new \WP_Error('invalid_target', __('Theme or plugin directory could not be located.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        // Verify inside ABSPATH
+        if (!PathValidator::is_inside_root($target_dir, ABSPATH)) {
+            return new \WP_Error('forbidden_path', __('Access to this path is restricted.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
+        $changelog = self::detect_component_changelog($target_dir);
+        if (!$changelog['has_changelog']) {
+            return rest_ensure_response([
+                'success'       => true,
+                'has_changelog' => false,
+                'message'       => __('No local changelog file (changelog.txt, readme.txt, or changelog.md) was found in this component directory.', 'wcp-security-scanner'),
+                'content'       => '',
+                'filename'      => '',
+            ]);
+        }
+
+        $file_path = $changelog['full_path'];
+        if (!PathValidator::is_inside_root($file_path, $target_dir)) {
+            return new \WP_Error('forbidden_file', __('Access to changelog file is restricted.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
+        $max_bytes = 250 * 1024; // 250KB limit
+        $content = file_get_contents($file_path, false, null, 0, $max_bytes);
+        if ($content === false) {
+            return new \WP_Error('read_failed', __('Failed to read changelog file.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        // Clean UTF-8
+        if (function_exists('mb_check_encoding') && !mb_check_encoding($content, 'UTF-8')) {
+            $content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
+        }
+
+        return rest_ensure_response([
+            'success'       => true,
+            'has_changelog' => true,
+            'filename'      => $changelog['filename'],
+            'file_size'     => (int) filesize($file_path),
+            'last_modified' => gmdate('Y-m-d H:i:s', filemtime($file_path)) . ' UTC',
+            'content'       => $content,
+        ]);
     }
 
     /**
