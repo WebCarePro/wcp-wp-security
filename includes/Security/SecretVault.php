@@ -113,11 +113,43 @@ class SecretVault {
             return false;
         }
 
+        $primary_key = null;
         try {
-            $key = self::get_key();
+            $primary_key = self::get_key();
         } catch (\Exception $e) {
+            // Primary key cannot be derived
+        }
+
+        if ($primary_key !== null) {
+            $decrypted = self::decrypt_with_key($value, $primary_key);
+            if ($decrypted !== false) {
+                return $decrypted;
+            }
+        }
+
+        // Dual-Key Fallback: if a rotation migration is active, attempt decrypt with transitional old key
+        if (class_exists('\\WCP\\Scanner\\Security\\VaultRotator')) {
+            $transitional_old_key = VaultRotator::get_transitional_old_key_if_active();
+            if ($transitional_old_key !== false && $transitional_old_key !== $primary_key) {
+                $fallback = self::decrypt_with_key($value, $transitional_old_key);
+                if ($fallback !== false) {
+                    return $fallback;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Decrypt an encrypted secret with an explicit binary key.
+     */
+    public static function decrypt_with_key(string $value, string $key): string|false {
+        if (!self::is_encrypted($value) || !function_exists('openssl_decrypt')) {
             return false;
         }
+
+        $binary_key = strlen($key) === 64 && ctype_xdigit($key) ? (string) hex2bin($key) : (strlen($key) === 32 ? $key : hash('sha256', $key, true));
 
         // Modern AES-256-GCM Authenticated Decryption
         if (strpos($value, self::PREFIX_GCM) === 0) {
@@ -131,7 +163,7 @@ class SecretVault {
             $tag = substr($raw, 12, 16);
             $ciphertext = substr($raw, 28);
 
-            $decrypted = openssl_decrypt($ciphertext, self::CIPHER_GCM, $key, OPENSSL_RAW_DATA, $iv, $tag);
+            $decrypted = openssl_decrypt($ciphertext, self::CIPHER_GCM, $binary_key, OPENSSL_RAW_DATA, $iv, $tag);
             return $decrypted !== false ? $decrypted : false;
         }
 
@@ -150,7 +182,7 @@ class SecretVault {
             $iv = substr($data, 0, $iv_length);
             $ciphertext = substr($data, $iv_length);
 
-            $decrypted = openssl_decrypt($ciphertext, self::CIPHER_CBC, $key, OPENSSL_RAW_DATA, $iv);
+            $decrypted = openssl_decrypt($ciphertext, self::CIPHER_CBC, $binary_key, OPENSSL_RAW_DATA, $iv);
             return $decrypted !== false ? $decrypted : false;
         }
 
@@ -165,8 +197,8 @@ class SecretVault {
             return $encrypted_value;
         }
 
-        $old_binary_key = strlen($old_key) === 64 && ctype_xdigit($old_key) ? (string) hex2bin($old_key) : hash('sha256', $old_key, true);
-        $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
+        $old_binary_key = strlen($old_key) === 32 ? $old_key : (strlen($old_key) === 64 && ctype_xdigit($old_key) ? (string) hex2bin($old_key) : hash('sha256', $old_key, true));
+        $new_binary_key = strlen($new_key) === 32 ? $new_key : (strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true));
 
         // Decrypt with old key
         $decrypted = false;

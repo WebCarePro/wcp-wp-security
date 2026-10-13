@@ -1,4 +1,22 @@
 v:1.13.0 - 2026-10-13
+- Two-Phase Commit Vault Key Rotation Orchestrator (`VaultRotator.php`):
+  * Implemented `VaultRotator` state machine (`idle` -> `preparing` -> `migrating` -> `verifying` -> `committed` -> `failed` / `rolled_back`) with atomic transient locking (`wcp_vault_rotation_lock`).
+  * Dual-Key Decryption Fallback: updated `SecretVault::decrypt()` with zero-downtime dual-key fallback, enabling background requests, webhooks, and REST calls to decrypt using transitional old key material while key rotation is actively in flight.
+  * Ephemeral Sealed Key Envelopes: transitional keys are sealed in-memory using `sodium_crypto_secretbox` (with AES-256-GCM fallback), storing cipher payloads and session-tied ephemeral keys in short-lived transients to prevent raw key exposure in `wp_options` or persistent caches.
+  * Pre-Rotation Single-Row Serialized Backup & Rollback: captures pre-migration encrypted secrets into an isolated snapshot (`wcp_vault_backup_{id}`) with atomic rollback (`VaultRotator::rollback()`) if verification detects any decryption discrepancy.
+  * Idempotent & Resumable Batch Re-Encryption: supports chunked re-encryption of sensitive configuration fields (`gemini_api_key`, `openai_api_key`, `claude_api_key`, `cloudflare_api_token`, etc.) with 32-byte binary key detection to eliminate double-hashing regressions.
+- Hierarchical Resumable Cursor & Constant-Memory Filesystem Traversal (`DirectoryWalker.php`):
+  * Replaced numeric offset pagination with hierarchical two-level cursor (`phase`, `dir_stack`, `last_file`), completely eliminating the O(N^2) directory re-traversal bottleneck on large sites.
+  * Directory & File Exclusions: skips non-essential subtrees (`.git`, `node_modules`, `vendor`, `cache`, `wfcache`, `updraft`, `.vault`, `.backups`, `.logs`, and plugin internal paths) without descent.
+  * Fast-Path Static Media Filtering: bypasses harmless static binaries while strictly preserving inspection of hidden executables and double extensions (`shell.jpg.php`).
+  * Cycle-Safe Non-Symlink Traversal: enforces traversal without following directory symlinks to avoid circular recursion traps.
+- Phased Streaming Scan Pipeline & Real OS Memory Ceilings (`ScanManager.php` & `ResourceMonitor.php`):
+  * Phased Directory Progression: processes filesystem in structured phases (`plugins` -> `themes` -> `mu` -> `core` -> `uploads`) without requiring massive upfront transient queues.
+  * Memory Hygiene & GC Cycles: executes periodic `gc_collect_cycles()` and measures real OS allocated memory pages via `memory_get_usage(true)` and `memory_get_peak_usage(true)`.
+  * Pre- & In-Loop Abort Interruption: immediately honors scan cancellation requests before and during batch execution.
+- Multi-Row Prepared Statement Database Persistence Layer (`FindingsRepository.php`):
+  * Replaced repetitive individual `$wpdb->insert()` calls with chunked multi-row prepared queries (`bulk_insert_files` and `bulk_insert_issues`) capped at 80 rows per statement to stay safely below MySQL `max_allowed_packet`.
+  * Safe Null Parameter Binding: implemented `prepare_with_nulls` to handle nullable database fields cleanly without breaking SQL syntax or risking SQL injection.
 - Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault Upgrade:
   * Upgraded `SecretVault.php` from legacy AES-256-CBC to modern AES-256-GCM Authenticated Encryption with Associated Data (AEAD) featuring 128-bit cryptographic authentication tags (`$tag`) and randomized 12-byte initialization vectors (`random_bytes(12)`).
   * Completely eliminates ciphertext malleability, bit-flipping vulnerabilities, and CBC padding oracle attacks by cryptographically verifying ciphertext integrity before decryption.

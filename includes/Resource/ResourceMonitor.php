@@ -60,7 +60,7 @@ class ResourceMonitor {
             return 0; // Unlimited or unparseable
         }
 
-        $used_memory = memory_get_usage();
+        $used_memory = memory_get_usage(true);
         return ($used_memory / $memory_limit) * 100;
     }
 

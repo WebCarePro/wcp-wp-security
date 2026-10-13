@@ -4,67 +4,159 @@ namespace WCP\Scanner\Scan;
 use WCP\Scanner\Resource\ResourceMonitor;
 use WCP\Scanner\Filesystem\DirectoryWalker;
 use WCP\Scanner\Filesystem\FileScanner;
+use WCP\Scanner\Findings\FindingsRepository;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
 class ScanManager {
-    
-    private $directory_walker;
-    private $file_scanner;
+
+    private DirectoryWalker $directory_walker;
+    private FileScanner $file_scanner;
+    private FindingsRepository $repository;
 
     public function __construct() {
         $this->directory_walker = new DirectoryWalker();
         $this->file_scanner = new FileScanner();
+        $this->repository = new FindingsRepository();
     }
 
     /**
-     * Run a batch of the filesystem scan.
+     * Run a streaming batch of the filesystem scan with hierarchical cursor,
+     * memory guardrails, abort safety, and bulk persistence.
      *
-     * @param string $scan_id
+     * @param string|int $scan_id
      * @param int $batch_size
-     * @return array Result array containing status, offset, findings, etc.
+     * @return array
      */
-    public function run_filesystem_batch($scan_id, $batch_size = 100) {
-        $state = ScanState::load($scan_id);
-        
-        // Dynamically adjust batch size if memory is an issue (mock implementation for now)
-        $monitor = new ResourceMonitor(80, 20); // 80% memory max, 20s max
+    public function run_filesystem_batch($scan_id, $batch_size = 25): array {
+        $scan_id_str = (string) $scan_id;
+        $state = ScanState::load($scan_id_str);
+        $monitor = new ResourceMonitor(75, 18); // 75% memory ceiling, 18s execution limit
 
-        $root_dir = ABSPATH;
-        $offset = $state->get_offset();
-        
-        $files = $this->directory_walker->get_batch($root_dir, $batch_size, $offset);
-        
+        // Abort requested check before starting chunk
+        if ($state->is_abort_requested()) {
+            $state->set_status('aborted');
+            $state->save();
+            return $this->build_response($state, [], 0, true);
+        }
+
+        if ($state->get_status() === 'queued') {
+            $state->set_status('running');
+        }
+
+        $cursor = $state->get_cursor();
+        $current_phase = $cursor['phase'] ?? 'plugins';
+        $root_dir = $this->phase_root($current_phase);
+
+        $batch = $this->directory_walker->get_batch($root_dir, $cursor, $batch_size);
+        $files = $batch['files'] ?? [];
+        $new_cursor = $batch['cursor'] ?? $cursor;
+        $exhausted = !empty($batch['exhausted']);
+
         $findings = [];
+        $file_rows = [];
+        $issue_rows = [];
         $files_scanned = 0;
 
         foreach ($files as $file) {
-            if ($monitor->is_nearing_limits()) {
-                break; // Stop processing this batch early to save state
+            // Guardrail checks before each file
+            if ($monitor->is_nearing_limits() || $state->is_abort_requested()) {
+                break;
             }
 
-            $file_findings = $this->file_scanner->scan_file($file, $scan_id);
-            $findings = array_merge($findings, $file_findings);
-            
+            $file_findings = $this->file_scanner->scan_file($file, $scan_id_str);
+            $has_threat = !empty($file_findings);
+
+            $file_rows[] = [
+                'file_path' => $file,
+                'file_size' => @filesize($file) ?: 0,
+                'status'    => $has_threat ? 'threat' : 'clean',
+            ];
+
+            if ($has_threat) {
+                foreach ($file_findings as $finding) {
+                    $findings[] = $finding;
+                    $issue_rows[] = method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding;
+                }
+            }
+
             $files_scanned++;
+
+            // Memory hygiene: force GC every 10 files
+            if ($files_scanned % 10 === 0) {
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
         }
 
-        // Update state
-        $new_offset = $offset + $files_scanned;
-        $state->set_offset($new_offset);
+        // Multi-row bulk persistence
+        if (!empty($file_rows)) {
+            $this->repository->persist_batch((int) $scan_id, $file_rows, $issue_rows);
+        }
+
+        // Update progress & cursor
+        $state->increment_scanned($files_scanned);
+        $state->add_issues(count($issue_rows));
+        $state->set_cursor($new_cursor);
+        $state->set_memory_peak(memory_get_peak_usage(true));
+
+        // Phase progression
+        $is_complete = false;
+        if ($exhausted && $files_scanned < $batch_size) {
+            $next_phase = $this->next_phase($current_phase);
+            if ($next_phase === null) {
+                $state->set_status('completed');
+                $is_complete = true;
+            } else {
+                $state->set_cursor([
+                    'phase'     => $next_phase,
+                    'dir_stack' => [],
+                    'last_file' => null,
+                ]);
+            }
+        }
+
         $state->save();
 
-        $is_complete = count($files) === 0 || count($files) < $batch_size && $files_scanned === count($files);
+        return $this->build_response($state, $findings, $files_scanned, $is_complete);
+    }
 
+    private function build_response(ScanState $state, array $findings, int $files_scanned, bool $is_complete): array {
         return [
-            'scan_id' => $scan_id,
-            'engine' => 'filesystem',
+            'scan_id'                => $state->get_scan_id(),
+            'engine'                 => 'filesystem',
+            'status'                 => $state->get_status(),
+            'cursor'                 => $state->get_cursor(),
             'files_scanned_in_batch' => $files_scanned,
-            'total_scanned_so_far' => $new_offset,
-            'is_complete' => $is_complete,
-            'findings' => array_map(function($f) { return $f->to_array(); }, $findings)
+            'total_scanned_so_far'   => $state->get_offset(),
+            'is_complete'            => $is_complete,
+            'memory_peak_mb'         => round($state->get_memory_peak() / 1024 / 1024, 2),
+            'findings'               => array_map(function ($f) {
+                return method_exists($f, 'to_array') ? $f->to_array() : (array) $f;
+            }, $findings),
         ];
+    }
+
+    private function phase_root(string $phase): string {
+        return match ($phase) {
+            'plugins'  => defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins',
+            'themes'   => function_exists('get_theme_root') ? get_theme_root() : ABSPATH . 'wp-content/themes',
+            'mu'       => defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : ABSPATH . 'wp-content/mu-plugins',
+            'uploads'  => function_exists('wp_upload_dir') ? (wp_upload_dir()['basedir'] ?? ABSPATH . 'wp-content/uploads') : ABSPATH . 'wp-content/uploads',
+            'core'     => ABSPATH,
+            default    => ABSPATH,
+        };
+    }
+
+    private function next_phase(string $current): ?string {
+        $order = ['plugins', 'themes', 'mu', 'core', 'uploads'];
+        $idx = array_search($current, $order, true);
+        if ($idx === false || !isset($order[$idx + 1])) {
+            return null;
+        }
+        return $order[$idx + 1];
     }
 }
