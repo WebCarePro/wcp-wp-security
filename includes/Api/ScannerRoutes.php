@@ -362,6 +362,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Database Table & Record Remediation Endpoints (Auto-Backup & Quarantine)
+        register_rest_route(self::NAMESPACE, '/database/remediate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_database_row'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/database/row', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_database_row'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/database/restore', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'restore_database_row'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloud Threat Intelligence & Community Blacklist Endpoints
         register_rest_route(self::NAMESPACE, '/threat-intel/status', [
             'methods'             => 'GET',
@@ -1629,7 +1648,32 @@ class ScannerRoutes {
                 $item['user_roles'] = $user ? implode(', ', (array) $user->roles) : 'user';
                 $item['edit_url'] = $userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url("users.php");
             } 
-            // 4. Otherwise treat as a Filesystem finding
+            // 4. Check if finding is a Database Table Row
+            elseif ($engine === 'database-table' || preg_match('/^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)(?:\s*\[ID:\s*(\d+)\])?/i', $filePath, $dbMatches)) {
+                $tableName = !empty($dbMatches[1]) ? $dbMatches[1] : '';
+                $columnName = !empty($dbMatches[2]) ? $dbMatches[2] : '';
+                $rowId = !empty($dbMatches[3]) ? (int) $dbMatches[3] : null;
+
+                $item['is_db_table'] = true;
+                $item['is_file'] = false;
+                $item['is_dir'] = false;
+                $item['can_view'] = false;
+                $item['table_name'] = $tableName;
+                $item['column_name'] = $columnName;
+                $item['row_id'] = $rowId;
+                $item['is_log_table'] = (bool) preg_match('/(log|logs|redirection|audit|history|stat|stats|traffic|404)/i', $tableName);
+
+                // If snippet is empty and row exists, attempt to read from database
+                if (empty($item['code_snippet']) && $tableName && $columnName && $rowId) {
+                    global $wpdb;
+                    $mgr = new \WCP\Scanner\Database\DatabaseRemediationManager();
+                    $row = $mgr->get_row($tableName, $rowId);
+                    if ($row && isset($row[$columnName])) {
+                        $item['code_snippet'] = (string) $row[$columnName];
+                    }
+                }
+            }
+            // 5. Otherwise treat as a Filesystem finding
             else {
                 $cleanPath = ltrim(str_replace(['../', '..\\'], '', $filePath), '/\\');
                 $fullPath = wp_normalize_path(ABSPATH . $cleanPath);
@@ -2487,6 +2531,88 @@ class ScannerRoutes {
             'action'     => $action,
             'comment_id' => $comment_id,
         ]);
+    }
+
+    /**
+     * Database Row Remediation (Delete row or cleanse field with auto-backup snapshot)
+     */
+    public static function remediate_database_row(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $table = !empty($params['table']) ? sanitize_text_field($params['table']) : '';
+        $column = !empty($params['column']) ? sanitize_text_field($params['column']) : '';
+        $row_id = !empty($params['row_id']) ? sanitize_text_field($params['row_id']) : '';
+        $action = !empty($params['action']) ? sanitize_key($params['action']) : 'delete_row';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($table) || empty($row_id)) {
+            return new \WP_Error('missing_params', __('Table name and Row ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $mgr = new \WCP\Scanner\Database\DatabaseRemediationManager();
+
+        if ($action === 'delete_row') {
+            $result = $mgr->delete_row_with_backup($table, $row_id, $column, $issue_id);
+        } elseif ($action === 'cleanse_field') {
+            if (empty($column)) {
+                return new \WP_Error('missing_column', __('Column name is required for field cleansing.', 'wcp-security-scanner'), ['status' => 400]);
+            }
+            $result = $mgr->cleanse_field_with_backup($table, $column, $row_id, $issue_id);
+        } else {
+            return new \WP_Error('invalid_action', __('Invalid database remediation action.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!$result['success']) {
+            return new \WP_Error('db_remediation_failed', $result['message'], ['status' => 500]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Get Database Row Data for Live Forensic Inspection
+     */
+    public static function get_database_row(\WP_REST_Request $request) {
+        $table = sanitize_text_field($request->get_param('table') ?: '');
+        $row_id = sanitize_text_field($request->get_param('row_id') ?: '');
+
+        if (empty($table) || empty($row_id)) {
+            return new \WP_Error('missing_params', __('Table and Row ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $mgr = new \WCP\Scanner\Database\DatabaseRemediationManager();
+        $row = $mgr->get_row($table, $row_id);
+
+        if (!$row) {
+            return new \WP_Error('row_not_found', __('Database record not found or already deleted.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'table'   => $table,
+            'row_id'  => $row_id,
+            'data'    => $row,
+        ]);
+    }
+
+    /**
+     * Restore Database Row from Auto-Backup Snapshot
+     */
+    public static function restore_database_row(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $backup_id = !empty($params['backup_id']) ? sanitize_text_field($params['backup_id']) : '';
+
+        if (empty($backup_id)) {
+            return new \WP_Error('missing_backup_id', __('Backup ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $mgr = new \WCP\Scanner\Database\DatabaseRemediationManager();
+        $result = $mgr->restore_backup($backup_id);
+
+        if (!$result['success']) {
+            return new \WP_Error('db_restore_failed', $result['message'], ['status' => 500]);
+        }
+
+        return rest_ensure_response($result);
     }
 
     /**
