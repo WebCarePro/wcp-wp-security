@@ -53,6 +53,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: Quarantine Vault
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Quarantine Vault & File Isolation', 'wcp-security-scanner'),
+            __('Quarantine Vault', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-quarantine',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Database Backup
         add_submenu_page(
             'wcp-security-scanner',
@@ -143,11 +153,13 @@ class AdminMenu {
             'toplevel_page_wcp-security-scanner',
             'security-scanner_page_wcp-scanner-tools',
             'security-scanner_page_wcp-scanner-logs',
+            'security-scanner_page_wcp-scanner-quarantine',
             'security-scanner_page_wcp-scanner-backup',
             'security-scanner_page_wcp-scanner-server',
             'security-scanner_page_wcp-scanner-vulnerabilities',
             'security-scanner_page_wcp-scanner-firewall',
             'security-scanner_page_wcp-scanner-fim',
+            'security-scanner_page_wcp-scanner-auth',
             'security-scanner_page_wcp-scanner-settings',
             'security-scanner_page_wcp-scanner-about',
         ];
@@ -164,11 +176,13 @@ class AdminMenu {
         $active_tab = 'dashboard';
         if ($current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
         elseif ($current_page === 'wcp-scanner-logs') $active_tab = 'logs';
+        elseif ($current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
         elseif ($current_page === 'wcp-scanner-backup') $active_tab = 'backup';
         elseif ($current_page === 'wcp-scanner-server') $active_tab = 'server';
         elseif ($current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
         elseif ($current_page === 'wcp-scanner-firewall') $active_tab = 'firewall';
         elseif ($current_page === 'wcp-scanner-fim') $active_tab = 'fim';
+        elseif ($current_page === 'wcp-scanner-auth') $active_tab = 'auth';
         elseif ($current_page === 'wcp-scanner-settings') $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about') $active_tab = 'about';
 
