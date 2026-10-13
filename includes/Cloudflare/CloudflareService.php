@@ -366,17 +366,13 @@ class CloudflareService {
     }
 
     /**
-     * Check if an IPv4 address belongs to Cloudflare's Anycast Proxy ranges
+     * Official Cloudflare IPv4 & IPv6 Proxy CIDR Subnets
      *
-     * @param string $ip
-     * @return bool
+     * @return array
      */
-    public static function is_cloudflare_ip(string $ip): bool {
-        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            return false;
-        }
-
-        $cf_ipv4_subnets = [
+    public static function get_cloudflare_ip_ranges(): array {
+        return [
+            // Cloudflare IPv4 CIDRs
             '103.21.244.0/22',
             '103.22.200.0/22',
             '103.31.4.0/22',
@@ -392,18 +388,31 @@ class CloudflareService {
             '190.93.240.0/20',
             '197.234.240.0/22',
             '198.41.128.0/17',
-        ];
 
-        $ip_long = ip2long($ip);
-        if ($ip_long === false) {
+            // Cloudflare IPv6 CIDRs
+            '2400:cb00::/32',
+            '2606:4700::/32',
+            '2803:f800::/32',
+            '2405:b500::/32',
+            '2405:8100::/32',
+            '2a06:98c0::/29',
+            '2c0f:f248::/32',
+        ];
+    }
+
+    /**
+     * Check if an IPv4 or IPv6 address belongs to Cloudflare's Anycast Proxy ranges
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function is_cloudflare_ip(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return false;
         }
 
-        foreach ($cf_ipv4_subnets as $cidr) {
-            list($subnet, $bits) = explode('/', $cidr);
-            $subnet_long = ip2long($subnet);
-            $mask = -1 << (32 - (int) $bits);
-            if (($ip_long & $mask) === ($subnet_long & $mask)) {
+        foreach (self::get_cloudflare_ip_ranges() as $cidr) {
+            if (\WCP\Scanner\Firewall\FirewallEngine::ip_in_range($ip, $cidr)) {
                 return true;
             }
         }

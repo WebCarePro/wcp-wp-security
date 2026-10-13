@@ -139,11 +139,11 @@ class QuarantineManager {
         }
 
         // Security check: Must reside within WordPress installation root with directory boundary check
-        $real_root = wp_normalize_path(untrailingslashit(ABSPATH)) . '/';
-        $normalized_real = wp_normalize_path($real_path);
-        if (strpos($normalized_real, $real_root) !== 0) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security violation: File resides outside ABSPATH.'];
         }
+        $real_root = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
+        $normalized_real = wp_normalize_path($real_path);
 
         // Prohibit quarantining genuine core files inside core directories (wp-admin, wp-includes).
         // Unknown, extraneous, or rogue files injected by attackers CAN and should be quarantined.
@@ -319,11 +319,11 @@ class QuarantineManager {
         $dest_path = $record['original_path'];
 
         // Security check: Destination must reside within ABSPATH boundary
-        $real_root = wp_normalize_path(untrailingslashit(ABSPATH)) . '/';
-        $normalized_dest = wp_normalize_path($dest_path);
-        if (strpos($normalized_dest, $real_root) !== 0) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($dest_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security violation: Restore destination resides outside ABSPATH.'];
         }
+        $real_root = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
+        $normalized_dest = wp_normalize_path($dest_path);
 
         // Prohibit restoring directly into WordPress core directories
         $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';

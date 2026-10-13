@@ -52,12 +52,11 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Target file does not exist or is a directory.'];
         }
 
-        // Must reside within WordPress installation root
-        $real_root = wp_normalize_path(untrailingslashit(ABSPATH)) . '/';
-        $normalized_real = wp_normalize_path($real_path);
-        if (strpos($normalized_real, $real_root) !== 0) {
+        // Must reside within WordPress installation root (strict directory boundary check)
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: File resides outside ABSPATH.'];
         }
+        $normalized_real = wp_normalize_path($real_path);
 
         // Prohibit modifying scanner plugin files
         if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false || strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
@@ -185,12 +184,10 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Target file does not exist on server.'];
         }
 
-        $normalized_real = wp_normalize_path($real_path);
-        $normalized_plugins = wp_normalize_path(WP_PLUGIN_DIR) . '/';
-
-        if (strpos($normalized_real, $normalized_plugins) !== 0) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, WP_PLUGIN_DIR)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress plugins directory.'];
         }
+        $normalized_plugins = rtrim(wp_normalize_path(realpath(WP_PLUGIN_DIR) ?: WP_PLUGIN_DIR), '/') . '/';
 
         // Prohibit scanner's own plugin
         if (strpos($normalized_real, '/wcp-wp-scanner/') !== false || strpos($normalized_real, '/wcp-security-scanner/') !== false) {
@@ -287,12 +284,11 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Target file does not exist on server.'];
         }
 
-        $normalized_real = wp_normalize_path($real_path);
-        $theme_root = function_exists('get_theme_root') ? wp_normalize_path(get_theme_root()) . '/' : wp_normalize_path(WP_CONTENT_DIR . '/themes') . '/';
-
-        if (strpos($normalized_real, $theme_root) !== 0) {
+        $raw_theme_root = function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes');
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, $raw_theme_root)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress themes directory.'];
         }
+        $theme_root = rtrim(wp_normalize_path(realpath($raw_theme_root) ?: $raw_theme_root), '/') . '/';
 
         $rel_within_themes = substr($normalized_real, strlen($theme_root));
         $parts = explode('/', $rel_within_themes, 2);
@@ -381,14 +377,12 @@ class RemediationManager {
             return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
         }
 
-        $normalized_real = wp_normalize_path($real_path);
-        $normalized_abs = wp_normalize_path(ABSPATH);
-
         // Security check: Must reside within ABSPATH
-        if (strpos($normalized_real, $normalized_abs) !== 0) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
             return ['success' => false, 'message' => __('Action Blocked: File is outside the WordPress root directory.', 'wcp-security-scanner')];
         }
 
+        $normalized_abs = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
         $rel_file = ltrim(substr($normalized_real, strlen($normalized_abs)), '/');
 
         // Explicitly forbid restoring wp-config.php, .htaccess, or config templates
@@ -561,6 +555,11 @@ class RemediationManager {
             $clean_data = $decrypted;
         } else {
             $clean_data = $payload;
+        }
+
+        // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($original_path, ABSPATH)) {
+            return ['success' => false, 'message' => 'Security restriction: Rollback destination resides outside WordPress root directory.'];
         }
 
         if (@file_put_contents($original_path, $clean_data, LOCK_EX) === false) {

@@ -327,7 +327,9 @@ class TwoFactorAuth {
         $days         = $days > 0 ? $days : self::get_remember_device_days();
         $expires_at   = time() + ($days * DAY_IN_SECONDS);
         $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
-        $ip           = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $ip           = class_exists('\\WCP\\Scanner\\Firewall\\FirewallEngine')
+            ? \WCP\Scanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
         $device_id    = wp_generate_password(16, false);
 
         $devices = get_user_meta($user_id, self::META_TRUSTED_DEVICES, true);

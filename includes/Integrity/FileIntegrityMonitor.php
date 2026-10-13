@@ -354,9 +354,16 @@ class FileIntegrityMonitor {
             $file_path = wp_normalize_path($normalized_abs . ltrim($file_path, '/\\'));
         }
 
-        // Prevent path traversal
+        // Prevent path traversal, symlink escapes, and sibling-directory prefix confusion
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
+            return [
+                'success' => false,
+                'message' => 'Path traversal denied: File is outside WordPress root directory.',
+            ];
+        }
+
         $real_path = realpath($file_path);
-        if (!$real_path || !file_exists($real_path)) {
+        if (!$real_path || !is_file($real_path)) {
             return [
                 'success' => false,
                 'message' => 'Target file does not exist on local filesystem.',
@@ -364,12 +371,6 @@ class FileIntegrityMonitor {
         }
 
         $real_path = wp_normalize_path($real_path);
-        if (strpos($real_path, $normalized_abs) !== 0) {
-            return [
-                'success' => false,
-                'message' => 'Path traversal denied: File is outside WordPress root directory.',
-            ];
-        }
 
         $rel_path = ltrim(str_replace($normalized_abs, '', $real_path), '/');
         $local_content = @file_get_contents($real_path);

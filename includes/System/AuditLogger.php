@@ -65,7 +65,9 @@ class AuditLogger {
 
     private function write_log($event_type, $message) {
         $timestamp = gmdate('Y-m-d H:i:s');
-        $raw_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $raw_ip = class_exists('\\WCP\\Scanner\\Firewall\\FirewallEngine')
+            ? \WCP\Scanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
         $ip_address = filter_var($raw_ip, FILTER_VALIDATE_IP) ? $raw_ip : 'UNKNOWN';
         
         $current_user = wp_get_current_user();

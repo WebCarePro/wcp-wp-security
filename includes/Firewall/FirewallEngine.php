@@ -29,42 +29,134 @@ class FirewallEngine {
     }
 
     /**
-     * Resolve Real Client IP Address (with Cloudflare & Proxy validation)
+     * Resolve Real Client IP Address with Strict Trusted Proxy Verification.
+     *
+     * Strictly verifies REMOTE_ADDR against Cloudflare and configured trusted proxies.
+     * If the direct connecting peer is untrusted, forwarding headers (CF-Connecting-IP,
+     * X-Forwarded-For) are completely ignored to prevent IP spoofing of firewalls and allowlists.
+     *
+     * @return string
      */
     public static function get_client_ip(): string {
         if (self::$real_ip !== null) {
             return self::$real_ip;
         }
 
-        $ip = '';
+        $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? trim($_SERVER['REMOTE_ADDR']) : '';
+        if (!filter_var($remote_addr, FILTER_VALIDATE_IP)) {
+            $remote_addr = '127.0.0.1';
+        }
 
-        // Check Cloudflare CF-Connecting-IP first
+        // DEFENSE: If REMOTE_ADDR is NOT a trusted proxy, forwarding headers MUST NOT be trusted.
+        // Return REMOTE_ADDR directly to prevent spoofing of allowlists, rate limiters, and logs.
+        if (!self::is_trusted_proxy($remote_addr)) {
+            self::$real_ip = $remote_addr;
+            return self::$real_ip;
+        }
+
+        $resolved_ip = '';
+
+        // Priority 1: Cloudflare CF-Connecting-IP (if connecting via Cloudflare proxy)
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
             $cf_ip = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
             if (filter_var($cf_ip, FILTER_VALIDATE_IP)) {
-                $ip = $cf_ip;
+                $resolved_ip = $cf_ip;
             }
         }
 
-        // Check X-Forwarded-For if not set
-        if (empty($ip) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            $first_ip = trim($parts[0]);
-            if (filter_var($first_ip, FILTER_VALIDATE_IP)) {
-                $ip = $first_ip;
+        // Priority 2: X-Forwarded-For (pick leftmost valid IP)
+        if (empty($resolved_ip) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $parts = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            foreach ($parts as $candidate) {
+                if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                    $resolved_ip = $candidate;
+                    break;
+                }
             }
         }
 
-        // Standard Remote Addr fallback
-        if (empty($ip) && !empty($_SERVER['REMOTE_ADDR'])) {
-            $remote = trim($_SERVER['REMOTE_ADDR']);
-            if (filter_var($remote, FILTER_VALIDATE_IP)) {
-                $ip = $remote;
-            }
-        }
-
-        self::$real_ip = $ip ?: '127.0.0.1';
+        self::$real_ip = $resolved_ip ?: $remote_addr;
         return self::$real_ip;
+    }
+
+    /**
+     * Check if a remote connecting IP address belongs to a verified trusted proxy.
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function is_trusted_proxy(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+
+        // 1. Check Cloudflare edge network proxy ranges
+        if (class_exists('\\WCP\\Scanner\\Cloudflare\\CloudflareService') && \WCP\Scanner\Cloudflare\CloudflareService::is_cloudflare_ip($ip)) {
+            return true;
+        }
+
+        // 2. Check explicitly configured reverse proxy CIDRs/IPs
+        $configured = self::get_configured_trusted_proxies();
+        foreach ($configured as $range) {
+            if (self::ip_in_range($ip, $range)) {
+                return true;
+            }
+        }
+
+        // 3. Localhost / loopback check (if WCP_TRUST_LOCAL_PROXY is explicitly enabled)
+        if (defined('WCP_TRUST_LOCAL_PROXY') && WCP_TRUST_LOCAL_PROXY) {
+            if ($ip === '127.0.0.1' || $ip === '::1') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Retrieve array of configured trusted proxy IPs/CIDRs from constants, environment, or settings.
+     *
+     * @return array
+     */
+    public static function get_configured_trusted_proxies(): array {
+        $proxies = [];
+
+        // 1. From constant WCP_TRUSTED_PROXIES (e.g. define('WCP_TRUSTED_PROXIES', '10.0.0.1, 192.168.1.0/24');)
+        if (defined('WCP_TRUSTED_PROXIES') && is_string(WCP_TRUSTED_PROXIES) && WCP_TRUSTED_PROXIES !== '') {
+            $parts = preg_split('/[\s,;]+/', WCP_TRUSTED_PROXIES);
+            foreach ($parts as $p) {
+                $p = trim($p);
+                if ($p !== '') {
+                    $proxies[] = $p;
+                }
+            }
+        }
+
+        // 2. From environment variable WCP_TRUSTED_PROXIES
+        $env_proxies = getenv('WCP_TRUSTED_PROXIES') ?: ($_ENV['WCP_TRUSTED_PROXIES'] ?? '');
+        if (!empty($env_proxies) && is_string($env_proxies)) {
+            $parts = preg_split('/[\s,;]+/', $env_proxies);
+            foreach ($parts as $p) {
+                $p = trim($p);
+                if ($p !== '') {
+                    $proxies[] = $p;
+                }
+            }
+        }
+
+        // 3. From WordPress option
+        $opt = function_exists('get_option') ? get_option('wcp_trusted_proxies', '') : '';
+        if (!empty($opt) && is_string($opt)) {
+            $parts = preg_split('/[\s,;]+/', $opt);
+            foreach ($parts as $p) {
+                $p = trim($p);
+                if ($p !== '') {
+                    $proxies[] = $p;
+                }
+            }
+        }
+
+        return array_unique($proxies);
     }
 
     /**
@@ -333,22 +425,71 @@ class FirewallEngine {
     }
 
     /**
-     * Check if IPv4 is within a CIDR range
+     * Check if an IP (IPv4 or IPv6) is within a CIDR subnet or matches an IP.
+     *
+     * @param string $ip
+     * @param string $range
+     * @return bool
      */
-    private static function ip_in_range(string $ip, string $range): bool {
+    public static function ip_in_range(string $ip, string $range): bool {
+        $ip = trim($ip);
+        $range = trim($range);
+
         if (strpos($range, '/') === false) {
             return $ip === $range;
         }
+
         list($subnet, $bits) = explode('/', $range, 2);
         $bits = (int) $bits;
-        $ip = ip2long($ip);
-        $subnet = ip2long($subnet);
-        if ($ip === false || $subnet === false) {
-            return false;
+
+        // IPv4 check
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            if (!filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                return false;
+            }
+            if ($bits < 0 || $bits > 32) {
+                return false;
+            }
+            $ip_long = ip2long($ip);
+            $subnet_long = ip2long($subnet);
+            if ($ip_long === false || $subnet_long === false) {
+                return false;
+            }
+            $mask = $bits === 0 ? 0 : (-1 << (32 - $bits));
+            return (($ip_long & $mask) === ($subnet_long & $mask));
         }
-        $mask = -1 << (32 - $bits);
-        $subnet &= $mask;
-        return ($ip & $mask) === $subnet;
+
+        // IPv6 check
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            if (!filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                return false;
+            }
+            if ($bits < 0 || $bits > 128) {
+                return false;
+            }
+            $ip_bin = @inet_pton($ip);
+            $subnet_bin = @inet_pton($subnet);
+            if ($ip_bin === false || $subnet_bin === false) {
+                return false;
+            }
+
+            $bytes = intdiv($bits, 8);
+            if ($bytes > 0 && substr($ip_bin, 0, $bytes) !== substr($subnet_bin, 0, $bytes)) {
+                return false;
+            }
+
+            $rem_bits = $bits % 8;
+            if ($rem_bits > 0) {
+                $mask = (0xFF << (8 - $rem_bits)) & 0xFF;
+                if ((ord($ip_bin[$bytes]) & $mask) !== (ord($subnet_bin[$bytes]) & $mask)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**

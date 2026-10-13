@@ -1544,7 +1544,7 @@ class ScannerRoutes {
                 }
 
                 $realPath = realpath($fullPath);
-                $isInsideRoot = $realPath && (strpos(wp_normalize_path($realPath), $norm_abspath) === 0);
+                $isInsideRoot = $realPath && \WCP\Scanner\Filesystem\PathValidator::is_inside_root($realPath, ABSPATH);
 
                 $item['file_exists'] = $isInsideRoot && file_exists($realPath);
                 $item['is_dir'] = $item['file_exists'] && is_dir($realPath);
@@ -1741,11 +1741,14 @@ class ScannerRoutes {
             return new \WP_Error('file_not_found', __('File does not exist or has been removed from server.', 'wcp-security-scanner'), ['status' => 404]);
         }
 
-        $real_path = realpath($target_full);
-        $real_abs = realpath(ABSPATH);
-
-        if (!$real_path || !$real_abs || strpos(wp_normalize_path($real_path), wp_normalize_path($real_abs)) !== 0) {
+        // Canonical directory boundary check: Enforce trailing slash on root to eliminate sibling directory escapes
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($target_full, ABSPATH)) {
             return new \WP_Error('forbidden_path', __('Access to this file path is restricted outside WordPress root.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
+        $real_path = realpath($target_full);
+        if (!$real_path || !is_file($real_path)) {
+            return new \WP_Error('not_a_file', __('The requested path is a directory or special file, not a viewable file.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
         if (!is_readable($real_path)) {
