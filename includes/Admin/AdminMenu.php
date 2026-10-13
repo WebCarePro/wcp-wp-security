@@ -14,8 +14,8 @@ class AdminMenu {
     public static function add_menu_page() {
         // Main Menu: Dashboard
         add_menu_page(
-            __('Security Scanner', 'wcp-security-scanner'),
-            __('Security Scanner', 'wcp-security-scanner'),
+            __('WCP Security Scanner', 'wcp-security-scanner'),
+            __('WCP Security Scanner', 'wcp-security-scanner'),
             'manage_options',
             'wcp-security-scanner',
             [__CLASS__, 'render_app_container'],
@@ -151,6 +151,17 @@ class AdminMenu {
     public static function enqueue_assets($hook) {
         $valid_hooks = [
             'toplevel_page_wcp-security-scanner',
+            'wcp-security-scanner_page_wcp-scanner-tools',
+            'wcp-security-scanner_page_wcp-scanner-logs',
+            'wcp-security-scanner_page_wcp-scanner-quarantine',
+            'wcp-security-scanner_page_wcp-scanner-backup',
+            'wcp-security-scanner_page_wcp-scanner-server',
+            'wcp-security-scanner_page_wcp-scanner-vulnerabilities',
+            'wcp-security-scanner_page_wcp-scanner-firewall',
+            'wcp-security-scanner_page_wcp-scanner-fim',
+            'wcp-security-scanner_page_wcp-scanner-auth',
+            'wcp-security-scanner_page_wcp-scanner-settings',
+            'wcp-security-scanner_page_wcp-scanner-about',
             'security-scanner_page_wcp-scanner-tools',
             'security-scanner_page_wcp-scanner-logs',
             'security-scanner_page_wcp-scanner-quarantine',
