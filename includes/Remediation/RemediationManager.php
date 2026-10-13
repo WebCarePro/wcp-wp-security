@@ -8,11 +8,14 @@ if (!defined('ABSPATH')) {
 class RemediationManager {
 
     private $backup_dir;
+    private $legacy_backup_dir;
 
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
-        $this->backup_dir = $base . '/wcp-security-scanner/backups/remediation';
+        // Primary vault: Dot-prefixed protected directory blocked by Nginx /\.(?!well-known).* rules
+        $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
+        $this->legacy_backup_dir = $base . '/wcp-security-scanner/backups/remediation';
         $this->ensure_backup_directory();
     }
 
@@ -26,13 +29,13 @@ class RemediationManager {
 
         $htaccess = $this->backup_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            $rules = "# Block all public access\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n";
+            $rules = "# Block all public access\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n<FilesMatch \".*\">\n    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n    <IfModule !mod_authz_core.c>\n        Order deny,allow\n        Deny from all\n    </IfModule>\n</FilesMatch>\n";
             @file_put_contents($htaccess, $rules);
         }
 
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
         }
     }
 
@@ -462,12 +465,21 @@ class RemediationManager {
      */
     private function create_file_backup($file_path, $action_type) {
         $backup_id = uniqid('rem_', true);
-        $filename = basename($file_path) . '_' . date('Ymd_His') . '_' . substr(md5($backup_id), 0, 8) . '.bak';
+        $filename = basename($file_path) . '_' . date('Ymd_His') . '_' . substr(md5($backup_id), 0, 8) . '.bak.php';
         $dest_path = $this->backup_dir . '/' . $filename;
 
-        if (!@copy($file_path, $dest_path)) {
+        $content = @file_get_contents($file_path);
+        if ($content === false) {
             return ['success' => false];
         }
+
+        $guard = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+        $encrypted = \WCP\Scanner\Security\SecretVault::encrypt($content);
+
+        if (@file_put_contents($dest_path, $guard . $encrypted, LOCK_EX) === false) {
+            return ['success' => false];
+        }
+        @chmod($dest_path, 0600);
 
         $backups = get_option('wcp_remediation_backups', []);
         if (!is_array($backups)) {
@@ -481,7 +493,7 @@ class RemediationManager {
             'backup_file'   => $filename,
             'action_type'   => $action_type,
             'created_at'    => current_time('mysql'),
-            'size'          => @filesize($dest_path),
+            'size'          => strlen($content),
         ];
 
         // Keep last 100 backups
@@ -510,11 +522,40 @@ class RemediationManager {
         $backup_path = $record['backup_path'];
         $original_path = $record['original_path'];
 
+        if (!file_exists($backup_path) && isset($this->legacy_backup_dir)) {
+            $legacy_alt = $this->legacy_backup_dir . '/' . $record['backup_file'];
+            if (file_exists($legacy_alt)) {
+                $backup_path = $legacy_alt;
+            }
+        }
+
         if (!file_exists($backup_path)) {
             return ['success' => false, 'message' => 'Physical backup file is missing from storage.'];
         }
 
-        if (!@copy($backup_path, $original_path)) {
+        $raw = @file_get_contents($backup_path);
+        if ($raw === false) {
+            return ['success' => false, 'message' => 'Could not read backup file from storage.'];
+        }
+
+        $payload = $raw;
+        $halt_marker = '__halt_compiler(); ?>';
+        $pos = strpos($raw, $halt_marker);
+        if ($pos !== false) {
+            $payload = ltrim(substr($raw, $pos + strlen($halt_marker)), "\r\n");
+        }
+
+        if (\WCP\Scanner\Security\SecretVault::is_encrypted($payload)) {
+            $decrypted = \WCP\Scanner\Security\SecretVault::decrypt($payload);
+            if ($decrypted === false) {
+                return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted backup ciphertext.'];
+            }
+            $clean_data = $decrypted;
+        } else {
+            $clean_data = $payload;
+        }
+
+        if (@file_put_contents($original_path, $clean_data, LOCK_EX) === false) {
             return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
         }
 

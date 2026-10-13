@@ -8,33 +8,116 @@ if (!defined('ABSPATH')) {
 class QuarantineManager {
 
     private $quarantine_dir;
+    private $legacy_dir;
 
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
-        $this->quarantine_dir = $base . '/wcp-security-scanner/quarantine';
+        // Primary vault: Protected dot-prefixed vault blocked by Nginx /\.(?!well-known).* rules
+        $this->quarantine_dir = $base . '/wcp-security-scanner/.vault';
+        $this->legacy_dir     = $base . '/wcp-security-scanner/quarantine';
         $this->ensure_quarantine_directory();
     }
 
     /**
      * Ensure the quarantine directory exists and is heavily locked down against public web execution.
+     * Migrates legacy unencrypted quarantine files to the encrypted dot-vault if present.
      */
     private function ensure_quarantine_directory() {
         if (!is_dir($this->quarantine_dir)) {
             wp_mkdir_p($this->quarantine_dir);
         }
 
-        // Lock with .htaccess
+        // Lock with .htaccess (Apache / LiteSpeed defense)
         $htaccess = $this->quarantine_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            $rules = "# Block all public web access to quarantine\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n";
+            $rules = "# Block all public web access to quarantine vault\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n<FilesMatch \".*\">\n    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n    <IfModule !mod_authz_core.c>\n        Order deny,allow\n        Deny from all\n    </IfModule>\n</FilesMatch>\n";
             @file_put_contents($htaccess, $rules);
         }
 
         // Lock with index.php
         $index = $this->quarantine_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+        }
+
+        // Lock legacy quarantine directory if it exists, and migrate any legacy files
+        if (is_dir($this->legacy_dir)) {
+            $legacy_htaccess = $this->legacy_dir . '/.htaccess';
+            if (!file_exists($legacy_htaccess)) {
+                $legacy_rules = "# Block all public web access to quarantine\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n";
+                @file_put_contents($legacy_htaccess, $legacy_rules);
+            }
+            $legacy_index = $this->legacy_dir . '/index.php';
+            if (!file_exists($legacy_index)) {
+                @file_put_contents($legacy_index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            }
+            $this->migrate_legacy_quarantine_files();
+        }
+    }
+
+    /**
+     * Migrate existing files from legacy public directory to the encrypted dot-vault.
+     */
+    private function migrate_legacy_quarantine_files() {
+        if (!is_dir($this->legacy_dir)) {
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'wcp_quarantine';
+
+        $files = @scandir($this->legacy_dir);
+        if (!$files || !is_array($files)) {
+            return;
+        }
+
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..' || $file === '.htaccess' || $file === 'index.php') {
+                continue;
+            }
+
+            $legacy_path = $this->legacy_dir . '/' . $file;
+            if (!is_file($legacy_path)) {
+                continue;
+            }
+
+            $raw_content = @file_get_contents($legacy_path);
+            if ($raw_content === false) {
+                continue;
+            }
+
+            // Strip old header if present
+            $payload = $raw_content;
+            $halt_marker = '__halt_compiler(); ?>';
+            $pos = strpos($raw_content, $halt_marker);
+            if ($pos !== false) {
+                $payload = ltrim(substr($raw_content, $pos + strlen($halt_marker)), "\r\n");
+            }
+
+            // Encrypt if not already encrypted
+            if (!\WCP\Scanner\Security\SecretVault::is_encrypted($payload)) {
+                $encrypted = \WCP\Scanner\Security\SecretVault::encrypt($payload);
+            } else {
+                $encrypted = $payload;
+            }
+
+            $guard_header = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+            $vault_payload = $guard_header . $encrypted;
+
+            $new_filename = (substr($file, -4) !== '.php') ? $file . '.php' : $file;
+            $dest_path = $this->quarantine_dir . '/' . $new_filename;
+
+            if (@file_put_contents($dest_path, $vault_payload, LOCK_EX) !== false) {
+                @chmod($dest_path, 0600);
+                @unlink($legacy_path);
+
+                // Update database record if filename changed
+                if ($new_filename !== $file) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $wpdb->update($table, ['quarantine_filename' => $new_filename], ['quarantine_filename' => $file]);
+                }
+            }
         }
     }
 
@@ -121,23 +204,38 @@ class QuarantineManager {
             ];
         }
 
-        // Compute metadata before moving
-        $sha256 = hash_file('sha256', $real_path);
-        $file_size = filesize($real_path);
+        // Read file contents before isolation
+        $file_content = @file_get_contents($real_path);
+        if ($file_content === false) {
+            return ['success' => false, 'message' => 'Failed to read target file. Permission denied.'];
+        }
+
+        // Compute metadata from raw plaintext
+        $sha256 = hash('sha256', $file_content);
+        $file_size = strlen($file_content);
         $file_perms = substr(sprintf('%o', fileperms($real_path)), -4);
 
-        // Generate quarantined file destination
-        $safe_filename = bin2hex(random_bytes(16)) . '_' . time() . '.quarantine';
+        // Encrypt file contents using SecretVault (AES-256-GCM authenticated AEAD encryption)
+        $encrypted_payload = \WCP\Scanner\Security\SecretVault::encrypt($file_content);
+
+        // Prepend defanged PHP execution prevention header and __halt_compiler()
+        $guard_header = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+        $vault_payload = $guard_header . $encrypted_payload;
+
+        // Generate quarantined file destination with .quarantine.php extension
+        $safe_filename = bin2hex(random_bytes(16)) . '_' . time() . '.quarantine.php';
         $dest_path = $this->quarantine_dir . '/' . $safe_filename;
 
-        // Move file into protected quarantine
-        if (!@rename($real_path, $dest_path)) {
-            // Fallback to copy and unlink
-            if (!@copy($real_path, $dest_path)) {
-                return ['success' => false, 'message' => 'Failed to move file to quarantine directory. Permission denied.'];
-            }
-            @unlink($real_path);
+        // Write encrypted payload to protected vault
+        if (@file_put_contents($dest_path, $vault_payload, LOCK_EX) === false) {
+            return ['success' => false, 'message' => 'Failed to isolate file to encrypted vault storage. Permission denied.'];
         }
+
+        // Lock down permissions on vault file
+        @chmod($dest_path, 0600);
+
+        // Unlink original infected/suspicious file
+        @unlink($real_path);
 
         // Record in database
         $table = $wpdb->prefix . 'wcp_quarantine';
@@ -166,7 +264,7 @@ class QuarantineManager {
 
         return [
             'success'       => true,
-            'message'       => 'File successfully quarantined.',
+            'message'       => 'File successfully quarantined and encrypted in vault.',
             'quarantine_id' => $quarantine_id,
             'sha256'        => $sha256
         ];
@@ -174,6 +272,7 @@ class QuarantineManager {
 
     /**
      * Restore a quarantined file back to its original location.
+     * Decrypts AES-256-GCM ciphertext safely in memory before writing to disk.
      *
      * @param int $quarantine_id
      * @return array ['success' => bool, 'message' => string]
@@ -192,6 +291,27 @@ class QuarantineManager {
         }
 
         $source_path = $this->quarantine_dir . '/' . $record['quarantine_filename'];
+        if (!file_exists($source_path) && is_dir($this->legacy_dir)) {
+            $source_path = $this->legacy_dir . '/' . $record['quarantine_filename'];
+        }
+        if (!file_exists($source_path)) {
+            if (substr($record['quarantine_filename'], -4) === '.php') {
+                $alt_name = substr($record['quarantine_filename'], 0, -4);
+                if (file_exists($this->quarantine_dir . '/' . $alt_name)) {
+                    $source_path = $this->quarantine_dir . '/' . $alt_name;
+                } elseif (is_dir($this->legacy_dir) && file_exists($this->legacy_dir . '/' . $alt_name)) {
+                    $source_path = $this->legacy_dir . '/' . $alt_name;
+                }
+            } else {
+                $alt_name = $record['quarantine_filename'] . '.php';
+                if (file_exists($this->quarantine_dir . '/' . $alt_name)) {
+                    $source_path = $this->quarantine_dir . '/' . $alt_name;
+                } elseif (is_dir($this->legacy_dir) && file_exists($this->legacy_dir . '/' . $alt_name)) {
+                    $source_path = $this->legacy_dir . '/' . $alt_name;
+                }
+            }
+        }
+
         if (!file_exists($source_path)) {
             return ['success' => false, 'message' => 'Quarantined backup file is missing from archive storage.'];
         }
@@ -218,18 +338,43 @@ class QuarantineManager {
             wp_mkdir_p($dest_dir);
         }
 
-        // Move back
-        if (!@rename($source_path, $dest_path)) {
-            if (!@copy($source_path, $dest_path)) {
-                return ['success' => false, 'message' => 'Failed to restore file to original location.'];
-            }
-            @unlink($source_path);
+        // Read vault file and extract payload
+        $vault_raw = @file_get_contents($source_path);
+        if ($vault_raw === false) {
+            return ['success' => false, 'message' => 'Failed to read vault file for restoration.'];
         }
 
-        // Restore permissions
+        $payload = $vault_raw;
+        $halt_marker = '__halt_compiler(); ?>';
+        $pos = strpos($vault_raw, $halt_marker);
+        if ($pos !== false) {
+            $payload = ltrim(substr($vault_raw, $pos + strlen($halt_marker)), "\r\n");
+        }
+
+        // Decrypt ciphertext if encrypted
+        if (\WCP\Scanner\Security\SecretVault::is_encrypted($payload)) {
+            $decrypted = \WCP\Scanner\Security\SecretVault::decrypt($payload);
+            if ($decrypted === false) {
+                return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted vault ciphertext.'];
+            }
+            $clean_data = $decrypted;
+        } else {
+            // Legacy unencrypted plaintext fallback
+            $clean_data = $payload;
+        }
+
+        // Write restored plaintext to original destination
+        if (@file_put_contents($dest_path, $clean_data, LOCK_EX) === false) {
+            return ['success' => false, 'message' => 'Failed to restore file to original location. Check directory permissions.'];
+        }
+
+        // Restore original file permissions
         if ($record['file_perms']) {
             @chmod($dest_path, octdec($record['file_perms']));
         }
+
+        // Unlink vault storage file
+        @unlink($source_path);
 
         // Update database record
         $wpdb->update($table, [
@@ -276,9 +421,22 @@ class QuarantineManager {
             return ['success' => false, 'message' => 'Quarantine record not found.'];
         }
 
-        $vault_file = $this->quarantine_dir . '/' . $record['quarantine_filename'];
-        if (file_exists($vault_file)) {
-            @unlink($vault_file);
+        $candidates = [
+            $this->quarantine_dir . '/' . $record['quarantine_filename'],
+            $this->legacy_dir . '/' . $record['quarantine_filename'],
+            $this->quarantine_dir . '/' . $record['quarantine_filename'] . '.php',
+            $this->legacy_dir . '/' . $record['quarantine_filename'] . '.php',
+        ];
+        if (substr($record['quarantine_filename'], -4) === '.php') {
+            $stripped = substr($record['quarantine_filename'], 0, -4);
+            $candidates[] = $this->quarantine_dir . '/' . $stripped;
+            $candidates[] = $this->legacy_dir . '/' . $stripped;
+        }
+
+        foreach ($candidates as $cand) {
+            if (file_exists($cand)) {
+                @unlink($cand);
+            }
         }
 
         $wpdb->delete($table, ['id' => (int) $quarantine_id]);

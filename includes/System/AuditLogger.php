@@ -12,8 +12,9 @@ class AuditLogger {
 
     public function __construct() {
         $upload_dir = wp_upload_dir();
-        $this->log_dir = untrailingslashit($upload_dir['basedir']) . '/wcp-security-scanner/logs';
-        $this->log_file = $this->log_dir . '/audit.log';
+        // Dot-prefixed protected directory blocked by Nginx /\.(?!well-known).* rules
+        $this->log_dir = untrailingslashit($upload_dir['basedir']) . '/wcp-security-scanner/.logs';
+        $this->log_file = $this->log_dir . '/audit.log.php';
     }
 
     public function init() {
@@ -26,15 +27,16 @@ class AuditLogger {
             wp_mkdir_p($this->log_dir);
         }
 
-        // Secure the logs directory
+        // Secure the logs directory for Apache / LiteSpeed
         $htaccess = $this->log_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "Require all denied\nDeny from all\n");
+            $rules = "# Block all public access\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n<FilesMatch \".*\">\n    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n    <IfModule !mod_authz_core.c>\n        Order deny,allow\n        Deny from all\n    </IfModule>\n</FilesMatch>\n";
+            @file_put_contents($htaccess, $rules);
         }
 
         $index = $this->log_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
         }
     }
 
@@ -74,6 +76,11 @@ class AuditLogger {
 
         // Format: [TIMESTAMP] [IP] [USER] [EVENT] Message
         $log_entry = sprintf("[%s] [IP: %s] [User: %s] [%s] %s" . PHP_EOL, $timestamp, $ip_address, $username, $clean_event, $clean_message);
+
+        // Prepend PHP exit guard on file creation so direct web requests immediately terminate
+        if (!file_exists($this->log_file)) {
+            @file_put_contents($this->log_file, "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); ?>\n", LOCK_EX);
+        }
 
         @file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
     }
