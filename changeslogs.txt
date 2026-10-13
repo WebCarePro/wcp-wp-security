@@ -12,6 +12,9 @@ v:1.14.0 - 2026-10-14
   * Direct WordPress Admin Comment Editor Integration: rendered direct deep-links (`comment.php?action=editcomment&c={id}`) to inspect and edit flagged comments natively inside the WordPress administration panel.
   * Dedicated Comment Forensics UI & Action Controls (`src/App.tsx`): replaced irrelevant filesystem quarantine/restore buttons with dedicated comment actions (Edit in WP-Admin, Move to Trash / Quarantine, Mark as Spam, Permanently Delete), distinct `COMMENT #{id}` badges, and expandable comment inspection cards with one-click text copy.
   * Backward-Compatible Enrichment: dynamically enriches existing scan history records with live comment database records so historical scans instantly display author ID, author name, parent post titles, and full comment text.
+- Theme Integrity Version Reconciliation & Pristine Baseline Detection:
+  * Official Theme Version Release Prioritization (`ChecksumProvider.php`): resolved false-positive theme modification alerts on default themes (Twenty Twenty-Five, Twenty Twenty-Four, etc.) that were updated past WordPress core's bundled release version. Prioritized standalone version-specific theme release archives from WordPress.org over static core checksums, eliminating version-mismatched hash comparison.
+  * Clean Baseline Verification & One-Click Dismissal (`VisualDiffModal.tsx`, `FileIntegrityMonitor.php`): enhanced Visual Code Diff Viewer with clean baseline detection (+0 lines, -0 lines). When a file matches official repository code line-for-line, surfaces a reassuring verification banner explaining that no code tampering exists and replaces the restoration button with an instant 'Dismiss & Mark as Resolved' action.
 
 v:1.13.0 - 2026-10-13
 - Real-World Production Scan Calibration & False-Positive Elimination:

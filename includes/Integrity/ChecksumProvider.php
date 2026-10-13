@@ -110,13 +110,62 @@ class ChecksumProvider {
      * @return array|null Array of relative_file => hash/bool
      */
     public function get_theme_checksums($theme_slug, $version) {
-        $cache_key = "wcp_theme_chk_{$theme_slug}_{$version}";
+        $theme_slug = sanitize_title($theme_slug);
+        $version = trim(preg_replace('/^v/i', '', (string) $version));
+        if (empty($theme_slug) || empty($version)) {
+            return null;
+        }
+
+        $cache_key = "wcp_theme_chk_v3_{$theme_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
         }
 
-        // 1. Check if it's a bundled default theme in core checksums
+        // 1. Fetch exact theme version zip from WordPress.org to extract pristine release manifest
+        $url = "https://downloads.wordpress.org/theme/{$theme_slug}.{$version}.zip";
+        $response = wp_remote_head($url, ['timeout' => 8, 'sslverify' => true]);
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            if (class_exists('\ZipArchive')) {
+                if (!function_exists('download_url')) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                }
+                $tmp_file = download_url($url, 25);
+                if (!is_wp_error($tmp_file)) {
+                    $zip = new \ZipArchive();
+                    if ($zip->open($tmp_file) === true) {
+                        $manifest = [];
+                        $zip_prefix = "{$theme_slug}/";
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            $stat = $zip->statIndex($i);
+                            $entry_name = $stat['name'];
+                            if (substr($entry_name, -1) === '/') {
+                                continue; // Skip directories
+                            }
+                            if (strpos($entry_name, $zip_prefix) === 0) {
+                                $rel_name = substr($entry_name, strlen($zip_prefix));
+                                $stream = $zip->getStream($entry_name);
+                                if ($stream) {
+                                    $manifest[$rel_name] = md5(stream_get_contents($stream));
+                                    fclose($stream);
+                                } else {
+                                    $manifest[$rel_name] = true;
+                                }
+                            }
+                        }
+                        $zip->close();
+                        @unlink($tmp_file);
+                        if (!empty($manifest)) {
+                            set_transient($cache_key, $manifest, defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400);
+                            return $manifest;
+                        }
+                    }
+                    @unlink($tmp_file);
+                }
+            }
+        }
+
+        // 2. Fallback: If standalone theme zip is unavailable, check if bundled in core checksums for current WP version
         $core_checksums = $this->get_core_checksums();
         if ($core_checksums) {
             $prefix = "wp-content/themes/{$theme_slug}/";
@@ -128,53 +177,8 @@ class ChecksumProvider {
                 }
             }
             if (!empty($theme_files)) {
-                set_transient($cache_key, $theme_files, DAY_IN_SECONDS);
+                set_transient($cache_key, $theme_files, defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400);
                 return $theme_files;
-            }
-        }
-
-        // 2. Fetch theme zip from WordPress.org to extract manifest
-        $url = "https://downloads.wordpress.org/theme/{$theme_slug}.{$version}.zip";
-        $response = wp_remote_head($url, ['timeout' => 5]);
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            return null; // Not an official WP.org theme or version unavailable
-        }
-
-        if (class_exists('\ZipArchive')) {
-            if (!function_exists('download_url')) {
-                require_once ABSPATH . 'wp-admin/includes/file.php';
-            }
-            $tmp_file = download_url($url, 15);
-            if (!is_wp_error($tmp_file)) {
-                $zip = new \ZipArchive();
-                if ($zip->open($tmp_file) === true) {
-                    $manifest = [];
-                    $zip_prefix = "{$theme_slug}/";
-                    for ($i = 0; $i < $zip->numFiles; $i++) {
-                        $stat = $zip->statIndex($i);
-                        $entry_name = $stat['name'];
-                        if (substr($entry_name, -1) === '/') {
-                            continue; // Skip directories
-                        }
-                        if (strpos($entry_name, $zip_prefix) === 0) {
-                            $rel_name = substr($entry_name, strlen($zip_prefix));
-                            $stream = $zip->getStream($entry_name);
-                            if ($stream) {
-                                $manifest[$rel_name] = md5(stream_get_contents($stream));
-                                fclose($stream);
-                            } else {
-                                $manifest[$rel_name] = true;
-                            }
-                        }
-                    }
-                    $zip->close();
-                    @unlink($tmp_file);
-                    if (!empty($manifest)) {
-                        set_transient($cache_key, $manifest, DAY_IN_SECONDS);
-                        return $manifest;
-                    }
-                }
-                @unlink($tmp_file);
             }
         }
 

@@ -525,6 +525,11 @@ class FileIntegrityMonitor {
         // Compute Line-by-Line Diff
         $diff_result = $this->compute_diff($official_content, $local_content);
 
+        $is_identical = ($is_official_compared && $diff_result['additions'] === 0 && $diff_result['deletions'] === 0);
+        if ($is_identical) {
+            $diff_message = 'File content is 100% identical to the official WordPress.org release baseline (+0 lines, -0 lines). No code tampering detected.';
+        }
+
         return [
             'success'              => true,
             'file_path'            => $real_path,
@@ -532,6 +537,7 @@ class FileIntegrityMonitor {
             'filename'             => basename($real_path),
             'category'             => $category,
             'is_official_compared' => $is_official_compared,
+            'is_identical'         => $is_identical,
             'official_source_url'  => $official_source_url,
             'message'              => $diff_message,
             'stats'                => [
