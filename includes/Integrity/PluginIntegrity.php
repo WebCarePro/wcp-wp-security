@@ -75,23 +75,28 @@ class PluginIntegrity {
                 continue;
             }
 
-            $is_premium_or_custom_dir = (bool) preg_match('/-(premium|pro|addon|addons|unlimited|disabled|master|main|dev)$/i', $plugin_dir_name);
+            // Detect commercial / premium / custom branches in folder naming or plugin title
+            $is_premium_or_custom_dir = (bool) preg_match('/(?:^|[-_])(premium|pro|addon|addons|unlimited|disabled|disableds|master|main|dev|backup|old)(?:[-_]|$)/i', $plugin_dir_name);
             $has_premium_title = (bool) preg_match('/\b(premium|pro|unlimited|commercial)\b/i', $plugin_data['Name'] ?? '');
+            $is_commercial_or_custom = ($is_premium_or_custom_dir || $has_premium_title);
 
-            // 1. Attempt checksum retrieval by effective slug
-            $checksums = $this->provider->get_plugin_checksums($effective_slug, $version);
+            $checksums = null;
 
-            // 2. Fallback to folder name if effective slug differed
-            if (!$checksums && !$is_single_file && $effective_slug !== $plugin_dir_name) {
-                $checksums = $this->provider->get_plugin_checksums($plugin_dir_name, $version);
-            }
+            // Only attempt official WordPress.org checksum retrieval if this is NOT a commercial/premium/custom plugin
+            if (!$is_commercial_or_custom) {
+                // 1. Attempt checksum retrieval by effective slug
+                $checksums = $this->provider->get_plugin_checksums($effective_slug, $version);
 
-            // 3. Fallback to TextDomain ONLY for single-file plugins (e.g. hello.php) or when folder matches TextDomain.
-            // Never fallback to TextDomain if the directory has premium/custom indicators or if folder name differs,
-            // because commercial/premium extensions often share the free plugin's TextDomain.
-            if (!$checksums && !empty($plugin_data['TextDomain'])) {
-                if ($is_single_file || (!$is_premium_or_custom_dir && !$has_premium_title && $plugin_data['TextDomain'] === $plugin_dir_name)) {
-                    $checksums = $this->provider->get_plugin_checksums($plugin_data['TextDomain'], $version);
+                // 2. Fallback to folder name if effective slug differed
+                if (!$checksums && !$is_single_file && $effective_slug !== $plugin_dir_name) {
+                    $checksums = $this->provider->get_plugin_checksums($plugin_dir_name, $version);
+                }
+
+                // 3. Fallback to TextDomain ONLY for single-file plugins (e.g. hello.php) or when folder matches TextDomain.
+                if (!$checksums && !empty($plugin_data['TextDomain'])) {
+                    if ($is_single_file || $plugin_data['TextDomain'] === $plugin_dir_name) {
+                        $checksums = $this->provider->get_plugin_checksums($plugin_data['TextDomain'], $version);
+                    }
                 }
             }
 

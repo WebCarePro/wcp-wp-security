@@ -41,11 +41,20 @@ class ContentScanner {
                 break;
             }
 
+            $excluded_post_types = [
+                'wp_navigation', 'wp_template', 'wp_template_part', 'wp_global_styles', 
+                'nav_menu_item', 'revision', 'attachment', 'custom_css', 'oembed_cache',
+                'custom-css-js', 'wplconsentlogs', 'action_log'
+            ];
+            $placeholders = implode("', '", array_map('esc_sql', $excluded_post_types));
+
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $posts = $wpdb->get_results($wpdb->prepare(
                 "SELECT ID, post_title, post_content, post_type, post_status 
                  FROM `{$posts_table}` 
-                 WHERE ID > %d AND post_status IN ('publish', 'future', 'draft', 'private')
+                 WHERE ID > %d 
+                   AND post_status IN ('publish', 'future', 'draft', 'private')
+                   AND post_type NOT IN ('{$placeholders}')
                  ORDER BY ID ASC 
                  LIMIT %d",
                 $last_id,

@@ -157,6 +157,19 @@ class TableScanner {
                 $next_cursor = (int) $row_id;
             }
 
+            // Skip internal system/code post types in posts tables (e.g. Simple Custom CSS & JS, oembed cache)
+            $is_posts_table = (strpos($table, 'posts') !== false && strpos($table, 'postmeta') === false);
+            if ($is_posts_table && isset($row['post_type'])) {
+                $excluded_post_types = [
+                    'custom-css-js', 'custom_css', 'oembed_cache', 'revision', 
+                    'nav_menu_item', 'wp_navigation', 'wp_template', 'wp_template_part', 
+                    'wp_global_styles', 'wplconsentlogs'
+                ];
+                if (in_array($row['post_type'], $excluded_post_types, true)) {
+                    continue;
+                }
+            }
+
             // Skip cached transients in options tables (e.g. RSS feeds from wordpress.org dashboard widgets)
             $is_options_table = (strpos($table, 'options') !== false);
             if ($is_options_table && isset($row['option_name'])) {
@@ -168,6 +181,14 @@ class TableScanner {
                     strpos($opt_name, 'cache_') === 0) {
                     continue; // Skip transient/cache entries
                 }
+            }
+
+            // Check if option/postmeta legitimately stores custom admin code (e.g. header/footer scripts, Elementor data)
+            $is_custom_code_storage = false;
+            if ($is_options_table && isset($row['option_name'])) {
+                $is_custom_code_storage = (bool) preg_match('/(header_script|footer_script|custom_js|custom_css|gtm|tag_manager|analytics|pixel|tracking|elementor|theme_mods|forminator)/i', $row['option_name']);
+            } elseif (isset($row['meta_key'])) {
+                $is_custom_code_storage = (bool) preg_match('/(_custom_js|_custom_css|_elementor_data|_elementor_css|_elementor_page_settings)/i', $row['meta_key']);
             }
 
             foreach ($columns as $column) {
@@ -188,6 +209,14 @@ class TableScanner {
                     if (strlen($str) < 10) continue;
 
                     foreach ($this->patterns as $rule_key => $rule) {
+                        // If stored in legitimate custom code settings, only flag critical exploit payloads (eval/base64/droppers)
+                        if ($is_custom_code_storage && in_array($rule_key, ['script_tag_injection', 'iframe_injection'], true)) {
+                            $has_exploit = preg_match('/(eval\s*\(|base64_decode\s*\(|document\.write\s*\(\s*unescape|String\.fromCharCode|\bwindow\[[\'"]ev)/i', $str);
+                            if (!$has_exploit) {
+                                continue;
+                            }
+                        }
+
                         if (preg_match($rule['regex'], $str, $matches)) {
                             $snippet = substr($matches[0], 0, 150);
 
@@ -199,10 +228,10 @@ class TableScanner {
                                 }
                             }
 
-                            // Whitelist check: Legitimate tracking scripts (GTM, GA, etc.)
+                            // Whitelist check: Legitimate tracking scripts and popular CDNs (GTM, GA, Cloudflare, etc.)
                             if ($rule_key === 'script_tag_injection') {
-                                if (preg_match('/(googletagmanager\.com|google-analytics\.com|clarity\.ms|connect\.facebook\.net)/i', $matches[0])) {
-                                    continue; // Legitimate analytics/marketing script
+                                if (preg_match('/(googletagmanager\.com|google-analytics\.com|clarity\.ms|connect\.facebook\.net|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|code\.jquery\.com|stripe\.com|recaptcha\.net|google\.com\/recaptcha)/i', $matches[0])) {
+                                    continue; // Legitimate analytics/marketing/library script
                                 }
                             }
                             $findings[] = new Finding([

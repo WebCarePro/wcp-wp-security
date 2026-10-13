@@ -60,8 +60,20 @@ class CoreIntegrity {
             }
 
             $actual_hash = md5_file($absolute_path);
+            $is_modified = ($actual_hash !== $expected_hash);
+
+            // If modified, normalize line endings (CRLF vs LF) to prevent OS/zip extraction false positives
+            if ($is_modified) {
+                $raw_content = @file_get_contents($absolute_path);
+                if ($raw_content !== false) {
+                    $normalized_hash = md5(str_replace("\r\n", "\n", $raw_content));
+                    if ($normalized_hash === $expected_hash) {
+                        $is_modified = false;
+                    }
+                }
+            }
             
-            if ($actual_hash !== $expected_hash) {
+            if ($is_modified) {
                 $findings[] = new Finding([
                     'engine'      => 'integrity-core',
                     'type'        => 'modified_core_file',

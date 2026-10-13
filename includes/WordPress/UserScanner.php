@@ -118,7 +118,8 @@ class UserScanner {
         // where post_author is intentionally 0 or unassigned by WordPress Core.
         $excluded_post_types = [
             'wp_navigation', 'wp_template', 'wp_template_part', 'wp_global_styles', 
-            'nav_menu_item', 'revision', 'attachment', 'custom_css', 'oembed_cache'
+            'nav_menu_item', 'revision', 'attachment', 'custom_css', 'oembed_cache',
+            'wplconsentlogs', 'custom-css-js', 'action_log'
         ];
         $post_type_placeholders = implode("', '", array_map('esc_sql', $excluded_post_types));
 

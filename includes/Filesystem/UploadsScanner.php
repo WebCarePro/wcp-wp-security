@@ -118,10 +118,22 @@ class UploadsScanner {
 
                 // 2. Dangerous server overrides (.htaccess / web.config in uploads)
                 if ($lower_name === '.htaccess' || $lower_name === 'web.config') {
-                    $content = @file_get_contents($real_path, false, null, 0, 1024) ?: '';
-                    // Allow .htaccess only if it restricts execution, otherwise flag as high risk
-                    $is_protective = (stripos($content, 'deny from all') !== false || stripos($content, 'require all denied') !== false);
-                    if (!$is_protective) {
+                    $content = @file_get_contents($real_path, false, null, 0, 2048) ?: '';
+                    // Legitimate security plugins (Forminator, WooCommerce, WPForms) place protective .htaccess files
+                    // to prevent PHP execution (e.g. php_flag engine off, Options -ExecCGI, Deny from all, RemoveHandler).
+                    // Flag ONLY if it actually overrides/enables PHP execution for media/non-php files or drops backdoors.
+                    $is_malicious_override = (bool) preg_match('/(AddType|AddHandler|SetHandler)\s+application\/x-httpd-php|\b(auto_prepend_file|auto_append_file)\b|php_flag\s+engine\s+(?:on|1)/i', $content);
+                    $is_protective = (
+                        stripos($content, 'deny from all') !== false ||
+                        stripos($content, 'require all denied') !== false ||
+                        stripos($content, 'php_flag engine off') !== false ||
+                        stripos($content, 'Options -ExecCGI') !== false ||
+                        stripos($content, 'Options -Indexes') !== false ||
+                        stripos($content, 'RemoveHandler') !== false ||
+                        stripos($content, 'SetHandler default-handler') !== false
+                    );
+
+                    if ($is_malicious_override || !$is_protective) {
                         $findings[] = new Finding([
                             'engine'       => 'uploads-scanner',
                             'type'         => 'server_override_in_uploads',
@@ -364,7 +376,12 @@ class UploadsScanner {
             return null;
         }
 
-        // Read header up to 8KB (covers image headers, EXIF Comment, IPTC, and small files)
+        // True PHP polyglot webshells in images MUST contain a valid PHP opening tag with executable tokens.
+        // Plain binary sequences in compressed PNG/WebP/JPEG can accidentally contain ASCII bytes for words like 'eval('
+        // but can never execute in PHP without opening PHP tags (<?php or <?=).
+        $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
+
+        // 1. Read header up to 8KB (covers image headers, EXIF Comment, IPTC, and head polyglots)
         $header = @file_get_contents($real_path, false, null, 0, 8192);
         if ($header === false || empty($header)) {
             return null;
@@ -373,28 +390,26 @@ class UploadsScanner {
         $detected_pattern = null;
         $snippet = '';
 
-        // Check for PHP tags in header / EXIF metadata
-        if (preg_match('/(<\?php|<\?=\s*|eval\s*\(|base64_decode\s*\(|system\s*\(|passthru\s*\(|shell_exec\s*\()/i', $header, $m)) {
+        if (preg_match($php_pattern, $header, $m)) {
             $detected_pattern = $m[0];
             $snippet = $this->extract_context_snippet($header, $m[0]);
         }
 
-        // If file is larger than 8KB, also check trailing 8KB (where attackers append webshells after JPEG \xFF\xD9 or PNG IEND)
+        // 2. If file is larger than 8KB, check trailing 8KB (where attackers append webshells after JPEG \xFF\xD9 or PNG IEND)
         if (!$detected_pattern && $file_size > 8192) {
             $tail_offset = max(0, $file_size - 8192);
             $tail = @file_get_contents($real_path, false, null, $tail_offset, 8192);
-            if ($tail !== false && preg_match('/(<\?php|<\?=\s*|eval\s*\(|base64_decode\s*\(|system\s*\(|passthru\s*\(|shell_exec\s*\()/i', $tail, $m)) {
+            if ($tail !== false && preg_match($php_pattern, $tail, $m)) {
                 $detected_pattern = $m[0];
                 $snippet = $this->extract_context_snippet($tail, $m[0]);
             }
         }
 
-        // For moderate files (under 1MB), check full content if not already found
-        if (!$detected_pattern && $file_size <= 1024 * 1024) {
-            $full = @file_get_contents($real_path);
-            if ($full !== false && preg_match('/(<\?php|<\?=\s*)/i', $full, $m)) {
+        // 3. Masquerading full PHP script disguised with media extension (starts with <?php)
+        if (!$detected_pattern && $file_size <= 128 * 1024) {
+            if (preg_match('/^\s*<\?php/i', $header, $m)) {
                 $detected_pattern = $m[0];
-                $snippet = $this->extract_context_snippet($full, $m[0]);
+                $snippet = $this->extract_context_snippet($header, $m[0]);
             }
         }
 
