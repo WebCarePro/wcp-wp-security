@@ -64,19 +64,45 @@ class FirewallEngine {
             }
         }
 
-        // Priority 2: X-Forwarded-For (pick leftmost valid IP)
+        // Priority 2: X-Forwarded-For (Multi-proxy chain defense: reverse order traversal)
+        // Upstream reverse proxies append the connecting client IP to the end of X-Forwarded-For.
+        // To prevent attackers from spoofing their IP by prepending arbitrary values,
+        // we traverse from right to left, skipping intermediate trusted proxies until finding
+        // the first non-trusted peer (the authentic client IP).
         if (empty($resolved_ip) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $parts = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
-            foreach ($parts as $candidate) {
+            $reversed = array_reverse($parts);
+            foreach ($reversed as $candidate) {
                 if (filter_var($candidate, FILTER_VALIDATE_IP)) {
-                    $resolved_ip = $candidate;
-                    break;
+                    if (!self::is_trusted_proxy($candidate)) {
+                        $resolved_ip = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            // Fallback if all addresses in the chain are trusted proxies
+            if (empty($resolved_ip)) {
+                foreach ($reversed as $candidate) {
+                    if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                        $resolved_ip = $candidate;
+                        break;
+                    }
                 }
             }
         }
 
         self::$real_ip = $resolved_ip ?: $remote_addr;
         return self::$real_ip;
+    }
+
+    /**
+     * Reset the cached resolved IP address (used for testing and lifecycle hooks).
+     *
+     * @return void
+     */
+    public static function reset_client_ip_cache(): void {
+        self::$real_ip = null;
     }
 
     /**

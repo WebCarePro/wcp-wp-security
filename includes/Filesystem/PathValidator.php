@@ -21,31 +21,95 @@ class PathValidator {
      *
      * @param string $path Target path to test
      * @param string|null $root Approved root directory (defaults to ABSPATH)
+     * @param bool $must_exist If true, the target path itself must currently exist on disk
      * @return bool True if $path is canonically inside $root
      */
-    public static function is_inside_root(string $path, ?string $root = null): bool {
+    public static function is_inside_root(string $path, ?string $root = null, bool $must_exist = false): bool {
         if (empty($path)) {
             return false;
         }
 
         $root = $root ?: ABSPATH;
         $real_root = realpath($root);
-        $real_path = realpath($path);
-
-        // If either path cannot be resolved by the OS filesystem, access is denied
-        if ($real_root === false || $real_path === false) {
+        if ($real_root === false) {
             return false;
         }
 
-        // Canonicalize and normalize directory separators
+        // Canonicalize and normalize directory separators for root
         $norm_root = function_exists('wp_normalize_path') ? wp_normalize_path($real_root) : str_replace('\\', '/', $real_root);
-        $norm_path = function_exists('wp_normalize_path') ? wp_normalize_path($real_path) : str_replace('\\', '/', $real_path);
-
-        // Enforce trailing slash on root directory to ensure boundary isolation
         $norm_root_dir = rtrim($norm_root, '/') . '/';
 
-        // Valid if exact root directory OR starts with root directory + separator
-        return ($norm_path === rtrim($norm_root_dir, '/') || strpos($norm_path, $norm_root_dir) === 0);
+        $real_path = realpath($path);
+        if ($real_path !== false) {
+            $norm_path = function_exists('wp_normalize_path') ? wp_normalize_path($real_path) : str_replace('\\', '/', $real_path);
+            return ($norm_path === rtrim($norm_root_dir, '/') || strpos($norm_path, $norm_root_dir) === 0);
+        }
+
+        // Target does not exist on disk
+        if ($must_exist) {
+            return false;
+        }
+
+        // For non-existent targets (e.g. restoration or rollback destinations),
+        // resolve the nearest existing ancestor canonical path and verify boundary containment.
+        $canonical = self::resolve_nonexistent_path($path);
+        if ($canonical === false) {
+            return false;
+        }
+
+        return (strpos($canonical, $norm_root_dir) === 0 || $canonical === rtrim($norm_root_dir, '/'));
+    }
+
+    /**
+     * Resolve the canonical path for a target that may not yet exist on disk
+     * by resolving its nearest existing ancestor and evaluating traversal segments.
+     *
+     * @param string $path
+     * @return string|false
+     */
+    public static function resolve_nonexistent_path(string $path): string|false {
+        if (strpos($path, "\0") !== false) {
+            return false;
+        }
+
+        $norm = function_exists('wp_normalize_path') ? wp_normalize_path($path) : str_replace('\\', '/', $path);
+        $current = $norm;
+        $sub_paths = [];
+
+        while (!empty($current) && $current !== '.' && $current !== '/' && !@file_exists($current)) {
+            $base = basename($current);
+            $parent = dirname($current);
+            if ($parent === $current) {
+                break;
+            }
+            array_unshift($sub_paths, $base);
+            $current = $parent;
+        }
+
+        $real_existing = realpath($current);
+        if ($real_existing === false) {
+            return false;
+        }
+
+        $canonical_existing = function_exists('wp_normalize_path') ? wp_normalize_path($real_existing) : str_replace('\\', '/', $real_existing);
+        $segments = explode('/', $canonical_existing);
+
+        foreach ($sub_paths as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                if (count($segments) > 1) {
+                    array_pop($segments);
+                } else {
+                    return false;
+                }
+            } else {
+                $segments[] = $part;
+            }
+        }
+
+        return implode('/', $segments);
     }
 
     /**

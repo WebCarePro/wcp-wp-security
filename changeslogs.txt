@@ -35,14 +35,17 @@ v:1.13.0 - 2026-10-13
   * Automatic Legacy File Vault Migration: added `migrate_legacy_quarantine_files()` to automatically move existing legacy unencrypted files into `.vault/`, encrypt them with AES-256-GCM, append execution defanged guards, and update database filename pointers.
   * In-Memory Decryption on Safe File Restore & Rollback: updated `QuarantineManager::restore_file()` and `RemediationManager::rollback_remediation()` to decrypt AES-256-GCM payloads strictly in memory, seamlessly restoring pristine original files and permissions with dual-compatibility for legacy records.
 - Path Boundary Hardening & Sibling-Directory Prefix Confusion Elimination:
-  * Implemented dedicated `PathValidator.php` class (`PathValidator::is_inside_root`, `is_safe_readable_file`, `is_inside_any_root`, `get_relative_path`).
+  * Implemented dedicated `PathValidator.php` class (`PathValidator::is_inside_root`, `is_safe_readable_file`, `is_inside_any_root`, `get_relative_path`, `resolve_nonexistent_path`).
   * Enforced canonical path boundary validation with trailing directory separators on root paths (`ABSPATH`, `WP_PLUGIN_DIR`, `themes`), completely eliminating sibling-directory prefix confusion (e.g. `/var/www/html-backup/secret.txt` matching `/var/www/html`), symlink escapes, and directory traversal attempts across `ScannerRoutes.php` (`view_file_content` and `enrich_issues`), `FileIntegrityMonitor.php` (`get_file_diff`), `RemediationManager.php` (`strip_malware_injection`, `restore_official_plugin_file`, `restore_official_theme_file`, `restore_official_core_file`, `rollback_remediation`), and `QuarantineManager.php` (`quarantine_file` and `restore_file`).
+  * Added deep canonical ancestor resolution (`PathValidator::resolve_nonexistent_path`) for non-existent target paths, enabling safe validation for quarantined file restoration and remediation rollbacks while blocking sibling directory and traversal bypasses.
 - Strict Trusted Proxy Verification & Client IP Spoofing Prevention:
   * Upgraded `FirewallEngine::get_client_ip()` with strict trusted reverse proxy verification.
   * In accordance with RFC 7239 and perimeter defense standards, forwarding headers (`HTTP_CF_CONNECTING_IP`, `HTTP_X_FORWARDED_FOR`) are strictly ignored unless `REMOTE_ADDR` matches an authenticated trusted proxy range (Cloudflare official IPv4 & IPv6 networks, user-configured `WCP_TRUSTED_PROXIES` CIDRs/IPs, or loopback proxies with `WCP_TRUST_LOCAL_PROXY`). Direct-to-origin attacker requests can no longer spoof whitelisted IPs or bypass firewall rate limits and rules.
+  * Implemented multi-proxy chain defense for `X-Forwarded-For`: traverses candidate IPs in reverse order (right-to-left), skipping verified trusted intermediate proxies to extract the genuine untrusted client IP and completely preventing attackers from spoofing identities by prepending arbitrary IP addresses.
   * Added dual IPv4 and IPv6 CIDR subnet matching in `FirewallEngine::ip_in_range()`.
   * Updated `CloudflareService::get_cloudflare_ip_ranges()` with complete, official Cloudflare IPv4 and IPv6 CIDR subnets.
   * Synchronized spoof-resistant real IP resolution across `TwoFactorAuth.php` trusted device registration and `AuditLogger.php` event logging.
+
 
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:
