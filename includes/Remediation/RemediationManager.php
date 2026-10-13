@@ -310,16 +310,24 @@ class RemediationManager {
 
         $version = $theme->get('Version');
 
-        // Check if bundled default theme (in core) or from WordPress.org theme repository
+        // Check official theme repository mirrors in priority order
         global $wp_version;
         $clean_wp = preg_replace('/-.*$/', '', $wp_version);
-        $core_theme_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}";
-        $response = wp_remote_get($core_theme_url, ['timeout' => 15, 'sslverify' => true]);
 
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            // Try themes SVN
-            $theme_svn_url = "https://themes.svn.wordpress.org/{$theme_slug}/{$version}/{$internal_file}";
-            $response = wp_remote_get($theme_svn_url, ['timeout' => 15, 'sslverify' => true]);
+        $urls = [
+            "https://themes.svn.wordpress.org/{$theme_slug}/{$version}/{$internal_file}",
+            "https://core.svn.wordpress.org/tags/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
+            "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
+            "https://themes.svn.wordpress.org/{$theme_slug}/trunk/{$internal_file}",
+        ];
+
+        $response = null;
+        foreach ($urls as $url) {
+            $resp = wp_remote_get($url, ['timeout' => 15, 'sslverify' => true]);
+            if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
+                $response = $resp;
+                break;
+            }
         }
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {

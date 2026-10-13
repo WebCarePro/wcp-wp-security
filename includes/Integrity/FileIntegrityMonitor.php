@@ -472,6 +472,42 @@ class FileIntegrityMonitor {
             if (isset($custom_components['themes'][$theme_slug])) {
                 $comp = $custom_components['themes'][$theme_slug];
                 $diff_message = "Custom/Premium Theme ({$comp['name']}): Excluded from official repository baselines. Displaying local inspection view.";
+            } elseif ($theme_slug && $internal_file) {
+                // Official WordPress Theme: fetch pristine source from official repositories
+                $theme_obj = function_exists('wp_get_theme') ? wp_get_theme($theme_slug) : null;
+                $version = ($theme_obj && $theme_obj->exists()) ? $theme_obj->get('Version') : '';
+
+                global $wp_version;
+                $clean_wp = preg_replace('/-.*$/', '', $wp_version);
+
+                // 1. Try themes SVN by theme version
+                if (!empty($version)) {
+                    $official_source_url = "https://themes.svn.wordpress.org/{$theme_slug}/{$version}/{$internal_file}";
+                    $official_content = $this->fetch_remote_source($official_source_url);
+                }
+
+                // 2. If bundled default theme, try core SVN
+                if ($official_content === null) {
+                    $official_source_url = "https://core.svn.wordpress.org/tags/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}";
+                    $official_content = $this->fetch_remote_source($official_source_url);
+                }
+
+                // 3. Fallback to GitHub raw WordPress mirror
+                if ($official_content === null) {
+                    $official_source_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}";
+                    $official_content = $this->fetch_remote_source($official_source_url);
+                }
+
+                // 4. Try trunk on themes.svn.wordpress.org
+                if ($official_content === null) {
+                    $official_source_url = "https://themes.svn.wordpress.org/{$theme_slug}/trunk/{$internal_file}";
+                    $official_content = $this->fetch_remote_source($official_source_url);
+                }
+
+                if ($official_content !== null) {
+                    $is_official_compared = true;
+                    $diff_message = "Comparing against official WordPress.org theme release ({$theme_slug} v{$version}).";
+                }
             }
         }
 
@@ -861,7 +897,7 @@ class FileIntegrityMonitor {
                 $is_wporg = false;
                 $type = 'child_theme';
                 $reason = 'Custom Child Theme';
-            } elseif (isset($response_themes[$theme_slug]) || isset($theme_no_update[$theme_slug])) {
+            } elseif (isset($response_themes[$theme_slug]) || isset($no_update_themes[$theme_slug])) {
                 $is_wporg = true;
             } elseif (!empty($checked_themes) && isset($checked_themes[$theme_slug])) {
                 $is_wporg = false;
@@ -876,8 +912,25 @@ class FileIntegrityMonitor {
                     }
                 }
                 if ($type !== 'premium') {
-                    $is_wporg = false;
-                    $reason = 'Custom or Third-Party Theme';
+                    // Check WordPress.org theme transient or remote head check
+                    $chk_cache = get_transient("wcp_is_wporg_theme_{$theme_slug}");
+                    if ($chk_cache === 'yes') {
+                        $is_wporg = true;
+                    } elseif ($chk_cache === 'no') {
+                        $is_wporg = false;
+                        $reason = 'Custom or Third-Party Theme';
+                    } else {
+                        $test_url = "https://downloads.wordpress.org/theme/{$theme_slug}.{$version}.zip";
+                        $res = wp_remote_head($test_url, ['timeout' => 3]);
+                        if (!is_wp_error($res) && wp_remote_retrieve_response_code($res) === 200) {
+                            $is_wporg = true;
+                            set_transient("wcp_is_wporg_theme_{$theme_slug}", 'yes', 7 * DAY_IN_SECONDS);
+                        } else {
+                            $is_wporg = false;
+                            $reason = 'Custom or Third-Party Theme';
+                            set_transient("wcp_is_wporg_theme_{$theme_slug}", 'no', 7 * DAY_IN_SECONDS);
+                        }
+                    }
                 }
             }
 
