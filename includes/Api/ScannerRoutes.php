@@ -1649,10 +1649,26 @@ class ScannerRoutes {
                 $item['edit_url'] = $userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url("users.php");
             } 
             // 4. Check if finding is a Database Table Row
-            elseif ($engine === 'database-table' || preg_match('/^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)(?:\s*\[ID:\s*(\d+)\])?/i', $filePath, $dbMatches)) {
-                $tableName = !empty($dbMatches[1]) ? $dbMatches[1] : '';
-                $columnName = !empty($dbMatches[2]) ? $dbMatches[2] : '';
-                $rowId = !empty($dbMatches[3]) ? (int) $dbMatches[3] : null;
+            elseif ($engine === 'database-table' || preg_match('/^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)(?:\s*\[ID:\s*(\d+)\])?/i', $filePath)) {
+                $tableName = '';
+                $columnName = '';
+                $rowId = null;
+
+                if (preg_match('/^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)(?:\s*\[ID:\s*(\d+)\])?/i', $filePath, $dbMatches)) {
+                    $tableName = !empty($dbMatches[1]) ? $dbMatches[1] : '';
+                    $columnName = !empty($dbMatches[2]) ? $dbMatches[2] : '';
+                    $rowId = !empty($dbMatches[3]) ? (int) $dbMatches[3] : null;
+                }
+                if (!$rowId && preg_match('/\[ID:\s*(\d+)\]/i', $filePath, $idM)) {
+                    $rowId = (int) $idM[1];
+                }
+                if (!$tableName && strpos($filePath, '.') !== false) {
+                    $tableName = explode('.', $filePath)[0];
+                }
+                if (!$columnName && strpos($filePath, '.') !== false) {
+                    $parts = explode('.', $filePath);
+                    $columnName = explode(' ', $parts[1])[0];
+                }
 
                 $item['is_db_table'] = true;
                 $item['is_file'] = false;
@@ -1663,13 +1679,16 @@ class ScannerRoutes {
                 $item['row_id'] = $rowId;
                 $item['is_log_table'] = (bool) preg_match('/(log|logs|redirection|audit|history|stat|stats|traffic|404)/i', $tableName);
 
-                // If snippet is empty and row exists, attempt to read from database
-                if (empty($item['code_snippet']) && $tableName && $columnName && $rowId) {
-                    global $wpdb;
+                // Pre-load full row data if available
+                if ($tableName && $rowId) {
                     $mgr = new \WCP\Scanner\Database\DatabaseRemediationManager();
-                    $row = $mgr->get_row($tableName, $rowId);
-                    if ($row && isset($row[$columnName])) {
-                        $item['code_snippet'] = (string) $row[$columnName];
+                    $dbRow = $mgr->get_row($tableName, $rowId);
+                    if ($dbRow) {
+                        $item['db_row'] = $dbRow;
+                        $item['db_primary_key'] = $mgr->get_primary_key($tableName);
+                        if (empty($item['code_snippet']) && isset($dbRow[$columnName])) {
+                            $item['code_snippet'] = (string) $dbRow[$columnName];
+                        }
                     }
                 }
             }
@@ -2580,17 +2599,29 @@ class ScannerRoutes {
         }
 
         $mgr = new \WCP\Scanner\Database\DatabaseRemediationManager();
+        $pk = $mgr->get_primary_key($table);
         $row = $mgr->get_row($table, $row_id);
 
         if (!$row) {
             return new \WP_Error('row_not_found', __('Database record not found or already deleted.', 'wcp-security-scanner'), ['status' => 404]);
         }
 
+        $is_log_table = (bool) preg_match('/(log|logs|redirection|audit|history|stat|stats|traffic|404)/i', $table);
+
         return rest_ensure_response([
-            'success' => true,
-            'table'   => $table,
-            'row_id'  => $row_id,
-            'data'    => $row,
+            'success'      => true,
+            'table'        => $table,
+            'row_id'       => $row_id,
+            'primary_key'  => $pk,
+            'is_log_table' => $is_log_table,
+            'row'          => $row,
+            'data'         => [
+                'table'        => $table,
+                'row_id'       => $row_id,
+                'primary_key'  => $pk,
+                'is_log_table' => $is_log_table,
+                'row'          => $row,
+            ],
         ]);
     }
 
