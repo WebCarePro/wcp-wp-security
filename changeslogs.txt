@@ -53,6 +53,9 @@ v:1.13.0 - 2026-10-13
   * Added `QuarantinePage.tsx`: a standalone cyber command center interface for managing isolated threat files featuring AES-256-GCM AEAD encryption at rest badges, execution-defanged compiler indicators, 4 KPI metric cards (Active Quarantined Threats, Restored Files, Total Vault History, and Vault Encryption Status), search and status filter tabs (All Records, Quarantined, Restored), and 1-click restore/delete actions.
   * Synchronized full SPA routing and WordPress admin submenu active highlights in `src/App.tsx` (`PAGE_TO_TAB`, `TAB_TO_PAGE`, and `NavTab` state union).
   * Integrated direct Quarantine Vault jump buttons into the Scan Logs header and the Scan Log Inspection detail report view, allowing administrators auditing scan history to navigate directly to the vault.
+  * Deduplicated Quarantine Vault Records: updated `QuarantineManager::quarantine_file()` and `list_records()` with automatic per-file path deduplication, ensuring that repeated quarantine cycles for the same file path update or prune older duplicate entries rather than creating duplicate rows.
+  * Context-Aware Action Differentiator: updated `QuarantinePage.tsx` and `QuarantineManager::delete_record()` to clearly distinguish actions based on record status. Quarantined threats feature a red "Delete" button that purges the isolated malware from vault storage, while Restored files feature a neutral "Clear Log" button with explicit confirmation that the live file on the website remains completely untouched.
+  * Bulk Restored History Purge: added `DELETE /wcp-scanner/v1/quarantine/restored` API endpoint and a 1-click "Clear Restored History" toolbar action to instantly prune completed restoration logs without touching active files.
 
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:

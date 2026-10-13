@@ -176,6 +176,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/quarantine/restored', [
+            'methods'             => 'DELETE',
+            'callback'            => [__CLASS__, 'clear_restored_quarantine'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/quarantine/(?P<id>\d+)', [
             'methods'             => 'DELETE',
             'callback'            => [__CLASS__, 'delete_quarantine'],
@@ -1066,6 +1072,13 @@ class ScannerRoutes {
         $quarantine_id = (int) $request->get_param('id');
         $qm = new QuarantineManager();
         $result = $qm->delete_record($quarantine_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function clear_restored_quarantine(\WP_REST_Request $request) {
+        $qm = new QuarantineManager();
+        $result = $qm->clear_restored_records();
 
         return rest_ensure_response($result);
     }

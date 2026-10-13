@@ -237,8 +237,29 @@ class QuarantineManager {
         // Unlink original infected/suspicious file
         @unlink($real_path);
 
-        // Record in database
+        // Record in database - ensure single authoritative record per original_path
         $table = $wpdb->prefix . 'wcp_quarantine';
+
+        // Check if previous records exist for this exact file path to avoid duplicates
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $existing = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, quarantine_filename FROM `{$table}` WHERE original_path = %s",
+            $real_path
+        ), ARRAY_A);
+
+        if (!empty($existing)) {
+            foreach ($existing as $old_rec) {
+                if (!empty($old_rec['quarantine_filename'])) {
+                    $old_file = $this->quarantine_dir . '/' . $old_rec['quarantine_filename'];
+                    if (file_exists($old_file)) {
+                        @unlink($old_file);
+                    }
+                }
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query($wpdb->prepare("DELETE FROM `{$table}` WHERE original_path = %s", $real_path));
+        }
+
         $inserted = $wpdb->insert($table, [
             'scan_id'             => $scan_id,
             'issue_id'            => $issue_id,
@@ -391,7 +412,8 @@ class QuarantineManager {
     }
 
     /**
-     * Retrieve all quarantine records.
+     * Retrieve all quarantine records with automatic deduplication per file path.
+     * Prunes obsolete duplicate history rows so each file path has one authoritative record.
      *
      * @return array
      */
@@ -400,11 +422,78 @@ class QuarantineManager {
         $table = $wpdb->prefix . 'wcp_quarantine';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $results = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY id DESC", ARRAY_A);
-        return is_array($results) ? $results : [];
+        if (!is_array($results)) {
+            return [];
+        }
+
+        $seen = [];
+        $unique_records = [];
+        $duplicate_ids = [];
+
+        foreach ($results as $r) {
+            $path = $r['original_path'];
+            if (!isset($seen[$path])) {
+                $seen[$path] = true;
+                $unique_records[] = $r;
+            } else {
+                // Older duplicate row for the same file path; mark for automatic database cleanup
+                $duplicate_ids[] = (int) $r['id'];
+                // If there's an orphaned vault file for the duplicate row, remove it
+                if (!empty($r['quarantine_filename'])) {
+                    $cand = $this->quarantine_dir . '/' . $r['quarantine_filename'];
+                    if (file_exists($cand)) {
+                        @unlink($cand);
+                    }
+                }
+            }
+        }
+
+        if (!empty($duplicate_ids)) {
+            $ids_sql = implode(',', $duplicate_ids);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query("DELETE FROM `{$table}` WHERE id IN ({$ids_sql})");
+        }
+
+        return $unique_records;
     }
 
     /**
-     * Permanently delete a quarantined file from vault storage and remove database record.
+     * Clear all restored records from the quarantine history.
+     * Restored files on the live website remain completely untouched.
+     *
+     * @return array
+     */
+    public function clear_restored_records() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wcp_quarantine';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $restored = $wpdb->get_results("SELECT id, quarantine_filename FROM `{$table}` WHERE status = 'restored'", ARRAY_A);
+        if (!empty($restored)) {
+            foreach ($restored as $r) {
+                if (!empty($r['quarantine_filename'])) {
+                    $cand = $this->quarantine_dir . '/' . $r['quarantine_filename'];
+                    if (file_exists($cand)) {
+                        @unlink($cand);
+                    }
+                }
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query("DELETE FROM `{$table}` WHERE status = 'restored'");
+            return [
+                'success' => true,
+                'message' => sprintf(__('Cleared %d restored history log entries. (Live website files remain untouched).', 'wcp-security-scanner'), count($restored))
+            ];
+        }
+        return [
+            'success' => true,
+            'message' => __('No restored records to clear.', 'wcp-security-scanner')
+        ];
+    }
+
+    /**
+     * Delete a quarantine record.
+     * For quarantined threats: Permanently purges isolated file from vault storage and marks issue repaired.
+     * For restored files: Removes log record from history without touching live site file.
      *
      * @param int $quarantine_id
      * @return array
@@ -416,6 +505,8 @@ class QuarantineManager {
         if (!$record) {
             return ['success' => false, 'message' => 'Quarantine record not found.'];
         }
+
+        $was_restored = ($record['status'] === 'restored');
 
         $candidates = [
             $this->quarantine_dir . '/' . $record['quarantine_filename'],
@@ -437,15 +528,19 @@ class QuarantineManager {
 
         $wpdb->delete($table, ['id' => (int) $quarantine_id]);
 
-        // When permanently deleting from vault storage, mark matching scan issues as repaired/resolved
-        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
-        if (!empty($record['issue_id'])) {
-            $wpdb->update($issues_table, ['status' => 'repaired'], ['id' => (int) $record['issue_id']]);
-        }
-        if (!empty($record['original_path'])) {
-            $wpdb->update($issues_table, ['status' => 'repaired'], ['file_path' => $record['original_path']]);
+        // When permanently deleting an active quarantined threat, mark matching scan issues as repaired
+        if (!$was_restored) {
+            $issues_table = $wpdb->prefix . 'wcp_scan_issues';
+            if (!empty($record['issue_id'])) {
+                $wpdb->update($issues_table, ['status' => 'repaired'], ['id' => (int) $record['issue_id']]);
+            }
+            if (!empty($record['original_path'])) {
+                $wpdb->update($issues_table, ['status' => 'repaired'], ['file_path' => $record['original_path']]);
+            }
+
+            return ['success' => true, 'message' => 'Quarantined threat permanently purged from vault storage.'];
         }
 
-        return ['success' => true, 'message' => 'Quarantined file permanently deleted from vault storage.'];
+        return ['success' => true, 'message' => 'Restored log entry removed from vault history. (Live website file remains untouched).'];
     }
 }
