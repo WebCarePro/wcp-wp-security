@@ -596,12 +596,16 @@ class ScannerRoutes {
         set_transient("wcp_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
         set_transient("wcp_scan_queue_{$scan_id}", $all_files, HOUR_IN_SECONDS);
 
+        $init_telemetry = self::get_realtime_resource_stats(null, null, 0, count($all_files), 0, 0.0);
+        set_transient("wcp_scan_live_telemetry_{$scan_id}", $init_telemetry, 600);
+
         return rest_ensure_response([
             'success'     => true,
             'scan_id'     => $scan_id,
             'total_files' => count($all_files),
             'status'      => 'running',
             'started_at'  => $now_exact,
+            'telemetry'   => $init_telemetry,
         ]);
     }
 
@@ -610,6 +614,8 @@ class ScannerRoutes {
 
         $scan_id = (int) $request->get_param('scan_id');
         $batch_size = (int) ($request->get_param('batch_size') ?: 25);
+        $batch_start = microtime(true);
+        $batch_ru_start = function_exists('getrusage') ? @getrusage() : null;
 
         // Update lock heartbeat
         ScanLock::heartbeat($scan_id);
@@ -694,12 +700,28 @@ class ScannerRoutes {
             'issues_found'  => $current_issues_total,
         ], ['id' => $scan_id]);
 
+        $start_micro = get_transient("wcp_scan_start_micro_{$scan_id}");
+        $elapsed_sec = ($start_micro && is_numeric($start_micro)) ? max(0.1, microtime(true) - (float) $start_micro) : 0.0;
+        $telemetry = self::get_realtime_resource_stats(
+            $batch_start,
+            $batch_ru_start,
+            $scanned_so_far,
+            $scan_total,
+            $current_issues_total,
+            $elapsed_sec
+        );
+        set_transient("wcp_scan_live_telemetry_{$scan_id}", $telemetry, 600);
+
         return rest_ensure_response([
             'success'        => true,
             'is_finished'    => $is_finished,
             'remaining'      => $remaining,
             'processed'      => count($files_to_process),
+            'scanned_files'  => $scanned_so_far,
+            'total_files'    => $scan_total,
+            'issues_found'   => $current_issues_total,
             'last_file'      => !empty($files_to_process) ? basename(end($files_to_process)) : '',
+            'telemetry'      => $telemetry,
         ]);
     }
 
@@ -1442,6 +1464,11 @@ class ScannerRoutes {
         $remaining = is_array($queue) ? count($queue) : max(0, $total - $scanned);
         $last_file = get_transient("wcp_active_scan_file_{$locked_id}") ?: '';
 
+        $live_telemetry = get_transient("wcp_scan_live_telemetry_{$locked_id}");
+        if (!$live_telemetry || !is_array($live_telemetry)) {
+            $live_telemetry = self::get_realtime_resource_stats(null, null, $scanned, $total, (int) $running_scan['issues_found'], 0.0);
+        }
+
         return rest_ensure_response([
             'is_running'     => true,
             'scan_id'        => $locked_id,
@@ -1453,6 +1480,7 @@ class ScannerRoutes {
             'remaining'      => $remaining,
             'last_file'      => $last_file,
             'issues_found'   => (int) $running_scan['issues_found'],
+            'telemetry'      => $live_telemetry,
             'phase'          => ($trigger_type === 'scheduled') 
                 ? (($scanned >= $total && $total > 0) ? 'deep_audit' : 'batch')
                 : (($remaining > 0) ? 'batch' : 'deep_audit'),
@@ -1869,6 +1897,110 @@ class ScannerRoutes {
             'php_sapi'            => $php_sapi,
             'server_os'           => $server_os,
             'engines_active'      => 10,
+        ];
+    }
+
+    /**
+     * Compute real-time telemetry metrics (memory, CPU, speed, progress, system context)
+     * during active scan execution for administrator visibility.
+     *
+     * @param float|null $batch_start_time
+     * @param array|null $batch_ru_start
+     * @param int $scanned_files
+     * @param int $total_files
+     * @param int $issues_found
+     * @param float $elapsed_sec
+     * @return array
+     */
+    public static function get_realtime_resource_stats($batch_start_time = null, $batch_ru_start = null, $scanned_files = 0, $total_files = 0, $issues_found = 0, $elapsed_sec = 0.0) {
+        // 1. Memory Metrics
+        $mem_bytes = memory_get_usage(true);
+        $mem_peak_bytes = memory_get_peak_usage(true);
+        $mem_mb = round($mem_bytes / (1024 * 1024), 1);
+        $mem_peak_mb = round($mem_peak_bytes / (1024 * 1024), 1);
+
+        $memory_limit_raw = ini_get('memory_limit') ?: '256M';
+        $limit_bytes = 256 * 1024 * 1024;
+        if ($memory_limit_raw === '-1') {
+            $limit_bytes = 0; // unlimited
+        } elseif (preg_match('/^(\d+)(.)$/i', $memory_limit_raw, $m)) {
+            $val = (int) $m[1];
+            $unit = strtoupper($m[2]);
+            if ($unit === 'G') $limit_bytes = $val * 1024 * 1024 * 1024;
+            elseif ($unit === 'M') $limit_bytes = $val * 1024 * 1024;
+            elseif ($unit === 'K') $limit_bytes = $val * 1024;
+        }
+
+        $mem_percent = $limit_bytes > 0 ? round(($mem_bytes / $limit_bytes) * 100, 1) : 0.0;
+        $mem_peak_percent = $limit_bytes > 0 ? round(($mem_peak_bytes / $limit_bytes) * 100, 1) : 0.0;
+        $mem_free_mb = $limit_bytes > 0 ? max(0, round(($limit_bytes - $mem_bytes) / (1024 * 1024), 1)) : 9999.0;
+
+        // 2. CPU / Load Metrics
+        $cpu_percent = null;
+        if ($batch_start_time && $batch_ru_start && function_exists('getrusage')) {
+            $batch_wall_time = max(0.001, microtime(true) - $batch_start_time);
+            $ru_end = @getrusage();
+            if (is_array($ru_end) && is_array($batch_ru_start)) {
+                $user_start = ($batch_ru_start['ru_utime.tv_sec'] ?? 0) + (($batch_ru_start['ru_utime.tv_usec'] ?? 0) / 1000000);
+                $sys_start  = ($batch_ru_start['ru_stime.tv_sec'] ?? 0) + (($batch_ru_start['ru_stime.tv_usec'] ?? 0) / 1000000);
+                $user_end   = ($ru_end['ru_utime.tv_sec'] ?? 0) + (($ru_end['ru_utime.tv_usec'] ?? 0) / 1000000);
+                $sys_end    = ($ru_end['ru_stime.tv_sec'] ?? 0) + (($ru_end['ru_stime.tv_usec'] ?? 0) / 1000000);
+                $cpu_time_used = max(0, ($user_end + $sys_end) - ($user_start + $sys_start));
+                $cpu_percent = min(100.0, round(($cpu_time_used / $batch_wall_time) * 100, 1));
+            }
+        }
+
+        $cpu_load = null;
+        if (function_exists('sys_getloadavg')) {
+            $load = @sys_getloadavg();
+            if (is_array($load) && count($load) >= 3) {
+                $cpu_load = [
+                    '1m'  => round($load[0], 2),
+                    '5m'  => round($load[1], 2),
+                    '15m' => round($load[2], 2),
+                ];
+            }
+        }
+
+        $cpu_cores = null;
+        $win_cores = getenv('NUMBER_OF_PROCESSORS');
+        if ($win_cores && is_numeric($win_cores)) {
+            $cpu_cores = (int) $win_cores;
+        } elseif (is_readable('/proc/cpuinfo')) {
+            $cpuinfo = @file_get_contents('/proc/cpuinfo');
+            if ($cpuinfo) {
+                $cpu_cores = substr_count($cpuinfo, 'processor');
+            }
+        }
+
+        // 3. Scan Throughput & ETA
+        $files_per_sec = ($elapsed_sec > 0 && $scanned_files > 0) ? round($scanned_files / $elapsed_sec, 1) : 0.0;
+        $remaining_files = max(0, $total_files - $scanned_files);
+        $eta_seconds = ($files_per_sec > 0 && $remaining_files > 0) ? (int) round($remaining_files / $files_per_sec) : null;
+
+        // 4. Server environment details
+        $php_version = PHP_VERSION;
+        $server_os = php_uname('s');
+        $max_exec = (int) ini_get('max_execution_time');
+
+        return [
+            'memory_mb'           => $mem_mb,
+            'memory_peak_mb'      => $mem_peak_mb,
+            'memory_limit_raw'    => $memory_limit_raw,
+            'memory_percent'      => $mem_percent,
+            'memory_peak_percent' => $mem_peak_percent,
+            'memory_free_mb'      => $mem_free_mb,
+            'cpu_percent'         => $cpu_percent,
+            'cpu_load'            => $cpu_load,
+            'cpu_cores'           => $cpu_cores,
+            'scanned_files'       => $scanned_files,
+            'total_files'         => $total_files,
+            'files_per_sec'       => $files_per_sec,
+            'eta_seconds'         => $eta_seconds,
+            'issues_found'        => $issues_found,
+            'php_version'         => $php_version,
+            'server_os'           => $server_os,
+            'max_execution_time'  => $max_exec,
         ];
     }
 
