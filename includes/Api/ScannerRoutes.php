@@ -530,7 +530,7 @@ class ScannerRoutes {
         $all_files = [];
 
         // Determine scannable filesystem files based on scan profile
-        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel'], true)) {
+        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel', 'modified_files'], true)) {
             // Targeted deep engines do not queue filesystem files
             $all_files = [];
         } elseif ($target === 'filesystem_only' || $target === 'full') {
@@ -765,6 +765,51 @@ class ScannerRoutes {
                 $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
                 $persistence_scanner = new PersistenceScanner();
                 $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
+            } elseif ($target === 'modified_files') {
+                // Modified Core, Plugins, and Themes Audit against official WordPress.org checksums
+                $core_integrity = new CoreIntegrity();
+                $plugin_integrity = new PluginIntegrity();
+                $theme_integrity = new ThemeIntegrity();
+                $important_fim = new ImportantFileFIM();
+
+                $integrity_findings = array_merge(
+                    $core_integrity->verify((string) $scan_id),
+                    $plugin_integrity->verify((string) $scan_id),
+                    $theme_integrity->verify((string) $scan_id),
+                    $important_fim->verify((string) $scan_id)
+                );
+
+                // Filter strictly for modified or tampered files (excluding informational notes)
+                $modified_items = array_filter($integrity_findings, function ($f) {
+                    $arr = is_array($f) ? $f : $f->to_array();
+                    return in_array($arr['type'], [
+                        'modified_core_file',
+                        'modified_plugin_file',
+                        'modified_theme_file',
+                        'missing_core_file',
+                        'missing_plugin_file',
+                        'missing_theme_file',
+                        'important_file_modified',
+                    ], true);
+                });
+
+                $all_deep_findings = array_merge($all_deep_findings, $modified_items);
+
+                // Additionally run AST malware inspection on any modified files to identify injected backdoors
+                $file_scanner = new FileScanner();
+                foreach ($modified_items as $mf) {
+                    $item = is_array($mf) ? $mf : $mf->to_array();
+                    $file_path = $item['file_path'] ?? '';
+                    if ($file_path) {
+                        $abs_path = (strpos($file_path, ABSPATH) === 0) ? $file_path : (rtrim(ABSPATH, '/\\') . '/' . ltrim($file_path, '/\\'));
+                        if (file_exists($abs_path) && is_file($abs_path)) {
+                            $code_findings = $file_scanner->scan_file($abs_path, (string) $scan_id);
+                            if (!empty($code_findings)) {
+                                $all_deep_findings = array_merge($all_deep_findings, $code_findings);
+                            }
+                        }
+                    }
+                }
             } elseif ($target === 'filesystem_only') {
                 // Filesystem-only scan: no additional deep audit engines needed
             } else {
