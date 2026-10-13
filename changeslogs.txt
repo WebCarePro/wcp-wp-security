@@ -58,6 +58,7 @@ v:1.13.0 - 2026-10-13
   * Bulk Restored History Purge: added `DELETE /wcp-scanner/v1/quarantine/restored` API endpoint and a 1-click "Clear Restored History" toolbar action to instantly prune completed restoration logs without touching active files.
   * Updated Admin Menu Branding: renamed the top-level WordPress admin sidebar navigation menu from "Security Scanner" to "WCP Security Scanner" in `AdminMenu.php`.
   * Dashboard Quarantine Sub-Tab Action Alignment: updated the main dashboard's Quarantine Vault sub-tab table in `App.tsx` so restored items display the neutral "Clear Log" action instead of "Delete Permanently", with reassuring confirmation dialogs and direct navigation to the dedicated Quarantine Vault page.
+  * Reorganized Admin Submenus: reordered the sidebar navigation submenus into logical security groupings (Scanner & Audit Logs -> Active Defenses & Protection -> System Tools & Administration) in `AdminMenu.php` for optimal administrator ergonomics.
 
 v:1.12.0 - 2026-10-12
 - Complete Dashboard Rebuild & Next-Gen Cyber Command Center:

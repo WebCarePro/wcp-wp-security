@@ -23,6 +23,10 @@ class AdminMenu {
             80
         );
 
+        // =========================================================================
+        // 1. SCANNER & AUDIT LOGS
+        // =========================================================================
+
         // Submenu: Dashboard
         add_submenu_page(
             'wcp-security-scanner',
@@ -63,6 +67,54 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // =========================================================================
+        // 2. ACTIVE DEFENSES & PROTECTION
+        // =========================================================================
+
+        // Submenu: Firewall (WAF Lite)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
+            __('Firewall (WAF)', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-firewall',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Submenu: Login Security & 2FA
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
+            __('Login Security & 2FA', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-auth',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Submenu: File Integrity Monitoring (FIM) & Code Diff
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
+            __('File Integrity (FIM)', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-fim',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Submenu: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Vulnerabilities & Updates', 'wcp-security-scanner'),
+            __('Vulnerabilities', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-vulnerabilities',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // =========================================================================
+        // 3. TOOLS & SYSTEM ADMINISTRATION
+        // =========================================================================
+
         // Submenu: Database Backup
         add_submenu_page(
             'wcp-security-scanner',
@@ -80,46 +132,6 @@ class AdminMenu {
             __('Server Info', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-server',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Vulnerabilities & Updates', 'wcp-security-scanner'),
-            __('Vulnerabilities', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-vulnerabilities',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: Firewall (WAF Lite)
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
-            __('Firewall (WAF)', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-firewall',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: File Integrity Monitoring (FIM) & Code Diff
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
-            __('File Integrity (FIM)', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-fim',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: Login Security & 2FA
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
-            __('Login Security & 2FA', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-auth',
             [__CLASS__, 'render_app_container']
         );
 
