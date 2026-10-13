@@ -1306,10 +1306,42 @@ class ScannerRoutes {
 
         $scorer  = new RiskScorer();
         $summary = $scorer->calculate($issues);
+        $diagnostics = self::build_scan_diagnostics($scan);
 
         if ($format === 'csv') {
-            $headers = ['ID', 'Severity', 'Engine', 'Threat Type', 'File / Target', 'Line Number', 'Status', 'Description'];
             $output  = fopen('php://temp', 'r+');
+            // Sysadmin Telemetry & Environment comments header
+            $site_url = get_site_url();
+            $site_name = get_bloginfo('name');
+            $peak_ram = $diagnostics['peak_memory_fmt'] . ' / ' . $diagnostics['memory_limit_raw'] . ' (' . $diagnostics['memory_percent'] . '%)';
+            $throughput = $diagnostics['files_per_second'] . ' files/sec';
+            $cpu_str = !empty($diagnostics['cpu_load'])
+                ? '1m: ' . ($diagnostics['cpu_load']['1m'] ?? '-') . ', 5m: ' . ($diagnostics['cpu_load']['5m'] ?? '-') . ', 15m: ' . ($diagnostics['cpu_load']['15m'] ?? '-')
+                : 'N/A';
+            if (!empty($diagnostics['cpu_cores'])) {
+                $cpu_str .= ' (' . $diagnostics['cpu_cores'] . ' Cores)';
+            }
+            $server_soft = $diagnostics['server_software'] ?? 'Unknown';
+            $server_os = $diagnostics['server_os'] . ' (' . ($diagnostics['server_arch'] ?? 'x86_64') . ')';
+            $php_info = 'PHP ' . $diagnostics['php_version'] . ' (' . $diagnostics['php_sapi'] . ') | Max Execution: ' . ($diagnostics['php_max_execution_time'] ?? '30') . 's';
+            $db_info = 'MySQL ' . ($diagnostics['database_version'] ?? 'N/A');
+
+            fwrite($output, "# ====================================================================\r\n");
+            fwrite($output, "# WCP Security Scanner Pro - Audit Findings Report\r\n");
+            fwrite($output, "# Auditor: Mir Alamin (WebCare Pro) - Senior Linux SysAdmin & WordPress Security Engineer\r\n");
+            fwrite($output, "# Target: {$site_name} ({$site_url})\r\n");
+            fwrite($output, "# Peak RAM: {$peak_ram}\r\n");
+            fwrite($output, "# Throughput: {$throughput}\r\n");
+            fwrite($output, "# CPU Load: {$cpu_str}\r\n");
+            fwrite($output, "# Server Software: {$server_soft}\r\n");
+            fwrite($output, "# Platform & OS: {$server_os}\r\n");
+            fwrite($output, "# PHP Environment: {$php_info}\r\n");
+            fwrite($output, "# Database: {$db_info}\r\n");
+            fwrite($output, "# Active Engines: " . ($diagnostics['engines_active'] ?? 10) . " Core Security Engines\r\n");
+            fwrite($output, "# Exported: " . current_time('mysql') . "\r\n");
+            fwrite($output, "# ====================================================================\r\n");
+
+            $headers = ['ID', 'Severity', 'Engine', 'Threat Type', 'File / Target', 'Line Number', 'Status', 'Description'];
             fputcsv($output, $headers);
 
             foreach ($issues as $issue) {
@@ -1330,26 +1362,51 @@ class ScannerRoutes {
             fclose($output);
 
             return rest_ensure_response([
-                'success'  => true,
-                'format'   => 'csv',
-                'filename' => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.csv',
-                'csv_data' => $csv_data,
+                'success'     => true,
+                'format'      => 'csv',
+                'filename'    => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.csv',
+                'csv_data'    => $csv_data,
+                'diagnostics' => $diagnostics,
             ]);
         }
 
         return rest_ensure_response([
-            'success'          => true,
-            'format'           => 'json',
-            'filename'         => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.json',
-            'report_generator' => 'WCP Security Scanner Pro',
-            'specialist'       => 'Mir Alamin (WebCare Pro)',
-            'site_url'         => get_site_url(),
-            'site_name'        => get_bloginfo('name'),
-            'exported_at'      => current_time('mysql'),
-            'scan'             => $scan,
-            'summary'          => $summary,
-            'findings_count'   => count($issues),
-            'findings'         => $issues,
+            'success'            => true,
+            'format'             => 'json',
+            'filename'           => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.json',
+            'report_generator'   => 'WCP Security Scanner Pro',
+            'specialist'         => 'Mir Alamin (WebCare Pro)',
+            'specialist_role'    => 'Senior Linux SysAdmin & WordPress Security Engineer',
+            'site_url'           => get_site_url(),
+            'site_name'          => get_bloginfo('name'),
+            'exported_at'        => current_time('mysql'),
+            'scan'               => $scan,
+            'summary'            => $summary,
+            'diagnostics'        => $diagnostics,
+            'server_diagnostics' => [
+                'peak_ram'               => $diagnostics['peak_memory_fmt'],
+                'peak_ram_mb'            => $diagnostics['peak_memory_mb'],
+                'memory_limit'           => $diagnostics['memory_limit_raw'],
+                'memory_usage_percent'   => $diagnostics['memory_percent'] . '%',
+                'throughput'             => $diagnostics['files_per_second'] . ' files/sec',
+                'files_per_second'       => $diagnostics['files_per_second'],
+                'cpu_load'               => $diagnostics['cpu_load'],
+                'cpu_cores'              => $diagnostics['cpu_cores'] ?? null,
+                'server_software'        => $diagnostics['server_software'] ?? 'Unknown',
+                'server_os'              => $diagnostics['server_os'],
+                'server_architecture'    => $diagnostics['server_arch'] ?? 'x86_64',
+                'php_version'            => $diagnostics['php_version'],
+                'php_sapi'               => $diagnostics['php_sapi'],
+                'php_max_execution_time' => ($diagnostics['php_max_execution_time'] ?? 30) . 's',
+                'database_version'       => $diagnostics['database_version'] ?? 'N/A',
+                'database_name'          => $diagnostics['database_name'] ?? 'N/A',
+                'wordpress_version'      => $diagnostics['wordpress_version'] ?? 'N/A',
+                'ssl_active'             => !empty($diagnostics['ssl_active']) ? 'Active (HTTPS)' : 'Inactive (HTTP)',
+                'opcache'                => $diagnostics['opcache_status'] ?? 'Disabled',
+                'active_engines'         => $diagnostics['engines_active'] ?? 10,
+            ],
+            'findings_count'     => count($issues),
+            'findings'           => $issues,
         ]);
     }
 
@@ -1876,27 +1933,56 @@ class ScannerRoutes {
             }
         }
 
-        // Server Environment details
+        // Server & System Environment details
         $php_version = PHP_VERSION;
         $php_sapi = php_sapi_name();
-        $server_os = php_uname('s');
+        $server_os = php_uname('s') . ' ' . php_uname('r');
+        $server_arch = php_uname('m');
+        $server_software = isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown';
+        $max_execution_time = (int) ini_get('max_execution_time');
+        $opcache_status = (extension_loaded('Zend OPcache') && ini_get('opcache.enable')) ? 'Enabled' : 'Disabled';
+
+        // CPU Cores Detection
+        $cpu_cores = null;
+        $win_cores = getenv('NUMBER_OF_PROCESSORS');
+        if ($win_cores && is_numeric($win_cores)) {
+            $cpu_cores = (int) $win_cores;
+        } elseif (is_readable('/proc/cpuinfo')) {
+            $cpuinfo = @file_get_contents('/proc/cpuinfo');
+            if ($cpuinfo) {
+                $cpu_cores = substr_count($cpuinfo, 'processor');
+            }
+        }
+
+        global $wpdb;
+        $db_version = $wpdb ? $wpdb->db_version() : null;
+        $db_name = defined('DB_NAME') ? DB_NAME : null;
 
         return [
-            'duration_seconds'    => round($duration_sec, 2),
-            'duration_ms'         => $duration_ms,
-            'duration_formatted'  => $duration_fmt,
-            'peak_memory_mb'      => $peak_mb,
-            'peak_memory_fmt'     => "{$peak_mb} MB",
-            'memory_limit_raw'    => $memory_limit_raw,
-            'memory_percent'      => $memory_pct,
-            'scanned_files'       => $scanned_files,
-            'total_files'         => (int) ($scan['total_files'] ?? 0),
-            'files_per_second'    => $files_per_sec,
-            'cpu_load'            => $cpu_load,
-            'php_version'         => $php_version,
-            'php_sapi'            => $php_sapi,
-            'server_os'           => $server_os,
-            'engines_active'      => 10,
+            'duration_seconds'       => round($duration_sec, 2),
+            'duration_ms'            => $duration_ms,
+            'duration_formatted'     => $duration_fmt,
+            'peak_memory_mb'         => $peak_mb,
+            'peak_memory_fmt'        => "{$peak_mb} MB",
+            'memory_limit_raw'       => $memory_limit_raw,
+            'memory_percent'         => $memory_pct,
+            'scanned_files'          => $scanned_files,
+            'total_files'            => (int) ($scan['total_files'] ?? 0),
+            'files_per_second'       => $files_per_sec,
+            'cpu_load'               => $cpu_load,
+            'cpu_cores'              => $cpu_cores,
+            'server_software'        => $server_software,
+            'server_os'              => $server_os,
+            'server_arch'            => $server_arch,
+            'php_version'            => $php_version,
+            'php_sapi'               => $php_sapi,
+            'php_max_execution_time' => $max_execution_time,
+            'database_version'       => $db_version,
+            'database_name'          => $db_name,
+            'wordpress_version'      => get_bloginfo('version'),
+            'ssl_active'             => is_ssl(),
+            'opcache_status'         => $opcache_status,
+            'engines_active'         => 10,
         ];
     }
 

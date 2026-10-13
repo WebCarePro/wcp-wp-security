@@ -231,6 +231,7 @@ class AdminMenu {
                 'siteName'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
                 'initialTab' => $active_tab,
                 'version'    => WCP_SCANNER_VERSION,
+                'serverInfo' => \WCP\Scanner\System\ServerInfo::get_info(),
             ]);
         }
 
