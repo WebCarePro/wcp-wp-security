@@ -25,11 +25,24 @@ class PathValidator {
      * @return bool True if $path is canonically inside $root
      */
     public static function is_inside_root(string $path, ?string $root = null, bool $must_exist = false): bool {
-        if (empty($path)) {
+        if (empty($path) || strpos($path, "\0") !== false) {
+            return false;
+        }
+
+        // Disallow PHP stream wrappers (e.g. phar://, file://, php://, zip://)
+        if (preg_match('/^[a-zA-Z0-9+.-]+:\/\//', $path)) {
             return false;
         }
 
         $root = $root ?: ABSPATH;
+
+        // Disallow UNC network paths (e.g. \\server\share) unless root itself is a UNC share
+        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) {
+            if (!str_starts_with($root, '\\\\') && !str_starts_with($root, '//')) {
+                return false;
+            }
+        }
+
         $real_root = realpath($root);
         if ($real_root === false) {
             return false;
@@ -126,6 +139,31 @@ class PathValidator {
 
         $real_path = realpath($path);
         return ($real_path !== false && is_file($real_path) && is_readable($real_path));
+    }
+
+    /**
+     * Check if a destination path is safe to create or write to.
+     * Enforces root boundary containment, disallows stream wrappers / UNC paths,
+     * and strictly prohibits writing through unverified symlinks (preventing TOCTOU symlink attacks).
+     *
+     * @param string $path Target write path
+     * @param string|null $root Approved root directory (defaults to ABSPATH)
+     * @return bool True if destination is safe to write
+     */
+    public static function is_safe_write_target(string $path, ?string $root = null): bool {
+        if (!self::is_inside_root($path, $root, false)) {
+            return false;
+        }
+
+        // If target already exists as a symlink, verify its real target is also inside root
+        if (is_link($path)) {
+            $target = readlink($path);
+            if ($target === false || !self::is_inside_root($target, $root, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

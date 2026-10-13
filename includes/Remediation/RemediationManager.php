@@ -557,8 +557,8 @@ class RemediationManager {
             $clean_data = $payload;
         }
 
-        // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($original_path, ABSPATH)) {
+        // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH and is safe to write
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_safe_write_target($original_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: Rollback destination resides outside WordPress root directory.'];
         }
 

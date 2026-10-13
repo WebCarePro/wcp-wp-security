@@ -42,9 +42,12 @@ v:1.13.0 - 2026-10-13
   * Upgraded `FirewallEngine::get_client_ip()` with strict trusted reverse proxy verification.
   * In accordance with RFC 7239 and perimeter defense standards, forwarding headers (`HTTP_CF_CONNECTING_IP`, `HTTP_X_FORWARDED_FOR`) are strictly ignored unless `REMOTE_ADDR` matches an authenticated trusted proxy range (Cloudflare official IPv4 & IPv6 networks, user-configured `WCP_TRUSTED_PROXIES` CIDRs/IPs, or loopback proxies with `WCP_TRUST_LOCAL_PROXY`). Direct-to-origin attacker requests can no longer spoof whitelisted IPs or bypass firewall rate limits and rules.
   * Implemented multi-proxy chain defense for `X-Forwarded-For`: traverses candidate IPs in reverse order (right-to-left), skipping verified trusted intermediate proxies to extract the genuine untrusted client IP and completely preventing attackers from spoofing identities by prepending arbitrary IP addresses.
+  * Enforced Fail-Closed All-Trusted Chain Policy: if all addresses in `X-Forwarded-For` are verified trusted proxies (or all entries are malformed), the engine safely fails closed to the socket-level verified peer (`REMOTE_ADDR`), never treating an internal proxy IP as an authoritative client.
   * Added dual IPv4 and IPv6 CIDR subnet matching in `FirewallEngine::ip_in_range()`.
   * Updated `CloudflareService::get_cloudflare_ip_ranges()` with complete, official Cloudflare IPv4 and IPv6 CIDR subnets.
   * Synchronized spoof-resistant real IP resolution across `TwoFactorAuth.php` trusted device registration and `AuditLogger.php` event logging.
+  * Hardened `PathValidator.php` with `is_safe_write_target()` to prevent writing through unverified symlinks (TOCTOU race mitigation), and prohibited PHP stream wrappers (`phar://`, `file://`, `zip://`), UNC network paths, and null bytes across quarantine restoration and remediation rollbacks.
+
 
 
 v:1.12.0 - 2026-10-12

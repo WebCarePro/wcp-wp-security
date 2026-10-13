@@ -81,15 +81,10 @@ class FirewallEngine {
                 }
             }
 
-            // Fallback if all addresses in the chain are trusted proxies
-            if (empty($resolved_ip)) {
-                foreach ($reversed as $candidate) {
-                    if (filter_var($candidate, FILTER_VALIDATE_IP)) {
-                        $resolved_ip = $candidate;
-                        break;
-                    }
-                }
-            }
+            // Security Fail-Closed Policy:
+            // If all valid addresses in the forwarding chain are trusted proxies (or all entries are malformed),
+            // do NOT treat an internal proxy as the client. Fail closed: leave $resolved_ip empty
+            // so execution safely defaults to the verified connecting peer ($remote_addr).
         }
 
         self::$real_ip = $resolved_ip ?: $remote_addr;

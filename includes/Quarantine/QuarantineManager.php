@@ -318,8 +318,8 @@ class QuarantineManager {
 
         $dest_path = $record['original_path'];
 
-        // Security check: Destination must reside within ABSPATH boundary
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($dest_path, ABSPATH)) {
+        // Security check: Destination must reside within ABSPATH boundary and be safe to write
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_safe_write_target($dest_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security violation: Restore destination resides outside ABSPATH.'];
         }
         $real_root = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
