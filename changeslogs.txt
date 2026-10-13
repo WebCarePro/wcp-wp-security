@@ -1,3 +1,12 @@
+v:1.14.0 - 2026-10-14
+- WordPress Comment Threat Forensics & Native Moderation Architecture:
+  * Full Comment Text & Author Metadata Forensics (`CommentScanner.php` & `ScannerRoutes.php`): upgraded database comment scanner and REST enrichment pipeline to retrieve author name, registered/guest author user ID (`user_id`), email, author IP address, submission date, and parent post context. Full raw comment text (`comment_content`) is captured and surfaced directly in the findings table and code snippet viewer.
+  * Transparent Spam Detection Explanations (`SpamDetector.php`): enhanced detection descriptions with granular forensic justifications detailing exactly why each comment was flagged (e.g. pharmaceutical/rogue pharmacy terms, high link-density SEO spam, deceptive crypto/forex hooks, adult content, or academic essay mill injections) alongside matched keyword signatures.
+  * Dedicated Comment Moderation Endpoint (`ScannerRoutes.php`): implemented `/wcp-scanner/v1/comment/moderate` REST API route supporting safe quarantine (`wp_trash_comment`), spam classification (`wp_spam_comment`), permanent database purging (`wp_delete_comment`), and approval, automatically marking findings as resolved.
+  * Direct WordPress Admin Comment Editor Integration: rendered direct deep-links (`comment.php?action=editcomment&c={id}`) to inspect and edit flagged comments natively inside the WordPress administration panel.
+  * Dedicated Comment Forensics UI & Action Controls (`src/App.tsx`): replaced irrelevant filesystem quarantine/restore buttons with dedicated comment actions (Edit in WP-Admin, Move to Trash / Quarantine, Mark as Spam, Permanently Delete), distinct `COMMENT #{id}` badges, and expandable comment inspection cards with one-click text copy.
+  * Backward-Compatible Enrichment: dynamically enriches existing scan history records with live comment database records so historical scans instantly display author ID, author name, parent post titles, and full comment text.
+
 v:1.13.0 - 2026-10-13
 - Real-World Production Scan Calibration & False-Positive Elimination:
   * Image Binary Stream False-Positive Elimination (`UploadsScanner.php`): resolved critical false-positive issue where compressed image streams (PNG IDAT, WebP, JPEG) containing random byte sequences matching ASCII words (`eval(`, `system(`) triggered disguised PHP alerts. Enforced strict requirement for genuine PHP opening tags (`<?php` or `<?=`) with executable tokens.

@@ -50,12 +50,19 @@ class SpamDetector {
             }
 
             if (count($matched) >= 2 || (count($matched) === 1 && strlen($content) < 500)) {
+                $category_names = [
+                    'pharmacy_spam' => 'Illicit Online Pharmacy / Controlled Prescription Drug Promotion',
+                    'gambling_spam' => 'Unlicensed Online Casino / Gambling Backlink Injection',
+                    'crypto_spam'   => 'Cryptocurrency Doubler / Financial Recovery Scam',
+                ];
+                $cat_detail = $category_names[$key] ?? 'SEO Spam Vector';
+                $terms_list = implode(', ', $matched);
                 $findings[] = [
                     'type'       => $key,
                     'severity'   => $cat['severity'],
                     'confidence' => 85,
-                    'desc'       => $cat['desc'],
-                    'evidence'   => 'Matched terms: ' . implode(', ', $matched)
+                    'desc'       => "{$cat['desc']} Matched keyword(s): [{$terms_list}]. Black-hat SEO spam pattern ({$cat_detail}) attempting link-building or doorway manipulation.",
+                    'evidence'   => 'Matched terms: ' . $terms_list
                 ];
             }
         }

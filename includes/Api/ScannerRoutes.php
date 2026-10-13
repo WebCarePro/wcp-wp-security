@@ -356,6 +356,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/comment/moderate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'moderate_comment'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloud Threat Intelligence & Community Blacklist Endpoints
         register_rest_route(self::NAMESPACE, '/threat-intel/status', [
             'methods'             => 'GET',
@@ -1565,14 +1571,45 @@ class ScannerRoutes {
                 }
             } 
             // 2. Check if finding is a WordPress Comment
-            elseif (preg_match('/^comment:(\d+)/i', $filePath, $matches)) {
-                $commentId = (int) $matches[1];
-                $comment = get_comment($commentId);
+            elseif (preg_match('/comment[:_#]?\s*(\d+)/i', $filePath, $matches) || $engine === 'content-comments' || strpos($filePath, 'comment:') === 0) {
+                $commentId = !empty($matches[1]) ? (int) $matches[1] : 0;
+                $comment = $commentId > 0 ? get_comment($commentId) : null;
+                $item['is_comment'] = true;
+                $item['is_file'] = false;
+                $item['is_dir'] = false;
+                $item['can_view'] = false;
+                $item['comment_id'] = $commentId;
+
                 if ($comment) {
-                    $item['is_comment'] = true;
-                    $item['comment_id'] = $commentId;
+                    $item['author_id'] = (int) $comment->user_id;
+                    $item['author_name'] = $comment->comment_author ?: __('(Anonymous)', 'wcp-security-scanner');
+                    $item['author_email'] = $comment->comment_author_email ?: '';
+                    $item['author_url'] = $comment->comment_author_url ?: '';
+                    $item['author_ip'] = $comment->comment_author_IP ?: '';
+                    $item['comment_date'] = $comment->comment_date ?: '';
+                    $item['comment_content'] = $comment->comment_content ?: '';
+                    if (empty($item['code_snippet'])) {
+                        $item['code_snippet'] = $comment->comment_content ?: '';
+                    }
+                    $postId = (int) $comment->comment_post_ID;
+                    $item['post_id'] = $postId;
+                    $item['post_title'] = $postId > 0 ? (get_the_title($postId) ?: __('(Untitled Post)', 'wcp-security-scanner')) : '';
+                    $item['post_url'] = $postId > 0 ? (get_permalink($postId) ?: '') : '';
                     $item['view_url'] = get_comment_link($comment) ?: '';
                     $item['edit_url'] = admin_url("comment.php?action=editcomment&c={$commentId}");
+                } else {
+                    $item['author_id'] = 0;
+                    $item['author_name'] = preg_match('/by\s+(.+)$/i', $filePath, $am) ? trim($am[1]) : __('Unknown Author', 'wcp-security-scanner');
+                    $item['author_email'] = '';
+                    $item['author_url'] = '';
+                    $item['author_ip'] = '';
+                    $item['comment_date'] = '';
+                    $item['comment_content'] = $item['code_snippet'] ?? '';
+                    $item['post_id'] = 0;
+                    $item['post_title'] = '';
+                    $item['post_url'] = '';
+                    $item['view_url'] = '';
+                    $item['edit_url'] = $commentId > 0 ? admin_url("comment.php?action=editcomment&c={$commentId}") : '';
                 }
             } 
             // 3. Check if finding is a WordPress User Account
@@ -2381,6 +2418,74 @@ class ScannerRoutes {
             'message' => sprintf(__('Scheduled cron hook "%s" was successfully removed from the WordPress database.', 'wcp-security-scanner'), $hook_name),
             'cleared' => $cleared,
             'hook'    => $hook_name,
+        ]);
+    }
+
+    /**
+     * Moderate or delete a spam/malicious WordPress comment.
+     */
+    public static function moderate_comment(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $comment_id = !empty($params['comment_id']) ? (int) $params['comment_id'] : 0;
+        $action = !empty($params['action']) ? sanitize_key($params['action']) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (!$comment_id) {
+            return new \WP_Error('missing_comment_id', __('Valid comment ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $comment = get_comment($comment_id);
+        if (!$comment && $action !== 'delete') {
+            return new \WP_Error('comment_not_found', __('Comment not found or already deleted.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        $success = false;
+        $message = '';
+
+        switch ($action) {
+            case 'trash':
+                $success = (bool) wp_trash_comment($comment_id);
+                $message = sprintf(__('Comment #%d has been moved to Trash (quarantined from public view).', 'wcp-security-scanner'), $comment_id);
+                break;
+
+            case 'spam':
+                $success = (bool) wp_spam_comment($comment_id);
+                $message = sprintf(__('Comment #%d has been marked as Spam and delisted.', 'wcp-security-scanner'), $comment_id);
+                break;
+
+            case 'delete':
+                $success = (bool) wp_delete_comment($comment_id, true);
+                $message = sprintf(__('Comment #%d has been permanently deleted from the database.', 'wcp-security-scanner'), $comment_id);
+                break;
+
+            case 'approve':
+                $success = (bool) wp_set_comment_status($comment_id, 'approve');
+                $message = sprintf(__('Comment #%d status updated to approved.', 'wcp-security-scanner'), $comment_id);
+                break;
+
+            default:
+                return new \WP_Error('invalid_action', __('Invalid moderation action. Supported: trash, spam, delete.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if ($success) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'wcp_scan_issues';
+            if ($issue_id) {
+                $wpdb->update($table, ['status' => 'repaired'], ['id' => $issue_id]);
+            }
+            // Mark all open findings associated with this comment as solved/repaired
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$table} SET status = 'repaired' WHERE (file_path LIKE %s OR file_path = %s) AND status = 'open'",
+                "comment:{$comment_id}%",
+                "comment:{$comment_id}"
+            ));
+        }
+
+        return rest_ensure_response([
+            'success'    => $success,
+            'message'    => $message,
+            'action'     => $action,
+            'comment_id' => $comment_id,
         ]);
     }
 
