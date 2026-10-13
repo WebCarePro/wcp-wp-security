@@ -381,6 +381,13 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // User Account & Role Remediation Endpoint (Auto-Backup Snapshot & Repair)
+        register_rest_route(self::NAMESPACE, '/user/remediate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_user'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloud Threat Intelligence & Community Blacklist Endpoints
         register_rest_route(self::NAMESPACE, '/threat-intel/status', [
             'methods'             => 'GET',
@@ -781,9 +788,9 @@ class ScannerRoutes {
                 $content_scanner = new ContentScanner();
                 $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 300));
             } elseif ($target === 'user_security') {
-                // Password strength and privilege checks
+                // Password strength, privilege escalation, and Trojan capability injection audit across all accounts
                 $user_scanner = new UserScanner();
-                $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, $admins_only));
+                $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, false));
             } elseif ($target === 'outdated_software') {
                 // Check outdated WP core, plugins, themes
                 $update_scanner = new UpdateScanner();
@@ -1717,21 +1724,53 @@ class ScannerRoutes {
                 }
             } 
             // 3. Check if finding is a WordPress User Account
-            elseif (preg_match('/^user:(\d+)/i', $filePath, $matches) || $engine === 'wordpress-users' || strpos($filePath, 'user:') === 0) {
+            elseif (
+                preg_match('/(?:^user:|_users:user_id_|users\.ID\s*=\s*)(\d+)/i', $filePath, $userMatches) ||
+                preg_match('/User ID:\s*(\d+)/i', $item['evidence'] ?? '', $userMatches) ||
+                $engine === 'wordpress-users' ||
+                strpos($filePath, 'user:') === 0 ||
+                strpos($filePath, '_users:user_id_') !== false ||
+                strpos($type, 'user_') === 0 ||
+                in_array($type, ['rogue_admin_user', 'hidden_admin_user', 'elevated_privilege_user', 'suspicious_user_capabilities', 'tampered_role_definition', 'generic_admin_username', 'weak_password_detected', 'username_enumeration_risk', 'user_missing_capabilities'], true)
+            ) {
                 $userId = 0;
-                if (preg_match('/^user:(\d+)/i', $filePath, $matches)) {
-                    $userId = (int) $matches[1];
+                if (!empty($userMatches[1])) {
+                    $userId = (int) $userMatches[1];
+                } elseif (preg_match('/(?:^user:|_users:user_id_|users\.ID\s*=\s*)(\d+)/i', $filePath, $m)) {
+                    $userId = (int) $m[1];
+                } elseif (preg_match('/User ID:\s*(\d+)/i', $item['evidence'] ?? '', $m)) {
+                    $userId = (int) $m[1];
                 }
+
                 $user = $userId > 0 ? get_userdata($userId) : null;
                 $item['is_user'] = true;
                 $item['is_file'] = false;
                 $item['is_dir'] = false;
                 $item['can_view'] = false;
                 $item['user_id'] = $userId;
-                $item['user_login'] = $user ? $user->user_login : (preg_match('/\(([^)]+)\)/', $filePath, $m) ? $m[1] : 'user');
+                $item['user_login'] = $user ? $user->user_login : (preg_match('/\(([^)]+)\)/', $filePath, $m) ? $m[1] : (preg_match('/User\s*\'([^\']+)\'/i', $item['description'] ?? '', $m) ? $m[1] : 'user'));
+                $item['user_email'] = $user ? $user->user_email : (preg_match('/Email:\s*([^,\s]+)/i', $item['evidence'] ?? '', $m) ? $m[1] : '');
+                $item['user_registered'] = $user ? $user->user_registered : (preg_match('/Registered:\s*([^,\n]+)/i', $item['evidence'] ?? '', $m) ? trim($m[1]) : '');
                 $item['user_display_name'] = $user ? $user->display_name : $item['user_login'];
-                $item['user_roles'] = $user ? implode(', ', (array) $user->roles) : 'user';
+                $item['user_roles'] = ($user && !empty($user->roles)) ? implode(', ', (array) $user->roles) : (preg_match('/Display Role:\s*([^,\n]+)/i', $item['evidence'] ?? '', $m) ? trim($m[1]) : 'None / Missing');
                 $item['edit_url'] = $userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url("users.php");
+
+                // Injected custom capabilities inspection
+                if ($userId > 0) {
+                    global $wpdb;
+                    $cap_key = $wpdb->prefix . 'capabilities';
+                    $stored_caps = get_user_meta($userId, $cap_key, true);
+                    $wp_roles = wp_roles();
+                    $injected_caps = [];
+                    if (is_array($stored_caps)) {
+                        foreach ($stored_caps as $cap_name => $granted) {
+                            if (!isset($wp_roles->roles[$cap_name])) {
+                                $injected_caps[] = $cap_name;
+                            }
+                        }
+                    }
+                    $item['injected_caps'] = $injected_caps;
+                }
             } 
             // 4. Check if finding is a Database Table Row
             elseif ($engine === 'database-table' || preg_match('/^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)(?:\s*\[ID:\s*(\d+)\])?/i', $filePath)) {
@@ -2860,6 +2899,63 @@ class ScannerRoutes {
         if (!$result['success']) {
             return new \WP_Error('db_restore_failed', $result['message'], ['status' => 500]);
         }
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Remediate User Account / Capabilities Anomaly
+     *
+     * Actions:
+     * - 'assign_default_role': Assigns default role (subscriber) to user missing capabilities.
+     * - 'strip_capabilities': Strips unauthorized/trojan capabilities from non-admin accounts.
+     * - 'delete_user': Safely deletes anomalous/ghost account with mandatory pre-action snapshot.
+     */
+    public static function remediate_user(\WP_REST_Request $request) {
+        global $wpdb;
+
+        $params = $request->get_json_params() ?: [];
+        $user_id = !empty($params['user_id']) ? (int) $params['user_id'] : 0;
+        $action = !empty($params['action']) ? sanitize_key($params['action']) : '';
+        $role = !empty($params['role']) ? sanitize_key($params['role']) : null;
+        $reassign_to = !empty($params['reassign_to']) ? (int) $params['reassign_to'] : null;
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if ($user_id <= 0) {
+            return new \WP_Error('invalid_user_id', __('Valid User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $mgr = new \WCP\Scanner\WordPress\UserRemediationManager();
+
+        if ($action === 'assign_default_role') {
+            $result = $mgr->assign_default_role($user_id, $role);
+        } elseif ($action === 'strip_capabilities') {
+            $result = $mgr->strip_injected_capabilities($user_id);
+        } elseif ($action === 'delete_user') {
+            $result = $mgr->delete_user($user_id, $reassign_to);
+        } else {
+            return new \WP_Error('invalid_action', __('Invalid user remediation action.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (empty($result['success'])) {
+            return new \WP_Error('remediation_failed', $result['error'] ?? __('User remediation failed.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        // Mark associated scan issue as repaired if issue_id is provided
+        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        if ($issue_id > 0) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
+        }
+
+        // Also mark open issues for this user account as repaired
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query($wpdb->prepare(
+            "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s OR file_path LIKE %s) AND status = 'open'",
+            "user:{$user_id}%",
+            "%_users:user_id_{$user_id}%",
+            "%users.ID = {$user_id}%"
+        ));
 
         return rest_ensure_response($result);
     }
