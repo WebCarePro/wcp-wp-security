@@ -695,6 +695,21 @@ class ScannerRoutes {
         }
 
         $scan_row = $wpdb->get_row($wpdb->prepare("SELECT total_files FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+        if (!$scan_row) {
+            // Self-healing: recreate running scan row if missing
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->insert($table_scans, [
+                'id'            => $scan_id,
+                'status'        => 'running',
+                'scan_type'     => 'full',
+                'scanned_files' => 0,
+                'total_files'   => max(1, $remaining),
+                'issues_found'  => 0,
+                'risk_score'    => 0,
+                'created_at'    => current_time('mysql'),
+            ]);
+            $scan_row = ['total_files' => max(1, $remaining)];
+        }
         $scan_total = (int) ($scan_row['total_files'] ?? 0);
         $scanned_so_far = max(0, $scan_total - $remaining);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1001,15 +1016,35 @@ class ScannerRoutes {
 
             $started_at_db = !empty($scan_row['started_at']) ? $scan_row['started_at'] : ($scan_row['created_at'] ?? $completed_at_exact);
 
-            $wpdb->update($table_scans, [
-                'status'        => 'completed',
-                'issues_found'  => count($all_scan_issues),
-                'risk_score'    => $summary['score'],
-                'duration'      => $duration_sec,
-                'duration_ms'   => $duration_ms,
-                'started_at'    => $started_at_db,
-                'completed_at'  => $completed_at_exact,
-            ], ['id' => $scan_id]);
+            if (!$scan_row) {
+                // Self-healing: recreate missing scan record so results are guaranteed to persist
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $wpdb->insert($table_scans, [
+                    'id'            => $scan_id,
+                    'status'        => 'completed',
+                    'scan_target'   => $target ?: 'full',
+                    'trigger_type'  => 'manual',
+                    'scanned_files' => count($all_scan_issues),
+                    'total_files'   => count($all_scan_issues),
+                    'issues_found'  => count($all_scan_issues),
+                    'risk_score'    => $summary['score'],
+                    'duration'      => $duration_sec,
+                    'duration_ms'   => $duration_ms,
+                    'created_at'    => current_time('mysql'),
+                    'started_at'    => $started_at_db,
+                    'completed_at'  => $completed_at_exact,
+                ]);
+            } else {
+                $wpdb->update($table_scans, [
+                    'status'        => 'completed',
+                    'issues_found'  => count($all_scan_issues),
+                    'risk_score'    => $summary['score'],
+                    'duration'      => $duration_sec,
+                    'duration_ms'   => $duration_ms,
+                    'started_at'    => $started_at_db,
+                    'completed_at'  => $completed_at_exact,
+                ], ['id' => $scan_id]);
+            }
 
             $completed_scan_row = [
                 'id'            => $scan_id,
@@ -1228,6 +1263,56 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
         $table_files = $wpdb->prefix . 'wcp_scan_files';
 
+        // 1. Identify any scans that are actively running or in progress
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $running_scans = $wpdb->get_results(
+            "SELECT id FROM `{$table_scans}` WHERE status = 'running'",
+            ARRAY_A
+        );
+        $running_ids = !empty($running_scans) ? array_map('intval', wp_list_pluck($running_scans, 'id')) : [];
+
+        // Check if there is an active lock for an additional running scan
+        $locked_id = (int) ScanLock::get_locked_scan_id();
+        if ($locked_id > 0 && !in_array($locked_id, $running_ids, true)) {
+            $running_ids[] = $locked_id;
+        }
+
+        if (!empty($running_ids)) {
+            // There IS an active scan in progress!
+            // Preserve the active running scan(s) and their issues/files. Delete only historical records.
+            $placeholders = implode(',', array_fill(0, count($running_ids), '%d'));
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM `{$table_issues}` WHERE scan_id NOT IN ($placeholders)",
+                ...$running_ids
+            ));
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM `{$table_files}` WHERE scan_id NOT IN ($placeholders)",
+                ...$running_ids
+            ));
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM `{$table_scans}` WHERE id NOT IN ($placeholders)",
+                ...$running_ids
+            ));
+
+            // Do NOT release lock because the scan is actively running!
+            return rest_ensure_response([
+                'success'        => true,
+                'has_active'     => true,
+                'active_scan_id' => reset($running_ids),
+                'message'        => sprintf(
+                    __('Past scan logs cleared successfully. Actively running scan (#%s) was preserved and continues executing uninterrupted.', 'wcp-security-scanner'),
+                    implode(', #', $running_ids)
+                ),
+            ]);
+        }
+
+        // 2. No scan is currently running: safe to truncate all tables cleanly
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query("TRUNCATE TABLE `{$table_scans}`");
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1238,8 +1323,9 @@ class ScannerRoutes {
         ScanLock::release(ScanLock::get_locked_scan_id() ?: 0);
 
         return rest_ensure_response([
-            'success' => true,
-            'message' => 'All old scan logs and history records cleared successfully.',
+            'success'    => true,
+            'has_active' => false,
+            'message'    => __('All old scan logs and history records cleared successfully.', 'wcp-security-scanner'),
         ]);
     }
 
