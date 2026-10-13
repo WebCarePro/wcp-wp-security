@@ -286,9 +286,12 @@ class PathValidator {
             $displaced = @rename($path, $dest_backup);
 
             if ($displaced) {
+                // Ensure displacement of original file is synchronized to directory table
+                self::sync_directory($dir);
+
                 $renamed = @rename($tmp_file, $path);
                 if ($renamed) {
-                    // Safe replacement succeeded: clean up backup and sync directory
+                    // Safe replacement succeeded: clean up backup and synchronize directory
                     @unlink($dest_backup);
                     self::sync_directory($dir);
                     return true;
@@ -296,7 +299,9 @@ class PathValidator {
 
                 // Replacement failed: attempt to rollback original file from backup
                 $rolled_back = @rename($dest_backup, $path);
-                if (!$rolled_back) {
+                if ($rolled_back) {
+                    self::sync_directory($dir);
+                } else {
                     // Critical failure: both replacement and rollback failed.
                     // Preserve $dest_backup so the file remains recoverable by the administrator.
                     if (function_exists('error_log')) {
@@ -319,16 +324,22 @@ class PathValidator {
      * to ensure directory entry modifications (renames) are crash-durable.
      *
      * @param string $dir
-     * @return void
+     * @return bool True if directory is synced or platform does not support directory fsync; false if sync failed
      */
-    private static function sync_directory(string $dir): void {
-        if (function_exists('fsync') && DIRECTORY_SEPARATOR === '/') {
-            $handle = @fopen($dir, 'r');
-            if ($handle !== false) {
-                @fsync($handle);
-                @fclose($handle);
-            }
+    private static function sync_directory(string $dir): bool {
+        if (!function_exists('fsync') || DIRECTORY_SEPARATOR !== '/') {
+            return true;
         }
+
+        $handle = @fopen($dir, 'r');
+        if ($handle === false) {
+            return false;
+        }
+
+        $synced = @fsync($handle);
+        $closed = @fclose($handle);
+
+        return ($synced && $closed);
     }
 
     /**
