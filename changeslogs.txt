@@ -25,7 +25,7 @@ v:1.13.0 - 2026-10-13
   * Added 64-Character Hexadecimal Key Support: allows sysadmins to pass raw 32-byte binary keys encoded as 64 hex characters via `getenv('WCP_VAULT_KEY')`.
   * Added Key Rotation Migration: implemented `SecretVault::rotate_record()` for safe, zero-downtime key rotation from old to new vault keys.
   * Header-Based Google Gemini API Authentication: updated `AIService.php` to pass API credentials via `x-goog-api-key` HTTP headers instead of URL query parameters, preventing credential leakage in proxy and server access logs.
-  * Preserved full zero-downtime backwards compatibility with legacy `wcp_enc:` (`aes-256-cbc`) cipher strings while newly saved secrets transition automatically to authenticated `wcp_gcm:` format.
+  * Pristine AES-256-GCM AEAD Cryptographic Standard: stripped out all obsolete legacy `wcp_enc:` (`aes-256-cbc`) cipher code, guaranteeing a lean, zero-bloat codebase that exclusively uses authenticated AEAD encryption from day one.
 - Multi-Format Scan Results Export (JSON, CSV, Excel, PDF):
   * Added `exportUtils.ts` and interactive `ExportResultsDropdown.tsx` component to the Findings & Vault Hub on the Dashboard and the Scan Logs Inspection view.
   * JSON Export (.json): Generates complete structured audit payloads with scan metadata (ID, target, status, execution duration, timestamps, health score), risk breakdown metrics, and enriched finding objects.

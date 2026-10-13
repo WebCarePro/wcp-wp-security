@@ -10,10 +10,6 @@ class SecretVault {
     const CIPHER_GCM = 'aes-256-gcm';
     const PREFIX_GCM = 'wcp_gcm:';
 
-    // Legacy cipher support for backward compatibility with existing encrypted settings
-    const CIPHER_CBC = 'aes-256-cbc';
-    const PREFIX_CBC = 'wcp_enc:';
-
     /**
      * Derive a cryptographically uniform 256-bit (32-byte) key.
      * Priority:
@@ -167,25 +163,6 @@ class SecretVault {
             return $decrypted !== false ? $decrypted : false;
         }
 
-        // Legacy AES-256-CBC Decryption (Read-only migration path)
-        if (strpos($value, self::PREFIX_CBC) === 0) {
-            $data = base64_decode(substr($value, strlen(self::PREFIX_CBC)), true);
-            if ($data === false) {
-                return false;
-            }
-
-            $iv_length = openssl_cipher_iv_length(self::CIPHER_CBC);
-            if (strlen($data) <= $iv_length) {
-                return false;
-            }
-
-            $iv = substr($data, 0, $iv_length);
-            $ciphertext = substr($data, $iv_length);
-
-            $decrypted = openssl_decrypt($ciphertext, self::CIPHER_CBC, $binary_key, OPENSSL_RAW_DATA, $iv);
-            return $decrypted !== false ? $decrypted : false;
-        }
-
         return false;
     }
 
@@ -228,9 +205,9 @@ class SecretVault {
     }
 
     /**
-     * Check if a value is currently encrypted with either modern GCM or legacy CBC prefix.
+     * Check if a value is currently encrypted with modern authenticated GCM.
      */
     public static function is_encrypted(string $value): bool {
-        return strpos($value, self::PREFIX_GCM) === 0 || strpos($value, self::PREFIX_CBC) === 0;
+        return strpos($value, self::PREFIX_GCM) === 0;
     }
 }
