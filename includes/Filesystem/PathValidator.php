@@ -252,8 +252,17 @@ class PathValidator {
             $written_total += $bytes;
         }
 
-        @fflush($handle);
-        @fclose($handle);
+        // Ensure data is completely flushed to disk with fsync durability where supported
+        $flushed = @fflush($handle);
+        if (function_exists('fsync')) {
+            @fsync($handle);
+        }
+        $closed = @fclose($handle);
+
+        if (!$flushed || !$closed) {
+            @unlink($tmp_file);
+            return false;
+        }
 
         @chmod($tmp_file, $perms);
 
@@ -269,7 +278,7 @@ class PathValidator {
             return true;
         }
 
-        // Non-destructive fallback for platforms where destination locking prevents direct rename (e.g. Windows)
+        // Failure-aware fallback for platforms where destination locking prevents direct rename (e.g. Windows)
         if (file_exists($path)) {
             $dest_backup = $dir . '/.wcp_bak_' . bin2hex(random_bytes(8)) . '.tmp';
             $displaced = @rename($path, $dest_backup);
@@ -282,8 +291,19 @@ class PathValidator {
                     return true;
                 }
 
-                // Replacement failed: rollback original file from backup to prevent data loss
-                @rename($dest_backup, $path);
+                // Replacement failed: attempt to rollback original file from backup
+                $rolled_back = @rename($dest_backup, $path);
+                if (!$rolled_back) {
+                    // Critical failure: both replacement and rollback failed.
+                    // Preserve $dest_backup so the file remains recoverable by the administrator.
+                    if (function_exists('error_log')) {
+                        error_log(sprintf(
+                            '[WCP Security Scanner CRITICAL] Atomic write rollback failure for "%s". Original file preserved in backup "%s".',
+                            $path,
+                            $dest_backup
+                        ));
+                    }
+                }
             }
         }
 
