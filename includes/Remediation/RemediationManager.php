@@ -48,12 +48,18 @@ class RemediationManager {
      */
     public function strip_malware_injection($file_path, $issue_id = null) {
         $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
         if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
             return ['success' => false, 'message' => 'Target file does not exist or is a directory.'];
         }
 
         // Must reside within WordPress installation root (strict directory boundary check)
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: File resides outside ABSPATH.'];
         }
         $normalized_real = wp_normalize_path($real_path);
@@ -180,24 +186,39 @@ class RemediationManager {
      */
     public function restore_official_plugin_file($file_path, $issue_id = null) {
         $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
         if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
             return ['success' => false, 'message' => 'Target file does not exist on server.'];
         }
+        $normalized_real = wp_normalize_path($real_path);
 
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, WP_PLUGIN_DIR)) {
+        $raw_plugins_dir = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR : (WP_CONTENT_DIR . '/plugins');
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_plugins_dir)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress plugins directory.'];
         }
-        $normalized_plugins = rtrim(wp_normalize_path(realpath(WP_PLUGIN_DIR) ?: WP_PLUGIN_DIR), '/') . '/';
+        $normalized_plugins = rtrim(wp_normalize_path(realpath($raw_plugins_dir) ?: $raw_plugins_dir), '/') . '/';
 
         // Prohibit scanner's own plugin
         if (strpos($normalized_real, '/wcp-wp-scanner/') !== false || strpos($normalized_real, '/wcp-security-scanner/') !== false) {
             return ['success' => false, 'message' => 'Action Blocked: Cannot reinstall security scanner files.'];
         }
 
-        $rel_within_plugins = substr($normalized_real, strlen($normalized_plugins));
-        $parts = explode('/', $rel_within_plugins, 2);
-        $plugin_slug = $parts[0];
-        $internal_file = isset($parts[1]) ? $parts[1] : '';
+        if (strpos($normalized_real, $normalized_plugins) === 0) {
+            $rel_within_plugins = substr($normalized_real, strlen($normalized_plugins));
+        } elseif (preg_match('#/wp-content/plugins/(.+)#i', $normalized_real, $matches)) {
+            $rel_within_plugins = $matches[1];
+        } else {
+            return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress plugins directory.'];
+        }
+
+        $parts = explode('/', ltrim($rel_within_plugins, '/'), 2);
+        $plugin_slug = $parts[0] ?? '';
+        $internal_file = $parts[1] ?? '';
 
         if (empty($internal_file) && substr($plugin_slug, -4) === '.php') {
             $internal_file = $plugin_slug;
@@ -280,31 +301,44 @@ class RemediationManager {
      */
     public function restore_official_theme_file($file_path, $issue_id = null) {
         $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
         if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
             return ['success' => false, 'message' => 'Target file does not exist on server.'];
         }
+        $normalized_real = wp_normalize_path($real_path);
 
         $raw_theme_root = function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes');
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, $raw_theme_root)) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_theme_root)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress themes directory.'];
         }
         $theme_root = rtrim(wp_normalize_path(realpath($raw_theme_root) ?: $raw_theme_root), '/') . '/';
 
-        $rel_within_themes = substr($normalized_real, strlen($theme_root));
-        $parts = explode('/', $rel_within_themes, 2);
-        $theme_slug = $parts[0];
-        $internal_file = isset($parts[1]) ? $parts[1] : '';
+        if (strpos($normalized_real, $theme_root) === 0) {
+            $rel_within_themes = substr($normalized_real, strlen($theme_root));
+        } elseif (preg_match('#/wp-content/themes/(.+)#i', $normalized_real, $matches)) {
+            $rel_within_themes = $matches[1];
+        } else {
+            return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress themes directory.'];
+        }
+
+        $parts = explode('/', ltrim($rel_within_themes, '/'), 2);
+        $theme_slug = $parts[0] ?? '';
+        $internal_file = $parts[1] ?? '';
 
         if (!$theme_slug || !$internal_file) {
             return ['success' => false, 'message' => 'Invalid theme directory structure.'];
         }
 
         $theme = wp_get_theme($theme_slug);
-        if (!$theme->exists()) {
-            return ['success' => false, 'message' => "Theme '{$theme_slug}' not found."];
+        $version = ($theme && $theme->exists()) ? $theme->get('Version') : '';
+        if (empty($version)) {
+            $version = 'trunk';
         }
-
-        $version = $theme->get('Version');
 
         // Check official theme repository mirrors in priority order
         global $wp_version;
@@ -314,7 +348,9 @@ class RemediationManager {
             "https://themes.svn.wordpress.org/{$theme_slug}/{$version}/{$internal_file}",
             "https://core.svn.wordpress.org/tags/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
             "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
+            "https://raw.githubusercontent.com/WordPress/WordPress/master/wp-content/themes/{$theme_slug}/{$internal_file}",
             "https://themes.svn.wordpress.org/{$theme_slug}/trunk/{$internal_file}",
+            "https://core.svn.wordpress.org/trunk/wp-content/themes/{$theme_slug}/{$internal_file}",
         ];
 
         $response = null;
@@ -374,17 +410,28 @@ class RemediationManager {
      */
     public function restore_official_core_file($file_path, $issue_id = null) {
         $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
         if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
             return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
         }
+        $normalized_real = wp_normalize_path($real_path);
 
         // Security check: Must reside within ABSPATH
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
             return ['success' => false, 'message' => __('Action Blocked: File is outside the WordPress root directory.', 'wcp-security-scanner')];
         }
 
         $normalized_abs = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
-        $rel_file = ltrim(substr($normalized_real, strlen($normalized_abs)), '/');
+        if (strpos($normalized_real, $normalized_abs) === 0) {
+            $rel_file = ltrim(substr($normalized_real, strlen($normalized_abs)), '/');
+        } else {
+            $rel_file = ltrim(str_replace($normalized_abs, '', $normalized_real), '/');
+        }
 
         // Explicitly forbid restoring wp-config.php, .htaccess, or config templates
         $forbidden_basenames = ['wp-config.php', '.htaccess', 'php.ini', '.user.ini', 'web.config', 'robots.txt'];
