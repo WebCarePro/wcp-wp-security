@@ -1749,8 +1749,53 @@ class ScannerRoutes {
                         $item['latest_version'] = $decoded['latest'] ?? '';
                         $item['component_name'] = $decoded['name'] ?? '';
                         $item['component_type'] = $decoded['type'] ?? '';
-                        $item['update_url'] = $decoded['update_url'] ?? '';
                     }
+                }
+            }
+
+            // 0b. Check if finding is Theme Checksums Unavailable (Custom / Child / Premium Theme)
+            if ($type === 'theme_checksums_unavailable' || ($engine === 'integrity-theme' && (strpos($filePath, '/themes/') !== false || strpos($filePath, '\\themes\\') !== false) && !preg_match('/\.[a-zA-Z0-9]{2,5}$/', $filePath))) {
+                $item['is_dir'] = true;
+                $item['is_file'] = false;
+                $item['can_view'] = false;
+                $item['component_type'] = 'theme';
+
+                $evidence_data = !empty($item['evidence']) && is_string($item['evidence']) ? json_decode($item['evidence'], true) : [];
+                $path_lower = strtolower($filePath);
+                $desc_lower = strtolower($item['description'] ?? '');
+
+                $is_child = !empty($evidence_data['is_child']) || strpos($path_lower, '-child') !== false || strpos($desc_lower, 'child') !== false;
+                $is_premium = !empty($evidence_data['is_premium']) || (bool) preg_match('/\b(premium|pro|commercial|license|themeforest|envato)\b/i', $filePath . ' ' . $desc_lower);
+
+                if (!empty($evidence_data['display_title'])) {
+                    $item['display_title'] = $evidence_data['display_title'];
+                } elseif ($is_child) {
+                    $item['display_title'] = __('Custom Child Theme', 'wcp-security-scanner');
+                } elseif ($is_premium) {
+                    $item['display_title'] = __('Premium Theme', 'wcp-security-scanner');
+                } else {
+                    $item['display_title'] = __('Custom or Premium Theme', 'wcp-security-scanner');
+                }
+            }
+            // 0c. Check if finding is Plugin Checksums Unavailable (Custom or Premium Plugin)
+            elseif ($type === 'plugin_checksums_unavailable' || ($engine === 'integrity-plugin' && (strpos($filePath, '/plugins/') !== false || strpos($filePath, '\\plugins\\') !== false) && !preg_match('/\.[a-zA-Z0-9]{2,5}$/', $filePath))) {
+                $item['is_dir'] = true;
+                $item['is_file'] = false;
+                $item['can_view'] = false;
+                $item['component_type'] = 'plugin';
+
+                $evidence_data = !empty($item['evidence']) && is_string($item['evidence']) ? json_decode($item['evidence'], true) : [];
+                $path_lower = strtolower($filePath);
+                $desc_lower = strtolower($item['description'] ?? '');
+
+                $is_premium = !empty($evidence_data['is_premium']) || (bool) preg_match('/(?:^|[-_])(premium|pro|addon|addons|unlimited|commercial)(?:[-_]|$)/i', $filePath) || (bool) preg_match('/\b(premium|pro|yith|woocommerce)\b/i', $desc_lower);
+
+                if (!empty($evidence_data['display_title'])) {
+                    $item['display_title'] = $evidence_data['display_title'];
+                } elseif ($is_premium) {
+                    $item['display_title'] = __('Premium Plugin', 'wcp-security-scanner');
+                } else {
+                    $item['display_title'] = __('Custom or Premium Plugin', 'wcp-security-scanner');
                 }
             }
 
@@ -1915,10 +1960,16 @@ class ScannerRoutes {
                 $isInsideRoot = $realPath && \WCP\Scanner\Filesystem\PathValidator::is_inside_root($realPath, ABSPATH);
 
                 $item['file_exists'] = $isInsideRoot && file_exists($realPath);
-                $item['is_dir'] = $item['file_exists'] && is_dir($realPath);
-                $item['is_file'] = $item['file_exists'] && is_file($realPath);
+                if (!isset($item['is_dir'])) {
+                    $item['is_dir'] = $item['file_exists'] && is_dir($realPath);
+                }
+                if (!isset($item['is_file'])) {
+                    $item['is_file'] = $item['file_exists'] && is_file($realPath);
+                }
                 // Only allow viewing if it is a regular readable file (not a folder/directory)
-                $item['can_view'] = $item['is_file'] && is_readable($realPath);
+                if (!isset($item['can_view'])) {
+                    $item['can_view'] = !empty($item['is_file']) && is_readable($realPath);
+                }
             }
         }
         unset($item);

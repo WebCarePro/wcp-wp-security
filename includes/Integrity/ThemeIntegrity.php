@@ -40,14 +40,51 @@ class ThemeIntegrity {
             $checksums = $this->provider->get_theme_checksums($theme_slug, $version);
 
             if (!$checksums) {
-                // Not from WP.org or theme manifest unavailable
+                // Not from WP.org or theme manifest unavailable (Custom, Child, or Premium Theme)
+                $is_child = (bool) $theme_data->parent() || (bool) preg_match('/(?:^|[-_])child(?:[-_]|$)/i', $theme_slug);
+                $theme_name = $theme_data->get('Name') ?: $theme_slug;
+                $theme_uri = (string) $theme_data->get('ThemeURI');
+                $author_uri = (string) $theme_data->get('AuthorURI');
+                $parent_name = ($is_child && $theme_data->parent()) ? $theme_data->parent()->get('Name') : null;
+
+                $is_premium = (bool) preg_match(
+                    '/\b(premium|pro|commercial|license|themeforest|envato|elegantthemes|studiopress|woocommerce|flavor)\b/i',
+                    $theme_slug . ' ' . $theme_name . ' ' . $theme_uri . ' ' . $author_uri
+                );
+
+                if ($is_child) {
+                    $classification = 'custom_child_theme';
+                    $display_title = 'Custom Child Theme';
+                    $desc_type = $parent_name ? "child theme (parent: {$parent_name})" : "child theme";
+                } elseif ($is_premium) {
+                    $classification = 'premium_theme';
+                    $display_title = 'Premium Theme';
+                    $desc_type = 'premium theme';
+                } else {
+                    $classification = 'custom_theme';
+                    $display_title = 'Custom or Premium Theme';
+                    $desc_type = 'custom or premium theme';
+                }
+
                 $findings[] = new Finding([
                     'engine'      => 'integrity-theme',
                     'type'        => 'theme_checksums_unavailable',
                     'severity'    => 'info',
                     'confidence'  => 100,
-                    'file_path'   => $theme_dir,
-                    'description' => "Integrity verification unavailable for theme: {$theme_data->get('Name')} (custom/premium theme)."
+                    'file_path'   => wp_normalize_path($theme_dir),
+                    'evidence'    => wp_json_encode([
+                        'component_type' => 'theme',
+                        'is_dir'         => true,
+                        'is_child'       => $is_child,
+                        'is_premium'     => $is_premium,
+                        'classification' => $classification,
+                        'display_title'  => $display_title,
+                        'theme_slug'     => $theme_slug,
+                        'theme_name'     => $theme_name,
+                        'parent_theme'   => $parent_name,
+                        'version'        => $version,
+                    ]),
+                    'description' => "Integrity checksums unavailable for {$desc_type}: {$theme_name} (unmanaged/non-WordPress.org theme)."
                 ]);
                 continue;
             }

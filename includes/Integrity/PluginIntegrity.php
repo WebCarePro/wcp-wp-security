@@ -103,14 +103,39 @@ class PluginIntegrity {
             $component_dir = $is_single_file ? WP_PLUGIN_DIR : (WP_PLUGIN_DIR . '/' . $plugin_dir_name);
 
             if (!$checksums) {
-                // Not from WP.org or checksums unavailable
+                // Not from WP.org or checksums unavailable (Custom or Premium Plugin)
+                $plugin_name = $plugin_data['Name'] ?? $plugin_dir_name;
+                $plugin_uri = (string) ($plugin_data['PluginURI'] ?? '');
+                $author_uri = (string) ($plugin_data['AuthorURI'] ?? '');
+
+                $is_premium_plugin = (bool) (
+                    $is_commercial_or_custom ||
+                    preg_match(
+                        '/\b(premium|pro|commercial|license|codecanyon|envato|yith|woocommerce\.com)\b/i',
+                        $plugin_dir_name . ' ' . $plugin_name . ' ' . $plugin_uri . ' ' . $author_uri
+                    )
+                );
+
+                $classification = $is_premium_plugin ? 'premium_plugin' : 'custom_plugin';
+                $display_title = $is_premium_plugin ? 'Premium Plugin' : 'Custom or Premium Plugin';
+
                 $findings[] = new Finding([
                     'engine'      => 'integrity-plugin',
                     'type'        => 'plugin_checksums_unavailable',
                     'severity'    => 'info',
                     'confidence'  => 100,
                     'file_path'   => wp_normalize_path($component_dir),
-                    'description' => "Integrity verification unavailable for plugin: {$plugin_data['Name']} (custom/premium plugin)."
+                    'evidence'    => wp_json_encode([
+                        'component_type' => 'plugin',
+                        'is_dir'         => !$is_single_file,
+                        'is_premium'     => $is_premium_plugin,
+                        'classification' => $classification,
+                        'display_title'  => $display_title,
+                        'plugin_dir'     => $plugin_dir_name,
+                        'plugin_name'    => $plugin_name,
+                        'version'        => $version,
+                    ]),
+                    'description' => "Integrity checksums unavailable for {$display_title}: {$plugin_name} (unmanaged/non-WordPress.org plugin)."
                 ]);
                 continue;
             }
