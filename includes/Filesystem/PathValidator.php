@@ -291,9 +291,11 @@ class PathValidator {
 
                 $renamed = @rename($tmp_file, $path);
                 if ($renamed) {
-                    // Safe replacement succeeded: clean up backup and synchronize directory
-                    @unlink($dest_backup);
-                    self::sync_directory($dir);
+                    // Verify directory synchronization before removing recoverable backup
+                    $synced = self::sync_directory($dir);
+                    if ($synced) {
+                        @unlink($dest_backup);
+                    }
                     return true;
                 }
 
