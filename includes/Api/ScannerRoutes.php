@@ -23,6 +23,7 @@ use WCP\Scanner\Filesystem\UploadsScanner;
 use WCP\Scanner\WordPress\CronScanner;
 use WCP\Scanner\WordPress\PersistenceScanner;
 use WCP\Scanner\Forensics\AttackChainEngine;
+use WCP\Scanner\Firewall\VirtualPatchManager;
 use WCP\Scanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
@@ -386,6 +387,24 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/attack-chain/eradicate', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'attack_chain_eradicate'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/list', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'virtual_patch_list'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/apply', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'virtual_patch_apply'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/remove', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'virtual_patch_remove'],
             'permission_callback' => $permission,
         ]);
 
@@ -3927,6 +3946,54 @@ class ScannerRoutes {
 
         $engine = new \WCP\Scanner\Forensics\AttackChainEngine();
         $result = $engine->eradicate_chain($chain_id, $plan);
+        return rest_ensure_response($result);
+    }
+
+    public static function virtual_patch_list(\WP_REST_Request $request) {
+        $catalog = \WCP\Scanner\Firewall\VirtualPatchManager::get_patch_catalog();
+        $active = \WCP\Scanner\Firewall\VirtualPatchManager::get_active_patches();
+        
+        $settings = \WCP\Scanner\System\SettingsManager::get_settings();
+        $cf_ready = !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
+
+        return rest_ensure_response([
+            'success'           => true,
+            'catalog'           => array_values($catalog),
+            'active_patches'    => array_values($active),
+            'cloudflare_ready'  => $cf_ready,
+        ]);
+    }
+
+    public static function virtual_patch_apply(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $patch_id = sanitize_text_field(wp_unslash($params['patch_id'] ?? ''));
+        $custom_config = is_array($params['custom_config'] ?? null) ? $params['custom_config'] : [];
+
+        if (empty($patch_id)) {
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WCP\Scanner\Firewall\VirtualPatchManager::apply_patch($patch_id, $custom_config);
+        if (!$result['success']) {
+            return new \WP_Error('patch_failed', $result['message'], ['status' => 500]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    public static function virtual_patch_remove(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $patch_id = sanitize_text_field(wp_unslash($params['patch_id'] ?? ''));
+
+        if (empty($patch_id)) {
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WCP\Scanner\Firewall\VirtualPatchManager::remove_patch($patch_id);
+        if (!$result['success']) {
+            return new \WP_Error('remove_failed', $result['message'], ['status' => 500]);
+        }
+
         return rest_ensure_response($result);
     }
 

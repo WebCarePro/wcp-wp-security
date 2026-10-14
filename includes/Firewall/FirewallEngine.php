@@ -265,6 +265,20 @@ class FirewallEngine {
             }
         }
 
+        // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
+        $vpatch_rule = VirtualPatchManager::evaluate_request($client_ip, $request_uri);
+        if ($vpatch_rule !== null) {
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($vpatch_rule, 'detected');
+            } else {
+                self::log_incident($vpatch_rule, 'blocked');
+                self::render_block_page($vpatch_rule, $client_ip);
+                exit;
+            }
+        }
+
         $env = self::detect_environment();
         $is_complementary = !empty($settings['waf_complementary_mode']) && $env['has_coexisting_waf'];
 

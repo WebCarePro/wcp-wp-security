@@ -711,15 +711,9 @@ class AttackChainEngine {
         }
 
         // 7. Record Audit Log Entry
-        AuditLogger::log(
+        AuditLogger::log_event(
             'attack_chain_eradicated',
-            sprintf(__('Eradicated attack chain "%s": %d actions executed.', 'wcp-security-scanner'), $chain_id, count($actions_taken)),
-            [
-                'chain_id'      => $chain_id,
-                'actions_taken' => $actions_taken,
-                'vault_backups' => $vault_backups,
-                'errors'        => $errors,
-            ]
+            sprintf(__('Eradicated attack chain "%s": %d actions executed.', 'wcp-security-scanner'), $chain_id, count($actions_taken))
         );
 
         return [
