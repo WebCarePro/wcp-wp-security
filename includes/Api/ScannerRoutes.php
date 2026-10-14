@@ -122,6 +122,36 @@ class ScannerRoutes {
         ]);
 
         // Database Backup
+        register_rest_route(self::NAMESPACE, '/backup/preflight', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_backup_preflight'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/backup/session/start', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'start_backup_session'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/backup/session/step', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'step_backup_session'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/backup/session/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_backup_session_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/backup/session/cancel', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'cancel_backup_session'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/backup/create', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'create_backup'],
@@ -1615,6 +1645,59 @@ class ScannerRoutes {
             'success' => true,
             'report'  => $report,
         ]);
+    }
+
+    public static function get_backup_preflight(\WP_REST_Request $request) {
+        $db_backup = new DatabaseBackup();
+        $info = $db_backup->get_preflight_info();
+        return rest_ensure_response([
+            'success' => true,
+            'info'    => $info,
+        ]);
+    }
+
+    public static function start_backup_session(\WP_REST_Request $request) {
+        $throttle_ms = $request->get_param('throttle_ms');
+        $batch_size = $request->get_param('batch_size');
+        $db_backup = new DatabaseBackup();
+        $options = [];
+        if ($throttle_ms !== null) {
+            $options['throttle_ms'] = (int) $throttle_ms;
+        }
+        if ($batch_size !== null) {
+            $options['batch_size'] = (int) $batch_size;
+        }
+        $res = $db_backup->start_session($options);
+        return rest_ensure_response($res);
+    }
+
+    public static function step_backup_session(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $throttle_ms = $request->get_param('throttle_ms');
+        $db_backup = new DatabaseBackup();
+        $res = $db_backup->step_session($session_id, $throttle_ms !== null ? (int) $throttle_ms : null);
+        return rest_ensure_response($res);
+    }
+
+    public static function get_backup_session_status(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $db_backup = new DatabaseBackup();
+        $state = $db_backup->get_session_state($session_id);
+        if (!$state) {
+            return new \WP_Error('session_not_found', 'Backup session not found.', ['status' => 404]);
+        }
+        return rest_ensure_response([
+            'success'   => true,
+            'status'    => $state['status'],
+            'state'     => $state,
+        ]);
+    }
+
+    public static function cancel_backup_session(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $db_backup = new DatabaseBackup();
+        $res = $db_backup->cancel_session($session_id);
+        return rest_ensure_response($res);
     }
 
     public static function create_backup(\WP_REST_Request $request) {
