@@ -2527,9 +2527,9 @@ class ScannerRoutes {
         $latest_source = '';
         $resolved_latest_version = $latest_ver;
 
-        // --- STEP 1: Attempt to retrieve latest version changelog from official WordPress.org ---
-        if ($type === 'plugin' && !empty($slug)) {
-            $cache_key = 'wcp_up_cl_pl_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
+        // --- STEP 1: Attempt to retrieve latest version changelog from WordPress Update Manager / Vendor API / Official Repository ---
+        if ($type === 'plugin' && (!empty($slug) || !empty($target_dir))) {
+            $cache_key = 'wcp_up_cl_pl_' . substr(md5(($slug ?: basename($target_dir)) . '_' . $latest_ver), 0, 16);
             $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
             if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
                 $latest_changelog_found = true;
@@ -2537,49 +2537,141 @@ class ScannerRoutes {
                 $latest_source = $cached['source'];
                 $resolved_latest_version = $cached['version'] ?: $latest_ver;
             } else {
-                // 1.1 Try SVN tags or trunk
-                $svn_urls = [];
-                if (!empty($latest_ver)) {
-                    $svn_urls[] = "https://plugins.svn.wordpress.org/{$slug}/tags/{$latest_ver}/readme.txt";
+                // 1.1 Resolve plugin main file
+                $matched_file = '';
+                if (!function_exists('get_plugins')) {
+                    require_once ABSPATH . 'wp-admin/includes/plugin.php';
                 }
-                $svn_urls[] = "https://plugins.svn.wordpress.org/{$slug}/trunk/readme.txt";
+                $all_plugins = function_exists('get_plugins') ? get_plugins() : [];
+                $norm_target = wp_normalize_path($target_dir);
+                $folder_name = $slug ?: basename($norm_target);
 
-                foreach ($svn_urls as $url) {
-                    $response = function_exists('wp_remote_get')
-                        ? wp_remote_get($url, ['timeout' => 4, 'sslverify' => true, 'headers' => ['User-Agent' => 'WordPress/' . get_bloginfo('version')]])
-                        : false;
+                foreach ($all_plugins as $p_file => $p_data) {
+                    if (dirname($p_file) === $folder_name || $p_file === $folder_name || (!empty($norm_target) && wp_normalize_path(WP_PLUGIN_DIR . '/' . dirname($p_file)) === $norm_target)) {
+                        $matched_file = $p_file;
+                        break;
+                    }
+                }
 
-                    if (!is_wp_error($response) && is_array($response)) {
-                        $code = wp_remote_retrieve_response_code($response);
-                        if ($code === 200) {
-                            $body = wp_remote_retrieve_body($response);
-                            if (!empty($body)) {
-                                $extracted = self::extract_changelog_from_readme($body);
-                                $latest_content = !empty($extracted) ? $extracted : $body;
+                // 1.2 Inspect WordPress update transient (handles premium updaters like YITH, EDD, PUC, WooCommerce Helper)
+                $update_plugins = function_exists('get_site_transient') ? get_site_transient('update_plugins') : false;
+                $update_entry = null;
+
+                if (!empty($update_plugins) && is_object($update_plugins)) {
+                    if (!empty($matched_file) && !empty($update_plugins->response[$matched_file])) {
+                        $update_entry = $update_plugins->response[$matched_file];
+                    } elseif (!empty($matched_file) && !empty($update_plugins->no_update[$matched_file])) {
+                        $update_entry = $update_plugins->no_update[$matched_file];
+                    } else {
+                        foreach ($update_plugins->response ?? [] as $up_file => $up_data) {
+                            if (dirname($up_file) === $folder_name || (!empty($up_data->slug) && $up_data->slug === $folder_name)) {
+                                $update_entry = $up_data;
+                                $matched_file = $up_file;
+                                break;
+                            }
+                        }
+                        if (!$update_entry) {
+                            foreach ($update_plugins->no_update ?? [] as $up_file => $up_data) {
+                                if (dirname($up_file) === $folder_name || (!empty($up_data->slug) && $up_data->slug === $folder_name)) {
+                                    $update_entry = $up_data;
+                                    $matched_file = $up_file;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (is_object($update_entry)) {
+                    if (!empty($update_entry->new_version)) {
+                        $resolved_latest_version = $update_entry->new_version;
+                    }
+                    // Check direct changelog inside update transient
+                    if (!empty($update_entry->sections['changelog'])) {
+                        $latest_content = self::format_changelog_html($update_entry->sections['changelog']);
+                        $latest_changelog_found = true;
+                        $latest_source = 'WordPress Plugin Update Manager';
+                    } elseif (!empty($update_entry->changelog)) {
+                        $latest_content = self::format_changelog_html($update_entry->changelog);
+                        $latest_changelog_found = true;
+                        $latest_source = 'WordPress Plugin Update Manager';
+                    } elseif (!empty($update_entry->upgrade_notice)) {
+                        $latest_content = self::format_changelog_html($update_entry->upgrade_notice);
+                        $latest_changelog_found = true;
+                        $latest_source = 'WordPress Plugin Update Manager';
+                    }
+                }
+
+                // 1.3 Native WordPress plugins_api (queries registered updater filters e.g. YITH License Manager, PUC, etc.)
+                if (!$latest_changelog_found) {
+                    if (!function_exists('plugins_api')) {
+                        require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+                    }
+
+                    $slug_candidates = [];
+                    if (is_object($update_entry)) {
+                        if (!empty($update_entry->slug)) $slug_candidates[] = (string) $update_entry->slug;
+                        if (!empty($update_entry->id)) $slug_candidates[] = (string) $update_entry->id;
+                    }
+                    if (!empty($slug)) $slug_candidates[] = $slug;
+                    if (!empty($folder_name)) $slug_candidates[] = $folder_name;
+                    if (!empty($matched_file)) {
+                        $slug_candidates[] = $matched_file;
+                        $slug_candidates[] = dirname($matched_file);
+                    }
+                    $slug_candidates = array_unique(array_filter($slug_candidates));
+
+                    if (function_exists('plugins_api')) {
+                        foreach ($slug_candidates as $try_slug) {
+                            $api = plugins_api('plugin_information', [
+                                'slug'   => $try_slug,
+                                'is_ssl' => is_ssl(),
+                                'fields' => [
+                                    'sections' => true,
+                                    'version'  => true,
+                                    'banners'  => false,
+                                    'reviews'  => false,
+                                ],
+                            ]);
+
+                            if (!is_wp_error($api) && is_object($api) && !empty($api->sections['changelog'])) {
+                                $latest_content = self::format_changelog_html($api->sections['changelog']);
                                 $latest_changelog_found = true;
-                                $latest_source = 'WordPress.org SVN Repository';
+                                $vendor_name = !empty($api->name) ? $api->name : 'Plugin Update Manager';
+                                $latest_source = $vendor_name . ' Update API';
+                                if (!empty($api->version)) {
+                                    $resolved_latest_version = $api->version;
+                                }
                                 break;
                             }
                         }
                     }
                 }
 
-                // 1.2 WordPress.org Plugins API fallback
-                if (!$latest_changelog_found) {
-                    if (!function_exists('plugins_api')) {
-                        require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+                // 1.4 Official WordPress.org SVN Repository (for free/official directory plugins)
+                if (!$latest_changelog_found && !empty($slug)) {
+                    $svn_urls = [];
+                    if (!empty($latest_ver)) {
+                        $svn_urls[] = "https://plugins.svn.wordpress.org/{$slug}/tags/{$latest_ver}/readme.txt";
                     }
-                    if (function_exists('plugins_api')) {
-                        $api = plugins_api('plugin_information', [
-                            'slug'   => $slug,
-                            'fields' => ['sections' => true, 'version' => true, 'last_updated' => true],
-                        ]);
-                        if (!is_wp_error($api) && !empty($api->sections['changelog'])) {
-                            $latest_content = self::format_changelog_html($api->sections['changelog']);
-                            $latest_changelog_found = true;
-                            $latest_source = 'WordPress.org Plugins API';
-                            if (!empty($api->version)) {
-                                $resolved_latest_version = $api->version;
+                    $svn_urls[] = "https://plugins.svn.wordpress.org/{$slug}/trunk/readme.txt";
+
+                    foreach ($svn_urls as $url) {
+                        $response = function_exists('wp_remote_get')
+                            ? wp_remote_get($url, ['timeout' => 4, 'sslverify' => true, 'headers' => ['User-Agent' => 'WordPress/' . get_bloginfo('version')]])
+                            : false;
+
+                        if (!is_wp_error($response) && is_array($response)) {
+                            $code = wp_remote_retrieve_response_code($response);
+                            if ($code === 200) {
+                                $body = wp_remote_retrieve_body($response);
+                                if (!empty($body)) {
+                                    $extracted = self::extract_changelog_from_readme($body);
+                                    $latest_content = !empty($extracted) ? $extracted : $body;
+                                    $latest_changelog_found = true;
+                                    $latest_source = 'WordPress.org SVN Repository';
+                                    break;
+                                }
                             }
                         }
                     }
@@ -2637,14 +2729,15 @@ class ScannerRoutes {
         // If latest upstream changelog was found, return it immediately
         if ($latest_changelog_found && !empty($latest_content)) {
             $version_label = $resolved_latest_version ? "v{$resolved_latest_version}" : 'Latest';
+            $source_title = !empty($latest_source) ? $latest_source : 'WordPress Update Manager';
             return rest_ensure_response([
                 'success'           => true,
                 'has_changelog'     => true,
                 'is_latest'         => true,
                 'latest_not_found'  => false,
-                'source'            => 'wporg_latest',
-                'source_label'      => sprintf(__('Latest Upstream Version (%s) from %s', 'wcp-security-scanner'), $version_label, $latest_source),
-                'filename'          => "WordPress.org {$version_label} Release Notes",
+                'source'            => 'upstream_latest',
+                'source_label'      => sprintf(__('Latest Upstream Version (%s) from %s', 'wcp-security-scanner'), $version_label, $source_title),
+                'filename'          => "{$source_title} {$version_label} Release Notes",
                 'file_size'         => strlen($latest_content),
                 'version_shown'     => $resolved_latest_version ?: ($latest_ver ?: 'Latest'),
                 'installed_version' => $installed_ver,
@@ -2685,7 +2778,7 @@ class ScannerRoutes {
                             'latest_version'    => $latest_ver,
                             'content'           => $content,
                             'notice'            => sprintf(
-                                __('Latest version (%s) changelog was not found on WordPress.org repository. Displaying currently installed version (%s) changelog from local disk below.', 'wcp-security-scanner'),
+                                __('Latest version (%s) changelog was not found on remote repositories or plugin update manager. Displaying currently installed version (%s) changelog from local disk below.', 'wcp-security-scanner'),
                                 $target_label,
                                 $installed_label
                             ),
