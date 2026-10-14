@@ -569,20 +569,22 @@ class ScannerRoutes {
         $paths = [];
         $all_files = [];
 
-        // Determine scannable filesystem files based on scan profile
+        // Determine scannable filesystem files based on scan profile (0 = unlimited)
+        $file_limit = (int) apply_filters('wcp_scanner_file_limit', 0, $target);
+
         if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel', 'modified_files'], true)) {
             // Targeted deep engines do not queue filesystem files
             $all_files = [];
         } elseif ($target === 'filesystem_only' || $target === 'full') {
             $paths[] = untrailingslashit(ABSPATH);
             foreach ($paths as $path) {
-                $all_files = array_merge($all_files, Engine::get_scannable_files($path, 3000));
+                $all_files = array_merge($all_files, Engine::get_scannable_files($path, $file_limit));
             }
         } else { // default plugins_themes
             $paths[] = WP_PLUGIN_DIR;
             $paths[] = get_theme_root();
             foreach ($paths as $path) {
-                $all_files = array_merge($all_files, Engine::get_scannable_files($path, 2500));
+                $all_files = array_merge($all_files, Engine::get_scannable_files($path, $file_limit));
             }
         }
 

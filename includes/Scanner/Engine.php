@@ -70,39 +70,52 @@ class Engine {
     }
 
     /**
-     * Recursively list PHP, JS, and HTML files in target directory.
+     * Recursively list PHP, JS, and scannable code files in target directory.
      *
      * @param string $dir
-     * @param int $limit
+     * @param int $limit 0 for unlimited (default)
      * @return array
      */
-    public static function get_scannable_files($dir, $limit = 1000) {
+    public static function get_scannable_files($dir, $limit = 0) {
         $files = [];
         if (!is_dir($dir)) {
             return $files;
         }
 
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
-        );
+        try {
+            $dir_iterator = new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS);
 
-        $allowed_exts = ['php', 'phtml', 'php5', 'php7', 'suspected', 'js', 'txt'];
-
-        foreach ($iterator as $item) {
-            if ($item->isFile()) {
-                $pathname = str_replace('\\', '/', $item->getPathname());
-                if (strpos($pathname, '/plugins/wcp-wp-scanner/') !== false || strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
-                    continue; // Do not enqueue scanner's own files
+            // Skip heavy non-code and runtime directories
+            $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) {
+                if ($current->isDir()) {
+                    $name = $current->getFilename();
+                    if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-quarantine'], true)) {
+                        return false;
+                    }
                 }
-                $ext = strtolower($item->getExtension());
-                if (in_array($ext, $allowed_exts, true)) {
-                    $files[] = $item->getPathname();
-                    if (count($files) >= $limit) {
-                        break;
+                return true;
+            });
+
+            $iterator = new \RecursiveIteratorIterator($filter_iterator, \RecursiveIteratorIterator::SELF_FIRST);
+            $allowed_exts = ['php', 'phtml', 'php5', 'php7', 'suspected', 'js', 'txt'];
+
+            foreach ($iterator as $item) {
+                if ($item->isFile()) {
+                    $pathname = str_replace('\\', '/', $item->getPathname());
+                    if (strpos($pathname, '/plugins/wcp-wp-scanner/') !== false || strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
+                        continue; // Do not enqueue scanner's own files
+                    }
+                    $ext = strtolower($item->getExtension());
+                    if (in_array($ext, $allowed_exts, true)) {
+                        $files[] = $item->getPathname();
+                        if ($limit > 0 && count($files) >= $limit) {
+                            break;
+                        }
                     }
                 }
             }
+        } catch (\Throwable $e) {
+            error_log('WCP Scanner: File discovery error in ' . $dir . ': ' . $e->getMessage());
         }
 
         return $files;

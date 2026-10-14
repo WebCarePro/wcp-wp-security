@@ -51,20 +51,22 @@ class Scheduler {
          $table_issues = $wpdb->prefix . 'wcp_scan_issues';
          $table_files = $wpdb->prefix . 'wcp_scan_files';
 
-         // 1. Discover filesystem files
+         // 1. Discover filesystem files (0 = unlimited)
          $files = [];
+         $file_limit = (int) apply_filters('wcp_scanner_file_limit', 0, $target);
+
          if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel'], true)) {
              $files = [];
          } elseif ($target === 'filesystem_only' || $target === 'full') {
              $paths = [untrailingslashit(ABSPATH)];
              foreach ($paths as $p) {
-                 $files = array_merge($files, Engine::get_scannable_files($p, 3000));
+                 $files = array_merge($files, Engine::get_scannable_files($p, $file_limit));
              }
          } else {
              // plugins_themes
              $paths = [WP_PLUGIN_DIR, get_theme_root()];
              foreach ($paths as $p) {
-                 $files = array_merge($files, Engine::get_scannable_files($p, 2500));
+                 $files = array_merge($files, Engine::get_scannable_files($p, $file_limit));
              }
          }
 
