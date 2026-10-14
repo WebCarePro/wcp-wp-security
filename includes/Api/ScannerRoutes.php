@@ -22,6 +22,7 @@ use WCP\Scanner\Scan\ScanLock;
 use WCP\Scanner\Filesystem\UploadsScanner;
 use WCP\Scanner\WordPress\CronScanner;
 use WCP\Scanner\WordPress\PersistenceScanner;
+use WCP\Scanner\Forensics\AttackChainEngine;
 use WCP\Scanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
@@ -373,6 +374,18 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/persistence/neutralize', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'persistence_neutralize'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/attack-chain/audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'attack_chain_audit'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/attack-chain/eradicate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'attack_chain_eradicate'],
             'permission_callback' => $permission,
         ]);
 
@@ -3894,6 +3907,26 @@ class ScannerRoutes {
             return new \WP_Error('neutralize_failed', $result['message'], ['status' => 500]);
         }
 
+        return rest_ensure_response($result);
+    }
+
+    public static function attack_chain_audit(\WP_REST_Request $request) {
+        $engine = new \WCP\Scanner\Forensics\AttackChainEngine();
+        $result = $engine->audit_attack_chains();
+        return rest_ensure_response($result);
+    }
+
+    public static function attack_chain_eradicate(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $chain_id = sanitize_text_field(wp_unslash($params['chain_id'] ?? ''));
+        $plan = is_array($params['plan'] ?? null) ? $params['plan'] : [];
+
+        if (empty($chain_id)) {
+            return new \WP_Error('missing_chain_id', __('Chain ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $engine = new \WCP\Scanner\Forensics\AttackChainEngine();
+        $result = $engine->eradicate_chain($chain_id, $plan);
         return rest_ensure_response($result);
     }
 
