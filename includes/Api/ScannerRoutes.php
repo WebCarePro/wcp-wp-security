@@ -352,6 +352,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/permissions/audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'permissions_audit'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/permissions/fix-all', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'permissions_fix_all'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/remediation/backups', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_remediation_backups'],
@@ -3827,6 +3839,18 @@ class ScannerRoutes {
         $manager = new \WCP\Scanner\Remediation\RemediationManager();
         $result = $manager->fix_permissions($file_path, $target_perm, $issue_id);
 
+        return rest_ensure_response($result);
+    }
+
+    public static function permissions_audit(\WP_REST_Request $request) {
+        $manager = new \WCP\Scanner\Hardening\PermissionHardeningManager();
+        $result = $manager->audit();
+        return rest_ensure_response($result);
+    }
+
+    public static function permissions_fix_all(\WP_REST_Request $request) {
+        $manager = new \WCP\Scanner\Hardening\PermissionHardeningManager();
+        $result = $manager->fix_all();
         return rest_ensure_response($result);
     }
 

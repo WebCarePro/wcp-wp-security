@@ -124,4 +124,17 @@ class AuditLogger {
     public function log_core_update($wp_version) {
         $this->write_log('CORE_UPDATED', "WordPress core successfully updated to version {$wp_version}.");
     }
+
+    /**
+     * Public static helper to log custom administrative and security events.
+     *
+     * @param string $event_type
+     * @param string $message
+     */
+    public static function log_event($event_type, $message) {
+        $instance = new self();
+        $instance->ensure_log_directory();
+        $instance->write_log($event_type, $message);
+    }
 }
+
