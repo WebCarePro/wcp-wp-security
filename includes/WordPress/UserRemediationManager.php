@@ -115,6 +115,20 @@ class UserRemediationManager {
         }
 
         $target_role = !empty($role) ? sanitize_key($role) : get_option('default_role', 'subscriber');
+
+        // Prevent demoting currently authenticated user if they are an administrator
+        if ($user_id === get_current_user_id() && in_array('administrator', (array) $user->roles, true) && $target_role !== 'administrator') {
+            return ['success' => false, 'error' => __('Cannot demote the currently logged in administrator account. Please update your password instead.', 'wcp-security-scanner')];
+        }
+
+        // Protect primary site administrator if it is the only admin
+        if (in_array('administrator', (array) $user->roles, true) && $target_role !== 'administrator' && function_exists('get_users')) {
+            $admin_count = count(get_users(['role' => 'administrator']));
+            if ($admin_count <= 1) {
+                return ['success' => false, 'error' => __('Cannot demote the only remaining Administrator on this website.', 'wcp-security-scanner')];
+            }
+        }
+
         $backup_file = $this->backup_user($user_id, "assign_role_{$target_role}");
 
         // Direct user meta repair to guarantee standard WordPress structure

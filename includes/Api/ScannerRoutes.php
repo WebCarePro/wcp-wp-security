@@ -1915,7 +1915,14 @@ class ScannerRoutes {
                 $item['user_email'] = $user ? $user->user_email : (preg_match('/Email:\s*([^,\s]+)/i', $item['evidence'] ?? '', $m) ? $m[1] : '');
                 $item['user_registered'] = $user ? $user->user_registered : (preg_match('/Registered:\s*([^,\n]+)/i', $item['evidence'] ?? '', $m) ? trim($m[1]) : '');
                 $item['user_display_name'] = $user ? $user->display_name : $item['user_login'];
-                $item['user_roles'] = ($user && !empty($user->roles)) ? implode(', ', (array) $user->roles) : (preg_match('/Display Role:\s*([^,\n]+)/i', $item['evidence'] ?? '', $m) ? trim($m[1]) : 'None / Missing');
+                $current_user_id = function_exists('get_current_user_id') ? get_current_user_id() : 0;
+                $is_current_user = ($userId > 0 && $userId === $current_user_id);
+                $is_admin = ($user && in_array('administrator', (array) $user->roles, true));
+
+                $item['is_current_user'] = $is_current_user;
+                $item['is_admin'] = $is_admin;
+                $item['profile_url'] = $is_current_user ? admin_url('profile.php') : ($userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url('users.php'));
+                $item['password_url'] = $is_current_user ? admin_url('profile.php#password') : ($userId > 0 ? admin_url("user-edit.php?user_id={$userId}#password") : admin_url('users.php'));
                 $item['edit_url'] = $userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url("users.php");
 
                 // Injected custom capabilities inspection

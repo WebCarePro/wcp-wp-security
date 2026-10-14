@@ -229,9 +229,10 @@ class AdminMenu {
                 'nonce'      => wp_create_nonce('wp_rest'),
                 'siteUrl'    => get_site_url(),
                 'siteName'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
-                'initialTab' => $active_tab,
-                'version'    => WCP_SCANNER_VERSION,
-                'serverInfo' => \WCP\Scanner\System\ServerInfo::get_info(),
+                'initialTab'    => $active_tab,
+                'version'       => WCP_SCANNER_VERSION,
+                'currentUserId' => get_current_user_id(),
+                'serverInfo'    => \WCP\Scanner\System\ServerInfo::get_info(),
             ]);
         }
 
