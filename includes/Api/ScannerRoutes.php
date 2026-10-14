@@ -2031,6 +2031,31 @@ class ScannerRoutes {
                 if (!isset($item['can_view'])) {
                     $item['can_view'] = !empty($item['is_file']) && is_readable($realPath);
                 }
+
+                // Real-Time Integrity Reconciliation: If finding was recorded as modified but local file is now restored/clean
+                if (!empty($item['is_file']) && ($item['status'] ?? 'open') === 'open' && in_array($item['type'] ?? '', ['modified_core_file', 'modified_plugin_file', 'modified_theme_file'], true)) {
+                    if (preg_match('/Expected:\s*([a-f0-9]{32})/i', $item['evidence'] ?? '', $em)) {
+                        $expected_hash = strtolower($em[1]);
+                        $current_hash = md5_file($realPath);
+                        $is_now_clean = ($current_hash === $expected_hash);
+                        if (!$is_now_clean) {
+                            $raw_content = @file_get_contents($realPath);
+                            if ($raw_content !== false && md5(str_replace("\r\n", "\n", $raw_content)) === $expected_hash) {
+                                $is_now_clean = true;
+                            }
+                        }
+                        if ($is_now_clean) {
+                            $item['status'] = 'repaired';
+                            $item['is_repaired'] = true;
+                            $item['auto_reconciled'] = true;
+                            // Persist repaired state to database so it stays solved
+                            if (!empty($item['id'])) {
+                                global $wpdb;
+                                $wpdb->update($wpdb->prefix . 'wcp_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                            }
+                        }
+                    }
+                }
             }
 
             // Attach component forensics for any theme or plugin finding if not already populated
