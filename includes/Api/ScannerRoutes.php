@@ -2130,7 +2130,23 @@ class ScannerRoutes {
                         'parent_perms'          => $parent_perms,
                         'file_extension'        => strtolower(pathinfo($realPath, PATHINFO_EXTENSION)),
                         'mime_type'             => function_exists('mime_content_type') ? @mime_content_type($realPath) : null,
+                        'is_safe_directory_index' => in_array(strtolower(basename($realPath)), ['index.php', 'index.html', 'index.htm'], true) && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($realPath),
                     ];
+
+                    // Real-Time Directory Protection Index Reconciliation: If executable_in_uploads finding but file is a benign silence/protection index
+                    if (($item['type'] ?? '') === 'executable_in_uploads' && ($item['status'] ?? 'open') === 'open') {
+                        $file_basename = strtolower(basename($realPath));
+                        if (in_array($file_basename, ['index.php', 'index.html', 'index.htm'], true) && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($realPath)) {
+                            $item['status'] = 'repaired';
+                            $item['is_repaired'] = true;
+                            $item['auto_reconciled'] = true;
+                            $item['reconciliation_reason'] = __('Benign directory listing protection index file (Silence is Golden / Directory Browsing Prevention).', 'wcp-security-scanner');
+                            if (!empty($item['id'])) {
+                                global $wpdb;
+                                $wpdb->update($wpdb->prefix . 'wcp_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                            }
+                        }
+                    }
 
                     // Real-Time Permission Reconciliation: If unsafe_permissions finding but file on disk is already hardened (not 0777 or 0666)
                     if (($item['type'] ?? '') === 'unsafe_permissions' && ($item['status'] ?? 'open') === 'open') {

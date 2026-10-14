@@ -540,7 +540,14 @@ class SettingsManager {
     }
 
     /**
-     * Test if an index.php or index.html file in uploads is a harmless directory listing prevention placeholder.
+     * Test if an index.php or index.html file is a harmless directory listing prevention placeholder.
+     *
+     * Handles:
+     * 1. 0-byte or whitespace-only index files.
+     * 2. Purely comment / docblock placeholders (e.g. WP Staging, Elementor, Wordfence directory protection notices).
+     * 3. Standard WordPress "Silence is golden." placeholders.
+     * 4. Harmless exit, die, 403 Forbidden header, or defined('ABSPATH') guard scripts.
+     * 5. Static HTML directory disabled notices without embedded scripts.
      *
      * @param string $file_path
      * @return bool
@@ -551,8 +558,8 @@ class SettingsManager {
         }
 
         $file_size = @filesize($file_path);
-        // Harmless silence/protection files are always small (under 1KB)
-        if ($file_size === false || $file_size > 1024) {
+        // Harmless silence/protection files are compact (up to 8KB to accommodate multi-paragraph developer docblocks)
+        if ($file_size === false || $file_size > 8192) {
             return false;
         }
 
@@ -561,32 +568,96 @@ class SettingsManager {
             return true;
         }
 
-        $content = @file_get_contents($file_path, false, null, 0, 1024);
+        $content = @file_get_contents($file_path, false, null, 0, 8192);
         if ($content === false) {
             return false;
         }
 
-        // Must NOT contain any dangerous execution functions, webshell signatures, or superglobals
-        if (preg_match('/(eval\s*\(|base64_decode\s*\(|assert\s*\(|system\s*\(|exec\s*\(|shell_exec\s*\(|passthru\s*\(|gzinflate\s*\(|gzuncompress\s*\(|create_function\s*\(|\$_POST|\$_GET|\$_REQUEST|\$_COOKIE|\$_SERVER)/i', $content)) {
+        $trimmed = trim($content);
+        if ($trimmed === '' || $trimmed === '<?php' || $trimmed === '<?php ?>' || $trimmed === '<?php ?>\n') {
+            return true;
+        }
+
+        // Must NOT contain any dangerous execution functions, webshell signatures, superglobals, or backdoors
+        $dangerous_pattern = '/(eval\s*\(|base64_decode\s*\(|assert\s*\(|system\s*\(|exec\s*\(|shell_exec\s*\(|passthru\s*\(|proc_open\s*\(|popen\s*\(|gzinflate\s*\(|gzuncompress\s*\(|create_function\s*\(|file_put_contents\s*\(|curl_exec\s*\(|include\s*\(|require\s*\(|include_once\s*\(|require_once\s*\(|\$_POST|\$_GET|\$_REQUEST|\$_COOKIE|\$_SERVER|\$GLOBALS)/i';
+        if (preg_match($dangerous_pattern, $content)) {
             return false;
         }
 
-        // Standard WordPress "Silence is golden"
-        if (stripos($content, 'silence is golden') !== false) {
-            return true;
+        // Static HTML index files without script tags
+        $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        if (in_array($ext, ['html', 'htm'], true)) {
+            if (stripos($content, '<?') === false && stripos($content, '<script') === false) {
+                return true;
+            }
+            return false;
         }
 
-        $trimmed = trim($content);
-        // Just empty PHP open/close tags
-        if ($trimmed === '<?php' || $trimmed === '<?php ?>' || $trimmed === '<?php ?>\n') {
-            return true;
+        // Tokenize PHP to inspect actual AST tokens
+        $tokens = @token_get_all($content);
+        if (!is_array($tokens)) {
+            return false;
         }
 
-        // Exit / Die / 403 Forbidden header
-        if (preg_match('/^<\?php\s*(?:\/\/[^\r\n]*|\/\*.*?\*\/)?\s*(?:exit;?|die\s*\([^)]*\);?|header\s*\([^)]*\);?\s*exit;?)\s*(?:\?>)?\s*$/is', $trimmed)) {
-            return true;
+        $allowed_token_ids = [
+            T_OPEN_TAG,
+            T_CLOSE_TAG,
+            T_WHITESPACE,
+            T_COMMENT,
+            T_DOC_COMMENT,
+            T_INLINE_HTML,
+            T_EXIT,
+            T_STRING,
+            T_CONSTANT_ENCAPSED_STRING,
+            T_LNUMBER,
+            T_BOOLEAN_OR,
+            T_BOOLEAN_AND,
+            T_IS_IDENTICAL,
+            T_IS_NOT_IDENTICAL,
+            T_IS_EQUAL,
+            T_IS_NOT_EQUAL,
+        ];
+
+        $allowed_chars = ['(', ')', ';', ',', '!', ':', '{', '}'];
+        $allowed_function_names = ['header', 'http_response_code', 'defined', 'exit', 'die'];
+
+        foreach ($tokens as $token) {
+            if (is_array($token)) {
+                $id = $token[0];
+                $text = trim($token[1]);
+
+                // Harmless structural, comment, and docblock tokens (WP Staging, Silence is Golden, etc.)
+                if (in_array($id, [T_OPEN_TAG, T_CLOSE_TAG, T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                    continue;
+                }
+
+                // Inline HTML check
+                if ($id === T_INLINE_HTML) {
+                    if (stripos($text, '<?') !== false || stripos($text, '<script') !== false) {
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (!in_array($id, $allowed_token_ids, true)) {
+                    return false;
+                }
+
+                // If identifier/string, verify it is only harmless exit/header/defined statements
+                if ($id === T_STRING) {
+                    $lower = strtolower($text);
+                    if (!in_array($lower, $allowed_function_names, true) && !in_array($text, ['ABSPATH', 'WPINC'], true)) {
+                        return false;
+                    }
+                }
+            } else {
+                if (!in_array($token, $allowed_chars, true)) {
+                    return false;
+                }
+            }
         }
 
-        return false;
+        // If file contains only comments, docblocks, whitespace, or safe guards, it is completely benign
+        return true;
     }
 }
