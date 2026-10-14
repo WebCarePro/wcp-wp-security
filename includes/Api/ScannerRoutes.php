@@ -364,6 +364,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/persistence/audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'persistence_audit'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/persistence/neutralize', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'persistence_neutralize'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/remediation/backups', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_remediation_backups'],
@@ -3851,6 +3863,37 @@ class ScannerRoutes {
     public static function permissions_fix_all(\WP_REST_Request $request) {
         $manager = new \WCP\Scanner\Hardening\PermissionHardeningManager();
         $result = $manager->fix_all();
+        return rest_ensure_response($result);
+    }
+
+    public static function persistence_audit(\WP_REST_Request $request) {
+        $scanner = new \WCP\Scanner\WordPress\PersistenceScanner();
+        $result = $scanner->audit_full();
+        return rest_ensure_response($result);
+    }
+
+    public static function persistence_neutralize(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $type = sanitize_key($params['type'] ?? '');
+        $id = sanitize_text_field(wp_unslash($params['id'] ?? ''));
+        $bulk = !empty($params['bulk']);
+
+        $scanner = new \WCP\Scanner\WordPress\PersistenceScanner();
+
+        if ($bulk) {
+            $result = $scanner->neutralize_all();
+            return rest_ensure_response($result);
+        }
+
+        if (empty($type) || empty($id)) {
+            return new \WP_Error('missing_params', __('Type and identifier are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = $scanner->neutralize_item($type, $id);
+        if (!$result['success']) {
+            return new \WP_Error('neutralize_failed', $result['message'], ['status' => 500]);
+        }
+
         return rest_ensure_response($result);
     }
 
