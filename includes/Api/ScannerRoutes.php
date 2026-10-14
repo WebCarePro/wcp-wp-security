@@ -2036,7 +2036,7 @@ class ScannerRoutes {
             // Attach component forensics for any theme or plugin finding if not already populated
             if (empty($item['component_meta']) && !empty($filePath)) {
                 if (strpos($filePath, '/themes/') !== false || strpos($filePath, '\\themes\\') !== false) {
-                    if (preg_match('#[\\\\/]wp-content[\\\\/]themes[\\\\/]([^\\\\/]+)#i', $filePath, $tm)) {
+                    if (preg_match('#(?:wp-content[\\\\/])?themes[\\\\/]([^\\\\/]+)#i', $filePath, $tm)) {
                         $theme_root = function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes');
                         $theme_dir = wp_normalize_path($theme_root . '/' . $tm[1]);
                         if (is_dir($theme_dir)) {
@@ -2044,7 +2044,7 @@ class ScannerRoutes {
                         }
                     }
                 } elseif (strpos($filePath, '/plugins/') !== false || strpos($filePath, '\\plugins\\') !== false) {
-                    if (preg_match('#[\\\\/]wp-content[\\\\/]plugins[\\\\/]([^\\\\/]+)#i', $filePath, $pm)) {
+                    if (preg_match('#(?:wp-content[\\\\/])?plugins[\\\\/]([^\\\\/]+)#i', $filePath, $pm)) {
                         $plugin_dir = wp_normalize_path(WP_PLUGIN_DIR . '/' . $pm[1]);
                         if (is_dir($plugin_dir)) {
                             $item['component_meta'] = self::get_plugin_forensics_meta($plugin_dir, ['plugin_dir' => $pm[1]]);
@@ -2106,7 +2106,13 @@ class ScannerRoutes {
         }
 
         $norm_path = wp_normalize_path($filePath);
-        $theme_slug = !empty($evidence_data['theme_slug']) ? $evidence_data['theme_slug'] : basename($norm_path);
+        if (!empty($evidence_data['theme_slug'])) {
+            $theme_slug = $evidence_data['theme_slug'];
+        } elseif (preg_match('#(?:wp-content/themes|themes)/([^/]+)#i', $norm_path, $m)) {
+            $theme_slug = $m[1];
+        } else {
+            $theme_slug = basename($norm_path);
+        }
         $theme = wp_get_theme($theme_slug);
 
         // Fallback: check if directory exists even if slug slightly differed
@@ -2120,6 +2126,8 @@ class ScannerRoutes {
                 }
             }
         }
+
+        $theme_dir = $theme->exists() ? wp_normalize_path($theme->get_stylesheet_directory()) : (is_dir($norm_path) ? $norm_path : dirname($norm_path));
 
         $name = $theme->exists() ? $theme->get('Name') : (!empty($evidence_data['theme_name']) ? $evidence_data['theme_name'] : $theme_slug);
         $version = $theme->exists() ? (string) $theme->get('Version') : (!empty($evidence_data['version']) ? (string) $evidence_data['version'] : '');
@@ -2199,17 +2207,17 @@ class ScannerRoutes {
         }
 
         // File stats and timestamps
-        $mtime = file_exists($norm_path) ? filemtime($norm_path) : (file_exists($norm_path . '/style.css') ? filemtime($norm_path . '/style.css') : 0);
+        $mtime = file_exists($norm_path) ? filemtime($norm_path) : (file_exists($theme_dir . '/style.css') ? filemtime($theme_dir . '/style.css') : 0);
         $last_updated = $mtime ? gmdate('Y-m-d H:i:s', $mtime) . ' UTC' : 'Unknown';
         $last_updated_human = $mtime ? human_time_diff($mtime, current_time('timestamp', 1)) . ' ago' : 'Unknown';
 
         // Permissions
-        $folder_perms = file_exists($norm_path) ? substr(sprintf('%o', fileperms($norm_path)), -4) : '0755';
-        $style_css_path = $norm_path . '/style.css';
-        $file_perms = file_exists($style_css_path) ? substr(sprintf('%o', fileperms($style_css_path)), -4) : '0644';
+        $folder_perms = file_exists($theme_dir) ? substr(sprintf('%o', fileperms($theme_dir)), -4) : '0755';
+        $style_css_path = file_exists($theme_dir . '/style.css') ? ($theme_dir . '/style.css') : (file_exists($norm_path) ? $norm_path : '');
+        $file_perms = (!empty($style_css_path) && file_exists($style_css_path)) ? substr(sprintf('%o', fileperms($style_css_path)), -4) : '0644';
 
         // Check for changelog or readme file
-        $changelog_info = self::detect_component_changelog($norm_path);
+        $changelog_info = self::detect_component_changelog($theme_dir);
 
         return [
             'type'                => 'theme',
