@@ -143,13 +143,21 @@ class PermissionHardeningManager {
             'wcp-quarantine',
         ];
 
-        // Evaluate root directory itself
+        // Evaluate root directory itself.
+        // In cPanel, Plesk, and Apache suEXEC/mod_ruid2/PHP-FPM setups (e.g. user:nobody),
+        // the document root (ABSPATH / public_html) is standardly and securely set to 0750 or 0755.
         $root_ownership = self::get_path_ownership($root);
-        if ($root_ownership['perms_octal'] === '0777' || ($root_ownership['perms_octal'] !== '0755' && ($root_ownership['perms_octal'] & 0002))) {
+        $root_raw_perms = @fileperms($root);
+        $root_octal = $root_ownership['perms_octal'];
+        $root_world_writable = ($root_raw_perms !== false) ? (($root_raw_perms & 0002) !== 0) : false;
+
+        $is_root_insecure = ($root_octal === '0777') || $root_world_writable;
+        // 0755 and 0750 are standard, secure directory permissions (never world-writable)
+        if ($is_root_insecure && !in_array($root_octal, ['0755', '0750'], true)) {
             $insecure_dirs[] = [
                 'path'          => $root,
                 'relative_path' => '/',
-                'current_perm'  => $root_ownership['perms_octal'],
+                'current_perm'  => $root_octal,
                 'target_perm'   => '0755',
                 'owner'         => $root_ownership['owner_name'],
                 'group'         => $root_ownership['group_name'],
@@ -188,8 +196,9 @@ class PermissionHardeningManager {
 
                     // Flag if 0777 or world-writable (last digit has write bit 2)
                     $is_insecure = ($octal === '0777') || (($perms & 0002) !== 0);
+                    $is_safe_dir = in_array($octal, ['0755', '0750'], true) && !$is_insecure;
 
-                    if ($is_insecure || $octal !== '0755') {
+                    if (!$is_safe_dir) {
                         $owner_uid = $item->getOwner();
                         $group_gid = $item->getGroup();
                         $owner_name = $owner_uid;
@@ -396,16 +405,17 @@ class PermissionHardeningManager {
             'wcp-quarantine',
         ];
 
-        // 1. Fix root directory itself if needed
+        // 1. Fix root directory itself if needed.
+        // In cPanel and secure setups, 0750 and 0755 are both fully compliant and secure.
         $root_perm = substr(sprintf('%o', @fileperms($root)), -4);
-        if ($root_perm !== '0755') {
+        if ($root_perm !== '0755' && $root_perm !== '0750') {
             $changed = @chmod($root, 0755);
             clearstatcache(true, $root);
             $new_perm = substr(sprintf('%o', @fileperms($root)), -4);
-            if ($new_perm === '0755') {
+            if ($new_perm === '0755' || $new_perm === '0750') {
                 $dirs_fixed++;
                 $fixed_paths[] = $root;
-            } elseif ($root_perm === '0777') {
+            } else {
                 $unfixable_items[] = self::build_unfixable_item($root, 'directory', $root_perm, '0755', $server_info);
             }
         }
@@ -437,13 +447,13 @@ class PermissionHardeningManager {
                 $current_octal = substr(sprintf('%o', $item->getPerms()), -4);
 
                 if ($is_dir) {
-                    // Standardize directory to 0755
-                    if ($current_octal !== '0755') {
+                    // Standardize directory to 0755 (allow 0750 as already secure)
+                    if ($current_octal !== '0755' && $current_octal !== '0750') {
                         $changed = @chmod($full_path, 0755);
                         clearstatcache(true, $full_path);
                         $after_octal = substr(sprintf('%o', @fileperms($full_path)), -4);
 
-                        if ($after_octal === '0755') {
+                        if ($after_octal === '0755' || $after_octal === '0750') {
                             $dirs_fixed++;
                             $fixed_paths[] = $full_path;
                         } else {
@@ -576,7 +586,7 @@ class PermissionHardeningManager {
             }
             if ($real_path && file_exists($real_path)) {
                 $current_octal = substr(sprintf('%o', @fileperms($real_path)), -4);
-                $is_safe = is_dir($real_path) ? ($current_octal === '0755') : in_array($current_octal, ['0644', '0640', '0600'], true);
+                $is_safe = is_dir($real_path) ? in_array($current_octal, ['0755', '0750'], true) : in_array($current_octal, ['0644', '0640', '0600'], true);
                 if ($is_safe) {
                     $wpdb->update($table, ['status' => 'repaired'], ['id' => $iss->id]);
                     $reconciled++;
