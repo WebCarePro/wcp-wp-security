@@ -7,6 +7,7 @@ v:1.15.0 - 2026-10-15
   * Scanner Dashboard Bulk Remediation Strip (`src/App.tsx`): added an instant one-click bulk remediation banner appearing directly above findings on the Scanner Dashboard whenever open `unsafe_permissions` issues are detected, hardening permissions and auto-reconciling scan issues in one tap.
   * Real-Time Database Auto-Reconciliation & Audit Logging (`PermissionHardeningManager.php`, `ScannerRoutes.php`): bulk hardening automatically updates verified resolved findings in `wp_wcp_scan_issues` to `repaired` status and records an event entry in `wp_wcp_audit_logs`.
   * REST API Endpoints (`ScannerRoutes.php`): registered `GET /wcp-scanner/v1/permissions/audit` for non-destructive dry-run inspection and `POST /wcp-scanner/v1/permissions/fix-all` for 1-click mass hardening.
+  * Resolved File Integrity Monitoring (FIM) Blank Screen (`FileIntegrityPage.tsx`, `App.tsx`): fixed an uncaught `ReferenceError: remediating is not defined` when rendering modified plugin rows in the FIM table. Declared `remediating` state and implemented direct 1-click `handleAutoCurePlugin()` restore handler. Wrapped `FileIntegrityPage` with `SafeErrorBoundary` in `App.tsx` to safeguard against unhandled child exceptions and prevent white screen blanking.
 
 v:1.14.0 - 2026-10-14
 - Official Verified Website Logo Branding & Plugin Action Links:
