@@ -346,6 +346,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/remediation/fix-permissions', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_fix_permissions'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/remediation/backups', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_remediation_backups'],
@@ -2056,6 +2062,89 @@ class ScannerRoutes {
                         }
                     }
                 }
+
+                // Attach deep filesystem forensics for developers and site owners
+                if ($item['file_exists'] && $realPath) {
+                    $mtime = @filemtime($realPath);
+                    $ctime = @filectime($realPath);
+                    $atime = @fileatime($realPath);
+                    $fsize = @filesize($realPath);
+                    $raw_perms = @fileperms($realPath);
+                    $current_perms = $raw_perms !== false ? substr(sprintf('%o', $raw_perms), -4) : '0755';
+                    $is_dir = is_dir($realPath);
+                    $recommended_perms = $is_dir ? '0755' : '0644';
+
+                    // Convert raw permissions to standard symbolic notation (e.g. -rw-r--r-- or -rwxrwxrwx)
+                    $symbolic = '';
+                    if ($raw_perms !== false) {
+                        if ($is_dir) {
+                            $symbolic .= 'd';
+                        } elseif (is_link($realPath)) {
+                            $symbolic .= 'l';
+                        } else {
+                            $symbolic .= '-';
+                        }
+                        $symbolic .= (($raw_perms & 0x0100) ? 'r' : '-');
+                        $symbolic .= (($raw_perms & 0x0080) ? 'w' : '-');
+                        $symbolic .= (($raw_perms & 0x0040) ? (($raw_perms & 0x0800) ? 's' : 'x') : (($raw_perms & 0x0800) ? 'S' : '-'));
+                        $symbolic .= (($raw_perms & 0x0020) ? 'r' : '-');
+                        $symbolic .= (($raw_perms & 0x0010) ? 'w' : '-');
+                        $symbolic .= (($raw_perms & 0x0008) ? (($raw_perms & 0x0400) ? 's' : 'x') : (($raw_perms & 0x0400) ? 'S' : '-'));
+                        $symbolic .= (($raw_perms & 0x0004) ? 'r' : '-');
+                        $symbolic .= (($raw_perms & 0x0002) ? 'w' : '-');
+                        $symbolic .= (($raw_perms & 0x0001) ? (($raw_perms & 0x0200) ? 't' : 'x') : (($raw_perms & 0x0200) ? 'T' : '-'));
+                    }
+
+                    // Owner and Group
+                    $owner_uid = @fileowner($realPath);
+                    $owner_name = ($owner_uid !== false && function_exists('posix_getpwuid')) ? (posix_getpwuid($owner_uid)['name'] ?? $owner_uid) : ($owner_uid !== false ? (string) $owner_uid : 'Unknown');
+                    $group_gid = @filegroup($realPath);
+                    $group_name = ($group_gid !== false && function_exists('posix_getgrgid')) ? (posix_getgrgid($group_gid)['name'] ?? $group_gid) : ($group_gid !== false ? (string) $group_gid : 'Unknown');
+
+                    $parent_dir = dirname($realPath);
+                    $parent_perms = file_exists($parent_dir) ? substr(sprintf('%o', fileperms($parent_dir)), -4) : '0755';
+                    $now = current_time('timestamp', 1);
+
+                    $item['fs_forensics'] = [
+                        'file_size'             => $fsize !== false ? $fsize : 0,
+                        'file_size_formatted'   => $fsize !== false ? size_format($fsize) : '0 B',
+                        'created_time'          => $ctime ? gmdate('Y-m-d H:i:s', $ctime) . ' UTC' : null,
+                        'created_time_human'    => $ctime ? human_time_diff($ctime, $now) . ' ago' : 'Unknown',
+                        'modified_time'         => $mtime ? gmdate('Y-m-d H:i:s', $mtime) . ' UTC' : null,
+                        'modified_time_human'   => $mtime ? human_time_diff($mtime, $now) . ' ago' : 'Unknown',
+                        'accessed_time'         => $atime ? gmdate('Y-m-d H:i:s', $atime) . ' UTC' : null,
+                        'accessed_time_human'   => $atime ? human_time_diff($atime, $now) . ' ago' : 'Unknown',
+                        'current_permissions'   => $current_perms,
+                        'symbolic_permissions'  => $symbolic ?: ($is_dir ? 'drwxr-xr-x' : '-rw-r--r--'),
+                        'recommended_perms'     => $recommended_perms,
+                        'recommended_symbolic'  => $is_dir ? 'drwxr-xr-x' : '-rw-r--r--',
+                        'is_dir'                => $is_dir,
+                        'is_writable'           => is_writable($realPath),
+                        'is_readable'           => is_readable($realPath),
+                        'is_executable'         => is_executable($realPath),
+                        'owner'                 => $owner_name,
+                        'owner_uid'             => $owner_uid !== false ? $owner_uid : null,
+                        'group'                 => $group_name,
+                        'group_gid'             => $group_gid !== false ? $group_gid : null,
+                        'parent_dir'            => $parent_dir,
+                        'parent_perms'          => $parent_perms,
+                        'file_extension'        => strtolower(pathinfo($realPath, PATHINFO_EXTENSION)),
+                        'mime_type'             => function_exists('mime_content_type') ? @mime_content_type($realPath) : null,
+                    ];
+
+                    // Real-Time Permission Reconciliation: If unsafe_permissions finding but file on disk is already hardened (not 0777 or 0666)
+                    if (($item['type'] ?? '') === 'unsafe_permissions' && ($item['status'] ?? 'open') === 'open') {
+                        if (!in_array($current_perms, ['0777', '0666', '0776', '0667'], true)) {
+                            $item['status'] = 'repaired';
+                            $item['is_repaired'] = true;
+                            $item['auto_reconciled'] = true;
+                            if (!empty($item['id'])) {
+                                global $wpdb;
+                                $wpdb->update($wpdb->prefix . 'wcp_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                            }
+                        }
+                    }
+                }
             }
 
             // Attach component forensics for any theme or plugin finding if not already populated
@@ -3705,6 +3794,22 @@ class ScannerRoutes {
 
         $manager = new \WCP\Scanner\Remediation\RemediationManager();
         $result = $manager->restore_official_core_file($file_path, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function remediate_fix_permissions(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+        $target_perm = !empty($params['target_perm']) ? sanitize_text_field(wp_unslash($params['target_perm'])) : null;
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WCP\Scanner\Remediation\RemediationManager();
+        $result = $manager->fix_permissions($file_path, $target_perm, $issue_id);
 
         return rest_ensure_response($result);
     }

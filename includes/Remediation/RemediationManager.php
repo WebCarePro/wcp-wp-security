@@ -511,6 +511,78 @@ class RemediationManager {
     }
 
     /**
+     * Fix and harden unsafe file or directory permissions to standard WordPress security levels.
+     *
+     * @param string $file_path
+     * @param string|int|null $target_perm Optional target permission octal string (defaults to 0644 for files, 0755 for directories)
+     * @param int|null $issue_id
+     * @return array
+     */
+    public function fix_permissions($file_path, $target_perm = null, $issue_id = null) {
+        $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
+        if (!$real_path || !file_exists($real_path)) {
+            return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
+        }
+
+        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+            return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner')];
+        }
+
+        $is_dir = is_dir($real_path);
+        $old_perm = substr(sprintf('%o', fileperms($real_path)), -4);
+
+        if (empty($target_perm)) {
+            $target_perm = $is_dir ? '0755' : '0644';
+        }
+        $target_perm_str = (string) $target_perm;
+        if (strlen($target_perm_str) === 3) {
+            $target_perm_str = '0' . $target_perm_str;
+        }
+        $octal_mode = octdec($target_perm_str);
+
+        // Attempt chmod
+        $changed = @chmod($real_path, $octal_mode);
+        clearstatcache(true, $real_path);
+        $new_perm = substr(sprintf('%o', fileperms($real_path)), -4);
+
+        if (!$changed && $new_perm === $old_perm) {
+            return [
+                'success'             => false,
+                'message'             => sprintf(
+                    __('Failed to change permissions for %s from %s to %s. Ensure the web server user has sufficient write privileges on this path.', 'wcp-security-scanner'),
+                    basename($real_path),
+                    $old_perm,
+                    $target_perm_str
+                ),
+                'old_permissions'     => $old_perm,
+                'current_permissions' => $new_perm,
+            ];
+        }
+
+        $this->mark_file_issues_repaired($real_path, $issue_id);
+
+        return [
+            'success'             => true,
+            'message'             => sprintf(
+                __('Permissions successfully hardened for %s from %s to %s.', 'wcp-security-scanner'),
+                basename($real_path),
+                $old_perm,
+                $new_perm
+            ),
+            'old_permissions'     => $old_perm,
+            'new_permissions'     => $new_perm,
+            'file_path'           => $real_path,
+            'relative_path'       => ltrim(str_replace(wp_normalize_path(ABSPATH), '', wp_normalize_path($real_path)), '/'),
+        ];
+    }
+
+    /**
      * Create safety backup before any remediation action
      */
     private function create_file_backup($file_path, $action_type) {
