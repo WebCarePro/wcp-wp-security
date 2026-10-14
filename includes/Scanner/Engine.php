@@ -87,7 +87,7 @@ class Engine {
             \RecursiveIteratorIterator::SELF_FIRST
         );
 
-        $allowed_exts = ['php', 'phtml', 'php5', 'php7', 'suspected'];
+        $allowed_exts = ['php', 'phtml', 'php5', 'php7', 'suspected', 'js', 'txt'];
 
         foreach ($iterator as $item) {
             if ($item->isFile()) {

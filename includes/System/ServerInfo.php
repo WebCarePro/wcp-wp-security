@@ -75,6 +75,8 @@ class ServerInfo {
             'uploads'       => (!empty($uploads_basedir) && is_dir($uploads_basedir)) ? substr(sprintf('%o', fileperms($uploads_basedir)), -4) : 'N/A',
         ];
 
+        $filesystem = self::get_filesystem_metrics();
+
         return [
             'php' => [
                 'version'             => PHP_VERSION,
@@ -118,6 +120,125 @@ class ServerInfo {
                 'file_permissions' => $permissions,
             ],
             'permissions' => $permissions,
+            'filesystem'  => $filesystem,
         ];
+    }
+
+    /**
+     * Compute comprehensive filesystem storage metrics and file inventory by extension.
+     *
+     * @param bool $force_refresh
+     * @return array
+     */
+    public static function get_filesystem_metrics(bool $force_refresh = false): array {
+        $transient_key = 'wcp_server_filesystem_metrics';
+        if (!$force_refresh) {
+            $cached = function_exists('get_transient') ? get_transient($transient_key) : false;
+            if ($cached && is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $root = wp_normalize_path(untrailingslashit(ABSPATH));
+        $admin_path = wp_normalize_path(ABSPATH . 'wp-admin');
+        $includes_path = wp_normalize_path(ABSPATH . WPINC);
+        $content_path = wp_normalize_path(WP_CONTENT_DIR);
+        $plugins_path = wp_normalize_path(WP_PLUGIN_DIR);
+        $themes_path = wp_normalize_path(function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes'));
+        $upload_dir = function_exists('wp_upload_dir') ? wp_upload_dir() : [];
+        $uploads_path = !empty($upload_dir['basedir']) ? wp_normalize_path($upload_dir['basedir']) : '';
+
+        $sizes = [
+            'wp_admin_bytes'    => 0,
+            'wp_includes_bytes' => 0,
+            'wp_content_bytes'  => 0,
+            'plugins_bytes'     => 0,
+            'themes_bytes'      => 0,
+            'uploads_bytes'     => 0,
+            'total_bytes'       => 0,
+        ];
+
+        $extension_counts = [];
+        $total_files = 0;
+        $excluded_dirs = ['.git', '.svn', 'node_modules', 'vendor', 'cache', 'wfcache', '.vault', '.backups'];
+
+        try {
+            if (is_dir($root)) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::UNIX_PATHS),
+                    \RecursiveIteratorIterator::SELF_FIRST
+                );
+
+                foreach ($iterator as $item) {
+                    if ($item->isDir()) {
+                        continue;
+                    }
+                    if (!$item->isFile()) {
+                        continue;
+                    }
+
+                    $path = wp_normalize_path($item->getPathname());
+                    $rel = substr($path, strlen($root));
+
+                    $skip = false;
+                    foreach ($excluded_dirs as $ex) {
+                        if (strpos($rel, '/' . $ex . '/') !== false || strpos($rel, '/' . $ex) === 0) {
+                            $skip = true;
+                            break;
+                        }
+                    }
+                    if ($skip) {
+                        continue;
+                    }
+
+                    $size = (int) $item->getSize();
+                    $sizes['total_bytes'] += $size;
+                    $total_files++;
+
+                    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION)) ?: 'no_ext';
+                    $extension_counts[$ext] = ($extension_counts[$ext] ?? 0) + 1;
+
+                    if (strpos($path, $admin_path . '/') === 0 || $path === $admin_path) {
+                        $sizes['wp_admin_bytes'] += $size;
+                    } elseif (strpos($path, $includes_path . '/') === 0 || $path === $includes_path) {
+                        $sizes['wp_includes_bytes'] += $size;
+                    } elseif (strpos($path, $content_path . '/') === 0 || $path === $content_path) {
+                        $sizes['wp_content_bytes'] += $size;
+                        if (strpos($path, $plugins_path . '/') === 0) {
+                            $sizes['plugins_bytes'] += $size;
+                        } elseif (strpos($path, $themes_path . '/') === 0) {
+                            $sizes['themes_bytes'] += $size;
+                        } elseif (!empty($uploads_path) && strpos($path, $uploads_path . '/') === 0) {
+                            $sizes['uploads_bytes'] += $size;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Gracefully ignore directory permission limits
+        }
+
+        arsort($extension_counts);
+
+        $metrics = [
+            'total_files'          => $total_files,
+            'total_size_mb'        => round($sizes['total_bytes'] / (1024 * 1024), 2),
+            'wp_admin_size_mb'     => round($sizes['wp_admin_bytes'] / (1024 * 1024), 2),
+            'wp_includes_size_mb'  => round($sizes['wp_includes_bytes'] / (1024 * 1024), 2),
+            'wp_content_size_mb'   => round($sizes['wp_content_bytes'] / (1024 * 1024), 2),
+            'plugins_size_mb'      => round($sizes['plugins_bytes'] / (1024 * 1024), 2),
+            'themes_size_mb'       => round($sizes['themes_bytes'] / (1024 * 1024), 2),
+            'uploads_size_mb'      => round($sizes['uploads_bytes'] / (1024 * 1024), 2),
+            'php_files'            => (int) ($extension_counts['php'] ?? 0),
+            'js_files'             => (int) ($extension_counts['js'] ?? 0),
+            'css_files'            => (int) ($extension_counts['css'] ?? 0),
+            'extension_counts'     => $extension_counts,
+        ];
+
+        if (function_exists('set_transient')) {
+            set_transient($transient_key, $metrics, 30 * MINUTE_IN_SECONDS);
+        }
+
+        return $metrics;
     }
 }

@@ -1512,6 +1512,10 @@ class ScannerRoutes {
     }
 
     public static function get_server_info(\WP_REST_Request $request) {
+        $refresh = (bool) $request->get_param('refresh');
+        if ($refresh && function_exists('delete_transient')) {
+            delete_transient('wcp_server_filesystem_metrics');
+        }
         return rest_ensure_response([
             'success' => true,
             'info'    => ServerInfo::get_info(),

@@ -21,6 +21,10 @@ class Rules {
         $p5 = '/\b(' . 'c9' . '9shell|r5' . '7shell|WSO' . '_VERSION|Files' . 'Man|wso_' . 'password)\b/i';
         $p6 = '/\b' . 'sys' . 'tem\s*\(\s*\$(?:_GET|_POST|_REQUEST)/i';
         $p7 = '/<iframe[^>]+(?:display:\s*none|width\s*=\s*["\']?0["\']?|height\s*=\s*["\']?0["\']?)/i';
+        $p8 = '/\bev' . 'al\s*\(\s*(?:String\.fromCharCode|atob|unescape)\s*\(/i';
+        $p9 = '/\b(?:Coin' . 'Hive|cryptonight|coinhive\.min\.js)\b/i';
+        $p10 = '/<\?' . 'php[\s\S]{0,80}?(?:eval|base64_decode|system|shell_exec|assert)\s*\(/i';
+        $p11 = '/document\s*\[\s*[\'"]location[\'"]\s*\]\s*=\s*[\'"]https?:/i';
 
         return [
             [
@@ -64,6 +68,30 @@ class Rules {
                 'severity'    => 'medium',
                 'description' => 'Suspicious hidden iframe injection (zero width/height or negative styling).',
                 'pattern'     => $p7,
+            ],
+            [
+                'id'          => 'MAL-JS-OBFUSCATION',
+                'severity'    => 'high',
+                'description' => 'Obfuscated JavaScript execution using dynamic eval and decoded character streams.',
+                'pattern'     => $p8,
+            ],
+            [
+                'id'          => 'MAL-JS-CRYPTOMINER',
+                'severity'    => 'critical',
+                'description' => 'In-browser cryptocurrency mining script payload detected (CoinHive / CryptoNight).',
+                'pattern'     => $p9,
+            ],
+            [
+                'id'          => 'MAL-STAGED-BACKDOOR',
+                'severity'    => 'critical',
+                'description' => 'Staged executable PHP script tag or webshell embedded inside text or static file.',
+                'pattern'     => $p10,
+            ],
+            [
+                'id'          => 'MAL-JS-REDIRECTOR',
+                'severity'    => 'medium',
+                'description' => 'Suspicious forced client-side redirection pattern in script.',
+                'pattern'     => $p11,
             ]
         ];
     }
