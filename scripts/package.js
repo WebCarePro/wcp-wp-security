@@ -31,6 +31,7 @@ const includeFiles = [
 ];
 
 const includeDirs = [
+  'assets',
   'build',
   'src',
   'includes',

@@ -9,9 +9,13 @@ class AdminMenu {
     public static function register() {
         add_action('admin_menu', [__CLASS__, 'add_menu_page']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
+        add_filter('plugin_action_links_' . plugin_basename(WCP_SCANNER_FILE), [__CLASS__, 'add_plugin_action_links']);
+        add_action('admin_head', [__CLASS__, 'inject_admin_header_styles']);
     }
 
     public static function add_menu_page() {
+        $menu_icon = plugins_url('assets/icon.svg', WCP_SCANNER_FILE);
+
         // Main Menu: Dashboard
         add_menu_page(
             __('WCP Security Scanner', 'wcp-security-scanner'),
@@ -19,7 +23,7 @@ class AdminMenu {
             'manage_options',
             'wcp-security-scanner',
             [__CLASS__, 'render_app_container'],
-            'dashicons-shield',
+            $menu_icon,
             80
         );
 
@@ -240,4 +244,68 @@ class AdminMenu {
             wp_enqueue_style('wcp-scanner-style', $css_url, ['wp-components'], $version);
         }
     }
+
+    /**
+     * Add "Settings" action link beside "Deactivate" on wp-admin/plugins.php
+     *
+     * @param array $actions
+     * @return array
+     */
+    public static function add_plugin_action_links(array $actions): array {
+        $settings_url = admin_url('admin.php?page=wcp-scanner-settings');
+        $settings_link = '<a href="' . esc_url($settings_url) . '">' . esc_html__('Settings', 'wcp-security-scanner') . '</a>';
+
+        $new_actions = [];
+        $placed = false;
+
+        foreach ($actions as $key => $action) {
+            $new_actions[$key] = $action;
+            if ($key === 'deactivate' || $key === 'activate') {
+                $new_actions['settings'] = $settings_link;
+                $placed = true;
+            }
+        }
+
+        if (!$placed) {
+            $new_actions['settings'] = $settings_link;
+        }
+
+        return $new_actions;
+    }
+
+    /**
+     * Inject custom admin CSS for official branding logo in sidebar and plugins page
+     */
+    public static function inject_admin_header_styles(): void {
+        $logo_url = plugins_url('assets/icon.svg', WCP_SCANNER_FILE);
+        ?>
+        <style id="wcp-scanner-admin-brand-styles">
+            /* WCP Security Scanner - Sidebar Menu Icon */
+            #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image img {
+                width: 20px;
+                height: 20px;
+                padding: 7px 0 0;
+                object-fit: contain;
+                transition: transform 0.15s ease-in-out;
+            }
+            #adminmenu #toplevel_page_wcp-security-scanner:hover .wp-menu-image img,
+            #adminmenu #toplevel_page_wcp-security-scanner.wp-has-current-submenu .wp-menu-image img {
+                transform: scale(1.1);
+            }
+            /* WCP Security Scanner - Plugins List Page Brand Logo */
+            .plugins tr[data-plugin*="wcp-wp-scanner.php"] .plugin-title strong::before {
+                content: "";
+                display: inline-block;
+                vertical-align: -4px;
+                width: 20px;
+                height: 20px;
+                margin-right: 8px;
+                background: url("<?php echo esc_url($logo_url); ?>") no-repeat center center;
+                background-size: contain;
+                border-radius: 4px;
+            }
+        </style>
+        <?php
+    }
 }
+
