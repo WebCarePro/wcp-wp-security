@@ -2030,6 +2030,29 @@ class ScannerRoutes {
                     }
                 }
             }
+
+            if (!empty($item['component_meta'])) {
+                if (!empty($item['component_meta']['classification'])) {
+                    if (empty($item['display_title']) || $item['engine'] === 'wordpress-updates' || in_array($item['type'], ['outdated_plugin', 'outdated_theme', 'vulnerable_plugin', 'vulnerable_theme'])) {
+                        $item['display_title'] = $item['component_meta']['classification'];
+                    }
+                }
+                if (!empty($item['component_meta']['is_wporg']) || $item['engine'] === 'wordpress-updates') {
+                    $item['is_wporg'] = true;
+                }
+                if (empty($item['component_name']) && !empty($item['component_meta']['name'])) {
+                    $item['component_name'] = $item['component_meta']['name'];
+                }
+                if (empty($item['installed_version']) && !empty($item['component_meta']['version'])) {
+                    $item['installed_version'] = $item['component_meta']['version'];
+                }
+                if (empty($item['latest_version']) && !empty($item['component_meta']['latest_version'])) {
+                    $item['latest_version'] = $item['component_meta']['latest_version'];
+                }
+                if (!isset($item['has_update']) && isset($item['component_meta']['has_update'])) {
+                    $item['has_update'] = $item['component_meta']['has_update'];
+                }
+            }
         }
         unset($item);
 
@@ -2112,14 +2135,32 @@ class ScannerRoutes {
         $latest_version = null;
         $has_update = false;
         $update_package = '';
+        $is_wporg = false;
         $update_themes = get_site_transient('update_themes');
         if (!empty($update_themes->response[$theme_slug])) {
             $theme_update = (array) $update_themes->response[$theme_slug];
             $latest_version = $theme_update['new_version'] ?? null;
             $has_update = !empty($latest_version) && (!empty($version) ? version_compare($latest_version, $version, '>') : true);
             $update_package = $theme_update['package'] ?? '';
+            $package_url = is_string($update_package) ? $update_package : '';
+            $theme_url = is_string($theme_update['url'] ?? '') ? $theme_update['url'] : '';
+            if (strpos($package_url, 'wordpress.org') !== false || strpos($theme_url, 'wordpress.org') !== false || empty($package_url)) {
+                $is_wporg = true;
+            }
         } elseif (!empty($update_themes->checked[$theme_slug])) {
             $latest_version = $update_themes->checked[$theme_slug];
+            if (strpos($theme_uri, 'wordpress.org/themes') !== false || (bool) preg_match('/^twenty(ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|nineteen|twenty|twentyone|twentytwo|twentythree|twentyfour|twentyfive|twentysix)/i', $theme_slug)) {
+                $is_wporg = true;
+            }
+        }
+
+        if ($is_wporg) {
+            $classification = __('Official WordPress Theme', 'wcp-security-scanner');
+        } elseif ($is_child) {
+            $classification = __('Custom Child Theme', 'wcp-security-scanner');
+        } else {
+            $is_premium = !empty($evidence_data['is_premium']) || (bool) preg_match('/\b(premium|pro|commercial|license|themeforest|envato)\b/i', $norm_path . ' ' . $name . ' ' . $description);
+            $classification = $is_premium ? __('Premium Theme', 'wcp-security-scanner') : __('Custom or Premium Theme', 'wcp-security-scanner');
         }
 
         // File stats and timestamps
@@ -2164,6 +2205,8 @@ class ScannerRoutes {
             'has_changelog'       => $changelog_info['has_changelog'],
             'changelog_file'      => $changelog_info['filename'],
             'admin_url'           => admin_url('themes.php'),
+            'is_wporg'            => $is_wporg,
+            'classification'      => $classification,
         ];
     }
 
@@ -2244,14 +2287,42 @@ class ScannerRoutes {
         $latest_version = null;
         $has_update = false;
         $update_package = '';
+        $is_wporg = false;
         $update_plugins = get_site_transient('update_plugins');
+
         if (!empty($matched_file) && !empty($update_plugins->response[$matched_file])) {
             $plugin_update = $update_plugins->response[$matched_file];
             $latest_version = $plugin_update->new_version ?? null;
             $has_update = !empty($latest_version) && (!empty($version) ? version_compare($latest_version, $version, '>') : true);
             $update_package = $plugin_update->package ?? '';
+            $package_url = is_string($update_package) ? $update_package : '';
+            $update_url = is_string($plugin_update->url ?? '') ? $plugin_update->url : '';
+            $update_id = is_string($plugin_update->id ?? '') ? $plugin_update->id : '';
+            if (strpos($package_url, 'wordpress.org') !== false || strpos($update_url, 'wordpress.org') !== false || strpos($update_id, 'w.org/') !== false) {
+                $is_wporg = true;
+            } else {
+                $is_wporg = true; // Core update_plugins responses are official WordPress.org items
+            }
         } elseif (!empty($matched_file) && !empty($update_plugins->no_update[$matched_file])) {
             $latest_version = $update_plugins->no_update[$matched_file]->new_version ?? $version;
+            $is_wporg = true;
+        }
+
+        if (!$is_wporg) {
+            if (strpos($plugin_uri, 'wordpress.org/plugins') !== false) {
+                $is_wporg = true;
+            } elseif (!empty($evidence_data['is_wporg'])) {
+                $is_wporg = true;
+            }
+        }
+
+        if ($is_wporg) {
+            $classification = __('Official WordPress Plugin', 'wcp-security-scanner');
+        } else {
+            $is_premium = !empty($evidence_data['is_premium']) 
+                || (bool) preg_match('/(?:^|[-_])(premium|pro|addon|addons|unlimited|commercial)(?:[-_]|$)/i', $norm_path) 
+                || (bool) preg_match('/\b(premium|pro|codecanyon|themeforest|envato)\b/i', $name . ' ' . $description);
+            $classification = $is_premium ? __('Premium Plugin', 'wcp-security-scanner') : __('Custom or Premium Plugin', 'wcp-security-scanner');
         }
 
         // Timestamps
@@ -2295,6 +2366,8 @@ class ScannerRoutes {
             'has_changelog'       => $changelog_info['has_changelog'],
             'changelog_file'      => $changelog_info['filename'],
             'admin_url'           => admin_url('plugins.php'),
+            'is_wporg'            => $is_wporg,
+            'classification'      => $classification,
         ];
     }
 
@@ -2334,7 +2407,57 @@ class ScannerRoutes {
     }
 
     /**
+     * Extract the Changelog section from a WordPress readme.txt / readme.md file.
+     *
+     * @param string $content
+     * @return string
+     */
+    public static function extract_changelog_from_readme(string $content): string {
+        if (empty($content)) {
+            return '';
+        }
+
+        // Standard WordPress readme.txt: == Changelog ==
+        if (preg_match('/==\s*Changelog\s*==(.*?)(?=(?:\n==\s*[^=]+\s*==|\Z))/is', $content, $matches)) {
+            return trim("== Changelog ==\n" . trim($matches[1]));
+        }
+
+        // Markdown style: ## Changelog or # Changelog
+        if (preg_match('/(?:^|\n)#{1,3}\s*Changelog\b(.*?)(?=(?:\n#{1,3}\s+[^\n]+|\Z))/is', $content, $matches)) {
+            return trim("## Changelog\n" . trim($matches[1]));
+        }
+
+        return '';
+    }
+
+    /**
+     * Convert WordPress.org API HTML changelog section into readable, formatted markdown text.
+     *
+     * @param string $html
+     * @return string
+     */
+    public static function format_changelog_html(string $html): string {
+        if (empty($html)) {
+            return '';
+        }
+
+        $s = $html;
+        $s = preg_replace('/<h[1-6][^>]*>(.*?)<\/h[1-6]>/is', "\n\n= $1 =\n", $s);
+        $s = preg_replace('/<li[^>]*>(.*?)<\/li>/is', "* $1\n", $s);
+        $s = preg_replace('/<code[^>]*>(.*?)<\/code>/is', '`$1`', $s);
+        $s = preg_replace('/<\/p>/is', "\n\n", $s);
+        $s = preg_replace('/<br\s*\/?>/is', "\n", $s);
+        $s = strip_tags($s);
+        $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $s = preg_replace("/\n{3,}/", "\n\n", $s);
+
+        return trim($s);
+    }
+
+    /**
      * Retrieve changelog content for a specific theme or plugin component.
+     * Prioritizes fetching the latest upstream release changelog from official WordPress.org.
+     * If latest version changelog is not found or fails, gracefully falls back to the locally installed version.
      *
      * @param \WP_REST_Request $request
      * @return \WP_REST_Response|\WP_Error
@@ -2343,12 +2466,16 @@ class ScannerRoutes {
         $raw_path = sanitize_text_field($request->get_param('path') ?: ($request->get_param('file_path') ?: ''));
         $slug = sanitize_text_field($request->get_param('slug') ?: '');
         $type = sanitize_key($request->get_param('type') ?: 'plugin'); // 'plugin' or 'theme'
+        $installed_ver = sanitize_text_field($request->get_param('installed_version') ?: '');
+        $latest_ver = sanitize_text_field($request->get_param('latest_version') ?: '');
 
         $target_dir = '';
         if (!empty($raw_path)) {
             $raw_path = str_replace(['../', '..\\'], '', $raw_path);
-            if (file_exists($raw_path) && is_dir($raw_path)) {
+            if (is_dir($raw_path)) {
                 $target_dir = wp_normalize_path($raw_path);
+            } elseif (is_file($raw_path)) {
+                $target_dir = wp_normalize_path(dirname($raw_path));
             }
         }
 
@@ -2367,49 +2494,220 @@ class ScannerRoutes {
             }
         }
 
-        if (empty($target_dir)) {
-            return new \WP_Error('invalid_target', __('Theme or plugin directory could not be located.', 'wcp-security-scanner'), ['status' => 404]);
+        // Derive slug if empty
+        if (empty($slug)) {
+            $check_path = $target_dir ?: $raw_path;
+            if (preg_match('#[\\\\/]wp-content[\\\\/]themes[\\\\/]([^\\\\/]+)#i', $check_path, $m)) {
+                $slug = $m[1];
+                $type = 'theme';
+            } elseif (preg_match('#[\\\\/]wp-content[\\\\/]plugins[\\\\/]([^\\\\/]+)#i', $check_path, $m)) {
+                $slug = $m[1];
+                $type = 'plugin';
+            } elseif (!empty($target_dir)) {
+                $slug = basename($target_dir);
+            }
+        }
+        $slug = preg_replace('/\.php$/i', '', $slug);
+
+        // Fetch component metadata if versions are not provided
+        if (empty($installed_ver) || empty($latest_ver)) {
+            if ($type === 'theme' && !empty($target_dir)) {
+                $meta = self::get_theme_forensics_meta($target_dir, ['theme_slug' => $slug]);
+                $installed_ver = $installed_ver ?: ($meta['version'] ?? '');
+                $latest_ver = $latest_ver ?: ($meta['latest_version'] ?? '');
+            } elseif (!empty($target_dir)) {
+                $meta = self::get_plugin_forensics_meta($target_dir, ['plugin_dir' => $slug]);
+                $installed_ver = $installed_ver ?: ($meta['version'] ?? '');
+                $latest_ver = $latest_ver ?: ($meta['latest_version'] ?? '');
+            }
         }
 
-        // Verify inside ABSPATH
-        if (!PathValidator::is_inside_root($target_dir, ABSPATH)) {
-            return new \WP_Error('forbidden_path', __('Access to this path is restricted.', 'wcp-security-scanner'), ['status' => 403]);
+        $latest_changelog_found = false;
+        $latest_content = '';
+        $latest_source = '';
+        $resolved_latest_version = $latest_ver;
+
+        // --- STEP 1: Attempt to retrieve latest version changelog from official WordPress.org ---
+        if ($type === 'plugin' && !empty($slug)) {
+            $cache_key = 'wcp_up_cl_pl_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
+            $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
+            if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
+                $latest_changelog_found = true;
+                $latest_content = $cached['content'];
+                $latest_source = $cached['source'];
+                $resolved_latest_version = $cached['version'] ?: $latest_ver;
+            } else {
+                // 1.1 Try SVN tags or trunk
+                $svn_urls = [];
+                if (!empty($latest_ver)) {
+                    $svn_urls[] = "https://plugins.svn.wordpress.org/{$slug}/tags/{$latest_ver}/readme.txt";
+                }
+                $svn_urls[] = "https://plugins.svn.wordpress.org/{$slug}/trunk/readme.txt";
+
+                foreach ($svn_urls as $url) {
+                    $response = function_exists('wp_remote_get')
+                        ? wp_remote_get($url, ['timeout' => 4, 'sslverify' => true, 'headers' => ['User-Agent' => 'WordPress/' . get_bloginfo('version')]])
+                        : false;
+
+                    if (!is_wp_error($response) && is_array($response)) {
+                        $code = wp_remote_retrieve_response_code($response);
+                        if ($code === 200) {
+                            $body = wp_remote_retrieve_body($response);
+                            if (!empty($body)) {
+                                $extracted = self::extract_changelog_from_readme($body);
+                                $latest_content = !empty($extracted) ? $extracted : $body;
+                                $latest_changelog_found = true;
+                                $latest_source = 'WordPress.org SVN Repository';
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 1.2 WordPress.org Plugins API fallback
+                if (!$latest_changelog_found) {
+                    if (!function_exists('plugins_api')) {
+                        require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+                    }
+                    if (function_exists('plugins_api')) {
+                        $api = plugins_api('plugin_information', [
+                            'slug'   => $slug,
+                            'fields' => ['sections' => true, 'version' => true, 'last_updated' => true],
+                        ]);
+                        if (!is_wp_error($api) && !empty($api->sections['changelog'])) {
+                            $latest_content = self::format_changelog_html($api->sections['changelog']);
+                            $latest_changelog_found = true;
+                            $latest_source = 'WordPress.org Plugins API';
+                            if (!empty($api->version)) {
+                                $resolved_latest_version = $api->version;
+                            }
+                        }
+                    }
+                }
+
+                if ($latest_changelog_found && function_exists('set_transient')) {
+                    set_transient($cache_key, [
+                        'content' => $latest_content,
+                        'source'  => $latest_source,
+                        'version' => $resolved_latest_version,
+                    ], 12 * HOUR_IN_SECONDS);
+                }
+            }
+        } elseif ($type === 'theme' && !empty($slug)) {
+            $cache_key = 'wcp_up_cl_th_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
+            $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
+            if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
+                $latest_changelog_found = true;
+                $latest_content = $cached['content'];
+                $latest_source = $cached['source'];
+                $resolved_latest_version = $cached['version'] ?: $latest_ver;
+            } else {
+                $candidates = [];
+                if (!empty($latest_ver)) {
+                    $candidates[] = "https://themes.svn.wordpress.org/{$slug}/{$latest_ver}/readme.txt";
+                    $candidates[] = "https://themes.svn.wordpress.org/{$slug}/{$latest_ver}/changelog.txt";
+                }
+                foreach ($candidates as $url) {
+                    $response = function_exists('wp_remote_get')
+                        ? wp_remote_get($url, ['timeout' => 4, 'sslverify' => true])
+                        : false;
+                    if (!is_wp_error($response) && is_array($response)) {
+                        $code = wp_remote_retrieve_response_code($response);
+                        if ($code === 200) {
+                            $body = wp_remote_retrieve_body($response);
+                            if (!empty($body)) {
+                                $latest_content = self::extract_changelog_from_readme($body) ?: $body;
+                                $latest_changelog_found = true;
+                                $latest_source = 'WordPress.org Themes Repository';
+                                break;
+                            }
+                        }
+                    }
+                }
+                if ($latest_changelog_found && function_exists('set_transient')) {
+                    set_transient($cache_key, [
+                        'content' => $latest_content,
+                        'source'  => $latest_source,
+                        'version' => $resolved_latest_version,
+                    ], 12 * HOUR_IN_SECONDS);
+                }
+            }
         }
 
-        $changelog = self::detect_component_changelog($target_dir);
-        if (!$changelog['has_changelog']) {
+        // If latest upstream changelog was found, return it immediately
+        if ($latest_changelog_found && !empty($latest_content)) {
+            $version_label = $resolved_latest_version ? "v{$resolved_latest_version}" : 'Latest';
             return rest_ensure_response([
-                'success'       => true,
-                'has_changelog' => false,
-                'message'       => __('No local changelog file (changelog.txt, readme.txt, or changelog.md) was found in this component directory.', 'wcp-security-scanner'),
-                'content'       => '',
-                'filename'      => '',
+                'success'           => true,
+                'has_changelog'     => true,
+                'is_latest'         => true,
+                'latest_not_found'  => false,
+                'source'            => 'wporg_latest',
+                'source_label'      => sprintf(__('Latest Upstream Version (%s) from %s', 'wcp-security-scanner'), $version_label, $latest_source),
+                'filename'          => "WordPress.org {$version_label} Release Notes",
+                'file_size'         => strlen($latest_content),
+                'version_shown'     => $resolved_latest_version ?: ($latest_ver ?: 'Latest'),
+                'installed_version' => $installed_ver,
+                'latest_version'    => $resolved_latest_version ?: $latest_ver,
+                'content'           => $latest_content,
+                'notice'            => '',
             ]);
         }
 
-        $file_path = $changelog['full_path'];
-        if (!PathValidator::is_inside_root($file_path, $target_dir)) {
-            return new \WP_Error('forbidden_file', __('Access to changelog file is restricted.', 'wcp-security-scanner'), ['status' => 403]);
+        // --- STEP 2: Fallback to reading the locally installed version changelog ---
+        if (!empty($target_dir) && PathValidator::is_inside_root($target_dir, ABSPATH)) {
+            $changelog = self::detect_component_changelog($target_dir);
+            if ($changelog['has_changelog']) {
+                $file_path = $changelog['full_path'];
+                if (PathValidator::is_inside_root($file_path, $target_dir)) {
+                    $max_bytes = 250 * 1024;
+                    $content = file_get_contents($file_path, false, null, 0, $max_bytes);
+                    if ($content !== false) {
+                        if (function_exists('mb_check_encoding') && !mb_check_encoding($content, 'UTF-8')) {
+                            $content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
+                        }
+
+                        $target_label = $latest_ver ? "v{$latest_ver}" : 'latest upstream';
+                        $installed_label = $installed_ver ? "v{$installed_ver}" : 'local';
+
+                        return rest_ensure_response([
+                            'success'           => true,
+                            'has_changelog'     => true,
+                            'is_latest'         => false,
+                            'latest_not_found'  => true,
+                            'source'            => 'local_installed',
+                            'source_label'      => sprintf(__('Currently Installed Version (%s) [Local Disk]', 'wcp-security-scanner'), $installed_label),
+                            'filename'          => $changelog['filename'],
+                            'file_size'         => (int) filesize($file_path),
+                            'last_modified'     => gmdate('Y-m-d H:i:s', filemtime($file_path)) . ' UTC',
+                            'version_shown'     => $installed_ver ?: 'Installed',
+                            'installed_version' => $installed_ver,
+                            'latest_version'    => $latest_ver,
+                            'content'           => $content,
+                            'notice'            => sprintf(
+                                __('Latest version (%s) changelog was not found on WordPress.org repository. Displaying currently installed version (%s) changelog from local disk below.', 'wcp-security-scanner'),
+                                $target_label,
+                                $installed_label
+                            ),
+                        ]);
+                    }
+                }
+            }
         }
 
-        $max_bytes = 250 * 1024; // 250KB limit
-        $content = file_get_contents($file_path, false, null, 0, $max_bytes);
-        if ($content === false) {
-            return new \WP_Error('read_failed', __('Failed to read changelog file.', 'wcp-security-scanner'), ['status' => 500]);
-        }
-
-        // Clean UTF-8
-        if (function_exists('mb_check_encoding') && !mb_check_encoding($content, 'UTF-8')) {
-            $content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
-        }
-
+        // --- STEP 3: Neither latest nor local changelog found ---
         return rest_ensure_response([
-            'success'       => true,
-            'has_changelog' => true,
-            'filename'      => $changelog['filename'],
-            'file_size'     => (int) filesize($file_path),
-            'last_modified' => gmdate('Y-m-d H:i:s', filemtime($file_path)) . ' UTC',
-            'content'       => $content,
+            'success'           => true,
+            'has_changelog'     => false,
+            'is_latest'         => false,
+            'latest_not_found'  => true,
+            'source'            => 'none',
+            'filename'          => '',
+            'content'           => '',
+            'message'           => sprintf(
+                __('Latest version (%s) changelog was not found on WordPress.org, and no local changelog file (changelog.txt, readme.txt, or changelog.md) exists in the installed component folder.', 'wcp-security-scanner'),
+                $latest_ver ? "v{$latest_ver}" : 'upstream'
+            ),
         ]);
     }
 
