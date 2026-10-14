@@ -2144,7 +2144,7 @@ class ScannerRoutes {
             $update_package = $theme_update['package'] ?? '';
             $package_url = is_string($update_package) ? $update_package : '';
             $theme_url = is_string($theme_update['url'] ?? '') ? $theme_update['url'] : '';
-            if (strpos($package_url, 'wordpress.org') !== false || strpos($theme_url, 'wordpress.org') !== false || empty($package_url)) {
+            if (strpos($package_url, 'wordpress.org') !== false || strpos($theme_url, 'wordpress.org') !== false) {
                 $is_wporg = true;
             }
         } elseif (!empty($update_themes->checked[$theme_slug])) {
@@ -2154,12 +2154,25 @@ class ScannerRoutes {
             }
         }
 
+        $is_explicit_non_wporg = !empty($evidence_data['is_premium'])
+            || !empty($evidence_data['is_child'])
+            || $is_child
+            || (isset($evidence_data['is_wporg']) && !$evidence_data['is_wporg'])
+            || (!empty($evidence_data['display_title']) && in_array($evidence_data['display_title'], ['Premium Theme', 'Custom Child Theme', 'Custom or Premium Theme'], true));
+
+        $is_premium = !empty($evidence_data['is_premium']) || (bool) preg_match('/\b(premium|pro|commercial|license|themeforest|envato)\b/i', $norm_path . ' ' . $name . ' ' . $description);
+
+        if ($is_explicit_non_wporg || $is_premium) {
+            $is_wporg = false;
+        }
+
         if ($is_wporg) {
             $classification = __('Official WordPress Theme', 'wcp-security-scanner');
+        } elseif (!empty($evidence_data['display_title'])) {
+            $classification = $evidence_data['display_title'];
         } elseif ($is_child) {
             $classification = __('Custom Child Theme', 'wcp-security-scanner');
         } else {
-            $is_premium = !empty($evidence_data['is_premium']) || (bool) preg_match('/\b(premium|pro|commercial|license|themeforest|envato)\b/i', $norm_path . ' ' . $name . ' ' . $description);
             $classification = $is_premium ? __('Premium Theme', 'wcp-security-scanner') : __('Custom or Premium Theme', 'wcp-security-scanner');
         }
 
@@ -2290,39 +2303,58 @@ class ScannerRoutes {
         $is_wporg = false;
         $update_plugins = get_site_transient('update_plugins');
 
+        $update_entry = null;
         if (!empty($matched_file) && !empty($update_plugins->response[$matched_file])) {
-            $plugin_update = $update_plugins->response[$matched_file];
-            $latest_version = $plugin_update->new_version ?? null;
+            $update_entry = $update_plugins->response[$matched_file];
+            $latest_version = $update_entry->new_version ?? null;
             $has_update = !empty($latest_version) && (!empty($version) ? version_compare($latest_version, $version, '>') : true);
-            $update_package = $plugin_update->package ?? '';
-            $package_url = is_string($update_package) ? $update_package : '';
-            $update_url = is_string($plugin_update->url ?? '') ? $plugin_update->url : '';
-            $update_id = is_string($plugin_update->id ?? '') ? $plugin_update->id : '';
-            if (strpos($package_url, 'wordpress.org') !== false || strpos($update_url, 'wordpress.org') !== false || strpos($update_id, 'w.org/') !== false) {
-                $is_wporg = true;
-            } else {
-                $is_wporg = true; // Core update_plugins responses are official WordPress.org items
-            }
+            $update_package = $update_entry->package ?? '';
         } elseif (!empty($matched_file) && !empty($update_plugins->no_update[$matched_file])) {
-            $latest_version = $update_plugins->no_update[$matched_file]->new_version ?? $version;
+            $update_entry = $update_plugins->no_update[$matched_file];
+            $latest_version = $update_entry->new_version ?? $version;
+        }
+
+        // Check if update entry is verified from WordPress.org repository
+        if (is_object($update_entry)) {
+            $entry_id = is_string($update_entry->id ?? '') ? $update_entry->id : '';
+            $entry_url = is_string($update_entry->url ?? '') ? $update_entry->url : '';
+            $entry_pkg = is_string($update_entry->package ?? '') ? $update_entry->package : '';
+            if (strpos($entry_id, 'w.org/') !== false || strpos($entry_id, 'wordpress.org') !== false
+                || strpos($entry_url, 'wordpress.org/plugins') !== false
+                || strpos($entry_pkg, 'downloads.wordpress.org') !== false
+                || strpos($entry_pkg, 'wordpress.org') !== false) {
+                $is_wporg = true;
+            }
+        }
+
+        if (!$is_wporg && strpos($plugin_uri, 'wordpress.org/plugins') !== false) {
             $is_wporg = true;
         }
 
-        if (!$is_wporg) {
-            if (strpos($plugin_uri, 'wordpress.org/plugins') !== false) {
-                $is_wporg = true;
-            } elseif (!empty($evidence_data['is_wporg'])) {
-                $is_wporg = true;
-            }
+        // Check explicit non-wporg evidence or finding context (e.g. from PluginIntegrity / plugin_checksums_unavailable)
+        $is_explicit_non_wporg = !empty($evidence_data['is_premium']) 
+            || !empty($evidence_data['is_custom'])
+            || (isset($evidence_data['is_wporg']) && !$evidence_data['is_wporg'])
+            || (!empty($evidence_data['classification']) && in_array($evidence_data['classification'], ['premium_plugin', 'custom_plugin'], true))
+            || (!empty($evidence_data['display_title']) && in_array($evidence_data['display_title'], ['Premium Plugin', 'Custom or Premium Plugin', 'Custom Plugin'], true));
+
+        // Name, description or directory indicating commercial/pro/premium product
+        $is_premium = !empty($evidence_data['is_premium']) 
+            || (bool) preg_match('/(?:^|[-_])(premium|pro|addon|addons|unlimited|commercial)(?:[-_]|$)/i', $norm_path) 
+            || (bool) preg_match('/\b(premium|pro|codecanyon|themeforest|envato|commercial|license)\b/i', $name . ' ' . $description);
+
+        if ($is_explicit_non_wporg || $is_premium) {
+            $is_wporg = false;
         }
 
         if ($is_wporg) {
             $classification = __('Official WordPress Plugin', 'wcp-security-scanner');
+        } elseif (!empty($evidence_data['display_title'])) {
+            $classification = $evidence_data['display_title'];
+        } elseif ($is_premium) {
+            $classification = __('Premium Plugin', 'wcp-security-scanner');
         } else {
-            $is_premium = !empty($evidence_data['is_premium']) 
-                || (bool) preg_match('/(?:^|[-_])(premium|pro|addon|addons|unlimited|commercial)(?:[-_]|$)/i', $norm_path) 
-                || (bool) preg_match('/\b(premium|pro|codecanyon|themeforest|envato)\b/i', $name . ' ' . $description);
-            $classification = $is_premium ? __('Premium Plugin', 'wcp-security-scanner') : __('Custom or Premium Plugin', 'wcp-security-scanner');
+            $classification = __('Custom or Premium Plugin', 'wcp-security-scanner');
         }
 
         // Timestamps
