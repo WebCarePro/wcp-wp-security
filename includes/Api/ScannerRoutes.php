@@ -1100,8 +1100,24 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
         $table_files = $wpdb->prefix . 'wcp_scan_files';
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $latest_scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
+        // Dashboard ONLY displays comprehensive scans: 'plugins_themes' or 'full'.
+        // Targeted scans (user_security, spam_content, suspicious_uploads, crontab_audit, etc.)
+        // are retained in scan history, but excluded from the main dashboard.
+        $target_filter = sanitize_text_field($request->get_param('target'));
+        if ($target_filter && in_array($target_filter, ['full', 'plugins_themes'], true)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $latest_scan = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM `{$table_scans}` WHERE scan_target = %s ORDER BY id DESC LIMIT 1",
+                $target_filter
+            ), ARRAY_A);
+        } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $latest_scan = $wpdb->get_row(
+                "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full') ORDER BY id DESC LIMIT 1",
+                ARRAY_A
+            );
+        }
+
         if (!$latest_scan) {
             return rest_ensure_response([
                 'has_scan' => false,
