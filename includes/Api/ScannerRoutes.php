@@ -25,6 +25,7 @@ use WCP\Scanner\WordPress\PersistenceScanner;
 use WCP\Scanner\Forensics\AttackChainEngine;
 use WCP\Scanner\Firewall\VirtualPatchManager;
 use WCP\Scanner\Filesystem\PathValidator;
+use WCP\Scanner\Reports\IncidentReportEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -405,6 +406,12 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/virtual-patch/remove', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'virtual_patch_remove'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/reports/incident-response', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_incident_report'],
             'permission_callback' => $permission,
         ]);
 
@@ -3995,6 +4002,28 @@ class ScannerRoutes {
         }
 
         return rest_ensure_response($result);
+    }
+
+    public static function get_incident_report(\WP_REST_Request $request) {
+        $format = sanitize_text_field($request->get_param('format') ?: 'json');
+        $client_name = sanitize_text_field($request->get_param('client_name') ?: '');
+        $auditor_notes = sanitize_textarea_field($request->get_param('auditor_notes') ?: '');
+
+        $options = [
+            'client_name'   => $client_name,
+            'auditor_notes' => $auditor_notes,
+        ];
+
+        $report = IncidentReportEngine::generate_report($options);
+
+        if ($format === 'html') {
+            $html = IncidentReportEngine::render_html($report);
+            header('Content-Type: text/html; charset=UTF-8');
+            echo $html;
+            exit;
+        }
+
+        return rest_ensure_response($report);
     }
 
     public static function get_remediation_backups() {
