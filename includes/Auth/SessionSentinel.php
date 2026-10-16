@@ -67,10 +67,12 @@ class SessionSentinel {
 
         if ($session_token) {
             $sessions_meta[$session_token] = [
-                'login_time' => time(),
-                'last_seen'  => time(),
-                'login_ip'   => $ip,
-                'user_agent' => substr(sanitize_text_field($ua), 0, 255),
+                'login_time'     => time(),
+                'last_seen'      => time(),
+                'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+                    'login_ip'   => $ip,
+                    'user_agent' => substr(sanitize_text_field($ua), 0, 255),
+                ])),
             ];
 
             // Limit stored metadata to active WP sessions
@@ -223,28 +225,49 @@ class SessionSentinel {
             foreach ($wp_sessions as $token => $data) {
                 $meta = $sessions_meta[$token] ?? [];
                 $is_current = ($admin->ID === $current_user_id && $token === $current_token);
-                $ip = $meta['login_ip'] ?? ($data['ip'] ?? 'Unknown');
-                $ua = $meta['user_agent'] ?? ($data['ua'] ?? 'Unknown');
+
+                $ip = 'Unknown';
+                $ua = 'Unknown';
+                if (!empty($meta['encrypted_meta'])) {
+                    $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $meta['encrypted_meta']);
+                    $decoded = is_string($decrypted_meta) ? (json_decode($decrypted_meta, true) ?: []) : [];
+                    $ip = $decoded['login_ip'] ?? ($data['ip'] ?? 'Unknown');
+                    $ua = $decoded['user_agent'] ?? ($data['ua'] ?? 'Unknown');
+                } else {
+                    $ip = $meta['login_ip'] ?? ($data['ip'] ?? 'Unknown');
+                    $ua = $meta['user_agent'] ?? ($data['ua'] ?? 'Unknown');
+                }
 
                 // Determine browser / OS info
                 $browser_info = self::parse_user_agent($ua);
 
+                $login_ts = isset($meta['login_time']) ? (int) $meta['login_time'] : (isset($data['login']) ? (int) $data['login'] : time());
+                $duration_sec = max(1, time() - $login_ts);
+                $duration_formatted = class_exists('\\WcpScanner\\Auth\\LoginHistoryManager') 
+                    ? \WcpScanner\Auth\LoginHistoryManager::format_duration($duration_sec)
+                    : sprintf('%d mins', round($duration_sec / 60));
+
                 $results[] = [
-                    'session_id'   => substr(hash('sha256', $token), 0, 16),
-                    'token'        => $token,
-                    'user_id'      => $admin->ID,
-                    'user_login'   => $admin->user_login,
-                    'user_email'   => $admin->user_email,
-                    'avatar_url'   => get_avatar_url($admin->ID, ['size' => 48]),
-                    'is_current'   => $is_current,
-                    'login_ip'     => $ip,
-                    'is_same_ip'   => ($ip === $client_ip),
-                    'login_time'   => isset($meta['login_time']) ? date_i18n('Y-m-d H:i:s', $meta['login_time']) : (isset($data['login']) ? date_i18n('Y-m-d H:i:s', $data['login']) : 'Active'),
-                    'last_seen'    => isset($meta['last_seen']) ? date_i18n('Y-m-d H:i:s', $meta['last_seen']) : 'Recently',
-                    'expiration'   => isset($data['expiration']) ? date_i18n('Y-m-d H:i:s', $data['expiration']) : null,
-                    'browser'      => $browser_info['browser'],
-                    'platform'     => $browser_info['platform'],
-                    'user_agent'   => $ua,
+                    'session_id'               => substr(hash('sha256', $token), 0, 16),
+                    'token'                    => $token,
+                    'user_id'                  => $admin->ID,
+                    'user_login'               => $admin->user_login,
+                    'display_name'             => $admin->display_name ?: $admin->user_login,
+                    'user_email'               => $admin->user_email,
+                    'avatar_url'               => get_avatar_url($admin->ID, ['size' => 48]),
+                    'is_current'               => $is_current,
+                    'login_ip'                 => $ip,
+                    'is_same_ip'               => ($ip === $client_ip),
+                    'login_time'               => date_i18n('Y-m-d H:i:s', $login_ts),
+                    'login_time_raw'           => $login_ts,
+                    'login_time_human'         => human_time_diff($login_ts, time()) . ' ago',
+                    'login_duration_seconds'   => $duration_sec,
+                    'login_duration_formatted' => $duration_formatted,
+                    'last_seen'                => isset($meta['last_seen']) ? date_i18n('Y-m-d H:i:s', $meta['last_seen']) : 'Recently',
+                    'expiration'               => isset($data['expiration']) ? date_i18n('Y-m-d H:i:s', $data['expiration']) : null,
+                    'browser'                  => $browser_info['browser'],
+                    'platform'                 => $browser_info['platform'],
+                    'user_agent'               => $ua,
                 ];
             }
         }

@@ -104,13 +104,31 @@ class Migration {
             KEY created_at (created_at)
         ) $charset_collate;";
 
+        // 6. User Login History & Device Forensics (All Telemetry Encrypted via SecretVault)
+        $login_history_table = $wpdb->prefix . 'wcpscan_login_history';
+        $sql6 = "CREATE TABLE $login_history_table (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            session_token varchar(64) NOT NULL DEFAULT '',
+            login_time datetime NOT NULL,
+            logout_time datetime DEFAULT NULL,
+            last_seen datetime DEFAULT NULL,
+            encrypted_data longtext NOT NULL,
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY user_id (user_id),
+            KEY session_token (session_token(32)),
+            KEY login_time (login_time)
+        ) $charset_collate;";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql1);
         dbDelta($sql2);
         dbDelta($sql3);
         dbDelta($sql4);
         dbDelta($sql5);
+        dbDelta($sql6);
 
-        update_option('wcpscan_db_version', '1.7.0');
+        update_option('wcpscan_db_version', '1.8.0');
     }
 }

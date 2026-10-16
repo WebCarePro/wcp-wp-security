@@ -26,6 +26,7 @@ if ($delete_data) {
         $wpdb->prefix . 'wcpscan_scan_files',
         $wpdb->prefix . 'wcpscan_quarantine',
         $wpdb->prefix . 'wcpscan_firewall_logs',
+        $wpdb->prefix . 'wcpscan_login_history',
     ];
 
     foreach ($tables as $table) {

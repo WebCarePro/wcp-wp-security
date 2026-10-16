@@ -24,6 +24,11 @@ v:1.17.0 - 2026-10-17
   * Removed Automatic Idle Session Inactivity Timeout (`SessionSentinel.php`, `SettingsManager.php`, `ScannerRoutes.php`, `AuthSecurityPage.tsx`):
     - Completely removed forced automatic session revocation after inactivity, resolving frequent unwanted logouts and allowing WordPress standard session cookie lifecycles to govern authentication naturally.
     - Preserved active session tracking, client IP, platform/browser telemetry, and 1-click manual revocation in the Session Sentinel dashboard without disruptive background timeouts.
+  * Encrypted User Login History & Device Forensics Inspector (`LoginHistoryManager.php`, `UserSessionForensicsModal.tsx`, `ScannerRoutes.php`, `AuthSecurityPage.tsx`):
+    - Interactive Clickable Usernames: administrator usernames in the Active Sessions Sentinel tab are now clickable, opening a deep forensic telemetry modal.
+    - Live Session Duration: calculates and formats exact session uptime (e.g. `1 hour 5 min 2s`) across active sessions and historical logins.
+    - Comprehensive Telemetry Capture: inspects the last 10 logins per administrator, including IP address, device type (Desktop, Mobile, Tablet), browser & OS, screen resolution (e.g. 1920x1080@1.25), browser viewport, client IANA timezone, authentication method (Password + 2FA TOTP vs Password), and full raw User-Agent string.
+    - Zero Plaintext Storage Guarantee: all client IPs, user-agents, screen dimensions, and hardware telemetry are encrypted at rest using AES-256-GCM AEAD (`SecretVault`) in `wp_wcpscan_login_history` and `wp_usermeta`, and decrypted strictly on-the-fly for authenticated administrators.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:

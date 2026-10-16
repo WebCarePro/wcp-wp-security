@@ -23,7 +23,7 @@ class Plugin {
     }
 
     private function init() {
-        if (get_option('wcpscan_db_version') !== '1.6.0') {
+        if (get_option('wcpscan_db_version') !== '1.8.0') {
             \WcpScanner\Database\Migration::install();
         }
 
@@ -38,6 +38,7 @@ class Plugin {
         \WcpScanner\Auth\TwoFactorAuth::init();
         \WcpScanner\Auth\LoginHardening::init();
         \WcpScanner\Auth\SessionSentinel::init();
+        \WcpScanner\Auth\LoginHistoryManager::init();
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

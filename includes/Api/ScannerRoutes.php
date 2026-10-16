@@ -571,6 +571,21 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // User Login History & Device Forensics (Encrypted Telemetry)
+        register_rest_route(self::NAMESPACE, '/auth/user-history', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_user_login_history'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/telemetry', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'record_client_telemetry'],
+            'permission_callback' => function () {
+                return is_user_logged_in();
+            },
+        ]);
+
         // Rogue Administrator & Database Anomaly Audit
         register_rest_route(self::NAMESPACE, '/database/rogue-admin-audit', [
             'methods'             => 'GET',
@@ -4598,6 +4613,44 @@ class ScannerRoutes {
             'success'  => true,
             'message'  => __('Session successfully revoked.', 'wcp-security-scanner'),
             'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+        ]);
+    }
+
+    /**
+     * Auth Security: Get User Login History & Device Forensics (Encrypted Telemetry Decrypted for Admin)
+     */
+    public static function get_user_login_history(\WP_REST_Request $request) {
+        $user_id = (int) $request->get_param('user_id');
+        if (empty($user_id)) {
+            $user_id = get_current_user_id();
+        }
+
+        $limit = (int) ($request->get_param('limit') ?: 10);
+        $result = \WcpScanner\Auth\LoginHistoryManager::get_user_history($user_id, $limit);
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Auth Security: Record Dynamic Client Telemetry (Screen Resolution, Viewport, Timezone)
+     */
+    public static function record_client_telemetry(\WP_REST_Request $request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new \WP_Error('unauthorized', __('Unauthorized', 'wcp-security-scanner'), ['status' => 401]);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $telemetry = [
+            'screen_resolution' => sanitize_text_field($params['screen_resolution'] ?? ''),
+            'viewport'          => sanitize_text_field($params['viewport'] ?? ''),
+            'timezone'          => sanitize_text_field($params['timezone'] ?? ''),
+        ];
+
+        \WcpScanner\Auth\LoginHistoryManager::update_session_telemetry($user_id, $telemetry);
+
+        return rest_ensure_response([
+            'success' => true,
         ]);
     }
 
