@@ -1,3 +1,10 @@
+v:1.16.0 - 2026-10-16
+- Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:
+  * Comprehensive SSL Detection Engine (`ServerInfo.php`): introduced `ServerInfo::is_ssl_active()` capable of reliably detecting active SSL across direct HTTPS, Cloudflare Edge proxies (`HTTP_CF_VISITOR`, `HTTP_X_FORWARDED_PROTO`), LiteSpeed / Nginx reverse proxies (`HTTP_X_FORWARDED_SSL`, `HTTP_FRONT_END_HTTPS`), load balancers (port 443), and WordPress configured HTTPS site URLs.
+  * Resolved Server Info Dashboard SSL Status (`ServerInfo.php`, `App.tsx`): corrected backend `ssl` vs. `ssl_active` key pairing and updated frontend state rendering, resolving false-negative "No (Insecure HTTP)" warnings on sites operating behind SSL reverse proxies and Cloudflare.
+  * Resilient HSTS Enforcement (`SecurityHeadersEngine.php`): synchronized `SecurityHeadersEngine` with `ServerInfo::is_ssl_active()`, ensuring HSTS security headers are correctly delivered even when SSL termination occurs at edge reverse proxies.
+  * Web-Traffic-Triggered Cron Informational Guidance (`SettingsPage.tsx`): added an explanatory callout under the Scheduler diagnostics panel clarifying how WordPress virtual cron operates on visitor traffic and how Linux system crontab provides 24/7 background automation for sites with zero traffic.
+
 v:1.15.0 - 2026-10-15
 - Real-Time Progress & Telemetry Engine for One-Click Database Backup Vault:
   * Progressive Chunked Backup State Machine (`DatabaseBackup.php`): transformed single-shot database backup into a bounded, progressive session-based state machine capable of backing up massive databases (> 5GB) without hitting PHP max_execution_time, fastcgi timeouts, or memory limits.

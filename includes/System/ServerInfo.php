@@ -61,7 +61,7 @@ class ServerInfo {
         $wp_debug = defined('WP_DEBUG') && WP_DEBUG;
         $wp_debug_log = defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
         $wp_debug_display = defined('WP_DEBUG_DISPLAY') && WP_DEBUG_DISPLAY;
-        $ssl_active = is_ssl();
+        $ssl_active = self::is_ssl_active();
         $multisite = is_multisite();
 
         $upload_dir = wp_upload_dir();
@@ -112,16 +112,80 @@ class ServerInfo {
                 'version'          => $wp_version,
                 'site_url'         => get_site_url(),
                 'home_url'         => get_home_url(),
-                'ssl_active'       => $ssl_active,
-                'multisite'        => $multisite,
-                'wp_debug'         => $wp_debug,
-                'wp_debug_log'     => $wp_debug_log,
-                'wp_debug_display' => $wp_debug_display,
+                'ssl'              => (bool) $ssl_active,
+                'ssl_active'       => (bool) $ssl_active,
+                'multisite'        => (bool) $multisite,
+                'debug'            => (bool) $wp_debug,
+                'debug_log'        => (bool) $wp_debug_log,
+                'debug_display'    => (bool) $wp_debug_display,
+                'wp_debug'         => (bool) $wp_debug,
+                'wp_debug_log'     => (bool) $wp_debug_log,
+                'wp_debug_display' => (bool) $wp_debug_display,
                 'file_permissions' => $permissions,
             ],
             'permissions' => $permissions,
             'filesystem'  => $filesystem,
         ];
+    }
+
+    /**
+     * Accurately determine if SSL/HTTPS is active, including behind Reverse Proxies,
+     * Load Balancers, Cloudflare, LiteSpeed, and HTTPS WordPress site URLs.
+     *
+     * @return bool
+     */
+    public static function is_ssl_active(): bool {
+        if (function_exists('is_ssl') && is_ssl()) {
+            return true;
+        }
+
+        if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') {
+            return true;
+        }
+
+        if (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) {
+            return true;
+        }
+
+        // Reverse proxy headers (Cloudflare, LiteSpeed, Nginx, AWS ALB/ELB)
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+            return true;
+        }
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') {
+            return true;
+        }
+
+        if (!empty($_SERVER['HTTP_CF_VISITOR'])) {
+            $visitor = json_decode((string) $_SERVER['HTTP_CF_VISITOR'], true);
+            if (is_array($visitor) && isset($visitor['scheme']) && $visitor['scheme'] === 'https') {
+                return true;
+            }
+            if (strpos((string) $_SERVER['HTTP_CF_VISITOR'], 'https') !== false) {
+                return true;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && ('443' == $_SERVER['HTTP_X_FORWARDED_PORT'])) {
+            return true;
+        }
+
+        if (!empty($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower((string) $_SERVER['HTTP_FRONT_END_HTTPS']) !== 'off') {
+            return true;
+        }
+
+        // WordPress site & home URL protocol check
+        $site_url = function_exists('get_site_url') ? get_site_url() : '';
+        if (strpos($site_url, 'https://') === 0) {
+            return true;
+        }
+
+        $home_url = function_exists('get_home_url') ? get_home_url() : '';
+        if (strpos($home_url, 'https://') === 0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
