@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Admin;
+namespace WcpScanner\Admin;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -9,8 +9,8 @@ class AdminMenu {
     public static function register() {
         add_action('admin_menu', [__CLASS__, 'add_menu_page']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
-        add_filter('plugin_action_links_' . plugin_basename(WCP_SCANNER_FILE), [__CLASS__, 'add_plugin_action_links']);
-        add_action('admin_head', [__CLASS__, 'inject_admin_header_styles']);
+        add_filter('plugin_action_links_' . plugin_basename(WCPSCAN_FILE), [__CLASS__, 'add_plugin_action_links']);
+        add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_brand_styles']);
     }
 
     public static function add_menu_page() {
@@ -236,7 +236,7 @@ class AdminMenu {
                 'initialTab'    => $active_tab,
                 'version'       => WCP_SCANNER_VERSION,
                 'currentUserId' => get_current_user_id(),
-                'serverInfo'    => \WCP\Scanner\System\ServerInfo::get_info(),
+                'serverInfo'    => \WcpScanner\System\ServerInfo::get_info(),
             ]);
         }
 
@@ -274,12 +274,11 @@ class AdminMenu {
     }
 
     /**
-     * Inject custom admin CSS for official branding logo in sidebar and plugins page
+     * Enqueue custom admin CSS for official branding logo in sidebar and plugins page
      */
-    public static function inject_admin_header_styles(): void {
-        $logo_url = plugins_url('assets/icon.svg', WCP_SCANNER_FILE);
-        ?>
-        <style id="wcp-scanner-admin-brand-styles">
+    public static function enqueue_brand_styles(): void {
+        $logo_url = plugins_url('assets/icon.svg', WCPSCAN_FILE);
+        $custom_css = "
             /* WCP Security Scanner - Sidebar Menu Icon */
             #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image img {
                 width: 20px;
@@ -293,19 +292,23 @@ class AdminMenu {
                 transform: scale(1.1);
             }
             /* WCP Security Scanner - Plugins List Page Brand Logo */
-            .plugins tr[data-plugin*="wcp-wp-scanner.php"] .plugin-title strong::before {
-                content: "";
+            .plugins tr[data-plugin*=\"wcp-wp-scanner.php\"] .plugin-title strong::before,
+            .plugins tr[data-plugin*=\"wcp-security-scanner.php\"] .plugin-title strong::before {
+                content: \"\";
                 display: inline-block;
                 vertical-align: -4px;
                 width: 20px;
                 height: 20px;
                 margin-right: 8px;
-                background: url("<?php echo esc_url($logo_url); ?>") no-repeat center center;
+                background: url(\"" . esc_url($logo_url) . "\") no-repeat center center;
                 background-size: contain;
                 border-radius: 4px;
             }
-        </style>
-        <?php
+        ";
+
+        wp_register_style('wcpscan-admin-brand', false);
+        wp_enqueue_style('wcpscan-admin-brand');
+        wp_add_inline_style('wcpscan-admin-brand', $custom_css);
     }
 }
 

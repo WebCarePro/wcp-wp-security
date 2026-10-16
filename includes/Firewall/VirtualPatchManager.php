@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\Firewall;
+namespace WcpScanner\Firewall;
 
-use WCP\Scanner\System\SettingsManager;
-use WCP\Scanner\System\AuditLogger;
+use WcpScanner\System\SettingsManager;
+use WcpScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
  */
 class VirtualPatchManager {
 
-    const OPTION_PATCHES = 'wcp_virtual_patches';
+    const OPTION_PATCHES = 'wcpscan_virtual_patches';
     const CF_TAG = '[WCP Virtual Patch]';
 
     /**

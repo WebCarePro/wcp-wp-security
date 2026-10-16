@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Filesystem;
+namespace WcpScanner\Filesystem;
 
-use WCP\Scanner\Findings\Finding;
+use WcpScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -85,7 +85,7 @@ class UploadsScanner {
                 }
 
                 // Check user configured excluded paths
-                if (\WCP\Scanner\System\SettingsManager::is_path_excluded($normalized_path)) {
+                if (\WcpScanner\System\SettingsManager::is_path_excluded($normalized_path)) {
                     continue;
                 }
 
@@ -98,7 +98,7 @@ class UploadsScanner {
                 // 1. Direct prohibited executable / shell extension
                 if (in_array($ext, $this->executable_extensions, true)) {
                     // Check if harmless WordPress directory listing prevention placeholder
-                    if (($lower_name === 'index.php' || $lower_name === 'index.html' || $lower_name === 'index.htm') && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($real_path)) {
+                    if (($lower_name === 'index.php' || $lower_name === 'index.html' || $lower_name === 'index.htm') && \WcpScanner\System\SettingsManager::is_safe_directory_index($real_path)) {
                         continue;
                     }
 

@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\WordPress;
+namespace WcpScanner\WordPress;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -24,7 +24,7 @@ class UserRemediationManager {
 
     public function __construct() {
         $uploads = wp_upload_dir();
-        $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
+        $base = untrailingslashit($uploads['basedir']);
         $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
         $this->ensure_backup_directory();
     }

@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Scan;
+namespace WcpScanner\Scan;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 class ScanState {
 
-    const OPTION_PREFIX = 'wcp_scan_state_';
+    const OPTION_PREFIX = 'wcpscan_scan_state_';
 
     private string $scan_id;
     private string $engine;

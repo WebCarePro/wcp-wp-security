@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\WordPress;
+namespace WcpScanner\WordPress;
 
-use WCP\Scanner\Findings\Finding;
+use WcpScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -145,7 +145,7 @@ class UpdateScanner {
         $update_themes = get_site_transient('update_themes');
 
         if (!function_exists('wp_get_themes')) {
-            require_once ABSPATH . 'wp-includes/theme.php';
+            require_once ABSPATH . WPINC . '/theme.php';
         }
         $all_themes = wp_get_themes();
 
@@ -217,7 +217,7 @@ class UpdateScanner {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
         if (!function_exists('wp_get_themes')) {
-            require_once ABSPATH . 'wp-includes/theme.php';
+            require_once ABSPATH . WPINC . '/theme.php';
         }
 
         wp_version_check();
@@ -291,7 +291,7 @@ class UpdateScanner {
             }
 
             // 2. Query checksum provider for official release manifest
-            $checksum_provider = new \WCP\Scanner\Integrity\ChecksumProvider();
+            $checksum_provider = new \WcpScanner\Integrity\ChecksumProvider();
             $checksums = $checksum_provider->get_plugin_checksums($plugin_slug, $cur_version);
             if ($checksums !== null) {
                 $is_official = true;
@@ -390,7 +390,7 @@ class UpdateScanner {
             }
 
             // Check if bundled default theme or official WP.org theme
-            $checksum_provider = new \WCP\Scanner\Integrity\ChecksumProvider();
+            $checksum_provider = new \WcpScanner\Integrity\ChecksumProvider();
             $theme_checksums = $checksum_provider->get_theme_checksums($theme_slug, $cur_version);
             if ($theme_checksums !== null) {
                 $is_official = true;
@@ -513,7 +513,7 @@ class UpdateScanner {
      * @return array
      */
     public static function get_core_cves($version) {
-        $cache_key = 'wcp_cve_core_' . sanitize_key($version);
+        $cache_key = 'wcpscan_cve_core_' . sanitize_key($version);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -549,7 +549,7 @@ class UpdateScanner {
      * @return array
      */
     public static function get_plugin_cves($slug, $version, $name = '') {
-        $cache_key = 'wcp_cve_plugin_' . sanitize_key($slug . '_' . $version);
+        $cache_key = 'wcpscan_cve_plugin_' . sanitize_key($slug . '_' . $version);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -587,7 +587,7 @@ class UpdateScanner {
      * @return array
      */
     public static function get_theme_cves($slug, $version, $name = '') {
-        $cache_key = 'wcp_cve_theme_' . sanitize_key($slug . '_' . $version);
+        $cache_key = 'wcpscan_cve_theme_' . sanitize_key($slug . '_' . $version);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;

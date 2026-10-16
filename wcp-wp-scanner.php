@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       WCP Security Scanner
  * Description:       Advanced security & malware scanner with core file integrity checks, heuristic threat analysis, and modern React dashboard.
- * Version:           1.16.0
+ * Version:           1.17.0
  * Requires at least: 7.0
  * Requires PHP:      8.3
  * Author:            Mir Alamin
@@ -17,17 +17,31 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('WCP_SCANNER_VERSION', '1.16.0');
-define('WCP_SCANNER_FILE', __FILE__);
-define('WCP_SCANNER_PATH', plugin_dir_path(__FILE__));
-define('WCP_SCANNER_URL', plugin_dir_url(__FILE__));
+define('WCPSCAN_VERSION', '1.17.0');
+define('WCPSCAN_FILE', __FILE__);
+define('WCPSCAN_PATH', plugin_dir_path(__FILE__));
+define('WCPSCAN_URL', plugin_dir_url(__FILE__));
+
+// Backward compatibility aliases
+if (!defined('WCP_SCANNER_VERSION')) {
+    define('WCP_SCANNER_VERSION', WCPSCAN_VERSION);
+}
+if (!defined('WCP_SCANNER_FILE')) {
+    define('WCP_SCANNER_FILE', WCPSCAN_FILE);
+}
+if (!defined('WCP_SCANNER_PATH')) {
+    define('WCP_SCANNER_PATH', WCPSCAN_PATH);
+}
+if (!defined('WCP_SCANNER_URL')) {
+    define('WCP_SCANNER_URL', WCPSCAN_URL);
+}
 
 // Composer or Custom Autoloader
 if (file_exists(WCP_SCANNER_PATH . 'vendor/autoload.php')) {
     require_once WCP_SCANNER_PATH . 'vendor/autoload.php';
 } else {
     spl_autoload_register(function ($class) {
-        $prefix = 'WCP\\Scanner\\';
+        $prefix = 'WcpScanner\\';
         $base_dir = WCP_SCANNER_PATH . 'includes/';
 
         $len = strlen($prefix);
@@ -46,15 +60,15 @@ if (file_exists(WCP_SCANNER_PATH . 'vendor/autoload.php')) {
 
 // Activation & Deactivation hooks
 register_activation_hook(__FILE__, function () {
-    \WCP\Scanner\Database\Migration::install();
+    \WcpScanner\Database\Migration::install();
 });
 
 register_deactivation_hook(__FILE__, function () {
-    wp_clear_scheduled_hook('wcp_scanner_scheduled_scan_cron');
-    wp_clear_scheduled_hook('wcp_scanner_threat_intel_cron_sync');
+    wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');
+    wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
 });
 
 // Initialize the plugin
 add_action('plugins_loaded', function () {
-    \WCP\Scanner\Plugin::get_instance();
+    \WcpScanner\Plugin::get_instance();
 });

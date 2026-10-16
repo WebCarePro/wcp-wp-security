@@ -1,3 +1,28 @@
+v:1.17.0 - 2026-10-17
+- WordPress.org Official Plugin Review Compliance & Architectural Hardening:
+  * Namespace & Prefix Standard Compliance:
+    - Upgraded global PHP namespaces from `WCP\Scanner\` to `WcpScanner\` across all 90+ plugin files, fully complying with the WordPress.org requirement for unique prefixes over 3 characters.
+    - Updated plugin constant definitions to canonical `WCPSCAN_VERSION`, `WCPSCAN_FILE`, `WCPSCAN_PATH`, and `WCPSCAN_URL` (with backward compatibility aliases).
+    - Upgraded internal database tables from `wp_wcp_*` to `wp_wcpscan_*` (`wp_wcpscan_scans`, `wp_wcpscan_scan_files`, `wp_wcpscan_scan_issues`, `wp_wcpscan_quarantine`, `wp_wcpscan_audit_log`, `wp_wcpscan_firewall_logs`, `wp_wcpscan_firewall_rules`, `wp_wcpscan_rate_limits`, `wp_wcpscan_cve_cache`).
+    - Added automatic database table rename migration in `Migration.php` with safe `IF EXISTS` verification, ensuring zero data loss during upgrade.
+    - Standardized options, transients, and cron hook identifiers with canonical `wcpscan_` prefixes (`wcpscan_settings`, `wcpscan_stats`, `wcpscan_threat_intel_sync`, etc.).
+  * Pure-PHP On-Premise Two-Factor Authentication QR Code Engine (`QRCodeGenerator.php`, `TwoFactorAuth.php`):
+    - Replaced external API dependency (`api.qrserver.com`) with a built-in, lightweight, zero-dependency pure-PHP ISO/IEC 18004 Model 2 QR Code generator.
+    - Encodes TOTP provisioning URIs directly to inline vector SVGs and base64 data URIs on the host server; eliminates remote HTTP requests and prevents third-party leakage of TOTP secret keys.
+  * Standardized WordPress Enqueueing & Output Architecture (`AdminMenu.php`, `FirewallEngine.php`):
+    - Refactored administrative brand styling from raw inline `<style>` tag echoes in `admin_head` to canonical `admin_enqueue_scripts` registration with `wp_register_style`, `wp_enqueue_style`, and `wp_add_inline_style`.
+    - Refactored Firewall Block page rendering in `FirewallEngine::render_block_page()` to use native WordPress `wp_die()` with standardized 403 HTTP response codes, eliminating raw HTML and inline CSS echoes.
+  * Comprehensive Request Sanitization, Validation, and Escaping (`FirewallEngine.php`, `SessionSentinel.php`):
+    - Implemented rigorous sanitization for all incoming request parameters: `$_SERVER['HTTP_CF_CONNECTING_IP']`, `$_SERVER['HTTP_X_FORWARDED_FOR']`, `$_SERVER['HTTP_USER_AGENT']`, `$_SERVER['REQUEST_URI']`, `$_SERVER['QUERY_STRING']`, and `$_SERVER['REQUEST_METHOD']`.
+    - Applied `wp_unslash()`, `sanitize_text_field()`, and array recursive sanitization across all inspected `$_GET`, `$_POST`, and `php://input` payloads prior to logging firewall security incidents.
+    - Added strict validation and `sanitize_text_field(wp_unslash(...))` sanitization for `$_COOKIE[LOGGED_IN_COOKIE]` within `SessionSentinel`.
+  * Canonical Filesystem & Directory Functions:
+    - Refactored `ScanManager`, `RemediationManager`, `UserRemediationManager`, `QuarantineManager`, `DatabaseRemediationManager`, and `DatabaseBackup` to strictly use canonical WordPress directory helpers (`wp_upload_dir()['basedir']`, `WP_PLUGIN_DIR`, `WPMU_PLUGIN_DIR`, `get_theme_root()`), eliminating hardcoded paths and arbitrary `ABSPATH . 'wp-content/...'` fallbacks.
+    - Standardized WordPress core internal directory references using `ABSPATH . (defined('WPINC') ? WPINC : 'wp-includes')` across `CoreIntegrity.php` and `FileIntegrityMonitor.php`.
+  * Extended External Services Disclosures in `readme.txt`:
+    - Fully disclosed all external endpoints, purposes, data transmitted, trigger conditions, Terms of Service, and Privacy Policies for WordPress.org API & SVN release mirrors, GitHub raw content mirrors, Stamparm threat intelligence, Blocklist.de feeds, Cloudflare API v4, Google Gemini API, OpenAI API, Anthropic Claude API, and DevSecOps webhooks.
+    - Explicitly noted that Two-Factor Authentication QR code generation runs 100% on-premise without external services.
+
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:
   * Comprehensive SSL Detection Engine (`ServerInfo.php`): introduced `ServerInfo::is_ssl_active()` capable of reliably detecting active SSL across direct HTTPS, Cloudflare Edge proxies (`HTTP_CF_VISITOR`, `HTTP_X_FORWARDED_PROTO`), LiteSpeed / Nginx reverse proxies (`HTTP_X_FORWARDED_SSL`, `HTTP_FRONT_END_HTTPS`), load balancers (port 443), and WordPress configured HTTPS site URLs.

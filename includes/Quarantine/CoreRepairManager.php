@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Quarantine;
+namespace WcpScanner\Quarantine;
 
 if (!defined('ABSPATH')) {
     exit;

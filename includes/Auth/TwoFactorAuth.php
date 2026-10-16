@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\Auth;
+namespace WcpScanner\Auth;
 
-use WCP\Scanner\System\SettingsManager;
-use WCP\Scanner\Security\SecretVault;
+use WcpScanner\System\SettingsManager;
+use WcpScanner\Security\SecretVault;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,12 +16,12 @@ if (!defined('ABSPATH')) {
  */
 class TwoFactorAuth {
 
-    const META_ENABLED         = '_wcp_2fa_enabled';
-    const META_SECRET          = '_wcp_2fa_secret';
-    const META_BACKUP_CODES    = '_wcp_2fa_backup_codes';
-    const META_TRUSTED_DEVICES = '_wcp_2fa_trusted_devices';
-    const SESSION_TRANSIENT    = 'wcp_2fa_pending_';
-    const COOKIE_DEVICE        = 'wcp_2fa_trusted_device';
+    const META_ENABLED         = '_wcpscan_2fa_enabled';
+    const META_SECRET          = '_wcpscan_2fa_secret';
+    const META_BACKUP_CODES    = '_wcpscan_2fa_backup_codes';
+    const META_TRUSTED_DEVICES = '_wcpscan_2fa_trusted_devices';
+    const SESSION_TRANSIENT    = 'wcpscan_2fa_pending_';
+    const COOKIE_DEVICE        = 'wcpscan_2fa_trusted_device';
 
     /**
      * Initialize 2FA hooks
@@ -29,7 +29,7 @@ class TwoFactorAuth {
     public static function init() {
         // Intercept WordPress authentication
         add_filter('authenticate', [__CLASS__, 'filter_authenticate'], 50, 3);
-        add_action('login_form_wcp_2fa', [__CLASS__, 'render_2fa_challenge_screen']);
+        add_action('login_form_wcpscan_2fa', [__CLASS__, 'render_2fa_challenge_screen']);
         // Revoke trusted devices on password reset for security
         add_action('password_reset', [__CLASS__, 'on_password_reset'], 10, 2);
     }
@@ -327,8 +327,8 @@ class TwoFactorAuth {
         $days         = $days > 0 ? $days : self::get_remember_device_days();
         $expires_at   = time() + ($days * DAY_IN_SECONDS);
         $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
-        $ip           = class_exists('\\WCP\\Scanner\\Firewall\\FirewallEngine')
-            ? \WCP\Scanner\Firewall\FirewallEngine::get_client_ip()
+        $ip           = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
+            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
         $device_id    = wp_generate_password(16, false);
 
@@ -459,13 +459,15 @@ class TwoFactorAuth {
     }
 
     /**
-     * Generate an inline SVG QR Code representation (zero external dependencies)
+     * Generate an inline SVG QR Code representation locally (zero external dependencies)
      */
     public static function get_qr_data_uri(string $content): string {
-        // We use Google Charts or QuickChart fallback for high-fidelity QR rendering,
-        // and return the provisioning URI directly for copy/paste into 1Password / Authy.
-        $encoded = rawurlencode($content);
-        return 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=' . $encoded;
+        try {
+            return QRCodeGenerator::get_data_uri($content, 200);
+        } catch (\Throwable $e) {
+            $escaped = esc_html($content);
+            return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="%23f1f5f9"/><text x="10" y="100" font-size="10" fill="%23334155">' . rawurlencode($escaped) . '</text></svg>';
+        }
     }
 
     /**
@@ -492,7 +494,7 @@ class TwoFactorAuth {
         }
 
         // Check if 2FA code was submitted
-        $auth_code = isset($_POST['wcp_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['wcp_2fa_code'])) : '';
+        $auth_code = isset($_POST['wcpscan_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code'])) : '';
         $secret    = self::get_user_secret($user->ID);
 
         if (!empty($auth_code)) {
@@ -505,7 +507,7 @@ class TwoFactorAuth {
             }
 
             if ($code_valid) {
-                if (!empty($_POST['wcp_2fa_remember_device'])) {
+                if (!empty($_POST['wcpscan_2fa_remember_device'])) {
                     self::set_trusted_device($user->ID, self::get_remember_device_days());
                 }
                 return $user; // Authentication passed!
@@ -513,7 +515,7 @@ class TwoFactorAuth {
 
             // Invalid code submitted
             return new \WP_Error(
-                'wcp_2fa_invalid_code',
+                'wcpscan_2fa_invalid_code',
                 __('<strong>Error:</strong> The two-factor authentication code you entered is invalid or has expired.', 'wcp-security-scanner')
             );
         }
@@ -564,10 +566,10 @@ class TwoFactorAuth {
         $error_msg               = '';
 
         // Handle Form Submission
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wcp_2fa_code'])) {
-            check_admin_referer('wcp_2fa_verify_' . $pending_key);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wcpscan_2fa_code'])) {
+            check_admin_referer('wcpscan_2fa_verify_' . $pending_key);
 
-            $code   = sanitize_text_field(wp_unslash($_POST['wcp_2fa_code']));
+            $code   = sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code']));
             $secret = self::get_user_secret($user_id);
             $valid  = false;
 
@@ -582,7 +584,7 @@ class TwoFactorAuth {
                 delete_transient(self::SESSION_TRANSIENT . $pending_key);
 
                 // Handle "Remember this device"
-                if (!empty($_POST['wcp_2fa_remember_device']) && $remember_device_allowed) {
+                if (!empty($_POST['wcpscan_2fa_remember_device']) && $remember_device_allowed) {
                     self::set_trusted_device($user_id, $remember_days);
                 }
 
@@ -622,7 +624,7 @@ class TwoFactorAuth {
         <?php endif; ?>
 
         <form name="wcp2faform" id="wcp2faform" action="" method="post" style="padding-bottom: 16px;">
-            <?php wp_nonce_field('wcp_2fa_verify_' . $pending_key); ?>
+            <?php wp_nonce_field('wcpscan_2fa_verify_' . $pending_key); ?>
             <p>
                 <label for="wcp_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
                     <?php esc_html_e('Security Code or Recovery Code', 'wcp-security-scanner'); ?>

@@ -1,11 +1,11 @@
 <?php
-namespace WCP\Scanner\Forensics;
+namespace WcpScanner\Forensics;
 
-use WCP\Scanner\WordPress\PersistenceScanner;
-use WCP\Scanner\WordPress\UserRemediationManager;
-use WCP\Scanner\Remediation\RemediationManager;
-use WCP\Scanner\Filesystem\PathValidator;
-use WCP\Scanner\System\AuditLogger;
+use WcpScanner\WordPress\PersistenceScanner;
+use WcpScanner\WordPress\UserRemediationManager;
+use WcpScanner\Remediation\RemediationManager;
+use WcpScanner\Filesystem\PathValidator;
+use WcpScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -40,7 +40,7 @@ class AttackChainEngine {
         global $wpdb;
 
         // 1. Gather Open Scan Findings from Database
-        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
+        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
         $open_issues = [];
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -58,7 +58,7 @@ class AttackChainEngine {
         $persistence_audit = $persistence_scanner->audit_full();
 
         // 3. Gather Recent Firewall Exploit Probes from wp_wcp_firewall_logs (Past 14 Days)
-        $firewall_table = $wpdb->prefix . 'wcp_firewall_logs';
+        $firewall_table = $wpdb->prefix . 'wcpscan_firewall_logs';
         $firewall_probes = [];
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $firewall_table)) === $firewall_table) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -683,7 +683,7 @@ class AttackChainEngine {
 
         // 5. Block Attacker IPs in WAF
         if (!empty($plan['block_ips']) && is_array($plan['block_ips'])) {
-            $existing_blocked = get_option('wcp_firewall_blacklist_ips', '');
+            $existing_blocked = get_option('wcpscan_firewall_blacklist_ips', '');
             $blocked_lines = array_filter(array_map('trim', explode("\n", (string) $existing_blocked)));
             foreach ($plan['block_ips'] as $ip) {
                 if (filter_var($ip, FILTER_VALIDATE_IP) && !in_array($ip, $blocked_lines, true)) {
@@ -691,12 +691,12 @@ class AttackChainEngine {
                     $actions_taken[] = sprintf(__('Blocked threat IP in WAF: %s', 'wcp-security-scanner'), $ip);
                 }
             }
-            update_option('wcp_firewall_blacklist_ips', implode("\n", $blocked_lines));
+            update_option('wcpscan_firewall_blacklist_ips', implode("\n", $blocked_lines));
         }
 
         // 6. Auto-reconcile open scan issues associated with these quarantined files
         global $wpdb;
-        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
+        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
         if (!empty($plan['quarantine_files']) && $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
             foreach ($plan['quarantine_files'] as $fp) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

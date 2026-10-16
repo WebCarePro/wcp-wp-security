@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Notifications;
+namespace WcpScanner\Notifications;
 
-use WCP\Scanner\System\SettingsManager;
+use WcpScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -500,7 +500,7 @@ class WebhookService {
         }
 
         // Rate-limit WAF webhooks to at most 1 per 60 seconds to avoid spamming team channels during DDoS/floods
-        $rate_key = 'wcp_waf_webhook_rate_limit';
+        $rate_key = 'wcpscan_waf_webhook_rate_limit';
         if (get_transient($rate_key)) {
             return;
         }

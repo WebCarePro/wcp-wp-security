@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Database;
+namespace WcpScanner\Database;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -11,7 +11,7 @@ class DatabaseRemediationManager {
 
     public function __construct() {
         $uploads = wp_upload_dir();
-        $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
+        $base = untrailingslashit($uploads['basedir']);
         $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
         $this->ensure_backup_directory();
     }
@@ -166,12 +166,12 @@ class DatabaseRemediationManager {
 
         // 3. Mark scan issue as repaired if provided
         if ($issue_id) {
-            $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+            $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
 
         // Also resolve any open finding matching this exact table/row
-        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         $wpdb->query($wpdb->prepare(
             "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s) AND status = 'open'",
             "{$table}.%[ID: {$row_id}]%",
@@ -218,7 +218,7 @@ class DatabaseRemediationManager {
 
         // 3. Mark scan issue as repaired
         if ($issue_id) {
-            $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+            $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
 

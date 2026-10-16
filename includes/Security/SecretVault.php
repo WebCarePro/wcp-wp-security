@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Security;
+namespace WcpScanner\Security;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -124,7 +124,7 @@ class SecretVault {
         }
 
         // Dual-Key Fallback: if a rotation migration is active, attempt decrypt with transitional old key
-        if (class_exists('\\WCP\\Scanner\\Security\\VaultRotator')) {
+        if (class_exists('\\WcpScanner\\Security\\VaultRotator')) {
             $transitional_old_key = VaultRotator::get_transitional_old_key_if_active();
             if ($transitional_old_key !== false && $transitional_old_key !== $primary_key) {
                 $fallback = self::decrypt_with_key($value, $transitional_old_key);

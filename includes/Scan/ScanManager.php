@@ -1,10 +1,10 @@
 <?php
-namespace WCP\Scanner\Scan;
+namespace WcpScanner\Scan;
 
-use WCP\Scanner\Resource\ResourceMonitor;
-use WCP\Scanner\Filesystem\DirectoryWalker;
-use WCP\Scanner\Filesystem\FileScanner;
-use WCP\Scanner\Findings\FindingsRepository;
+use WcpScanner\Resource\ResourceMonitor;
+use WcpScanner\Filesystem\DirectoryWalker;
+use WcpScanner\Filesystem\FileScanner;
+use WcpScanner\Findings\FindingsRepository;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -141,11 +141,12 @@ class ScanManager {
     }
 
     private function phase_root(string $phase): string {
+        $uploads = wp_upload_dir();
         return match ($phase) {
-            'plugins'  => defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins',
-            'themes'   => function_exists('get_theme_root') ? get_theme_root() : ABSPATH . 'wp-content/themes',
-            'mu'       => defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : ABSPATH . 'wp-content/mu-plugins',
-            'uploads'  => function_exists('wp_upload_dir') ? (wp_upload_dir()['basedir'] ?? ABSPATH . 'wp-content/uploads') : ABSPATH . 'wp-content/uploads',
+            'plugins'  => WP_PLUGIN_DIR,
+            'themes'   => get_theme_root(),
+            'mu'       => WPMU_PLUGIN_DIR,
+            'uploads'  => untrailingslashit($uploads['basedir']),
             'core'     => ABSPATH,
             default    => ABSPATH,
         };

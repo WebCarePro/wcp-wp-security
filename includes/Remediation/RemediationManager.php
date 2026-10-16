@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Remediation;
+namespace WcpScanner\Remediation;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -12,7 +12,7 @@ class RemediationManager {
 
     public function __construct() {
         $uploads = wp_upload_dir();
-        $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
+        $base = untrailingslashit($uploads['basedir']);
         // Primary vault: Dot-prefixed protected directory blocked by Nginx /\.(?!well-known).* rules
         $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
         $this->legacy_backup_dir = $base . '/wcp-security-scanner/backups/remediation';
@@ -59,7 +59,7 @@ class RemediationManager {
         }
 
         // Must reside within WordPress installation root (strict directory boundary check)
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: File resides outside ABSPATH.'];
         }
         $normalized_real = wp_normalize_path($real_path);
@@ -151,7 +151,7 @@ class RemediationManager {
         }
 
         // Atomically write sanitized content, preventing symlink follower races
-        $bytes_written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $cleaned_content, ABSPATH);
+        $bytes_written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $cleaned_content, ABSPATH);
         if (!$bytes_written) {
             return ['success' => false, 'message' => 'Filesystem write permission denied. Could not update file.'];
         }
@@ -197,8 +197,8 @@ class RemediationManager {
         }
         $normalized_real = wp_normalize_path($real_path);
 
-        $raw_plugins_dir = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR : (WP_CONTENT_DIR . '/plugins');
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_plugins_dir)) {
+        $raw_plugins_dir = WP_PLUGIN_DIR;
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_plugins_dir)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress plugins directory.'];
         }
         $normalized_plugins = rtrim(wp_normalize_path(realpath($raw_plugins_dir) ?: $raw_plugins_dir), '/') . '/';
@@ -271,7 +271,7 @@ class RemediationManager {
         }
 
         // Atomically replace file with official source, preventing symlink follower races
-        $written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        $written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
         if (!$written) {
             return ['success' => false, 'message' => 'Could not write to file. Please check file permissions.'];
         }
@@ -312,8 +312,8 @@ class RemediationManager {
         }
         $normalized_real = wp_normalize_path($real_path);
 
-        $raw_theme_root = function_exists('get_theme_root') ? get_theme_root() : (WP_CONTENT_DIR . '/themes');
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_theme_root)) {
+        $raw_theme_root = get_theme_root();
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_theme_root)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress themes directory.'];
         }
         $theme_root = rtrim(wp_normalize_path(realpath($raw_theme_root) ?: $raw_theme_root), '/') . '/';
@@ -380,7 +380,7 @@ class RemediationManager {
         }
 
         // Atomically replace theme file with official source, preventing symlink follower races
-        $written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        $written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
         if (!$written) {
             return ['success' => false, 'message' => 'Could not write to theme file.'];
         }
@@ -422,7 +422,7 @@ class RemediationManager {
         $normalized_real = wp_normalize_path($real_path);
 
         // Security check: Must reside within ABSPATH
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
             return ['success' => false, 'message' => __('Action Blocked: File is outside the WordPress root directory.', 'wcp-security-scanner')];
         }
 
@@ -488,7 +488,7 @@ class RemediationManager {
         }
 
         // Atomically replace core file with pristine official source, preventing symlink follower races
-        $written = \WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        $written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
         if (!$written) {
             return ['success' => false, 'message' => __('Could not write to core file. Please check server filesystem permissions.', 'wcp-security-scanner')];
         }
@@ -530,7 +530,7 @@ class RemediationManager {
             return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
         }
 
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
             return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner')];
         }
 
@@ -596,14 +596,14 @@ class RemediationManager {
         }
 
         $guard = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
-        $encrypted = \WCP\Scanner\Security\SecretVault::encrypt($content);
+        $encrypted = \WcpScanner\Security\SecretVault::encrypt($content);
 
         if (@file_put_contents($dest_path, $guard . $encrypted, LOCK_EX) === false) {
             return ['success' => false];
         }
         @chmod($dest_path, 0600);
 
-        $backups = get_option('wcp_remediation_backups', []);
+        $backups = get_option('wcpscan_remediation_backups', []);
         if (!is_array($backups)) {
             $backups = [];
         }
@@ -626,7 +626,7 @@ class RemediationManager {
             }
         }
 
-        update_option('wcp_remediation_backups', $backups, false);
+        update_option('wcpscan_remediation_backups', $backups, false);
 
         return ['success' => true, 'backup_id' => $backup_id];
     }
@@ -635,7 +635,7 @@ class RemediationManager {
      * Rollback a remediation action using its backup ID
      */
     public function rollback_remediation($backup_id) {
-        $backups = get_option('wcp_remediation_backups', []);
+        $backups = get_option('wcpscan_remediation_backups', []);
         if (!isset($backups[$backup_id])) {
             return ['success' => false, 'message' => 'Backup record not found.'];
         }
@@ -667,8 +667,8 @@ class RemediationManager {
             $payload = ltrim(substr($raw, $pos + strlen($halt_marker)), "\r\n");
         }
 
-        if (\WCP\Scanner\Security\SecretVault::is_encrypted($payload)) {
-            $decrypted = \WCP\Scanner\Security\SecretVault::decrypt($payload);
+        if (\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
+            $decrypted = \WcpScanner\Security\SecretVault::decrypt($payload);
             if ($decrypted === false) {
                 return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted backup ciphertext.'];
             }
@@ -678,12 +678,12 @@ class RemediationManager {
         }
 
         // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH and is safe to write
-        if (!\WCP\Scanner\Filesystem\PathValidator::is_safe_write_target($original_path, ABSPATH)) {
+        if (!\WcpScanner\Filesystem\PathValidator::is_safe_write_target($original_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: Rollback destination resides outside WordPress root directory.'];
         }
 
         // Atomically restore backup to original path, preventing symlink follower races
-        if (!\WCP\Scanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
+        if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
             return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
         }
 
@@ -697,7 +697,7 @@ class RemediationManager {
      * Retrieve list of remediation backups
      */
     public function get_backups() {
-        $backups = get_option('wcp_remediation_backups', []);
+        $backups = get_option('wcpscan_remediation_backups', []);
         if (!is_array($backups)) {
             return [];
         }
@@ -712,7 +712,7 @@ class RemediationManager {
             return;
         }
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => (int) $issue_id]);
     }
@@ -725,7 +725,7 @@ class RemediationManager {
      */
     private function mark_file_issues_repaired($file_path, $issue_id = null) {
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
 
         if ($issue_id) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

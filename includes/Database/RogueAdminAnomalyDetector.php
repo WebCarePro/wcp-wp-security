@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Database;
+namespace WcpScanner\Database;
 
-use WCP\Scanner\Findings\Finding;
+use WcpScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -175,7 +175,7 @@ class RogueAdminAnomalyDetector {
 
         foreach ($admin_users as $admin) {
             $user_level = (int) get_user_meta($admin->ID, $wpdb->prefix . 'user_level', true);
-            $has_2fa    = \WCP\Scanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID);
+            $has_2fa    = \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID);
 
             $admin_list[] = [
                 'id'              => $admin->ID,

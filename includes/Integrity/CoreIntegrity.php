@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\Integrity;
+namespace WcpScanner\Integrity;
 
-use WCP\Scanner\Findings\Finding;
-use WCP\Scanner\Filesystem\FileHasher;
+use WcpScanner\Findings\Finding;
+use WcpScanner\Filesystem\FileHasher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -89,7 +89,7 @@ class CoreIntegrity {
         // 2. Reverse Reconciliation: Scan wp-admin and wp-includes for unknown/rogue files
         $core_dirs = [
             ABSPATH . 'wp-admin',
-            ABSPATH . 'wp-includes'
+            ABSPATH . (defined('WPINC') ? WPINC : 'wp-includes')
         ];
 
         $ignored_basenames = ['.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db'];

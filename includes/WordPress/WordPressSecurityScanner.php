@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\WordPress;
+namespace WcpScanner\WordPress;
 
-use WCP\Scanner\Findings\Finding;
-use WCP\Scanner\Resource\ResourceMonitor;
+use WcpScanner\Findings\Finding;
+use WcpScanner\Resource\ResourceMonitor;
 
 if (!defined('ABSPATH')) {
     exit;

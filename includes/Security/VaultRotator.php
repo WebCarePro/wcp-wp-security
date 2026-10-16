@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Security;
+namespace WcpScanner\Security;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -7,12 +7,12 @@ if (!defined('ABSPATH')) {
 
 class VaultRotator {
 
-    const STATE_OPTION         = 'wcp_vault_rotation_state';
-    const LOCK_TRANSIENT       = 'wcp_vault_rotation_lock';
-    const BACKUP_PREFIX        = 'wcp_vault_backup_';
-    const OLD_KEY_BLOB         = 'wcp_vault_old_key_blob';
-    const EPHEMERAL_KEY_PREFIX = 'wcp_vault_ephem_';
-    const NEW_KEY_BLOB         = 'wcp_vault_new_key_blob';
+    const STATE_OPTION         = 'wcpscan_vault_rotation_state';
+    const LOCK_TRANSIENT       = 'wcpscan_vault_rotation_lock';
+    const BACKUP_PREFIX        = 'wcpscan_vault_backup_';
+    const OLD_KEY_BLOB         = 'wcpscan_vault_old_key_blob';
+    const EPHEMERAL_KEY_PREFIX = 'wcpscan_vault_ephem_';
+    const NEW_KEY_BLOB         = 'wcpscan_vault_new_key_blob';
     const MAX_LOCK_TIME        = 600; // 10 minutes
     const DEFAULT_BATCH_SIZE   = 10;
 
@@ -110,7 +110,7 @@ class VaultRotator {
         $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
 
         // Fetch encrypted settings keys from wcp_scanner_settings
-        $settings = get_option(\WCP\Scanner\System\SettingsManager::OPTION_KEY, []);
+        $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
         $secret_fields = [
             'gemini_api_key', 'openai_api_key', 'claude_api_key',
             'cloudflare_api_token', 'cloudflare_zone_id',
@@ -152,7 +152,7 @@ class VaultRotator {
         }
 
         if ($modified_settings) {
-            update_option(\WCP\Scanner\System\SettingsManager::OPTION_KEY, $settings, false);
+            update_option(\WcpScanner\System\SettingsManager::OPTION_KEY, $settings, false);
         }
 
         // If all records migrated and no failures, move to verifying
@@ -193,7 +193,7 @@ class VaultRotator {
 
         $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
 
-        $settings = get_option(\WCP\Scanner\System\SettingsManager::OPTION_KEY, []);
+        $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
         $secret_fields = [
             'gemini_api_key', 'openai_api_key', 'claude_api_key',
             'cloudflare_api_token', 'cloudflare_zone_id',
@@ -409,7 +409,7 @@ class VaultRotator {
      * Create isolated single-row serialized backup of all encrypted settings.
      */
     private static function create_backup(string $backup_id): array|\WP_Error {
-        $settings = get_option(\WCP\Scanner\System\SettingsManager::OPTION_KEY, []);
+        $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
         $backup_data = [];
         $count = 0;
 
@@ -441,7 +441,7 @@ class VaultRotator {
             return new \WP_Error('invalid_backup', 'Backup record is missing or corrupted.');
         }
 
-        $settings = get_option(\WCP\Scanner\System\SettingsManager::OPTION_KEY, []);
+        $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
         $restored = 0;
 
         foreach ($backup['records'] as $k => $v) {
@@ -449,7 +449,7 @@ class VaultRotator {
             $restored++;
         }
 
-        update_option(\WCP\Scanner\System\SettingsManager::OPTION_KEY, $settings, false);
+        update_option(\WcpScanner\System\SettingsManager::OPTION_KEY, $settings, false);
         return $restored;
     }
 }

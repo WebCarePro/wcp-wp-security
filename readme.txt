@@ -5,7 +5,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 1.16.0
+Stable tag: 1.17.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,17 +169,33 @@ WebCare Pro helps businesses build, secure, optimize, and manage high-performanc
 
 == External Services ==
 
-This plugin connects to external services to provide file integrity verification and optional AI-assisted code forensic analysis:
+This plugin connects to external services to provide file integrity verification, threat intelligence, and optional AI-assisted code forensics:
 
-1. WordPress.org API
-* Service: Official WordPress.org API (https://api.wordpress.org and https://downloads.wordpress.org).
-* Purpose: Verifies core WordPress file checksums and installed plugin checksums to detect modified, backdoored, or tampered files.
-* Data Sent: WordPress version, locale, and public plugin slugs/versions being audited. No private user data, code, or personal information is transmitted.
-* When: Triggered when the user initiates a Core Integrity or Plugin Integrity scan, or during an automated scheduled scan.
+1. WordPress.org Services & Repositories
+* Service: Official WordPress.org APIs and Subversion Release Mirrors (https://api.wordpress.org, https://downloads.wordpress.org, https://core.svn.wordpress.org, https://plugins.svn.wordpress.org, and https://themes.svn.wordpress.org).
+* Purpose: Verifies core and plugin checksums to detect modified, backdoored, or tampered files; retrieves pristine official release source code for the In-Page Visual Code Diff Viewer and 1-Click Auto-Cure restoration.
+* Data Sent: WordPress version, locale, and public plugin/theme slugs being audited. No private user data, site code, database contents, or personal information is transmitted.
+* When: Triggered when the user initiates a Core/Plugin/Theme Integrity scan, views a visual code diff against official source, or triggers a 1-click Auto-Cure restoration, or during automated scheduled scans.
 * Terms of Service: https://wordpress.org/about/terms/
 * Privacy Policy: https://wordpress.org/about/privacy/
 
-2. Google Gemini API (Google AI)
+2. GitHub Raw Content (Official WordPress Mirror & Stamparm Threat Feed)
+* Service: GitHub, Inc. (https://raw.githubusercontent.com/WordPress/WordPress and https://raw.githubusercontent.com/stamparm/ipsum).
+* Purpose: Provides redundant fallback mirrors of official pristine WordPress core and default theme source files for visual diffing and auto-cure restoration, and downloads the Stamparm open-source IP reputation threat intelligence feed.
+* Data Sent: None. No user data, passwords, site details, or database content is transmitted. Downloads are performed via standard unauthenticated HTTP GET requests.
+* When: When viewing code diffs or running auto-cure for core/theme files (if SVN mirrors are unreachable), and bi-daily (every 12 hours) during Threat Intelligence feed synchronization.
+* Terms of Service: https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
+* Privacy Policy: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement
+
+3. Blocklist.de Threat Intelligence
+* Service: Blocklist.de (https://lists.blocklist.de/lists/ssh.txt).
+* Purpose: Downloads aggregated public lists of known malicious botnets, brute-force attackers, and scanner IP addresses for perimeter firewall blocking.
+* Data Sent: None. Downloads plain-text IP lists via standard HTTP GET.
+* When: Synchronized bi-daily (every 12 hours) via WP-Cron or when the administrator clicks "Sync Threat Intel Now".
+* Terms of Service: https://www.blocklist.de/en/tos.html
+* Privacy Policy: https://www.blocklist.de/en/privacy.html
+
+4. Google Gemini API (Google AI) (Optional)
 * Service: Google Generative AI API (https://generativelanguage.googleapis.com).
 * Purpose: Provides optional AI-assisted forensic code analysis and de-obfuscation for detected suspicious code snippets.
 * Data Sent: Only the specific flagged code snippet, relative file path, and detected threat signature when explicitly requested by the administrator via the "Analyze with AI" modal.
@@ -187,7 +203,7 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://ai.google.dev/terms
 * Privacy Policy: https://policies.google.com/privacy
 
-3. OpenAI API
+5. OpenAI API (Optional)
 * Service: OpenAI API (https://api.openai.com).
 * Purpose: Provides optional AI-assisted forensic code analysis and de-obfuscation for detected suspicious code snippets.
 * Data Sent: Only the specific flagged code snippet, relative file path, and detected threat signature when explicitly requested by the administrator via the "Analyze with AI" modal.
@@ -195,7 +211,7 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://openai.com/policies/terms-of-use/
 * Privacy Policy: https://openai.com/policies/privacy-policy/
 
-4. Anthropic Claude API
+6. Anthropic Claude API (Optional)
 * Service: Anthropic API (https://api.anthropic.com).
 * Purpose: Provides optional AI-assisted forensic code analysis and de-obfuscation for detected suspicious code snippets.
 * Data Sent: Only the specific flagged code snippet, relative file path, and detected threat signature when explicitly requested by the administrator via the "Analyze with AI" modal.
@@ -203,15 +219,10 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://www.anthropic.com/legal/consumer-terms
 * Privacy Policy: https://www.anthropic.com/legal/privacy
 
-5. Community Botnet & Threat Intelligence Feeds
-* Service: Blocklist.de (https://lists.blocklist.de) and Stamparm Ipsum (https://raw.githubusercontent.com/stamparm/ipsum).
-* Purpose: Downloads publicly aggregated lists of known malicious botnet and brute-force IP addresses for firewall perimeter protection.
-* Data Sent: No user, site, or visitor data is transmitted. Only public plain-text threat lists are downloaded via standard HTTP GET.
-* When: Synchronized bi-daily (every 12 hours) via WP-Cron or when the administrator clicks "Sync Threat Intel Now".
-* Terms of Service: https://www.blocklist.de/en/tos.html
-* Privacy Policy: https://www.blocklist.de/en/privacy.html
+7. Two-Factor Authentication (2FA) Notice
+* Note on QR Codes: All TOTP QR codes for Two-Factor Authentication are rendered 100% locally on-premise in pure PHP using SVG vector rendering (QRCodeGenerator). The plugin makes ZERO requests to external QR web APIs or third-party generators (such as api.qrserver.com). TOTP keys and secrets remain strictly confidential on your server.
 
-6. Slack Webhook API (Optional)
+8. Slack Webhook API (Optional)
 * Service: Slack Technologies (https://hooks.slack.com).
 * Purpose: Sends optional security incident notifications (critical malware discoveries, WAF blocks) to the administrator's designated Slack channel.
 * Data Sent: Alert notification message, site name, threat severity, and incident timestamp.
@@ -219,7 +230,7 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://slack.com/terms-of-service
 * Privacy Policy: https://slack.com/privacy-policy
 
-7. Discord Webhook API (Optional)
+9. Discord Webhook API (Optional)
 * Service: Discord Inc. (https://discord.com/api/webhooks).
 * Purpose: Sends optional security incident notifications to the administrator's designated Discord channel.
 * Data Sent: Alert notification embed card, site name, threat severity, and incident timestamp.
@@ -227,7 +238,7 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://discord.com/terms
 * Privacy Policy: https://discord.com/privacy
 
-8. ClickUp Automation API (Optional)
+10. ClickUp Automation API (Optional)
 * Service: ClickUp (https://clickup.com).
 * Purpose: Creates automated DevSecOps tasks or notifies ClickUp lists on critical security threats.
 * Data Sent: Task name, description with site name, risk score, findings count, and incident timestamp.
@@ -235,7 +246,7 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://clickup.com/terms
 * Privacy Policy: https://clickup.com/privacy
 
-9. Asana API & Automations (Optional)
+11. Asana API & Automations (Optional)
 * Service: Asana Inc. (https://asana.com).
 * Purpose: Creates automated project management tasks on security findings.
 * Data Sent: Task title, forensic notes, site name, risk score, and incident timestamp.
@@ -243,7 +254,7 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: https://asana.com/terms
 * Privacy Policy: https://asana.com/privacy
 
-10. Generic Automation Webhooks (Zapier, Make.com, n8n) (Optional)
+12. Generic Automation Webhooks (Zapier, Make.com, n8n) (Optional)
 * Service: User-specified automation endpoints (Zapier, Make.com, n8n, or custom SIEM webhook receivers).
 * Purpose: Dispatches structured JSON event payloads to trigger custom enterprise DevSecOps automation workflows.
 * Data Sent: JSON event payload with event type, site name, site URL, risk score, issue count, and timestamp.
@@ -251,14 +262,13 @@ This plugin connects to external services to provide file integrity verification
 * Terms of Service: Governed by the user's selected endpoint service provider.
 * Privacy Policy: Governed by the user's selected endpoint service provider.
 
-11. Cloudflare API v4 (Optional)
+13. Cloudflare API v4 (Optional)
 * Service: Cloudflare Inc. (https://api.cloudflare.com/client/v4).
 * Purpose: Deploys edge WAF rules, wp-login rate limiting, and IP access block rules to Cloudflare CDN, and purges edge cache.
 * Data Sent: Zone ID, WAF ruleset configurations, and blocked malicious IP addresses when explicitly initiated or configured for auto-sync.
 * When: Only when the administrator enters their Cloudflare API Token and Zone ID in the Cloudflare Edge Defense tab and deploys rules, purges cache, or blocks an IP.
 * Terms of Service: https://www.cloudflare.com/terms/
 * Privacy Policy: https://www.cloudflare.com/privacypolicy/
-
 == Source Code & Build ==
 
 This plugin is open-source under GPLv2 or later. Non-minified React and JavaScript source files are included directly in the `src/` directory.
@@ -272,6 +282,16 @@ To compile the React admin application from source:
 3. Run `npm run build` to generate the production bundle in `build/index.js`.
 
 == Changelog ==
+
+= 1.17.0 =
+* Resolved WordPress.org Plugin Review feedback for security, coding standards, and namespace compliance.
+* Upgraded plugin prefix and namespaces to `WcpScanner\` (namespaces), `WCPSCAN_*` (constants), and `wcpscan_*` (database tables, options, transients, and cron hooks) meeting the 4+ character uniqueness guideline.
+* Replaced third-party QR code API dependency with built-in, 100% on-premise pure-PHP SVG QR Code generator (`QRCodeGenerator`) for Two-Factor Authentication (TOTP), keeping user secrets completely local.
+* Enqueued administrative brand styling via `admin_enqueue_scripts` with `wp_register_style`, `wp_enqueue_style`, and `wp_add_inline_style`, removing direct `<style>` tag echoes.
+* Replaced custom inline CSS block rendering in WAF Lite with WordPress core `wp_die()`.
+* Enhanced input sanitization, escaping, and validation across all `$_SERVER`, `$_GET`, `$_POST`, and `$_COOKIE` variables in Firewall and Session Sentinel engines.
+* Standardized directory location references across backup, remediation, quarantine, and scanning engines using canonical `wp_upload_dir()['basedir']`, `WP_PLUGIN_DIR`, `WPMU_PLUGIN_DIR`, `get_theme_root()`, and `ABSPATH . WPINC`.
+* Expanded `== External Services ==` disclosures covering WordPress.org SVN release mirrors, GitHub raw content, Stamparm, and Blocklist.de feeds.
 
 = 1.13.0 =
 * Implemented Two-Phase Commit Vault Key Rotation Orchestrator (VaultRotator) with zero-downtime dual-key background decrypt fallback, ephemeral sodium-sealed key envelopes, and 1-click atomic rollback.

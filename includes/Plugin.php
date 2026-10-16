@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner;
+namespace WcpScanner;
 
-use WCP\Scanner\Admin\AdminMenu;
-use WCP\Scanner\Api\ScannerRoutes;
+use WcpScanner\Admin\AdminMenu;
+use WcpScanner\Api\ScannerRoutes;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,21 +23,21 @@ class Plugin {
     }
 
     private function init() {
-        if (get_option('wcp_scanner_db_version') !== '1.5.2') {
-            \WCP\Scanner\Database\Migration::install();
+        if (get_option('wcpscan_db_version') !== '1.6.0') {
+            \WcpScanner\Database\Migration::install();
         }
 
         AdminMenu::register();
-        \WCP\Scanner\System\Scheduler::register();
+        \WcpScanner\System\Scheduler::register();
         
-        $audit_logger = new \WCP\Scanner\System\AuditLogger();
+        $audit_logger = new \WcpScanner\System\AuditLogger();
         $audit_logger->init();
 
-        \WCP\Scanner\Firewall\FirewallEngine::init();
-        \WCP\Scanner\Hardening\SecurityHeadersEngine::init();
-        \WCP\Scanner\Auth\TwoFactorAuth::init();
-        \WCP\Scanner\Auth\LoginHardening::init();
-        \WCP\Scanner\Auth\SessionSentinel::init();
+        \WcpScanner\Firewall\FirewallEngine::init();
+        \WcpScanner\Hardening\SecurityHeadersEngine::init();
+        \WcpScanner\Auth\TwoFactorAuth::init();
+        \WcpScanner\Auth\LoginHardening::init();
+        \WcpScanner\Auth\SessionSentinel::init();
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

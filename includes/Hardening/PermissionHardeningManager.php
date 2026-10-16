@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Hardening;
+namespace WcpScanner\Hardening;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -493,14 +493,14 @@ class PermissionHardeningManager {
         $reconciled_issues_count = self::reconcile_scan_issues($fixed_paths);
 
         // 3. Record in Audit Log
-        if (class_exists('\\WCP\\Scanner\\System\\AuditLogger')) {
+        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
             $log_message = sprintf(
                 '1-Click Filesystem Permission Hardening: Restored %d directories to 0755, %d files to 0644. %d unfixable items encountered.',
                 $dirs_fixed,
                 $files_fixed,
                 count($unfixable_items)
             );
-            \WCP\Scanner\System\AuditLogger::log_event('PERMISSION_HARDENING', $log_message);
+            \WcpScanner\System\AuditLogger::log_event('PERMISSION_HARDENING', $log_message);
         }
 
         $cli_commands = self::generate_cli_commands($root, $server_info['user'], $server_info['group']);
@@ -562,7 +562,7 @@ class PermissionHardeningManager {
         if (empty($wpdb) || !isset($wpdb->prefix)) {
             return 0;
         }
-        $table = $wpdb->prefix . 'wcp_scan_issues';
+        $table = $wpdb->prefix . 'wcpscan_scan_issues';
         if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
             return 0;
         }

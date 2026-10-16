@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Firewall;
+namespace WcpScanner\Firewall;
 
-use WCP\Scanner\System\SettingsManager;
+use WcpScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -58,7 +58,7 @@ class FirewallEngine {
 
         // Priority 1: Cloudflare CF-Connecting-IP (if connecting via Cloudflare proxy)
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-            $cf_ip = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
+            $cf_ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
             if (filter_var($cf_ip, FILTER_VALIDATE_IP)) {
                 $resolved_ip = $cf_ip;
             }
@@ -70,7 +70,8 @@ class FirewallEngine {
         // we traverse from right to left, skipping intermediate trusted proxies until finding
         // the first non-trusted peer (the authentic client IP).
         if (empty($resolved_ip) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $parts = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            $raw_xff = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']));
+            $parts = array_map('sanitize_text_field', array_map('trim', explode(',', $raw_xff)));
             $reversed = array_reverse($parts);
             foreach ($reversed as $candidate) {
                 if (filter_var($candidate, FILTER_VALIDATE_IP)) {
@@ -112,7 +113,7 @@ class FirewallEngine {
         }
 
         // 1. Check Cloudflare edge network proxy ranges
-        if (class_exists('\\WCP\\Scanner\\Cloudflare\\CloudflareService') && \WCP\Scanner\Cloudflare\CloudflareService::is_cloudflare_ip($ip)) {
+        if (class_exists('\\WcpScanner\\Cloudflare\\CloudflareService') && \WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($ip)) {
             return true;
         }
 
@@ -252,7 +253,7 @@ class FirewallEngine {
         }
 
         // Check Bot Recon Defense & AI Scraper Shield
-        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
         if ($bot_rule !== null) {
             $mode = $settings['waf_mode'] ?? 'enabled';
@@ -266,7 +267,7 @@ class FirewallEngine {
         }
 
         // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
-        $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
         $vpatch_rule = VirtualPatchManager::evaluate_request($client_ip, $request_uri);
         if ($vpatch_rule !== null) {
             $mode = $settings['waf_mode'] ?? 'enabled';
@@ -305,23 +306,25 @@ class FirewallEngine {
      * Evaluate protection rules across GET, POST, and URI
      */
     private static function evaluate_rules(array $settings, bool $is_complementary): ?array {
-        $uri          = $_SERVER['REQUEST_URI'] ?? '';
-        $query_string = $_SERVER['QUERY_STRING'] ?? '';
-        $user_agent   = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $uri          = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $query_string = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
+        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
 
         // Combine request parameters for deep inspection
         $params_to_check = [];
 
         if (!empty($_GET) && is_array($_GET)) {
-            $params_to_check[] = urldecode(http_build_query($_GET));
+            $clean_get = map_deep(wp_unslash($_GET), 'sanitize_text_field');
+            $params_to_check[] = urldecode(http_build_query($clean_get));
         }
         if (!empty($_POST) && is_array($_POST)) {
-            $params_to_check[] = urldecode(http_build_query($_POST));
+            $clean_post = map_deep(wp_unslash($_POST), 'sanitize_text_field');
+            $params_to_check[] = urldecode(http_build_query($clean_post));
         }
 
         $raw_input = @file_get_contents('php://input');
         if (!empty($raw_input) && strlen($raw_input) < 131072) { // Inspect up to 128KB payload
-            $params_to_check[] = $raw_input;
+            $params_to_check[] = sanitize_text_field(wp_unslash($raw_input));
         }
 
         $combined_payload = implode(' ', $params_to_check);
@@ -532,12 +535,17 @@ class FirewallEngine {
      */
     private static function log_incident(array $rule, string $action) {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_firewall_logs';
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
         $ip = self::get_client_ip();
-        $uri = substr($_SERVER['REQUEST_URI'] ?? '/', 0, 500);
-        $method = substr($_SERVER['REQUEST_METHOD'] ?? 'GET', 0, 10);
-        $user_agent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 300);
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+        $uri = substr($raw_uri, 0, 500);
+
+        $raw_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+        $method = substr($raw_method, 0, 10);
+
+        $raw_ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+        $user_agent = substr($raw_ua, 0, 300);
 
         // Deduplication safeguard: don't log the same IP/rule more than once per minute
         $recent = $wpdb->get_var($wpdb->prepare(
@@ -553,22 +561,22 @@ class FirewallEngine {
         $wpdb->insert(
             $table,
             [
-                'ip_address'       => $ip,
-                'request_uri'      => $uri,
-                'request_method'   => $method,
-                'rule_category'    => $rule['category'],
-                'rule_description' => $rule['description'],
-                'payload_sample'   => substr($rule['payload'] ?? '', 0, 255),
-                'user_agent'       => $user_agent,
-                'action_taken'     => $action,
+                'ip_address'       => sanitize_text_field($ip),
+                'request_uri'      => sanitize_text_field($uri),
+                'request_method'   => sanitize_key($method),
+                'rule_category'    => sanitize_key($rule['category']),
+                'rule_description' => sanitize_text_field($rule['description']),
+                'payload_sample'   => sanitize_text_field(substr($rule['payload'] ?? '', 0, 255)),
+                'user_agent'       => sanitize_text_field($user_agent),
+                'action_taken'     => sanitize_key($action),
                 'created_at'       => current_time('mysql'),
             ],
             ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         // Dispatch DevSecOps Webhook on blocked attack
-        if ($action === 'blocked' && class_exists('\\WCP\\Scanner\\Notifications\\WebhookService')) {
-            \WCP\Scanner\Notifications\WebhookService::send_waf_alert([
+        if ($action === 'blocked' && class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
+            \WcpScanner\Notifications\WebhookService::send_waf_alert([
                 'category'   => $rule['category'],
                 'name'       => $rule['name'] ?? $rule['category'],
                 'ip_address' => $ip,
@@ -578,11 +586,11 @@ class FirewallEngine {
         // Auto-sync banned IP to Cloudflare Edge Access Rules if enabled
         if ($action === 'blocked') {
             $settings = SettingsManager::get_settings();
-            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WCP\\Scanner\\Cloudflare\\CloudflareService')) {
+            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
                 // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
                 $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
                 if (in_array($rule['category'], $critical_categories, true)) {
-                    \WCP\Scanner\Cloudflare\CloudflareService::block_ip(
+                    \WcpScanner\Cloudflare\CloudflareService::block_ip(
                         $ip,
                         "WCP WAF Auto-Ban: {$rule['category']} probe"
                     );
@@ -592,135 +600,46 @@ class FirewallEngine {
     }
 
     /**
-     * Render branded 403 Forbidden Error Screen
+     * Render branded 403 Forbidden Error Screen via standard wp_die()
      */
     private static function render_block_page(array $rule, string $client_ip) {
-        status_header(403);
-        header('Content-Type: text/html; charset=utf-8');
-        header('X-Robots-Tag: noindex, nofollow', true);
-
         $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . time()), 0, 8));
-        $site_name = get_bloginfo('name');
+        $site_name   = get_bloginfo('name');
+        $rule_cat    = esc_html($rule['category'] ?? 'Security Shield');
 
-        ?>
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>403 Forbidden - Security Shield Block</title>
-            <style>
-                body {
-                    margin: 0;
-                    padding: 40px 20px;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                    background: #090d16;
-                    color: #f1f5f9;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 80vh;
-                }
-                .wcp-waf-box {
-                    max-width: 580px;
-                    background: #111827;
-                    border: 1px solid #dc2626;
-                    border-radius: 14px;
-                    padding: 36px;
-                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(220, 38, 38, 0.05);
-                }
-                .wcp-badge {
-                    display: inline-block;
-                    background: #fee2e2;
-                    color: #991b1b;
-                    font-size: 12px;
-                    font-weight: 700;
-                    padding: 4px 10px;
-                    border-radius: 20px;
-                    margin-bottom: 16px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                h1 {
-                    font-size: 22px;
-                    color: #fff;
-                    margin: 0 0 12px 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-                p {
-                    font-size: 14px;
-                    line-height: 1.6;
-                    color: #94a3b8;
-                    margin: 0 0 20px 0;
-                }
-                .wcp-meta-grid {
-                    background: #1e293b;
-                    border-radius: 8px;
-                    padding: 16px;
-                    font-size: 13px;
-                    color: #cbd5e1;
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 12px;
-                    margin-bottom: 24px;
-                }
-                .wcp-meta-grid strong {
-                    color: #e2e8f0;
-                    display: block;
-                    font-size: 11px;
-                    text-transform: uppercase;
-                    margin-bottom: 2px;
-                    color: #64748b;
-                }
-                .wcp-footer {
-                    font-size: 12px;
-                    color: #64748b;
-                    border-top: 1px solid #1f2937;
-                    padding-top: 16px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="wcp-waf-box">
-                <span class="wcp-badge">Web Application Firewall</span>
-                <h1>Access Denied by Security Shield</h1>
-                <p>
-                    Your request was blocked because it triggered an automated threat defense rule on <strong><?php echo esc_html($site_name); ?></strong>.
-                    If you believe this is a false positive, please contact the site administrator and provide the Incident ID below.
-                </p>
+        $message = sprintf(
+            '<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 580px; margin: 0 auto; line-height: 1.6;">' .
+            '<h2 style="color: #dc2626; margin-top: 0;">%s</h2>' .
+            '<p>%s</p>' .
+            '<div style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 13px;">' .
+            '<p style="margin: 4px 0;"><strong>%s:</strong> <code>%s</code></p>' .
+            '<p style="margin: 4px 0;"><strong>%s:</strong> <code>%s</code></p>' .
+            '<p style="margin: 4px 0;"><strong>%s:</strong> <span>%s</span></p>' .
+            '<p style="margin: 4px 0;"><strong>%s:</strong> <span>%s</span></p>' .
+            '</div>' .
+            '<p style="font-size: 13px; color: #64748b;">%s</p>' .
+            '</div>',
+            esc_html__('Access Denied by Security Shield', 'wcp-security-scanner'),
+            sprintf(
+                esc_html__('Your request was blocked because it triggered an automated threat defense rule on %s.', 'wcp-security-scanner'),
+                '<strong>' . esc_html($site_name) . '</strong>'
+            ),
+            esc_html__('Incident ID', 'wcp-security-scanner'),
+            esc_html($incident_id),
+            esc_html__('Client IP', 'wcp-security-scanner'),
+            esc_html($client_ip),
+            esc_html__('Violation Type', 'wcp-security-scanner'),
+            $rule_cat,
+            esc_html__('Timestamp', 'wcp-security-scanner'),
+            esc_html(gmdate('Y-m-d H:i:s \U\T\C')),
+            esc_html__('If you believe this is a false positive, please contact the site administrator and provide the Incident ID above.', 'wcp-security-scanner')
+        );
 
-                <div class="wcp-meta-grid">
-                    <div>
-                        <strong>Incident ID</strong>
-                        <code><?php echo esc_html($incident_id); ?></code>
-                    </div>
-                    <div>
-                        <strong>Client IP</strong>
-                        <code><?php echo esc_html($client_ip); ?></code>
-                    </div>
-                    <div>
-                        <strong>Triggered Vector</strong>
-                        <span><?php echo esc_html($rule['category']); ?></span>
-                    </div>
-                    <div>
-                        <strong>Timestamp</strong>
-                        <span><?php echo esc_html(gmdate('Y-m-d H:i:s \U\T\C')); ?></span>
-                    </div>
-                </div>
-
-                <div class="wcp-footer">
-                    <span>Protected by WCP Security Scanner</span>
-                    <span>WAF Lite Engine</span>
-                </div>
-            </div>
-        </body>
-        </html>
-        <?php
+        wp_die($message, esc_html__('403 Forbidden - Security Shield Block', 'wcp-security-scanner'), [
+            'response'  => 403,
+            'code'      => 'wcpscan_access_denied',
+            'back_link' => false,
+        ]);
     }
 
     /**
@@ -728,7 +647,7 @@ class FirewallEngine {
      */
     public static function get_status(): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_firewall_logs';
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
         $settings = SettingsManager::get_settings();
         $env = self::detect_environment();
@@ -769,8 +688,8 @@ class FirewallEngine {
             'top_rules'          => $top_rules,
             'client_ip'          => self::get_client_ip(),
             'threat_intel'       => ThreatIntelService::get_status(),
-            'edge_advisor'       => class_exists('\\WCP\\Scanner\\Cloudflare\\CloudflareService')
-                ? \WCP\Scanner\Cloudflare\CloudflareService::get_edge_advisor()
+            'edge_advisor'       => class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')
+                ? \WcpScanner\Cloudflare\CloudflareService::get_edge_advisor()
                 : null,
         ];
     }
@@ -780,7 +699,7 @@ class FirewallEngine {
      */
     public static function get_logs(int $limit = 50): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_firewall_logs';
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if (!$table_exists) {
@@ -799,7 +718,7 @@ class FirewallEngine {
      */
     public static function clear_logs(): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_firewall_logs';
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
         return (bool) $wpdb->query("TRUNCATE TABLE `{$table}`");
     }
 }

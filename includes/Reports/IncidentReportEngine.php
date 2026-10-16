@@ -1,11 +1,11 @@
 <?php
-namespace WCP\Scanner\Reports;
+namespace WcpScanner\Reports;
 
-use WCP\Scanner\Findings\RiskScorer;
-use WCP\Scanner\System\ServerInfo;
-use WCP\Scanner\Forensics\AttackChainEngine;
-use WCP\Scanner\WordPress\PersistenceScanner;
-use WCP\Scanner\Firewall\VirtualPatchManager;
+use WcpScanner\Findings\RiskScorer;
+use WcpScanner\System\ServerInfo;
+use WcpScanner\Forensics\AttackChainEngine;
+use WcpScanner\WordPress\PersistenceScanner;
+use WcpScanner\Firewall\VirtualPatchManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -31,8 +31,8 @@ class IncidentReportEngine {
     public static function generate_report(array $options = []): array {
         global $wpdb;
 
-        $table_scans  = $wpdb->prefix . 'wcp_scans';
-        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        $table_scans  = $wpdb->prefix . 'wcpscan_scans';
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
 
         // 1. Fetch Latest Scan
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

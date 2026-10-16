@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Findings;
+namespace WcpScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,7 +16,7 @@ class FindingRepository {
      */
     public function save_findings($scan_id, $findings) {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_scan_issues';
+        $table = $wpdb->prefix . 'wcpscan_scan_issues';
         $saved = 0;
 
         $correlation_engine = new CorrelationEngine();
@@ -53,7 +53,7 @@ class FindingRepository {
      */
     public function get_scan_findings($scan_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_scan_issues';
+        $table = $wpdb->prefix . 'wcpscan_scan_issues';
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $results = $wpdb->get_results($wpdb->prepare(

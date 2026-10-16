@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Integrity;
+namespace WcpScanner\Integrity;
 
-use WCP\Scanner\Findings\Finding;
+use WcpScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -28,7 +28,7 @@ class ThemeIntegrity {
         $findings = [];
         
         if (!function_exists('wp_get_themes')) {
-            require_once ABSPATH . 'wp-includes/theme.php';
+            require_once ABSPATH . WPINC . '/theme.php';
         }
 
         $themes = wp_get_themes();

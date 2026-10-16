@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\Auth;
+namespace WcpScanner\Auth;
 
-use WCP\Scanner\System\SettingsManager;
-use WCP\Scanner\Firewall\FirewallEngine;
+use WcpScanner\System\SettingsManager;
+use WcpScanner\Firewall\FirewallEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,8 +16,8 @@ if (!defined('ABSPATH')) {
  */
 class LoginHardening {
 
-    const OPTION_LOCKOUTS   = 'wcp_login_lockouts';
-    const TRANSIENT_FAIL_PREFIX = 'wcp_lgn_fail_';
+    const OPTION_LOCKOUTS   = 'wcpscan_login_lockouts';
+    const TRANSIENT_FAIL_PREFIX = 'wcpscan_lgn_fail_';
 
     /**
      * Initialize login hardening hooks
@@ -119,8 +119,8 @@ class LoginHardening {
             delete_transient($fail_key);
 
             // Trigger audit log if available
-            if (class_exists('\\WCP\\Scanner\\System\\AuditLogger')) {
-                \WCP\Scanner\System\AuditLogger::log(
+            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+                \WcpScanner\System\AuditLogger::log(
                     'login_lockout',
                     sprintf(__('IP %s temporarily locked out after %d failed login attempts for user "%s".', 'wcp-security-scanner'), $ip, $attempts, $username)
                 );

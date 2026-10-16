@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Findings;
+namespace WcpScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;

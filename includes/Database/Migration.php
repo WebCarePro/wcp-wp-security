@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Database;
+namespace WcpScanner\Database;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -10,10 +10,10 @@ class Migration {
         global $wpdb;
 
         $charset_collate = $wpdb->get_charset_collate();
-        $scans_table = $wpdb->prefix . 'wcp_scans';
-        $issues_table = $wpdb->prefix . 'wcp_scan_issues';
-        $files_log_table = $wpdb->prefix . 'wcp_scan_files';
-        $quarantine_table = $wpdb->prefix . 'wcp_quarantine';
+        $scans_table = $wpdb->prefix . 'wcpscan_scans';
+        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $files_log_table = $wpdb->prefix . 'wcpscan_scan_files';
+        $quarantine_table = $wpdb->prefix . 'wcpscan_quarantine';
 
         // 1. Scans Table
         $sql1 = "CREATE TABLE $scans_table (
@@ -86,7 +86,7 @@ class Migration {
         ) $charset_collate;";
 
         // 5. Firewall Blocked Requests Table
-        $firewall_logs_table = $wpdb->prefix . 'wcp_firewall_logs';
+        $firewall_logs_table = $wpdb->prefix . 'wcpscan_firewall_logs';
         $sql5 = "CREATE TABLE $firewall_logs_table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             ip_address varchar(100) NOT NULL,
@@ -147,6 +147,25 @@ class Migration {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
         @$wpdb->query("ALTER TABLE `{$scans_table}` MODIFY COLUMN completed_at datetime(3) NULL");
 
-        update_option('wcp_scanner_db_version', '1.5.2');
+        // Seamless table rename from legacy wp_wcp_ prefix to wp_wcpscan_ prefix
+        $legacy_map = [
+            $wpdb->prefix . 'wcp_scans'         => $scans_table,
+            $wpdb->prefix . 'wcp_scan_issues'   => $issues_table,
+            $wpdb->prefix . 'wcp_scan_files'    => $files_log_table,
+            $wpdb->prefix . 'wcp_quarantine'    => $quarantine_table,
+            $wpdb->prefix . 'wcp_firewall_logs' => $firewall_logs_table,
+        ];
+        foreach ($legacy_map as $old_table => $new_table) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $old_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $old_table));
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $new_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $new_table));
+            if ($old_exists && !$new_exists) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+                $wpdb->query("ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`");
+            }
+        }
+
+        update_option('wcpscan_db_version', '1.6.0');
     }
 }

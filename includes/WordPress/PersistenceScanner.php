@@ -1,10 +1,10 @@
 <?php
-namespace WCP\Scanner\WordPress;
+namespace WcpScanner\WordPress;
 
-use WCP\Scanner\Findings\Finding;
-use WCP\Scanner\Malware\HeuristicEngine;
-use WCP\Scanner\Filesystem\PathValidator;
-use WCP\Scanner\Remediation\RemediationManager;
+use WcpScanner\Findings\Finding;
+use WcpScanner\Malware\HeuristicEngine;
+use WcpScanner\Filesystem\PathValidator;
+use WcpScanner\Remediation\RemediationManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -543,7 +543,7 @@ class PersistenceScanner {
             'wp_privacy_delete_old_export_files',
             'wp_https_detection',
             'wp_site_health_scheduled_check',
-            'wcp_scanner_scheduled_scan_event',
+            'wcpscan_scheduled_scan_event',
         ];
 
         $now = time();
@@ -613,7 +613,7 @@ class PersistenceScanner {
      */
     private function audit_resurrections(): array {
         $resurrections = [];
-        $backups = get_option('wcp_remediation_backups', []);
+        $backups = get_option('wcpscan_remediation_backups', []);
         if (empty($backups) || !is_array($backups)) {
             return $resurrections;
         }
@@ -802,7 +802,7 @@ class PersistenceScanner {
                 $opt_name = sanitize_text_field($id);
                 // Backup option value to backups option
                 $val = get_option($opt_name);
-                $backups = get_option('wcp_remediation_backups', []);
+                $backups = get_option('wcpscan_remediation_backups', []);
                 $b_id = 'opt_' . substr(md5($opt_name . time()), 0, 12);
                 $backups[$b_id] = [
                     'id'            => $b_id,
@@ -813,7 +813,7 @@ class PersistenceScanner {
                     'size'          => is_string($val) ? strlen($val) : 0,
                     'backup_data'   => $val,
                 ];
-                update_option('wcp_remediation_backups', $backups, false);
+                update_option('wcpscan_remediation_backups', $backups, false);
 
                 delete_option($opt_name);
                 delete_site_option($opt_name);

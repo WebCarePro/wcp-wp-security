@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Findings;
+namespace WcpScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -22,7 +22,7 @@ class FindingsRepository {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_scan_files';
+        $table = $wpdb->prefix . 'wcpscan_scan_files';
         $now = current_time('mysql');
 
         foreach (array_chunk($rows, self::MAX_ROWS_PER_QUERY) as $chunk) {
@@ -56,7 +56,7 @@ class FindingsRepository {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'wcp_scan_issues';
+        $table = $wpdb->prefix . 'wcpscan_scan_issues';
         $now = current_time('mysql');
 
         foreach (array_chunk($rows, self::MAX_ROWS_PER_QUERY) as $chunk) {

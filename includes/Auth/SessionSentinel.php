@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\Auth;
+namespace WcpScanner\Auth;
 
-use WCP\Scanner\System\SettingsManager;
-use WCP\Scanner\Firewall\FirewallEngine;
+use WcpScanner\System\SettingsManager;
+use WcpScanner\Firewall\FirewallEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -60,7 +60,7 @@ class SessionSentinel {
         }
 
         // Store session metadata in user meta
-        $sessions_meta = get_user_meta($user->ID, 'wcp_session_meta', true) ?: [];
+        $sessions_meta = get_user_meta($user->ID, 'wcpscan_session_meta', true) ?: [];
         if (!is_array($sessions_meta)) {
             $sessions_meta = [];
         }
@@ -74,7 +74,7 @@ class SessionSentinel {
             ];
 
             // Limit stored metadata to active WP sessions
-            update_user_meta($user->ID, 'wcp_session_meta', $sessions_meta);
+            update_user_meta($user->ID, 'wcpscan_session_meta', $sessions_meta);
         }
     }
 
@@ -105,7 +105,7 @@ class SessionSentinel {
         }
 
         $ip = FirewallEngine::get_client_ip();
-        $sessions_meta = get_user_meta($user_id, 'wcp_session_meta', true);
+        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true);
         if (!is_array($sessions_meta)) {
             $sessions_meta = [];
         }
@@ -118,7 +118,7 @@ class SessionSentinel {
                 'login_ip'   => $ip,
                 'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255),
             ];
-            update_user_meta($user_id, 'wcp_session_meta', $sessions_meta);
+            update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
             return;
         }
 
@@ -148,7 +148,7 @@ class SessionSentinel {
         // Update last seen timestamp (throttled every 60 seconds to save DB writes)
         if (time() - ($session_info['last_seen'] ?? 0) > 60) {
             $sessions_meta[$current_token]['last_seen'] = time();
-            update_user_meta($user_id, 'wcp_session_meta', $sessions_meta);
+            update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
         }
     }
 
@@ -159,10 +159,10 @@ class SessionSentinel {
         $manager = \WP_Session_Tokens::get_instance($user_id);
         $manager->destroy($session_token);
 
-        $sessions_meta = get_user_meta($user_id, 'wcp_session_meta', true) ?: [];
+        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
         if (isset($sessions_meta[$session_token])) {
             unset($sessions_meta[$session_token]);
-            update_user_meta($user_id, 'wcp_session_meta', $sessions_meta);
+            update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
         }
     }
 
@@ -176,12 +176,12 @@ class SessionSentinel {
         if ($current_token) {
             $manager->destroy_others($current_token);
 
-            $sessions_meta = get_user_meta($user_id, 'wcp_session_meta', true) ?: [];
+            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
             $preserved = isset($sessions_meta[$current_token]) ? [$current_token => $sessions_meta[$current_token]] : [];
-            update_user_meta($user_id, 'wcp_session_meta', $preserved);
+            update_user_meta($user_id, 'wcpscan_session_meta', $preserved);
         } else {
             $manager->destroy_all();
-            delete_user_meta($user_id, 'wcp_session_meta');
+            delete_user_meta($user_id, 'wcpscan_session_meta');
         }
 
         return true;
@@ -195,10 +195,10 @@ class SessionSentinel {
         $current_token = wp_get_session_token();
 
         if ($user_id && $current_token) {
-            $sessions_meta = get_user_meta($user_id, 'wcp_session_meta', true) ?: [];
+            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
             if (isset($sessions_meta[$current_token])) {
                 unset($sessions_meta[$current_token]);
-                update_user_meta($user_id, 'wcp_session_meta', $sessions_meta);
+                update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
             }
         }
     }
@@ -212,8 +212,9 @@ class SessionSentinel {
 
         // When called via REST API or admin-ajax, wp_get_session_token() can be empty.
         // Fall back to extracting the token directly from the authenticated logged_in cookie.
-        if (empty($current_token) && !empty($_COOKIE[LOGGED_IN_COOKIE])) {
-            $cookie_elements = wp_parse_auth_cookie($_COOKIE[LOGGED_IN_COOKIE], 'logged_in');
+        $raw_logged_in_cookie = isset($_COOKIE[LOGGED_IN_COOKIE]) ? sanitize_text_field(wp_unslash($_COOKIE[LOGGED_IN_COOKIE])) : '';
+        if (empty($current_token) && !empty($raw_logged_in_cookie)) {
+            $cookie_elements = wp_parse_auth_cookie($raw_logged_in_cookie, 'logged_in');
             if (!empty($cookie_elements['token'])) {
                 $current_token = $cookie_elements['token'];
             }
@@ -228,7 +229,7 @@ class SessionSentinel {
         foreach ($admins as $admin) {
             $manager = \WP_Session_Tokens::get_instance($admin->ID);
             $wp_sessions = $manager->get_all();
-            $sessions_meta = get_user_meta($admin->ID, 'wcp_session_meta', true) ?: [];
+            $sessions_meta = get_user_meta($admin->ID, 'wcpscan_session_meta', true) ?: [];
 
             foreach ($wp_sessions as $token => $data) {
                 $meta = $sessions_meta[$token] ?? [];

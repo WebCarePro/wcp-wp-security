@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Hardening;
+namespace WcpScanner\Hardening;
 
-use WCP\Scanner\System\SettingsManager;
+use WcpScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -60,7 +60,7 @@ class SecurityHeadersEngine {
         $settings = SettingsManager::get_settings();
 
         // 1. Strict-Transport-Security (HSTS)
-        if (!empty($settings['header_hsts']) && \WCP\Scanner\System\ServerInfo::is_ssl_active()) {
+        if (!empty($settings['header_hsts']) && \WcpScanner\System\ServerInfo::is_ssl_active()) {
             $hsts_val = 'max-age=31536000; includeSubDomains';
             if (!empty($settings['header_hsts_preload'])) {
                 $hsts_val .= '; preload';

@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Cloudflare;
+namespace WcpScanner\Cloudflare;
 
-use WCP\Scanner\System\SettingsManager;
+use WcpScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -418,7 +418,7 @@ class CloudflareService {
         }
 
         foreach (self::get_cloudflare_ip_ranges() as $cidr) {
-            if (\WCP\Scanner\Firewall\FirewallEngine::ip_in_range($ip, $cidr)) {
+            if (\WcpScanner\Firewall\FirewallEngine::ip_in_range($ip, $cidr)) {
                 return true;
             }
         }

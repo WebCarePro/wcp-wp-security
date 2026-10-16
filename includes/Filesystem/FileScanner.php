@@ -1,8 +1,8 @@
 <?php
-namespace WCP\Scanner\Filesystem;
+namespace WcpScanner\Filesystem;
 
-use WCP\Scanner\Findings\Finding;
-use WCP\Scanner\Malware\HeuristicEngine;
+use WcpScanner\Findings\Finding;
+use WcpScanner\Malware\HeuristicEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -60,12 +60,12 @@ class FileScanner {
         $norm_path = str_replace('\\', '/', $file_path);
         if (strpos($norm_path, '/wp-content/uploads/') !== false) {
             // Exclude plugin's internal secure storage (quarantine, logs, backups) and user exclusions
-            if (!preg_match('#/(wcp-security-scanner|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WCP\Scanner\System\SettingsManager::is_path_excluded($norm_path)) {
+            if (!preg_match('#/(wcp-security-scanner|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WcpScanner\System\SettingsManager::is_path_excluded($norm_path)) {
                 $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
                 $basename = strtolower(basename($file_path));
                 if (in_array($ext, ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar'], true)) {
                     // Check if harmless WordPress directory listing prevention placeholder
-                    if (($basename === 'index.php' || $basename === 'index.html' || $basename === 'index.htm') && \WCP\Scanner\System\SettingsManager::is_safe_directory_index($file_path)) {
+                    if (($basename === 'index.php' || $basename === 'index.html' || $basename === 'index.htm') && \WcpScanner\System\SettingsManager::is_safe_directory_index($file_path)) {
                         // Harmless directory silence placeholder, ignore
                     } else {
                         $findings[] = new Finding([

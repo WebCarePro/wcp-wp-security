@@ -9,7 +9,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
-$settings = get_option('wcp_scanner_settings', []);
+$settings = get_option('wcpscan_settings', []);
 $delete_data = true; // Enabled by default
 
 if (is_array($settings) && array_key_exists('delete_data_on_uninstall', $settings)) {
@@ -21,11 +21,11 @@ if ($delete_data) {
 
     // 1. Drop all custom plugin tables
     $tables = [
-        $wpdb->prefix . 'wcp_scans',
-        $wpdb->prefix . 'wcp_scan_issues',
-        $wpdb->prefix . 'wcp_scan_files',
-        $wpdb->prefix . 'wcp_quarantine',
-        $wpdb->prefix . 'wcp_firewall_logs',
+        $wpdb->prefix . 'wcpscan_scans',
+        $wpdb->prefix . 'wcpscan_scan_issues',
+        $wpdb->prefix . 'wcpscan_scan_files',
+        $wpdb->prefix . 'wcpscan_quarantine',
+        $wpdb->prefix . 'wcpscan_firewall_logs',
     ];
 
     foreach ($tables as $table) {
@@ -34,18 +34,18 @@ if ($delete_data) {
     }
 
     // 2. Delete plugin options and transients
-    delete_option('wcp_scanner_settings');
-    delete_option('wcp_scanner_db_version');
-    delete_option('wcp_remediation_backups');
+    delete_option('wcpscan_settings');
+    delete_option('wcpscan_db_version');
+    delete_option('wcpscan_remediation_backups');
     delete_option('wcp_threat_intel_last_sync');
-    delete_option('wcp_login_lockouts');
-    delete_transient('wcp_scanner_ai_models_catalog');
+    delete_option('wcpscan_login_lockouts');
+    delete_transient('wcpscan_ai_models_catalog');
     delete_transient('wcp_threat_intel_botnet_ips');
-    delete_transient('wcp_threat_intel_cves');
+    delete_transient('wcpscan_threat_intel_cves');
 
     // 3. Clear scheduled cron jobs
-    wp_clear_scheduled_hook('wcp_scanner_scheduled_scan_cron');
-    wp_clear_scheduled_hook('wcp_scanner_threat_intel_cron_sync');
+    wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');
+    wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
 
     // 4. Remove all plugin-created files in uploads (logs, quarantine, backups)
     $upload_dir = wp_upload_dir();

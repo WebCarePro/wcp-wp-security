@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\System;
+namespace WcpScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -299,7 +299,7 @@ class AIService {
      * Get available model registry for all providers
      */
     public static function get_available_models(): array {
-        $transient_key = 'wcp_scanner_ai_models_catalog';
+        $transient_key = 'wcpscan_ai_models_catalog';
         $cached = get_transient($transient_key);
         if ($cached && is_array($cached)) {
             return $cached;
@@ -485,7 +485,7 @@ class AIService {
         }
 
         // Cache catalog for 24 hours
-        set_transient('wcp_scanner_ai_models_catalog', $catalog, 24 * HOUR_IN_SECONDS);
+        set_transient('wcpscan_ai_models_catalog', $catalog, 24 * HOUR_IN_SECONDS);
 
         // Auto-upgrade user settings to latest defaults if requested and newer version exists
         if ($auto_upgrade_active_settings) {

@@ -1,17 +1,17 @@
 <?php
-namespace WCP\Scanner\System;
+namespace WcpScanner\System;
 
-use WCP\Scanner\Scanner\Engine;
-use WCP\Scanner\Findings\CorrelationEngine;
-use WCP\Scanner\Findings\RiskScorer;
-use WCP\Scanner\Scan\ScanLock;
+use WcpScanner\Scanner\Engine;
+use WcpScanner\Findings\CorrelationEngine;
+use WcpScanner\Findings\RiskScorer;
+use WcpScanner\Scan\ScanLock;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
 class Scheduler {
-    const CRON_HOOK = 'wcp_scanner_scheduled_scan_event';
+    const CRON_HOOK = 'wcpscan_scheduled_scan_event';
 
     public static function register() {
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_scan']);
@@ -47,13 +47,13 @@ class Scheduler {
          @ini_set('memory_limit', $mem_limit);
 
          $target = $settings['schedule_scan_type'] ?? 'plugins_themes';
-         $table_scans = $wpdb->prefix . 'wcp_scans';
-         $table_issues = $wpdb->prefix . 'wcp_scan_issues';
-         $table_files = $wpdb->prefix . 'wcp_scan_files';
+         $table_scans = $wpdb->prefix . 'wcpscan_scans';
+         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
          // 1. Discover filesystem files (0 = unlimited)
          $files = [];
-         $file_limit = (int) apply_filters('wcp_scanner_file_limit', 0, $target);
+         $file_limit = (int) apply_filters('wcpscan_file_limit', 0, $target);
 
          if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel'], true)) {
              $files = [];
@@ -70,7 +70,7 @@ class Scheduler {
              }
          }
 
-         $now_exact = \WCP\Scanner\Api\ScannerRoutes::now_fractional_mysql();
+         $now_exact = \WcpScanner\Api\ScannerRoutes::now_fractional_mysql();
          $start_time = microtime(true);
 
          // Insert scan record
@@ -95,13 +95,13 @@ class Scheduler {
 
          try {
              $scanned_count = 0;
-             $file_scanner = new \WCP\Scanner\Filesystem\FileScanner();
+             $file_scanner = new \WcpScanner\Filesystem\FileScanner();
 
              // 2. Scan discovered filesystem files
              foreach ($files as $idx => $filepath) {
                  // Refresh lock heartbeat and persist progress count every 15 files
                  if ($idx > 0 && $idx % 15 === 0) {
-                     \WCP\Scanner\Scan\ScanLock::heartbeat($scan_id);
+                     \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
                      $wpdb->update($table_scans, [
                          'scanned_files' => $scanned_count,
                      ], ['id' => $scan_id]);
@@ -131,8 +131,8 @@ class Scheduler {
                          'confidence'   => $item['confidence'] ?? 100,
                          'file_path'    => $item['file_path'] ?? $rel_path,
                          'line_number'  => $item['line_number'] ?? null,
-                         'code_snippet' => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
-                         'evidence'     => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
+                         'code_snippet' => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
+                         'evidence'     => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
                          'description'  => $item['description'] ?? '',
                          'status'       => 'open',
                          'created_at'   => current_time('mysql'),
@@ -143,12 +143,12 @@ class Scheduler {
              }
 
              // 3. Run target-specific deep audit engines
-             \WCP\Scanner\Scan\ScanLock::heartbeat($scan_id);
+             \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
              $all_deep_findings = [];
 
              if ($target === 'unknown_files') {
-                 $core_integrity = new \WCP\Scanner\Integrity\CoreIntegrity();
-                 $plugin_integrity = new \WCP\Scanner\Integrity\PluginIntegrity();
+                 $core_integrity = new \WcpScanner\Integrity\CoreIntegrity();
+                 $plugin_integrity = new \WcpScanner\Integrity\PluginIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
                  $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
                  $all_deep_findings = array_filter($all_deep_findings, function ($f) {
@@ -156,67 +156,67 @@ class Scheduler {
                      return in_array($arr['type'] ?? '', ['unknown_core_file', 'unknown_plugin_file'], true);
                  });
              } elseif ($target === 'spam_content') {
-                 $content = new \WCP\Scanner\Content\ContentScanner();
+                 $content = new \WcpScanner\Content\ContentScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $content->scan((string) $scan_id, 300));
              } elseif ($target === 'user_security') {
-                 $user_scanner = new \WCP\Scanner\WordPress\UserScanner();
+                 $user_scanner = new \WcpScanner\WordPress\UserScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, false));
              } elseif ($target === 'outdated_software') {
-                 $update_scanner = new \WCP\Scanner\WordPress\UpdateScanner();
+                 $update_scanner = new \WcpScanner\WordPress\UpdateScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
              } elseif ($target === 'suspicious_uploads') {
-                 $uploads = new \WCP\Scanner\Filesystem\UploadsScanner();
+                 $uploads = new \WcpScanner\Filesystem\UploadsScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $uploads->scan((string) $scan_id));
              } elseif ($target === 'crontab_audit') {
-                 $cron_scanner = new \WCP\Scanner\WordPress\CronScanner();
+                 $cron_scanner = new \WcpScanner\WordPress\CronScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $cron_scanner->scan((string) $scan_id));
              } elseif ($target === 'core_integrity') {
-                 $core = new \WCP\Scanner\Integrity\CoreIntegrity();
+                 $core = new \WcpScanner\Integrity\CoreIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $core->verify((string) $scan_id));
              } elseif ($target === 'rogue_admin') {
-                 $rogue = new \WCP\Scanner\Database\RogueAdminAnomalyDetector();
+                 $rogue = new \WcpScanner\Database\RogueAdminAnomalyDetector();
                  $all_deep_findings = array_merge($all_deep_findings, $rogue->scan((string) $scan_id));
-                 $user_scanner = new \WCP\Scanner\WordPress\UserScanner();
+                 $user_scanner = new \WcpScanner\WordPress\UserScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
              } elseif ($target === 'hook_sentinel') {
-                 $hook_sentinel = new \WCP\Scanner\WordPress\HookInfiltrationSentinel();
+                 $hook_sentinel = new \WcpScanner\WordPress\HookInfiltrationSentinel();
                  $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
-                 $persistence_scanner = new \WCP\Scanner\WordPress\PersistenceScanner();
+                 $persistence_scanner = new \WcpScanner\WordPress\PersistenceScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
              } elseif ($target === 'filesystem_only') {
                  // Filesystem-only scan: no additional deep audit engines needed
              } else {
                  // Full or plugins_themes: execute all comprehensive engines
-                 $core = new \WCP\Scanner\Integrity\CoreIntegrity();
+                 $core = new \WcpScanner\Integrity\CoreIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $core->verify((string) $scan_id));
 
-                 $fim = new \WCP\Scanner\Integrity\ImportantFileFIM();
+                 $fim = new \WcpScanner\Integrity\ImportantFileFIM();
                  $all_deep_findings = array_merge($all_deep_findings, $fim->verify((string) $scan_id));
 
-                 $plugin_integrity = new \WCP\Scanner\Integrity\PluginIntegrity();
+                 $plugin_integrity = new \WcpScanner\Integrity\PluginIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
 
-                 $theme_integrity = new \WCP\Scanner\Integrity\ThemeIntegrity();
+                 $theme_integrity = new \WcpScanner\Integrity\ThemeIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
 
-                 $db_scanner = new \WCP\Scanner\Database\DatabaseScanner();
+                 $db_scanner = new \WcpScanner\Database\DatabaseScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
 
-                 $content_scanner = new \WCP\Scanner\Content\ContentScanner();
+                 $content_scanner = new \WcpScanner\Content\ContentScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
 
-                 $wp_security = new \WCP\Scanner\WordPress\WordPressSecurityScanner();
+                 $wp_security = new \WcpScanner\WordPress\WordPressSecurityScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
 
-                 $update_scanner = new \WCP\Scanner\WordPress\UpdateScanner();
+                 $update_scanner = new \WcpScanner\WordPress\UpdateScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
 
-                 $uploads = new \WCP\Scanner\Filesystem\UploadsScanner();
+                 $uploads = new \WcpScanner\Filesystem\UploadsScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $uploads->scan((string) $scan_id));
              }
 
              // Cross-engine Correlation
-             $correlation = new \WCP\Scanner\Findings\CorrelationEngine();
+             $correlation = new \WcpScanner\Findings\CorrelationEngine();
              $correlated = $correlation->correlate($all_deep_findings);
 
              // Pre-load all existing findings already saved for this scan to prevent any duplicate insertions
@@ -248,8 +248,8 @@ class Scheduler {
                      'confidence'   => $f['confidence'] ?? 100,
                      'file_path'    => $f['file_path'] ?? ($f['target'] ?? 'N/A'),
                      'line_number'  => $f['line_number'] ?? null,
-                     'code_snippet' => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($f['code_snippet'] ?? null),
-                     'evidence'     => \WCP\Scanner\Filesystem\UploadsScanner::sanitize_utf8($f['evidence'] ?? null),
+                     'code_snippet' => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($f['code_snippet'] ?? null),
+                     'evidence'     => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($f['evidence'] ?? null),
                      'description'  => $f['description'] ?? '',
                      'status'       => 'open',
                      'created_at'   => current_time('mysql'),
@@ -260,14 +260,14 @@ class Scheduler {
              $calc_sec = microtime(true) - $start_time;
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
-             $completed_at_exact = \WCP\Scanner\Api\ScannerRoutes::now_fractional_mysql();
+             $completed_at_exact = \WcpScanner\Api\ScannerRoutes::now_fractional_mysql();
              // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
              $all_scan_issues = $wpdb->get_results($wpdb->prepare(
                  "SELECT * FROM `{$table_issues}` WHERE scan_id = %d",
                  $scan_id
              ), ARRAY_A) ?: [];
 
-             $scorer = new \WCP\Scanner\Findings\RiskScorer();
+             $scorer = new \WcpScanner\Findings\RiskScorer();
              $risk_summary = $scorer->calculate($all_scan_issues);
              $risk_score = (int) ($risk_summary['score'] ?? 0);
              $total_issues = count($all_scan_issues);
@@ -283,7 +283,7 @@ class Scheduler {
              ], ['id' => $scan_id]);
 
              // Release exclusive lock
-             \WCP\Scanner\Scan\ScanLock::release($scan_id);
+             \WcpScanner\Scan\ScanLock::release($scan_id);
              delete_transient("wcp_active_scan_file_{$scan_id}");
              delete_transient("wcp_scan_start_micro_{$scan_id}");
 
@@ -291,7 +291,7 @@ class Scheduler {
              self::send_scan_notification($scan_id, $total_issues, $risk_score, $target);
 
          } catch (\Throwable $e) {
-             \WCP\Scanner\Scan\ScanLock::release($scan_id);
+             \WcpScanner\Scan\ScanLock::release($scan_id);
              delete_transient("wcp_active_scan_file_{$scan_id}");
              delete_transient("wcp_scan_start_micro_{$scan_id}");
              $calc_sec = microtime(true) - $start_time;
@@ -301,7 +301,7 @@ class Scheduler {
                  'status'       => 'interrupted',
                  'duration'     => $duration,
                  'duration_ms'  => $duration_ms,
-                 'completed_at' => \WCP\Scanner\Api\ScannerRoutes::now_fractional_mysql(),
+                 'completed_at' => \WcpScanner\Api\ScannerRoutes::now_fractional_mysql(),
              ], ['id' => $scan_id]);
              error_log('[WCP Scanner] Scheduled scan failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
          }
@@ -314,7 +314,7 @@ class Scheduler {
         $settings = SettingsManager::get_settings();
 
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcp_scan_issues';
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $issues = $wpdb->get_results($wpdb->prepare(
             "SELECT severity, type, file_path, description FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')",
@@ -322,8 +322,8 @@ class Scheduler {
         ), ARRAY_A) ?: [];
 
         // Dispatch DevSecOps Webhooks (Slack & Discord)
-        if (class_exists('\\WCP\\Scanner\\Notifications\\WebhookService')) {
-            \WCP\Scanner\Notifications\WebhookService::send_scan_alert($scan_id, $total_issues, $risk_score, $target, $issues);
+        if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
+            \WcpScanner\Notifications\WebhookService::send_scan_alert($scan_id, $total_issues, $risk_score, $target, $issues);
         }
 
         if (empty($settings['email_alerts_enabled'])) {

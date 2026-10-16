@@ -1,17 +1,17 @@
 <?php
-namespace WCP\Scanner\Firewall;
+namespace WcpScanner\Firewall;
 
-use WCP\Scanner\System\SettingsManager;
+use WcpScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
 class ThreatIntelService {
-    const OPTION_IPS  = 'wcp_threat_intel_ips';
-    const OPTION_META = 'wcp_threat_intel_meta';
-    const OPTION_CVES = 'wcp_threat_intel_cves';
-    const CRON_HOOK   = 'wcp_scanner_threat_intel_cron_sync';
+    const OPTION_IPS  = 'wcpscan_threat_intel_ips';
+    const OPTION_META = 'wcpscan_threat_intel_meta';
+    const OPTION_CVES = 'wcpscan_threat_intel_cves';
+    const CRON_HOOK   = 'wcpscan_threat_intel_cron_sync';
 
     private static $cached_ip_map = null;
     private static $cached_cidr_list = null;

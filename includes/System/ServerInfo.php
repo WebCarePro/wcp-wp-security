@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\System;
+namespace WcpScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -260,7 +260,7 @@ class ServerInfo {
      * @return array
      */
     public static function get_filesystem_metrics(bool $force_refresh = false): array {
-        $transient_key = 'wcp_server_filesystem_metrics';
+        $transient_key = 'wcpscan_server_filesystem_metrics';
         if (!$force_refresh) {
             $cached = function_exists('get_transient') ? get_transient($transient_key) : false;
             if ($cached && is_array($cached)) {

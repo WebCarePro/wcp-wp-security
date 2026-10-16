@@ -1,5 +1,5 @@
 <?php
-namespace WCP\Scanner\Backup;
+namespace WcpScanner\Backup;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -11,7 +11,7 @@ class DatabaseBackup {
 
     public function __construct() {
         $uploads = wp_upload_dir();
-        $base = !empty($uploads['basedir']) ? untrailingslashit($uploads['basedir']) : WP_CONTENT_DIR . '/uploads';
+        $base = untrailingslashit($uploads['basedir']);
         $this->backup_dir = $base . '/wcp-security-scanner/backups';
         $this->ensure_directory();
     }
@@ -913,11 +913,7 @@ class DatabaseBackup {
      */
     public function list_backups(): array {
         $backups = [];
-        $dirs = array_filter(array_unique([
-            $this->backup_dir,
-            WP_CONTENT_DIR . '/wcp-backups',
-            (function_exists('wp_upload_dir') ? untrailingslashit(wp_upload_dir()['basedir']) . '/wcp-backups' : '')
-        ]));
+        $dirs = [$this->backup_dir];
 
         $seen = [];
         foreach ($dirs as $dir) {
@@ -983,17 +979,9 @@ class DatabaseBackup {
      */
     public function get_backup_path(string $filename): ?string {
         $basename = basename($filename);
-        $dirs = array_filter(array_unique([
-            $this->backup_dir,
-            WP_CONTENT_DIR . '/wcp-backups',
-            (function_exists('wp_upload_dir') ? untrailingslashit(wp_upload_dir()['basedir']) . '/wcp-backups' : '')
-        ]));
-
-        foreach ($dirs as $dir) {
-            $path = $dir . '/' . $basename;
-            if (file_exists($path) && is_file($path)) {
-                return $path;
-            }
+        $path = $this->backup_dir . '/' . $basename;
+        if (file_exists($path) && is_file($path)) {
+            return $path;
         }
         return null;
     }

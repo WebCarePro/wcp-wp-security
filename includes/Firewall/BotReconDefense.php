@@ -1,7 +1,7 @@
 <?php
-namespace WCP\Scanner\Firewall;
+namespace WcpScanner\Firewall;
 
-use WCP\Scanner\System\SettingsManager;
+use WcpScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
