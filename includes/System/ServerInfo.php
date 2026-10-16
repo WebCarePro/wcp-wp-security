@@ -41,7 +41,7 @@ class ServerInfo {
         $server_software = isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown';
         $server_os = php_uname('s') . ' ' . php_uname('r');
         $server_arch = php_uname('m');
-        $server_ip = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : gethostbyname(gethostname());
+        $server_ip = self::get_server_ip();
 
         // 4. Critical Extensions Check
         $critical_extensions = [
@@ -103,6 +103,7 @@ class ServerInfo {
                 'software'    => $server_software,
                 'os'          => $server_os,
                 'arch'        => $server_arch,
+                'ip'          => $server_ip,
                 'server_ip'   => $server_ip,
                 'php_user'    => function_exists('posix_getpwuid') && function_exists('posix_geteuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? 'www-data') : get_current_user(),
                 'server_time' => current_time('mysql'),
@@ -126,6 +127,70 @@ class ServerInfo {
             'permissions' => $permissions,
             'filesystem'  => $filesystem,
         ];
+    }
+
+    /**
+     * Accurately determine Server IP Address across environments (LiteSpeed, Nginx, Apache, IIS, CLI, and Docker).
+     *
+     * @return string
+     */
+    public static function get_server_ip(): string {
+        // 1. Direct server environment variables
+        $env_candidates = [
+            $_SERVER['SERVER_ADDR'] ?? '',
+            $_SERVER['LOCAL_ADDR'] ?? '',
+        ];
+
+        foreach ($env_candidates as $candidate) {
+            $candidate = trim((string) $candidate);
+            if (!empty($candidate) && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
+        }
+
+        // 2. Resolve server hostnames via local resolver
+        $host_candidates = [];
+        if (function_exists('gethostname')) {
+            $hostname = @gethostname();
+            if (!empty($hostname)) {
+                $host_candidates[] = $hostname;
+            }
+        }
+        $nodename = php_uname('n');
+        if (!empty($nodename)) {
+            $host_candidates[] = $nodename;
+        }
+        if (!empty($_SERVER['SERVER_NAME'])) {
+            $host_candidates[] = sanitize_text_field(wp_unslash($_SERVER['SERVER_NAME']));
+        }
+        if (!empty($_SERVER['HTTP_HOST'])) {
+            $host_candidates[] = preg_replace('/:[0-9]+$/', '', sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])));
+        }
+        $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+        if (!empty($site_host)) {
+            $host_candidates[] = $site_host;
+        }
+
+        foreach ($host_candidates as $host) {
+            $host = trim((string) $host);
+            if (empty($host)) {
+                continue;
+            }
+            if (filter_var($host, FILTER_VALIDATE_IP)) {
+                return $host;
+            }
+            $resolved = @gethostbyname($host);
+            if (!empty($resolved) && $resolved !== $host && filter_var($resolved, FILTER_VALIDATE_IP)) {
+                return $resolved;
+            }
+        }
+
+        // 3. Fallback to raw SERVER_ADDR if present
+        if (!empty($_SERVER['SERVER_ADDR'])) {
+            return sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR']));
+        }
+
+        return 'Unavailable';
     }
 
     /**
