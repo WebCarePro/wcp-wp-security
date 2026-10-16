@@ -37,11 +37,11 @@ if ($delete_data) {
     delete_option('wcpscan_settings');
     delete_option('wcpscan_db_version');
     delete_option('wcpscan_remediation_backups');
-    delete_option('wcp_threat_intel_last_sync');
+    delete_option('wcpscan_threat_intel_ips');
+    delete_option('wcpscan_threat_intel_meta');
+    delete_option('wcpscan_threat_intel_cves');
     delete_option('wcpscan_login_lockouts');
     delete_transient('wcpscan_ai_models_catalog');
-    delete_transient('wcp_threat_intel_botnet_ips');
-    delete_transient('wcpscan_threat_intel_cves');
 
     // 3. Clear scheduled cron jobs
     wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');

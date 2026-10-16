@@ -111,61 +111,6 @@ class Migration {
         dbDelta($sql4);
         dbDelta($sql5);
 
-        // Ensure scan_target column exists if upgraded
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-        $col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'scan_target'");
-        if (empty($col_check)) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN scan_target varchar(50) NOT NULL DEFAULT 'plugins_themes' AFTER status");
-        }
-
-        // Ensure trigger_type column exists if upgraded (manual vs scheduled)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-        $trigger_col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'trigger_type'");
-        if (empty($trigger_col_check)) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN trigger_type varchar(20) NOT NULL DEFAULT 'manual' AFTER scan_target");
-        }
-
-        // Ensure duration_ms column exists for millisecond precision
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-        $ms_col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'duration_ms'");
-        if (empty($ms_col_check)) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN duration_ms int(11) NOT NULL DEFAULT 0 AFTER duration");
-        }
-
-        // Ensure started_at column exists for exact scan start timestamp
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-        $started_col_check = $wpdb->get_results("SHOW COLUMNS FROM `{$scans_table}` LIKE 'started_at'");
-        if (empty($started_col_check)) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-            $wpdb->query("ALTER TABLE `{$scans_table}` ADD COLUMN started_at datetime(3) NULL AFTER created_at");
-        }
-
-        // Ensure completed_at supports millisecond precision if supported
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-        @$wpdb->query("ALTER TABLE `{$scans_table}` MODIFY COLUMN completed_at datetime(3) NULL");
-
-        // Seamless table rename from legacy wp_wcp_ prefix to wp_wcpscan_ prefix
-        $legacy_map = [
-            $wpdb->prefix . 'wcp_scans'         => $scans_table,
-            $wpdb->prefix . 'wcp_scan_issues'   => $issues_table,
-            $wpdb->prefix . 'wcp_scan_files'    => $files_log_table,
-            $wpdb->prefix . 'wcp_quarantine'    => $quarantine_table,
-            $wpdb->prefix . 'wcp_firewall_logs' => $firewall_logs_table,
-        ];
-        foreach ($legacy_map as $old_table => $new_table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $old_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $old_table));
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $new_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $new_table));
-            if ($old_exists && !$new_exists) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-                $wpdb->query("ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`");
-            }
-        }
-
-        update_option('wcpscan_db_version', '1.6.0');
+        update_option('wcpscan_db_version', '1.7.0');
     }
 }

@@ -478,7 +478,7 @@ class SettingsManager {
         $settings = get_option(self::OPTION_KEY, self::get_defaults());
         return [
             'app'        => 'WCP Security Scanner',
-            'version'    => defined('WCP_SCANNER_VERSION') ? WCP_SCANNER_VERSION : '1.3.0',
+            'version'    => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.3.0',
             'exported_at'=> current_time('mysql'),
             'site_url'   => get_site_url(),
             'settings'   => $settings,

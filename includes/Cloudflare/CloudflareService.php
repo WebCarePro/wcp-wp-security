@@ -45,7 +45,7 @@ class CloudflareService {
             'headers' => [
                 'Authorization' => 'Bearer ' . trim($token),
                 'Content-Type'  => 'application/json',
-                'User-Agent'    => 'WCP-WP-Security-Scanner/' . (defined('WCP_SCANNER_VERSION') ? WCP_SCANNER_VERSION : '1.5.0'),
+                'User-Agent'    => 'WCP-WP-Security-Scanner/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.5.0'),
             ],
         ];
 

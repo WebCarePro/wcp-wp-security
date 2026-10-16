@@ -14,7 +14,7 @@ class AdminMenu {
     }
 
     public static function add_menu_page() {
-        $menu_icon = plugins_url('assets/icon.svg', WCP_SCANNER_FILE);
+        $menu_icon = plugins_url('assets/icon.svg', WCPSCAN_FILE);
 
         // Main Menu: Dashboard
         add_menu_page(
@@ -213,9 +213,9 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-settings') $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about') $active_tab = 'about';
 
-        $asset_file = WCP_SCANNER_PATH . 'build/index.asset.php';
+        $asset_file = WCPSCAN_PATH . 'build/index.asset.php';
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
-        $version = WCP_SCANNER_VERSION;
+        $version = WCPSCAN_VERSION;
 
         if (file_exists($asset_file)) {
             $asset = include $asset_file;
@@ -223,10 +223,10 @@ class AdminMenu {
             $version = $asset['version'] ?? $version;
         }
 
-        $js_url = WCP_SCANNER_URL . 'build/index.js';
-        $css_url = WCP_SCANNER_URL . 'build/index.css';
+        $js_url = WCPSCAN_URL . 'build/index.js';
+        $css_url = WCPSCAN_URL . 'build/index.css';
 
-        if (file_exists(WCP_SCANNER_PATH . 'build/index.js')) {
+        if (file_exists(WCPSCAN_PATH . 'build/index.js')) {
             wp_enqueue_script('wcp-scanner-app', $js_url, $deps, $version, true);
             wp_localize_script('wcp-scanner-app', 'wcpScannerSettings', [
                 'root'       => esc_url_raw(rest_url('wcp-scanner/v1')),
@@ -234,13 +234,13 @@ class AdminMenu {
                 'siteUrl'    => get_site_url(),
                 'siteName'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
                 'initialTab'    => $active_tab,
-                'version'       => WCP_SCANNER_VERSION,
+                'version'       => WCPSCAN_VERSION,
                 'currentUserId' => get_current_user_id(),
                 'serverInfo'    => \WcpScanner\System\ServerInfo::get_info(),
             ]);
         }
 
-        if (file_exists(WCP_SCANNER_PATH . 'build/index.css')) {
+        if (file_exists(WCPSCAN_PATH . 'build/index.css')) {
             wp_enqueue_style('wcp-scanner-style', $css_url, ['wp-components'], $version);
         }
     }

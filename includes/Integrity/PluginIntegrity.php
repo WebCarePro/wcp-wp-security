@@ -31,7 +31,7 @@ class PluginIntegrity {
         $plugins = get_plugins();
 
         $processed_slugs = [];
-        $scanner_basename = plugin_basename(WCP_SCANNER_FILE);
+        $scanner_basename = plugin_basename(WCPSCAN_FILE);
         $scanner_slug = dirname($scanner_basename);
 
         // Fetch WordPress official update transient to resolve canonical slugs

@@ -221,7 +221,7 @@ class IncidentReportEngine {
             'report_id'    => $report_id,
             'generated_at' => gmdate('c'),
             'date_human'   => gmdate('F j, Y g:i A \U\T\C'),
-            'version'      => defined('WCP_SCANNER_VERSION') ? WCP_SCANNER_VERSION : '1.15.0',
+            'version'      => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.15.0',
             'client'       => [
                 'name'     => $site_name,
                 'site_url' => $site_url,

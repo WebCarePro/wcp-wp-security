@@ -22,27 +22,13 @@ define('WCPSCAN_FILE', __FILE__);
 define('WCPSCAN_PATH', plugin_dir_path(__FILE__));
 define('WCPSCAN_URL', plugin_dir_url(__FILE__));
 
-// Backward compatibility aliases
-if (!defined('WCP_SCANNER_VERSION')) {
-    define('WCP_SCANNER_VERSION', WCPSCAN_VERSION);
-}
-if (!defined('WCP_SCANNER_FILE')) {
-    define('WCP_SCANNER_FILE', WCPSCAN_FILE);
-}
-if (!defined('WCP_SCANNER_PATH')) {
-    define('WCP_SCANNER_PATH', WCPSCAN_PATH);
-}
-if (!defined('WCP_SCANNER_URL')) {
-    define('WCP_SCANNER_URL', WCPSCAN_URL);
-}
-
 // Composer or Custom Autoloader
-if (file_exists(WCP_SCANNER_PATH . 'vendor/autoload.php')) {
-    require_once WCP_SCANNER_PATH . 'vendor/autoload.php';
+if (file_exists(WCPSCAN_PATH . 'vendor/autoload.php')) {
+    require_once WCPSCAN_PATH . 'vendor/autoload.php';
 } else {
     spl_autoload_register(function ($class) {
         $prefix = 'WcpScanner\\';
-        $base_dir = WCP_SCANNER_PATH . 'includes/';
+        $base_dir = WCPSCAN_PATH . 'includes/';
 
         $len = strlen($prefix);
         if (strncmp($prefix, $class, $len) !== 0) {
