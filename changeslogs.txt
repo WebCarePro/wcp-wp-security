@@ -17,6 +17,10 @@ v:1.16.0 - 2026-10-16
     - Added an interactive, bi-directionally synchronized top horizontal scrollbar directly above the table header (`.wcp-top-scrollbar-wrap`).
     - Uses native browser scroll binding with animation-frame lock prevention and ResizeObserver dimension tracking (`tableScrollWidth` and `canScrollX`) to keep the top scrollbar position and the table's bottom scrollbar in 1:1 synchronization.
     - Designed with custom sleek WebKit scrollbar styling matching plugin theme and hover highlight (`#0284c7`), automatically hiding whenever table columns fit within the viewport.
+  * Cloudflare Edge Defense Offload Advisor & Master Compound WAF Rules (`CloudflareService.php`, `FirewallEngine.php`, `ScannerRoutes.php`, `FirewallPage.tsx`):
+    - Introduced Host-Aware Edge Defense Advisor: analyzes server stack (Apache, Nginx, LiteSpeed) and memory limits, providing an expert SysAdmin recommendation banner tailored for shared hosting (cPanel/Plesk) to offload perimeter attack traffic to Cloudflare Free Edge and eliminate 508 Resource Limit spikes.
+    - Designed 3 Master Compound Rule Expressions for Cloudflare Free Tier (100% Free Plan compatible): bundles Core protection, sensitive files (.env, .git, .sql, .bak, debug.log, wp-config.php), uploads directory PHP webshell execution traps, exploit traversal / LFI / RFI, author query scraping, and Turnstile login bot challenges into just 3 high-density rules.
+    - Added Manual 1-Click Copy-Paste Free Rules Card in the Cloudflare WAF view: allows users without an API token or with restricted hosting permissions to deploy full enterprise edge protection to their Cloudflare dashboard in under 30 seconds with 1-click clipboard copying.
   * Web-Traffic-Triggered Cron Informational Guidance (`SettingsPage.tsx`): added an explanatory callout under the Scheduler diagnostics panel clarifying how WordPress virtual cron operates on visitor traffic and how Linux system crontab provides 24/7 background automation for sites with zero traffic.
 
 v:1.15.0 - 2026-10-15

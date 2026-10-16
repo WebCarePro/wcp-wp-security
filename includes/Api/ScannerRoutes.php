@@ -4671,10 +4671,14 @@ class ScannerRoutes {
         }
         $status = \WCP\Scanner\Cloudflare\CloudflareService::get_status();
         $definitions = \WCP\Scanner\Cloudflare\CloudflareService::get_rule_definitions();
+        $compound_rules = \WCP\Scanner\Cloudflare\CloudflareService::get_compound_rule_definitions();
+        $edge_advisor = \WCP\Scanner\Cloudflare\CloudflareService::get_edge_advisor();
         return rest_ensure_response([
-            'success'     => true,
-            'status'      => $status,
-            'definitions' => $definitions,
+            'success'        => true,
+            'status'         => $status,
+            'definitions'    => $definitions,
+            'compound_rules' => $compound_rules,
+            'edge_advisor'   => $edge_advisor,
         ]);
     }
 

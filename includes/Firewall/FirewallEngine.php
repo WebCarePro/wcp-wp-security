@@ -769,6 +769,9 @@ class FirewallEngine {
             'top_rules'          => $top_rules,
             'client_ip'          => self::get_client_ip(),
             'threat_intel'       => ThreatIntelService::get_status(),
+            'edge_advisor'       => class_exists('\\WCP\\Scanner\\Cloudflare\\CloudflareService')
+                ? \WCP\Scanner\Cloudflare\CloudflareService::get_edge_advisor()
+                : null,
         ];
     }
 

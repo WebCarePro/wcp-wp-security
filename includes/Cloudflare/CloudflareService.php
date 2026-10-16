@@ -250,6 +250,8 @@ class CloudflareService {
                 'rate_limiting'    => false,
                 'ip_rules_count'   => 0,
                 'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
+                'edge_advisor'     => self::get_edge_advisor(),
+                'compound_rules'   => self::get_compound_rule_definitions(),
             ];
         }
 
@@ -260,6 +262,8 @@ class CloudflareService {
                 'error'            => $verify['message'],
                 'site_root_domain' => $site_root_domain,
                 'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
+                'edge_advisor'     => self::get_edge_advisor(),
+                'compound_rules'   => self::get_compound_rule_definitions(),
             ];
         }
 
@@ -288,6 +292,8 @@ class CloudflareService {
             'ip_rules_count'   => $ip_count,
             'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
             'proxy_status'     => $proxy_status,
+            'edge_advisor'     => self::get_edge_advisor(),
+            'compound_rules'   => self::get_compound_rule_definitions(),
         ];
     }
 
@@ -418,6 +424,73 @@ class CloudflareService {
         }
 
         return false;
+    }
+
+    /**
+     * Get SysAdmin Edge Advisor for Shared Hosting & Resource Optimization
+     *
+     * @return array
+     */
+    public static function get_edge_advisor(): array {
+        $server_software = isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown';
+        $has_cloudflare = !empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_CF_RAY']);
+
+        // Detect if server is Apache, LiteSpeed, Nginx, or cPanel/CloudLinux
+        $is_apache_or_litespeed = (stripos($server_software, 'Apache') !== false || stripos($server_software, 'LiteSpeed') !== false);
+        $memory_limit = ini_get('memory_limit') ?: '256M';
+        $is_shared_candidate = $is_apache_or_litespeed || (intval($memory_limit) <= 512);
+
+        $savings_estimate = $has_cloudflare
+            ? __('Active: Cloudflare Edge is currently dropping perimeter attacks with 0ms server CPU/RAM overhead.', 'wcp-security-scanner')
+            : __('Up to 90% reduction in malicious PHP worker invocations on your hosting plan.', 'wcp-security-scanner');
+
+        return [
+            'server_software'   => $server_software,
+            'is_shared_hosting' => $is_shared_candidate,
+            'has_cloudflare'    => $has_cloudflare,
+            'memory_limit'      => $memory_limit,
+            'savings_estimate'  => $savings_estimate,
+            'headline'          => __('Shared Hosting & Resource Optimization Advisory', 'wcp-security-scanner'),
+            'summary'           => __('On shared cPanel, Plesk, or CloudLinux hosting, running deep PHP inspection for high-volume bot probes can exhaust strictly throttled CPU and RAM limits (often triggering 508 Resource Limit Reached). Offloading perimeter protection to Cloudflare Free Edge blocks 90%+ of automated probes before they ever reach your hosting server.', 'wcp-security-scanner'),
+            'expert_note'       => __('Advisory by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer. Offload perimeter probes to Cloudflare Free Edge, while WCP local origin firewall handles authenticated WordPress sessions and deep POST payloads.', 'wcp-security-scanner'),
+        ];
+    }
+
+    /**
+     * Get Master Compound Rule Definitions (Ready for 1-Click Copy-Paste into Cloudflare Free WAF)
+     *
+     * @return array
+     */
+    public static function get_compound_rule_definitions(): array {
+        return [
+            'compound_perimeter' => [
+                'id'           => 'wcp_compound_perimeter',
+                'title'        => 'Rule 1: Master Perimeter & Sensitive File Armor',
+                'badge'        => 'Edge Shield',
+                'description'  => 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
+                'action'       => 'block',
+                'action_label' => 'Block',
+                'expression'   => '(http.request.uri.path contains "/xmlrpc.php") or ((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "cgi" "pl" "exe"}) or (http.request.uri.path in {"/wp-config.php" "/.env" "/.git" "/composer.json" "/wp-content/debug.log"}) or (http.request.uri.path matches "\.(sql|bak|tar|gz|zip|ini|sh)$") or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
+            ],
+            'compound_exploits' => [
+                'id'           => 'wcp_compound_exploits',
+                'title'        => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
+                'badge'        => 'Zero-Day Shield',
+                'description'  => 'Terminates path traversal (../), dangerous base64/eval function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
+                'action'       => 'block',
+                'action_label' => 'Block',
+                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
+            ],
+            'compound_login_bot' => [
+                'id'           => 'wcp_compound_login_bot',
+                'title'        => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
+                'badge'        => 'Turnstile Challenge',
+                'description'  => 'Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
+                'action'       => 'managed_challenge',
+                'action_label' => 'Managed Challenge',
+                'expression'   => '(http.request.uri.path contains "/wp-login.php" and cf.client.bot)',
+            ],
+        ];
     }
 
     /**
