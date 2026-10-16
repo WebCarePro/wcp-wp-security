@@ -8,6 +8,11 @@ v:1.16.0 - 2026-10-16
     - Added bit-for-bit official baseline checksum verification for plugins and themes; files matching official releases are now designated as "Pristine (Official Match)" with a clean status badge rather than generic "modified" records.
     - Introduced 13 customizable, selectable columns with persistent localStorage preferences: Severity, Integrity Status, File Location & Scope, Scope, Plugin/Theme Name, Installed Version, Official Latest Version, Last Modified, File Size, Permissions (octal 0644/0777), Owner & Group (www-data), MD5 Hash (with 1-click copy), and Remediation & Diff actions.
     - Added quick-toggle integrity filter pills (All Files, Altered / Tampered Only, Official Matches, Custom / Unverified) and enhanced search across versions, permissions, owners, and hashes.
+  * FIM Column Selector Dropdown Z-Index & Overflow Fix (`FileIntegrityPage.tsx`, `index.css`):
+    - Resolved dropdown clipping bug where `.wcp-card` default `overflow: hidden` cut off column checkbox controls at the filter card boundary; added `.wcp-overflow-visible` and elevated dropdown z-index context (`z-index: 99999`) to ensure smooth, unhindered floating over lower cards.
+  * Full WordPress Page Width & Enhanced FIM Table UX (`FileIntegrityPage.tsx`, `index.css`):
+    - Enabled full-width layout expansion on the FIM page (`#wcp-scanner-root.wcp-fim-fullwidth`) to utilize 100% of the WordPress admin screen width, providing ample room for comprehensive multi-column forensics.
+    - Enhanced Recently Modified Files table layout with sticky table header, high-contrast status border indicators (rogue files in red, altered in amber, clean in green), prominent file location hierarchy (filename in bold with directory path and validation notice), custom scrollbar, and integrated pagination controls (25 / 50 / 100 / All).
   * Web-Traffic-Triggered Cron Informational Guidance (`SettingsPage.tsx`): added an explanatory callout under the Scheduler diagnostics panel clarifying how WordPress virtual cron operates on visitor traffic and how Linux system crontab provides 24/7 background automation for sites with zero traffic.
 
 v:1.15.0 - 2026-10-15
