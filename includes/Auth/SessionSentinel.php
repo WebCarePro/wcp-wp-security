@@ -61,10 +61,9 @@ class SessionSentinel {
 
         $session_token = !empty(self::$last_auth_token) ? self::$last_auth_token : wp_get_session_token();
         if (empty($session_token)) {
-            $manager = \WP_Session_Tokens::get_instance($user->ID);
-            $all = $manager->get_all();
-            if (!empty($all)) {
-                $keys = array_keys($all);
+            $wp_sessions = get_user_meta($user->ID, 'session_tokens', true);
+            if (is_array($wp_sessions) && !empty($wp_sessions)) {
+                $keys = array_keys($wp_sessions);
                 $session_token = end($keys);
             }
         }
@@ -74,12 +73,21 @@ class SessionSentinel {
 
         // Check concurrent sessions count
         if (!empty($settings['session_block_concurrent']) && $user->has_cap('administrator')) {
-            $manager = \WP_Session_Tokens::get_instance($user->ID);
-            $all_sessions = $manager->get_all();
-            
-            // If already logged in on other devices/IPs, destroy other sessions
-            if (count($all_sessions) > 1 && $session_token) {
-                $manager->destroy_others($session_token);
+            $wp_sessions = get_user_meta($user->ID, 'session_tokens', true);
+            if (is_array($wp_sessions) && count($wp_sessions) > 1 && $session_token) {
+                $verifier = hash('sha256', $session_token);
+                $preserved = [];
+                if (isset($wp_sessions[$verifier])) {
+                    $preserved[$verifier] = $wp_sessions[$verifier];
+                } elseif (isset($wp_sessions[$session_token])) {
+                    $preserved[$session_token] = $wp_sessions[$session_token];
+                }
+                if (!empty($preserved)) {
+                    update_user_meta($user->ID, 'session_tokens', $preserved);
+                } else {
+                    $manager = \WP_Session_Tokens::get_instance($user->ID);
+                    $manager->destroy_others($session_token);
+                }
             }
         }
 
@@ -90,7 +98,8 @@ class SessionSentinel {
         }
 
         if ($session_token) {
-            $sessions_meta[$session_token] = [
+            $verifier = hash('sha256', $session_token);
+            $entry = [
                 'login_time'     => time(),
                 'last_seen'      => time(),
                 'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
@@ -99,7 +108,10 @@ class SessionSentinel {
                 ])),
             ];
 
-            // Limit stored metadata to active WP sessions
+            // Store metadata under both raw token and verifier so lookups by either succeed
+            $sessions_meta[$session_token] = $entry;
+            $sessions_meta[$verifier]      = $entry;
+
             update_user_meta($user->ID, 'wcpscan_session_meta', $sessions_meta);
         }
     }
@@ -129,6 +141,7 @@ class SessionSentinel {
         if (!$current_token) {
             return;
         }
+        $current_verifier = hash('sha256', $current_token);
 
         $ip = FirewallEngine::get_client_ip();
         $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true);
@@ -136,7 +149,7 @@ class SessionSentinel {
             $sessions_meta = [];
         }
 
-        $session_info = $sessions_meta[$current_token] ?? null;
+        $session_info = $sessions_meta[$current_verifier] ?? ($sessions_meta[$current_token] ?? null);
 
         $current_login_ip = '';
         if (!empty($session_info['encrypted_meta'])) {
@@ -149,7 +162,7 @@ class SessionSentinel {
 
         // Auto-initialize if session was active before sentinel activation or if IP was recorded as Cloudflare proxy
         if (!$session_info || empty($current_login_ip) || \WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($current_login_ip)) {
-            $sessions_meta[$current_token] = [
+            $entry = [
                 'login_time'     => $session_info['login_time'] ?? time(),
                 'last_seen'      => time(),
                 'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
@@ -157,6 +170,8 @@ class SessionSentinel {
                     'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255),
                 ])),
             ];
+            $sessions_meta[$current_token]    = $entry;
+            $sessions_meta[$current_verifier] = $entry;
             update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
             return;
         }
@@ -174,6 +189,7 @@ class SessionSentinel {
         // Update last seen timestamp (throttled every 60 seconds to save DB writes)
         if (time() - ($session_info['last_seen'] ?? 0) > 60) {
             $sessions_meta[$current_token]['last_seen'] = time();
+            $sessions_meta[$current_verifier]['last_seen'] = time();
             update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
         }
     }
@@ -182,35 +198,171 @@ class SessionSentinel {
      * Terminate an individual session
      */
     public static function terminate_session(int $user_id, string $session_token, string $reason = '') {
-        $manager = \WP_Session_Tokens::get_instance($user_id);
-        $manager->destroy($session_token);
+        if (empty($user_id) || empty($session_token)) {
+            return false;
+        }
 
+        // 1. Direct destruction from WordPress core 'session_tokens' user meta.
+        // In WP core, sessions are stored in user meta 'session_tokens' keyed by the SHA-256 verifier hash.
+        $sessions = get_user_meta($user_id, 'session_tokens', true);
+        if (is_array($sessions)) {
+            $hashed = hash('sha256', $session_token);
+            $modified = false;
+
+            // Check if $session_token is already the verifier hash (as returned by session_tokens user meta)
+            if (isset($sessions[$session_token])) {
+                unset($sessions[$session_token]);
+                $modified = true;
+            }
+            // Check if $session_token was the raw plain text token
+            if (isset($sessions[$hashed])) {
+                unset($sessions[$hashed]);
+                $modified = true;
+            }
+
+            if ($modified) {
+                if (!empty($sessions)) {
+                    update_user_meta($user_id, 'session_tokens', $sessions);
+                } else {
+                    delete_user_meta($user_id, 'session_tokens');
+                }
+            }
+        }
+
+        // 2. Also invoke WP_Session_Tokens core manager destroy()
+        try {
+            $manager = \WP_Session_Tokens::get_instance($user_id);
+            if ($manager) {
+                $manager->destroy($session_token);
+            }
+        } catch (\Throwable $e) {}
+
+        // Flush WordPress object cache and user meta cache
+        wp_cache_delete($user_id, 'user_meta');
+        if (function_exists('clean_user_cache')) {
+            clean_user_cache($user_id);
+        }
+
+        // 3. Clean up SessionSentinel metadata in wcpscan_session_meta
         $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
-        if (isset($sessions_meta[$session_token])) {
+        if (is_array($sessions_meta)) {
+            $hashed = hash('sha256', $session_token);
             unset($sessions_meta[$session_token]);
+            unset($sessions_meta[$hashed]);
             update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
         }
-    }
 
-    /**
-     * Terminate all other sessions except current
-     */
-    public static function terminate_all_other_sessions(int $user_id): bool {
-        $current_token = wp_get_session_token();
-        $manager = \WP_Session_Tokens::get_instance($user_id);
-        
-        if ($current_token) {
-            $manager->destroy_others($current_token);
+        // 4. Mark session terminated in LoginHistoryManager if table exists
+        if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
+            \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user_id, $session_token);
+        }
 
-            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
-            $preserved = isset($sessions_meta[$current_token]) ? [$current_token => $sessions_meta[$current_token]] : [];
-            update_user_meta($user_id, 'wcpscan_session_meta', $preserved);
-        } else {
-            $manager->destroy_all();
-            delete_user_meta($user_id, 'wcpscan_session_meta');
+        // 5. If the terminated session belongs to the current logged-in user, clear auth cookies
+        if ($user_id === get_current_user_id()) {
+            $current_raw = wp_get_session_token();
+            $raw_logged_in_cookie = isset($_COOKIE[LOGGED_IN_COOKIE]) ? sanitize_text_field(wp_unslash($_COOKIE[LOGGED_IN_COOKIE])) : '';
+            if (empty($current_raw) && !empty($raw_logged_in_cookie)) {
+                $cookie_elements = wp_parse_auth_cookie($raw_logged_in_cookie, 'logged_in');
+                if (!empty($cookie_elements['token'])) {
+                    $current_raw = $cookie_elements['token'];
+                }
+            }
+            if ($current_raw === $session_token || hash('sha256', (string) $current_raw) === $session_token) {
+                wp_clear_auth_cookie();
+            }
         }
 
         return true;
+    }
+
+    /**
+     * Terminate all other sessions except the current administrator's active device
+     */
+    public static function terminate_all_other_sessions(int $target_user_id = 0, bool $revoke_all_admins = false): bool {
+        $current_user_id = get_current_user_id();
+        $current_token = wp_get_session_token();
+
+        $raw_logged_in_cookie = isset($_COOKIE[LOGGED_IN_COOKIE]) ? sanitize_text_field(wp_unslash($_COOKIE[LOGGED_IN_COOKIE])) : '';
+        if (empty($current_token) && !empty($raw_logged_in_cookie)) {
+            $cookie_elements = wp_parse_auth_cookie($raw_logged_in_cookie, 'logged_in');
+            if (!empty($cookie_elements['token'])) {
+                $current_token = $cookie_elements['token'];
+            }
+        }
+
+        $current_verifier = !empty($current_token) ? hash('sha256', $current_token) : '';
+
+        // If target_user_id is 0 or revoke_all_admins is true: terminate all sessions across all admin users except current device!
+        if (empty($target_user_id) || $revoke_all_admins) {
+            $admins = get_users(['role' => 'administrator', 'number' => 100]);
+            foreach ($admins as $admin) {
+                if ($admin->ID === $current_user_id) {
+                    self::terminate_user_other_sessions($admin->ID, $current_token, $current_verifier);
+                } else {
+                    // Destroy all sessions for other admin users
+                    $manager = \WP_Session_Tokens::get_instance($admin->ID);
+                    $manager->destroy_all();
+                    delete_user_meta($admin->ID, 'session_tokens');
+                    delete_user_meta($admin->ID, 'wcpscan_session_meta');
+                    wp_cache_delete($admin->ID, 'user_meta');
+                    if (function_exists('clean_user_cache')) {
+                        clean_user_cache($admin->ID);
+                    }
+                }
+            }
+            return true;
+        }
+
+        // If a specific target_user_id was specified:
+        if ($target_user_id === $current_user_id) {
+            self::terminate_user_other_sessions($target_user_id, $current_token, $current_verifier);
+        } else {
+            // Destroy all sessions for this target user
+            $manager = \WP_Session_Tokens::get_instance($target_user_id);
+            $manager->destroy_all();
+            delete_user_meta($target_user_id, 'session_tokens');
+            delete_user_meta($target_user_id, 'wcpscan_session_meta');
+            wp_cache_delete($target_user_id, 'user_meta');
+            if (function_exists('clean_user_cache')) {
+                clean_user_cache($target_user_id);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Helper to terminate a user's other sessions while strictly preserving their active session
+     */
+    private static function terminate_user_other_sessions(int $user_id, string $current_token, string $current_verifier): void {
+        $sessions = get_user_meta($user_id, 'session_tokens', true);
+        if (is_array($sessions) && !empty($current_verifier)) {
+            $preserved = isset($sessions[$current_verifier]) ? [$current_verifier => $sessions[$current_verifier]] : [];
+            if (!empty($preserved)) {
+                update_user_meta($user_id, 'session_tokens', $preserved);
+            } else {
+                $manager = \WP_Session_Tokens::get_instance($user_id);
+                $manager->destroy_others($current_token);
+            }
+        } else {
+            $manager = \WP_Session_Tokens::get_instance($user_id);
+            $manager->destroy_others($current_token);
+        }
+
+        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+        $preserved_meta = [];
+        if (isset($sessions_meta[$current_token])) {
+            $preserved_meta[$current_token] = $sessions_meta[$current_token];
+        }
+        if (isset($sessions_meta[$current_verifier])) {
+            $preserved_meta[$current_verifier] = $sessions_meta[$current_verifier];
+        }
+        update_user_meta($user_id, 'wcpscan_session_meta', $preserved_meta);
+
+        wp_cache_delete($user_id, 'user_meta');
+        if (function_exists('clean_user_cache')) {
+            clean_user_cache($user_id);
+        }
     }
 
     /**
@@ -222,10 +374,10 @@ class SessionSentinel {
 
         if ($user_id && $current_token) {
             $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
-            if (isset($sessions_meta[$current_token])) {
-                unset($sessions_meta[$current_token]);
-                update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
-            }
+            $verifier = hash('sha256', $current_token);
+            unset($sessions_meta[$current_token]);
+            unset($sessions_meta[$verifier]);
+            update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
         }
     }
 
@@ -246,20 +398,42 @@ class SessionSentinel {
             }
         }
 
+        $current_verifier = !empty($current_token) ? hash('sha256', $current_token) : '';
         $client_ip = FirewallEngine::get_client_ip();
 
         // Get admin users
-        $admins = get_users(['role' => 'administrator', 'number' => 25]);
+        $admins = get_users(['role' => 'administrator', 'number' => 50]);
         $results = [];
+        $now = time();
 
         foreach ($admins as $admin) {
-            $manager = \WP_Session_Tokens::get_instance($admin->ID);
-            $wp_sessions = $manager->get_all();
+            // WordPress stores sessions in user meta 'session_tokens' as an associative array keyed by the SHA-256 verifier.
+            $wp_sessions = get_user_meta($admin->ID, 'session_tokens', true);
+            if (!is_array($wp_sessions) || empty($wp_sessions)) {
+                continue;
+            }
             $sessions_meta = get_user_meta($admin->ID, 'wcpscan_session_meta', true) ?: [];
 
-            foreach ($wp_sessions as $token => $data) {
-                $meta = $sessions_meta[$token] ?? [];
-                $is_current = ($admin->ID === $current_user_id && $token === $current_token);
+            foreach ($wp_sessions as $verifier => $data) {
+                if (!is_array($data)) {
+                    continue;
+                }
+                // Filter out expired sessions
+                if (isset($data['expiration']) && (int) $data['expiration'] <= $now) {
+                    continue;
+                }
+
+                $meta = $sessions_meta[$verifier] ?? ($sessions_meta[$current_token] ?? []);
+
+                // Determine if this is the current active session
+                $is_current = false;
+                if ($admin->ID === $current_user_id) {
+                    if (!empty($current_verifier) && $verifier === $current_verifier) {
+                        $is_current = true;
+                    } elseif (!empty($current_token) && $verifier === $current_token) {
+                        $is_current = true;
+                    }
+                }
 
                 $ip = 'Unknown';
                 $ua = 'Unknown';
@@ -278,7 +452,7 @@ class SessionSentinel {
                 if (\WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($ip)) {
                     if ($is_current) {
                         $ip = $client_ip;
-                        $sessions_meta[$token] = [
+                        $entry = [
                             'login_time'     => isset($data['login']) ? (int) $data['login'] : time(),
                             'last_seen'      => time(),
                             'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
@@ -286,6 +460,10 @@ class SessionSentinel {
                                 'user_agent' => $ua,
                             ])),
                         ];
+                        $sessions_meta[$verifier] = $entry;
+                        if (!empty($current_token)) {
+                            $sessions_meta[$current_token] = $entry;
+                        }
                         update_user_meta($admin->ID, 'wcpscan_session_meta', $sessions_meta);
                     }
                 }
@@ -300,8 +478,8 @@ class SessionSentinel {
                     : sprintf('%d mins', round($duration_sec / 60));
 
                 $results[] = [
-                    'session_id'               => substr(hash('sha256', $token), 0, 16),
-                    'token'                    => $token,
+                    'session_id'               => substr((string) $verifier, 0, 16),
+                    'token'                    => (string) $verifier,
                     'user_id'                  => $admin->ID,
                     'user_login'               => $admin->user_login,
                     'display_name'             => $admin->display_name ?: $admin->user_login,

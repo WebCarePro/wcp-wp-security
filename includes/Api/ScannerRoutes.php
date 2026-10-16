@@ -4594,8 +4594,8 @@ class ScannerRoutes {
         $revoke_others = !empty($params['revoke_others']);
 
         if ($revoke_others) {
-            $target_user_id = $user_id ?: get_current_user_id();
-            \WcpScanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id);
+            $target_user_id = $user_id ?: 0;
+            \WcpScanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id, empty($user_id));
             return rest_ensure_response([
                 'success' => true,
                 'message' => __('All other active sessions have been terminated.', 'wcp-security-scanner'),

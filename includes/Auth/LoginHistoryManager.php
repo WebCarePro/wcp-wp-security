@@ -230,6 +230,30 @@ class LoginHistoryManager {
     }
 
     /**
+     * Mark session terminated via Session Sentinel
+     */
+    public static function record_session_terminated(int $user_id, string $session_token) {
+        if ($user_id <= 0 || empty($session_token)) {
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE_NAME;
+        $now   = current_time('mysql');
+
+        $raw_hash = substr(hash('sha256', $session_token), 0, 64);
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $wpdb->query($wpdb->prepare(
+            "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND (session_token = %s OR session_token = %s) AND logout_time IS NULL",
+            $now,
+            $user_id,
+            $session_token,
+            $raw_hash
+        ));
+    }
+
+    /**
      * Get decrypted login history for a specific user (Last 10 records by default)
      */
     public static function get_user_history(int $user_id, int $limit = 10): array {

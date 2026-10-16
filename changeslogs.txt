@@ -31,8 +31,11 @@ v:1.17.0 - 2026-10-17
   * Automatic Cloudflare Real Visitor IP Restoration & Self-Healing (`FirewallEngine.php`, `SessionSentinel.php`, `LoginHistoryManager.php`):
     - Added early `FirewallEngine::normalize_server_remote_addr()` to restore `$_SERVER['REMOTE_ADDR']` from `HTTP_CF_CONNECTING_IP` when connecting behind verified Cloudflare Anycast edge nodes. Fixes origin servers lacking `mod_remoteip` or Nginx `real_ip` modules where WordPress core was recording Cloudflare proxy IPs (e.g. `172.68.218.189`) instead of authentic visitor IPs (`114.130.156.112`).
     - Hooked `set_auth_cookie` to capture generated session tokens directly during login, ensuring encrypted session telemetry is always written even before the browser sends its first authenticated request.
-    - Added self-healing in `SessionSentinel::get_active_sessions()` and `inspect_active_session()` to automatically detect when a session token was previously stamped with a Cloudflare proxy node IP and rewrite it to the verified visitor IP.
-    - Removed redundant duplicate file `includes/Firewall/CloudflareService.php`.
+  * Active Session Revocation & Multi-Admin Termination Fix (`SessionSentinel.php`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
+    - Resolved critical session termination flaw where `WP_Session_Tokens::get_all()` stripped associative verifier keys via `array_values()`, causing session revocation requests to transmit meaningless numeric array indices (`0`, `1`) instead of actual SHA-256 session verifier keys.
+    - Updated `SessionSentinel::get_active_sessions()` to query WordPress core `session_tokens` user meta directly, retaining true SHA-256 verifier keys and accurately identifying `$is_current` active device sessions.
+    - Enhanced `SessionSentinel::terminate_session()` to directly unset both raw tokens and verifier keys from `session_tokens` user meta, invoke WP core `$manager->destroy()`, flush WordPress object/user caches via `clean_user_cache()`, and record session closure timestamps in `wp_wcpscan_login_history`.
+    - Corrected multi-admin session revocation in `ScannerRoutes::revoke_active_session()` so terminating other administrators properly invalidates their active authentication cookies across all secondary devices.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:
