@@ -649,6 +649,85 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'disconnect_cloudflare'],
             'permission_callback' => $permission,
         ]);
+
+        // 13. Whitelist & False-Positive Tuning Routes
+        register_rest_route(self::NAMESPACE, '/whitelist/rules', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_whitelist_rules'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/whitelist/add', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'add_whitelist_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/whitelist/remove', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remove_whitelist_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        // 14. Behavioral Baseline Engine Routes
+        register_rest_route(self::NAMESPACE, '/baseline/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_baseline_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/baseline/calibrate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'calibrate_baseline'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/baseline/audit', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'audit_baseline_deviations'],
+            'permission_callback' => $permission,
+        ]);
+
+        // 15. Remediation Transaction History & Atomic Safe Rollback
+        register_rest_route(self::NAMESPACE, '/transactions/list', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_remediation_transactions'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/transactions/rollback', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rollback_remediation_transaction'],
+            'permission_callback' => $permission,
+        ]);
+
+        // 16. Model Context Protocol (MCP) Agent Service Surface
+        $mcp_permission = function (\WP_REST_Request $request) {
+            if (current_user_can('manage_options')) {
+                return true;
+            }
+            $auth_header = $request->get_header('Authorization');
+            if (!empty($auth_header) && preg_match('/Bearer\s+(\S+)/i', $auth_header, $matches)) {
+                $token = $matches[1];
+                $expected = \WcpScanner\System\SettingsManager::get('mcp_token', '');
+                if (!empty($expected) && hash_equals($expected, $token)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        register_rest_route(self::NAMESPACE, '/mcp/tools', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_mcp_tools'],
+            'permission_callback' => $mcp_permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/execute', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'execute_mcp_tool'],
+            'permission_callback' => $mcp_permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -2365,6 +2444,16 @@ class ScannerRoutes {
                 if (!isset($item['has_update']) && isset($item['component_meta']['has_update'])) {
                     $item['has_update'] = $item['component_meta']['has_update'];
                 }
+            }
+
+            // 6. Whitelist & False-Positive Rule Matching (Auto-suppression)
+            $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+            if ($matched_rule !== null) {
+                $item['is_whitelisted'] = true;
+                $item['whitelist_rule'] = $matched_rule;
+                $item['status']         = 'ignored';
+            } else {
+                $item['is_whitelisted'] = (($item['status'] ?? '') === 'ignored');
             }
         }
         unset($item);
@@ -4802,4 +4891,110 @@ class ScannerRoutes {
         $result = \WcpScanner\Cloudflare\CloudflareService::disconnect();
         return rest_ensure_response($result);
     }
+
+    // ==========================================
+    // 13. Whitelist & False-Positive Endpoints
+    // ==========================================
+
+    public static function get_whitelist_rules(\WP_REST_Request $request) {
+        $rules = \WcpScanner\Findings\WhitelistManager::get_whitelist_rules(false);
+        return rest_ensure_response([
+            'success' => true,
+            'rules'   => $rules,
+            'active_count' => count(array_filter($rules, fn($r) => ($r['status'] ?? '') === 'active')),
+        ]);
+    }
+
+    public static function add_whitelist_rule(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: $request->get_params();
+        $result = \WcpScanner\Findings\WhitelistManager::add_rule($params);
+        return rest_ensure_response($result);
+    }
+
+    public static function remove_whitelist_rule(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: $request->get_params();
+        $rule_id = sanitize_text_field($params['id'] ?? $params['rule_id'] ?? '');
+
+        if (empty($rule_id)) {
+            return new \WP_Error('missing_param', __('Rule ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $removed = \WcpScanner\Findings\WhitelistManager::remove_rule($rule_id);
+        return rest_ensure_response([
+            'success' => $removed,
+            'rule_id' => $rule_id,
+            'message' => $removed ? __('Whitelist rule revoked successfully.', 'wcp-security-scanner') : __('Rule not found or could not be revoked.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    // ==========================================
+    // 14. Behavioral Baseline Engine Endpoints
+    // ==========================================
+
+    public static function get_baseline_status(\WP_REST_Request $request) {
+        $baseline = \WcpScanner\Integrity\BehavioralBaselineEngine::get_baseline();
+        return rest_ensure_response([
+            'success'    => true,
+            'calibrated' => ($baseline !== null),
+            'baseline'   => $baseline,
+        ]);
+    }
+
+    public static function calibrate_baseline(\WP_REST_Request $request) {
+        $result = \WcpScanner\Integrity\BehavioralBaselineEngine::calibrate();
+        return rest_ensure_response($result);
+    }
+
+    public static function audit_baseline_deviations(\WP_REST_Request $request) {
+        $result = \WcpScanner\Integrity\BehavioralBaselineEngine::audit_baseline();
+        return rest_ensure_response($result);
+    }
+
+    // ==========================================
+    // 15. Transactional Remediation & Rollback
+    // ==========================================
+
+    public static function get_remediation_transactions(\WP_REST_Request $request) {
+        $limit = max(1, min(100, intval($request->get_param('limit') ?: 30)));
+        $list  = \WcpScanner\Remediation\TransactionalRemediation::list_transactions($limit);
+        return rest_ensure_response([
+            'success'      => true,
+            'transactions' => $list,
+        ]);
+    }
+
+    public static function rollback_remediation_transaction(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: $request->get_params();
+        $tx_id  = sanitize_text_field($params['tx_id'] ?? '');
+
+        if (empty($tx_id)) {
+            return new \WP_Error('missing_param', __('Transaction ID (tx_id) is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WcpScanner\Remediation\TransactionalRemediation::rollback_transaction($tx_id);
+        return rest_ensure_response($result);
+    }
+
+    // ==========================================
+    // 16. Model Context Protocol (MCP) Agent Service
+    // ==========================================
+
+    public static function get_mcp_tools(\WP_REST_Request $request) {
+        $catalog = \WcpScanner\Api\MCPAgentService::get_tools_catalog();
+        return rest_ensure_response($catalog);
+    }
+
+    public static function execute_mcp_tool(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $tool   = sanitize_text_field($params['tool'] ?? $params['name'] ?? '');
+        $args   = is_array($params['arguments'] ?? null) ? $params['arguments'] : (is_array($params['args'] ?? null) ? $params['args'] : []);
+
+        if (empty($tool)) {
+            return new \WP_Error('missing_tool', __('Tool name is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WcpScanner\Api\MCPAgentService::execute_tool($tool, $args);
+        return rest_ensure_response($result);
+    }
 }
+

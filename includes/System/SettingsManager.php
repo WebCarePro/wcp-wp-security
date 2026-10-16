@@ -124,6 +124,17 @@ class SettingsManager {
             'cloudflare_api_token'               => '',
             'cloudflare_zone_id'                 => '',
             'cloudflare_auto_sync_bans'          => false,
+
+            // 13. False-Positive Tuning & Confidence Thresholds
+            'confidence_threshold_filesystem'    => 50,
+            'confidence_threshold_lotl'          => 60,
+            'confidence_threshold_ai'            => 70,
+            'confidence_threshold_db'            => 50,
+            'auto_suppress_whitelisted'          => true,
+
+            // 14. Model Context Protocol (MCP) Agent Service Surface
+            'mcp_enabled'                        => true,
+            'mcp_token'                          => '',
         ];
     }
 
@@ -394,6 +405,24 @@ class SettingsManager {
         $clean['cloudflare_zone_id']        = \WcpScanner\Security\SecretVault::encrypt($zone_id_val);
 
         $clean['cloudflare_auto_sync_bans'] = !empty($input['cloudflare_auto_sync_bans']);
+
+        // 13. False-Positive Tuning & Confidence Thresholds
+        $clean['confidence_threshold_filesystem'] = max(1, min(100, intval($input['confidence_threshold_filesystem'] ?? 50)));
+        $clean['confidence_threshold_lotl']       = max(1, min(100, intval($input['confidence_threshold_lotl'] ?? 60)));
+        $clean['confidence_threshold_ai']         = max(1, min(100, intval($input['confidence_threshold_ai'] ?? 70)));
+        $clean['confidence_threshold_db']         = max(1, min(100, intval($input['confidence_threshold_db'] ?? 50)));
+        $clean['auto_suppress_whitelisted']       = isset($input['auto_suppress_whitelisted']) ? !empty($input['auto_suppress_whitelisted']) : true;
+
+        // 14. Model Context Protocol (MCP) Agent Service Surface
+        $clean['mcp_enabled'] = isset($input['mcp_enabled']) ? !empty($input['mcp_enabled']) : true;
+        $mcp_tok = trim($input['mcp_token'] ?? '');
+        if (empty($mcp_tok) && !empty($current['mcp_token'])) {
+            $clean['mcp_token'] = $current['mcp_token'];
+        } elseif (!empty($mcp_tok)) {
+            $clean['mcp_token'] = sanitize_text_field($mcp_tok);
+        } else {
+            $clean['mcp_token'] = 'wcp_mcp_' . bin2hex(random_bytes(16));
+        }
 
         update_option(self::OPTION_KEY, $clean);
 

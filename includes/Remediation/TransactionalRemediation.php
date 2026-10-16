@@ -1,0 +1,364 @@
+<?php
+namespace WcpScanner\Remediation;
+
+use WcpScanner\Security\PathValidator;
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * TransactionalRemediation
+ *
+ * Implements atomic, multi-threat remediation transactions with 1-click safe rollback.
+ * Captures pre-remediation byte-for-byte file snapshots, database states, and cron entries
+ * prior to executing any destructive quarantine or disinfection operations.
+ */
+class TransactionalRemediation {
+
+    /**
+     * Get root directory for transaction manifests and snapshots.
+     *
+     * @return string
+     */
+    public static function get_transactions_dir(): string {
+        $upload_dir = wp_upload_dir();
+        $base = wp_normalize_path($upload_dir['basedir'] . '/wcp-scanner-quarantine/transactions');
+
+        if (!is_dir($base)) {
+            wp_mkdir_p($base);
+            // Harden transaction storage against public web access
+            @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
+            @file_put_contents($base . '/index.php', "<?php\n// Silence is golden.\nexit;\n");
+        }
+
+        return $base;
+    }
+
+    /**
+     * Start a new atomic remediation transaction.
+     *
+     * @param string $title
+     * @param string $reason
+     * @param array $context
+     * @return string Transaction ID
+     */
+    public static function start_transaction(string $title, string $reason = '', array $context = []): string {
+        $base_dir = self::get_transactions_dir();
+        $tx_id = 'tx_' . gmdate('Ymd_His') . '_' . bin2hex(random_bytes(4));
+        $tx_dir = $base_dir . '/' . $tx_id;
+
+        wp_mkdir_p($tx_dir . '/files');
+
+        $user = wp_get_current_user();
+        $author = ($user && $user->exists()) ? $user->user_login : 'admin';
+
+        $manifest = [
+            'tx_id'       => $tx_id,
+            'title'       => sanitize_text_field($title),
+            'reason'      => sanitize_textarea_field($reason ?: 'Multi-threat attack chain eradication'),
+            'status'      => 'in_progress',
+            'created_at'  => current_time('mysql'),
+            'timestamp'   => time(),
+            'created_by'  => $author,
+            'context'     => $context,
+            'items'       => [],
+        ];
+
+        file_put_contents($tx_dir . '/manifest.json', wp_json_encode($manifest, JSON_PRETTY_PRINT));
+
+        return $tx_id;
+    }
+
+    /**
+     * Record a pre-remediation file snapshot in the transaction vault.
+     *
+     * @param string $tx_id
+     * @param string $file_path
+     * @param string $action_type 'quarantine' | 'delete' | 'repair' | 'permission_fix'
+     * @param int|null $issue_id
+     * @return bool
+     */
+    public static function record_file_snapshot(string $tx_id, string $file_path, string $action_type = 'quarantine', ?int $issue_id = null): bool {
+        $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
+        $manifest_file = $tx_dir . '/manifest.json';
+
+        if (!file_exists($manifest_file)) {
+            return false;
+        }
+
+        $manifest = json_decode(file_get_contents($manifest_file), true);
+        if (!is_array($manifest)) {
+            return false;
+        }
+
+        $clean_path = ltrim(str_replace(['../', '..\\'], '', $file_path), '/\\');
+        $full_path = wp_normalize_path(ABSPATH . $clean_path);
+
+        if (!file_exists($full_path) && file_exists($file_path)) {
+            $full_path = wp_normalize_path($file_path);
+        }
+
+        if (!file_exists($full_path) || !is_file($full_path)) {
+            return false;
+        }
+
+        $backup_key = 'f_' . count($manifest['items']) . '_' . basename($full_path);
+        $backup_path = $tx_dir . '/files/' . $backup_key;
+
+        // Perform byte-for-byte copy
+        if (!@copy($full_path, $backup_path)) {
+            return false;
+        }
+
+        $manifest['items'][] = [
+            'type'            => 'file',
+            'action'          => $action_type,
+            'target_path'     => $clean_path,
+            'original_abs'    => $full_path,
+            'backup_filename' => $backup_key,
+            'original_hash'   => hash_file('sha256', $full_path),
+            'original_perms'  => substr(sprintf('%o', fileperms($full_path)), -4),
+            'original_mtime'  => @filemtime($full_path) ?: time(),
+            'issue_id'        => $issue_id,
+            'timestamp'       => time(),
+        ];
+
+        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        return true;
+    }
+
+    /**
+     * Record a pre-remediation database row snapshot.
+     *
+     * @param string $tx_id
+     * @param string $table_name
+     * @param string $primary_key
+     * @param mixed $row_id
+     * @param array $original_row
+     * @param int|null $issue_id
+     * @return bool
+     */
+    public static function record_db_snapshot(string $tx_id, string $table_name, string $primary_key, $row_id, array $original_row, ?int $issue_id = null): bool {
+        $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
+        $manifest_file = $tx_dir . '/manifest.json';
+
+        if (!file_exists($manifest_file)) {
+            return false;
+        }
+
+        $manifest = json_decode(file_get_contents($manifest_file), true);
+        if (!is_array($manifest)) {
+            return false;
+        }
+
+        $manifest['items'][] = [
+            'type'          => 'database',
+            'table_name'    => sanitize_text_field($table_name),
+            'primary_key'   => sanitize_key($primary_key),
+            'row_id'        => $row_id,
+            'original_data' => $original_row,
+            'issue_id'      => $issue_id,
+            'timestamp'     => time(),
+        ];
+
+        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        return true;
+    }
+
+    /**
+     * Commit and finalize transaction after all steps have succeeded.
+     *
+     * @param string $tx_id
+     * @return array
+     */
+    public static function commit_transaction(string $tx_id): array {
+        $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
+        $manifest_file = $tx_dir . '/manifest.json';
+
+        if (!file_exists($manifest_file)) {
+            return ['success' => false, 'message' => 'Transaction not found.'];
+        }
+
+        $manifest = json_decode(file_get_contents($manifest_file), true);
+        if (!is_array($manifest)) {
+            return ['success' => false, 'message' => 'Invalid transaction manifest.'];
+        }
+
+        $manifest['status'] = 'completed';
+        $manifest['committed_at'] = current_time('mysql');
+        $manifest['total_items'] = count($manifest['items']);
+
+        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+
+        return [
+            'success'     => true,
+            'tx_id'       => $tx_id,
+            'items_count' => $manifest['total_items'],
+            'message'     => sprintf(__('Remediation transaction %s committed with %d items snapshotted.', 'wcp-security-scanner'), $tx_id, $manifest['total_items']),
+        ];
+    }
+
+    /**
+     * 1-Click Rollback: Atomically restore all files, database states, and issues from a transaction.
+     *
+     * @param string $tx_id
+     * @return array
+     */
+    public static function rollback_transaction(string $tx_id): array {
+        $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
+        $manifest_file = $tx_dir . '/manifest.json';
+
+        if (!file_exists($manifest_file)) {
+            return ['success' => false, 'message' => __('Transaction manifest not found.', 'wcp-security-scanner')];
+        }
+
+        $manifest = json_decode(file_get_contents($manifest_file), true);
+        if (!is_array($manifest)) {
+            return ['success' => false, 'message' => __('Corrupt transaction manifest.', 'wcp-security-scanner')];
+        }
+
+        if (($manifest['status'] ?? '') === 'rolled_back') {
+            return ['success' => false, 'message' => __('This transaction was already rolled back.', 'wcp-security-scanner')];
+        }
+
+        global $wpdb;
+        $restored_files = 0;
+        $restored_db    = 0;
+        $errors         = [];
+
+        // Reverse through items so latest changes roll back first
+        $items = array_reverse($manifest['items'] ?? []);
+
+        foreach ($items as $item) {
+            $type = $item['type'] ?? '';
+
+            if ($type === 'file') {
+                $target_abs  = $item['original_abs'] ?? '';
+                $backup_file = $tx_dir . '/files/' . ($item['backup_filename'] ?? '');
+
+                if (file_exists($backup_file)) {
+                    // Ensure directory exists
+                    $dir = dirname($target_abs);
+                    if (!is_dir($dir)) {
+                        wp_mkdir_p($dir);
+                    }
+
+                    if (@copy($backup_file, $target_abs)) {
+                        $restored_files++;
+                        // Restore original permissions & timestamps
+                        if (!empty($item['original_perms'])) {
+                            @chmod($target_abs, octdec($item['original_perms']));
+                        }
+                        if (!empty($item['original_mtime'])) {
+                            @touch($target_abs, (int) $item['original_mtime']);
+                        }
+                    } else {
+                        $errors[] = sprintf(__('Failed to copy restored file: %s', 'wcp-security-scanner'), basename($target_abs));
+                    }
+                }
+
+                // Re-open scan issue
+                if (!empty($item['issue_id'])) {
+                    $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+                    $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
+                }
+            } elseif ($type === 'database') {
+                $table = $item['table_name'] ?? '';
+                $pkey  = $item['primary_key'] ?? 'id';
+                $rid   = $item['row_id'] ?? null;
+                $data  = $item['original_data'] ?? [];
+
+                if ($table && $rid !== null && !empty($data)) {
+                    $updated = $wpdb->update($table, $data, [$pkey => $rid]);
+                    if ($updated !== false) {
+                        $restored_db++;
+                    }
+                }
+
+                // Re-open scan issue
+                if (!empty($item['issue_id'])) {
+                    $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+                    $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
+                }
+            }
+        }
+
+        $user = wp_get_current_user();
+        $author = ($user && $user->exists()) ? $user->user_login : 'admin';
+
+        $manifest['status']         = 'rolled_back';
+        $manifest['rolled_back_at'] = current_time('mysql');
+        $manifest['rolled_back_by'] = $author;
+
+        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+
+        return [
+            'success'        => empty($errors),
+            'tx_id'          => $tx_id,
+            'restored_files' => $restored_files,
+            'restored_db'    => $restored_db,
+            'errors'         => $errors,
+            'message'        => sprintf(
+                __('Transaction %s rolled back: restored %d file(s) and %d database record(s).', 'wcp-security-scanner'),
+                $tx_id,
+                $restored_files,
+                $restored_db
+            ),
+        ];
+    }
+
+    /**
+     * Retrieve all remediation transactions.
+     *
+     * @param int $limit
+     * @return array
+     */
+    public static function list_transactions(int $limit = 30): array {
+        $base_dir = self::get_transactions_dir();
+        if (!is_dir($base_dir)) {
+            return [];
+        }
+
+        $dirs = @scandir($base_dir) ?: [];
+        $transactions = [];
+
+        foreach ($dirs as $d) {
+            if ($d === '.' || $d === '..' || !str_starts_with($d, 'tx_')) {
+                continue;
+            }
+
+            $manifest_file = $base_dir . '/' . $d . '/manifest.json';
+            if (!file_exists($manifest_file)) {
+                continue;
+            }
+
+            $manifest = json_decode(file_get_contents($manifest_file), true);
+            if (is_array($manifest)) {
+                $file_items = array_filter($manifest['items'] ?? [], fn($i) => ($i['type'] ?? '') === 'file');
+                $db_items   = array_filter($manifest['items'] ?? [], fn($i) => ($i['type'] ?? '') === 'database');
+
+                $transactions[] = [
+                    'tx_id'          => $manifest['tx_id'] ?? $d,
+                    'title'          => $manifest['title'] ?? 'Attack Chain Eradication',
+                    'reason'         => $manifest['reason'] ?? '',
+                    'status'         => $manifest['status'] ?? 'completed',
+                    'created_at'     => $manifest['created_at'] ?? '',
+                    'timestamp'      => $manifest['timestamp'] ?? 0,
+                    'created_by'     => $manifest['created_by'] ?? 'admin',
+                    'files_count'    => count($file_items),
+                    'db_count'       => count($db_items),
+                    'total_items'    => count($manifest['items'] ?? []),
+                    'rolled_back_at' => $manifest['rolled_back_at'] ?? null,
+                    'rolled_back_by' => $manifest['rolled_back_by'] ?? null,
+                    'sample_targets' => array_slice(array_column($file_items, 'target_path'), 0, 3),
+                ];
+            }
+        }
+
+        // Sort descending by timestamp
+        usort($transactions, fn($a, $b) => ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0));
+
+        return array_slice($transactions, 0, $limit);
+    }
+}

@@ -47,6 +47,22 @@ v:1.17.0 - 2026-10-17
     - Updated settings copy in `AuthSecurityPage.tsx` to `Enforce Dual-Device Session Limit (1 Desktop + 1 Mobile Maximum)` with clear descriptive guidance.
     - Added a sleek dark scrollbar with `max-height: 440px` and custom WebKit track/thumb styling (`.wcp-forensics-scrollbar`) for the "Last 10 Logins & Device Telemetry Forensics" activity feed in `UserSessionForensicsModal.tsx`, preventing card overflow and keeping KPI summary metrics pinned into view.
     - Added dynamic badge rendering in `UserSessionForensicsModal.tsx` highlighting `Dual Device (Desktop + Mobile)` when exactly 2 distinct device categories are active.
+  * Post-v1.16.0 Architectural Roadmap Implementation:
+    - 1. First-Class False-Positive Tuning & Whitelist Engine (`WhitelistManager.php`, `WhitelistModal.tsx`, `WhitelistManagerTab.tsx`, `SettingsPage.tsx`):
+      * Introduced cryptographically locked suppression rules utilizing SHA-256 hash matching, auto-invalidating immediately if an excluded file is subsequently tampered with or modified.
+      * Configurable suppression lifespans (30 Days temporary review, 90 Days quarterly audit, or Permanent) with mandatory administrative reason audit logging.
+      * Per-engine confidence threshold controls (Filesystem Heuristics, Living-off-the-Land Hooks, AI Code Analysis, Database Anomaly Detection) and automatic risk score suppression.
+      * Dedicated Whitelist & False-Positives management interface in the security dashboard with 1-click rule revocation.
+    - 2. Autonomous Behavioral Baseline Engine (`BehavioralBaselineEngine.php`, `BehavioralBaselineCard.tsx`, `ScannerRoutes.php`):
+      * Autonomous snapshotting of core WordPress execution vectors: critical hook callback densities (`init`, `wp_authenticate`, `template_redirect`, etc.), crontab schedules, drop-ins & must-use (MU) plugins, and high-entropy (> 5.2 Shannon) PHP files.
+      * Real-time deviation auditing providing instant detection of covert persistence, unauthorized hook callbacks, and backdoor drop-in implants with health scoring.
+    - 3. Attack-Chain Transactional Snapshots & Safe Rollback (`TransactionalRemediation.php`, `RemediationTransactionsCard.tsx`, `AttackChainEngine.php`):
+      * Atomic multi-threat pre-remediation snapshots capturing byte-for-byte file backups, database rows, and cron states into a secure, hardened transaction vault prior to quarantine or disinfection.
+      * 1-Click safe rollback restoring original files, permissions, timestamps, and database records if remediation disrupts custom site functionality.
+    - 4. Model Context Protocol (MCP) Agentic Abilities Surface (`MCPAgentService.php`, `MCPAgentServiceCard.tsx`, `ScannerRoutes.php`):
+      * Built-in MCP tool definitions (`wcp_get_security_posture`, `wcp_list_findings`, `wcp_whitelist_finding`, `wcp_audit_behavioral_baseline`, `wcp_rollback_remediation`, `wcp_deploy_virtual_patch`, `wcp_quarantine_file`) adhering to standard Model Context Protocol schemas.
+      * Secure external AI agent authentication via dedicated Bearer API tokens and REST endpoints (`/wp-json/wcp-scanner/v1/mcp/execute`).
+      * 1-Click configuration export snippets for Claude Desktop (`claude_desktop_config.json`) and Google Antigravity / Cursor IDE MCP settings.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:

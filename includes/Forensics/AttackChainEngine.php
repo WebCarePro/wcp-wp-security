@@ -610,6 +610,13 @@ class AttackChainEngine {
         $errors = [];
         $vault_backups = [];
 
+        // Begin atomic remediation transaction with 1-click safe rollback capability
+        $tx_id = \WcpScanner\Remediation\TransactionalRemediation::start_transaction(
+            sprintf(__('Attack Chain Eradication: %s', 'wcp-security-scanner'), $chain_id),
+            sprintf(__('Autonomous multi-threat remediation for chain %s', 'wcp-security-scanner'), $chain_id),
+            ['chain_id' => $chain_id]
+        );
+
         // 1. Quarantine Staged Files
         if (!empty($plan['quarantine_files']) && is_array($plan['quarantine_files'])) {
             foreach ($plan['quarantine_files'] as $file_path) {
@@ -620,6 +627,9 @@ class AttackChainEngine {
                     $errors[] = "File outside root: {$file_path}";
                     continue;
                 }
+
+                // Record pre-remediation byte-for-byte snapshot in the transaction vault
+                \WcpScanner\Remediation\TransactionalRemediation::record_file_snapshot($tx_id, $file_path, 'quarantine');
 
                 $backup = $remediation_mgr->create_file_backup($file_path, 'attack_chain_eradication');
                 if ($backup['success']) {
@@ -710,21 +720,25 @@ class AttackChainEngine {
             }
         }
 
-        // 7. Record Audit Log Entry
+        // 7. Commit Transaction & Record Audit Log Entry
+        \WcpScanner\Remediation\TransactionalRemediation::commit_transaction($tx_id);
+
         AuditLogger::log_event(
             'attack_chain_eradicated',
-            sprintf(__('Eradicated attack chain "%s": %d actions executed.', 'wcp-security-scanner'), $chain_id, count($actions_taken))
+            sprintf(__('Eradicated attack chain "%s": %d actions executed under transaction %s.', 'wcp-security-scanner'), $chain_id, count($actions_taken), $tx_id)
         );
 
         return [
             'success'       => empty($errors) || count($actions_taken) > 0,
             'chain_id'      => $chain_id,
+            'tx_id'         => $tx_id,
             'actions_taken' => $actions_taken,
             'vault_backups' => $vault_backups,
             'errors'        => $errors,
             'message'       => sprintf(
-                __('Attack Chain Eradication Complete: %d actions executed successfully across files, database, and firewall.', 'wcp-security-scanner'),
-                count($actions_taken)
+                __('Attack Chain Eradication Complete: %d actions executed successfully across files, database, and firewall. Transaction snapshot "%s" saved for safe rollback.', 'wcp-security-scanner'),
+                count($actions_taken),
+                $tx_id
             ),
         ];
     }

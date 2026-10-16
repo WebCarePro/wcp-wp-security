@@ -29,8 +29,8 @@ class RiskScorer {
             $f_data = is_array($finding) ? $finding : (method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding);
             $status = strtolower($f_data['status'] ?? 'open');
 
-            // Quarantined, repaired, or ignored findings are neutralized and do NOT contribute to the active site risk score.
-            if ($status !== 'open') {
+            // Quarantined, repaired, or ignored/whitelisted findings are neutralized and do NOT contribute to the active site risk score.
+            if ($status !== 'open' || !empty($f_data['is_whitelisted'])) {
                 continue;
             }
 
