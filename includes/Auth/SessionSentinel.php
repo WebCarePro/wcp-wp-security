@@ -134,17 +134,6 @@ class SessionSentinel {
             }
         }
 
-        // 2. Max Idle Session Timeout Check
-        $idle_timeout_minutes = (int) ($settings['session_idle_timeout'] ?? 120); // Default 120 minutes
-        if ($idle_timeout_minutes > 0 && isset($session_info['last_seen'])) {
-            $max_idle_seconds = $idle_timeout_minutes * 60;
-            if ((time() - $session_info['last_seen']) > $max_idle_seconds) {
-                self::terminate_session($user_id, $current_token, 'Session expired due to inactivity.');
-                wp_safe_redirect(wp_login_url() . '?wcpscan_session_alert=idle_timeout');
-                exit;
-            }
-        }
-
         // Update last seen timestamp (throttled every 60 seconds to save DB writes)
         if (time() - ($session_info['last_seen'] ?? 0) > 60) {
             $sessions_meta[$current_token]['last_seen'] = time();

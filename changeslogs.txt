@@ -21,7 +21,9 @@ v:1.17.0 - 2026-10-17
     - Standardized WordPress core internal directory references using `ABSPATH . (defined('WPINC') ? WPINC : 'wp-includes')` across `CoreIntegrity.php` and `FileIntegrityMonitor.php`.
   * Extended External Services Disclosures in `readme.txt`:
     - Fully disclosed all external endpoints, purposes, data transmitted, trigger conditions, Terms of Service, and Privacy Policies for WordPress.org API & SVN release mirrors, GitHub raw content mirrors, Stamparm threat intelligence, Blocklist.de feeds, Cloudflare API v4, Google Gemini API, OpenAI API, Anthropic Claude API, and DevSecOps webhooks.
-    - Explicitly noted that Two-Factor Authentication QR code generation runs 100% on-premise without external services.
+  * Removed Automatic Idle Session Inactivity Timeout (`SessionSentinel.php`, `SettingsManager.php`, `ScannerRoutes.php`, `AuthSecurityPage.tsx`):
+    - Completely removed forced automatic session revocation after inactivity, resolving frequent unwanted logouts and allowing WordPress standard session cookie lifecycles to govern authentication naturally.
+    - Preserved active session tracking, client IP, platform/browser telemetry, and 1-click manual revocation in the Session Sentinel dashboard without disruptive background timeouts.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:

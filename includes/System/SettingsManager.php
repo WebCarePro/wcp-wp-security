@@ -102,7 +102,6 @@ class SettingsManager {
             'session_sentinel_enabled'           => true,
             'session_block_concurrent'           => false,
             'session_lock_ip'                    => false,
-            'session_idle_timeout'               => 120, // Minutes before inactive session is revoked
 
             // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
             'slack_enabled'                      => false,
@@ -330,7 +329,6 @@ class SettingsManager {
         $clean['session_sentinel_enabled']  = isset($input['session_sentinel_enabled']) ? !empty($input['session_sentinel_enabled']) : true;
         $clean['session_block_concurrent']  = !empty($input['session_block_concurrent']);
         $clean['session_lock_ip']           = !empty($input['session_lock_ip']);
-        $clean['session_idle_timeout']      = max(0, min(1440, (int) ($input['session_idle_timeout'] ?? 120)));
 
 
         // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n - Encrypted with SecretVault)

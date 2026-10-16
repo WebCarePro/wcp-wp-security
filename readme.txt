@@ -87,7 +87,6 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **Active Administrative Session Inspector**: Real-time tracking of active user logins via WP_Session_Tokens with IP address, browser, OS, and timestamp telemetry.
 * **Strict IP Lock & Anti-Replay**: Automatically detects and revokes hijacked sessions if client IP shifts during an active login.
 * **Concurrent Login Block**: Enforces single-session policies by invalidating older sessions when an administrator logs in from a new machine.
-* **Configurable Idle Inactivity Revocation**: Automatically logs out abandoned admin sessions after configurable periods (default: 120m).
 * **1-Click Remote Termination**: Remotely terminate individual compromised sessions or revoke all other sessions with 1-click.
 
 = 13. Multi-Factor Authentication (2FA) & Login Hardening =

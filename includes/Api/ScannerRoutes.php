@@ -4441,7 +4441,6 @@ class ScannerRoutes {
             'session_sentinel_enabled'  => !empty($settings['session_sentinel_enabled']),
             'session_block_concurrent'  => !empty($settings['session_block_concurrent']),
             'session_lock_ip'           => !empty($settings['session_lock_ip']),
-            'session_idle_timeout'      => (int) ($settings['session_idle_timeout'] ?? 120),
             'user_2fa_enabled'          => \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
             'user_login'                => $user ? $user->user_login : '',
             'user_email'                => $user ? $user->user_email : '',
