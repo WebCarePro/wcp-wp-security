@@ -4588,32 +4588,36 @@ class ScannerRoutes {
      * Session Sentinel: Revoke session
      */
     public static function revoke_active_session(\WP_REST_Request $request) {
-        $params  = $request->get_json_params() ?: [];
-        $token   = sanitize_text_field($params['token'] ?? '');
-        $user_id = (int) ($params['user_id'] ?? 0);
-        $revoke_others = !empty($params['revoke_others']);
+        try {
+            $params  = $request->get_json_params() ?: [];
+            $token   = sanitize_text_field($params['token'] ?? '');
+            $user_id = (int) ($params['user_id'] ?? 0);
+            $revoke_others = !empty($params['revoke_others']);
 
-        if ($revoke_others) {
-            $target_user_id = $user_id ?: 0;
-            \WcpScanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id, empty($user_id));
+            if ($revoke_others) {
+                $target_user_id = $user_id ?: 0;
+                \WcpScanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id, empty($user_id));
+                return rest_ensure_response([
+                    'success' => true,
+                    'message' => __('All other active sessions have been terminated.', 'wcp-security-scanner'),
+                    'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+                ]);
+            }
+
+            if (empty($token) || empty($user_id)) {
+                return new \WP_Error('missing_params', __('Session token and user ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+            }
+
+            \WcpScanner\Auth\SessionSentinel::terminate_session($user_id, $token, 'Revoked by administrator via Session Sentinel.');
+
             return rest_ensure_response([
-                'success' => true,
-                'message' => __('All other active sessions have been terminated.', 'wcp-security-scanner'),
+                'success'  => true,
+                'message'  => __('Session successfully revoked.', 'wcp-security-scanner'),
                 'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
             ]);
+        } catch (\Throwable $e) {
+            return new \WP_Error('session_revoke_error', $e->getMessage(), ['status' => 500]);
         }
-
-        if (empty($token) || empty($user_id)) {
-            return new \WP_Error('missing_params', __('Session token and user ID are required.', 'wcp-security-scanner'), ['status' => 400]);
-        }
-
-        \WcpScanner\Auth\SessionSentinel::terminate_session($user_id, $token, 'Revoked by administrator via Session Sentinel.');
-
-        return rest_ensure_response([
-            'success'  => true,
-            'message'  => __('Session successfully revoked.', 'wcp-security-scanner'),
-            'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
-        ]);
     }
 
     /**

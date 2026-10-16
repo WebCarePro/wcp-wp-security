@@ -34,7 +34,8 @@ v:1.17.0 - 2026-10-17
   * Active Session Revocation & Multi-Admin Termination Fix (`SessionSentinel.php`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
     - Resolved critical session termination flaw where `WP_Session_Tokens::get_all()` stripped associative verifier keys via `array_values()`, causing session revocation requests to transmit meaningless numeric array indices (`0`, `1`) instead of actual SHA-256 session verifier keys.
     - Updated `SessionSentinel::get_active_sessions()` to query WordPress core `session_tokens` user meta directly, retaining true SHA-256 verifier keys and accurately identifying `$is_current` active device sessions.
-    - Enhanced `SessionSentinel::terminate_session()` to directly unset both raw tokens and verifier keys from `session_tokens` user meta, invoke WP core `$manager->destroy()`, flush WordPress object/user caches via `clean_user_cache()`, and record session closure timestamps in `wp_wcpscan_login_history`.
+    - Enhanced `SessionSentinel::terminate_session()` to directly unset both raw tokens and verifier keys from `session_tokens` user meta, invoke WP core `$manager->destroy()`, guard against undefined constants (`LOGGED_IN_COOKIE`), and record session closure timestamps in `wp_wcpscan_login_history`.
+    - Hardened session revocation handlers and database operations with full `try...catch` defensive wrappers and restored universal custom SPL autoloading for the `WcpScanner\` namespace, preventing uncaught exceptions and critical errors during session invalidation.
     - Corrected multi-admin session revocation in `ScannerRoutes::revoke_active_session()` so terminating other administrators properly invalidates their active authentication cookies across all secondary devices.
 
 v:1.16.0 - 2026-10-16

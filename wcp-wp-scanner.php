@@ -22,26 +22,27 @@ define('WCPSCAN_FILE', __FILE__);
 define('WCPSCAN_PATH', plugin_dir_path(__FILE__));
 define('WCPSCAN_URL', plugin_dir_url(__FILE__));
 
-// Composer or Custom Autoloader
+// Custom Autoloader for WcpScanner namespace
+spl_autoload_register(function ($class) {
+    $prefix = 'WcpScanner\\';
+    $base_dir = WCPSCAN_PATH . 'includes/';
+
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return;
+    }
+
+    $relative_class = substr($class, $len);
+    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
+
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
+
+// Composer Autoloader (if present)
 if (file_exists(WCPSCAN_PATH . 'vendor/autoload.php')) {
     require_once WCPSCAN_PATH . 'vendor/autoload.php';
-} else {
-    spl_autoload_register(function ($class) {
-        $prefix = 'WcpScanner\\';
-        $base_dir = WCPSCAN_PATH . 'includes/';
-
-        $len = strlen($prefix);
-        if (strncmp($prefix, $class, $len) !== 0) {
-            return;
-        }
-
-        $relative_class = substr($class, $len);
-        $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-
-        if (file_exists($file)) {
-            require_once $file;
-        }
-    });
 }
 
 // Activation & Deactivation hooks

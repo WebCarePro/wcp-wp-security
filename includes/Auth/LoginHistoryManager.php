@@ -237,20 +237,27 @@ class LoginHistoryManager {
             return;
         }
 
-        global $wpdb;
-        $table = $wpdb->prefix . self::TABLE_NAME;
-        $now   = current_time('mysql');
+        try {
+            global $wpdb;
+            if (!$wpdb) {
+                return;
+            }
+            $table = $wpdb->prefix . self::TABLE_NAME;
+            $now   = current_time('mysql');
 
-        $raw_hash = substr(hash('sha256', $session_token), 0, 64);
+            $raw_hash = substr(hash('sha256', $session_token), 0, 64);
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-        $wpdb->query($wpdb->prepare(
-            "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND (session_token = %s OR session_token = %s) AND logout_time IS NULL",
-            $now,
-            $user_id,
-            $session_token,
-            $raw_hash
-        ));
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+            $wpdb->query($wpdb->prepare(
+                "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND (session_token = %s OR session_token = %s) AND logout_time IS NULL",
+                $now,
+                $user_id,
+                $session_token,
+                $raw_hash
+            ));
+        } catch (\Throwable $e) {
+            // Silently suppress if table does not exist yet or DB query fails
+        }
     }
 
     /**
