@@ -13,6 +13,10 @@ v:1.16.0 - 2026-10-16
   * Full WordPress Page Width & Enhanced FIM Table UX (`FileIntegrityPage.tsx`, `index.css`):
     - Enabled full-width layout expansion on the FIM page (`#wcp-scanner-root.wcp-fim-fullwidth`) to utilize 100% of the WordPress admin screen width, providing ample room for comprehensive multi-column forensics.
     - Enhanced Recently Modified Files table layout with sticky table header, high-contrast status border indicators (rogue files in red, altered in amber, clean in green), prominent file location hierarchy (filename in bold with directory path and validation notice), custom scrollbar, and integrated pagination controls (25 / 50 / 100 / All).
+  * Synchronized Dual Horizontal Scrollbars for Recently Modified Files Table (`FileIntegrityPage.tsx`, `index.css`):
+    - Added an interactive, bi-directionally synchronized top horizontal scrollbar directly above the table header (`.wcp-top-scrollbar-wrap`).
+    - Uses native browser scroll binding with animation-frame lock prevention and ResizeObserver dimension tracking (`tableScrollWidth` and `canScrollX`) to keep the top scrollbar position and the table's bottom scrollbar in 1:1 synchronization.
+    - Designed with custom sleek WebKit scrollbar styling matching plugin theme and hover highlight (`#0284c7`), automatically hiding whenever table columns fit within the viewport.
   * Web-Traffic-Triggered Cron Informational Guidance (`SettingsPage.tsx`): added an explanatory callout under the Scheduler diagnostics panel clarifying how WordPress virtual cron operates on visitor traffic and how Linux system crontab provides 24/7 background automation for sites with zero traffic.
 
 v:1.15.0 - 2026-10-15
