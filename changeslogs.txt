@@ -42,6 +42,11 @@ v:1.17.0 - 2026-10-17
     - Hardened the custom SPL autoloader in `wcp-wp-scanner.php` with case-insensitive directory fallbacks, preventing class loading failures on case-sensitive Linux filesystems.
     - Added self-healing table verification in `Plugin.php` so that if custom database tables (`wp_wcpscan_*`) are dropped or removed from MySQL, the plugin automatically detects missing tables on boot and runs `Migration::install()` without requiring manual deactivation.
     - Hardened `ServerInfo::get_info()` against boolean offset fatal errors in PHP 8 (`posix_getpwuid`), bypassed heavy synchronous filesystem crawls during admin asset enqueueing, and wrapped `SecretVault::get_key()` with resilient fallbacks for missing salts.
+  * Dual-Device Concurrency Control & Forensics Inspector Scrollbar (`SessionSentinel.php`, `AuthSecurityPage.tsx`, `UserSessionForensicsModal.tsx`, `index.css`):
+    - Upgraded concurrency control to an intelligent Dual-Device policy allowing administrators to stay logged in on at most 2 distinct devices simultaneously (strictly 1 Desktop + 1 Mobile). Automatically revokes older sessions of the same device category when a new login occurs, preventing account sharing while eliminating unwanted logouts between phone and computer.
+    - Updated settings copy in `AuthSecurityPage.tsx` to `Enforce Dual-Device Session Limit (1 Desktop + 1 Mobile Maximum)` with clear descriptive guidance.
+    - Added a sleek dark scrollbar with `max-height: 440px` and custom WebKit track/thumb styling (`.wcp-forensics-scrollbar`) for the "Last 10 Logins & Device Telemetry Forensics" activity feed in `UserSessionForensicsModal.tsx`, preventing card overflow and keeping KPI summary metrics pinned into view.
+    - Added dynamic badge rendering in `UserSessionForensicsModal.tsx` highlighting `Dual Device (Desktop + Mobile)` when exactly 2 distinct device categories are active.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:

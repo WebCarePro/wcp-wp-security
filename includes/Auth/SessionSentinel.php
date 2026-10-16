@@ -71,23 +71,83 @@ class SessionSentinel {
         $ip = FirewallEngine::get_client_ip();
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
 
-        // Check concurrent sessions count
+        // Dual-Device Concurrency Control: Allow at most 2 devices (strictly 1 Desktop + 1 Mobile)
         if (!empty($settings['session_block_concurrent']) && $user->has_cap('administrator')) {
             $wp_sessions = get_user_meta($user->ID, 'session_tokens', true);
             if (is_array($wp_sessions) && count($wp_sessions) > 1 && $session_token) {
                 $verifier = hash('sha256', $session_token);
+                $sessions_meta = get_user_meta($user->ID, 'wcpscan_session_meta', true) ?: [];
+
+                // Determine current incoming device category ('mobile' vs 'desktop')
+                $screen_raw = isset($_POST['wcpscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_screen_res'])) : '';
+                $current_parsed = \WcpScanner\Auth\LoginHistoryManager::parse_device_details($ua, $screen_raw);
+                $current_cat = in_array($current_parsed['device_type'], ['Mobile', 'Tablet'], true) ? 'mobile' : 'desktop';
+
+                $current_session_key = isset($wp_sessions[$verifier]) ? $verifier : (isset($wp_sessions[$session_token]) ? $session_token : '');
+                $current_session_data = $current_session_key ? $wp_sessions[$current_session_key] : null;
+
                 $preserved = [];
-                if (isset($wp_sessions[$verifier])) {
-                    $preserved[$verifier] = $wp_sessions[$verifier];
-                } elseif (isset($wp_sessions[$session_token])) {
-                    $preserved[$session_token] = $wp_sessions[$session_token];
+                $other_device_session = null;
+                $other_device_key = '';
+
+                // Examine prior active sessions and enforce category boundaries
+                foreach ($wp_sessions as $s_key => $s_data) {
+                    // Skip current newly created session in this loop
+                    if ($s_key === $verifier || $s_key === $session_token) {
+                        continue;
+                    }
+
+                    // Extract user-agent for this existing session
+                    $s_ua = $s_data['ua'] ?? '';
+                    if (empty($s_ua) && !empty($sessions_meta[$s_key]['encrypted_meta'])) {
+                        $decrypted = \WcpScanner\Security\SecretVault::decrypt((string) $sessions_meta[$s_key]['encrypted_meta']);
+                        $decoded = is_string($decrypted) ? (json_decode($decrypted, true) ?: []) : [];
+                        $s_ua = $decoded['user_agent'] ?? '';
+                    }
+
+                    $s_parsed = \WcpScanner\Auth\LoginHistoryManager::parse_device_details($s_ua, '');
+                    $s_cat = in_array($s_parsed['device_type'], ['Mobile', 'Tablet'], true) ? 'mobile' : 'desktop';
+
+                    if ($s_cat === $current_cat) {
+                        // Same category as new device (e.g. new desktop replacing previous desktop) -> Terminate!
+                        \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $s_key);
+                        unset($sessions_meta[$s_key]);
+                    } else {
+                        // Different category (e.g. mobile session while logging in on desktop) -> Keep newest!
+                        $s_login_time = $s_data['login'] ?? 0;
+                        if (!$other_device_session || $s_login_time > ($other_device_session['login'] ?? 0)) {
+                            if ($other_device_key) {
+                                \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $other_device_key);
+                                unset($sessions_meta[$other_device_key]);
+                            }
+                            $other_device_session = $s_data;
+                            $other_device_key = $s_key;
+                        } else {
+                            \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $s_key);
+                            unset($sessions_meta[$s_key]);
+                        }
+                    }
                 }
-                if (!empty($preserved)) {
-                    update_user_meta($user->ID, 'session_tokens', $preserved);
-                } else {
-                    $manager = \WP_Session_Tokens::get_instance($user->ID);
-                    $manager->destroy_others($session_token);
+
+                // Preserve the different device session (1 Desktop + 1 Mobile)
+                if ($other_device_key && $other_device_session) {
+                    $preserved[$other_device_key] = $other_device_session;
                 }
+
+                // Preserve current newly authenticated session
+                if ($current_session_key && $current_session_data) {
+                    $preserved[$current_session_key] = $current_session_data;
+                } elseif ($session_token) {
+                    $preserved[$verifier] = [
+                        'expiration' => time() + (14 * DAY_IN_SECONDS),
+                        'ip'         => $ip,
+                        'ua'         => $ua,
+                        'login'      => time(),
+                    ];
+                }
+
+                update_user_meta($user->ID, 'session_tokens', $preserved);
+                update_user_meta($user->ID, 'wcpscan_session_meta', $sessions_meta);
             }
         }
 
