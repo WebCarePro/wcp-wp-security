@@ -167,7 +167,7 @@ class FirewallEngine {
         }
 
         // 3. From WordPress option
-        $opt = function_exists('get_option') ? get_option('wcp_trusted_proxies', '') : '';
+        $opt = function_exists('get_option') ? get_option('wcpscan_trusted_proxies', '') : '';
         if (!empty($opt) && is_string($opt)) {
             $parts = preg_split('/[\s,;]+/', $opt);
             foreach ($parts as $p) {

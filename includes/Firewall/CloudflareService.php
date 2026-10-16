@@ -428,35 +428,35 @@ class CloudflareService {
     public static function get_rule_definitions(): array {
         return [
             'block_core_sensitive' => [
-                'id'          => 'wcp_block_core_sensitive',
+                'id'          => 'wcpscan_block_core_sensitive',
                 'title'       => 'WordPress Core & Sensitive System Armor',
                 'description' => 'Terminates /xmlrpc.php abuse, wp-config.php probes, .env, .git, .user.ini, debug.log, and package manifests in a single unified edge shield.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri.path contains "/xmlrpc.php" or http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/.user.ini" "/wp-content/debug.log" "/composer.json" "/package.json"})',
             ],
             'block_uploads_exec' => [
-                'id'          => 'wcp_block_uploads_exec',
+                'id'          => 'wcpscan_block_uploads_exec',
                 'title'       => 'Webshell & Direct Script Execution Trap',
                 'description' => 'Stops direct HTTP execution of .php, .phtml, .phar, and shell scripts disguised inside wp-content/uploads/ or upgrade directories at the edge.',
                 'action'      => 'block',
                 'expression'  => '((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})',
             ],
             'block_exploits_traversal' => [
-                'id'          => 'wcp_block_exploits_traversal',
+                'id'          => 'wcpscan_block_exploits_traversal',
                 'title'       => 'Path Traversal & Code Injection Edge Shield',
                 'description' => 'Blocks LFI/RFI directory traversal, dangerous PHP function execution wrappers, and null byte injections.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/' . 'passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00")',
             ],
             'block_author_recon' => [
-                'id'          => 'wcp_block_author_recon',
+                'id'          => 'wcpscan_block_author_recon',
                 'title'       => 'Recon & Username Harvesting Shield',
                 'description' => 'Blocks bots scanning author parameter (?author=1) and enumerating WordPress usernames via public REST endpoints.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
             ],
             'challenge_wp_login' => [
-                'id'          => 'wcp_challenge_wp_login',
+                'id'          => 'wcpscan_challenge_wp_login',
                 'title'       => 'Login Portal Threat Defense (Managed Challenge)',
                 'description' => 'Triggers a non-intrusive Cloudflare Turnstile / Managed Challenge for automated bots targeting wp-login.php.',
                 'action'      => 'managed_challenge',

@@ -144,7 +144,7 @@ class BotReconDefense {
             return false;
         }
 
-        $transient_key = 'wcp_bot_dns_' . md5($ip . '_' . $bot_key);
+        $transient_key = 'wcpscan_bot_dns_' . md5($ip . '_' . $bot_key);
         $cached = get_transient($transient_key);
         if ($cached !== false) {
             return ($cached === 'genuine');

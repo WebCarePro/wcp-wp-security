@@ -1111,7 +1111,7 @@ class FileIntegrityMonitor {
                 $is_wporg = false;
             } else {
                 // Check transient or quick checksum head
-                $chk_cache = get_transient("wcp_is_wporg_plugin_{$slug}");
+                $chk_cache = get_transient("wcpscan_is_wporg_plugin_{$slug}");
                 if ($chk_cache === 'yes') {
                     $is_wporg = true;
                 } elseif ($chk_cache === 'no') {
@@ -1122,10 +1122,10 @@ class FileIntegrityMonitor {
                     $res = wp_remote_head($test_url, ['timeout' => 3]);
                     if (!is_wp_error($res) && wp_remote_retrieve_response_code($res) === 200) {
                         $is_wporg = true;
-                        set_transient("wcp_is_wporg_plugin_{$slug}", 'yes', 7 * DAY_IN_SECONDS);
+                        set_transient("wcpscan_is_wporg_plugin_{$slug}", 'yes', 7 * DAY_IN_SECONDS);
                     } else {
                         $is_wporg = false;
-                        set_transient("wcp_is_wporg_plugin_{$slug}", 'no', 7 * DAY_IN_SECONDS);
+                        set_transient("wcpscan_is_wporg_plugin_{$slug}", 'no', 7 * DAY_IN_SECONDS);
                     }
                 }
             }
@@ -1190,7 +1190,7 @@ class FileIntegrityMonitor {
                 }
                 if ($type !== 'premium') {
                     // Check WordPress.org theme transient or remote head check
-                    $chk_cache = get_transient("wcp_is_wporg_theme_{$theme_slug}");
+                    $chk_cache = get_transient("wcpscan_is_wporg_theme_{$theme_slug}");
                     if ($chk_cache === 'yes') {
                         $is_wporg = true;
                     } elseif ($chk_cache === 'no') {
@@ -1201,11 +1201,11 @@ class FileIntegrityMonitor {
                         $res = wp_remote_head($test_url, ['timeout' => 3]);
                         if (!is_wp_error($res) && wp_remote_retrieve_response_code($res) === 200) {
                             $is_wporg = true;
-                            set_transient("wcp_is_wporg_theme_{$theme_slug}", 'yes', 7 * DAY_IN_SECONDS);
+                            set_transient("wcpscan_is_wporg_theme_{$theme_slug}", 'yes', 7 * DAY_IN_SECONDS);
                         } else {
                             $is_wporg = false;
                             $reason = 'Custom or Third-Party Theme';
-                            set_transient("wcp_is_wporg_theme_{$theme_slug}", 'no', 7 * DAY_IN_SECONDS);
+                            set_transient("wcpscan_is_wporg_theme_{$theme_slug}", 'no', 7 * DAY_IN_SECONDS);
                         }
                     }
                 }

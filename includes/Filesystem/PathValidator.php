@@ -226,7 +226,7 @@ class PathValidator {
         $tmp_file = null;
         $handle = false;
         for ($i = 0; $i < 5; $i++) {
-            $candidate = $dir . '/.wcp_tmp_' . bin2hex(random_bytes(8)) . '.tmp';
+            $candidate = $dir . '/.wcpscan_tmp_' . bin2hex(random_bytes(8)) . '.tmp';
             $handle = @fopen($candidate, 'x+b'); // O_CREAT | O_EXCL
             if ($handle !== false) {
                 $tmp_file = $candidate;
@@ -282,7 +282,7 @@ class PathValidator {
 
         // Failure-aware fallback for platforms where destination locking prevents direct rename (e.g. Windows)
         if (file_exists($path)) {
-            $dest_backup = $dir . '/.wcp_bak_' . bin2hex(random_bytes(8)) . '.tmp';
+            $dest_backup = $dir . '/.wcpscan_bak_' . bin2hex(random_bytes(8)) . '.tmp';
             $displaced = @rename($path, $dest_backup);
 
             if ($displaced) {

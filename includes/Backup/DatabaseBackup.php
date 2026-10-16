@@ -347,7 +347,7 @@ class DatabaseBackup {
             ];
         }
 
-        $session_id = 'wcp_bak_' . wp_generate_password(12, false, false);
+        $session_id = 'wcpscan_bak_' . wp_generate_password(12, false, false);
         $date_str = gmdate('Y-m-d_H-i-s');
         $use_gzip = function_exists('gzopen');
         $ext = $use_gzip ? 'sql.gz' : 'sql';
@@ -833,7 +833,7 @@ class DatabaseBackup {
      * @return array|null
      */
     public function get_session_state(string $session_id): ?array {
-        $transient_key = "wcp_bak_sess_{$session_id}";
+        $transient_key = "wcpscan_bak_sess_{$session_id}";
         $state = get_transient($transient_key);
         if (is_array($state)) {
             return $state;
@@ -860,7 +860,7 @@ class DatabaseBackup {
      * @param array $state
      */
     private function save_session_state(string $session_id, array $state) {
-        $transient_key = "wcp_bak_sess_{$session_id}";
+        $transient_key = "wcpscan_bak_sess_{$session_id}";
         set_transient($transient_key, $state, 6 * HOUR_IN_SECONDS);
 
         $state_file = $this->backup_dir . "/.state_{$session_id}.json";

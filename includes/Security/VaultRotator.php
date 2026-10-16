@@ -109,7 +109,7 @@ class VaultRotator {
 
         $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
 
-        // Fetch encrypted settings keys from wcp_scanner_settings
+        // Fetch encrypted settings keys from wcpscan_settings
         $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
         $secret_fields = [
             'gemini_api_key', 'openai_api_key', 'claude_api_key',
@@ -144,7 +144,7 @@ class VaultRotator {
                 $modified_settings = true;
                 $state['records_done']++;
             } catch (\Throwable $e) {
-                $state['failed_records'][] = "wcp_scanner_settings.{$field}";
+                $state['failed_records'][] = "wcpscan_settings.{$field}";
                 $state['last_error'] = $e->getMessage();
             }
 
@@ -210,7 +210,7 @@ class VaultRotator {
             $decrypted = SecretVault::decrypt_with_key((string) $settings[$field], $new_binary_key);
             if ($decrypted === false) {
                 $all_verified = false;
-                $state['failed_records'][] = "wcp_scanner_settings.{$field}";
+                $state['failed_records'][] = "wcpscan_settings.{$field}";
             }
         }
 

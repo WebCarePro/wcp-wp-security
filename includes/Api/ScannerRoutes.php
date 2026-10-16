@@ -709,11 +709,11 @@ class ScannerRoutes {
         // Acquire lock
         ScanLock::acquire($scan_id);
 
-        set_transient("wcp_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
+        set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
         set_transient("wcpscan_scan_queue_{$scan_id}", $all_files, HOUR_IN_SECONDS);
 
         $init_telemetry = self::get_realtime_resource_stats(null, null, 0, count($all_files), 0, 0.0);
-        set_transient("wcp_scan_live_telemetry_{$scan_id}", $init_telemetry, 600);
+        set_transient("wcpscan_scan_live_telemetry_{$scan_id}", $init_telemetry, 600);
 
         return rest_ensure_response([
             'success'     => true,
@@ -739,7 +739,7 @@ class ScannerRoutes {
         $queue = get_transient("wcpscan_scan_queue_{$scan_id}");
         if ($queue === false || !is_array($queue)) {
             // Check if scan exists in DB to prevent hard 404 failure
-            $scan_exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wcp_scans WHERE id = %d", $scan_id));
+            $scan_exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wcpscan_scans WHERE id = %d", $scan_id));
             if ($scan_exists) {
                 return rest_ensure_response([
                     'success'     => true,
@@ -831,7 +831,7 @@ class ScannerRoutes {
             'issues_found'  => $current_issues_total,
         ], ['id' => $scan_id]);
 
-        $start_micro = get_transient("wcp_scan_start_micro_{$scan_id}");
+        $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
         $elapsed_sec = ($start_micro && is_numeric($start_micro)) ? max(0.1, microtime(true) - (float) $start_micro) : 0.0;
         $telemetry = self::get_realtime_resource_stats(
             $batch_start,
@@ -841,7 +841,7 @@ class ScannerRoutes {
             $current_issues_total,
             $elapsed_sec
         );
-        set_transient("wcp_scan_live_telemetry_{$scan_id}", $telemetry, 600);
+        set_transient("wcpscan_scan_live_telemetry_{$scan_id}", $telemetry, 600);
 
         return rest_ensure_response([
             'success'        => true,
@@ -1072,7 +1072,7 @@ class ScannerRoutes {
             $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
             $client_duration_ms = (int) $request->get_param('client_duration_ms');
             $client_duration = (int) $request->get_param('client_duration');
-            $start_micro = get_transient("wcp_scan_start_micro_{$scan_id}");
+            $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
             $completed_at_exact = self::now_fractional_mysql();
 
             $duration_ms = 0;
@@ -1121,7 +1121,7 @@ class ScannerRoutes {
                 $duration_sec = 1;
             }
 
-            delete_transient("wcp_scan_start_micro_{$scan_id}");
+            delete_transient("wcpscan_scan_start_micro_{$scan_id}");
 
             $started_at_db = !empty($scan_row['started_at']) ? $scan_row['started_at'] : ($scan_row['created_at'] ?? $completed_at_exact);
 
@@ -1794,9 +1794,9 @@ class ScannerRoutes {
         $scanned = (int) $running_scan['scanned_files'];
         $trigger_type = !empty($running_scan['trigger_type']) ? $running_scan['trigger_type'] : 'manual';
         $remaining = is_array($queue) ? count($queue) : max(0, $total - $scanned);
-        $last_file = get_transient("wcp_active_scan_file_{$locked_id}") ?: '';
+        $last_file = get_transient("wcpscan_active_scan_file_{$locked_id}") ?: '';
 
-        $live_telemetry = get_transient("wcp_scan_live_telemetry_{$locked_id}");
+        $live_telemetry = get_transient("wcpscan_scan_live_telemetry_{$locked_id}");
         if (!$live_telemetry || !is_array($live_telemetry)) {
             $live_telemetry = self::get_realtime_resource_stats(null, null, $scanned, $total, (int) $running_scan['issues_found'], 0.0);
         }
@@ -1819,7 +1819,7 @@ class ScannerRoutes {
             'created_at'     => $running_scan['created_at'],
             'started_at'     => $running_scan['started_at'] ?? $running_scan['created_at'],
             'elapsed'        => (function() use ($running_scan, $locked_id) {
-                $start_micro = get_transient("wcp_scan_start_micro_{$locked_id}");
+                $start_micro = get_transient("wcpscan_scan_start_micro_{$locked_id}");
                 if ($start_micro && is_numeric($start_micro)) {
                     $diff = microtime(true) - (float) $start_micro;
                     if ($diff > 0) return max(1, (int) round($diff));
@@ -1840,7 +1840,7 @@ class ScannerRoutes {
                 return 1;
             })(),
             'elapsed_ms'     => (function() use ($running_scan, $locked_id) {
-                $start_micro = get_transient("wcp_scan_start_micro_{$locked_id}");
+                $start_micro = get_transient("wcpscan_scan_start_micro_{$locked_id}");
                 if ($start_micro && is_numeric($start_micro)) {
                     $diff = microtime(true) - (float) $start_micro;
                     if ($diff > 0) return (int) round($diff * 1000);
@@ -1870,7 +1870,7 @@ class ScannerRoutes {
         $now_exact = self::now_fractional_mysql();
 
         if ($scan_id) {
-            $start_micro = get_transient("wcp_scan_start_micro_{$scan_id}");
+            $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
             $duration_ms = 0;
             $duration_sec = 0;
             if ($start_micro && is_numeric($start_micro)) {
@@ -1880,7 +1880,7 @@ class ScannerRoutes {
                     $duration_sec = max(1, (int) round($calc_diff));
                 }
             }
-            delete_transient("wcp_scan_start_micro_{$scan_id}");
+            delete_transient("wcpscan_scan_start_micro_{$scan_id}");
 
             $wpdb->update($table_scans, [
                 'status'       => 'aborted',
@@ -2867,7 +2867,7 @@ class ScannerRoutes {
 
         // --- STEP 1: Attempt to retrieve latest version changelog from WordPress Update Manager / Vendor API / Official Repository ---
         if ($type === 'plugin' && (!empty($slug) || !empty($target_dir))) {
-            $cache_key = 'wcp_up_cl_pl_' . substr(md5(($slug ?: basename($target_dir)) . '_' . $latest_ver), 0, 16);
+            $cache_key = 'wcpscan_up_cl_pl_' . substr(md5(($slug ?: basename($target_dir)) . '_' . $latest_ver), 0, 16);
             $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
             if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
                 $latest_changelog_found = true;
@@ -3024,7 +3024,7 @@ class ScannerRoutes {
                 }
             }
         } elseif ($type === 'theme' && !empty($slug)) {
-            $cache_key = 'wcp_up_cl_th_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
+            $cache_key = 'wcpscan_up_cl_th_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
             $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
             if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
                 $latest_changelog_found = true;
@@ -3197,7 +3197,7 @@ class ScannerRoutes {
      */
     public static function build_scan_diagnostics(array $scan) {
         $scan_id = (int) ($scan['id'] ?? 0);
-        $cached_diag = $scan_id > 0 ? get_transient("wcp_scan_diag_{$scan_id}") : null;
+        $cached_diag = $scan_id > 0 ? get_transient("wcpscan_diag_{$scan_id}") : null;
 
         // Peak Memory
         $peak_bytes = memory_get_peak_usage(true);

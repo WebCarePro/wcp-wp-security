@@ -464,7 +464,7 @@ class CloudflareService {
     public static function get_compound_rule_definitions(): array {
         return [
             'compound_perimeter' => [
-                'id'           => 'wcp_compound_perimeter',
+                'id'           => 'wcpscan_compound_perimeter',
                 'title'        => 'Rule 1: Master Perimeter & Sensitive File Armor',
                 'badge'        => 'Edge Shield',
                 'description'  => 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
@@ -473,7 +473,7 @@ class CloudflareService {
                 'expression'   => '(http.request.uri.path contains "/xmlrpc.php") or ((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "cgi" "pl" "exe"}) or (http.request.uri.path in {"/wp-config.php" "/.env" "/.git" "/composer.json" "/wp-content/debug.log"}) or (http.request.uri.path matches "\.(sql|bak|tar|gz|zip|ini|sh)$") or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
             'compound_exploits' => [
-                'id'           => 'wcp_compound_exploits',
+                'id'           => 'wcpscan_compound_exploits',
                 'title'        => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
                 'badge'        => 'Zero-Day Shield',
                 'description'  => 'Terminates path traversal (../), dangerous base64/eval function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
@@ -482,7 +482,7 @@ class CloudflareService {
                 'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
             ],
             'compound_login_bot' => [
-                'id'           => 'wcp_compound_login_bot',
+                'id'           => 'wcpscan_compound_login_bot',
                 'title'        => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
                 'badge'        => 'Turnstile Challenge',
                 'description'  => 'Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
@@ -501,35 +501,35 @@ class CloudflareService {
     public static function get_rule_definitions(): array {
         return [
             'block_core_sensitive' => [
-                'id'          => 'wcp_block_core_sensitive',
+                'id'          => 'wcpscan_block_core_sensitive',
                 'title'       => 'WordPress Core & Sensitive System Armor',
                 'description' => 'Terminates /xmlrpc.php abuse, wp-config.php probes, .env, .git, .user.ini, debug.log, and package manifests in a single unified edge shield.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri.path contains "/xmlrpc.php" or http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/.user.ini" "/wp-content/debug.log" "/composer.json" "/package.json"})',
             ],
             'block_uploads_exec' => [
-                'id'          => 'wcp_block_uploads_exec',
+                'id'          => 'wcpscan_block_uploads_exec',
                 'title'       => 'Webshell & Direct Script Execution Trap',
                 'description' => 'Stops direct HTTP execution of .php, .phtml, .phar, and shell scripts disguised inside wp-content/uploads/ or upgrade directories at the edge.',
                 'action'      => 'block',
                 'expression'  => '((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})',
             ],
             'block_exploits_traversal' => [
-                'id'          => 'wcp_block_exploits_traversal',
+                'id'          => 'wcpscan_block_exploits_traversal',
                 'title'       => 'Path Traversal & Code Injection Edge Shield',
                 'description' => 'Blocks LFI/RFI directory traversal, dangerous PHP function execution wrappers, and null byte injections.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/' . 'passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00")',
             ],
             'block_author_recon' => [
-                'id'          => 'wcp_block_author_recon',
+                'id'          => 'wcpscan_block_author_recon',
                 'title'       => 'Recon & Username Harvesting Shield',
                 'description' => 'Blocks bots scanning author parameter (?author=1) and enumerating WordPress usernames via public REST endpoints.',
                 'action'      => 'block',
                 'expression'  => '(http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
             ],
             'challenge_wp_login' => [
-                'id'          => 'wcp_challenge_wp_login',
+                'id'          => 'wcpscan_challenge_wp_login',
                 'title'       => 'Login Portal Threat Defense (Managed Challenge)',
                 'description' => 'Triggers a non-intrusive Cloudflare Turnstile / Managed Challenge for automated bots targeting wp-login.php.',
                 'action'      => 'managed_challenge',

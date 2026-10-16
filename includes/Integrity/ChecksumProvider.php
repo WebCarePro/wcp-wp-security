@@ -21,7 +21,7 @@ class ChecksumProvider {
         // Strip out extra version info for alpha/beta
         $version = preg_replace('/-.*$/', '', $version);
 
-        $cache_key = "wcp_core_chk_{$version}_{$locale}";
+        $cache_key = "wcpscan_core_chk_{$version}_{$locale}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -60,7 +60,7 @@ class ChecksumProvider {
             return null;
         }
 
-        $cache_key = "wcp_plugin_chk_{$plugin_slug}_{$version}";
+        $cache_key = "wcpscan_plugin_chk_{$plugin_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -116,7 +116,7 @@ class ChecksumProvider {
             return null;
         }
 
-        $cache_key = "wcp_theme_chk_v3_{$theme_slug}_{$version}";
+        $cache_key = "wcpscan_theme_chk_v3_{$theme_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;

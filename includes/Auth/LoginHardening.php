@@ -58,7 +58,7 @@ class LoginHardening {
                 $remaining_mins = max(1, (int) ceil(($lockout['expires_at'] - $now) / 60));
 
                 return new \WP_Error(
-                    'wcp_ip_locked',
+                    'wcpscan_ip_locked',
                     sprintf(
                         __('<strong>Access Blocked:</strong> Too many failed login attempts from your IP (%s). You are temporarily locked out for security. Please try again in %d minute(s).', 'wcp-security-scanner'),
                         esc_html($ip),

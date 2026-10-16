@@ -530,7 +530,7 @@ class TwoFactorAuth {
 
         $redirect_to = !empty($_REQUEST['redirect_to']) ? esc_url_raw($_REQUEST['redirect_to']) : admin_url();
         $challenge_url = add_query_arg([
-            'action'      => 'wcp_2fa',
+            'action'      => 'wcpscan_2fa',
             'pending_key' => $pending_key,
             'redirect_to' => urlencode($redirect_to),
         ], wp_login_url());
@@ -626,16 +626,16 @@ class TwoFactorAuth {
         <form name="wcp2faform" id="wcp2faform" action="" method="post" style="padding-bottom: 16px;">
             <?php wp_nonce_field('wcpscan_2fa_verify_' . $pending_key); ?>
             <p>
-                <label for="wcp_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
+                <label for="wcpscan_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
                     <?php esc_html_e('Security Code or Recovery Code', 'wcp-security-scanner'); ?>
                 </label>
-                <input type="text" name="wcp_2fa_code" id="wcp_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="numeric" placeholder="123456" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
+                <input type="text" name="wcpscan_2fa_code" id="wcpscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="numeric" placeholder="123456" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
             </p>
 
             <?php if ($remember_device_allowed): ?>
                 <p style="margin: 14px 0 6px 0; display: flex; align-items: center; gap: 8px;">
-                    <label for="wcp_2fa_remember_device" style="font-size: 13px; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" name="wcp_2fa_remember_device" id="wcp_2fa_remember_device" value="1" checked style="accent-color: #0284c7; width: 16px; height: 16px; margin: 0;" />
+                    <label for="wcpscan_2fa_remember_device" style="font-size: 13px; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="wcpscan_2fa_remember_device" id="wcpscan_2fa_remember_device" value="1" checked style="accent-color: #0284c7; width: 16px; height: 16px; margin: 0;" />
                         <span><?php printf(esc_html__('Remember this device for %d days', 'wcp-security-scanner'), (int) $remember_days); ?></span>
                     </label>
                 </p>

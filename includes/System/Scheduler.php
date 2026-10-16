@@ -91,7 +91,7 @@ class Scheduler {
 
          // Acquire exclusive scan lock so dashboard doesn't mark it interrupted
          ScanLock::acquire($scan_id);
-         set_transient("wcp_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
+         set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
 
          try {
              $scanned_count = 0;
@@ -105,7 +105,7 @@ class Scheduler {
                      $wpdb->update($table_scans, [
                          'scanned_files' => $scanned_count,
                      ], ['id' => $scan_id]);
-                     set_transient("wcp_active_scan_file_{$scan_id}", $filepath, 120);
+                     set_transient("wcpscan_active_scan_file_{$scan_id}", $filepath, 120);
                  }
 
                  $findings = $file_scanner->scan_file($filepath, (string) $scan_id);
@@ -284,16 +284,16 @@ class Scheduler {
 
              // Release exclusive lock
              \WcpScanner\Scan\ScanLock::release($scan_id);
-             delete_transient("wcp_active_scan_file_{$scan_id}");
-             delete_transient("wcp_scan_start_micro_{$scan_id}");
+             delete_transient("wcpscan_active_scan_file_{$scan_id}");
+             delete_transient("wcpscan_scan_start_micro_{$scan_id}");
 
              // 5. Send Alerts & Notifications
              self::send_scan_notification($scan_id, $total_issues, $risk_score, $target);
 
          } catch (\Throwable $e) {
              \WcpScanner\Scan\ScanLock::release($scan_id);
-             delete_transient("wcp_active_scan_file_{$scan_id}");
-             delete_transient("wcp_scan_start_micro_{$scan_id}");
+             delete_transient("wcpscan_active_scan_file_{$scan_id}");
+             delete_transient("wcpscan_scan_start_micro_{$scan_id}");
              $calc_sec = microtime(true) - $start_time;
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
