@@ -227,6 +227,16 @@ class AdminMenu {
         $css_url = WCPSCAN_URL . 'build/index.css';
 
         if (file_exists(WCPSCAN_PATH . 'build/index.js')) {
+            $server_info = [];
+            try {
+                $server_info = \WcpScanner\System\ServerInfo::get_info(false);
+            } catch (\Throwable $e) {
+                $server_info = [
+                    'php' => ['version' => PHP_VERSION],
+                    'wordpress' => ['version' => $GLOBALS['wp_version'] ?? ''],
+                ];
+            }
+
             wp_enqueue_script('wcp-scanner-app', $js_url, $deps, $version, true);
             wp_localize_script('wcp-scanner-app', 'wcpScannerSettings', [
                 'root'       => esc_url_raw(rest_url('wcp-scanner/v1')),
@@ -236,7 +246,7 @@ class AdminMenu {
                 'initialTab'    => $active_tab,
                 'version'       => WCPSCAN_VERSION,
                 'currentUserId' => get_current_user_id(),
-                'serverInfo'    => \WcpScanner\System\ServerInfo::get_info(),
+                'serverInfo'    => $server_info,
             ]);
         }
 

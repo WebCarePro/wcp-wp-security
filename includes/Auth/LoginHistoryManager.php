@@ -335,7 +335,7 @@ class LoginHistoryManager {
             }
 
             $row_ip = $data['ip'] ?? 'Unknown IP';
-            if ($is_active && \WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($row_ip)) {
+            if ($is_active && \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($row_ip)) {
                 $row_ip = FirewallEngine::get_client_ip();
             }
 
@@ -371,7 +371,7 @@ class LoginHistoryManager {
                 $s_login = isset($sdata['login']) ? (int) $sdata['login'] : time();
                 $dur = max(1, time() - $s_login);
                 $session_ip = $sdata['ip'] ?? $client_ip;
-                if (\WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($session_ip)) {
+                if (\WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($session_ip)) {
                     $session_ip = $client_ip;
                 }
 

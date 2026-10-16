@@ -33,10 +33,30 @@ spl_autoload_register(function ($class) {
     }
 
     $relative_class = substr($class, $len);
-    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
+    $rel_path = str_replace('\\', '/', $relative_class);
+    $file = $base_dir . $rel_path . '.php';
 
     if (file_exists($file)) {
         require_once $file;
+        return;
+    }
+
+    // Fallback 1: lowercase directory name (e.g. includes/cloudflare/CloudflareService.php)
+    $dir = dirname($rel_path);
+    $base = basename($rel_path);
+    if ($dir !== '.' && $dir !== '') {
+        $lower_dir_file = $base_dir . strtolower($dir) . '/' . $base . '.php';
+        if (file_exists($lower_dir_file)) {
+            require_once $lower_dir_file;
+            return;
+        }
+    }
+
+    // Fallback 2: completely lowercase path
+    $all_lower_file = $base_dir . strtolower($rel_path) . '.php';
+    if (file_exists($all_lower_file)) {
+        require_once $all_lower_file;
+        return;
     }
 });
 

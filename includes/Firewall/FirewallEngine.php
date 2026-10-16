@@ -131,13 +131,74 @@ class FirewallEngine {
      * @param string $ip
      * @return bool
      */
+    /**
+     * Official Cloudflare IPv4 and IPv6 CIDR ranges for Anycast edge proxy verification.
+     *
+     * @return array
+     */
+    public static function get_cloudflare_ip_ranges(): array {
+        return [
+            // Cloudflare IPv4 CIDRs
+            '103.21.244.0/22',
+            '103.22.200.0/22',
+            '103.31.4.0/22',
+            '104.16.0.0/13',
+            '104.24.0.0/14',
+            '108.162.192.0/18',
+            '131.0.72.0/22',
+            '141.101.64.0/18',
+            '162.158.0.0/15',
+            '172.64.0.0/13',
+            '173.245.48.0/20',
+            '188.114.96.0/20',
+            '190.93.240.0/20',
+            '197.234.240.0/22',
+            '198.41.128.0/17',
+
+            // Cloudflare IPv6 CIDRs
+            '2400:cb00::/32',
+            '2606:4700::/32',
+            '2803:f800::/32',
+            '2405:b500::/32',
+            '2405:8100::/32',
+            '2a06:98c0::/29',
+            '2c0f:f248::/32',
+        ];
+    }
+
+    /**
+     * Check if an IPv4 or IPv6 address belongs to Cloudflare's Anycast Proxy ranges.
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function is_cloudflare_ip(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+
+        foreach (self::get_cloudflare_ip_ranges() as $cidr) {
+            if (self::ip_in_range($ip, $cidr)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a remote connecting IP address belongs to a verified trusted proxy.
+     *
+     * @param string $ip
+     * @return bool
+     */
     public static function is_trusted_proxy(string $ip): bool {
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return false;
         }
 
         // 1. Check Cloudflare edge network proxy ranges
-        if (class_exists('\\WcpScanner\\Cloudflare\\CloudflareService') && \WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($ip)) {
+        if (self::is_cloudflare_ip($ip)) {
             return true;
         }
 

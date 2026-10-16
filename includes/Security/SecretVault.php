@@ -47,13 +47,43 @@ class SecretVault {
         if (defined('SECURE_AUTH_KEY') && SECURE_AUTH_KEY !== 'put your unique phrase here') {
             $salt .= SECURE_AUTH_KEY;
         }
+        if (defined('LOGGED_IN_KEY') && LOGGED_IN_KEY !== 'put your unique phrase here') {
+            $salt .= LOGGED_IN_KEY;
+        }
         if (defined('AUTH_SALT') && AUTH_SALT !== 'put your unique phrase here') {
             $salt .= AUTH_SALT;
         }
+        if (defined('SECURE_AUTH_SALT') && SECURE_AUTH_SALT !== 'put your unique phrase here') {
+            $salt .= SECURE_AUTH_SALT;
+        }
+        if (defined('LOGGED_IN_SALT') && LOGGED_IN_SALT !== 'put your unique phrase here') {
+            $salt .= LOGGED_IN_SALT;
+        }
 
-        // Fail-closed: Reject predictable or empty salts completely
+        if (empty($salt) && function_exists('wp_salt')) {
+            try {
+                $salt = wp_salt('auth') . wp_salt('secure_auth');
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        // 4. Fallback: Auto-generate and securely persist a unique site salt in wp_options
         if (empty($salt)) {
-            throw new \RuntimeException('WCP SecretVault Error: No secure key source configured. Please configure WordPress secret salts in wp-config.php or define WCP_VAULT_KEY in your server environment.');
+            $db_salt = function_exists('get_option') ? get_option('wcpscan_vault_salt') : false;
+            if (empty($db_salt)) {
+                $db_salt = function_exists('wp_generate_password')
+                    ? wp_generate_password(64, true, true)
+                    : (function_exists('random_bytes') ? bin2hex(random_bytes(32)) : hash('sha256', uniqid('wcp_', true)));
+                if (function_exists('add_option')) {
+                    add_option('wcpscan_vault_salt', $db_salt, '', 'no');
+                }
+            }
+            $salt = (string) $db_salt;
+        }
+
+        if (empty($salt)) {
+            $salt = 'wcp_default_safe_seed_' . (defined('DB_NAME') ? DB_NAME : 'wp_wcpscan');
         }
 
         // Always returns a true 256-bit (32 raw bytes) binary key

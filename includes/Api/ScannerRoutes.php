@@ -1650,7 +1650,7 @@ class ScannerRoutes {
         }
         return rest_ensure_response([
             'success' => true,
-            'info'    => ServerInfo::get_info(),
+            'info'    => ServerInfo::get_info(true),
         ]);
     }
 

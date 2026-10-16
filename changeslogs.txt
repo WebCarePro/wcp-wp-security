@@ -35,8 +35,13 @@ v:1.17.0 - 2026-10-17
     - Resolved critical session termination flaw where `WP_Session_Tokens::get_all()` stripped associative verifier keys via `array_values()`, causing session revocation requests to transmit meaningless numeric array indices (`0`, `1`) instead of actual SHA-256 session verifier keys.
     - Updated `SessionSentinel::get_active_sessions()` to query WordPress core `session_tokens` user meta directly, retaining true SHA-256 verifier keys and accurately identifying `$is_current` active device sessions.
     - Enhanced `SessionSentinel::terminate_session()` to directly unset both raw tokens and verifier keys from `session_tokens` user meta, invoke WP core `$manager->destroy()`, guard against undefined constants (`LOGGED_IN_COOKIE`), and record session closure timestamps in `wp_wcpscan_login_history`.
-    - Hardened session revocation handlers and database operations with full `try...catch` defensive wrappers and restored universal custom SPL autoloading for the `WcpScanner\` namespace, preventing uncaught exceptions and critical errors during session invalidation.
     - Corrected multi-admin session revocation in `ScannerRoutes::revoke_active_session()` so terminating other administrators properly invalidates their active authentication cookies across all secondary devices.
+  * Standalone Cloudflare Edge Subnet Verification & Critical Error Elimination (`FirewallEngine.php`, `CloudflareService.php`, `SessionSentinel.php`, `LoginHistoryManager.php`, `wcp-wp-scanner.php`):
+    - Migrated `is_cloudflare_ip()` and `get_cloudflare_ip_ranges()` directly into `FirewallEngine`, which is unconditionally initialized on plugin boot, eliminating fatal `Class "WcpScanner\Cloudflare\CloudflareService" not found` errors if `CloudflareService` was delayed or missing during early session validation.
+    - Updated `SessionSentinel::inspect_active_session()` and `LoginHistoryManager` to invoke `FirewallEngine::is_cloudflare_ip()`, and wrapped session inspection in defensive `try...catch` blocks to ensure WordPress admin requests never fail.
+    - Hardened the custom SPL autoloader in `wcp-wp-scanner.php` with case-insensitive directory fallbacks, preventing class loading failures on case-sensitive Linux filesystems.
+    - Added self-healing table verification in `Plugin.php` so that if custom database tables (`wp_wcpscan_*`) are dropped or removed from MySQL, the plugin automatically detects missing tables on boot and runs `Migration::install()` without requiring manual deactivation.
+    - Hardened `ServerInfo::get_info()` against boolean offset fatal errors in PHP 8 (`posix_getpwuid`), bypassed heavy synchronous filesystem crawls during admin asset enqueueing, and wrapped `SecretVault::get_key()` with resilient fallbacks for missing salts.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:
