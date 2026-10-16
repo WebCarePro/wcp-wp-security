@@ -28,7 +28,11 @@ v:1.17.0 - 2026-10-17
     - Interactive Clickable Usernames: administrator usernames in the Active Sessions Sentinel tab are now clickable, opening a deep forensic telemetry modal.
     - Live Session Duration: calculates and formats exact session uptime (e.g. `1 hour 5 min 2s`) across active sessions and historical logins.
     - Comprehensive Telemetry Capture: inspects the last 10 logins per administrator, including IP address, device type (Desktop, Mobile, Tablet), browser & OS, screen resolution (e.g. 1920x1080@1.25), browser viewport, client IANA timezone, authentication method (Password + 2FA TOTP vs Password), and full raw User-Agent string.
-    - Zero Plaintext Storage Guarantee: all client IPs, user-agents, screen dimensions, and hardware telemetry are encrypted at rest using AES-256-GCM AEAD (`SecretVault`) in `wp_wcpscan_login_history` and `wp_usermeta`, and decrypted strictly on-the-fly for authenticated administrators.
+  * Automatic Cloudflare Real Visitor IP Restoration & Self-Healing (`FirewallEngine.php`, `SessionSentinel.php`, `LoginHistoryManager.php`):
+    - Added early `FirewallEngine::normalize_server_remote_addr()` to restore `$_SERVER['REMOTE_ADDR']` from `HTTP_CF_CONNECTING_IP` when connecting behind verified Cloudflare Anycast edge nodes. Fixes origin servers lacking `mod_remoteip` or Nginx `real_ip` modules where WordPress core was recording Cloudflare proxy IPs (e.g. `172.68.218.189`) instead of authentic visitor IPs (`114.130.156.112`).
+    - Hooked `set_auth_cookie` to capture generated session tokens directly during login, ensuring encrypted session telemetry is always written even before the browser sends its first authenticated request.
+    - Added self-healing in `SessionSentinel::get_active_sessions()` and `inspect_active_session()` to automatically detect when a session token was previously stamped with a Cloudflare proxy node IP and rewrite it to the verified visitor IP.
+    - Removed redundant duplicate file `includes/Firewall/CloudflareService.php`.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:

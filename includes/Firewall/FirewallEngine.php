@@ -15,6 +15,9 @@ class FirewallEngine {
      * Bootstrap the Firewall
      */
     public static function init() {
+        // Normalize $_SERVER['REMOTE_ADDR'] if incoming request connects via a verified trusted reverse proxy (e.g. Cloudflare)
+        self::normalize_server_remote_addr();
+
         // Initialize Threat Intelligence Service
         ThreatIntelService::init();
 
@@ -26,6 +29,27 @@ class FirewallEngine {
 
         // Protect XML-RPC early if enabled
         add_action('init', [__CLASS__, 'check_xmlrpc_guard'], 0);
+    }
+
+    /**
+     * Normalize $_SERVER['REMOTE_ADDR'] when connecting behind verified trusted reverse proxies (e.g. Cloudflare).
+     *
+     * Resolves the real client IP from CF-Connecting-IP or X-Forwarded-For if and only if
+     * the incoming REMOTE_ADDR matches a verified trusted proxy CIDR (e.g. Cloudflare Anycast edge nodes).
+     * This ensures WordPress core (e.g. WP_Session_Tokens, comment logs) and coexisting plugins record
+     * the real visitor IP instead of Cloudflare internal proxy node IPs on origin servers lacking mod_remoteip.
+     *
+     * @return void
+     */
+    public static function normalize_server_remote_addr(): void {
+        if (empty($_SERVER['REMOTE_ADDR'])) {
+            return;
+        }
+
+        $real_ip = self::get_client_ip();
+        if (!empty($real_ip) && $real_ip !== $_SERVER['REMOTE_ADDR']) {
+            $_SERVER['REMOTE_ADDR'] = $real_ip;
+        }
     }
 
     /**

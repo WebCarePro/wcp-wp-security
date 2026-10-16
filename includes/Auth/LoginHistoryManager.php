@@ -20,10 +20,15 @@ class LoginHistoryManager {
 
     const TABLE_NAME = 'wcpscan_login_history';
 
+    private static $last_auth_token = '';
+
     /**
      * Bootstrap Login History tracking hooks
      */
     public static function init() {
+        // Capture generated session token during auth cookie issuance
+        add_action('set_auth_cookie', [__CLASS__, 'on_set_auth_cookie'], 10, 6);
+
         // Inject lightweight screen detection into standard WordPress login form
         add_action('login_form', [__CLASS__, 'render_login_screen_detector']);
 
@@ -32,6 +37,13 @@ class LoginHistoryManager {
 
         // Record logout timestamp
         add_action('wp_logout', [__CLASS__, 'on_user_logout']);
+    }
+
+    /**
+     * Cache the freshly minted session token from WordPress core's set_auth_cookie hook
+     */
+    public static function on_set_auth_cookie($auth_cookie, $expire, $expiration, $user_id, $scheme, $token) {
+        self::$last_auth_token = (string) $token;
     }
 
     /**
@@ -61,7 +73,16 @@ class LoginHistoryManager {
             \WcpScanner\Database\Migration::install();
         }
 
-        $session_token = wp_get_session_token();
+        $session_token = !empty(self::$last_auth_token) ? self::$last_auth_token : wp_get_session_token();
+        if (empty($session_token)) {
+            $manager = \WP_Session_Tokens::get_instance($user->ID);
+            $all = $manager->get_all();
+            if (!empty($all)) {
+                $keys = array_keys($all);
+                $session_token = end($keys);
+            }
+        }
+
         $token_hash    = $session_token ? substr(hash('sha256', $session_token), 0, 64) : '';
         $ip            = FirewallEngine::get_client_ip();
         $ua            = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
@@ -282,6 +303,11 @@ class LoginHistoryManager {
                 $latest_login_time = $row->login_time;
             }
 
+            $row_ip = $data['ip'] ?? 'Unknown IP';
+            if ($is_active && \WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($row_ip)) {
+                $row_ip = FirewallEngine::get_client_ip();
+            }
+
             $history[] = [
                 'id'                 => (int) $row->id,
                 'login_time'         => $row->login_time,
@@ -291,7 +317,7 @@ class LoginHistoryManager {
                 'duration_seconds'   => $duration_sec,
                 'duration_formatted' => $duration_formatted,
                 'is_active'          => $is_active,
-                'ip'                 => $data['ip'] ?? 'Unknown IP',
+                'ip'                 => $row_ip,
                 'browser'            => $data['browser'] ?? 'Browser',
                 'browser_version'    => $data['browser_version'] ?? '',
                 'platform'           => $data['platform'] ?? 'OS',
@@ -313,6 +339,11 @@ class LoginHistoryManager {
             foreach ($wp_sessions as $token => $sdata) {
                 $s_login = isset($sdata['login']) ? (int) $sdata['login'] : time();
                 $dur = max(1, time() - $s_login);
+                $session_ip = $sdata['ip'] ?? $client_ip;
+                if (\WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($session_ip)) {
+                    $session_ip = $client_ip;
+                }
+
                 $history[] = [
                     'id'                 => 1,
                     'login_time'         => date_i18n('Y-m-d H:i:s', $s_login),
@@ -322,7 +353,7 @@ class LoginHistoryManager {
                     'duration_seconds'   => $dur,
                     'duration_formatted' => self::format_duration($dur),
                     'is_active'          => true,
-                    'ip'                 => $sdata['ip'] ?? $client_ip,
+                    'ip'                 => $session_ip,
                     'browser'            => $parsed['browser'],
                     'browser_version'    => $parsed['browser_version'],
                     'platform'           => $parsed['platform'],

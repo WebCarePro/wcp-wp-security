@@ -16,10 +16,15 @@ if (!defined('ABSPATH')) {
  */
 class SessionSentinel {
 
+    private static $last_auth_token = '';
+
     /**
      * Bootstrap Session Sentinel
      */
     public static function init() {
+        // Capture generated session token during auth cookie issuance
+        add_action('set_auth_cookie', [__CLASS__, 'on_set_auth_cookie'], 10, 6);
+
         // Track session upon login
         add_action('wp_login', [__CLASS__, 'on_user_login'], 20, 2);
 
@@ -28,6 +33,16 @@ class SessionSentinel {
 
         // Cleanup on logout
         add_action('wp_logout', [__CLASS__, 'on_user_logout']);
+    }
+
+    /**
+     * Cache the freshly minted session token from WordPress core's set_auth_cookie hook
+     */
+    public static function on_set_auth_cookie($auth_cookie, $expire, $expiration, $user_id, $scheme, $token) {
+        self::$last_auth_token = (string) $token;
+        if (!isset($_COOKIE[LOGGED_IN_COOKIE]) || empty($_COOKIE[LOGGED_IN_COOKIE])) {
+            $_COOKIE[LOGGED_IN_COOKIE] = $auth_cookie;
+        }
     }
 
     /**
@@ -44,7 +59,16 @@ class SessionSentinel {
             return;
         }
 
-        $session_token = wp_get_session_token();
+        $session_token = !empty(self::$last_auth_token) ? self::$last_auth_token : wp_get_session_token();
+        if (empty($session_token)) {
+            $manager = \WP_Session_Tokens::get_instance($user->ID);
+            $all = $manager->get_all();
+            if (!empty($all)) {
+                $keys = array_keys($all);
+                $session_token = end($keys);
+            }
+        }
+
         $ip = FirewallEngine::get_client_ip();
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
 
@@ -112,23 +136,34 @@ class SessionSentinel {
             $sessions_meta = [];
         }
 
-        // Auto-initialize if session was active before sentinel activation
-        if (!isset($sessions_meta[$current_token])) {
+        $session_info = $sessions_meta[$current_token] ?? null;
+
+        $current_login_ip = '';
+        if (!empty($session_info['encrypted_meta'])) {
+            $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $session_info['encrypted_meta']);
+            $decoded = is_string($decrypted_meta) ? (json_decode($decrypted_meta, true) ?: []) : [];
+            $current_login_ip = $decoded['login_ip'] ?? '';
+        } else {
+            $current_login_ip = $session_info['login_ip'] ?? '';
+        }
+
+        // Auto-initialize if session was active before sentinel activation or if IP was recorded as Cloudflare proxy
+        if (!$session_info || empty($current_login_ip) || \WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($current_login_ip)) {
             $sessions_meta[$current_token] = [
-                'login_time' => time(),
-                'last_seen'  => time(),
-                'login_ip'   => $ip,
-                'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255),
+                'login_time'     => $session_info['login_time'] ?? time(),
+                'last_seen'      => time(),
+                'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+                    'login_ip'   => $ip,
+                    'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255),
+                ])),
             ];
             update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
             return;
         }
 
-        $session_info = $sessions_meta[$current_token];
-
         // 1. IP Lock / Hijack Defense Check
-        if (!empty($settings['session_lock_ip']) && !empty($session_info['login_ip'])) {
-            if ($session_info['login_ip'] !== $ip) {
+        if (!empty($settings['session_lock_ip']) && !empty($current_login_ip)) {
+            if ($current_login_ip !== $ip) {
                 // Potential cookie replay or session hijack from a different IP address!
                 self::terminate_session($user_id, $current_token, 'Session terminated due to IP address mismatch (Anti-Hijack Lock).');
                 wp_safe_redirect(wp_login_url() . '?wcpscan_session_alert=ip_mismatch');
@@ -236,6 +271,23 @@ class SessionSentinel {
                 } else {
                     $ip = $meta['login_ip'] ?? ($data['ip'] ?? 'Unknown');
                     $ua = $meta['user_agent'] ?? ($data['ua'] ?? 'Unknown');
+                }
+
+                // If $ip belongs to Cloudflare's Anycast proxy network, it's an edge node, not the visitor's device.
+                // Heal current active session directly to the verified client IP.
+                if (\WcpScanner\Cloudflare\CloudflareService::is_cloudflare_ip($ip)) {
+                    if ($is_current) {
+                        $ip = $client_ip;
+                        $sessions_meta[$token] = [
+                            'login_time'     => isset($data['login']) ? (int) $data['login'] : time(),
+                            'last_seen'      => time(),
+                            'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+                                'login_ip'   => $client_ip,
+                                'user_agent' => $ua,
+                            ])),
+                        ];
+                        update_user_meta($admin->ID, 'wcpscan_session_meta', $sessions_meta);
+                    }
                 }
 
                 // Determine browser / OS info
