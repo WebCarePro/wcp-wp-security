@@ -206,6 +206,9 @@ class FileIntegrityMonitor {
             $changes = array_slice($changes, 0, $limit);
         }
 
+        // Deep-enrich the sliced recent changes with component metadata, versions, permissions, and official integrity verification
+        $changes = $this->enrich_changes($changes, $core_checksums, $custom_components);
+
         return [
             'stats'          => $stats,
             'total'          => $total_found,
@@ -216,6 +219,273 @@ class FileIntegrityMonitor {
                 'count'   => count($custom_components['plugins']) + count($custom_components['themes']),
             ],
         ];
+    }
+
+    /**
+     * Deep-enrich the sliced recent changes with component names, versions,
+     * permissions, hashes, and bit-for-bit official integrity verification.
+     *
+     * @param array $changes Sliced change items
+     * @param array|null $core_checksums Preloaded core checksums
+     * @param array $custom_components Custom/premium slugs map
+     * @return array Enriched change items
+     */
+    private function enrich_changes($changes, $core_checksums, $custom_components) {
+        if (empty($changes)) {
+            return [];
+        }
+
+        // 1. Preload plugins catalog & updates
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $all_plugins = function_exists('get_plugins') ? get_plugins() : [];
+        $update_plugins = get_site_transient('update_plugins');
+
+        $plugins_by_slug = [];
+        foreach ($all_plugins as $plugin_file => $plugin_data) {
+            $slug = dirname($plugin_file);
+            if ($slug === '.' || empty($slug)) {
+                $slug = sanitize_title(pathinfo($plugin_file, PATHINFO_FILENAME));
+            }
+
+            $installed_ver = !empty($plugin_data['Version']) ? $plugin_data['Version'] : null;
+            $latest_ver = $installed_ver;
+            $has_update = false;
+
+            if (!empty($update_plugins) && is_object($update_plugins)) {
+                if (!empty($update_plugins->response[$plugin_file]->new_version)) {
+                    $latest_ver = $update_plugins->response[$plugin_file]->new_version;
+                    $has_update = true;
+                } elseif (!empty($update_plugins->no_update[$plugin_file]->new_version)) {
+                    $latest_ver = $update_plugins->no_update[$plugin_file]->new_version;
+                }
+            }
+
+            $plugins_by_slug[$slug] = [
+                'name'         => !empty($plugin_data['Name']) ? $plugin_data['Name'] : $slug,
+                'version'      => $installed_ver,
+                'latest'       => $latest_ver,
+                'has_update'   => $has_update,
+                'plugin_file'  => $plugin_file,
+                'text_domain'  => $plugin_data['TextDomain'] ?? $slug,
+            ];
+        }
+
+        // 2. Preload themes catalog & updates
+        $all_themes = function_exists('wp_get_themes') ? wp_get_themes() : [];
+        $update_themes = get_site_transient('update_themes');
+
+        $themes_by_slug = [];
+        foreach ($all_themes as $stylesheet => $theme_obj) {
+            $installed_ver = $theme_obj->get('Version');
+            $latest_ver = $installed_ver;
+            $has_update = false;
+
+            if (!empty($update_themes) && is_object($update_themes)) {
+                if (!empty($update_themes->response[$stylesheet]['new_version'])) {
+                    $latest_ver = $update_themes->response[$stylesheet]['new_version'];
+                    $has_update = true;
+                } elseif (!empty($update_themes->no_update[$stylesheet]['new_version'])) {
+                    $latest_ver = $update_themes->no_update[$stylesheet]['new_version'];
+                }
+            }
+
+            $themes_by_slug[$stylesheet] = [
+                'name'       => $theme_obj->get('Name') ?: $stylesheet,
+                'version'    => $installed_ver,
+                'latest'     => $latest_ver,
+                'has_update' => $has_update,
+            ];
+        }
+
+        // 3. Preload core update info
+        global $wp_version;
+        $update_core = get_site_transient('update_core');
+        $latest_core_version = (!empty($update_core->updates[0]->current)) ? $update_core->updates[0]->current : $wp_version;
+        $core_has_update = version_compare($latest_core_version, $wp_version, '>');
+
+        // Cached plugin checksum maps per slug:version
+        $plugin_checksums_cache = [];
+
+        // 4. Enrich each change item
+        $enriched = [];
+        $plugins_dir_norm = wp_normalize_path(WP_PLUGIN_DIR);
+        $theme_root_norm = wp_normalize_path(function_exists('get_theme_root') ? get_theme_root() : WP_CONTENT_DIR . '/themes');
+
+        foreach ($changes as $item) {
+            $file_path = $item['file_path'];
+            $cat = $item['category'];
+
+            $component_name = 'WordPress File';
+            $component_slug = '';
+            $component_type = $cat;
+            $installed_version = null;
+            $latest_version = null;
+            $is_update_available = false;
+            $integrity_status = 'unverified'; // default
+
+            // File permissions
+            $perms = @fileperms($file_path);
+            $perms_octal = $perms !== false ? substr(sprintf('%o', $perms), -4) : '0644';
+
+            // File owner & group
+            $file_owner = 'unknown';
+            if (function_exists('posix_getpwuid') && function_exists('posix_getgrgid')) {
+                $uid = @fileowner($file_path);
+                $gid = @filegroup($file_path);
+                $uinfo = $uid !== false ? @posix_getpwuid($uid) : null;
+                $ginfo = $gid !== false ? @posix_getgrgid($gid) : null;
+                $uname = $uinfo['name'] ?? ($uid !== false ? (string) $uid : 'unknown');
+                $gname = $ginfo['name'] ?? ($gid !== false ? (string) $gid : 'unknown');
+                $file_owner = $uname . ':' . $gname;
+            } elseif (function_exists('get_current_user')) {
+                $file_owner = get_current_user();
+            }
+
+            // Cryptographic MD5 hash
+            $file_hash = @md5_file($file_path);
+            if (!$file_hash) {
+                $file_hash = '';
+            }
+
+            // Category-specific enrichment
+            if ($cat === 'core') {
+                $component_name = 'WordPress Core';
+                $component_type = 'core';
+                $installed_version = $wp_version;
+                $latest_version = $latest_core_version;
+                $is_update_available = $core_has_update;
+
+                if ($item['is_verified_clean']) {
+                    $integrity_status = 'verified_clean';
+                } elseif ($item['is_suspicious'] || $item['severity'] === 'high') {
+                    $integrity_status = 'modified';
+                } else {
+                    $integrity_status = 'safe_core';
+                }
+            } elseif ($cat === 'plugins') {
+                $component_type = 'plugin';
+                $rel_to_plugins = ltrim(str_replace($plugins_dir_norm, '', $file_path), '/');
+                $parts = explode('/', $rel_to_plugins, 2);
+                $slug = $parts[0];
+                $file_inside = $parts[1] ?? '';
+                $component_slug = $slug;
+
+                if (isset($plugins_by_slug[$slug])) {
+                    $component_name = $plugins_by_slug[$slug]['name'];
+                    $installed_version = $plugins_by_slug[$slug]['version'];
+                    $latest_version = $plugins_by_slug[$slug]['latest'];
+                    $is_update_available = $plugins_by_slug[$slug]['has_update'];
+                } else {
+                    $component_name = ucwords(str_replace(['-', '_'], ' ', $slug));
+                }
+
+                // Check official plugin checksums
+                if (!isset($custom_components['plugins'][$slug]) && !empty($installed_version)) {
+                    $cache_idx = $slug . ':' . $installed_version;
+                    if (!isset($plugin_checksums_cache[$cache_idx])) {
+                        $plugin_checksums_cache[$cache_idx] = $this->provider->get_plugin_checksums($slug, $installed_version);
+                    }
+                    $chk_manifest = $plugin_checksums_cache[$cache_idx];
+
+                    if (!empty($chk_manifest) && is_array($chk_manifest)) {
+                        if (isset($chk_manifest[$file_inside])) {
+                            $target_hash = $chk_manifest[$file_inside];
+                            $matches = false;
+                            if (is_string($target_hash) && $file_hash && hash_equals($target_hash, $file_hash)) {
+                                $matches = true;
+                            } elseif (is_array($target_hash)) {
+                                if (isset($target_hash['algo']) && $target_hash['algo'] === 'sha256') {
+                                    $sha256 = @hash_file('sha256', $file_path);
+                                    if ($sha256 && hash_equals($target_hash['hash'], $sha256)) {
+                                        $matches = true;
+                                    }
+                                } elseif (in_array($file_hash, $target_hash, true)) {
+                                    $matches = true;
+                                }
+                            }
+
+                            if ($matches) {
+                                $item['severity'] = 'clean';
+                                $item['is_verified_clean'] = true;
+                                $item['is_suspicious'] = false;
+                                $item['risk_reason'] = 'Authentic official plugin file (Checksum bit-for-bit verified with WordPress.org)';
+                                $integrity_status = 'verified_clean';
+                            } else {
+                                $item['severity'] = 'high';
+                                $item['is_suspicious'] = true;
+                                $item['risk_reason'] = 'Plugin file altered from official WordPress.org release!';
+                                $integrity_status = 'modified';
+                            }
+                        } else {
+                            // File not in official release manifest
+                            $item['severity'] = 'high';
+                            $item['is_suspicious'] = true;
+                            $item['risk_reason'] = 'Unknown file added to plugin (Not in official release manifest)';
+                            $integrity_status = 'rogue_file';
+                        }
+                    } else {
+                        // Checksums not hosted or unavailable
+                        $integrity_status = 'unverified';
+                    }
+                } else {
+                    $integrity_status = 'custom_component';
+                }
+            } elseif ($cat === 'themes') {
+                $component_type = 'theme';
+                $rel_to_themes = ltrim(str_replace($theme_root_norm, '', $file_path), '/');
+                $parts = explode('/', $rel_to_themes, 2);
+                $slug = $parts[0];
+                $component_slug = $slug;
+
+                if (isset($themes_by_slug[$slug])) {
+                    $component_name = $themes_by_slug[$slug]['name'];
+                    $installed_version = $themes_by_slug[$slug]['version'];
+                    $latest_version = $themes_by_slug[$slug]['latest'];
+                    $is_update_available = $themes_by_slug[$slug]['has_update'];
+                } else {
+                    $component_name = ucwords(str_replace(['-', '_'], ' ', $slug));
+                }
+
+                if ($item['is_verified_clean']) {
+                    $integrity_status = 'verified_clean';
+                } elseif (isset($custom_components['themes'][$slug])) {
+                    $integrity_status = 'custom_component';
+                } else {
+                    $integrity_status = 'unverified';
+                }
+            } elseif ($cat === 'config') {
+                $component_name = 'Server Configuration';
+                $component_type = 'config';
+                $integrity_status = 'safe_config';
+            } elseif ($cat === 'uploads') {
+                $component_name = 'Media Uploads';
+                $component_type = 'upload';
+                $integrity_status = $item['is_suspicious'] ? 'suspicious_executable' : 'unverified';
+            }
+
+            // Can auto-cure? (Only modified official plugins or core)
+            $can_auto_cure = ($cat === 'plugins' && ($integrity_status === 'modified' || $integrity_status === 'rogue_file')) || ($cat === 'core' && $integrity_status === 'modified');
+            $can_diff = true;
+
+            $item['component_name']       = $component_name;
+            $item['component_slug']       = $component_slug;
+            $item['component_type']       = $component_type;
+            $item['installed_version']    = $installed_version;
+            $item['latest_version']       = $latest_version;
+            $item['is_update_available']  = $is_update_available;
+            $item['integrity_status']     = $integrity_status;
+            $item['file_permissions']     = $perms_octal;
+            $item['file_owner']           = $file_owner;
+            $item['file_hash']            = $file_hash;
+            $item['can_auto_cure']        = $can_auto_cure;
+            $item['can_diff']             = $can_diff;
+
+            $enriched[] = $item;
+        }
+
+        return $enriched;
     }
 
     /**

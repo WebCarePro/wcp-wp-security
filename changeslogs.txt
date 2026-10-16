@@ -4,6 +4,10 @@ v:1.16.0 - 2026-10-16
   * Resolved Server Info Dashboard SSL Status (`ServerInfo.php`, `App.tsx`): corrected backend `ssl` vs. `ssl_active` key pairing and updated frontend state rendering, resolving false-negative "No (Insecure HTTP)" warnings on sites operating behind SSL reverse proxies and Cloudflare.
   * Resilient HSTS Enforcement (`SecurityHeadersEngine.php`): synchronized `SecurityHeadersEngine` with `ServerInfo::is_ssl_active()`, ensuring HSTS security headers are correctly delivered even when SSL termination occurs at edge reverse proxies.
   * Robust Server IP Address Detection (`ServerInfo.php`, `App.tsx`): introduced `ServerInfo::get_server_ip()` supporting LiteSpeed, CGI, IIS, hostname resolution, and domain fallbacks; harmonized backend `ip` / `server_ip` response keys with frontend UI rendering to ensure accurate display across all server environments.
+  * Customizable Columns & Deep Integrity Verification in FIM (`FileIntegrityMonitor.php`, `FileIntegrityPage.tsx`):
+    - Added bit-for-bit official baseline checksum verification for plugins and themes; files matching official releases are now designated as "Pristine (Official Match)" with a clean status badge rather than generic "modified" records.
+    - Introduced 13 customizable, selectable columns with persistent localStorage preferences: Severity, Integrity Status, File Location & Scope, Scope, Plugin/Theme Name, Installed Version, Official Latest Version, Last Modified, File Size, Permissions (octal 0644/0777), Owner & Group (www-data), MD5 Hash (with 1-click copy), and Remediation & Diff actions.
+    - Added quick-toggle integrity filter pills (All Files, Altered / Tampered Only, Official Matches, Custom / Unverified) and enhanced search across versions, permissions, owners, and hashes.
   * Web-Traffic-Triggered Cron Informational Guidance (`SettingsPage.tsx`): added an explanatory callout under the Scheduler diagnostics panel clarifying how WordPress virtual cron operates on visitor traffic and how Linux system crontab provides 24/7 background automation for sites with zero traffic.
 
 v:1.15.0 - 2026-10-15
