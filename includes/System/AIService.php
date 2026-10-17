@@ -128,19 +128,26 @@ class AIService {
             $code = substr($code, 0, 8000) . "\n...[truncated for token limit]...";
         }
 
-        $system_prompt = "You are an elite WordPress Cybersecurity Forensic Specialist. Your task is to analyze code flagged by the WCP Security Scanner, assess threat probability, de-obfuscate hidden malware, evaluate security risks, and provide actionable remediation.";
+        $system_prompt = "You are an elite WordPress Cybersecurity Forensic Specialist. Your audience includes non-technical website owners who need crystal-clear, plain-English explanations without confusing jargon, as well as developers who need exact forensic details. Always be concise, direct, and reassuring when code is benign, and clear about risks when code is suspicious or malicious.";
 
         $user_prompt = "Analyze the following WordPress code snippet for security threats:\n\n" .
             "File Context: {$file_path}\n" .
             "Detected Vector: {$threat_type}\n" .
             ($flagged_line ? "Flagged Line: {$flagged_line}\n" : "") .
             "Code:\n```php\n{$code}\n```\n\n" .
-            "Please provide a structured analysis with:\n" .
-            "1. **Threat Assessment**: (Malicious, Suspicious, Safe / False Positive, or Legitimate)\n" .
-            "2. **Risk Severity**: (Critical, High, Medium, Low, Clean)\n" .
-            "3. **What the Code Does**: Plain English breakdown of intent and mechanics\n" .
-            "4. **De-obfuscation / Payload Decoded**: (If obfuscated with base64, eval, rot13, chr, decode the underlying payload)\n" .
-            "5. **Remediation Recommendation**: Specific steps for the developer/site owner to fix or clean this safely.";
+            "Format your forensic report clearly into the following structured sections:\n\n" .
+            "### 1. Executive Summary for Non-Technical Site Owners\n" .
+            "In 2-3 plain-English sentences, explain exactly what was found, whether the site is in immediate danger, and whether the site owner needs to panic or take action.\n\n" .
+            "### 2. Threat Assessment & Risk Severity\n" .
+            "- **Threat Verdict**: **Malicious** | **Suspicious** | **Safe / False Positive** | **Legitimate**\n" .
+            "- **Risk Severity**: **Critical** | **High** | **Medium** | **Low** | **Clean**\n" .
+            "- **Reasoning**: Plain explanation of why this verdict was reached.\n\n" .
+            "### 3. What the Code Does (Line-by-Line Breakdown)\n" .
+            "Explain what the code does step-by-step in simple language. Specifically wrap any detected code snippets, functions, or injected strings (e.g. `#nice`, `eval()`, `functions.php`) and line numbers (e.g. `line 11`, `lines 1-10`) in backticks so they can be highlighted in red.\n\n" .
+            "### 4. De-obfuscation & Decoded Payload\n" .
+            "If the code uses base64, rot13, eval, gzip, hex, or chr obfuscation, show the completely decoded plain-text payload. If not obfuscated, state 'None - Plain PHP code'.\n\n" .
+            "### 5. Actionable Remediation Steps\n" .
+            "Provide numbered, foolproof steps for the site owner to safely fix, clean, or whitelist this file.";
 
         $temperature = floatval($settings['ai_temperature'] ?? 0.2);
         $max_tokens = 1200; // Efficient token usage for code forensics

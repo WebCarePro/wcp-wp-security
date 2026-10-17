@@ -33,6 +33,15 @@ v:1.18.0 - 2026-10-18
   * High-Speed Connection Test Latency Optimization (Sub-Second Pings):
     - Replaced the legacy 90-second synchronous HTTP timeout in `AIService::call_provider()`, `call_gemini()`, `call_openai()`, and `call_claude()` with adaptive timeouts: ultra-fast 6-second timeout for diagnostic pings (`test_connection`) and 45-second timeout for deep file code analysis.
     - Optimized `AIService::call_native_ai_connect()` execution flow to prioritize direct connector credentials configured in `options-connectors.php` with high-speed, lightweight models (`gemini-3.5-flash-lite`), cutting connection test latency from ~50-60 seconds down to ~0.7-1.0 seconds (a 60x performance boost) and preventing WordPress core client exponential backoff loops.
+  * Executive AI Forensic Report Formatting & Visual Highlights (`AiForensicReportView.tsx`, `App.tsx`, `AIService.php`):
+    - Redesigned the AI Threat & Forensic Code Analysis Modal to be immediately understandable for non-technical website owners:
+      * Added an Executive Verdict Banner with dynamic color pills (Malicious Threat Detected in red, Suspicious Anomaly Flagged in amber, Benign / Safe in green) and explicit severity ratings (Critical, High, Medium, Low, Clean).
+      * Included a dedicated visual highlight legend explaining findings at a glance.
+    - Integrated intelligent inline syntax highlighting:
+      * **Detected Code & Line Numbers in Bold Red:** All detected code snippets, backticked tokens, and explicit line number references (e.g. `line 11`, `lines 1-10`) are rendered in bold red text with a light-red badge background (`color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; font-weight: 700; font-family: monospace`).
+      * **Important Security Findings in Yellow Highlight:** Security concepts, risk vectors, and critical terms (`Suspicious`, `Malicious`, `Canary`, `Backdoor`, `Integrity Violation`, `Direct Execution Risk`, `Environmental Risk`, `Remediation`, etc.) are rendered in bold dark amber text with a yellow highlight background (`background: #fef08a; color: #713f12; border: 1px solid #fde047; font-weight: 700`).
+    - Added a dual-view switcher allowing users to toggle between the **Executive Visual Report** and the **Raw Markdown Output** with 1-click clipboard copying.
+    - Enhanced the backend prompt in `AIService.php` to generate dedicated sections for non-technical site owners, step-by-step line-by-line breakdowns, de-obfuscated payloads, and actionable remediation checklists.
 
 
 v:1.17.0 - 2026-10-17
