@@ -618,6 +618,7 @@ class RemediationManager {
             'action_type'   => $action_type,
             'created_at'    => current_time('mysql'),
             'size'          => strlen($content),
+            'sha256'        => hash('sha256', $content),
         ];
 
         // Keep last 100 backups
@@ -677,6 +678,11 @@ class RemediationManager {
             $clean_data = $decrypted;
         } else {
             $clean_data = $payload;
+        }
+
+        // Cryptographic integrity verification: ensure decrypted data matches pre-modification SHA-256
+        if (!empty($record['sha256']) && hash('sha256', $clean_data) !== $record['sha256']) {
+            return ['success' => false, 'message' => 'Integrity verification failed: Restored backup content does not match original pre-remediation SHA-256 hash.'];
         }
 
         // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH and is safe to write

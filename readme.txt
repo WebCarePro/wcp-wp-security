@@ -141,7 +141,7 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **Automated Pre-Action Safety Backups**: Every Auto-Cure, Quarantine, and Remediation action creates an automated safety snapshot in the local vault before modifying files.
 * **Zero Tracking or Analytics**: The plugin does NOT track, collect, store, or sell any personal data, analytics, or browsing habits.
 * **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.
-* **Clean 5-Table Database Purge on Uninstall**: When Auto-Remove All Data on Uninstall is active (default), deleting the plugin automatically drops all 5 custom database tables, deletes options/transients, clears crons, and purges the upload storage folder.
+* **Clean 6-Table Database Purge on Uninstall**: When Auto-Remove All Data on Uninstall is active (default), deleting the plugin automatically drops all 6 custom database tables, deletes options, purges transients and user meta, clears crons, and purges the upload storage folder.
 
 = 22. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities) =
 * **Centralized Security Vault Page (wcp-vault)**: Seamlessly consolidates all site isolation, backup, and encryption primitives into a single high-performance interface with live telemetry and direct deep-linking.

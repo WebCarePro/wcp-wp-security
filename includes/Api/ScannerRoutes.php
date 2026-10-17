@@ -594,7 +594,7 @@ class ScannerRoutes {
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'record_client_telemetry'],
             'permission_callback' => function () {
-                return is_user_logged_in();
+                return is_user_logged_in() && current_user_can('read');
             },
         ]);
 
@@ -4845,11 +4845,33 @@ class ScannerRoutes {
             return new \WP_Error('unauthorized', __('Unauthorized', 'wcp-security-scanner'), ['status' => 401]);
         }
 
-        $params = $request->get_json_params() ?: [];
+        // Rate-limiting: Max 5 submissions per user per 60 seconds to prevent telemetry flooding
+        $transient_key = 'wcpscan_telemetry_rate_' . $user_id;
+        $hit_count = (int) get_transient($transient_key);
+        if ($hit_count >= 5) {
+            return new \WP_Error('too_many_requests', __('Telemetry submission rate limit exceeded. Please wait a minute.', 'wcp-security-scanner'), ['status' => 429]);
+        }
+        set_transient($transient_key, $hit_count + 1, 60);
+
+        $params = $request->get_json_params();
+        if (!is_array($params)) {
+            return new \WP_Error('invalid_payload', __('Invalid JSON payload structure.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        // Strict input sanitization and length bounds
+        $raw_res = sanitize_text_field(substr((string) ($params['screen_resolution'] ?? ''), 0, 20));
+        $raw_vp  = sanitize_text_field(substr((string) ($params['viewport'] ?? ''), 0, 20));
+        $raw_tz  = sanitize_text_field(substr((string) ($params['timezone'] ?? ''), 0, 64));
+
+        // Format validation (screen and viewport should follow WxH format e.g. 1920x1080)
+        $clean_res = preg_match('/^\d{2,5}x\d{2,5}$/', $raw_res) ? $raw_res : '';
+        $clean_vp  = preg_match('/^\d{2,5}x\d{2,5}$/', $raw_vp) ? $raw_vp : '';
+        $clean_tz  = preg_match('/^[a-zA-Z0-9_\-\/\+\:\. ]{1,64}$/', $raw_tz) ? $raw_tz : '';
+
         $telemetry = [
-            'screen_resolution' => sanitize_text_field($params['screen_resolution'] ?? ''),
-            'viewport'          => sanitize_text_field($params['viewport'] ?? ''),
-            'timezone'          => sanitize_text_field($params['timezone'] ?? ''),
+            'screen_resolution' => $clean_res,
+            'viewport'          => $clean_vp,
+            'timezone'          => $clean_tz,
         ];
 
         \WcpScanner\Auth\LoginHistoryManager::update_session_telemetry($user_id, $telemetry);

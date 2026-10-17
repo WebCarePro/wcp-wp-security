@@ -65,6 +65,10 @@ v:1.18.0 - 2026-10-18
   * Synchronized comprehensive documentation across `README.MD` and WordPress.org `readme.txt` cataloging 25 specialized security engines: Unified WCP Vault (4 consolidated facilities), Model Context Protocol (MCP) Agentic Surface, WordPress Native AI Connect Universal Bridge, Plaintext Database Vulnerability Advisory, and 1-Click Whitelist UX.
   * Added transparent "Public Beta / Active Development" status badges and callouts across documentation.
   * Conducted full PSR-4 directory and casing audit across all 85 PHP classes under `includes/`, verifying 100% autoloader resolution on case-sensitive Linux filesystems (`ext4`).
+- REST Telemetry Hardening, Cryptographic Rollback Verification & Database Lifecycle Integrity (`ScannerRoutes.php`, `RemediationManager.php`, `uninstall.php`):
+  * Hardened `/auth/telemetry` Endpoint: Added `current_user_can('read')` capability check alongside `is_user_logged_in()`, enforced sliding-window rate limiting (max 5 submissions/min per user), and implemented strict regex format and length validation for screen resolution, viewport, and timezone strings to prevent telemetry flooding.
+  * SHA-256 Pre-Remediation Hash Locking: Updated `RemediationManager::create_file_backup()` to compute and store the file's SHA-256 cryptographic checksum at the moment of backup. Enforced cryptographic integrity verification in `rollback_remediation()` to guarantee that decrypted backup files match their exact pre-remediation state before being written to disk.
+  * Comprehensive 6-Table Uninstall Lifecycle Purge: Reconciled `uninstall.php` to drop all 6 active database tables (`wcpscan_scans`, `wcpscan_scan_issues`, `wcpscan_scan_files`, `wcpscan_quarantine`, `wcpscan_firewall_logs`, `wcpscan_login_history`) plus legacy tables, purge all 14 plugin options, wipe all `wcpscan_` transients, delete 2FA user meta, and remove scheduled crons when uninstall data deletion is enabled.
 
 
 

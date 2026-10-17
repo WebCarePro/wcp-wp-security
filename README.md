@@ -203,7 +203,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Automated Pre-Action Safety Backups**: Every Auto-Cure, Quarantine, and Remediation action creates an automated safety snapshot in the local vault before modifying files.
 - **Zero Tracking or Analytics**: The plugin does NOT track, collect, store, or sell any personal data, analytics, or browsing habits.
 - **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.
-- **Clean 5-Table Database Purge on Uninstall (`uninstall.php`)**: When "Auto-Remove All Data on Uninstall" is active (default), deleting the plugin automatically drops all 5 custom database tables (`wp_wcp_scans`, `wp_wcp_scan_issues`, `wp_wcp_scan_files`, `wp_wcp_quarantine`, `wp_wcp_firewall_logs`), deletes options/transients, clears crons, and purges the upload storage folder.
+- **Clean 6-Table Database Purge on Uninstall (`uninstall.php`)**: When "Auto-Remove All Data on Uninstall" is active (default), deleting the plugin automatically drops all 6 custom database tables (`wcpscan_scans`, `wcpscan_scan_issues`, `wcpscan_scan_files`, `wcpscan_quarantine`, `wcpscan_firewall_logs`, `wcpscan_login_history`), purges user meta, clears transients, deletes options, removes crons, and safely purges the upload storage folder.
 
 ### 22. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
 - **Centralized Security Vault Page (`wcp-vault`)**: Seamlessly consolidates all site isolation, backup, and encryption primitives into a single high-performance interface with live telemetry and direct deep-linking.
