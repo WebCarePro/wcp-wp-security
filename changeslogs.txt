@@ -14,6 +14,11 @@ v:1.18.0 - 2026-10-18
     - Added comprehensive URL synchronization supporting `?tab=<id>` (with backward compatibility for `?subtab=<id>`), updating browser history seamlessly via `window.history.pushState` on every tab change.
     - Integrated `popstate` event listeners for flawless browser Back and Forward navigation without full-page reloads.
     - Added a live breadcrumb and query toolbar at the bottom of the navigation hub displaying active module path, current `?tab=` query parameter, and an animated 1-click "Copy Direct Link" button to easily share or bookmark direct settings views.
+- Global 100% Full-Width WordPress Layout Expansion (`index.css`, `SettingsPage.tsx`, `WcpVaultPage.tsx`, `QuarantinePage.tsx`, `FirewallPage.tsx`):
+  * Unlocked 100% viewport width across the entire WordPress admin dashboard:
+    - Updated `#wcp-scanner-root`, `.wcp-container`, and `.wcp-page-container` to `width: 100% !important; max-width: 100% !important; margin: 16px 0 40px 0 !important;`.
+    - Removed arbitrary `maxWidth: '1200px'`, `maxWidth: '1440px'`, and `margin: '0 auto'` constraints from Settings, WCP Vault, Quarantine, and Firewall page containers.
+    - Added responsive full-width expansion for `.wrap:has(#wcp-scanner-root)` so all security scanner modules, forensic tables, metric cubes, and configuration grids smoothly fill the available WordPress workspace.
 
 v:1.17.0 - 2026-10-17
 - Dedicated WCP Vault & Top Navigation Suite (`WcpVaultPage.tsx`, `AdminMenu.php`, `ScannerRoutes.php`, `QuarantinePage.tsx`, `App.tsx`):
