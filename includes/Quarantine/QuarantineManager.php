@@ -458,6 +458,16 @@ class QuarantineManager {
     }
 
     /**
+     * Static alias for list_records()
+     *
+     * @return array
+     */
+    public static function get_all(): array {
+        $instance = new self();
+        return $instance->list_records();
+    }
+
+    /**
      * Clear all restored records from the quarantine history.
      * Restored files on the live website remain completely untouched.
      *

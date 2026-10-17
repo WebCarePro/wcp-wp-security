@@ -5085,7 +5085,8 @@ class ScannerRoutes {
 
     public static function get_vault_status(\WP_REST_Request $request) {
         // 1. Quarantine stats
-        $quarantine_records = \WcpScanner\Quarantine\QuarantineManager::get_all();
+        $qm = new \WcpScanner\Quarantine\QuarantineManager();
+        $quarantine_records = $qm->list_records();
         $q_active = 0;
         $q_restored = 0;
         foreach ($quarantine_records as $qr) {
@@ -5097,7 +5098,8 @@ class ScannerRoutes {
         }
 
         // 2. Database backup stats
-        $db_backups = \WcpScanner\Backup\DatabaseBackup::list_backups();
+        $db_backup = new \WcpScanner\Backup\DatabaseBackup();
+        $db_backups = $db_backup->list_backups();
         $db_count = count($db_backups);
         $db_size_mb = 0;
         foreach ($db_backups as $b) {
