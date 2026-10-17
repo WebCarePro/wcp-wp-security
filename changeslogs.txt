@@ -10,7 +10,9 @@ v:1.17.0 - 2026-10-17
     - Implemented `restore_user()`, `list_user_backups()`, `restore_user_by_id()`, and `restore_all_user_backups()` in `UserRemediationManager` to cleanly restore `wp_users` and all `wp_usermeta` rows from pre-deletion cryptographic JSON snapshots with original credentials, roles, and password hashes intact.
     - Registered dedicated REST API endpoints `GET /wcp-scanner/v1/users/backups` and `POST /wcp-scanner/v1/users/restore`.
     - Added `record_user_snapshot()` and intelligent correlated fallback recovery to `TransactionalRemediation::rollback_transaction()`, restoring deleted users when rolling back attack chain eradication transactions.
-    - Added a dedicated "Quarantined / Backed-Up User Accounts" recovery card to the Rollback Vault tab with 1-click individual and bulk restoration actions.
+    - Updated `TransactionalRemediation::rollback_transaction()` to permit re-running rollback when quarantined user accounts are detected missing from the database, even if previously marked rolled back.
+    - Added universal WordPress Admin Notice across wp-admin screens (including `wp-admin/users.php`) detecting missing backed-up admin accounts with an immediate "1-Click Restore All Admin Accounts" button.
+    - Added a dedicated "Quarantined / Backed-Up User Accounts" recovery card and "Restore Missing Accounts" action to the Rollback Vault tab with 1-click individual and bulk restoration.
 - WordPress.org Official Plugin Review Compliance & Architectural Hardening:
   * Namespace & Prefix Standard Compliance:
     - Upgraded global PHP namespaces from `WCP\Scanner\` to `WcpScanner\` across all 90+ plugin files, fully complying with the WordPress.org requirement for unique prefixes over 3 characters.

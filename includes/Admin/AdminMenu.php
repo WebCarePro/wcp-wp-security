@@ -11,6 +11,8 @@ class AdminMenu {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
         add_filter('plugin_action_links_' . plugin_basename(WCPSCAN_FILE), [__CLASS__, 'add_plugin_action_links']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_brand_styles']);
+        add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
+        add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
     }
 
     public static function add_menu_page() {
@@ -319,6 +321,80 @@ class AdminMenu {
         wp_register_style('wcpscan-admin-brand', false);
         wp_enqueue_style('wcpscan-admin-brand');
         wp_add_inline_style('wcpscan-admin-brand', $custom_css);
+    }
+
+    /**
+     * Render an emergency 1-click restore notice across wp-admin (including users.php)
+     * if any backed-up administrator accounts are missing from the WordPress database.
+     */
+    public static function render_user_recovery_notice() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        // Show confirmation notice if redirected after restoration
+        if (!empty($_GET['wcpscan_restored'])) {
+            $count = (int) $_GET['wcpscan_restored'];
+            echo '<div class="notice notice-success is-dismissible" style="padding: 12px 18px; border-left: 4px solid #16a34a; background: #f0fdf4;">';
+            echo '<p style="margin: 0; font-size: 13px; color: #14532d;">';
+            echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
+            echo esc_html(sprintf(__('Successfully restored %d administrator account(s) to the WordPress database with full original capabilities and passwords.', 'wcp-security-scanner'), $count));
+            echo '</p></div>';
+            return;
+        }
+
+        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $missing_users = $mgr->get_missing_user_backups();
+
+        if (empty($missing_users)) {
+            return;
+        }
+
+        $nonce = wp_create_nonce('wcpscan_restore_users_action');
+        $restore_url = add_query_arg([
+            'wcpscan_action' => 'restore_all_users',
+            '_wpnonce'       => $nonce,
+        ], admin_url('users.php'));
+
+        $names = array_map(fn($u) => '<code style="background: #e2e8f0; font-weight: 700;">' . esc_html($u['user_login']) . '</code>', $missing_users);
+        $names_str = implode(', ', $names);
+
+        echo '<div class="notice notice-warning is-dismissible" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
+        echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">';
+        echo '<div style="font-size: 13px; color: #14532d;">';
+        echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
+        echo sprintf(
+            /* translators: %1$d: count, %2$s: usernames */
+            esc_html__('Found %1$d quarantined administrator account(s) (%2$s) available in safety backups.', 'wcp-security-scanner'),
+            count($missing_users),
+            $names_str
+        );
+        echo '</div>';
+        echo '<a href="' . esc_url($restore_url) . '" class="button button-primary" style="background: #16a34a; border-color: #15803d; font-weight: 700; padding: 2px 14px; box-shadow: 0 2px 4px rgba(22,163,74,0.2);">';
+        echo esc_html__('1-Click Restore All Admin Accounts', 'wcp-security-scanner');
+        echo '</a>';
+        echo '</div>';
+        echo '</div>';
+    }
+
+    /**
+     * Process 1-click restore request initiated from the WordPress admin notice.
+     */
+    public static function handle_user_recovery_action() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (isset($_GET['wcpscan_action']) && $_GET['wcpscan_action'] === 'restore_all_users') {
+            check_admin_referer('wcpscan_restore_users_action');
+
+            $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+            $res = $mgr->restore_all_user_backups();
+            $count = count($res['restored'] ?? []);
+
+            wp_safe_redirect(add_query_arg(['wcpscan_restored' => $count], admin_url('users.php')));
+            exit;
+        }
     }
 }
 

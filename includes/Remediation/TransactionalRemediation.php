@@ -253,7 +253,10 @@ class TransactionalRemediation {
             return ['success' => false, 'message' => __('Corrupt transaction manifest.', 'wcp-security-scanner')];
         }
 
-        if (($manifest['status'] ?? '') === 'rolled_back') {
+        $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $missing_users = $user_mgr->get_missing_user_backups();
+
+        if (($manifest['status'] ?? '') === 'rolled_back' && empty($missing_users)) {
             return ['success' => false, 'message' => __('This transaction was already rolled back.', 'wcp-security-scanner')];
         }
 
