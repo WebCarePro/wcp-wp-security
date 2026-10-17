@@ -40,6 +40,10 @@ v:1.18.0 - 2026-10-18
       * Replaced the complex multi-line visual highlights legend with a clean, single-row Color Guide (`🟢 Green: Safe / Normal`, `🟡 Yellow: Needs Review`, `🔴 Red: Detected Code / Threat`) removing confusing technical jargon and equals formulas.
       * Streamlined verdict advisory banners with clear, plain-English guidance for non-technical site owners.
     - Precision Verdict & Severity Extraction: Fixed regex verdict classification in `AiForensicReportView.tsx` to strictly parse the structured `Threat Verdict` and `Risk Severity` lines instead of searching for arbitrary occurrences of the word "malicious" across explanatory text, ensuring legitimate/safe files (such as `wp-config.php` debug notices or `style.css` modifications) accurately display the green "Safe & Legitimate Code (No Malware)" banner with clean/low severity rather than a false-positive red alert.
+    - AI Threat & Forensic Analysis in Visual Code Diff Viewer (`VisualDiffModal.tsx`, `App.tsx`):
+      * Added dedicated **AI Analyze Diff** integration directly inside the Visual Code Diff Viewer modal (both in the top header action bar and modal footer).
+      * Automatically compiles line-by-line diff modifications (`+` additions and `-` deletions) against the official WordPress.org baseline and submits them to the AI forensic engine for instant threat evaluation, determining whether differences are harmless build tool variations (such as CSS property order or version tags) or hostile code injections.
+      * Supports seamless modal overlay chaining with high z-index stacking (`10000005`) and built-in standalone fallback for sub-page views.
 
 
 v:1.17.0 - 2026-10-17
