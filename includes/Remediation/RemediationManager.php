@@ -530,7 +530,8 @@ class RemediationManager {
             return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
         }
 
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+        $is_wp_config_parent = (realpath($real_path) === realpath(dirname(ABSPATH) . '/wp-config.php'));
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH) && !$is_wp_config_parent) {
             return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner')];
         }
 
@@ -538,7 +539,8 @@ class RemediationManager {
         $old_perm = substr(sprintf('%o', fileperms($real_path)), -4);
 
         if (empty($target_perm)) {
-            $target_perm = $is_dir ? '0755' : '0644';
+            $is_wp_config = (strtolower(basename($real_path)) === 'wp-config.php');
+            $target_perm = $is_wp_config ? '0600' : ($is_dir ? '0755' : '0644');
         }
         $target_perm_str = (string) $target_perm;
         if (strlen($target_perm_str) === 3) {

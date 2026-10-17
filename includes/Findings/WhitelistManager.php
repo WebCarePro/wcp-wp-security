@@ -1,7 +1,7 @@
 <?php
 namespace WcpScanner\Findings;
 
-use WcpScanner\Security\PathValidator;
+use WcpScanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -56,6 +56,38 @@ class WhitelistManager {
     }
 
     /**
+     * Resolve the absolute path to a file if it exists.
+     * Handles absolute paths, paths relative to ABSPATH, and paths in parent directory of ABSPATH.
+     *
+     * @param string $path
+     * @return string|null
+     */
+    public static function resolve_file_path(string $path): ?string {
+        if (empty($path)) {
+            return null;
+        }
+
+        // Direct path check
+        if (file_exists($path) && is_file($path)) {
+            return $path;
+        }
+
+        // Relative to ABSPATH
+        $under_abs = ABSPATH . ltrim($path, '/\\');
+        if (file_exists($under_abs) && is_file($under_abs)) {
+            return $under_abs;
+        }
+
+        // One level above ABSPATH (common for wp-config.php)
+        $parent_abs = dirname(ABSPATH) . '/' . ltrim($path, '/\\');
+        if (file_exists($parent_abs) && is_file($parent_abs)) {
+            return $parent_abs;
+        }
+
+        return null;
+    }
+
+    /**
      * Add a new whitelist / ignore rule.
      *
      * @param array $data
@@ -76,7 +108,7 @@ class WhitelistManager {
 
         $target_hash = '';
         if (!empty($target_path)) {
-            $abs = PathValidator::resolve_under_root(ABSPATH, $target_path);
+            $abs = self::resolve_file_path($target_path);
             if ($abs && file_exists($abs) && is_file($abs)) {
                 $target_hash = hash_file('sha256', $abs);
             }
@@ -190,7 +222,7 @@ class WhitelistManager {
 
         $current_hash = '';
         if (!empty($path)) {
-            $abs = PathValidator::resolve_under_root(ABSPATH, $path);
+            $abs = self::resolve_file_path($path);
             if ($abs && file_exists($abs) && is_file($abs)) {
                 $current_hash = hash_file('sha256', $abs);
             }

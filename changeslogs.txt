@@ -67,6 +67,15 @@ v:1.17.0 - 2026-10-17
       * Built-in MCP tool definitions (`wcp_get_security_posture`, `wcp_list_findings`, `wcp_whitelist_finding`, `wcp_audit_behavioral_baseline`, `wcp_rollback_remediation`, `wcp_deploy_virtual_patch`, `wcp_quarantine_file`) adhering to standard Model Context Protocol schemas.
       * Secure external AI agent authentication via dedicated Bearer API tokens and REST endpoints (`/wp-json/wcp-scanner/v1/mcp/execute`).
       * 1-Click configuration export snippets for Claude Desktop (`claude_desktop_config.json`) and Google Antigravity / Cursor IDE MCP settings.
+    - 5. Filesystem Permission Hardening & Gold-Standard wp-config.php Posture (`FilesystemForensicsCard.tsx`, `ScannerRoutes.php`, `RemediationManager.php`, `PermissionHardeningManager.php`):
+      * Officially aligned wp-config.php permission recommendations with WordPress.org security benchmarks: recognizes `0600` (strict owner read/write), `0640`, `0400`, and `0440` as "Secure & Hardened" rather than false-positive "Permissions Risk".
+      * Eliminated dangerous prompt suggesting users loosen `wp-config.php` from `0600` to world-readable `0644`.
+      * Dynamically sets recommended mode for `wp-config.php` to `0600` and displays a green `Secure & Hardened (0600)` status badge with optimal security posture confirmation.
+      * Allowed `wp-config.php` residing in parent directory of ABSPATH in `RemediationManager::fix_permissions`.
+    - 6. Whitelist & False-Positive Suppression Reliability Fix (`WhitelistManager.php`, `WhitelistModal.tsx`, `WhitelistManagerTab.tsx`):
+      * Fixed critical PHP Fatal Error in `WhitelistManager.php` where non-existent namespace `WcpScanner\Security\PathValidator` and missing method `resolve_under_root` caused whitelist addition and rule matching to fail.
+      * Introduced robust `WhitelistManager::resolve_file_path()` safely resolving direct absolute paths, ABSPATH-relative paths, and parent-directory configuration paths for SHA-256 hash calculation.
+      * Completely refactored `WhitelistModal.tsx` and `WhitelistManagerTab.tsx` from uncompiled Tailwind CSS classes to vanilla CSS and inline styles (`.wcp-modal-backdrop`, `zIndex: 9999999`), fixing invisible modal rendering and ensuring the modal opens immediately when clicking "Whitelist / Ignore".
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:

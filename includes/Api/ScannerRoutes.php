@@ -2312,7 +2312,10 @@ class ScannerRoutes {
                     $raw_perms = @fileperms($realPath);
                     $current_perms = $raw_perms !== false ? substr(sprintf('%o', $raw_perms), -4) : '0755';
                     $is_dir = is_dir($realPath);
-                    $recommended_perms = $is_dir ? '0755' : '0644';
+                    $file_basename = strtolower(basename($realPath));
+                    $is_wp_config = ($file_basename === 'wp-config.php');
+                    $recommended_perms = $is_wp_config ? '0600' : ($is_dir ? '0755' : '0644');
+                    $recommended_symbolic = $is_wp_config ? '-rw-------' : ($is_dir ? 'drwxr-xr-x' : '-rw-r--r--');
 
                     // Convert raw permissions to standard symbolic notation (e.g. -rw-r--r-- or -rwxrwxrwx)
                     $symbolic = '';
@@ -2357,7 +2360,7 @@ class ScannerRoutes {
                         'current_permissions'   => $current_perms,
                         'symbolic_permissions'  => $symbolic ?: ($is_dir ? 'drwxr-xr-x' : '-rw-r--r--'),
                         'recommended_perms'     => $recommended_perms,
-                        'recommended_symbolic'  => $is_dir ? 'drwxr-xr-x' : '-rw-r--r--',
+                        'recommended_symbolic'  => $recommended_symbolic,
                         'is_dir'                => $is_dir,
                         'is_writable'           => is_writable($realPath),
                         'is_readable'           => is_readable($realPath),
