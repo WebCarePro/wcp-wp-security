@@ -36,11 +36,9 @@ v:1.18.0 - 2026-10-18
   * Executive AI Forensic Report Formatting & Visual Highlights (`AiForensicReportView.tsx`, `App.tsx`, `AIService.php`):
     - Redesigned the AI Threat & Forensic Code Analysis Modal to be immediately understandable for non-technical website owners:
       * Added an Executive Verdict Banner with dynamic color pills (Malicious Threat Detected in red, Suspicious Anomaly Flagged in amber, Benign / Safe in green) and explicit severity ratings (Critical, High, Medium, Low, Clean).
-      * Included a dedicated visual highlight legend explaining findings at a glance.
-    - Integrated intelligent inline syntax highlighting:
-      * **Detected Code & Line Numbers in Bold Red:** All detected code snippets, backticked tokens, and explicit line number references (e.g. `line 11`, `lines 1-10`) are rendered in bold red text with a light-red badge background (`color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; font-weight: 700; font-family: monospace`).
-      * **Important Security Findings in Yellow Highlight:** Security concepts, risk vectors, and critical terms (`Suspicious`, `Malicious`, `Canary`, `Backdoor`, `Integrity Violation`, `Direct Execution Risk`, `Environmental Risk`, `Remediation`, etc.) are rendered in bold dark amber text with a yellow highlight background (`background: #fef08a; color: #713f12; border: 1px solid #fde047; font-weight: 700`).
-    - Enhanced the backend prompt in `AIService.php` to generate dedicated sections for non-technical site owners, step-by-step line-by-line breakdowns, de-obfuscated payloads, and actionable remediation checklists.
+    - User-Friendly Color Guide & Simplified Verdict Copy:
+      * Replaced the complex multi-line visual highlights legend with a clean, single-row Color Guide (`🟢 Green: Safe / Normal`, `🟡 Yellow: Needs Review`, `🔴 Red: Detected Code / Threat`) removing confusing technical jargon and equals formulas.
+      * Streamlined verdict advisory banners with clear, plain-English guidance for non-technical site owners.
     - Precision Verdict & Severity Extraction: Fixed regex verdict classification in `AiForensicReportView.tsx` to strictly parse the structured `Threat Verdict` and `Risk Severity` lines instead of searching for arbitrary occurrences of the word "malicious" across explanatory text, ensuring legitimate/safe files (such as `wp-config.php` debug notices or `style.css` modifications) accurately display the green "Safe & Legitimate Code (No Malware)" banner with clean/low severity rather than a false-positive red alert.
 
 
