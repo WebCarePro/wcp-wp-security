@@ -22,7 +22,8 @@ class AIService {
                 }
 
                 $prompt = 'Ping test. Reply with OK.';
-                $response = self::call_native_ai_connect('You are an AI diagnostic tester.', $prompt, 0.1, 16);
+                // Ultra-fast 6-second ping test for immediate feedback
+                $response = self::call_native_ai_connect('You are an AI diagnostic tester.', $prompt, 0.1, 16, 6);
                 return [
                     'success' => true,
                     'message' => sprintf(__('WordPress Native AI Connect verified successfully (%s)!', 'wcp-security-scanner'), $status['engine_name']),
@@ -60,7 +61,8 @@ class AIService {
         $prompt = 'Ping test. Reply with OK.';
 
         try {
-            $response = self::call_provider($provider, $api_key, $model, 'You are an AI diagnostic tester.', $prompt, 0.1, 16);
+            // Ultra-fast 6-second ping test for immediate feedback
+            $response = self::call_provider($provider, $api_key, $model, 'You are an AI diagnostic tester.', $prompt, 0.1, 16, 6);
             return [
                 'success' => true,
                 'message' => __('AI connection established successfully!', 'wcp-security-scanner'),
@@ -363,19 +365,52 @@ class AIService {
      * Compatible with WordPress Core AI Client (wp_ai_client_prompt), options-connectors.php credentials,
      * AI Engine (Meow Apps), WP AI Connect, custom AI filter hooks, and environment credentials.
      */
-    public static function call_native_ai_connect(string $system, string $user, float $temp = 0.2, int $max_tokens = 1200): string {
+    public static function call_native_ai_connect(string $system, string $user, float $temp = 0.2, int $max_tokens = 1200, int $timeout = 45): string {
         // 1. Allow third-party plugins to intercept directly via filter
         $filtered = apply_filters('wcp_ai_analyze_code', null, [
             'system'      => $system,
             'prompt'      => $user,
             'temperature' => $temp,
             'max_tokens'  => $max_tokens,
+            'timeout'     => $timeout,
         ]);
         if (!empty($filtered) && is_string($filtered)) {
             return $filtered;
         }
 
-        // 2. Check WordPress Core AI Client Prompt Builder (wp_ai_client_prompt() in WP 7.0+)
+        // 2. Direct connector credentials configured in WordPress options-connectors.php
+        // These provide instant, reliable execution using the credentials stored by WordPress Connectors admin screen.
+        // We prioritize high-speed flash models to avoid alpha core AI client rate-limiting or slow retry loops.
+        $google_conn_key = get_option('connectors_ai_google_api_key');
+        if (!empty($google_conn_key) && is_string($google_conn_key)) {
+            try {
+                return self::call_gemini($google_conn_key, 'gemini-3.5-flash-lite', $system, $user, $temp, $max_tokens, $timeout);
+            } catch (\Throwable $e) {
+                try {
+                    return self::call_gemini($google_conn_key, 'gemini-3.8-flash', $system, $user, $temp, $max_tokens, $timeout);
+                } catch (\Throwable $e2) {
+                    // Continue down fallback chain
+                }
+            }
+        }
+        $openai_conn_key = get_option('connectors_ai_openai_api_key');
+        if (!empty($openai_conn_key) && is_string($openai_conn_key)) {
+            try {
+                return self::call_openai($openai_conn_key, 'gpt-6.1-sol', $system, $user, $temp, $max_tokens, $timeout);
+            } catch (\Throwable $e) {
+                // Continue down fallback chain
+            }
+        }
+        $anthropic_conn_key = get_option('connectors_ai_anthropic_api_key');
+        if (!empty($anthropic_conn_key) && is_string($anthropic_conn_key)) {
+            try {
+                return self::call_claude($anthropic_conn_key, 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens, $timeout);
+            } catch (\Throwable $e) {
+                // Continue down fallback chain
+            }
+        }
+
+        // 3. Check WordPress Core AI Client Prompt Builder (wp_ai_client_prompt() in WP 7.0+)
         if (function_exists('wp_ai_client_prompt')) {
             try {
                 $full_prompt = "{$system}\n\n{$user}";
@@ -386,32 +421,6 @@ class AIService {
                         return $result;
                     }
                 }
-            } catch (\Throwable $e) {
-                // Continue down fallback chain
-            }
-        }
-
-        // 3. Check credentials configured in WordPress options-connectors.php
-        $google_conn_key = get_option('connectors_ai_google_api_key');
-        if (!empty($google_conn_key) && is_string($google_conn_key)) {
-            try {
-                return self::call_gemini($google_conn_key, 'gemini-3.8-flash', $system, $user, $temp, $max_tokens);
-            } catch (\Throwable $e) {
-                // Continue down fallback chain
-            }
-        }
-        $openai_conn_key = get_option('connectors_ai_openai_api_key');
-        if (!empty($openai_conn_key) && is_string($openai_conn_key)) {
-            try {
-                return self::call_openai($openai_conn_key, 'gpt-6.1-sol', $system, $user, $temp, $max_tokens);
-            } catch (\Throwable $e) {
-                // Continue down fallback chain
-            }
-        }
-        $anthropic_conn_key = get_option('connectors_ai_anthropic_api_key');
-        if (!empty($anthropic_conn_key) && is_string($anthropic_conn_key)) {
-            try {
-                return self::call_claude($anthropic_conn_key, 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens);
             } catch (\Throwable $e) {
                 // Continue down fallback chain
             }
@@ -527,32 +536,32 @@ class AIService {
     /**
      * Dispatch API call to selected AI provider (with Native AI Connect compatibility)
      */
-    private static function call_provider(string $provider, string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
+    private static function call_provider(string $provider, string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
         if ($provider === 'wp_ai_connect') {
-            return self::call_native_ai_connect($system, $user, $temp, $max_tokens);
+            return self::call_native_ai_connect($system, $user, $temp, $max_tokens, $timeout);
         }
 
         // If site runs WordPress Native AI Connect or Core AI Client and no custom key is provided, prefer Native AI Connect
         if (empty($api_key)) {
             $status = self::get_ai_connect_status();
             if ($status['is_available']) {
-                return self::call_native_ai_connect($system, $user, $temp, $max_tokens);
+                return self::call_native_ai_connect($system, $user, $temp, $max_tokens, $timeout);
             }
         }
 
         if ($provider === 'gemini') {
-            return self::call_gemini($api_key, $model, $system, $user, $temp, $max_tokens);
+            return self::call_gemini($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
         } elseif ($provider === 'claude') {
-            return self::call_claude($api_key, $model, $system, $user, $temp, $max_tokens);
+            return self::call_claude($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
         } else {
-            return self::call_openai($api_key, $model, $system, $user, $temp, $max_tokens);
+            return self::call_openai($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
         }
     }
 
     /**
      * OpenAI API Implementation (GPT-6 series, GPT-6.1 Sol, GPT-6 Astra, etc.)
      */
-    private static function call_openai(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
+    private static function call_openai(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
         $url = 'https://api.openai.com/v1/chat/completions';
 
         $body = [
@@ -565,10 +574,10 @@ class AIService {
             ],
         ];
 
-        @set_time_limit(120);
+        @set_time_limit(max(60, $timeout + 30));
 
         $response = wp_remote_post($url, [
-            'timeout' => 90,
+            'timeout' => $timeout,
             'headers' => [
                 'Authorization' => 'Bearer ' . $api_key,
                 'Content-Type'  => 'application/json',
@@ -595,7 +604,7 @@ class AIService {
     /**
      * Google Gemini API Implementation (Gemini 3.5 Flash Lite, Gemini 3.8 Flash, etc.)
      */
-    private static function call_gemini(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
+    private static function call_gemini(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
         $model_name = $model ?: 'gemini-3.5-flash-lite';
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model_name}:generateContent";
 
@@ -615,10 +624,10 @@ class AIService {
             ]
         ];
 
-        @set_time_limit(120);
+        @set_time_limit(max(60, $timeout + 30));
 
         $response = wp_remote_post($url, [
-            'timeout' => 90,
+            'timeout' => $timeout,
             'headers' => [
                 'Content-Type'   => 'application/json',
                 'x-goog-api-key' => $api_key,
@@ -639,7 +648,7 @@ class AIService {
 
             // Automatic resilient fallback: if the primary model is busy/overloaded or deprecating, try gemini-3.5-flash-lite
             if ($model_name !== 'gemini-3.5-flash-lite' && (stripos($err, 'high demand') !== false || stripos($err, 'overloaded') !== false || stripos($err, 'Resource has been exhausted') !== false || stripos($err, 'no longer available') !== false)) {
-                return self::call_gemini($api_key, 'gemini-3.5-flash-lite', $system, $user, $temp, $max_tokens);
+                return self::call_gemini($api_key, 'gemini-3.5-flash-lite', $system, $user, $temp, $max_tokens, $timeout);
             }
 
             throw new \Exception('Google Gemini Error: ' . $err);
@@ -651,7 +660,7 @@ class AIService {
     /**
      * Anthropic Claude API Implementation (Claude Sonnet 5.5, Claude Opus 5.5, Claude Haiku 5.5, etc.)
      */
-    private static function call_claude(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
+    private static function call_claude(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
         $url = 'https://api.anthropic.com/v1/messages';
 
         $body = [
@@ -664,10 +673,10 @@ class AIService {
             ],
         ];
 
-        @set_time_limit(120);
+        @set_time_limit(max(60, $timeout + 30));
 
         $response = wp_remote_post($url, [
-            'timeout' => 90,
+            'timeout' => $timeout,
             'headers' => [
                 'x-api-key'         => $api_key,
                 'anthropic-version' => '2023-06-01',

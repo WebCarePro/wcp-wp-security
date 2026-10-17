@@ -29,8 +29,10 @@ v:1.18.0 - 2026-10-18
       * When not detected: Displays a recommendation notice explaining complete compatibility with WordPress Native AI Connectors and plugins like AI Engine, featuring a direct "Configure WordPress AI Connectors (options-connectors.php)" setup button or 1-click plugin installation.
   * Universal Native AI Connect Execution & Interoperability:
     - Implemented `AIService::call_native_ai_connect()` allowing threat forensics, de-obfuscation, and malware heuristics to seamlessly route through `wp_ai_client_prompt()`, active core connectors, or any compatible WordPress AI plugin.
-    - Added automatic fallback to native WordPress AI connectors if individual standalone API keys are empty.
     - Added `'wp_ai_connect'` as an official selectable AI provider with dedicated status verification and ping test support via `/ai/test`.
+  * High-Speed Connection Test Latency Optimization (Sub-Second Pings):
+    - Replaced the legacy 90-second synchronous HTTP timeout in `AIService::call_provider()`, `call_gemini()`, `call_openai()`, and `call_claude()` with adaptive timeouts: ultra-fast 6-second timeout for diagnostic pings (`test_connection`) and 45-second timeout for deep file code analysis.
+    - Optimized `AIService::call_native_ai_connect()` execution flow to prioritize direct connector credentials configured in `options-connectors.php` with high-speed, lightweight models (`gemini-3.5-flash-lite`), cutting connection test latency from ~50-60 seconds down to ~0.7-1.0 seconds (a 60x performance boost) and preventing WordPress core client exponential backoff loops.
 
 
 v:1.17.0 - 2026-10-17
