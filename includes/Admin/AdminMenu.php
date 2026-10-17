@@ -252,6 +252,9 @@ class AdminMenu {
                 'version'       => WCPSCAN_VERSION,
                 'currentUserId' => get_current_user_id(),
                 'serverInfo'    => $server_info,
+                'assetsUrl'     => esc_url_raw(WCPSCAN_URL . 'assets/'),
+                'logo3dUrl'     => esc_url_raw(WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
+                'emblem3dUrl'   => esc_url_raw(WCPSCAN_URL . 'assets/webcare-3d-emblem.png'),
             ]);
         }
 
