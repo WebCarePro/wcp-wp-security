@@ -47,6 +47,10 @@ v:1.17.0 - 2026-10-17
     - Updated settings copy in `AuthSecurityPage.tsx` to `Enforce Dual-Device Session Limit (1 Desktop + 1 Mobile Maximum)` with clear descriptive guidance.
     - Added a sleek dark scrollbar with `max-height: 440px` and custom WebKit track/thumb styling (`.wcp-forensics-scrollbar`) for the "Last 10 Logins & Device Telemetry Forensics" activity feed in `UserSessionForensicsModal.tsx`, preventing card overflow and keeping KPI summary metrics pinned into view.
     - Added dynamic badge rendering in `UserSessionForensicsModal.tsx` highlighting `Dual Device (Desktop + Mobile)` when exactly 2 distinct device categories are active.
+  * Active Session IP Mismatch & Current Client Telemetry Reporting (`SessionSentinel.php`, `ScannerRoutes.php`, `AuthSecurityPage.tsx`):
+    - Added real-time client request IP resolution (`current_ip`) across Session Sentinel REST endpoints and session data records.
+    - Enhanced Active Sessions Sentinel UI to prominently display both the initial authentication IP (`Session IP`) and the active HTTP request IP (`Current IP: <ip>`) when an IP address change or network roaming is detected.
+    - Updated the `Different IP Address` indicator into an informative, contextual alert chip displaying the exact current client IP alongside descriptive tooltip forensics.
   * Post-v1.16.0 Architectural Roadmap Implementation:
     - 1. First-Class False-Positive Tuning & Whitelist Engine (`WhitelistManager.php`, `WhitelistModal.tsx`, `WhitelistManagerTab.tsx`, `SettingsPage.tsx`):
       * Introduced cryptographically locked suppression rules utilizing SHA-256 hash matching, auto-invalidating immediately if an excluded file is subsequently tampered with or modified.

@@ -4553,6 +4553,7 @@ class ScannerRoutes {
             'lockouts'                  => array_values(\WcpScanner\Auth\LoginHardening::get_locked_ips()),
             'stats'                     => \WcpScanner\Auth\LoginHardening::get_stats(),
             'active_sessions'           => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+            'current_ip'                => \WcpScanner\Firewall\FirewallEngine::get_client_ip(),
         ]);
     }
 
@@ -4668,8 +4669,9 @@ class ScannerRoutes {
      */
     public static function get_active_sessions_list() {
         return rest_ensure_response([
-            'success'  => true,
-            'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+            'success'    => true,
+            'sessions'   => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+            'current_ip' => \WcpScanner\Firewall\FirewallEngine::get_client_ip(),
         ]);
     }
 

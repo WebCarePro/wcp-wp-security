@@ -560,6 +560,7 @@ class SessionSentinel {
                     'avatar_url'               => get_avatar_url($admin->ID, ['size' => 48]),
                     'is_current'               => $is_current,
                     'login_ip'                 => $ip,
+                    'current_ip'               => $client_ip,
                     'is_same_ip'               => ($ip === $client_ip),
                     'login_time'               => date_i18n('Y-m-d H:i:s', $login_ts),
                     'login_time_raw'           => $login_ts,
