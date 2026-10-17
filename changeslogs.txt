@@ -44,6 +44,13 @@ v:1.18.0 - 2026-10-18
       * Added dedicated **AI Analyze Diff** integration directly inside the Visual Code Diff Viewer modal (both in the top header action bar and modal footer).
       * Automatically compiles line-by-line diff modifications (`+` additions and `-` deletions) against the official WordPress.org baseline and submits them to the AI forensic engine for instant threat evaluation, determining whether differences are harmless build tool variations (such as CSS property order or version tags) or hostile code injections.
       * Supports seamless modal overlay chaining with high z-index stacking (`10000005`) and built-in standalone fallback for sub-page views.
+  * Plaintext Database Storage Security Advisory & Dedicated Architectural Education Guide (`SettingsPage.tsx`, official blog `webcarepro-blog`):
+    - Added high-visibility Security Advisory banners in both the AI Settings panel and WordPress Native AI Connect subsystem sections.
+    - Explicitly advises site owners that the official WordPress AI Connectors app (`options-connectors.php`) stores Google Gemini and OpenAI API keys unencrypted in raw plaintext inside the `wp_options` table (`connectors_ai_google_api_key`, `connectors_ai_openai_api_key`), leaving credentials vulnerable to SQL injection exploits and unencrypted database backup leaks.
+    - Recommends configuring API keys directly inside WCP Security Scanner to encrypt secrets at rest using enterprise AES-256-GCM AEAD with per-record nonces and 128-bit integrity tags.
+    - Added direct navigation button linking to the comprehensive technical architecture guide on the official blog: `https://webcarespro.com/blog/post/how-aes-256-gcm-vault-protects-wordpress-secrets`.
+    - Published an in-depth engineering masterclass on `webcarepro-blog` authored by Mir Alamin explaining field-level AES-256-GCM AEAD encryption, NIST SP 800-38D / RFC 5116 compliance, key derivation hierarchies (`WCP_VAULT_KEY`), two-phase commit zero-downtime key rotation, and protection against SQL dump credential theft.
+
 
 
 v:1.17.0 - 2026-10-17
