@@ -56,6 +56,15 @@ v:1.18.0 - 2026-10-18
     - Sliding-Window Rate Limiting: Integrated transient-based sliding-window rate limiting (`mcp_rate_limit_per_min`, configurable 30–300 req/min, default 60) to protect origin servers against agent infinite loops or brute-force requests.
     - Persistent Ring-Buffered Audit Trail: Engineered real-time execution logging (`wcpscan_mcp_audit_log`, capped at 150 events) tracking timestamps, caller IPs, user-agent headers (Claude Desktop, Antigravity, Cursor), executed tool names, parameter summaries, duration in milliseconds, and exit statuses (`success`, `denied_read_only`, `rate_limited`, `error`).
     - Dedicated UI Audit Table & Policy Controls: Added interactive Permission Scope toggle buttons, rate-limit selectors, tool category pills, and a real-time Audit Trail table with manual refresh and 1-click log purge inside the MCP Agentic settings card.
+- Frictionless 1-Click "Mark Safe / Ignore" UX & Finding Status Segmentation (`WhitelistModal.tsx`, `App.tsx`):
+  * 1-Click Intelligent Suppression: Added primary "✓ Mark as Safe & Suppress Finding" action that automatically generates a SHA-256 cryptographic hash-lock for the exact file with a 90-day review period, eliminating technical friction for site owners.
+  * Collapsible Power-User Drawer: Added an expandable "Show Advanced Rules & Expiration Settings" drawer allowing experienced sysadmins to customize match criteria (SHA-256 hash vs exact path vs pattern signature), specify expiration intervals (30 days, 90 days, 1 year, permanent), and attach administrative rationale notes.
+  * Refined Finding Card Action Button: Upgraded the finding card action trigger from a generic filter button to `<ShieldCheck size={12} color="#059669" /> Mark Safe / Ignore` with subtle emerald styling.
+  * Segmented Status Scope Toolbar: Added dedicated status filter pills (`Active Threats`, `Ignored / Whitelisted`, `All Findings`) alongside severity and search filters, allowing site owners to view active threats with zero distraction while preserving full access to suppressed issues for auditing and reopening.
+- Documentation & Linux System Hardening (`README.MD`, `readme.txt`):
+  * Synchronized comprehensive documentation across `README.MD` and WordPress.org `readme.txt` cataloging 25 specialized security engines: Unified WCP Vault (4 consolidated facilities), Model Context Protocol (MCP) Agentic Surface, WordPress Native AI Connect Universal Bridge, Plaintext Database Vulnerability Advisory, and 1-Click Whitelist UX.
+  * Added transparent "Public Beta / Active Development" status badges and callouts across documentation.
+  * Conducted full PSR-4 directory and casing audit across all 85 PHP classes under `includes/`, verifying 100% autoloader resolution on case-sensitive Linux filesystems (`ext4`).
 
 
 

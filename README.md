@@ -15,6 +15,8 @@
   <a href="https://github.com/WebCarePro/wcp-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
   <a href="https://www.upwork.com/freelancers/~0162afa9a578170c67"><img src="https://img.shields.io/badge/Upwork-Top%20Rated%20Plus%20★%20100%25%20JSS-14A800.svg?logo=upwork" alt="Upwork Top Rated Plus"/></a>
   <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v1.18.0-orange.svg" alt="Release Version"/></a>
+  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Status-Public%20Beta%20%7C%20Active%20Dev-blue?style=flat&logo=git" alt="Status"/></a>
+  <a href="#23-model-context-protocol-mcp-agentic-surface-ai-secops-automation"><img src="https://img.shields.io/badge/Agentic-Model%20Context%20Protocol%20(MCP)-purple.svg?logo=anthropic" alt="MCP Ready"/></a>
   <a href="#-featured-spotlight-cryptographic-secret-vault--database-encryption-at-rest"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20AEAD%20Vault-blueviolet.svg?logo=securityscorecard&logoColor=white" alt="Cryptographic Secret Vault"/></a>
 </p>
 
@@ -23,6 +25,10 @@
 ## 🛡️ Overview
 
 **WCP Security Scanner** is a modern, high-performance WordPress security, malware detection, and forensic auditing plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)). 
+
+> [!NOTE]
+> **Public Beta & Active Engineering Notice (v1.18.0)**  
+> WCP Security Scanner is actively developed and battle-tested by solo engineer **Mir Alamin**. Rapid architectural upgrades, engine hardening, and new security primitives are released continuously.
 
 Unlike heavy, bloated security plugins that degrade server performance with background overhead, WCP Security Scanner combines **memory-safe PHP batch auditing engines** with a responsive **React 18 single-page administrative dashboard**. It provides deep insight into your file system, WordPress core integrity, plugin and theme source code, database tables, cron jobs, active administrative sessions, runtime memory hooks, and server configurations—giving developers, sysadmins, and site owners complete visibility and control over their WordPress security posture.
 
@@ -50,7 +56,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (21 Specialized Security Engines)
+## 🌟 Comprehensive Feature Catalog (25 Specialized Security Engines)
 
 ### 1. Next-Gen Cyber Command Center & Threat Dashboard
 - **High-Precision SVG Security Health Meter**: Circular dynamic vector meter displaying site security score (0–100%) with reactive color accents (emerald `#10b981`, blue `#38bdf8`, amber `#f59e0b`, rose `#ef4444`) and letter grades (`A+`, `A`, `B`, `C`, `D`, `F`).
@@ -198,6 +204,37 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Zero Tracking or Analytics**: The plugin does NOT track, collect, store, or sell any personal data, analytics, or browsing habits.
 - **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.
 - **Clean 5-Table Database Purge on Uninstall (`uninstall.php`)**: When "Auto-Remove All Data on Uninstall" is active (default), deleting the plugin automatically drops all 5 custom database tables (`wp_wcp_scans`, `wp_wcp_scan_issues`, `wp_wcp_scan_files`, `wp_wcp_quarantine`, `wp_wcp_firewall_logs`), deletes options/transients, clears crons, and purges the upload storage folder.
+
+### 22. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
+- **Centralized Security Vault Page (`wcp-vault`)**: Seamlessly consolidates all site isolation, backup, and encryption primitives into a single high-performance interface with live telemetry and direct deep-linking.
+- **Facility 1 — File Quarantine Isolation Vault**: View, inspect, restore, or permanently purge quarantined rogue scripts and backdoors preserved with SHA-256 integrity hashes in `.htaccess`-protected storage.
+- **Facility 2 — Database Snapshot & Point-in-Time Recovery Vault**: Create on-demand Gzip-compressed `.sql.gz` database snapshots, inspect byte-accurate archive sizes, and download for offsite disaster recovery.
+- **Facility 3 — Pre-Cure Safety Rollback & Remediation Vault**: Inspect safety diffs and restore modified files prior to Auto-Cure or webshell stripping actions.
+- **Facility 4 — Secret & Cryptographic Key Vault**: Real-time health metrics of the AES-256-GCM AEAD encryption subsystem, including self-healing dual-key decryption fallback, stale rotation lock recovery, and 1-click diagnostic reset.
+
+### 23. Model Context Protocol (MCP) Agentic Surface (AI SecOps Automation)
+- **Native JSON-RPC 2.0 Agentic Integration**: Bridges external AI coding agents (Claude Desktop, Cursor IDE, Antigravity, custom LLM agents) with WordPress security operations over standard JSON-RPC 2.0 and Bearer token authentication.
+- **7 First-Class SecOps Tools**:
+  - `wcp_get_site_health`: Retrieve dynamic health score (0–100%), letter grade, and active threat counts *(Read-Only)*.
+  - `wcp_list_findings`: Query active, quarantined, repaired, or ignored findings with pagination and severity filters *(Read-Only)*.
+  - `wcp_get_finding_detail`: Inspect specific vulnerability metadata, Myers code diffs, and forensic evidence *(Read-Only)*.
+  - `wcp_list_quarantined_files`: Enumerate isolated files with SHA-256 hashes and original paths *(Read-Only)*.
+  - `wcp_get_waf_stats`: Inspect firewall block statistics, rule hits, and top malicious IP addresses *(Read-Only)*.
+  - `wcp_trigger_scan`: Launch asynchronous background security audits or synchronous fast checks *(Mutating)*.
+  - `wcp_whitelist_finding`: Suppress false-positives with automated SHA-256 cryptographic hash-locking *(Mutating)*.
+- **Granular Permission Scopes**: Enforce **Read-Only (Observation)** mode to allow AI agents to safely inspect and diagnose without write privileges, or **Full Remediation (Read + Write)** for automated incident response.
+- **Sliding-Window Rate Limiting**: Per-token rate limiter configurable from 30 to 300 requests/minute to protect origin servers from agentic query floods.
+- **Persistent Ring-Buffer Execution Audit Trail**: Logs every incoming MCP agent call with timestamp, tool name, client IP, payload preview, execution time, and response status in a persistent 150-event ring buffer (`wcpscan_mcp_audit_log`).
+- **1-Click Ready Client Configs**: Ready-to-copy JSON configuration snippets formatted specifically for Cursor (`cursor_mcp.json`) and Claude Desktop (`claude_desktop_config.json`).
+
+### 24. WordPress Native AI Connect Universal Bridge & Plaintext DB Advisory
+- **WordPress 7.0+ AI Client Integration**: Natively discovers and interfaces with `wp_ai_client()` and `options-connectors.php` site-level AI providers without duplicating configurations.
+- **Architectural Security Advisory (Plaintext vs Encrypted)**: Standard WordPress AI connector plugins store third-party credentials (e.g. `connectors_ai_google_api_key`, `connectors_ai_openai_api_key`) in plaintext inside `wp_options`. WCP Security Scanner isolates all third-party API keys in the AES-256-GCM AEAD Secret Vault, eliminating database credential leakage during SQL dumps or unauthorized queries.
+
+### 25. Frictionless 1-Click "Mark Safe / Ignore" UX with SHA-256 Hash-Locking
+- **1-Click Intelligent Suppression**: Instantly suppress known false-positives with a single click. Automatically computes SHA-256 cryptographic checksums of the target file to lock the rule to that exact file version, with a 90-day auto-review safety period.
+- **Collapsible Power-User Drawer**: Advanced controls to customize rule match types (Exact SHA-256 Hash vs File Path vs Pattern Signature), adjust expiration periods (30 days, 90 days, 1 year, or Permanent), and log administrative audit rationale.
+- **Segmented Findings Status Filtering**: Instantly toggle between **Active Threats**, **Whitelisted / Ignored**, and **All Findings** with dynamic count badges, keeping active security views clean and actionable.
 
 ---
 
