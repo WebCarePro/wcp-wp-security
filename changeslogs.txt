@@ -22,7 +22,9 @@ v:1.17.0 - 2026-10-17
     - Fixed `SettingsPage.tsx` scheduler diagnostics trigger button calling undefined `fetchSettings()` instead of `loadSettings()`, resolving the `fetchSettings is not defined` notice on immediate manual scan execution.
     - Implemented self-healing dual-key fallback in `SecretVault::decrypt()`: if a key rotation was performed in the database but `wp-config.php` retains the pre-rotation key, SecretVault automatically verifies and decrypts against the pre-rotation backup snapshot, self-healing the option without losing credentials.
     - Added 1-Click Rollback Key Rotation UI button in `WcpVaultPage.tsx` displaying the active pre-rotation backup ID and allowing instantaneous rollback.
-    - Added automatic detection and clearance of stale/interrupted key rotation states (>60s) in `VaultRotator::start_rotation()`, preventing permanent "A rotation migration is already actively running" lockouts.
+    - Added automatic detection and clearance of stale/interrupted key rotation states and locks (>20s) in `VaultRotator::start_rotation()`, eliminating permanent "A rotation migration is already actively running" lockouts.
+    - Implemented `POST /wcp-scanner/v1/vault/reset-rotation` and `VaultRotator::reset_state()` along with an interactive "Clear Stuck Rotation Lock" UI button in `WcpVaultPage.tsx` to force-clear any lingering transitional envelopes or transient locks.
+    - Enhanced `SecretVault::decrypt()` dual-key fallback to search all previous backup snapshots (`wcpscan_vault_backup_*`) in reverse chronological order, guaranteeing automatic self-healing of encrypted credentials even across multiple rotation attempts.
 - Attack Chain Engine & User Privilege Escalation Overhaul (`AttackChainEngine.php`, `UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
   * Eliminated False Positives on Legitimate Dashboard Administrators:
     - Fixed critical classification flaw in `gather_recent_or_suspicious_users()` where any administrator account registered within the past 14 days was blindly flagged as breached "Privilege Escalation & Account Takeover".

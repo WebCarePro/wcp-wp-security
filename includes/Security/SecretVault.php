@@ -164,13 +164,27 @@ class SecretVault {
             }
 
             // Self-Healing Dual-Key Fallback:
-            // If primary key decryption failed on the current ciphertext, check if there is a pre-rotation
-            // backup snapshot whose record decrypts cleanly with the active primary key. This gracefully
-            // heals situations where a key rotation was triggered but wp-config.php retained the previous key.
+            // If primary key decryption failed on the current ciphertext, search pre-rotation
+            // backup snapshots in reverse chronological order whose record decrypts cleanly with the active
+            // primary key. This gracefully heals situations where a key rotation was triggered but
+            // wp-config.php retained the previous key or key rotation was interrupted.
             if ($primary_key !== null) {
+                $backup_ids = [];
                 $state = get_option(\WcpScanner\Security\VaultRotator::STATE_OPTION, []);
                 if (!empty($state['backup_id'])) {
-                    $backup = get_option($state['backup_id']);
+                    $backup_ids[] = (string) $state['backup_id'];
+                }
+
+                global $wpdb;
+                if ($wpdb && isset($wpdb->options)) {
+                    $recent_backups = $wpdb->get_col("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'wcpscan_vault_backup_%' ORDER BY option_id DESC LIMIT 10");
+                    if (!empty($recent_backups) && is_array($recent_backups)) {
+                        $backup_ids = array_unique(array_merge($backup_ids, $recent_backups));
+                    }
+                }
+
+                foreach ($backup_ids as $bid) {
+                    $backup = get_option($bid);
                     if (!empty($backup['records']) && is_array($backup['records'])) {
                         foreach ($backup['records'] as $field_key => $backup_val) {
                             if (is_string($backup_val) && self::is_encrypted($backup_val)) {

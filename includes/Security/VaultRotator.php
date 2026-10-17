@@ -20,9 +20,10 @@ class VaultRotator {
      * Start a new key rotation with two-phase commit preparation.
      *
      * @param string $new_key_material
+     * @param bool   $force
      * @return array|\WP_Error
      */
-    public static function start_rotation(string $new_key_material): array|\WP_Error {
+    public static function start_rotation(string $new_key_material, bool $force = false): array|\WP_Error {
         if (!current_user_can('manage_options')) {
             return new \WP_Error('forbidden', 'Insufficient privileges to rotate vault keys.');
         }
@@ -31,23 +32,28 @@ class VaultRotator {
             return new \WP_Error('invalid_key', 'New key material cannot be empty.');
         }
 
+        $state = get_option(self::STATE_OPTION, []);
+        $started = intval($state['started_at'] ?? 0);
+
+        // Auto-clear stale state and lock if previous rotation is older than 20 seconds or force requested
+        if ($force || $started === 0 || (time() - $started) > 20) {
+            self::clear_transitional_keys();
+            self::release_lock();
+            if (!empty($state['status']) && in_array($state['status'], ['preparing', 'migrating', 'verifying'], true)) {
+                $state['status'] = 'idle';
+                $state['last_error'] = 'Previous rotation timed out and was automatically cleared.';
+                update_option(self::STATE_OPTION, $state, false);
+            }
+        }
+
         if (!self::acquire_lock()) {
             return new \WP_Error('locked', 'Another vault key rotation is already in progress.');
         }
 
         $state = get_option(self::STATE_OPTION, []);
-        if (!empty($state['status']) && in_array($state['status'], ['preparing', 'migrating', 'verifying'], true)) {
-            $started = intval($state['started_at'] ?? 0);
-            // If the rotation is older than 60 seconds or was interrupted, auto-clear stale state
-            if ($started === 0 || (time() - $started) > 60) {
-                self::clear_transitional_keys();
-                $state['status'] = 'failed';
-                $state['last_error'] = 'Previous rotation timed out and was automatically cleared.';
-                update_option(self::STATE_OPTION, $state, false);
-            } else {
-                self::release_lock();
-                return new \WP_Error('busy', 'A rotation migration is already actively running. Please wait a moment.');
-            }
+        if (!$force && !empty($state['status']) && in_array($state['status'], ['preparing', 'migrating', 'verifying'], true)) {
+            self::release_lock();
+            return new \WP_Error('busy', 'A rotation migration is already actively running. Please wait a moment.');
         }
 
         // Capture current old key
@@ -291,6 +297,15 @@ class VaultRotator {
      */
     public static function get_status(): array {
         return get_option(self::STATE_OPTION, ['status' => 'idle']);
+    }
+
+    /**
+     * Force reset any active or stuck key rotation state and release all locks.
+     */
+    public static function reset_state(): void {
+        self::clear_transitional_keys();
+        self::release_lock();
+        update_option(self::STATE_OPTION, ['status' => 'idle', 'reset_at' => time()], false);
     }
 
     /**

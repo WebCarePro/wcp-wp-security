@@ -732,6 +732,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/vault/reset-rotation', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reset_vault_rotation'],
+            'permission_callback' => $permission,
+        ]);
+
         // 16. Model Context Protocol (MCP) Agent Service Surface
         $mcp_permission = function (\WP_REST_Request $request) {
             if (current_user_can('manage_options')) {
@@ -5200,12 +5206,13 @@ class ScannerRoutes {
     public static function rotate_vault_key(\WP_REST_Request $request) {
         $params  = $request->get_json_params() ?: $request->get_params();
         $new_key = sanitize_text_field($params['new_key'] ?? '');
+        $force   = !empty($params['force']);
 
         if (empty($new_key)) {
             $new_key = bin2hex(random_bytes(32));
         }
 
-        $init = \WcpScanner\Security\VaultRotator::start_rotation($new_key);
+        $init = \WcpScanner\Security\VaultRotator::start_rotation($new_key, $force);
         if (is_wp_error($init)) {
             return $init;
         }
@@ -5237,6 +5244,15 @@ class ScannerRoutes {
             'success' => true,
             'message' => __('Vault key rotation rolled back to pre-rotation state.', 'wcp-security-scanner'),
             'status'  => $res,
+        ]);
+    }
+
+    public static function reset_vault_rotation(\WP_REST_Request $request) {
+        \WcpScanner\Security\VaultRotator::reset_state();
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Vault rotation state and locks cleared successfully.', 'wcp-security-scanner'),
+            'status'  => \WcpScanner\Security\VaultRotator::get_status(),
         ]);
     }
 }
