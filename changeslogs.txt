@@ -12,7 +12,7 @@ v:1.17.0 - 2026-10-17
     - Added an alert badge detecting unrestored quarantined administrator accounts with immediate 1-click restoration navigation.
   * Deep-Linking & Seamless History Routing:
     - Added URL query parameter synchronization (`?page=wcp-scanner-vault&tab=quarantine|database|rollback|secrets`) with browser back/forward history support.
-    - Unified existing submenu entry points (`wcp-scanner-quarantine` and `wcp-scanner-backup`) to open seamlessly within the WCP Vault suite with the corresponding tab selected.
+    - Consolidated navigation by removing the duplicate standalone "Quarantine Vault" submenu from the WordPress left sidebar in favor of the Unified "WCP Vault" suite, and registered an automatic `admin_init` redirect so any legacy links (`page=wcp-scanner-quarantine`) smoothly forward to `page=wcp-scanner-vault&tab=quarantine`.
   * REST API Vault Surface:
     - Registered `GET /wcp-scanner/v1/vault/status`, `POST /wcp-scanner/v1/vault/rotate-key`, and `POST /wcp-scanner/v1/vault/rollback-rotation`.
     - Added cryptographic verification of `WCP_VAULT_KEY` constant and environment derivations with truncated SHA-256 fingerprint output (`key_fingerprint`) while keeping plaintext master keys strictly isolated in server memory.
