@@ -63,6 +63,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: WCP Vault (Unified Vault Suite)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
+            __('WCP Vault', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-vault',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Quarantine Vault
         add_submenu_page(
             'wcp-security-scanner',
@@ -169,6 +179,7 @@ class AdminMenu {
     public static function enqueue_assets($hook) {
         $valid_hooks = [
             'toplevel_page_wcp-security-scanner',
+            'wcp-security-scanner_page_wcp-scanner-vault',
             'wcp-security-scanner_page_wcp-scanner-tools',
             'wcp-security-scanner_page_wcp-scanner-logs',
             'wcp-security-scanner_page_wcp-scanner-quarantine',
@@ -180,6 +191,7 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-auth',
             'wcp-security-scanner_page_wcp-scanner-settings',
             'wcp-security-scanner_page_wcp-scanner-about',
+            'security-scanner_page_wcp-scanner-vault',
             'security-scanner_page_wcp-scanner-tools',
             'security-scanner_page_wcp-scanner-logs',
             'security-scanner_page_wcp-scanner-quarantine',
@@ -203,7 +215,8 @@ class AdminMenu {
         }
 
         $active_tab = 'dashboard';
-        if ($current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
+        if ($current_page === 'wcp-scanner-vault') $active_tab = 'vault';
+        elseif ($current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
         elseif ($current_page === 'wcp-scanner-logs') $active_tab = 'logs';
         elseif ($current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
         elseif ($current_page === 'wcp-scanner-backup') $active_tab = 'backup';

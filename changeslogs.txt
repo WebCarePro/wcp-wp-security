@@ -1,4 +1,20 @@
 v:1.17.0 - 2026-10-17
+- Dedicated WCP Vault & Top Navigation Suite (`WcpVaultPage.tsx`, `AdminMenu.php`, `ScannerRoutes.php`, `QuarantinePage.tsx`, `App.tsx`):
+  * Unified Vault Command Center:
+    - Created a dedicated page named **WCP Vault** (`admin.php?page=wcp-scanner-vault`) in the WordPress admin sidebar menu.
+    - Designed and implemented a responsive, modern Top Navigation Menu on the WCP Vault page that links and organizes all 4 core vault facilities into a single view:
+      1. 🛡️ **Quarantine Vault:** Cryptographic storage vault for isolated backdoors, neutralized webshells, and execution-defanged malware.
+      2. 🗄️ **Database Backup Vault:** Zero-downtime, primary-key streaming MySQL dumps with maximum Gzip compression and point-in-time restoration.
+      3. ⏪ **Rollback & Remediation Vault:** Atomic pre-remediation snapshots (`tx_...`), safe rollback, and quarantined administrator account recovery.
+      4. 🔐 **Secret & Key Vault:** Hardware/environment master key status (`WCP_VAULT_KEY`), AES-256-GCM AEAD cipher verification, protected credential audit table, and zero-downtime 1-click cryptographic key rotation.
+  * Real-Time Vault Metrics Dashboard Header:
+    - Added live metric status tiles summarizing total isolated threats, database backup storage (MB), active remediation snapshots, and secret cipher integrity.
+    - Added an alert badge detecting unrestored quarantined administrator accounts with immediate 1-click restoration navigation.
+  * Deep-Linking & Seamless History Routing:
+    - Added URL query parameter synchronization (`?page=wcp-scanner-vault&tab=quarantine|database|rollback|secrets`) with browser back/forward history support.
+    - Unified existing submenu entry points (`wcp-scanner-quarantine` and `wcp-scanner-backup`) to open seamlessly within the WCP Vault suite with the corresponding tab selected.
+  * REST API Vault Surface:
+    - Registered `GET /wcp-scanner/v1/vault/status`, `POST /wcp-scanner/v1/vault/rotate-key`, and `POST /wcp-scanner/v1/vault/rollback-rotation`.
 - Attack Chain Engine & User Privilege Escalation Overhaul (`AttackChainEngine.php`, `UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
   * Eliminated False Positives on Legitimate Dashboard Administrators:
     - Fixed critical classification flaw in `gather_recent_or_suspicious_users()` where any administrator account registered within the past 14 days was blindly flagged as breached "Privilege Escalation & Account Takeover".

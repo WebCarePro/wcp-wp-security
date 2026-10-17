@@ -713,6 +713,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // 15b. Unified Vault Status & Key Rotator
+        register_rest_route(self::NAMESPACE, '/vault/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_vault_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/vault/rotate-key', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rotate_vault_key'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/vault/rollback-rotation', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rollback_vault_rotation'],
+            'permission_callback' => $permission,
+        ]);
+
         // 16. Model Context Protocol (MCP) Agent Service Surface
         $mcp_permission = function (\WP_REST_Request $request) {
             if (current_user_can('manage_options')) {
@@ -5058,6 +5077,158 @@ class ScannerRoutes {
 
         $result = \WcpScanner\Api\MCPAgentService::execute_tool($tool, $args);
         return rest_ensure_response($result);
+    }
+
+    // ==========================================
+    // 17. Unified WCP Vault Status & Rotator
+    // ==========================================
+
+    public static function get_vault_status(\WP_REST_Request $request) {
+        // 1. Quarantine stats
+        $quarantine_records = \WcpScanner\Quarantine\QuarantineManager::get_all();
+        $q_active = 0;
+        $q_restored = 0;
+        foreach ($quarantine_records as $qr) {
+            if (($qr['status'] ?? '') === 'quarantined') {
+                $q_active++;
+            } elseif (($qr['status'] ?? '') === 'restored') {
+                $q_restored++;
+            }
+        }
+
+        // 2. Database backup stats
+        $db_backups = \WcpScanner\Backup\DatabaseBackup::list_backups();
+        $db_count = count($db_backups);
+        $db_size_mb = 0;
+        foreach ($db_backups as $b) {
+            $db_size_mb += floatval($b['size_mb'] ?? 0);
+        }
+
+        // 3. Transactions & Missing Users stats
+        $transactions = \WcpScanner\Remediation\TransactionalRemediation::list_transactions(50);
+        $tx_count = count($transactions);
+        $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $missing_users = $user_mgr->get_missing_user_backups();
+        $missing_users_count = count($missing_users);
+
+        // 4. Secret Vault & Key Rotator stats
+        $key_source = 'wp_salt';
+        $env_key = getenv('WCP_VAULT_KEY');
+        if (!empty($env_key)) {
+            $key_source = 'env';
+        } elseif (defined('WCP_VAULT_KEY') && !empty(WCP_VAULT_KEY)) {
+            $key_source = 'constant';
+        }
+
+        $openssl_ok = function_exists('openssl_encrypt');
+        $gcm_ok = $openssl_ok && in_array(\WcpScanner\Security\SecretVault::CIPHER_GCM, openssl_get_cipher_methods(), true);
+
+        $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
+        $secret_fields = [
+            'gemini_api_key'       => 'Google Gemini AI Key',
+            'openai_api_key'       => 'OpenAI API Key',
+            'claude_api_key'       => 'Anthropic Claude Key',
+            'cloudflare_api_token' => 'Cloudflare API Token',
+            'cloudflare_zone_id'   => 'Cloudflare Zone ID',
+            'slack_webhook_url'    => 'Slack Webhook URL',
+            'discord_webhook_url'  => 'Discord Webhook URL',
+            'clickup_webhook_url'  => 'ClickUp Webhook URL',
+            'asana_webhook_url'    => 'Asana Webhook URL',
+            'generic_webhook_url'  => 'Generic Automation Webhook',
+        ];
+
+        $secrets_status = [];
+        $encrypted_count = 0;
+        foreach ($secret_fields as $field_key => $label) {
+            $val = (string) ($settings[$field_key] ?? '');
+            $is_set = !empty($val);
+            $is_enc = $is_set && \WcpScanner\Security\SecretVault::is_encrypted($val);
+            if ($is_enc) {
+                $encrypted_count++;
+            }
+            $secrets_status[] = [
+                'key'          => $field_key,
+                'label'        => $label,
+                'is_configured'=> $is_set,
+                'is_encrypted' => $is_enc,
+            ];
+        }
+
+        $rot_state = get_option(\WcpScanner\Security\VaultRotator::STATE_OPTION, ['status' => 'idle']);
+
+        return rest_ensure_response([
+            'success' => true,
+            'quarantine' => [
+                'total_records'  => count($quarantine_records),
+                'active_threats' => $q_active,
+                'restored_files' => $q_restored,
+            ],
+            'database' => [
+                'count'    => $db_count,
+                'total_mb' => round($db_size_mb, 2),
+            ],
+            'rollback' => [
+                'transactions_count'  => $tx_count,
+                'missing_users_count' => $missing_users_count,
+                'missing_users'       => array_map(fn($u) => [
+                    'user_id'    => $u['user_id'],
+                    'user_login' => $u['user_login'],
+                    'user_email' => $u['user_email'],
+                ], $missing_users),
+            ],
+            'secrets' => [
+                'cipher'            => 'AES-256-GCM AEAD',
+                'key_source'        => $key_source,
+                'openssl_available' => $openssl_ok,
+                'gcm_available'     => $gcm_ok,
+                'encrypted_count'   => $encrypted_count,
+                'fields'            => $secrets_status,
+                'rotation_state'    => $rot_state,
+            ],
+        ]);
+    }
+
+    public static function rotate_vault_key(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: $request->get_params();
+        $new_key = sanitize_text_field($params['new_key'] ?? '');
+
+        if (empty($new_key)) {
+            $new_key = bin2hex(random_bytes(32));
+        }
+
+        $init = \WcpScanner\Security\VaultRotator::start_rotation($new_key);
+        if (is_wp_error($init)) {
+            return $init;
+        }
+
+        $cont = \WcpScanner\Security\VaultRotator::continue_rotation(100);
+        if (is_wp_error($cont)) {
+            return $cont;
+        }
+
+        $commit = \WcpScanner\Security\VaultRotator::verify_and_commit();
+        if (is_wp_error($commit)) {
+            return $commit;
+        }
+
+        return rest_ensure_response([
+            'success'          => true,
+            'message'          => __('Vault encryption keys rotated and all credentials safely re-encrypted.', 'wcp-security-scanner'),
+            'new_key_material' => $new_key,
+            'status'           => $commit,
+        ]);
+    }
+
+    public static function rollback_vault_rotation(\WP_REST_Request $request) {
+        $res = \WcpScanner\Security\VaultRotator::rollback();
+        if (is_wp_error($res)) {
+            return $res;
+        }
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Vault key rotation rolled back to pre-rotation state.', 'wcp-security-scanner'),
+            'status'  => $res,
+        ]);
     }
 }
 
