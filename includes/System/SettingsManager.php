@@ -246,7 +246,7 @@ class SettingsManager {
 
         // 3. AI Threat Integration
         $clean['ai_enabled']               = !empty($input['ai_enabled']);
-        $valid_ai = ['openai', 'gemini', 'claude'];
+        $valid_ai = ['openai', 'gemini', 'claude', 'wp_ai_connect'];
         $clean['ai_provider']              = in_array($input['ai_provider'] ?? '', $valid_ai, true) 
             ? $input['ai_provider'] 
             : 'openai';

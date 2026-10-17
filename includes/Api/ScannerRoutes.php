@@ -3711,11 +3711,12 @@ class ScannerRoutes {
         $time_info = self::build_schedule_time_info();
 
         return rest_ensure_response([
-            'success'        => true,
-            'settings'       => $settings,
-            'next_scheduled' => $time_info['next_scheduled_wp'],
-            'schedule_time'  => $time_info,
-            'current_time'   => $time_info['current_wp_time'],
+            'success'           => true,
+            'settings'          => $settings,
+            'ai_connect_status' => \WcpScanner\System\AIService::get_ai_connect_status(),
+            'next_scheduled'    => $time_info['next_scheduled_wp'],
+            'schedule_time'     => $time_info,
+            'current_time'      => $time_info['current_wp_time'],
         ]);
     }
 
@@ -3732,11 +3733,12 @@ class ScannerRoutes {
         $time_info = self::build_schedule_time_info();
 
         return rest_ensure_response([
-            'success'        => true,
-            'message'        => __('Settings successfully saved.', 'wcp-security-scanner'),
-            'settings'       => $saved,
-            'next_scheduled' => $time_info['next_scheduled_wp'],
-            'schedule_time'  => $time_info,
+            'success'           => true,
+            'message'           => __('Settings successfully saved.', 'wcp-security-scanner'),
+            'settings'          => $saved,
+            'ai_connect_status' => \WcpScanner\System\AIService::get_ai_connect_status(),
+            'next_scheduled'    => $time_info['next_scheduled_wp'],
+            'schedule_time'     => $time_info,
         ]);
     }
 
@@ -3877,6 +3879,14 @@ class ScannerRoutes {
         $provider = sanitize_text_field($params['provider'] ?? 'openai');
         $api_key  = trim($params['api_key'] ?? '');
         $model    = sanitize_text_field($params['model'] ?? '');
+
+        if ($provider === 'wp_ai_connect') {
+            $result = \WcpScanner\System\AIService::test_connection($provider, '', $model);
+            if (empty($result['success'])) {
+                return new \WP_Error('ai_test_failed', $result['error'] ?? 'WordPress Native AI Connect Test Failed', ['status' => 400]);
+            }
+            return rest_ensure_response($result);
+        }
 
         // If key is masked or empty, fall back to stored key
         if ($api_key === '' || $api_key === '••••••••') {

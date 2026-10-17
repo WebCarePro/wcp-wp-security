@@ -19,6 +19,17 @@ v:1.18.0 - 2026-10-18
     - Updated `#wcp-scanner-root`, `.wcp-container`, and `.wcp-page-container` to `width: 100% !important; max-width: 100% !important; margin: 16px 0 40px 0 !important;`.
     - Removed arbitrary `maxWidth: '1200px'`, `maxWidth: '1440px'`, and `margin: '0 auto'` constraints from Settings, WCP Vault, Quarantine, and Firewall page containers.
     - Added responsive full-width expansion for `.wrap:has(#wcp-scanner-root)` so all security scanner modules, forensic tables, metric cubes, and configuration grids smoothly fill the available WordPress workspace.
+- WordPress Native AI Connect Universal Bridge & Intelligent Detection (`AIService.php`, `SettingsManager.php`, `ScannerRoutes.php`, `SettingsPage.tsx`):
+  * Intelligent Subsystem Detection & Dynamic Guidance:
+    - Added comprehensive multi-engine detection in `AIService::get_ai_connect_status()` detecting WordPress Core AI Client (`wp_ai_client()`), WordPress Abilities API (`wp_ai_run_ability()`), AI Engine by Meow Apps (`Meow_MWAI_Core`), WP AI Connect plugin, Jetpack AI, active `wcp_ai_analyze_code`/`wp_ai_prompt` filter bridges, and environment constants (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`).
+    - Designed a proactive status banner on the Settings page ("AI Cybersecurity Intelligence Engine"):
+      * When detected: Alerts the user that WordPress Native AI Connect is already active and ready, confirming 100% compatibility and offering 1-click selection as primary engine with zero extra keys required.
+      * When not detected: Recommends installing a compatible native WordPress AI connect plugin (AI Engine by Jordy Meow) with a 1-click install link, explaining complete interoperability.
+  * Universal Native AI Connect Execution & Interoperability:
+    - Implemented `AIService::call_native_ai_connect()` allowing threat forensics, de-obfuscation, and malware heuristics to seamlessly route through any active WordPress AI client or plugin.
+    - Added automatic fallback to native WordPress AI connect if individual standalone API keys are empty.
+    - Added `'wp_ai_connect'` as an official selectable AI provider with dedicated status verification and ping test support via `/ai/test`.
+
 
 v:1.17.0 - 2026-10-17
 - Dedicated WCP Vault & Top Navigation Suite (`WcpVaultPage.tsx`, `AdminMenu.php`, `ScannerRoutes.php`, `QuarantinePage.tsx`, `App.tsx`):

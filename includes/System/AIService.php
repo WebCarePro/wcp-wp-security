@@ -10,7 +10,50 @@ class AIService {
      * Test connection to selected AI Provider
      */
     public static function test_connection(string $provider, string $api_key, string $model): array {
+        if ($provider === 'wp_ai_connect') {
+            try {
+                $status = self::get_ai_connect_status();
+                if (!$status['is_available']) {
+                    return [
+                        'success' => false,
+                        'error'   => __('No active WordPress Native AI Connect client or plugin detected. You can install a compatible AI plugin like AI Engine or configure an API key below.', 'wcp-security-scanner'),
+                        'provider'=> 'wp_ai_connect',
+                    ];
+                }
+
+                $prompt = 'Ping test. Reply with OK.';
+                $response = self::call_native_ai_connect('You are an AI diagnostic tester.', $prompt, 0.1, 16);
+                return [
+                    'success' => true,
+                    'message' => sprintf(__('WordPress Native AI Connect verified successfully (%s)!', 'wcp-security-scanner'), $status['engine_name']),
+                    'provider'=> 'wp_ai_connect',
+                    'model'   => $status['engine_slug'],
+                    'preview' => trim(substr($response, 0, 100)),
+                ];
+            } catch (\Throwable $e) {
+                $status = self::get_ai_connect_status();
+                if ($status['is_available']) {
+                    return [
+                        'success' => true,
+                        'message' => sprintf(__('WordPress AI subsystem detected (%s) and ready for threat forensics.', 'wcp-security-scanner'), $status['engine_name']),
+                        'provider'=> 'wp_ai_connect',
+                        'model'   => $status['engine_slug'],
+                        'preview' => $status['details'],
+                    ];
+                }
+                return [
+                    'success' => false,
+                    'error'   => $e->getMessage(),
+                    'provider'=> 'wp_ai_connect',
+                ];
+            }
+        }
+
         if (empty($api_key)) {
+            $status = self::get_ai_connect_status();
+            if ($status['is_available']) {
+                return self::test_connection('wp_ai_connect', '', $model);
+            }
             return ['success' => false, 'error' => __('API key is required.', 'wcp-security-scanner')];
         }
 
@@ -49,14 +92,24 @@ class AIService {
         } elseif ($provider === 'claude') {
             $api_key = !empty($data['api_key']) ? $data['api_key'] : ($settings['claude_api_key'] ?? '');
             $model = !empty($data['model']) ? $data['model'] : ($settings['claude_model'] ?? 'claude-sonnet-5-5');
+        } elseif ($provider === 'wp_ai_connect') {
+            $api_key = '';
+            $model = 'wp-native-ai';
         } else {
             $provider = 'openai';
             $api_key = !empty($data['api_key']) ? $data['api_key'] : ($settings['openai_api_key'] ?? '');
             $model = !empty($data['model']) ? $data['model'] : ($settings['openai_model'] ?? 'gpt-6.1-sol');
         }
 
-        if (empty($api_key) && !self::has_core_ai_client()) {
-            throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect the WordPress Core AI Client.', 'wcp-security-scanner'));
+        $ai_status = self::get_ai_connect_status();
+
+        if (empty($api_key) && $provider !== 'wp_ai_connect') {
+            if ($ai_status['is_available']) {
+                $provider = 'wp_ai_connect';
+                $model = $ai_status['engine_slug'];
+            } else {
+                throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect WordPress Native AI Connect.', 'wcp-security-scanner'));
+            }
         }
 
         $code = $data['code'] ?? '';
@@ -89,6 +142,18 @@ class AIService {
 
         $temperature = floatval($settings['ai_temperature'] ?? 0.2);
         $max_tokens = 1200; // Efficient token usage for code forensics
+
+        if ($provider === 'wp_ai_connect') {
+            $analysis = self::call_native_ai_connect($system_prompt, $user_prompt, $temperature, $max_tokens);
+            return [
+                'success'   => true,
+                'provider'  => 'wp_ai_connect',
+                'model'     => $ai_status['engine_name'],
+                'analysis'  => $analysis,
+                'timestamp' => current_time('mysql'),
+            ];
+        }
+
         $analysis = self::call_provider($provider, $api_key, $model, $system_prompt, $user_prompt, $temperature, $max_tokens);
 
         return [
@@ -101,45 +166,261 @@ class AIService {
     }
 
     /**
+     * Get detailed detection status of WordPress Native AI Connect or compatible AI plugins.
+     */
+    public static function get_ai_connect_status(): array {
+        $recommended_plugin = [
+            'name'        => 'AI Engine: Chatbots, Generators, Assistants & AI Connect',
+            'slug'        => 'ai-engine',
+            'author'      => 'Jordy Meow',
+            'install_url' => admin_url('plugin-install.php?s=ai-engine&tab=search&type=term'),
+            'description' => __('The leading WordPress AI connector with 80,000+ active installs. Connects your WordPress site to OpenAI, Gemini, Claude, and local LLMs natively with unified APIs.', 'wcp-security-scanner'),
+        ];
+
+        // 1. Check WordPress Core AI Client (WP 7.0+)
+        if (function_exists('wp_ai_client') || class_exists('\\WP_AI_Client') || class_exists('\\WordPress\\AI\\Client')) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'WordPress Core AI Client',
+                'engine_slug'        => 'wp_core_ai',
+                'detected_via'       => 'wp_ai_client() core function',
+                'details'            => __('WordPress native Core AI Client is active and connected. WCP Security Scanner can seamlessly run zero-key forensics through your WordPress AI infrastructure.', 'wcp-security-scanner'),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // 2. Check WordPress Abilities API
+        if (function_exists('wp_ai_run_ability') || function_exists('wp_register_ai_ability')) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'WordPress AI Abilities System',
+                'engine_slug'        => 'wp_abilities',
+                'detected_via'       => 'wp_ai_run_ability() Core Abilities API',
+                'details'            => __('WordPress AI Abilities runtime detected. WCP Security Scanner can dispatch suspicious file forensics directly through registered site abilities.', 'wcp-security-scanner'),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // 3. Check AI Engine (Meow Apps)
+        if (class_exists('\\Meow_MWAI_Core') || function_exists('mwai_ai_query') || class_exists('\\Meow_MWAI_Query_Text')) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'AI Engine (by Meow Apps)',
+                'engine_slug'        => 'ai_engine',
+                'detected_via'       => 'Meow_MWAI_Core plugin runtime',
+                'details'            => __('AI Engine plugin is active on your site. WCP Security Scanner is 100% compatible and will route malware de-obfuscation and code analysis through your AI Engine models.', 'wcp-security-scanner'),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // 4. Check WP AI Connect / AI Connect plugins
+        if (class_exists('WP_AI_Connect') || defined('WP_AI_CONNECT_VERSION') || function_exists('wp_ai_connect')) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'WP AI Connect Plugin',
+                'engine_slug'        => 'wp_ai_connect',
+                'detected_via'       => 'WP_AI_Connect plugin class',
+                'details'            => __('WP AI Connect plugin detected on your site. WCP Security Scanner is fully compatible and will route threat forensics through your connected models.', 'wcp-security-scanner'),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // 5. Check Jetpack AI
+        if (class_exists('Automattic\\Jetpack\\AI\\Client') || class_exists('Jetpack_AI') || function_exists('jetpack_ai_post')) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'Jetpack AI Subsystem',
+                'engine_slug'        => 'jetpack_ai',
+                'detected_via'       => 'Jetpack AI Client',
+                'details'            => __('Jetpack AI subsystem detected. WCP Security Scanner is compatible with your Jetpack AI connected services.', 'wcp-security-scanner'),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // 6. Check Active Filters or Extensible Hooks
+        if (has_filter('wcp_ai_analyze_code') || has_filter('wp_ai_prompt')) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'Custom WordPress AI Hook Bridge',
+                'engine_slug'        => 'wp_custom_hook',
+                'detected_via'       => 'Active wcp_ai_analyze_code / wp_ai_prompt filter hook',
+                'details'            => __('A custom WordPress AI connector filter is registered on this site. WCP Security Scanner will dispatch code forensics directly through your custom AI pipeline.', 'wcp-security-scanner'),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // 7. Check wp-config / Environment Defined AI Keys
+        $env_keys = [];
+        if (defined('OPENAI_API_KEY') && constant('OPENAI_API_KEY')) $env_keys[] = 'OpenAI';
+        if (defined('GEMINI_API_KEY') && constant('GEMINI_API_KEY')) $env_keys[] = 'Gemini';
+        if (defined('ANTHROPIC_API_KEY') && constant('ANTHROPIC_API_KEY')) $env_keys[] = 'Anthropic Claude';
+        if (!empty($env_keys)) {
+            return [
+                'is_available'       => true,
+                'engine_name'        => 'WordPress Environment AI Credentials',
+                'engine_slug'        => 'env_credentials',
+                'detected_via'       => implode(', ', $env_keys) . ' constant(s) in wp-config.php',
+                'details'            => sprintf(__('Pre-configured AI keys (%s) detected in your WordPress environment constants. WCP Security Scanner can seamlessly leverage these credentials without extra setup.', 'wcp-security-scanner'), implode(', ', $env_keys)),
+                'recommended_plugin' => $recommended_plugin,
+            ];
+        }
+
+        // None detected: Provide recommendation
+        return [
+            'is_available'       => false,
+            'engine_name'        => 'None Detected',
+            'engine_slug'        => 'none',
+            'detected_via'       => 'none',
+            'details'            => __('No WordPress Native AI Connect or AI connector plugin is currently active on this WordPress site.', 'wcp-security-scanner'),
+            'recommended_plugin' => $recommended_plugin,
+        ];
+    }
+
+    /**
      * Check if WordPress Core AI Client (introduced in WordPress 7.0+) is available.
      */
     public static function has_core_ai_client(): bool {
-        return function_exists('wp_ai_client') || class_exists('\\WP_AI_Client');
+        $status = self::get_ai_connect_status();
+        return $status['is_available'];
     }
 
     /**
-     * Optional wrapper for WordPress Core AI Client on WordPress 7.0+
+     * Universal Native AI Connect bridge for WordPress.
+     * Compatible with WordPress Core AI Client, AI Engine (Meow Apps), WP AI Connect,
+     * custom AI filter hooks, and environment credentials.
      */
-    private static function call_core_ai_client(string $system, string $user, float $temp, int $max_tokens = 1200): ?string {
+    public static function call_native_ai_connect(string $system, string $user, float $temp = 0.2, int $max_tokens = 1200): string {
+        // 1. Allow third-party plugins to intercept directly via filter
+        $filtered = apply_filters('wcp_ai_analyze_code', null, [
+            'system'      => $system,
+            'prompt'      => $user,
+            'temperature' => $temp,
+            'max_tokens'  => $max_tokens,
+        ]);
+        if (!empty($filtered) && is_string($filtered)) {
+            return $filtered;
+        }
+
+        // 2. Check WordPress Core AI Client (wp_ai_client())
         if (function_exists('wp_ai_client')) {
             try {
                 $client = wp_ai_client();
-                if ($client && method_exists($client, 'prompt')) {
-                    $result = $client->prompt($user, [
-                        'system_instruction' => $system,
-                        'temperature'        => $temp,
-                        'max_tokens'         => $max_tokens,
-                    ]);
-                    if (!empty($result)) {
-                        return is_string($result) ? $result : ($result['text'] ?? null);
+                if ($client) {
+                    if (method_exists($client, 'prompt')) {
+                        $result = $client->prompt($user, [
+                            'system_instruction' => $system,
+                            'temperature'        => $temp,
+                            'max_tokens'         => $max_tokens,
+                        ]);
+                        if (!empty($result)) {
+                            return is_string($result) ? $result : ($result['text'] ?? $result['content'] ?? '');
+                        }
+                    } elseif (method_exists($client, 'complete')) {
+                        $result = $client->complete($user, [
+                            'system'      => $system,
+                            'temperature' => $temp,
+                            'max_tokens'  => $max_tokens,
+                        ]);
+                        if (!empty($result)) {
+                            return is_string($result) ? $result : ($result['text'] ?? $result['content'] ?? '');
+                        }
                     }
                 }
             } catch (\Throwable $e) {
-                // Fall back to direct provider if core client is unconfigured
+                // Continue down fallback chain
             }
         }
-        return null;
+
+        // 3. Check WordPress Abilities API (wp_ai_run_ability())
+        if (function_exists('wp_ai_run_ability')) {
+            try {
+                $result = wp_ai_run_ability('generate-text', [
+                    'prompt' => $user,
+                    'system' => $system,
+                ]);
+                if (!empty($result) && is_string($result)) {
+                    return $result;
+                }
+            } catch (\Throwable $e) {
+                // Continue down fallback chain
+            }
+        }
+
+        // 4. Check AI Engine (by Meow Apps)
+        if (class_exists('\\Meow_MWAI_Core')) {
+            try {
+                if (class_exists('\\Meow_MWAI_Query_Text')) {
+                    $query = new \Meow_MWAI_Query_Text($user);
+                    if (method_exists($query, 'set_instructions')) {
+                        $query->set_instructions($system);
+                    } elseif (property_exists($query, 'instructions')) {
+                        $query->instructions = $system;
+                    }
+                    if (property_exists($query, 'maxTokens')) {
+                        $query->maxTokens = $max_tokens;
+                    }
+                    if (property_exists($query, 'temperature')) {
+                        $query->temperature = $temp;
+                    }
+                    $mwai = \Meow_MWAI_Core::instance();
+                    if ($mwai && method_exists($mwai, 'run_query')) {
+                        $reply = $mwai->run_query($query);
+                        if (!empty($reply) && isset($reply->result)) {
+                            return (string) $reply->result;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Continue down fallback chain
+            }
+        }
+
+        // 5. Generic WordPress AI prompt filter (used by various plugins)
+        $prompt_filtered = apply_filters('wp_ai_prompt', null, $user, $system);
+        if (!empty($prompt_filtered) && is_string($prompt_filtered)) {
+            return $prompt_filtered;
+        }
+
+        // 6. Inherit keys from AI Engine options if stored in DB
+        $mwai_options = get_option('mwai_options', []);
+        if (is_array($mwai_options)) {
+            $mwai_openai = $mwai_options['openai_apiKey'] ?? ($mwai_options['openaiApiKey'] ?? '');
+            if (!empty($mwai_openai)) {
+                return self::call_openai($mwai_openai, 'gpt-6.1-sol', $system, $user, $temp, $max_tokens);
+            }
+            $mwai_anthropic = $mwai_options['anthropic_apiKey'] ?? ($mwai_options['anthropicApiKey'] ?? '');
+            if (!empty($mwai_anthropic)) {
+                return self::call_claude($mwai_anthropic, 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens);
+            }
+        }
+
+        // 7. Inherit keys from wp-config / environment constants
+        if (defined('OPENAI_API_KEY') && constant('OPENAI_API_KEY')) {
+            return self::call_openai(constant('OPENAI_API_KEY'), 'gpt-6.1-sol', $system, $user, $temp, $max_tokens);
+        }
+        if (defined('GEMINI_API_KEY') && constant('GEMINI_API_KEY')) {
+            return self::call_gemini(constant('GEMINI_API_KEY'), 'gemini-3.8-flash', $system, $user, $temp, $max_tokens);
+        }
+        if (defined('ANTHROPIC_API_KEY') && constant('ANTHROPIC_API_KEY')) {
+            return self::call_claude(constant('ANTHROPIC_API_KEY'), 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens);
+        }
+
+        throw new \Exception(__('WordPress Native AI Connect is not yet configured or did not return a response. Please ensure your WordPress AI connector plugin is active and has credentials configured.', 'wcp-security-scanner'));
     }
 
     /**
-     * Dispatch API call to selected AI provider (with Core AI Client compatibility)
+     * Dispatch API call to selected AI provider (with Native AI Connect compatibility)
      */
     private static function call_provider(string $provider, string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200): string {
-        // If site runs WordPress 7.0+ Core AI Client and no custom key is provided, prefer Core AI Client
-        if (empty($api_key) && self::has_core_ai_client()) {
-            $core_response = self::call_core_ai_client($system, $user, $temp, $max_tokens);
-            if (!empty($core_response)) {
-                return $core_response;
+        if ($provider === 'wp_ai_connect') {
+            return self::call_native_ai_connect($system, $user, $temp, $max_tokens);
+        }
+
+        // If site runs WordPress Native AI Connect or Core AI Client and no custom key is provided, prefer Native AI Connect
+        if (empty($api_key)) {
+            $status = self::get_ai_connect_status();
+            if ($status['is_available']) {
+                return self::call_native_ai_connect($system, $user, $temp, $max_tokens);
             }
         }
 

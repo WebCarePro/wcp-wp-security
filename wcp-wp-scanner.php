@@ -18,6 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 define('WCPSCAN_VERSION', '1.18.0');
+define('WCP_SCANNER_VERSION', '1.18.0');
 define('WCPSCAN_FILE', __FILE__);
 define('WCPSCAN_PATH', plugin_dir_path(__FILE__));
 define('WCPSCAN_URL', plugin_dir_url(__FILE__));
