@@ -39,25 +39,14 @@ class DirectoryWalker {
     ];
 
     /**
-     * Get a batch of files from the filesystem.
-     * Supports both new hierarchical cursor and legacy numeric offset signatures.
+     * Get a batch of files from the filesystem using an opaque hierarchical cursor.
      *
      * @param string $root Root directory path
-     * @param array|int $cursor_or_batch_size Array cursor or legacy batch_size
-     * @param int $batch_size_or_offset Batch size (if cursor passed) or offset (if legacy)
+     * @param array $cursor Hierarchical state cursor
+     * @param int $batch_size Maximum files per batch
      * @return array
      */
-    public function get_batch(string $root, $cursor_or_batch_size = [], $batch_size_or_offset = 25): array {
-        // Handle legacy call: get_batch($root_dir, $batch_size = 100, $offset = 0)
-        if (is_numeric($cursor_or_batch_size)) {
-            $batch_size = (int) $cursor_or_batch_size;
-            $offset = (int) $batch_size_or_offset;
-            return $this->get_batch_legacy($root, $batch_size, $offset);
-        }
-
-        $cursor = is_array($cursor_or_batch_size) ? $cursor_or_batch_size : [];
-        $batch_size = (int) $batch_size_or_offset;
-
+    public function get_batch(string $root, array $cursor = [], int $batch_size = 25): array {
         $root = rtrim(str_replace('\\', '/', $root), '/');
         $dir_stack = $cursor['dir_stack'] ?? [];
         $last_file = $cursor['last_file'] ?? null;
@@ -214,37 +203,5 @@ class DirectoryWalker {
             'dir_stack' => $dir_stack,
             'last_file' => basename($filepath),
         ];
-    }
-
-    /**
-     * Legacy offset-based retrieval for backwards compatibility.
-     */
-    private function get_batch_legacy(string $root_dir, int $batch_size, int $offset = 0): array {
-        $files = [];
-        $current_index = 0;
-
-        try {
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($root_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::SELF_FIRST,
-                \RecursiveIteratorIterator::CATCH_GET_CHILD
-            );
-
-            foreach ($iterator as $file) {
-                if ($file->isFile()) {
-                    if ($current_index >= $offset) {
-                        $files[] = $file->getPathname();
-                        if (count($files) >= $batch_size) {
-                            break;
-                        }
-                    }
-                    $current_index++;
-                }
-            }
-        } catch (\Throwable $e) {
-            // Suppress
-        }
-
-        return $files;
     }
 }

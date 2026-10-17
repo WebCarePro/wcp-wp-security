@@ -868,7 +868,7 @@ class DatabaseBackup {
     }
 
     /**
-     * Generate a one-shot fast database backup dump (Legacy backward-compatible method).
+     * Generate a one-shot synchronous database backup dump.
      *
      * @return array ['success' => bool, 'filename' => string, 'size_mb' => float, 'message' => string]
      */

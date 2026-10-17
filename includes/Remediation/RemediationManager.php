@@ -8,14 +8,12 @@ if (!defined('ABSPATH')) {
 class RemediationManager {
 
     private $backup_dir;
-    private $legacy_backup_dir;
 
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
         // Primary vault: Dot-prefixed protected directory blocked by Nginx /\.(?!well-known).* rules
         $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
-        $this->legacy_backup_dir = $base . '/wcp-security-scanner/backups/remediation';
         $this->ensure_backup_directory();
     }
 
@@ -646,13 +644,6 @@ class RemediationManager {
         $record = $backups[$backup_id];
         $backup_path = $record['backup_path'];
         $original_path = $record['original_path'];
-
-        if (!file_exists($backup_path) && isset($this->legacy_backup_dir)) {
-            $legacy_alt = $this->legacy_backup_dir . '/' . $record['backup_file'];
-            if (file_exists($legacy_alt)) {
-                $backup_path = $legacy_alt;
-            }
-        }
 
         if (!file_exists($backup_path)) {
             return ['success' => false, 'message' => 'Physical backup file is missing from storage.'];

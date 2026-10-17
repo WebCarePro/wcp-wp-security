@@ -8,14 +8,12 @@ if (!defined('ABSPATH')) {
 class QuarantineManager {
 
     private $quarantine_dir;
-    private $legacy_dir;
 
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
         // Primary vault: Protected dot-prefixed vault blocked by Nginx /\.(?!well-known).* rules
         $this->quarantine_dir = $base . '/wcp-security-scanner/.vault';
-        $this->legacy_dir     = $base . '/wcp-security-scanner/quarantine';
         $this->ensure_quarantine_directory();
     }
 
@@ -39,85 +37,6 @@ class QuarantineManager {
         $index = $this->quarantine_dir . '/index.php';
         if (!file_exists($index)) {
             @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
-        }
-
-        // Lock legacy quarantine directory if it exists, and migrate any legacy files
-        if (is_dir($this->legacy_dir)) {
-            $legacy_htaccess = $this->legacy_dir . '/.htaccess';
-            if (!file_exists($legacy_htaccess)) {
-                $legacy_rules = "# Block all public web access to quarantine\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n";
-                @file_put_contents($legacy_htaccess, $legacy_rules);
-            }
-            $legacy_index = $this->legacy_dir . '/index.php';
-            if (!file_exists($legacy_index)) {
-                @file_put_contents($legacy_index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
-            }
-            $this->migrate_legacy_quarantine_files();
-        }
-    }
-
-    /**
-     * Migrate existing files from legacy public directory to the encrypted dot-vault.
-     */
-    private function migrate_legacy_quarantine_files() {
-        if (!is_dir($this->legacy_dir)) {
-            return;
-        }
-
-        global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_quarantine';
-
-        $files = @scandir($this->legacy_dir);
-        if (!$files || !is_array($files)) {
-            return;
-        }
-
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..' || $file === '.htaccess' || $file === 'index.php') {
-                continue;
-            }
-
-            $legacy_path = $this->legacy_dir . '/' . $file;
-            if (!is_file($legacy_path)) {
-                continue;
-            }
-
-            $raw_content = @file_get_contents($legacy_path);
-            if ($raw_content === false) {
-                continue;
-            }
-
-            // Strip old header if present
-            $payload = $raw_content;
-            $halt_marker = '__halt_compiler(); ?>';
-            $pos = strpos($raw_content, $halt_marker);
-            if ($pos !== false) {
-                $payload = ltrim(substr($raw_content, $pos + strlen($halt_marker)), "\r\n");
-            }
-
-            // Encrypt if not already encrypted
-            if (!\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
-                $encrypted = \WcpScanner\Security\SecretVault::encrypt($payload);
-            } else {
-                $encrypted = $payload;
-            }
-
-            $guard_header = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
-            $vault_payload = $guard_header . $encrypted;
-
-            $new_filename = (substr($file, -4) !== '.php') ? $file . '.php' : $file;
-            $dest_path = $this->quarantine_dir . '/' . $new_filename;
-
-            if (@file_put_contents($dest_path, $vault_payload, LOCK_EX) !== false) {
-                @chmod($dest_path, 0600);
-                @unlink($legacy_path);
-
-                // Update database record if filename changed
-                if ($new_filename !== $file) {
-                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                    $wpdb->update($table, ['quarantine_filename' => $new_filename], ['quarantine_filename' => $file]);
-                }
-            }
         }
     }
 
@@ -312,23 +231,16 @@ class QuarantineManager {
         }
 
         $source_path = $this->quarantine_dir . '/' . $record['quarantine_filename'];
-        if (!file_exists($source_path) && is_dir($this->legacy_dir)) {
-            $source_path = $this->legacy_dir . '/' . $record['quarantine_filename'];
-        }
         if (!file_exists($source_path)) {
             if (substr($record['quarantine_filename'], -4) === '.php') {
                 $alt_name = substr($record['quarantine_filename'], 0, -4);
                 if (file_exists($this->quarantine_dir . '/' . $alt_name)) {
                     $source_path = $this->quarantine_dir . '/' . $alt_name;
-                } elseif (is_dir($this->legacy_dir) && file_exists($this->legacy_dir . '/' . $alt_name)) {
-                    $source_path = $this->legacy_dir . '/' . $alt_name;
                 }
             } else {
                 $alt_name = $record['quarantine_filename'] . '.php';
                 if (file_exists($this->quarantine_dir . '/' . $alt_name)) {
                     $source_path = $this->quarantine_dir . '/' . $alt_name;
-                } elseif (is_dir($this->legacy_dir) && file_exists($this->legacy_dir . '/' . $alt_name)) {
-                    $source_path = $this->legacy_dir . '/' . $alt_name;
                 }
             }
         }
@@ -520,14 +432,11 @@ class QuarantineManager {
 
         $candidates = [
             $this->quarantine_dir . '/' . $record['quarantine_filename'],
-            $this->legacy_dir . '/' . $record['quarantine_filename'],
             $this->quarantine_dir . '/' . $record['quarantine_filename'] . '.php',
-            $this->legacy_dir . '/' . $record['quarantine_filename'] . '.php',
         ];
         if (substr($record['quarantine_filename'], -4) === '.php') {
             $stripped = substr($record['quarantine_filename'], 0, -4);
             $candidates[] = $this->quarantine_dir . '/' . $stripped;
-            $candidates[] = $this->legacy_dir . '/' . $stripped;
         }
 
         foreach ($candidates as $cand) {

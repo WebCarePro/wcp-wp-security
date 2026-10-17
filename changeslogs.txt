@@ -69,6 +69,12 @@ v:1.18.0 - 2026-10-18
   * Hardened `/auth/telemetry` Endpoint: Added `current_user_can('read')` capability check alongside `is_user_logged_in()`, enforced sliding-window rate limiting (max 5 submissions/min per user), and implemented strict regex format and length validation for screen resolution, viewport, and timezone strings to prevent telemetry flooding.
   * SHA-256 Pre-Remediation Hash Locking: Updated `RemediationManager::create_file_backup()` to compute and store the file's SHA-256 cryptographic checksum at the moment of backup. Enforced cryptographic integrity verification in `rollback_remediation()` to guarantee that decrypted backup files match their exact pre-remediation state before being written to disk.
   * Comprehensive 6-Table Uninstall Lifecycle Purge: Reconciled `uninstall.php` to drop all 6 active database tables (`wcpscan_scans`, `wcpscan_scan_issues`, `wcpscan_scan_files`, `wcpscan_quarantine`, `wcpscan_firewall_logs`, `wcpscan_login_history`) plus legacy tables, purge all 14 plugin options, wipe all `wcpscan_` transients, delete 2FA user meta, and remove scheduled crons when uninstall data deletion is enabled.
+- Codebase Streamlining & Legacy Compatibility Pruning (`AdminMenu.php`, `QuarantineManager.php`, `RemediationManager.php`, `DirectoryWalker.php`):
+  * Fresh Architecture Directives: Pruned legacy backward-compatibility migrations and URL redirect logic to treat the plugin cleanly as a fresh, modern installation without legacy baggage.
+  * Removed Legacy Vault Redirect: Cleaned up `redirect_legacy_vault_pages` hook and method in `AdminMenu.php`.
+  * Streamlined Quarantine Vault: Eliminated legacy directory migration loops and redundant candidate lookups in `QuarantineManager.php`, strictly isolating all operations to `.vault`.
+  * Streamlined Remediation Vault: Removed legacy directory fallbacks in `RemediationManager.php` to strictly utilize the modern `.backups/remediation` vault.
+  * Hierarchical Cursor Walker: Cleaned up legacy numeric offset-based traversal methods in `DirectoryWalker.php` to exclusively run on high-performance $O(1)$ memory hierarchical state cursors.
 
 
 

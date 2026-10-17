@@ -13,7 +13,6 @@ class AdminMenu {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_brand_styles']);
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
-        add_action('admin_init', [__CLASS__, 'redirect_legacy_vault_pages']);
     }
 
     public static function add_menu_page() {
@@ -397,22 +396,6 @@ class AdminMenu {
             $count = count($res['restored'] ?? []);
 
             wp_safe_redirect(add_query_arg(['wcpscan_restored' => $count], admin_url('users.php')));
-            exit;
-        }
-    }
-
-    /**
-     * Seamlessly forward any legacy quarantine submenu visits to the Unified WCP Vault.
-     */
-    public static function redirect_legacy_vault_pages() {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        if ($page === 'wcp-scanner-quarantine') {
-            wp_safe_redirect(admin_url('admin.php?page=wcp-scanner-vault&tab=quarantine'));
             exit;
         }
     }
