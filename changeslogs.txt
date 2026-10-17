@@ -49,8 +49,8 @@ v:1.17.0 - 2026-10-17
     - Added dynamic badge rendering in `UserSessionForensicsModal.tsx` highlighting `Dual Device (Desktop + Mobile)` when exactly 2 distinct device categories are active.
   * Active Session IP Mismatch & Current Client Telemetry Reporting (`SessionSentinel.php`, `ScannerRoutes.php`, `AuthSecurityPage.tsx`):
     - Added real-time client request IP resolution (`current_ip`) across Session Sentinel REST endpoints and session data records.
-    - Enhanced Active Sessions Sentinel UI to prominently display both the initial authentication IP (`Session IP`) and the active HTTP request IP (`Current IP: <ip>`) when an IP address change or network roaming is detected.
-    - Updated the `Different IP Address` indicator into an informative, contextual alert chip displaying the exact current client IP alongside descriptive tooltip forensics.
+    - Streamlined the Active Sessions Sentinel UI: replaced ambiguous "Different IP Address" badge with an intuitive "IP Changed Since Login" alert pill for dynamic ISP/roaming sessions and "Remote IP" for separate devices.
+    - Displayed clear directional telemetry flow (`Login IP: <ip> → Current IP: <ip>`) in the session details row, eliminating visual redundancy and resolving confusion.
   * Post-v1.16.0 Architectural Roadmap Implementation:
     - 1. First-Class False-Positive Tuning & Whitelist Engine (`WhitelistManager.php`, `WhitelistModal.tsx`, `WhitelistManagerTab.tsx`, `SettingsPage.tsx`):
       * Introduced cryptographically locked suppression rules utilizing SHA-256 hash matching, auto-invalidating immediately if an excluded file is subsequently tampered with or modified.
