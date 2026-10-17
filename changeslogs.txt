@@ -15,6 +15,8 @@ v:1.17.0 - 2026-10-17
     - Unified existing submenu entry points (`wcp-scanner-quarantine` and `wcp-scanner-backup`) to open seamlessly within the WCP Vault suite with the corresponding tab selected.
   * REST API Vault Surface:
     - Registered `GET /wcp-scanner/v1/vault/status`, `POST /wcp-scanner/v1/vault/rotate-key`, and `POST /wcp-scanner/v1/vault/rollback-rotation`.
+    - Added cryptographic verification of `WCP_VAULT_KEY` constant and environment derivations with truncated SHA-256 fingerprint output (`key_fingerprint`) while keeping plaintext master keys strictly isolated in server memory.
+    - Enhanced Secret Vault dashboard with resilient asynchronous loading states, OpenSSL engine status detection, and real-time live credential encryption audit table.
 - Attack Chain Engine & User Privilege Escalation Overhaul (`AttackChainEngine.php`, `UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
   * Eliminated False Positives on Legitimate Dashboard Administrators:
     - Fixed critical classification flaw in `gather_recent_or_suspicious_users()` where any administrator account registered within the past 14 days was blindly flagged as breached "Privilege Escalation & Account Takeover".

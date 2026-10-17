@@ -5120,6 +5120,10 @@ class ScannerRoutes {
             $key_source = 'constant';
         }
 
+        $raw_key = \WcpScanner\Security\SecretVault::get_key();
+        $key_fingerprint = substr(hash('sha256', $raw_key), 0, 16) . '...';
+        $is_hex_key = defined('WCP_VAULT_KEY') && strlen((string) WCP_VAULT_KEY) === 64 && ctype_xdigit((string) WCP_VAULT_KEY);
+
         $openssl_ok = function_exists('openssl_encrypt');
         $gcm_ok = $openssl_ok && in_array(\WcpScanner\Security\SecretVault::CIPHER_GCM, openssl_get_cipher_methods(), true);
 
@@ -5177,13 +5181,16 @@ class ScannerRoutes {
                 ], $missing_users),
             ],
             'secrets' => [
-                'cipher'            => 'AES-256-GCM AEAD',
-                'key_source'        => $key_source,
-                'openssl_available' => $openssl_ok,
-                'gcm_available'     => $gcm_ok,
-                'encrypted_count'   => $encrypted_count,
-                'fields'            => $secrets_status,
-                'rotation_state'    => $rot_state,
+                'cipher'              => 'AES-256-GCM AEAD',
+                'key_source'          => $key_source,
+                'key_fingerprint'     => $key_fingerprint,
+                'is_constant_defined' => defined('WCP_VAULT_KEY') && !empty(WCP_VAULT_KEY),
+                'is_hex_256'          => $is_hex_key,
+                'openssl_available'   => $openssl_ok,
+                'gcm_available'       => $gcm_ok,
+                'encrypted_count'     => $encrypted_count,
+                'fields'              => $secrets_status,
+                'rotation_state'      => $rot_state,
             ],
         ]);
     }
