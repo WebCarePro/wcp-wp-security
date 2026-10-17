@@ -37,8 +37,17 @@ class VaultRotator {
 
         $state = get_option(self::STATE_OPTION, []);
         if (!empty($state['status']) && in_array($state['status'], ['preparing', 'migrating', 'verifying'], true)) {
-            self::release_lock();
-            return new \WP_Error('busy', 'A rotation migration is already actively running.');
+            $started = intval($state['started_at'] ?? 0);
+            // If the rotation is older than 60 seconds or was interrupted, auto-clear stale state
+            if ($started === 0 || (time() - $started) > 60) {
+                self::clear_transitional_keys();
+                $state['status'] = 'failed';
+                $state['last_error'] = 'Previous rotation timed out and was automatically cleared.';
+                update_option(self::STATE_OPTION, $state, false);
+            } else {
+                self::release_lock();
+                return new \WP_Error('busy', 'A rotation migration is already actively running. Please wait a moment.');
+            }
         }
 
         // Capture current old key
@@ -155,8 +164,16 @@ class VaultRotator {
             update_option(\WcpScanner\System\SettingsManager::OPTION_KEY, $settings, false);
         }
 
+        // If any records failed, mark failed and release lock
+        if (!empty($state['failed_records'])) {
+            $state['status'] = 'failed';
+            update_option(self::STATE_OPTION, $state, false);
+            self::release_lock();
+            return new \WP_Error('migration_failed', 'Key rotation failed for: ' . implode(', ', $state['failed_records']) . '. ' . ($state['last_error'] ?? ''));
+        }
+
         // If all records migrated and no failures, move to verifying
-        if ($state['records_done'] >= $state['records_total'] && empty($state['failed_records'])) {
+        if ($state['records_done'] >= $state['records_total']) {
             $state['status'] = 'verifying';
         }
 

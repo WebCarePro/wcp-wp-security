@@ -247,6 +247,10 @@ class SecretVault {
         }
 
         if ($decrypted === false) {
+            $decrypted = self::decrypt($encrypted_value);
+        }
+
+        if ($decrypted === false) {
             throw new \RuntimeException('WCP SecretVault Error: Key rotation failed; unable to decrypt record with old key.');
         }
 
