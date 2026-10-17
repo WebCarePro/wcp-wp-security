@@ -301,12 +301,12 @@ class AIService {
         }
 
         // 7. Check Active Filters or Extensible Hooks
-        if (has_filter('wcp_ai_analyze_code') || has_filter('wp_ai_prompt')) {
+        if (has_filter('wcpscan_ai_analyze_code') || has_filter('wp_ai_prompt')) {
             return [
                 'is_available'        => true,
                 'engine_name'         => 'Custom WordPress AI Hook Bridge',
                 'engine_slug'         => 'wp_custom_hook',
-                'detected_via'        => 'Active wcp_ai_analyze_code / wp_ai_prompt filter hook',
+                'detected_via'        => 'Active wcpscan_ai_analyze_code / wp_ai_prompt filter hook',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
                 'details'             => __('A custom WordPress AI connector filter is registered on this site. WCP Security Scanner will dispatch code forensics directly through your custom AI pipeline.', 'wcp-security-scanner'),
@@ -374,7 +374,7 @@ class AIService {
      */
     public static function call_native_ai_connect(string $system, string $user, float $temp = 0.2, int $max_tokens = 1200, int $timeout = 45): string {
         // 1. Allow third-party plugins to intercept directly via filter
-        $filtered = apply_filters('wcp_ai_analyze_code', null, [
+        $filtered = apply_filters('wcpscan_ai_analyze_code', null, [
             'system'      => $system,
             'prompt'      => $user,
             'temperature' => $temp,

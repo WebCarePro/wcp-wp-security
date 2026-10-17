@@ -31,6 +31,7 @@ class LoginHistoryManager {
 
         // Inject lightweight screen detection into standard WordPress login form
         add_action('login_form', [__CLASS__, 'render_login_screen_detector']);
+        add_action('login_enqueue_scripts', [__CLASS__, 'enqueue_login_screen_detector']);
 
         // Record session upon login
         add_action('wp_login', [__CLASS__, 'on_user_login'], 25, 2);
@@ -47,12 +48,20 @@ class LoginHistoryManager {
     }
 
     /**
-     * Inject screen size detector into login form
+     * Inject screen size detector hidden inputs into login form
      */
     public static function render_login_screen_detector() {
         echo '<input type="hidden" name="wcpscan_screen_res" id="wcpscan_screen_res" value="">' . "\n";
         echo '<input type="hidden" name="wcpscan_client_tz" id="wcpscan_client_tz" value="">' . "\n";
-        echo '<script>(function(){try{var s=document.getElementById("wcpscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("wcpscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();</script>' . "\n";
+    }
+
+    /**
+     * Enqueue client-side display telemetry script using official WordPress script APIs
+     */
+    public static function enqueue_login_screen_detector() {
+        wp_register_script('wcpscan-login-detector', false, [], (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.18.0'), true);
+        wp_enqueue_script('wcpscan-login-detector');
+        wp_add_inline_script('wcpscan-login-detector', '(function(){try{var s=document.getElementById("wcpscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("wcpscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();');
     }
 
     /**

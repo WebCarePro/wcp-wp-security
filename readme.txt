@@ -152,7 +152,7 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 
 = 23. Model Context Protocol (MCP) Agentic Surface (AI SecOps Automation) =
 * **Native JSON-RPC 2.0 Agentic Integration**: Bridges external AI coding agents (Claude Desktop, Cursor IDE, Antigravity, custom LLM agents) with WordPress security operations over standard JSON-RPC 2.0 and Bearer token authentication.
-* **7 First-Class SecOps Tools**: wcp_get_site_health (read-only), wcp_list_findings (read-only), wcp_get_finding_detail (read-only), wcp_list_quarantined_files (read-only), wcp_get_waf_stats (read-only), wcp_trigger_scan (mutating), wcp_whitelist_finding (mutating).
+* **7 First-Class SecOps Tools**: wcpscan_get_security_posture (read-only), wcpscan_list_findings (read-only), wcpscan_audit_behavioral_baseline (read-only), wcpscan_whitelist_finding (mutating), wcpscan_rollback_remediation (mutating), wcpscan_deploy_virtual_patch (mutating), wcpscan_quarantine_file (mutating).
 * **Granular Permission Scopes**: Enforce Read-Only (Observation) mode to allow AI agents to safely inspect and diagnose without write privileges, or Full Remediation (Read + Write) for automated incident response.
 * **Sliding-Window Rate Limiting**: Per-token rate limiter configurable from 30 to 300 requests/minute to protect origin servers from agentic query floods.
 * **Persistent Ring-Buffer Execution Audit Trail**: Logs every incoming MCP agent call with timestamp, tool name, client IP, payload preview, execution time, and response status in a persistent 150-event ring buffer (wcpscan_mcp_audit_log).

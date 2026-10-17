@@ -505,7 +505,7 @@ class FirewallEngine {
     public static function check_xmlrpc_guard() {
         $settings = SettingsManager::get_settings();
         if (!empty($settings['waf_enabled']) && !empty($settings['waf_disable_xmlrpc'])) {
-            $uri = $_SERVER['REQUEST_URI'] ?? '';
+            $uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
             if (strpos($uri, 'xmlrpc.php') !== false) {
                 self::log_incident([
                     'category'    => 'XML-RPC Disabled',

@@ -227,13 +227,13 @@ class IncidentReportEngine {
                 'site_url' => $site_url,
                 'wp_ver'   => $server_info['wordpress']['wp_version'] ?? get_bloginfo('version'),
                 'php_ver'  => $server_info['php']['version'] ?? phpversion(),
-                'server'   => $server_info['server']['software'] ?? ($_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'),
+                'server'   => $server_info['server']['software'] ?? (isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown'),
             ],
             'auditor'      => [
                 'name'         => 'Mir Alamin (WebCare Pro)',
                 'title'        => 'Senior Linux SysAdmin & WordPress Security Engineer',
                 'service'      => 'WebCare Pro Dedicated 1-on-1 Security & Hardening',
-                'contact_url'  => 'https://webcarepro.com',
+                'contact_url'  => 'https://webcarespro.com',
                 'notes'        => !empty($options['auditor_notes']) ? sanitize_textarea_field($options['auditor_notes']) : '',
             ],
             'posture'      => [

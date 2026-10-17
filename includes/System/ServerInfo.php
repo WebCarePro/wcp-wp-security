@@ -154,7 +154,7 @@ class ServerInfo {
                     'memory_usage_mb' => round(memory_get_usage(true) / (1024 * 1024), 2),
                 ],
                 'server' => [
-                    'software'  => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
+                    'software'  => isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown',
                     'server_ip' => self::get_server_ip(),
                 ],
                 'wordpress' => [
@@ -172,8 +172,8 @@ class ServerInfo {
     public static function get_server_ip(): string {
         // 1. Direct server environment variables
         $env_candidates = [
-            $_SERVER['SERVER_ADDR'] ?? '',
-            $_SERVER['LOCAL_ADDR'] ?? '',
+            isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '',
+            isset($_SERVER['LOCAL_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['LOCAL_ADDR'])) : '',
         ];
 
         foreach ($env_candidates as $candidate) {

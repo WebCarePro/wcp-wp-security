@@ -261,12 +261,13 @@ class VirtualPatchManager {
             return null;
         }
 
-        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-        $query_string = $_SERVER['QUERY_STRING'] ?? '';
+        $method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+        $query_string = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
         $raw_body = '';
 
         if ($method === 'POST') {
-            $raw_body = @file_get_contents('php://input');
+            $raw_input = @file_get_contents('php://input');
+            $raw_body = !empty($raw_input) ? sanitize_text_field(wp_unslash($raw_input)) : '';
         }
 
         foreach ($active_patches as $patch_id => &$patch) {
@@ -308,7 +309,7 @@ class VirtualPatchManager {
                 foreach ($rule['headers'] as $h_key) {
                     $norm_header = 'HTTP_' . strtoupper(str_replace('-', '_', $h_key));
                     if (!empty($_SERVER[$norm_header])) {
-                        $h_val = $_SERVER[$norm_header];
+                        $h_val = sanitize_text_field(wp_unslash($_SERVER[$norm_header]));
                         if (!empty($rule['regex']) && preg_match($rule['regex'], $h_val)) {
                             return self::trigger_patch_block($patch_id, $patch, $h_val, 'HTTP Header: ' . $h_key);
                         }
@@ -325,7 +326,8 @@ class VirtualPatchManager {
                 } elseif (!empty($raw_body) && preg_match($rule['regex'], $raw_body, $matches)) {
                     $matched_evidence = substr($matches[0], 0, 100);
                 } elseif (!empty($_POST)) {
-                    $flat_post = wp_json_encode($_POST);
+                    $clean_post = is_array($_POST) ? map_deep(wp_unslash($_POST), 'sanitize_text_field') : [];
+                    $flat_post = (string) wp_json_encode($clean_post);
                     if (preg_match($rule['regex'], $flat_post, $matches)) {
                         $matched_evidence = substr($matches[0], 0, 100);
                     }

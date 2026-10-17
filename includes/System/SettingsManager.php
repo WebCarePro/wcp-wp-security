@@ -423,7 +423,7 @@ class SettingsManager {
         } elseif (!empty($mcp_tok)) {
             $clean['mcp_token'] = sanitize_text_field($mcp_tok);
         } else {
-            $clean['mcp_token'] = 'wcp_mcp_' . bin2hex(random_bytes(16));
+            $clean['mcp_token'] = 'wcpscan_mcp_' . bin2hex(random_bytes(16));
         }
 
         $valid_scopes = ['read_only', 'read_write'];

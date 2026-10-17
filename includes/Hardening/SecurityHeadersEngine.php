@@ -198,7 +198,7 @@ class SecurityHeadersEngine {
             return;
         }
 
-        $uri = strtolower($_SERVER['REQUEST_URI'] ?? '');
+        $uri = isset($_SERVER['REQUEST_URI']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']))) : '';
         $forbidden_patterns = [
             '/\.env($|\?)/i',
             '/\.git\//i',

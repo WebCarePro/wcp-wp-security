@@ -24,16 +24,16 @@ if (!defined('ABSPATH')) {
 class MCPAgentService {
 
     const READ_TOOLS = [
-        'wcp_get_security_posture',
-        'wcp_list_findings',
-        'wcp_audit_behavioral_baseline',
+        'wcpscan_get_security_posture',
+        'wcpscan_list_findings',
+        'wcpscan_audit_behavioral_baseline',
     ];
 
     const MUTATING_TOOLS = [
-        'wcp_whitelist_finding',
-        'wcp_rollback_remediation',
-        'wcp_deploy_virtual_patch',
-        'wcp_quarantine_file',
+        'wcpscan_whitelist_finding',
+        'wcpscan_rollback_remediation',
+        'wcpscan_deploy_virtual_patch',
+        'wcpscan_quarantine_file',
     ];
 
     const AUDIT_OPTION_KEY = 'wcpscan_mcp_audit_log';
@@ -52,7 +52,7 @@ class MCPAgentService {
             'isReadOnly' => ($scope === 'read_only'),
             'tools'      => [
                 [
-                    'name'        => 'wcp_get_security_posture',
+                    'name'        => 'wcpscan_get_security_posture',
                     'description' => 'Retrieve comprehensive WordPress security posture, risk score, vulnerability metrics, firewall status, and baseline health.',
                     'category'    => 'read',
                     'isMutating'  => false,
@@ -62,7 +62,7 @@ class MCPAgentService {
                     ],
                 ],
                 [
-                    'name'        => 'wcp_list_findings',
+                    'name'        => 'wcpscan_list_findings',
                     'description' => 'Query current vulnerability and malware findings with filtering by severity, status, or engine.',
                     'category'    => 'read',
                     'isMutating'  => false,
@@ -87,7 +87,7 @@ class MCPAgentService {
                     ],
                 ],
                 [
-                    'name'        => 'wcp_whitelist_finding',
+                    'name'        => 'wcpscan_whitelist_finding',
                     'description' => 'Suppress false-positive finding by exact SHA-256 hash-lock, file path, or issue signature with audit reason.',
                     'category'    => 'mutating',
                     'isMutating'  => true,
@@ -121,7 +121,7 @@ class MCPAgentService {
                     ],
                 ],
                 [
-                    'name'        => 'wcp_audit_behavioral_baseline',
+                    'name'        => 'wcpscan_audit_behavioral_baseline',
                     'description' => 'Execute an instant behavioral baseline audit to detect hook injections, rogue cron tasks, or backdoor drop-ins.',
                     'category'    => 'read',
                     'isMutating'  => false,
@@ -131,7 +131,7 @@ class MCPAgentService {
                     ],
                 ],
                 [
-                    'name'        => 'wcp_rollback_remediation',
+                    'name'        => 'wcpscan_rollback_remediation',
                     'description' => 'Perform 1-click safe rollback of a previous remediation transaction, restoring original byte-for-byte files and DB states.',
                     'category'    => 'mutating',
                     'isMutating'  => true,
@@ -147,7 +147,7 @@ class MCPAgentService {
                     ],
                 ],
                 [
-                    'name'        => 'wcp_deploy_virtual_patch',
+                    'name'        => 'wcpscan_deploy_virtual_patch',
                     'description' => 'Apply or remove an edge/runtime virtual patch rule for a known CVE without waiting for upstream plugin updates.',
                     'category'    => 'mutating',
                     'isMutating'  => true,
@@ -168,7 +168,7 @@ class MCPAgentService {
                     ],
                 ],
                 [
-                    'name'        => 'wcp_quarantine_file',
+                    'name'        => 'wcpscan_quarantine_file',
                     'description' => 'Safely isolate a malicious file into the encrypted quarantine vault with automatic pre-remediation transactional backup.',
                     'category'    => 'mutating',
                     'isMutating'  => true,
@@ -346,31 +346,31 @@ class MCPAgentService {
         // 3. Tool execution
         $response = null;
         switch ($tool) {
-            case 'wcp_get_security_posture':
+            case 'wcpscan_get_security_posture':
                 $response = self::tool_get_posture();
                 break;
 
-            case 'wcp_list_findings':
+            case 'wcpscan_list_findings':
                 $response = self::tool_list_findings($args);
                 break;
 
-            case 'wcp_whitelist_finding':
+            case 'wcpscan_whitelist_finding':
                 $response = self::tool_whitelist_finding($args);
                 break;
 
-            case 'wcp_audit_behavioral_baseline':
+            case 'wcpscan_audit_behavioral_baseline':
                 $response = self::tool_audit_baseline();
                 break;
 
-            case 'wcp_rollback_remediation':
+            case 'wcpscan_rollback_remediation':
                 $response = self::tool_rollback_remediation($args);
                 break;
 
-            case 'wcp_deploy_virtual_patch':
+            case 'wcpscan_deploy_virtual_patch':
                 $response = self::tool_deploy_virtual_patch($args);
                 break;
 
-            case 'wcp_quarantine_file':
+            case 'wcpscan_quarantine_file':
                 $response = self::tool_quarantine_file($args);
                 break;
 

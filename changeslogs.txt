@@ -75,6 +75,11 @@ v:1.18.0 - 2026-10-18
   * Streamlined Quarantine Vault: Eliminated legacy directory migration loops and redundant candidate lookups in `QuarantineManager.php`, strictly isolating all operations to `.vault`.
   * Streamlined Remediation Vault: Removed legacy directory fallbacks in `RemediationManager.php` to strictly utilize the modern `.backups/remediation` vault.
   * Hierarchical Cursor Walker: Cleaned up legacy numeric offset-based traversal methods in `DirectoryWalker.php` to exclusively run on high-performance $O(1)$ memory hierarchical state cursors.
+- WordPress.org Official Review Audit & Compliance Hardening (`LoginHistoryManager.php`, `AIService.php`, `MCPAgentService.php`, `MCPAgentServiceCard.tsx`, `VirtualPatchManager.php`, `FirewallEngine.php`, `SecurityHeadersEngine.php`, `ServerInfo.php`, `IncidentReportEngine.php`):
+  * Official Script & Style Enqueue Compliance: Replaced raw inline `<script>` tags on login screen in `LoginHistoryManager.php` with `login_enqueue_scripts` using `wp_register_script()`, `wp_enqueue_script()`, and `wp_add_inline_script()`.
+  * Prefix Standard Compliance (>4 Chars): Renamed filter hook from `wcp_ai_analyze_code` to `wcpscan_ai_analyze_code` in `AIService.php`, and updated all MCP tool identifiers to use `wcpscan_` prefix (`wcpscan_get_security_posture`, `wcpscan_list_findings`, `wcpscan_audit_behavioral_baseline`, `wcpscan_whitelist_finding`, `wcpscan_rollback_remediation`, `wcpscan_deploy_virtual_patch`, `wcpscan_quarantine_file`) across backend services and UI components.
+  * Deep Input Sanitization Audit: Enforced strict sanitization (`sanitize_text_field`, `sanitize_key`, `map_deep`, `wp_unslash`) across all incoming `$_SERVER`, `$_POST`, and `$_GET` variables in `VirtualPatchManager.php`, `FirewallEngine.php`, `SecurityHeadersEngine.php`, `ServerInfo.php`, and `IncidentReportEngine.php`.
+
 
 
 

@@ -457,7 +457,7 @@ class PersistenceScanner {
             }
 
             // Skip WCP's own internal analysis, FIM diffs, and security caches
-            if (strpos($name, 'wcp_') !== false) {
+            if (strpos($name, 'wcp_') !== false || strpos($name, 'wcpscan_') !== false) {
                 continue;
             }
 
