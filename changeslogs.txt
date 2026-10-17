@@ -20,6 +20,8 @@ v:1.17.0 - 2026-10-17
     - Added dedicated confirmation dialog and guidance banner for 1-Click Key Rotation when `WCP_VAULT_KEY` is defined in `wp-config.php`, explaining that config files are not modified directly by PHP for security and instructing how to synchronize the new key.
     - Fixed REST API status handler in `ScannerRoutes.php` to correctly instantiate `QuarantineManager` and `DatabaseBackup` objects, resolving HTTP 500 error on vault status polling.
     - Fixed `SettingsPage.tsx` scheduler diagnostics trigger button calling undefined `fetchSettings()` instead of `loadSettings()`, resolving the `fetchSettings is not defined` notice on immediate manual scan execution.
+    - Implemented self-healing dual-key fallback in `SecretVault::decrypt()`: if a key rotation was performed in the database but `wp-config.php` retains the pre-rotation key, SecretVault automatically verifies and decrypts against the pre-rotation backup snapshot, self-healing the option without losing credentials.
+    - Added 1-Click Rollback Key Rotation UI button in `WcpVaultPage.tsx` displaying the active pre-rotation backup ID and allowing instantaneous rollback.
 - Attack Chain Engine & User Privilege Escalation Overhaul (`AttackChainEngine.php`, `UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
   * Eliminated False Positives on Legitimate Dashboard Administrators:
     - Fixed critical classification flaw in `gather_recent_or_suspicious_users()` where any administrator account registered within the past 14 days was blindly flagged as breached "Privilege Escalation & Account Takeover".

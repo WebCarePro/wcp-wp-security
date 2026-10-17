@@ -162,6 +162,33 @@ class SecretVault {
                     return $fallback;
                 }
             }
+
+            // Self-Healing Dual-Key Fallback:
+            // If primary key decryption failed on the current ciphertext, check if there is a pre-rotation
+            // backup snapshot whose record decrypts cleanly with the active primary key. This gracefully
+            // heals situations where a key rotation was triggered but wp-config.php retained the previous key.
+            if ($primary_key !== null) {
+                $state = get_option(\WcpScanner\Security\VaultRotator::STATE_OPTION, []);
+                if (!empty($state['backup_id'])) {
+                    $backup = get_option($state['backup_id']);
+                    if (!empty($backup['records']) && is_array($backup['records'])) {
+                        foreach ($backup['records'] as $field_key => $backup_val) {
+                            if (is_string($backup_val) && self::is_encrypted($backup_val)) {
+                                $candidate = self::decrypt_with_key($backup_val, $primary_key);
+                                if ($candidate !== false) {
+                                    $current_settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
+                                    if (isset($current_settings[$field_key]) && $current_settings[$field_key] === $value) {
+                                        // Auto self-heal: restore working pre-rotation ciphertext for this field
+                                        $current_settings[$field_key] = $backup_val;
+                                        update_option(\WcpScanner\System\SettingsManager::OPTION_KEY, $current_settings, false);
+                                        return $candidate;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         return false;
