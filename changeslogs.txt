@@ -76,6 +76,9 @@ v:1.17.0 - 2026-10-17
       * Fixed critical PHP Fatal Error in `WhitelistManager.php` where non-existent namespace `WcpScanner\Security\PathValidator` and missing method `resolve_under_root` caused whitelist addition and rule matching to fail.
       * Introduced robust `WhitelistManager::resolve_file_path()` safely resolving direct absolute paths, ABSPATH-relative paths, and parent-directory configuration paths for SHA-256 hash calculation.
       * Completely refactored `WhitelistModal.tsx` and `WhitelistManagerTab.tsx` from uncompiled Tailwind CSS classes to vanilla CSS and inline styles (`.wcp-modal-backdrop`, `zIndex: 9999999`), fixing invisible modal rendering and ensuring the modal opens immediately when clicking "Whitelist / Ignore".
+    - 7. Behavioral Baseline & Safe Rollback Card Aesthetic Refinement (`BehavioralBaselineCard.tsx`, `RemediationTransactionsCard.tsx`, `MCPAgentServiceCard.tsx`):
+      * Refactored Behavioral Baseline and Rollback Vault cards to standard Lucide vector icons (`Clock`, `Zap`, `RotateCcw`, `Activity`) with explicit sizing and inline styling.
+      * Resolved oversized full-width SVG rendering bug caused by uncompiled utility classes.
 
 v:1.16.0 - 2026-10-16
 - Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit:
