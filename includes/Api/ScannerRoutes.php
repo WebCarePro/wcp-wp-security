@@ -495,6 +495,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/users/backups', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_user_backups'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/users/restore', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'restore_user_account'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloud Threat Intelligence & Community Blacklist Endpoints
         register_rest_route(self::NAMESPACE, '/threat-intel/status', [
             'methods'             => 'GET',
@@ -4479,6 +4491,8 @@ class ScannerRoutes {
             $result = $mgr->strip_injected_capabilities($user_id);
         } elseif ($action === 'delete_user') {
             $result = $mgr->delete_user($user_id, $reassign_to);
+        } elseif ($action === 'restore_user') {
+            $result = $mgr->restore_user_by_id($user_id);
         } else {
             return new \WP_Error('invalid_action', __('Invalid user remediation action.', 'wcp-security-scanner'), ['status' => 400]);
         }
@@ -4502,6 +4516,50 @@ class ScannerRoutes {
             "%_users:user_id_{$user_id}%",
             "%users.ID = {$user_id}%"
         ));
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Get all quarantined or backed-up user accounts.
+     */
+    public static function get_user_backups(\WP_REST_Request $request) {
+        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $backups = $mgr->list_user_backups();
+        return rest_ensure_response([
+            'success' => true,
+            'backups' => $backups,
+            'count'   => count($backups),
+        ]);
+    }
+
+    /**
+     * 1-Click Restore a deleted or quarantined user account.
+     */
+    public static function restore_user_account(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: $request->get_params();
+        $backup_file = !empty($params['backup_file']) ? sanitize_text_field($params['backup_file']) : '';
+        $user_id = !empty($params['user_id']) ? (int) $params['user_id'] : 0;
+        $restore_all = !empty($params['all']);
+
+        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+
+        if ($restore_all) {
+            $result = $mgr->restore_all_user_backups();
+            return rest_ensure_response($result);
+        }
+
+        if (!empty($backup_file)) {
+            $result = $mgr->restore_user($backup_file);
+        } elseif ($user_id > 0) {
+            $result = $mgr->restore_user_by_id($user_id);
+        } else {
+            return new \WP_Error('missing_param', __('Specify backup_file or user_id or all.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (empty($result['success'])) {
+            return new \WP_Error('restore_failed', $result['error'] ?? __('Failed to restore user account.', 'wcp-security-scanner'), ['status' => 500]);
+        }
 
         return rest_ensure_response($result);
     }

@@ -243,15 +243,16 @@ class AttackChainEngine {
 
         // Process Suspicious Users (Stage 4)
         foreach ($recent_users as $u) {
+            $reason = !empty($u['anomaly_reason']) ? $u['anomaly_reason'] : __('Anomalous administrator account with abnormal metadata', 'wcp-security-scanner');
             $staged_signals['privilege_escalation'][] = [
                 'source'    => 'user',
                 'id'        => $u['ID'],
-                'label'     => "Recently Created Admin: '{$u['user_login']}' (ID #{$u['ID']})",
+                'label'     => "Suspicious Injected Admin: '{$u['user_login']}' (ID #{$u['ID']})",
                 'file_path' => 'wp_users:' . $u['user_login'],
-                'type'      => 'recent_admin_user',
+                'type'      => 'ghost_admin_user',
                 'severity'  => 'high',
                 'timestamp' => strtotime($u['user_registered']),
-                'evidence'  => "Registered: {$u['user_registered']} | Email: {$u['user_email']}",
+                'evidence'  => "Registered: {$u['user_registered']} | Email: {$u['user_email']} | Anomaly: {$reason}",
             ];
         }
 
@@ -397,20 +398,17 @@ class AttackChainEngine {
                 }
             }
 
-            // 4. Privilege Escalation
+            // 4. Privilege Escalation (Informational Forensics - Users are NEVER auto-deleted by 1-click eradicate)
             foreach ($staged_signals['privilege_escalation'] as $pesc) {
                 $stages[] = [
                     'stage_id'    => 'privilege_escalation',
                     'stage_name'  => __('Privilege Escalation & Account Takeover', 'wcp-security-scanner'),
                     'status'      => 'breached',
                     'title'       => $pesc['label'],
-                    'details'     => $pesc['evidence'],
+                    'details'     => $pesc['evidence'] . ' | Protected: User accounts are excluded from automated 1-click deletion.',
                     'item_type'   => 'user',
                     'item_id'     => $pesc['id'],
                 ];
-                if (is_numeric($pesc['id'])) {
-                    $remediation_plan['delete_users'][] = (int) $pesc['id'];
-                }
             }
 
             // 5. C2 Communication
@@ -449,14 +447,14 @@ class AttackChainEngine {
             ];
         }
 
-        // Incident Scenario B: Standalone Persistence or Ghost Admin Escalation
-        elseif ($has_persist || $has_privesc) {
+        // Incident Scenario B: Compound Persistence & Privilege Escalation Chain
+        elseif ($has_persist && ($has_privesc || $has_c2)) {
             $chain_id = 'chain_' . substr(md5('persistence_chain_' . time()), 0, 10);
             $stages = [];
             $remediation_plan = [
                 'quarantine_files' => [],
                 'delete_options'   => [],
-                'delete_users'     => [],
+                'delete_users'     => [], // User accounts are NEVER auto-deleted via 1-click batch eradication
                 'clear_crons'      => [],
                 'block_ips'        => [],
             ];
@@ -486,13 +484,10 @@ class AttackChainEngine {
                     'stage_name'  => __('Privilege Escalation & Account Takeover', 'wcp-security-scanner'),
                     'status'      => 'breached',
                     'title'       => $pesc['label'],
-                    'details'     => $pesc['evidence'],
+                    'details'     => $pesc['evidence'] . ' | Protected: User accounts are excluded from automated 1-click deletion.',
                     'item_type'   => 'user',
                     'item_id'     => $pesc['id'],
                 ];
-                if (is_numeric($pesc['id'])) {
-                    $remediation_plan['delete_users'][] = (int) $pesc['id'];
-                }
             }
 
             $blast_radius = 45;
@@ -566,7 +561,10 @@ class AttackChainEngine {
     }
 
     /**
-     * Gather recent or suspicious users created in past 14 days.
+     * Gather genuinely suspicious or ghost administrator users.
+     * Legitimate users created via wp-admin dashboard with valid metadata are excluded.
+     *
+     * @return array
      */
     private function gather_recent_or_suspicious_users(): array {
         global $wpdb;
@@ -590,7 +588,85 @@ class AttackChainEngine {
             ARRAY_A
         ) ?: [];
 
-        return $users;
+        if (empty($users)) {
+            return [];
+        }
+
+        // Check Whitelist rules
+        $whitelist = get_option('wcpscan_whitelist_rules', []);
+        $whitelisted_items = [];
+        if (is_array($whitelist)) {
+            foreach ($whitelist as $w) {
+                if (!empty($w['target'])) {
+                    $whitelisted_items[strtolower(trim($w['target']))] = true;
+                }
+            }
+        }
+
+        $suspicious_users = [];
+        $suspicious_email_domains = [
+            'tempmail.com', 'guerrillamail.com', 'mailinator.com', '10minutemail.com',
+            'sharklasers.com', 'throwawaymail.com', 'temp-mail.org', 'dispostable.com',
+            'trashmail.com', 'yopmail.com', 'crazymailing.com'
+        ];
+
+        foreach ($users as $u) {
+            $uid = (int) $u['ID'];
+            $login = strtolower($u['user_login'] ?? '');
+            $email = strtolower($u['user_email'] ?? '');
+
+            // Skip if whitelisted
+            if (isset($whitelisted_items[$login]) || isset($whitelisted_items["user:{$uid}"]) || isset($whitelisted_items[$email])) {
+                continue;
+            }
+
+            // Inspect metadata profile depth:
+            // Legitimate WordPress dashboard user creation always generates at least 6 standard metadata entries:
+            // nickname, first_name, last_name, description, rich_editing, syntax_highlighting, comment_shortcuts, admin_color, use_ssl, show_admin_bar_front, wp_capabilities, wp_user_level.
+            // Raw SQL injected ghost admins or stealth backdoor created users typically only have wp_capabilities and wp_user_level (count < 4).
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $meta_count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d",
+                $uid
+            ));
+
+            $email_parts = explode('@', $email);
+            $domain = isset($email_parts[1]) ? trim($email_parts[1]) : '';
+            $is_disposable_email = in_array($domain, $suspicious_email_domains, true);
+
+            // Check if capabilities contain suspicious PHP or raw function injection
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $raw_caps = (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s",
+                $uid,
+                $cap_key
+            ));
+
+            $has_injected_caps = (
+                stripos($raw_caps, 'eval') !== false ||
+                stripos($raw_caps, 'base64') !== false ||
+                stripos($raw_caps, 'system') !== false ||
+                stripos($raw_caps, 'passthru') !== false ||
+                stripos($raw_caps, 'shell_exec') !== false
+            );
+
+            $is_ghost_admin = ($meta_count < 4);
+            $has_invalid_registered = empty($u['user_registered']) || $u['user_registered'] === '0000-00-00 00:00:00';
+
+            // Only flag users with genuine forensic anomaly indicators
+            if ($is_ghost_admin || $is_disposable_email || $has_injected_caps || $has_invalid_registered) {
+                $reasons = [];
+                if ($is_ghost_admin) $reasons[] = sprintf(__('Ghost admin created via raw SQL (only %d usermeta keys found, missing core WP metadata)', 'wcp-security-scanner'), $meta_count);
+                if ($is_disposable_email) $reasons[] = sprintf(__('Disposable attacker email domain: %s', 'wcp-security-scanner'), $domain);
+                if ($has_injected_caps) $reasons[] = __('Trojan executable code injected in capabilities metadata', 'wcp-security-scanner');
+                if ($has_invalid_registered) $reasons[] = __('Corrupted or missing user registration date', 'wcp-security-scanner');
+
+                $u['anomaly_reason'] = implode('; ', $reasons);
+                $suspicious_users[] = $u;
+            }
+        }
+
+        return $suspicious_users;
     }
 
     /**
@@ -671,11 +747,17 @@ class AttackChainEngine {
                 $res = $user_mgr->delete_user($uid);
                 if ($res['success']) {
                     $actions_taken[] = sprintf(__('Deleted rogue user #%d', 'wcp-security-scanner'), $uid);
+                    if (!empty($res['backup_file'])) {
+                        \WcpScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $res['backup_file'], 'delete');
+                    }
                 } else {
                     // Try demoting to subscriber instead
                     $demote_res = $user_mgr->assign_role($uid, 'subscriber');
                     if ($demote_res['success']) {
                         $actions_taken[] = sprintf(__('Demoted user #%d to subscriber', 'wcp-security-scanner'), $uid);
+                        if (!empty($demote_res['backup_file'])) {
+                            \WcpScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $demote_res['backup_file'], 'demote');
+                        }
                     } else {
                         $errors[] = "Could not remove or demote user #{$uid}: " . ($res['error'] ?? '');
                     }

@@ -167,6 +167,41 @@ class TransactionalRemediation {
     }
 
     /**
+     * Record a pre-remediation user account snapshot in the transaction vault.
+     *
+     * @param string $tx_id
+     * @param int $user_id
+     * @param string $backup_filename
+     * @param string $action_type 'delete' | 'demote'
+     * @return bool
+     */
+    public static function record_user_snapshot(string $tx_id, int $user_id, string $backup_filename, string $action_type = 'delete'): bool {
+        $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
+        $manifest_file = $tx_dir . '/manifest.json';
+
+        if (!file_exists($manifest_file)) {
+            return false;
+        }
+
+        $manifest = json_decode(file_get_contents($manifest_file), true);
+        if (!is_array($manifest)) {
+            return false;
+        }
+
+        $manifest['items'][] = [
+            'type'            => 'user',
+            'action_type'     => $action_type,
+            'user_id'         => $user_id,
+            'backup_filename' => $backup_filename,
+            'target_path'     => "wp_users:user_id_{$user_id}",
+            'timestamp'       => time(),
+        ];
+
+        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        return true;
+    }
+
+    /**
      * Commit and finalize transaction after all steps have succeeded.
      *
      * @param string $tx_id
@@ -225,10 +260,12 @@ class TransactionalRemediation {
         global $wpdb;
         $restored_files = 0;
         $restored_db    = 0;
+        $restored_users = 0;
         $errors         = [];
 
         // Reverse through items so latest changes roll back first
         $items = array_reverse($manifest['items'] ?? []);
+        $restored_uids = [];
 
         foreach ($items as $item) {
             $type = $item['type'] ?? '';
@@ -281,6 +318,43 @@ class TransactionalRemediation {
                     $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
                     $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
                 }
+            } elseif ($type === 'user') {
+                $backup_file = $item['backup_filename'] ?? '';
+                if ($backup_file) {
+                    $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+                    $u_res = $user_mgr->restore_user($backup_file);
+                    if ($u_res['success']) {
+                        $restored_users++;
+                        if (!empty($u_res['user_id'])) {
+                            $restored_uids[] = (int) $u_res['user_id'];
+                        }
+                    } else {
+                        $errors[] = sprintf(__('Failed to restore user #%d: %s', 'wcp-security-scanner'), (int) ($item['user_id'] ?? 0), $u_res['error'] ?? '');
+                    }
+                }
+            }
+        }
+
+        // Correlated user recovery fallback:
+        // If this transaction was an attack chain eradication that preceded explicit user snapshot tracking,
+        // recover any user backups created during this transaction's execution window.
+        $tx_time = (int) ($manifest['timestamp'] ?? 0);
+        if ($tx_time > 0) {
+            $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+            $available_user_backups = $user_mgr->list_user_backups();
+            foreach ($available_user_backups as $ub) {
+                $uid = (int) $ub['user_id'];
+                if (in_array($uid, $restored_uids, true)) {
+                    continue;
+                }
+                // Check if user backup was created within 10 minutes of this transaction
+                if (abs($ub['timestamp'] - $tx_time) <= 600) {
+                    $u_res = $user_mgr->restore_user($ub['backup_file']);
+                    if ($u_res['success']) {
+                        $restored_users++;
+                        $restored_uids[] = $uid;
+                    }
+                }
             }
         }
 
@@ -293,17 +367,24 @@ class TransactionalRemediation {
 
         file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
 
+        $msg_parts = [];
+        if ($restored_files > 0) $msg_parts[] = sprintf(__('%d file(s)', 'wcp-security-scanner'), $restored_files);
+        if ($restored_db > 0)    $msg_parts[] = sprintf(__('%d database record(s)', 'wcp-security-scanner'), $restored_db);
+        if ($restored_users > 0) $msg_parts[] = sprintf(__('%d user account(s)', 'wcp-security-scanner'), $restored_users);
+
+        $restored_summary = !empty($msg_parts) ? implode(', ', $msg_parts) : __('0 items', 'wcp-security-scanner');
+
         return [
             'success'        => empty($errors),
             'tx_id'          => $tx_id,
             'restored_files' => $restored_files,
             'restored_db'    => $restored_db,
+            'restored_users' => $restored_users,
             'errors'         => $errors,
             'message'        => sprintf(
-                __('Transaction %s rolled back: restored %d file(s) and %d database record(s).', 'wcp-security-scanner'),
+                __('Transaction %s rolled back successfully: restored %s.', 'wcp-security-scanner'),
                 $tx_id,
-                $restored_files,
-                $restored_db
+                $restored_summary
             ),
         ];
     }
@@ -337,6 +418,7 @@ class TransactionalRemediation {
             if (is_array($manifest)) {
                 $file_items = array_filter($manifest['items'] ?? [], fn($i) => ($i['type'] ?? '') === 'file');
                 $db_items   = array_filter($manifest['items'] ?? [], fn($i) => ($i['type'] ?? '') === 'database');
+                $user_items = array_filter($manifest['items'] ?? [], fn($i) => ($i['type'] ?? '') === 'user');
 
                 $transactions[] = [
                     'tx_id'          => $manifest['tx_id'] ?? $d,
@@ -348,6 +430,7 @@ class TransactionalRemediation {
                     'created_by'     => $manifest['created_by'] ?? 'admin',
                     'files_count'    => count($file_items),
                     'db_count'       => count($db_items),
+                    'users_count'    => count($user_items),
                     'total_items'    => count($manifest['items'] ?? []),
                     'rolled_back_at' => $manifest['rolled_back_at'] ?? null,
                     'rolled_back_by' => $manifest['rolled_back_by'] ?? null,

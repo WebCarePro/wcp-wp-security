@@ -1,4 +1,16 @@
 v:1.17.0 - 2026-10-17
+- Attack Chain Engine & User Privilege Escalation Overhaul (`AttackChainEngine.php`, `UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
+  * Eliminated False Positives on Legitimate Dashboard Administrators:
+    - Fixed critical classification flaw in `gather_recent_or_suspicious_users()` where any administrator account registered within the past 14 days was blindly flagged as breached "Privilege Escalation & Account Takeover".
+    - Upgraded detection to inspect metadata profile depth: legitimate WordPress dashboard account creation populates complete core user metadata (at least 6 standard keys including `nickname`, `first_name`, `last_name`, `admin_color`, `wp_user_level`). Only accounts exhibiting genuine forensic anomalies (raw SQL injection with minimal metadata, disposable attacker email domains, corrupted registration dates, or injected trojan capabilities) are flagged.
+  * Protected User Accounts from Automated 1-Click Destruction:
+    - Completely removed user accounts from automated batch deletion in `1-Click Eradicate Entire Attack Chain` (`remediation_plan['delete_users']` is strictly protected and never auto-populated).
+    - Prevented standalone user accounts from synthesizing artificial "Dormant Persistence Anchor & Privilege Drift" critical attack chains in the absence of verified malicious persistence keys or malware droppers.
+  * Complete 1-Click User Restoration Engine (`UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
+    - Implemented `restore_user()`, `list_user_backups()`, `restore_user_by_id()`, and `restore_all_user_backups()` in `UserRemediationManager` to cleanly restore `wp_users` and all `wp_usermeta` rows from pre-deletion cryptographic JSON snapshots with original credentials, roles, and password hashes intact.
+    - Registered dedicated REST API endpoints `GET /wcp-scanner/v1/users/backups` and `POST /wcp-scanner/v1/users/restore`.
+    - Added `record_user_snapshot()` and intelligent correlated fallback recovery to `TransactionalRemediation::rollback_transaction()`, restoring deleted users when rolling back attack chain eradication transactions.
+    - Added a dedicated "Quarantined / Backed-Up User Accounts" recovery card to the Rollback Vault tab with 1-click individual and bulk restoration actions.
 - WordPress.org Official Plugin Review Compliance & Architectural Hardening:
   * Namespace & Prefix Standard Compliance:
     - Upgraded global PHP namespaces from `WCP\Scanner\` to `WcpScanner\` across all 90+ plugin files, fully complying with the WordPress.org requirement for unique prefixes over 3 characters.

@@ -281,4 +281,221 @@ class UserRemediationManager {
             ),
         ];
     }
+
+    /**
+     * Restore user and usermeta from isolated JSON backup snapshot.
+     *
+     * @param string $backup_file Filename or absolute path
+     * @return array
+     */
+    public function restore_user(string $backup_file): array {
+        global $wpdb;
+
+        $filepath = $backup_file;
+        if (!file_exists($filepath)) {
+            $filepath = $this->backup_dir . '/' . basename($backup_file);
+        }
+
+        if (!file_exists($filepath)) {
+            return ['success' => false, 'error' => sprintf(__('User backup file not found: %s', 'wcp-security-scanner'), basename($backup_file))];
+        }
+
+        $raw = @file_get_contents($filepath);
+        $snapshot = json_decode((string) $raw, true);
+
+        if (!is_array($snapshot) || empty($snapshot['user']) || !is_array($snapshot['user'])) {
+            return ['success' => false, 'error' => __('Invalid or corrupted user backup snapshot.', 'wcp-security-scanner')];
+        }
+
+        $user_row = $snapshot['user'];
+        $usermeta_rows = $snapshot['usermeta'] ?? [];
+        $user_id = (int) ($user_row['ID'] ?? 0);
+
+        if ($user_id <= 0) {
+            return ['success' => false, 'error' => __('Invalid user ID in backup snapshot.', 'wcp-security-scanner')];
+        }
+
+        $users_table    = $wpdb->prefix . 'users';
+        $usermeta_table = $wpdb->prefix . 'usermeta';
+
+        // Check if user already exists in wp_users
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $existing = $wpdb->get_var($wpdb->prepare("SELECT ID FROM `{$users_table}` WHERE ID = %d", $user_id));
+
+        $fields = [
+            'ID'                  => $user_id,
+            'user_login'          => $user_row['user_login'] ?? '',
+            'user_pass'           => $user_row['user_pass'] ?? '',
+            'user_nicename'       => $user_row['user_nicename'] ?? ($user_row['user_login'] ?? ''),
+            'user_email'          => $user_row['user_email'] ?? '',
+            'user_url'            => $user_row['user_url'] ?? '',
+            'user_registered'     => $user_row['user_registered'] ?? current_time('mysql'),
+            'user_activation_key' => $user_row['user_activation_key'] ?? '',
+            'user_status'         => (int) ($user_row['user_status'] ?? 0),
+            'display_name'        => $user_row['display_name'] ?? ($user_row['user_login'] ?? ''),
+        ];
+
+        if ($existing) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->update($users_table, $fields, ['ID' => $user_id]);
+        } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->insert($users_table, $fields);
+        }
+
+        // Restore all usermeta rows
+        if (!empty($usermeta_rows) && is_array($usermeta_rows)) {
+            // Delete existing meta for this user to avoid duplicate rows
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->delete($usermeta_table, ['user_id' => $user_id], ['%d']);
+
+            foreach ($usermeta_rows as $meta) {
+                if (isset($meta['meta_key']) && isset($meta['meta_value'])) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $wpdb->insert(
+                        $usermeta_table,
+                        [
+                            'user_id'    => $user_id,
+                            'meta_key'   => $meta['meta_key'],
+                            'meta_value' => $meta['meta_value'],
+                        ],
+                        ['%d', '%s', '%s']
+                    );
+                }
+            }
+        }
+
+        clean_user_cache($user_id);
+        if (function_exists('wp_cache_delete')) {
+            wp_cache_delete($user_id, 'users');
+            if (!empty($user_row['user_login'])) {
+                wp_cache_delete($user_row['user_login'], 'userlogins');
+            }
+            if (!empty($user_row['user_email'])) {
+                wp_cache_delete($user_row['user_email'], 'useremail');
+            }
+        }
+
+        return [
+            'success'     => true,
+            'user_id'     => $user_id,
+            'user_login'  => $user_row['user_login'],
+            'user_email'  => $user_row['user_email'],
+            'message'     => sprintf(
+                __("User account '%s' (ID #%d) restored successfully with full original capabilities and credentials.", 'wcp-security-scanner'),
+                $user_row['user_login'],
+                $user_id
+            ),
+        ];
+    }
+
+    /**
+     * List all available user backup snapshots.
+     *
+     * @return array
+     */
+    public function list_user_backups(): array {
+        if (!is_dir($this->backup_dir)) {
+            return [];
+        }
+
+        $files = @scandir($this->backup_dir) ?: [];
+        $backups = [];
+
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..' || !str_starts_with($file, 'user_') || !str_ends_with($file, '.json')) {
+                continue;
+            }
+
+            $filepath = $this->backup_dir . '/' . $file;
+            $raw = @file_get_contents($filepath);
+            if (!$raw) {
+                continue;
+            }
+
+            $data = json_decode($raw, true);
+            if (!is_array($data) || empty($data['user'])) {
+                continue;
+            }
+
+            $user = $data['user'];
+            $meta = $data['usermeta'] ?? [];
+            $roles = [];
+            foreach ($meta as $m) {
+                if (str_ends_with($m['meta_key'] ?? '', 'capabilities')) {
+                    $caps = maybe_unserialize($m['meta_value'] ?? '');
+                    if (is_array($caps)) {
+                        $roles = array_keys(array_filter($caps));
+                    }
+                }
+            }
+
+            $backups[] = [
+                'backup_file'    => $file,
+                'user_id'        => (int) ($data['user_id'] ?? $user['ID'] ?? 0),
+                'user_login'     => $user['user_login'] ?? '',
+                'user_email'     => $user['user_email'] ?? '',
+                'display_name'   => $user['display_name'] ?? '',
+                'roles'          => !empty($roles) ? $roles : ['administrator'],
+                'created_at'     => $data['created_at'] ?? date('Y-m-d H:i:s', filemtime($filepath)),
+                'timestamp'      => filemtime($filepath),
+                'action_context' => $data['action_context'] ?? 'remediation',
+            ];
+        }
+
+        usort($backups, fn($a, $b) => ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0));
+
+        return $backups;
+    }
+
+    /**
+     * Restore user by user ID using their most recent backup snapshot.
+     *
+     * @param int $user_id
+     * @return array
+     */
+    public function restore_user_by_id(int $user_id): array {
+        $backups = $this->list_user_backups();
+        foreach ($backups as $b) {
+            if ($b['user_id'] === $user_id) {
+                return $this->restore_user($b['backup_file']);
+            }
+        }
+        return ['success' => false, 'error' => sprintf(__('No backup snapshot found for user ID #%d.', 'wcp-security-scanner'), $user_id)];
+    }
+
+    /**
+     * Restore all user backup snapshots in bulk.
+     *
+     * @return array
+     */
+    public function restore_all_user_backups(): array {
+        $backups = $this->list_user_backups();
+        $restored = [];
+        $errors = [];
+
+        // Track restored user IDs to only restore newest snapshot if multiple exist
+        $seen_uids = [];
+        foreach ($backups as $b) {
+            $uid = $b['user_id'];
+            if (isset($seen_uids[$uid])) {
+                continue;
+            }
+            $seen_uids[$uid] = true;
+
+            $res = $this->restore_user($b['backup_file']);
+            if ($res['success']) {
+                $restored[] = $b['user_login'];
+            } else {
+                $errors[] = sprintf(__('Failed to restore %s: %s', 'wcp-security-scanner'), $b['user_login'], $res['error'] ?? '');
+            }
+        }
+
+        return [
+            'success'  => !empty($restored) || empty($errors),
+            'restored' => $restored,
+            'errors'   => $errors,
+            'message'  => sprintf(__('Restored %d user accounts from backup vault.', 'wcp-security-scanner'), count($restored)),
+        ];
+    }
 }
