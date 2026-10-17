@@ -23,17 +23,39 @@ if (!defined('ABSPATH')) {
  */
 class MCPAgentService {
 
+    const READ_TOOLS = [
+        'wcp_get_security_posture',
+        'wcp_list_findings',
+        'wcp_audit_behavioral_baseline',
+    ];
+
+    const MUTATING_TOOLS = [
+        'wcp_whitelist_finding',
+        'wcp_rollback_remediation',
+        'wcp_deploy_virtual_patch',
+        'wcp_quarantine_file',
+    ];
+
+    const AUDIT_OPTION_KEY = 'wcpscan_mcp_audit_log';
+    const MAX_AUDIT_LOGS   = 150;
+
     /**
-     * Retrieve the MCP tools catalog with JSON schemas.
+     * Retrieve the MCP tools catalog with JSON schemas and safety classification.
      *
      * @return array
      */
     public static function get_tools_catalog(): array {
+        $scope = SettingsManager::get('mcp_permission_scope', 'read_write');
+
         return [
-            'tools' => [
+            'scope'      => $scope,
+            'isReadOnly' => ($scope === 'read_only'),
+            'tools'      => [
                 [
                     'name'        => 'wcp_get_security_posture',
                     'description' => 'Retrieve comprehensive WordPress security posture, risk score, vulnerability metrics, firewall status, and baseline health.',
+                    'category'    => 'read',
+                    'isMutating'  => false,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => new \stdClass(),
@@ -42,6 +64,8 @@ class MCPAgentService {
                 [
                     'name'        => 'wcp_list_findings',
                     'description' => 'Query current vulnerability and malware findings with filtering by severity, status, or engine.',
+                    'category'    => 'read',
+                    'isMutating'  => false,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => [
@@ -65,6 +89,8 @@ class MCPAgentService {
                 [
                     'name'        => 'wcp_whitelist_finding',
                     'description' => 'Suppress false-positive finding by exact SHA-256 hash-lock, file path, or issue signature with audit reason.',
+                    'category'    => 'mutating',
+                    'isMutating'  => true,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => [
@@ -97,6 +123,8 @@ class MCPAgentService {
                 [
                     'name'        => 'wcp_audit_behavioral_baseline',
                     'description' => 'Execute an instant behavioral baseline audit to detect hook injections, rogue cron tasks, or backdoor drop-ins.',
+                    'category'    => 'read',
+                    'isMutating'  => false,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => new \stdClass(),
@@ -105,6 +133,8 @@ class MCPAgentService {
                 [
                     'name'        => 'wcp_rollback_remediation',
                     'description' => 'Perform 1-click safe rollback of a previous remediation transaction, restoring original byte-for-byte files and DB states.',
+                    'category'    => 'mutating',
+                    'isMutating'  => true,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => [
@@ -119,6 +149,8 @@ class MCPAgentService {
                 [
                     'name'        => 'wcp_deploy_virtual_patch',
                     'description' => 'Apply or remove an edge/runtime virtual patch rule for a known CVE without waiting for upstream plugin updates.',
+                    'category'    => 'mutating',
+                    'isMutating'  => true,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => [
@@ -138,6 +170,8 @@ class MCPAgentService {
                 [
                     'name'        => 'wcp_quarantine_file',
                     'description' => 'Safely isolate a malicious file into the encrypted quarantine vault with automatic pre-remediation transactional backup.',
+                    'category'    => 'mutating',
+                    'isMutating'  => true,
                     'inputSchema' => [
                         'type'       => 'object',
                         'properties' => [
@@ -158,37 +192,190 @@ class MCPAgentService {
     }
 
     /**
-     * Execute an MCP tool by name with arguments.
+     * Check rate limiting for MCP requests (sliding window).
+     *
+     * @param string $identifier
+     * @param int $limit_per_min
+     * @return bool True if permitted, false if rate limit exceeded.
+     */
+    public static function check_rate_limit(string $identifier, int $limit_per_min = 60): bool {
+        $transient_key = 'wcpscan_mcp_rl_' . substr(md5($identifier), 0, 16);
+        $current = (int) get_transient($transient_key);
+        if ($current >= $limit_per_min) {
+            return false;
+        }
+        set_transient($transient_key, $current + 1, 60);
+        return true;
+    }
+
+    /**
+     * Log an MCP execution event to persistent ring-buffer audit log.
+     *
+     * @param array $entry
+     */
+    public static function log_audit_event(array $entry): void {
+        $logs = get_option(self::AUDIT_OPTION_KEY, []);
+        if (!is_array($logs)) {
+            $logs = [];
+        }
+        array_unshift($logs, $entry);
+        if (count($logs) > self::MAX_AUDIT_LOGS) {
+            $logs = array_slice($logs, 0, self::MAX_AUDIT_LOGS);
+        }
+        update_option(self::AUDIT_OPTION_KEY, $logs, false);
+    }
+
+    /**
+     * Retrieve recent audit log entries.
+     *
+     * @param int $limit
+     * @return array
+     */
+    public static function get_audit_log(int $limit = 50): array {
+        $logs = get_option(self::AUDIT_OPTION_KEY, []);
+        if (!is_array($logs)) {
+            return [];
+        }
+        return array_slice($logs, 0, $limit);
+    }
+
+    /**
+     * Clear the MCP audit log.
+     *
+     * @return bool
+     */
+    public static function clear_audit_log(): bool {
+        return delete_option(self::AUDIT_OPTION_KEY);
+    }
+
+    /**
+     * Sanitize and summarize arguments for safe audit logging.
+     *
+     * @param array $args
+     * @return string
+     */
+    private static function summarize_args(array $args): string {
+        if (empty($args)) {
+            return '{}';
+        }
+        $clean = [];
+        foreach ($args as $k => $v) {
+            if (is_array($v)) {
+                $clean[$k] = '[Array(' . count($v) . ')]';
+            } elseif (is_string($v) && strlen($v) > 50) {
+                $clean[$k] = substr($v, 0, 47) . '...';
+            } else {
+                $clean[$k] = $v;
+            }
+        }
+        return wp_json_encode($clean);
+    }
+
+    /**
+     * Execute an MCP tool by name with arguments, rate limiting, permission checks, and audit logging.
      *
      * @param string $tool
      * @param array $args
      * @return array
      */
     public static function execute_tool(string $tool, array $args = []): array {
+        $start_time = microtime(true);
+
+        $client_ip = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        if (strpos($client_ip, ',') !== false) {
+            $parts = explode(',', $client_ip);
+            $client_ip = trim($parts[0]);
+        }
+        $client_ip = sanitize_text_field($client_ip);
+        $user_agent = !empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(substr($_SERVER['HTTP_USER_AGENT'], 0, 120)) : 'Unknown AI Agent';
+
+        // 1. Sliding-window rate limit check
+        $rate_limit = (int) SettingsManager::get('mcp_rate_limit_per_min', 60);
+        if (!self::check_rate_limit($client_ip, $rate_limit)) {
+            $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
+            self::log_audit_event([
+                'id'          => uniqid('mcp_', true),
+                'timestamp'   => time(),
+                'client_ip'   => $client_ip,
+                'user_agent'  => $user_agent,
+                'tool'        => $tool,
+                'args'        => self::summarize_args($args),
+                'duration_ms' => $duration_ms,
+                'status'      => 'rate_limited',
+                'message'     => sprintf('Rate limit exceeded (>%d req/min)', $rate_limit),
+            ]);
+
+            return [
+                'isError' => true,
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => sprintf(__('Rate limit exceeded: Maximum %d requests per minute allowed for MCP Agent tools.', 'wcp-security-scanner'), $rate_limit),
+                    ],
+                ],
+            ];
+        }
+
+        // 2. Permission scope enforcement (Read-Only vs Read/Write)
+        $scope = SettingsManager::get('mcp_permission_scope', 'read_write');
+        if ($scope === 'read_only' && in_array($tool, self::MUTATING_TOOLS, true)) {
+            $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
+            self::log_audit_event([
+                'id'          => uniqid('mcp_', true),
+                'timestamp'   => time(),
+                'client_ip'   => $client_ip,
+                'user_agent'  => $user_agent,
+                'tool'        => $tool,
+                'args'        => self::summarize_args($args),
+                'duration_ms' => $duration_ms,
+                'status'      => 'denied_read_only',
+                'message'     => 'Action blocked: Agent is in Read-Only mode',
+            ]);
+
+            return [
+                'isError' => true,
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => sprintf(__('Permission Denied: Tool "%s" modifies site state, but MCP Agent Service is locked in "Read-Only (Observation)" mode. Change to "Full Remediation" mode in WCP Settings to allow autonomous file actions.', 'wcp-security-scanner'), sanitize_text_field($tool)),
+                    ],
+                ],
+            ];
+        }
+
+        // 3. Tool execution
+        $response = null;
         switch ($tool) {
             case 'wcp_get_security_posture':
-                return self::tool_get_posture();
+                $response = self::tool_get_posture();
+                break;
 
             case 'wcp_list_findings':
-                return self::tool_list_findings($args);
+                $response = self::tool_list_findings($args);
+                break;
 
             case 'wcp_whitelist_finding':
-                return self::tool_whitelist_finding($args);
+                $response = self::tool_whitelist_finding($args);
+                break;
 
             case 'wcp_audit_behavioral_baseline':
-                return self::tool_audit_baseline();
+                $response = self::tool_audit_baseline();
+                break;
 
             case 'wcp_rollback_remediation':
-                return self::tool_rollback_remediation($args);
+                $response = self::tool_rollback_remediation($args);
+                break;
 
             case 'wcp_deploy_virtual_patch':
-                return self::tool_deploy_virtual_patch($args);
+                $response = self::tool_deploy_virtual_patch($args);
+                break;
 
             case 'wcp_quarantine_file':
-                return self::tool_quarantine_file($args);
+                $response = self::tool_quarantine_file($args);
+                break;
 
             default:
-                return [
+                $response = [
                     'isError' => true,
                     'content' => [
                         [
@@ -197,7 +384,27 @@ class MCPAgentService {
                         ],
                     ],
                 ];
+                break;
         }
+
+        // 4. Audit logging
+        $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
+        $status = empty($response['isError']) ? 'success' : 'error';
+        $message = empty($response['isError']) ? 'Executed successfully' : ($response['content'][0]['text'] ?? 'Execution error');
+
+        self::log_audit_event([
+            'id'          => uniqid('mcp_', true),
+            'timestamp'   => time(),
+            'client_ip'   => $client_ip,
+            'user_agent'  => $user_agent,
+            'tool'        => $tool,
+            'args'        => self::summarize_args($args),
+            'duration_ms' => $duration_ms,
+            'status'      => $status,
+            'message'     => substr($message, 0, 160),
+        ]);
+
+        return $response;
     }
 
     private static function tool_get_posture(): array {

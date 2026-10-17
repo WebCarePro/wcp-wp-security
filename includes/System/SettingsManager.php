@@ -135,6 +135,8 @@ class SettingsManager {
             // 14. Model Context Protocol (MCP) Agent Service Surface
             'mcp_enabled'                        => true,
             'mcp_token'                          => '',
+            'mcp_permission_scope'               => 'read_write',
+            'mcp_rate_limit_per_min'             => 60,
         ];
     }
 
@@ -424,12 +426,32 @@ class SettingsManager {
             $clean['mcp_token'] = 'wcp_mcp_' . bin2hex(random_bytes(16));
         }
 
+        $valid_scopes = ['read_only', 'read_write'];
+        $clean['mcp_permission_scope'] = in_array($input['mcp_permission_scope'] ?? '', $valid_scopes, true)
+            ? $input['mcp_permission_scope']
+            : ($current['mcp_permission_scope'] ?? 'read_write');
+
+        $clean['mcp_rate_limit_per_min'] = max(10, min(600, intval($input['mcp_rate_limit_per_min'] ?? ($current['mcp_rate_limit_per_min'] ?? 60))));
+
         update_option(self::OPTION_KEY, $clean);
 
         // Synchronize Cron Schedule
         self::sync_cron_schedule($clean);
 
         return self::get_settings();
+    }
+
+    /**
+     * Set a single setting by key and save.
+     *
+     * @param string $key
+     * @param mixed $value
+     * @return array
+     */
+    public static function set(string $key, $value) {
+        $settings = self::get_settings();
+        $settings[$key] = $value;
+        return self::save_settings($settings);
     }
 
     /**

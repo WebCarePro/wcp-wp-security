@@ -765,6 +765,20 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'execute_mcp_tool'],
             'permission_callback' => $mcp_permission,
         ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/audit', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_mcp_audit'],
+            'permission_callback' => $mcp_permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/audit/clear', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'clear_mcp_audit'],
+            'permission_callback' => function () {
+                return current_user_can('manage_options');
+            },
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -5093,6 +5107,22 @@ class ScannerRoutes {
 
         $result = \WcpScanner\Api\MCPAgentService::execute_tool($tool, $args);
         return rest_ensure_response($result);
+    }
+
+    public static function get_mcp_audit(\WP_REST_Request $request) {
+        $limit = max(10, min(150, intval($request->get_param('limit') ?? 50)));
+        return rest_ensure_response([
+            'success' => true,
+            'entries' => \WcpScanner\Api\MCPAgentService::get_audit_log($limit),
+        ]);
+    }
+
+    public static function clear_mcp_audit(\WP_REST_Request $request) {
+        \WcpScanner\Api\MCPAgentService::clear_audit_log();
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('MCP agent audit trail cleared.', 'wcp-security-scanner'),
+        ]);
     }
 
     // ==========================================

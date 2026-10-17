@@ -50,6 +50,13 @@ v:1.18.0 - 2026-10-18
     - Recommends configuring API keys directly inside WCP Security Scanner to encrypt secrets at rest using enterprise AES-256-GCM AEAD with per-record nonces and 128-bit integrity tags.
     - Added direct navigation button linking to the comprehensive technical architecture guide on the official blog: `https://webcarespro.com/blog/post/how-aes-256-gcm-vault-protects-wordpress-secrets`.
     - Published an in-depth engineering masterclass on `webcarepro-blog` authored by Mir Alamin explaining field-level AES-256-GCM AEAD encryption, NIST SP 800-38D / RFC 5116 compliance, key derivation hierarchies (`WCP_VAULT_KEY`), two-phase commit zero-downtime key rotation, and protection against SQL dump credential theft.
+  * Model Context Protocol (MCP) Security Scoping & Live Agent Audit Trail (`MCPAgentService.php`, `ScannerRoutes.php`, `SettingsManager.php`, `MCPAgentServiceCard.tsx`):
+    - Tool Safety Classification & Scoping: Formally partitioned the MCP tool catalog into Read-Only tools (`wcp_get_security_posture`, `wcp_list_findings`, `wcp_audit_behavioral_baseline`) and Mutating / Write tools (`wcp_whitelist_finding`, `wcp_rollback_remediation`, `wcp_deploy_virtual_patch`, `wcp_quarantine_file`).
+    - Granular Execution Policy Modes: Added `mcp_permission_scope` setting (`read_only` vs `read_write`). In Read-Only observation mode, mutating actions are intercepted and denied with explicit permission notices, ensuring external AI models cannot modify files or database states without administrator authorization.
+    - Sliding-Window Rate Limiting: Integrated transient-based sliding-window rate limiting (`mcp_rate_limit_per_min`, configurable 30–300 req/min, default 60) to protect origin servers against agent infinite loops or brute-force requests.
+    - Persistent Ring-Buffered Audit Trail: Engineered real-time execution logging (`wcpscan_mcp_audit_log`, capped at 150 events) tracking timestamps, caller IPs, user-agent headers (Claude Desktop, Antigravity, Cursor), executed tool names, parameter summaries, duration in milliseconds, and exit statuses (`success`, `denied_read_only`, `rate_limited`, `error`).
+    - Dedicated UI Audit Table & Policy Controls: Added interactive Permission Scope toggle buttons, rate-limit selectors, tool category pills, and a real-time Audit Trail table with manual refresh and 1-click log purge inside the MCP Agentic settings card.
+
 
 
 
