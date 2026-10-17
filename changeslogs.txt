@@ -1,3 +1,20 @@
+v:1.18.0 - 2026-10-18
+- Complete Settings Page Rebuild & Dedicated Model Context Protocol (MCP) Suite (`SettingsPage.tsx`, `App.tsx`):
+  * Dedicated Model Context Protocol (MCP) Agentic Tab:
+    - Extracted the external AI Agent Abilities surface out of the AI Forensics sub-view into its own dedicated, first-class top-level tab (`?page=wcp-scanner-settings&tab=mcp`).
+    - Designed an informative MCP intro banner detailing the JSON-RPC 2.0 specification, live endpoint status, AES-256 encrypted Bearer token security, and 7 exposed core remote RPC tools.
+    - Full-width layout for `MCPAgentServiceCard` with seamless Claude Desktop, Antigravity, and Cursor IDE configurations, 1-click token copy, and live tool handshake testing.
+  * 3-Pillar Categorized Command Hub Settings Navigation:
+    - Completely redesigned and reorganized the top navigation into a modern, high-contrast 3-pillar categorized grid replacing the legacy flat button row:
+      1. ⚡ **Automations & Alerts:** Schedule Scans (cron status), Email Alerts (delivery state), and DevSecOps Webhooks (Slack, Discord, ClickUp, Asana count badge).
+      2. 🛡️ **Defenses & AI Intelligence:** Headers & Hardening (1-click A+ preset & live grade badge), AI Code Forensics (ChatGPT, Gemini & Claude heuristics), and Model Context Protocol (MCP agent abilities).
+      3. ⚙️ **Engine & Operations:** Engine & Performance (tuning overrides), Import & Export (JSON backup/sync), Data & Purge (uninstall behavior badge), and Support & Services (direct 1-on-1 assistance).
+    - Added responsive category cards with category glow indicators, active accent highlights, icon badges, and descriptive secondary summaries.
+  * Full URL Query Synchronization & History Routing:
+    - Added comprehensive URL synchronization supporting `?tab=<id>` (with backward compatibility for `?subtab=<id>`), updating browser history seamlessly via `window.history.pushState` on every tab change.
+    - Integrated `popstate` event listeners for flawless browser Back and Forward navigation without full-page reloads.
+    - Added a live breadcrumb and query toolbar at the bottom of the navigation hub displaying active module path, current `?tab=` query parameter, and an animated 1-click "Copy Direct Link" button to easily share or bookmark direct settings views.
+
 v:1.17.0 - 2026-10-17
 - Dedicated WCP Vault & Top Navigation Suite (`WcpVaultPage.tsx`, `AdminMenu.php`, `ScannerRoutes.php`, `QuarantinePage.tsx`, `App.tsx`):
   * Unified Vault Command Center:
