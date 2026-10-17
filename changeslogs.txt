@@ -17,6 +17,7 @@ v:1.17.0 - 2026-10-17
     - Registered `GET /wcp-scanner/v1/vault/status`, `POST /wcp-scanner/v1/vault/rotate-key`, and `POST /wcp-scanner/v1/vault/rollback-rotation`.
     - Added cryptographic verification of `WCP_VAULT_KEY` constant and environment derivations with truncated SHA-256 fingerprint output (`key_fingerprint`) while keeping plaintext master keys strictly isolated in server memory.
     - Enhanced Secret Vault dashboard with resilient asynchronous loading states, OpenSSL engine status detection, and real-time live credential encryption audit table.
+    - Added dedicated confirmation dialog and guidance banner for 1-Click Key Rotation when `WCP_VAULT_KEY` is defined in `wp-config.php`, explaining that config files are not modified directly by PHP for security and instructing how to synchronize the new key.
     - Fixed REST API status handler in `ScannerRoutes.php` to correctly instantiate `QuarantineManager` and `DatabaseBackup` objects, resolving HTTP 500 error on vault status polling.
 - Attack Chain Engine & User Privilege Escalation Overhaul (`AttackChainEngine.php`, `UserRemediationManager.php`, `TransactionalRemediation.php`, `ScannerRoutes.php`, `RemediationTransactionsCard.tsx`):
   * Eliminated False Positives on Legitimate Dashboard Administrators:
