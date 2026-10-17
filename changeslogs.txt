@@ -29,6 +29,7 @@ v:1.17.0 - 2026-10-17
     - Updated `TransactionalRemediation::rollback_transaction()` to permit re-running rollback when quarantined user accounts are detected missing from the database, even if previously marked rolled back.
     - Added universal WordPress Admin Notice across wp-admin screens (including `wp-admin/users.php`) detecting missing backed-up admin accounts with an immediate "1-Click Restore All Admin Accounts" button.
     - Added a dedicated "Quarantined / Backed-Up User Accounts" recovery card and "Restore Missing Accounts" action to the Rollback Vault tab with 1-click individual and bulk restoration.
+    - Accurate User Restoration State Resolution: Updated `RemediationTransactionsCard.tsx` to inspect `ub.is_in_db` status for each backed-up account. Restored accounts now display a clean "Already Restored & Active" green badge with a secondary "Re-apply Snapshot" option, rather than showing a redundant primary restore call-to-action.
 - WordPress.org Official Plugin Review Compliance & Architectural Hardening:
   * Namespace & Prefix Standard Compliance:
     - Upgraded global PHP namespaces from `WCP\Scanner\` to `WcpScanner\` across all 90+ plugin files, fully complying with the WordPress.org requirement for unique prefixes over 3 characters.
