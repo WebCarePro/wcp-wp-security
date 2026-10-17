@@ -1,0 +1,8 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Hexagon -->
+  <polygon points="60,2 118,31 118,89 60,118 2,89 2,31" stroke="#bae6fd" stroke-opacity="0.8" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Inner 3 lines meeting in center (60,60) -->
+  <line x1="60" y1="60" x2="60" y2="118" stroke="#bae6fd" stroke-opacity="0.8" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="60" y1="60" x2="2" y2="31" stroke="#bae6fd" stroke-opacity="0.8" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="60" y1="60" x2="118" y2="31" stroke="#bae6fd" stroke-opacity="0.8" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

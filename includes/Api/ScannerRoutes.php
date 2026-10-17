@@ -114,6 +114,20 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // System Readiness & Pre-Flight Compatibility Report
+        register_rest_route(self::NAMESPACE, '/readiness', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_system_readiness'],
+            'permission_callback' => $permission,
+        ]);
+
+        // First-Time Welcome Modal Dismissal
+        register_rest_route(self::NAMESPACE, '/welcome/dismiss', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'dismiss_welcome_modal'],
+            'permission_callback' => $permission,
+        ]);
+
         // Vulnerabilities & Outdated Software Report
         register_rest_route(self::NAMESPACE, '/vulnerabilities/report', [
             'methods'             => 'GET',
@@ -1781,6 +1795,28 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             'info'    => ServerInfo::get_info(true),
+        ]);
+    }
+
+    /**
+     * Get comprehensive system readiness & compatibility audit report.
+     */
+    public static function get_system_readiness(\WP_REST_Request $request): \WP_REST_Response {
+        $report = \WcpScanner\System\SystemReadinessChecker::check_all();
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $report,
+        ]);
+    }
+
+    /**
+     * Dismiss first-time welcome modal.
+     */
+    public static function dismiss_welcome_modal(\WP_REST_Request $request): \WP_REST_Response {
+        \WcpScanner\System\SystemReadinessChecker::dismiss_welcome();
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Welcome dialog dismissed successfully.', 'wcp-security-scanner'),
         ]);
     }
 

@@ -68,6 +68,10 @@ if (file_exists(WCPSCAN_PATH . 'vendor/autoload.php')) {
 
 // Activation & Deactivation hooks
 register_activation_hook(__FILE__, function () {
+    // 1. Run Pre-Flight Environment & Cryptographic Requirements Gate
+    \WcpScanner\System\SystemReadinessChecker::run_activation_check();
+
+    // 2. Install Database Schema
     \WcpScanner\Database\Migration::install();
 });
 
