@@ -19,10 +19,10 @@ if (!defined('ABSPATH')) {
  */
 class SystemReadinessChecker {
 
-    const MIN_PHP_VERSION       = '8.1.0';
-    const RECOMMENDED_PHP       = '8.2.0';
-    const MIN_WP_VERSION        = '6.2.0';
-    const RECOMMENDED_WP        = '6.6.0';
+    const MIN_PHP_VERSION       = '8.3.0';
+    const RECOMMENDED_PHP       = '8.4.0';
+    const MIN_WP_VERSION        = '7.0.0';
+    const RECOMMENDED_WP        = '7.1.0';
     const MIN_MEMORY_LIMIT_MB   = 128;
     const RECOMMENDED_MEMORY_MB = 256;
 
@@ -49,8 +49,8 @@ class SystemReadinessChecker {
             'current'     => $php_version,
             'required'    => '>= ' . self::MIN_PHP_VERSION,
             'recommended' => '>= ' . self::RECOMMENDED_PHP,
-            'description' => __('Requires PHP 8.1+ for native type safety, modern cryptographic primitives, and memory optimizations.', 'wcp-security-scanner'),
-            'remedy'      => __('Upgrade your hosting environment or cPanel/Plesk PHP version selector to PHP 8.2 or 8.3.', 'wcp-security-scanner'),
+            'description' => __('Requires PHP 8.3+ for modern cryptographic primitives, read-only classes, typed constants, and memory optimizations (PHP 8.1 and 8.2 are officially EOL).', 'wcp-security-scanner'),
+            'remedy'      => __('Upgrade your hosting environment or cPanel/Plesk PHP version selector to PHP 8.3 or PHP 8.4.', 'wcp-security-scanner'),
         ];
 
         // 2. WordPress Version
@@ -67,8 +67,8 @@ class SystemReadinessChecker {
             'current'     => $wp_ver,
             'required'    => '>= ' . self::MIN_WP_VERSION,
             'recommended' => '>= ' . self::RECOMMENDED_WP,
-            'description' => __('Requires WordPress 6.2+ for script module attributes, native REST sanitization, and database query caching.', 'wcp-security-scanner'),
-            'remedy'      => __('Update WordPress to the latest stable release via Dashboard -> Updates.', 'wcp-security-scanner'),
+            'description' => __('Requires WordPress 7.0+ for native AI Connectors (options-connectors.php), Script Modules API, and modern REST security schema.', 'wcp-security-scanner'),
+            'remedy'      => __('Update WordPress to the latest stable release (WordPress 7.0+) via Dashboard -> Updates.', 'wcp-security-scanner'),
         ];
 
         // 3. PHP Memory Limit
