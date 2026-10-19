@@ -39,12 +39,32 @@ class Plugin {
         $audit_logger = new \WcpScanner\System\AuditLogger();
         $audit_logger->init();
 
-        \WcpScanner\Firewall\FirewallEngine::init();
-        \WcpScanner\Hardening\SecurityHeadersEngine::init();
-        \WcpScanner\Auth\TwoFactorAuth::init();
-        \WcpScanner\Auth\LoginHardening::init();
-        \WcpScanner\Auth\SessionSentinel::init();
-        \WcpScanner\Auth\LoginHistoryManager::init();
+        // Firewall Engine with file_exists fallback
+        if (!class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            $fw_file = WCPSCAN_PATH . 'includes/Firewall/FirewallEngine.php';
+            if (file_exists($fw_file)) {
+                require_once $fw_file;
+            }
+        }
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            \WcpScanner\Firewall\FirewallEngine::init();
+        }
+
+        if (class_exists('\\WcpScanner\\Hardening\\SecurityHeadersEngine')) {
+            \WcpScanner\Hardening\SecurityHeadersEngine::init();
+        }
+        if (class_exists('\\WcpScanner\\Auth\\TwoFactorAuth')) {
+            \WcpScanner\Auth\TwoFactorAuth::init();
+        }
+        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
+            \WcpScanner\Auth\LoginHardening::init();
+        }
+        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
+            \WcpScanner\Auth\SessionSentinel::init();
+        }
+        if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
+            \WcpScanner\Auth\LoginHistoryManager::init();
+        }
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

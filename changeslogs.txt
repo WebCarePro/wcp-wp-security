@@ -2,15 +2,14 @@ v:1.20.0 - 2026-10-20
 - Universal Dropdown Menu Indicators (`index.css`):
   * Added distinct, sleek SVG chevron dropdown indicators (`polyline` arrow) across all `<select>` dropdown controls in the plugin (including Scan Run audit selector `.wcp-ribbon-select`, findings severity filter `.wcp-filter-select`, scan log filters `.wcp-select-severity`, firewall mode selector `.wcp-firewall-select`, and settings dropdowns).
   * Styled with dedicated padding (`padding-right: 32px`), smooth hover/focus transitions, and theme-adaptive vector colors (`#475569` for light mode and `#94a3b8` for dark mode).
-- Server & Host Infrastructure Telemetry Cockpit on Firewall Page (`FirewallEngine.php`, `FirewallPage.tsx`, `index.css`):
-  * Added real-time host infrastructure telemetry card cockpit directly to the top of the Firewall (WAF) page displaying 7 key system metrics:
-    - Linux OS & Kernel Uname: Operating system distribution (e.g. Ubuntu, Debian, CentOS, AlmaLinux) + full kernel architecture.
-    - Web Server Software: Web server engine detection (Nginx, Apache, LiteSpeed, Caddy, IIS) + active PHP SAPI interface.
-    - PHP Runtime Engine: Installed PHP version, 64-bit architecture, and OPcache acceleration status badge.
-    - Real Server Origin IP: Direct server IP address with internal/private subnet indicator and one-click clipboard copy button.
-    - Website CDN Edge IP: Detected reverse proxy / CDN edge address (Cloudflare Anycast, Fastly, CloudFront, Sucuri, or direct origin indicator) with one-click copy.
-    - PHP Script RAM Limit: Real-time memory gauge showing PHP script memory limit (`128M`/`256M`), current usage, and peak memory, with smart cPanel/CloudLinux account quota context (~1 GB) avoiding confusion with the underlying shared node total RAM.
-    - Website CPU Allocation: Dedicated shared hosting & cPanel LVE isolation detection showing account 1 vCPU allocation quota while identifying the shared physical node capacity and live system load.
+- Server & Host Infrastructure Telemetry Cockpit on Firewall Page (`FirewallEngine.php`, `FirewallPage.tsx`, `index.css`, `Plugin.php`):
+  * Resolved Fatal Error on restrictive shared hosting environments (where host security scanners or aggressive mod_security rules quarantine or delay-load individual PHP class files) by implementing resilient `class_exists()` guards and explicit `file_exists()` fallbacks inside `Plugin.php`.
+  * Streamlined telemetry cards to display the exact essential 5 metrics:
+    1. Linux OS & Uname (`uname -a`, kernel release, distro name, architecture).
+    2. Server Software (LiteSpeed, Nginx, Apache, or Caddy + SAPI interface).
+    3. PHP Script RAM Limit (Active process allocation, free RAM, peak memory, and cPanel plan limit context).
+    4. Real Server IP (Origin server IP with copy button and private/public indicator).
+    5. Website CDN IP (Detected edge reverse proxy or direct origin indicator with copy button).
   * Card UI & Typography Redesign: Removed `white-space: nowrap` and ellipsis truncations so all text, kernel versions, memory allocations, CPU quotas, and routing details wrap naturally and display in full. Upgraded cards to a balanced fluid responsive layout (`minmax(280px, 1fr)`) with increased padding (`16px 18px`), refined line-heights (`1.4`-`1.5`), and subtle hover elevations.
   * Added collapsible "Dev Diagnostics & Tuning" drawer with developer-focused metrics: hosting environment classification (cPanel / CloudLinux / Dedicated VPS), shared server node capacity, full kernel uname string, POSIX process execution user, max execution time limit, upload/post max body limits, web root disk storage capacity/free space, and WAF hook execution mode.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
