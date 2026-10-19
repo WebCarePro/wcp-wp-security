@@ -1,4 +1,61 @@
+v:1.20.0 - 2026-10-20
+- UI/UX update
+
+v:1.19.0 - 2026-10-19
+- UI/UX update
+
 v:1.18.0 - 2026-10-18
+- Architecture-Aware Visitor IP Detection & Environment Intelligence (`ScannerRoutes.php`, `App.tsx`):
+  * Environment & Hosting Architecture Awareness:
+    - Auto-suppressed false-positive alerts on Localhost, Docker containerized environments (`.dockerenv`, `/proc/1/cgroup`), and local domains (`.local`, `.test`, `.site`, `.docker`, `.ddev`, `.localwp`).
+    - Added direct connection mode: Verifies direct VPS, dedicated, or shared hosting connections where `REMOTE_ADDR` is already a public IP with no proxy or CDN needed.
+    - Expanded multi-architecture reverse proxy headers check: Inspects all 8 standard CDN & reverse proxy headers (`HTTP_CF_CONNECTING_IP`, `HTTP_X_FORWARDED_FOR`, `HTTP_X_REAL_IP`, `HTTP_TRUE_CLIENT_IP`, `HTTP_FASTLY_CLIENT_IP`, `HTTP_FORWARDED`, `HTTP_X_CLUSTER_CLIENT_IP`, `HTTP_CLIENT_IP`).
+    - Suppressed background WP-Cron, WP-CLI, and loopback executions to prevent phantom alerts.
+  * UI Remediation Intelligence & Network Config Badge:
+    - Added dedicated "NETWORK CONFIG" badge (`wcp-type-badge-network`) replacing incorrect "FILE" badges for server architecture findings.
+    - Added interactive "Hosting Architecture & Visitor IP Resolution Intelligence" inspection card in findings expanded detail view explaining Direct VPS, Local/Docker, and Cloudflare/Nginx setups with copy-paste `wp-config.php` snippet and 1-click "Confirm Environment (Mark Safe)" action.
+- Separate Custom Scan & Targeted Scan Naming & Target Name Attribution in Scan Logs (`ScannerRoutes.php`, `App.tsx`):
+  * Explicit Distinction Between Custom & Targeted Scans:
+    - Standardized scan profiles into three distinct categories: `standard` (Quick Scan, Complete Website Scan), `custom` (Custom Security Scan), and `targeted` (11 specialized security audits).
+    - Added dedicated metadata mapper `ScannerRoutes::format_scan_target_meta()` and frontend helper `getScanTargetInfo()` establishing clear names, short labels, category badges, and distinct icon badges.
+    - Assigned unique visual identities: Custom Scan (`#7e22ce` purple with Sliders icon) vs. Targeted Scans (`#0891b2` cyan with Target icon) vs. Standard Scans (`#1d4ed8` blue with Layers icon).
+  * Scan Logs & History Target Name Attribution:
+    - Updated Scan Logs table (`navTab === 'logs'`) Target Profile column to display the explicit human-friendly scan target name (e.g. `Targeted: Uploads Executables & Shell Audit`, `Targeted: Rogue Admins & DB Anomalies Audit`, `Targeted: Crontab & Schedulers Audit`, `Custom Security Scan`, `Complete Website Scan`) paired with its category badge.
+    - Updated Scan Log Inspector modal (`#wcp-scan-log-inspector`) header and telemetry summary to display the full formatted target name and badge instead of raw slug strings.
+    - Enriched REST API endpoints (`/wcp-scanner/v1/scan/history`, `/wcp-scanner/v1/scan/latest`, and `/wcp-scanner/v1/scan/history/{id}`) to return `scan_target_name`, `scan_target_short`, `scan_target_category`, `scan_category`, and `target_meta`.
+    - Removed target filter restrictions in `/wcp-scanner/v1/scan/latest` available scans query so all targeted, custom, and standard scans appear seamlessly in the Scan ID Switcher dropdown with their friendly labels.
+- Dashboard Custom Scan Engine Options Suite & Wordfence-Style Checklist (`CustomScanModal.tsx`, `App.tsx`, `ScannerRoutes.php`, `SettingsManager.php`):
+  * 100% Free & Unlocked Wordfence-Style Custom Scan Engine Suite:
+    - Designed and implemented a dedicated Wordfence-style custom scan configuration modal (`CustomScanModal.tsx`) accessible directly from the Dashboard via the "Custom Engines" button or the new "Custom Audit" profile switcher card.
+    - 100% Free & Fully Unlocked: Removed all artificial "Premium Feature" restrictions and lock icons from Reputation Checks (Domain Blocklist, Spamvertised domain check, Abusive server IP check), making all 23 detection engines completely free and toggleable.
+    - Integrated all 23 scan options organized into Reputation Checks (Domain blocklist, Spamvertised domain via SURBL, Abusive spam server IP via Spamhaus ZEN) and General Detection Engines (Visitor IP detection headers, Publicly accessible configs/backups/logs, Quarantine vault exposure, Core integrity, Theme integrity, Plugin integrity, Unbundled files in wp-admin/wp-includes, Known malware signatures, AST backdoor heuristics, Malicious URLs, Posts content, Comments content, WordPress options, Outdated/abandoned/vulnerable software, Rogue admin accounts, Password strength audit, Disk space monitoring, WAF status monitoring, Outside root inspection, and Media executable polyglot analysis).
+    - Added 1-click Preset toolbar: "Recommended (22)" (enabling all 22 core detection modules by default), "Select All", "Clear All", "Malware & Integrity", and "Database & Content".
+    - Added interactive `(?)` expandable tooltips for every scan engine explaining the exact detection mechanics and security risks.
+  * Backend Execution & Engine Pass-Through:
+    - Added selective execution filtering in `ScannerRoutes::run_deep_audit()` and batch scanning to conditionally bypass unselected engines during custom audits.
+    - Implemented dedicated backend audit routines: `audit_exposed_sensitive_files()`, `audit_quarantine_exposure()`, `audit_visitor_ip_detection()`, `audit_password_strength()`, `audit_disk_space()`, `audit_waf_status()`, and `audit_reputation_checks()` (with live DNSBL, Google Safe Browsing, and SURBL queries).
+    - Integrated persistence in `SettingsManager` under `custom_scan_options` with "Save as default profile" support.
+  * Dashboard Custom Scan Display & Interactive Scan ID Switcher HUD:
+    - Enabled Custom Scan results display on the main Dashboard: Updated backend endpoint `/wcp-scanner/v1/scan/latest` and frontend `loadLatestScan()` to accept `'custom'` audits alongside standard full/plugin scans.
+    - Placed the **Scan ID Switcher** directly inside the telemetry status pill bar next to `Scan Run:`:
+      * Fixed plain permalinks query string handling: Resolved bug where REST endpoints with query params (`?scan_id=X`) produced duplicate `?` when `rest_route` was present, preventing `scan_id` from being parsed by PHP. Added robust fallback regex parsing on backend and query-safe URL formation in `apiRequest()`.
+      * Ensured all historical audit profiles and scan targets load seamlessly without restrictive target filter barriers.
+      * Dynamically updates the Profile badge (`Custom Audit`, `Plugins & Themes`, `Full WordPress Tree`).
+      * Added rich audit execution telemetry pills beside Profile: Scan Start Time (`Started:`), Scan End Time (`Ended:`), Duration, Peak RAM, Throughput, CPU Load, Total Files Audited (`Files:`), and Active Issues (`Threats:`).
+      * Added a quick "Latest" refresh button with spinning icon directly in the telemetry bar.
+  * Unique, Simple & Clean Executive Dashboard (Zero Scan Clutter on Dashboard) (`App.tsx`, `index.css`):
+    - Completely redesigned and streamlined the main Dashboard interface for non-technical WordPress site owners, bloggers, and store administrators, removing all scan launchers, radio options, and engine dropdowns from the dashboard page:
+      * **Executive Security Health Center**: Features a sleek visual health score gauge (`Grade A+`), friendly protection headline ("Your WordPress Website is Fully Protected" or "Action Required: Potential Security Risks Found"), and plain-English summaries replacing complex jargon like "reverse integrity anomalies" or "AST lexers".
+      * **4 Friendly Summary Cards**:
+        - "Viruses & Malware": Clear indicator of detected dangerous scripts, hacker backdoors, or trojans.
+        - "WordPress File Health": Reassuring checksum comparison ensuring core and plugin files match official authentic copies.
+        - "Plugin & Theme Safety": Human-readable overview of known extension vulnerabilities and recommended updates.
+        - "Firewall & Defenses": Real-time perimeter filtering, bot blocking, and brute-force defenses protecting the site.
+      * **Unique Executive Protection Suite**:
+        - **Automated Defense Shield**: Clean breakdown of active 24/7 background security layers (WAF, AES-256-GCM Credential Vault, 100% On-Premise Privacy, Scheduled Daily Auto-Audits, and Next Scheduled Check indicator).
+        - **Security Activity & Status**: Clean status snapshot tiles (Last Audit Completed timestamp, Active Alerts count, real-time protection timeline feed, and clean link to Open Scanner).
+      * **Clean Separation of Concerns**: All scan options, scan mode selectors (Quick / Complete / Custom), live progress bars, real-time HUD telemetry, and engine configuration controls are neatly isolated to the dedicated **Scan** workspace (`?page=wcp-scanner-scan`).
+      * **Friendly Sub-Tab Navigation**: Renamed technical sub-tabs to human-friendly labels: "Security Findings", "Attack Timeline", "Startup Scripts", "Safe Quarantine", "Audited Files", and "Allowed Files (Whitelist)".
 - Complete Settings Page Rebuild & Dedicated Model Context Protocol (MCP) Suite (`SettingsPage.tsx`, `App.tsx`):
   * Dedicated Model Context Protocol (MCP) Agentic Tab:
     - Extracted the external AI Agent Abilities surface out of the AI Forensics sub-view into its own dedicated, first-class top-level tab (`?page=wcp-scanner-settings&tab=mcp`).
@@ -86,15 +143,28 @@ v:1.18.0 - 2026-10-18
 - 3D Aesthetic First-Time Welcome Modal & Non-Technical Onboarding Rebuild (`WelcomeModal.tsx`, `App.tsx`, `AdminMenu.php`, `cubes.svg`):
   * Human-Friendly, Non-Technical Language Overhaul: Completely restructured the copy for non-technical website owners, removing intimidating jargon (CSPRNG, AEAD, GCM, 128-bit integrity tags, AST lexers) while communicating three unmistakable trust pillars in plain language:
     1. 🛡️ **Bank-Level Database Encryption:** Sensitive data (secret API keys, AI keys for Gemini/OpenAI/Claude, Discord/Slack webhooks, passwords, and security settings) is sealed with bank-level AES-256-GCM encryption. Added direct "Read How Database Encryption Works" button linking to the official blog guide (`https://webcarespro.com/blog/post/how-aes-256-gcm-vault-protects-wordpress-secrets`).
-    2. 🚫 **Zero Tracking or Data Collection:** We never spy, track, or send your website data, files, or customer info to any third-party clouds or external servers.
+    2. 🚫 **Zero Tracking or Data Collection:** Zero tracking, spying, or transmitting website data, files, or visitor info to any third-party clouds or external servers.
     3. 🏠 **100% In Your Web Space:** Everything stays safely right here on your own web hosting space under your complete control.
   * Dual-Panel 3D Server Shield & Isometric Showcase: Integrated the official 3D server rack shield logo (`webcare-original-logo-3d.jpg`) with volumetric ambient cyan neon glow, floating wireframe cubes (`cubes.svg`), verified sysadmin badge (`VERIFIED SENIOR SYSADMIN • 12+ YRS`), and credential tags (`#12PlusYearsExp`, `#SeniorSysadmin`, `#No Cloud Tracking`, `#100% On-Premise`).
   * Single-Column Extended Server Readiness Breakdown: Redesigned the "See Server Details" drawer into a clean, single-column inspection view with extended details: full capability descriptions, detected values, required and recommended runtime thresholds, category badges (Security, Runtime, Filesystem, Database, Performance), critical requirement flags, and actionable remedy boxes for warnings and failures. Replaced misleading red "Critical" alarm pill on passed items with a calm, informative "Required" badge (in soft cyan), reserving red "Critical Missing" exclusively for actual failures.
   * Real-Time Refresh Audit & Synchronization: Added live "Refresh" buttons to both the Welcome Modal server status badge and the extended compatibility drawer header (with animated spinner feedback), and enhanced the "Refresh Vaults" button in `WcpVaultPage.tsx` to automatically re-mount and reload active quarantine, database backup, and remediation records.
   * Direct 1-Click Action Hub: Features prominent "Start Using Scanner" and "Run My First Scan" action buttons, plus persistent "Pre-Flight Readiness" access in the dashboard header for on-demand review at any time.
-
-
-
+- False-Positive Whitelist & Finding Reopen Lifecycle Fix (`WhitelistManager.php`, `ScannerRoutes.php`, `App.tsx`):
+  * Automated Whitelist Rule Revocation on Reopen:
+    - Implemented `WhitelistManager::revoke_rules_for_target()` to automatically find, match, and revoke active false-positive suppressions and whitelist rules matching the target file path or finding identifier when an issue is reopened.
+    - Updated `ScannerRoutes::update_issue()` to invoke rule revocation upon setting status back to `open`, preventing the backend from immediately re-suppressing the reopened finding upon subsequent scan fetches.
+    - Fixed finding state mapping in `ScannerRoutes.php` to ensure `is_whitelisted` is strictly false unless an active whitelist rule matches.
+  * Instant Tab Synchronization & Visual State Update in Admin UI:
+    - Updated `handleUpdateIssue()` in `App.tsx` to immediately clear `is_whitelisted: false` and `whitelist_rule: null` alongside setting `status: 'open'` in local state and targeted scan results.
+    - Automatically switches the active finding filter (`issueStatusFilter`) to `open` ("Active") upon clicking "Reopen" so the restored finding is immediately visible without manual tab toggling.
+    - Dispatches a background refresh via `loadLatestScan()` to ensure synchronized risk scores and issue counts across the interface.
+- Dedicated "Scan" Tab in Main Navigation & Admin Menu (`wcp-wp-scanner.php`, `App.tsx`):
+  * Restored Dedicated "Scan" Workspace:
+    - Activated the dedicated "Scan" page (`admin.php?page=wcp-scanner-scan`) in the WordPress admin menu and top navigation tab bar (`Scan`).
+    - Removed the redirect from `wcp-scanner-scan` to `wcp-security-scanner`, providing a focused scanning cockpit for selecting scan modes, toggling custom engines, and watching real-time scans execute.
+    - Added a dedicated Scanner Hero Banner with live audit statistics, threat metrics, and direct engine configuration.
+    - Fully synchronized navigation routing across `NavTab`, `PAGE_TO_TAB`, `TAB_TO_PAGE`, and `handleGlobalRefresh()`.
+    - Added automated auto-switching to the Scan tab when starting a scan from anywhere in the application.
 
 
 

@@ -43,6 +43,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: Scan (Dedicated Security Scan Page)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Security Scan & Findings', 'wcp-security-scanner'),
+            __('Scan', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-scan',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Targeted Scans
         add_submenu_page(
             'wcp-security-scanner',
@@ -60,6 +70,16 @@ class AdminMenu {
             __('Scan Logs', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-logs',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Submenu: System Forensics & Deep Diagnostics
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
+            __('System Forensics', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-forensics',
             [__CLASS__, 'render_app_container']
         );
 
@@ -169,9 +189,11 @@ class AdminMenu {
     public static function enqueue_assets($hook) {
         $valid_hooks = [
             'toplevel_page_wcp-security-scanner',
+            'wcp-security-scanner_page_wcp-scanner-scan',
             'wcp-security-scanner_page_wcp-scanner-vault',
             'wcp-security-scanner_page_wcp-scanner-tools',
             'wcp-security-scanner_page_wcp-scanner-logs',
+            'wcp-security-scanner_page_wcp-scanner-forensics',
             'wcp-security-scanner_page_wcp-scanner-quarantine',
             'wcp-security-scanner_page_wcp-scanner-backup',
             'wcp-security-scanner_page_wcp-scanner-server',
@@ -181,9 +203,11 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-auth',
             'wcp-security-scanner_page_wcp-scanner-settings',
             'wcp-security-scanner_page_wcp-scanner-about',
+            'security-scanner_page_wcp-scanner-scan',
             'security-scanner_page_wcp-scanner-vault',
             'security-scanner_page_wcp-scanner-tools',
             'security-scanner_page_wcp-scanner-logs',
+            'security-scanner_page_wcp-scanner-forensics',
             'security-scanner_page_wcp-scanner-quarantine',
             'security-scanner_page_wcp-scanner-backup',
             'security-scanner_page_wcp-scanner-server',
@@ -205,9 +229,11 @@ class AdminMenu {
         }
 
         $active_tab = 'dashboard';
-        if ($current_page === 'wcp-scanner-vault') $active_tab = 'vault';
+        if ($current_page === 'wcp-scanner-scan') $active_tab = 'scan';
+        elseif ($current_page === 'wcp-scanner-vault') $active_tab = 'vault';
         elseif ($current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
         elseif ($current_page === 'wcp-scanner-logs') $active_tab = 'logs';
+        elseif ($current_page === 'wcp-scanner-forensics') $active_tab = 'forensics';
         elseif ($current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
         elseif ($current_page === 'wcp-scanner-backup') $active_tab = 'backup';
         elseif ($current_page === 'wcp-scanner-server') $active_tab = 'server';

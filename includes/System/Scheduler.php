@@ -251,7 +251,7 @@ class Scheduler {
                      'code_snippet' => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($f['code_snippet'] ?? null),
                      'evidence'     => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($f['evidence'] ?? null),
                      'description'  => $f['description'] ?? '',
-                     'status'       => 'open',
+                     'status'       => (class_exists('\\WcpScanner\\Findings\\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::match_finding($f) !== null) ? 'ignored' : 'open',
                      'created_at'   => current_time('mysql'),
                  ]);
              }
@@ -267,15 +267,19 @@ class Scheduler {
                  $scan_id
              ), ARRAY_A) ?: [];
 
+             $open_issues = array_filter($all_scan_issues, function($issue) {
+                 return ($issue['status'] ?? 'open') === 'open';
+             });
+
              $scorer = new \WcpScanner\Findings\RiskScorer();
-             $risk_summary = $scorer->calculate($all_scan_issues);
+             $risk_summary = $scorer->calculate($open_issues);
              $risk_score = (int) ($risk_summary['score'] ?? 0);
-             $total_issues = count($all_scan_issues);
+             $open_issues_count = count($open_issues);
 
              $wpdb->update($table_scans, [
                  'status'        => 'completed',
                  'scanned_files' => $scanned_count,
-                 'issues_found'  => $total_issues,
+                 'issues_found'  => $open_issues_count,
                  'risk_score'    => $risk_score,
                  'duration'      => $duration,
                  'duration_ms'   => $duration_ms,
@@ -288,7 +292,7 @@ class Scheduler {
              delete_transient("wcpscan_scan_start_micro_{$scan_id}");
 
              // 5. Send Alerts & Notifications
-             self::send_scan_notification($scan_id, $total_issues, $risk_score, $target);
+             self::send_scan_notification($scan_id, $open_issues_count, $risk_score, $target);
 
          } catch (\Throwable $e) {
              \WcpScanner\Scan\ScanLock::release($scan_id);

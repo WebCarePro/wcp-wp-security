@@ -118,6 +118,11 @@ class WhitelistManager {
             $target_hash = sanitize_text_field($data['file_hash']);
         }
 
+        // If rule_type was requested as 'file_hash' but no physical file hash could be calculated (e.g. virtual user, comment, cron, db, or virtual target), automatically fall back to 'file_path'
+        if ($rule_type === 'file_hash' && empty($target_hash)) {
+            $rule_type = !empty($target_path) ? 'file_path' : 'issue_type';
+        }
+
         $now = time();
         $expires_at = null;
         if ($duration === '30_days') {
@@ -205,6 +210,54 @@ class WhitelistManager {
     }
 
     /**
+     * Revoke any active whitelist / ignore rules for a target file path or finding.
+     *
+     * @param string $file_path
+     * @param string $issue_type
+     * @return int Number of rules revoked
+     */
+    public static function revoke_rules_for_target(string $file_path, string $issue_type = ''): int {
+        $rules = get_option(self::OPTION_KEY, []);
+        if (!is_array($rules) || empty($rules)) {
+            return 0;
+        }
+
+        $norm_target = wp_normalize_path($file_path);
+        $revoked_count = 0;
+        $updated = [];
+
+        foreach ($rules as $rule) {
+            $rule_norm = wp_normalize_path($rule['target_path'] ?? '');
+            
+            // Check path match (exact, relative, or ends-with match)
+            $is_path_match = false;
+            if (!empty($norm_target) && !empty($rule_norm)) {
+                $is_path_match = (
+                    $norm_target === $rule_norm ||
+                    str_ends_with($norm_target, '/' . ltrim($rule_norm, '/')) ||
+                    str_ends_with($rule_norm, '/' . ltrim($norm_target, '/')) ||
+                    str_ends_with($norm_target, ltrim($rule_norm, '/')) ||
+                    str_ends_with($rule_norm, ltrim($norm_target, '/'))
+                );
+            }
+
+            $is_type_match = empty($issue_type) || empty($rule['issue_type']) || $rule['issue_type'] === '*' || $rule['issue_type'] === $issue_type;
+
+            if ($is_path_match && $is_type_match) {
+                $revoked_count++;
+                continue; // Revoke and remove rule
+            }
+            $updated[] = $rule;
+        }
+
+        if ($revoked_count > 0) {
+            update_option(self::OPTION_KEY, $updated, false);
+        }
+
+        return $revoked_count;
+    }
+
+    /**
      * Test whether a specific finding matches an active whitelist rule.
      *
      * @param array $finding
@@ -239,23 +292,70 @@ class WhitelistManager {
                 continue;
             }
 
-            // Rule Type: SHA-256 Hash Lock (Strongest Security)
-            // If the file was whitelisted by hash, but an attacker subsequently modified it, hash check fails!
-            if ($rule['rule_type'] === 'file_hash') {
-                if (!empty($rule['file_hash']) && !empty($current_hash) && hash_equals($rule['file_hash'], $current_hash)) {
+            // 1. Rule Type: SHA-256 Hash Lock (Strongest Security for physical files with hash)
+            if ($rule['rule_type'] === 'file_hash' && !empty($rule['file_hash'])) {
+                if (!empty($current_hash) && hash_equals($rule['file_hash'], $current_hash)) {
                     return $rule;
                 }
+                // If a physical file was modified after whitelisting, the hash lock breaks
+                continue;
             }
 
-            // Rule Type: Exact File Path
-            if ($rule['rule_type'] === 'file_path') {
+            // 2. Rule Type: File Path, Virtual Target, or legacy file_hash without hash
+            if ($rule['rule_type'] === 'file_path' || empty($rule['rule_type']) || ($rule['rule_type'] === 'file_hash' && empty($rule['file_hash']))) {
                 $rule_path = wp_normalize_path($rule['target_path'] ?? '');
-                if (!empty($rule_path) && !empty($path) && ($rule_path === $path || str_ends_with($path, '/' . ltrim($rule_path, '/')))) {
-                    return $rule;
+                if (!empty($rule_path) && !empty($path)) {
+                    $norm_p1 = strtolower(trim($path));
+                    $norm_p2 = strtolower(trim($rule_path));
+
+                    // Exact match
+                    if ($norm_p1 === $norm_p2) {
+                        return $rule;
+                    }
+
+                    // Suffix / Relative path matching (e.g. /var/www/html/wp-content/... vs wp-content/...)
+                    if (str_ends_with($norm_p1, '/' . ltrim($norm_p2, '/')) || str_ends_with($norm_p2, '/' . ltrim($norm_p1, '/'))) {
+                        return $rule;
+                    }
+                    if (str_ends_with($norm_p1, ltrim($norm_p2, '/')) || str_ends_with($norm_p2, ltrim($norm_p1, '/'))) {
+                        return $rule;
+                    }
+
+                    // Virtual user targets (e.g. "user:1 (localwp)" vs "user:1")
+                    if (strpos($norm_p1, 'user:') === 0 && strpos($norm_p2, 'user:') === 0) {
+                        if (preg_match('/user:(\d+)/', $norm_p1, $m1) && preg_match('/user:(\d+)/', $norm_p2, $m2)) {
+                            if ($m1[1] === $m2[1]) {
+                                return $rule;
+                            }
+                        }
+                    }
+
+                    // Virtual comment targets (e.g. "comment:123" vs "comment:123 (author)")
+                    if (strpos($norm_p1, 'comment:') === 0 && strpos($norm_p2, 'comment:') === 0) {
+                        if (preg_match('/comment:(\d+)/', $norm_p1, $m1) && preg_match('/comment:(\d+)/', $norm_p2, $m2)) {
+                            if ($m1[1] === $m2[1]) {
+                                return $rule;
+                            }
+                        }
+                    }
+
+                    // Virtual cron hook targets (e.g. "cron:wcp_scheduled_scan")
+                    if (strpos($norm_p1, 'cron:') === 0 && strpos($norm_p2, 'cron:') === 0) {
+                        if (explode(' ', $norm_p1)[0] === explode(' ', $norm_p2)[0]) {
+                            return $rule;
+                        }
+                    }
+
+                    // Virtual database options / tables
+                    if (strpos($norm_p1, 'wp_options:') === 0 && strpos($norm_p2, 'wp_options:') === 0) {
+                        if (explode(' ', $norm_p1)[0] === explode(' ', $norm_p2)[0]) {
+                            return $rule;
+                        }
+                    }
                 }
             }
 
-            // Rule Type: Issue Type Global
+            // 3. Rule Type: Issue Type Global
             if ($rule['rule_type'] === 'issue_type') {
                 if (!empty($rule['issue_type']) && $rule['issue_type'] === $issue_type) {
                     return $rule;

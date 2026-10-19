@@ -10,11 +10,14 @@ class QuarantineManager {
     private $quarantine_dir;
 
     public function __construct() {
+        $this->quarantine_dir = self::get_quarantine_dir();
+        $this->ensure_quarantine_directory();
+    }
+
+    public static function get_quarantine_dir(): string {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        // Primary vault: Protected dot-prefixed vault blocked by Nginx /\.(?!well-known).* rules
-        $this->quarantine_dir = $base . '/wcp-security-scanner/.vault';
-        $this->ensure_quarantine_directory();
+        return $base . '/wcp-security-scanner/.vault';
     }
 
     /**

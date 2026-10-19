@@ -28,6 +28,19 @@ class ContentScanner {
      * @return Finding[]
      */
     public function scan($scan_id, $batch_size = 100) {
+        $findings = $this->scan_posts_only($scan_id, $batch_size);
+        $comment_findings = $this->scan_comments_only($scan_id, $batch_size);
+        return array_merge($findings, $comment_findings);
+    }
+
+    /**
+     * Scan posts and pages only.
+     *
+     * @param string $scan_id
+     * @param int $batch_size
+     * @return Finding[]
+     */
+    public function scan_posts_only($scan_id, $batch_size = 100) {
         global $wpdb;
         $findings = [];
         $monitor = new ResourceMonitor(80, 20);
@@ -118,11 +131,18 @@ class ContentScanner {
             }
         }
 
-        // 2. Scan Comments (Delegated to dedicated CommentScanner)
-        $comment_scanner = new CommentScanner();
-        $comment_findings = $comment_scanner->scan($scan_id, $batch_size);
-        $findings = array_merge($findings, $comment_findings);
-
         return $findings;
+    }
+
+    /**
+     * Scan user comments only.
+     *
+     * @param string $scan_id
+     * @param int $batch_size
+     * @return Finding[]
+     */
+    public function scan_comments_only($scan_id, $batch_size = 100) {
+        $comment_scanner = new CommentScanner();
+        return $comment_scanner->scan($scan_id, $batch_size);
     }
 }

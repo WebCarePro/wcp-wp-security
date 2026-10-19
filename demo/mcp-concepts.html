@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WCP Security Suite - MCP Integration 3 Design Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* -------------------------------------------------------------
+       GLOBAL CSS RESET & TOKENS
+       ------------------------------------------------------------- */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-display: 'Outfit', var(--font-sans);
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Dark Theme (Default) */
+      --bg-canvas: #070a12;
+      --bg-panel: #0d1322;
+      --bg-surface: #131b2e;
+      --bg-surface-hover: #19233c;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.3);
+      --border-accent: rgba(99, 102, 241, 0.4);
+
+      --primary: #3b82f6;
+      --primary-cyan: #06b6d4;
+      --primary-indigo: #6366f1;
+      --primary-purple: #8b5cf6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --code-bg: #090e1a;
+
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      --shadow-glow: 0 0 25px rgba(6, 182, 212, 0.15);
+    }
+
+    body.light-mode {
+      --bg-canvas: #f4f6fa;
+      --bg-panel: #ffffff;
+      --bg-surface: #f8fafc;
+      --bg-surface-hover: #f1f5f9;
+      --border-subtle: #cbd5e1;
+      --border-glow: rgba(2, 132, 199, 0.4);
+      --border-accent: rgba(37, 99, 235, 0.25);
+
+      --text-main: #0f172a;
+      --text-muted: #334155;
+      --text-dim: #475569;
+      --code-bg: #090e1a;
+
+      --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.05);
+      --shadow-glow: 0 0 20px rgba(2, 132, 199, 0.1);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* -------------------------------------------------------------
+       TOP CONTROLLER BAR
+       ------------------------------------------------------------- */
+    .concept-top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13, 19, 34, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    body.light-mode .concept-top-bar {
+      background: rgba(255, 255, 255, 0.9);
+      border-bottom-color: #e2e8f0;
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon-shield {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(6, 182, 212, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    /* Concept Selector Tabs */
+    .concept-nav-pills {
+      display: flex;
+      align-items: center;
+      background: var(--bg-surface);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border-subtle);
+      gap: 4px;
+    }
+    .concept-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .concept-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .concept-btn.active {
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .theme-toggle-btn {
+      padding: 8px 14px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--border-glow);
+    }
+
+    /* -------------------------------------------------------------
+       CONTAINER WRAPPER
+       ------------------------------------------------------------- */
+    .concepts-container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+      width: 100%;
+    }
+
+    .concept-section {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .concept-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .concept-pitch-banner {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+      border: 1px solid var(--border-accent);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .concept-pitch-info h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      font-family: var(--font-display);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .concept-pitch-info p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .concept-number-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #3b82f6;
+      color: white;
+      font-weight: 700;
+    }
+
+    /* Shared Common UI Elements */
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      display: inline-block;
+      animation: pulseGlow 2s infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .btn-handshake {
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+      transition: all 0.2s;
+    }
+    .btn-handshake:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+    }
+
+    .btn-copy-tool {
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--bg-surface-hover);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-copy-tool:hover {
+      border-color: var(--border-glow);
+      color: #38bdf8;
+    }
+
+    /* =============================================================
+       CONCEPT 1: VISUAL AGENT STUDIO & PIPELINE FLOW
+       ============================================================= */
+    .c1-pipeline-hero {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 24px 28px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .c1-pipeline-hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.6), transparent);
+    }
+
+    /* Interactive Pipeline Graph */
+    .c1-nodes-track {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      padding: 20px 10px;
+      margin: 12px 0 20px;
+    }
+    .c1-wire-svg {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      transform: translateY(-50%);
+      z-index: 1;
+      pointer-events: none;
+    }
+    .c1-wire-line {
+      stroke: var(--border-subtle);
+      stroke-width: 2;
+      stroke-dasharray: 6 6;
+      animation: wireDash 20s linear infinite;
+    }
+    @keyframes wireDash {
+      to { stroke-dashoffset: -100; }
+    }
+
+    .c1-node {
+      position: relative;
+      z-index: 2;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      min-width: 240px;
+    }
+    .c1-node:hover, .c1-node.active-node {
+      border-color: #38bdf8;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.2);
+      transform: translateY(-2px);
+    }
+    .c1-node-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(56, 189, 248, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #38bdf8;
+      font-size: 20px;
+    }
+    .c1-node-meta h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .c1-node-meta span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* 2-Column Studio Layout */
+    .c1-studio-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 1024px) {
+      .c1-studio-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Left Control Tower */
+    .c1-control-tower {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .c1-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+    }
+    .c1-card-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .c1-policy-toggle-box {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .c1-policy-option {
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: var(--bg-surface);
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+    .c1-policy-option:hover {
+      border-color: var(--border-glow);
+    }
+    .c1-policy-option.selected {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.15);
+    }
+    .c1-policy-option strong {
+      color: var(--text-main);
+      display: block;
+      font-size: 13px;
+    }
+    .c1-policy-option p {
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .c1-policy-option.selected strong {
+      color: #38bdf8;
+    }
+    .c1-policy-radio {
+      margin-top: 3px;
+      accent-color: #38bdf8;
+    }
+
+    /* Dial / Rate Limit Bar */
+    .c1-rate-slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .c1-rate-pills {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .c1-rate-btn {
+      padding: 8px 4px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .c1-rate-btn.active {
+      background: #0284c7;
+      color: white;
+      border-color: #38bdf8;
+    }
+
+    /* Right Studio Workspace: Clean Tools Matrix & Sandbox */
+    .c1-workspace {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .c1-tools-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .c1-tool-tabs {
+      display: flex;
+      gap: 4px;
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      padding: 3px;
+      border-radius: 9px;
+      align-items: center;
+    }
+    .c1-tab-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .c1-tab-btn:hover {
+      color: #f8fafc;
+    }
+    .c1-tab-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #0284c7;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+    }
+
+    .c1-tools-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .c1-tool-row {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+    .c1-tool-row:hover {
+      border-color: rgba(56, 189, 248, 0.35);
+      background: var(--bg-surface);
+      transform: translateX(4px);
+    }
+    .c1-tool-main {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .c1-tool-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-read {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-mutate {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .c1-tool-name {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .c1-tool-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Client Setup Carousel in C1 */
+    .c1-clients-accordion {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .code-terminal-view {
+      background: #090e1a !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: #38bdf8 !important;
+      overflow-x: auto;
+      margin-top: 10px;
+      position: relative;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+    }
+    body.light-mode .code-terminal-view {
+      background: #090e1a !important;
+      border: 1px solid #1e293b !important;
+      color: #38bdf8 !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    .c1-input-field {
+      flex: 1;
+      background: var(--code-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #38bdf8;
+      transition: all 0.2s;
+    }
+    body.light-mode .c1-input-field {
+      background: #ffffff !important;
+      border: 1.5px solid #cbd5e1 !important;
+      color: #0369a1 !important;
+      font-weight: 600 !important;
+    }
+    body.light-mode input[type="password"].c1-input-field {
+      color: #0f172a !important;
+    }
+
+    /* Light Mode Overrides for Concept 1 Elements */
+    body.light-mode .c1-card-title {
+      color: #1e293b !important;
+      font-weight: 800 !important;
+    }
+    body.light-mode label {
+      color: #334155 !important;
+      font-weight: 700 !important;
+    }
+    body.light-mode .c1-policy-option {
+      background: #f8fafc !important;
+      border: 1.5px solid #cbd5e1 !important;
+    }
+    body.light-mode .c1-policy-option strong {
+      color: #0f172a !important;
+    }
+    body.light-mode .c1-policy-option p {
+      color: #334155 !important;
+    }
+    body.light-mode .c1-policy-option.selected {
+      background: #eff6ff !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12) !important;
+    }
+    body.light-mode .c1-policy-option.selected strong {
+      color: #0369a1 !important;
+    }
+    body.light-mode .c1-rate-btn {
+      background: #ffffff !important;
+      border: 1.5px solid #cbd5e1 !important;
+      color: #334155 !important;
+      font-weight: 700 !important;
+    }
+    body.light-mode .c1-rate-btn:hover {
+      border-color: #0284c7 !important;
+      color: #0284c7 !important;
+    }
+    body.light-mode .c1-rate-btn.active {
+      background: #0284c7 !important;
+      color: #ffffff !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25) !important;
+    }
+    body.light-mode .btn-copy-tool {
+      background: #f8fafc !important;
+      border: 1px solid #cbd5e1 !important;
+      color: #0f172a !important;
+      font-weight: 600 !important;
+    }
+    body.light-mode .btn-copy-tool:hover {
+      background: #f1f5f9 !important;
+      border-color: #0284c7 !important;
+      color: #0284c7 !important;
+    }
+    body.light-mode .c1-tool-tabs {
+      background: #f1f5f9 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    body.light-mode .c1-tab-btn {
+      background: transparent !important;
+      border: 1px solid transparent !important;
+      color: #475569 !important;
+      font-weight: 600 !important;
+    }
+    body.light-mode .c1-tab-btn:hover {
+      background: rgba(255, 255, 255, 0.6) !important;
+      color: #0f172a !important;
+    }
+    body.light-mode .c1-tab-btn.active {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      color: #0284c7 !important;
+      font-weight: 700 !important;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08) !important;
+    }
+    body.light-mode .c1-audit-card {
+      background: #ffffff !important;
+      border: 1.5px solid #cbd5e1 !important;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04) !important;
+    }
+    .c1-audit-card {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 20px 24px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+    body.light-mode .c1-tool-row {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+    }
+    body.light-mode .c1-tool-row:hover {
+      background: #f8fafc !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.08) !important;
+    }
+    body.light-mode .c1-tool-name {
+      color: #0f172a !important;
+      font-weight: 700 !important;
+    }
+    body.light-mode .c1-tool-desc {
+      color: #334155 !important;
+    }
+    body.light-mode .badge-read {
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      border: 1px solid #a7f3d0 !important;
+      font-weight: 700 !important;
+    }
+    body.light-mode .badge-mutate {
+      background: #fffbeb !important;
+      color: #b45309 !important;
+      border: 1px solid #fde68a !important;
+      font-weight: 700 !important;
+    }
+    body.light-mode .c1-pipeline-hero {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    }
+    body.light-mode .c1-node {
+      background: #f8fafc !important;
+      border: 1.5px solid #cbd5e1 !important;
+    }
+    body.light-mode .c1-node:hover,
+    body.light-mode .c1-node.active-node {
+      background: #ffffff !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 4px 16px rgba(2, 132, 199, 0.12) !important;
+    }
+    body.light-mode .c1-node-meta h4 {
+      color: #0f172a !important;
+      font-weight: 700 !important;
+    }
+    body.light-mode .c1-node-meta span {
+      color: #475569 !important;
+      font-weight: 500 !important;
+    }
+    body.light-mode .c1-wire-line {
+      stroke: #94a3b8 !important;
+    }
+    body.light-mode .c1-card {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+    }
+    body.light-mode .c1-clients-accordion {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+    }
+    body.light-mode .c1-pipeline-status {
+      background: #ecfdf5 !important;
+      border: 1px solid #a7f3d0 !important;
+      color: #047857 !important;
+      font-weight: 700 !important;
+    }
+
+
+    /* =============================================================
+       CONCEPT 2: EXECUTIVE BENTO GLASS MATRIX (Apple / Vercel Pro)
+       ============================================================= */
+    .c2-bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+
+    .bento-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+    }
+    .bento-card:hover {
+      border-color: rgba(99, 102, 241, 0.35);
+      transform: translateY(-2px);
+    }
+
+    /* Bento 1: Master Spotlight (8 cols) */
+    .bento-master {
+      grid-column: span 8;
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    @media (max-width: 1024px) {
+      .bento-master { grid-column: span 12; }
+    }
+    .bento-badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      width: fit-content;
+      margin-bottom: 14px;
+    }
+    .bento-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    body.light-mode .bento-title {
+      background: linear-gradient(135deg, #0f172a 30%, #475569 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .bento-subtext {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin-bottom: 20px;
+    }
+
+    /* Unified Credentials Bar */
+    .bento-credentials-pillbar {
+      display: flex;
+      align-items: center;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 6px 14px;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .bento-cred-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .bento-cred-val {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #38bdf8;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Bento 2: Security & Rate Shield (4 cols) */
+    .bento-shield {
+      grid-column: span 4;
+      background: var(--bg-panel);
+    }
+    @media (max-width: 1024px) {
+      .bento-shield { grid-column: span 12; }
+    }
+    .bento-circular-stat {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: var(--bg-surface);
+      border-radius: 14px;
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 12px;
+    }
+    .bento-stat-num {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    /* Bento 3: 3 Client Pairing Cards (3x 4 cols) */
+    .bento-client {
+      grid-column: span 4;
+      padding: 20px;
+      background: var(--bg-panel);
+      cursor: pointer;
+    }
+    @media (max-width: 900px) {
+      .bento-client { grid-column: span 12; }
+    }
+    .bento-client-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .bento-client-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+    }
+    .icon-claude { background: rgba(217, 119, 6, 0.15); color: #f59e0b; }
+    .icon-antigravity { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
+    .icon-cursor { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+
+    /* Bento 4: Tools Matrix Grid (12 cols) */
+    .bento-tools {
+      grid-column: span 12;
+      background: var(--bg-panel);
+    }
+    .bento-tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .bento-tool-tile {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+    .bento-tool-tile:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: var(--bg-surface-hover);
+    }
+
+
+    /* =============================================================
+       CONCEPT 3: DEVOPS TERMINAL HUD & TEST PLAYGROUND
+       ============================================================= */
+    .c3-hud-bar {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      color: #94a3b8;
+    }
+    .c3-hud-stats {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .c3-hud-stat b {
+      color: #38bdf8;
+    }
+
+    .c3-terminal-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 1024px) {
+      .c3-terminal-split { grid-template-columns: 1fr; }
+    }
+
+    .c3-terminal-window {
+      background: #050811;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+    .c3-terminal-header {
+      background: #0b1120;
+      border-bottom: 1px solid #1e293b;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .c3-traffic-lights {
+      display: flex;
+      gap: 6px;
+    }
+    .c3-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .c3-terminal-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .c3-terminal-body {
+      padding: 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      flex: 1;
+    }
+
+    .c3-cmd-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      color: #f8fafc;
+    }
+    .c3-prompt {
+      color: #10b981;
+      font-weight: 700;
+    }
+
+    /* Live Interactive Sandbox Runner */
+    .c3-sandbox-runner {
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 14px;
+    }
+    .c3-runner-select {
+      background: #020617;
+      border: 1px solid #334155;
+      color: #38bdf8;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+    .c3-execute-btn {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      border: none;
+      border-radius: 8px;
+      color: #020617;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .c3-execute-btn:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .c3-output-box {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 11px;
+      color: #34d399;
+      max-height: 180px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    /* -------------------------------------------------------------
+       BOTTOM FEEDBACK & DIRECT SELECTION BAR
+       ------------------------------------------------------------- */
+    .concept-footer-deck {
+      margin-top: 40px;
+      padding: 24px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .concept-footer-deck h4 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .concept-footer-deck p {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 650px;
+    }
+  </style>
+</head>
+<body class="dark-mode">
+
+  <!-- TOP CONCEPT CONTROLLER BAR -->
+  <header class="concept-top-bar">
+    <div class="brand-cluster">
+      <div class="brand-icon-shield">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div>
+        <div class="brand-title">
+          WCP Security MCP Studio
+          <span class="brand-tag">3 New Design Directions</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 Concepts Switcher Pills -->
+    <div class="concept-nav-pills">
+      <button class="concept-btn active" onclick="switchConcept(1)">
+        <span>1. Interactive Pipeline & Studio</span>
+      </button>
+      <button class="concept-btn" onclick="switchConcept(2)">
+        <span>2. Executive Glass Bento Grid</span>
+      </button>
+      <button class="concept-btn" onclick="switchConcept(3)">
+        <span>3. DevOps Terminal HUD & Sandbox</span>
+      </button>
+    </div>
+
+    <div class="top-actions">
+      <button class="theme-toggle-btn" onclick="toggleTheme()">
+        <span id="theme-icon">☀️</span> <span id="theme-label">Light Mode</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WRAPPER -->
+  <main class="concepts-container">
+
+    <!-- =========================================================
+         CONCEPT 1: VISUAL AGENT STUDIO & PIPELINE FLOW
+         ========================================================= -->
+    <section id="concept-1" class="concept-section active">
+      <div class="concept-pitch-banner">
+        <div class="concept-pitch-info">
+          <h3>
+            <span class="concept-number-badge">CONCEPT 1</span>
+            Interactive Agent Pipeline & Visual Studio
+          </h3>
+          <p>
+            Replaces the wall of dark boxes with an interactive 3-stage visual pipeline graph connecting AI clients to WordPress, paired with a dedicated left-hand security control tower and expansive capability studio.
+          </p>
+        </div>
+        <button class="btn-handshake" onclick="simulatePing(1)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span id="ping-text-1">Verify Pipeline Handshake</span>
+        </button>
+      </div>
+
+      <!-- Hero Pipeline Node Canvas -->
+      <div class="c1-pipeline-hero">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.05em;">AI Architecture Visualizer</span>
+            <h2 style="font-size:22px; font-weight:800; font-family:var(--font-display); margin-top:2px;">Autonomous SecOps Gateway Pipeline</h2>
+          <div class="c1-pipeline-status" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:9999px; font-size:12px; font-weight:600;">
+            <span class="pulse-dot"></span> Pipeline Ready • 14ms Latency
+          </div>
+        </div>
+
+        <!-- Visual 3-Node Connected Flow -->
+        <div class="c1-nodes-track">
+          <svg class="c1-wire-svg" viewBox="0 0 1000 4">
+            <line class="c1-wire-line" x1="0" y1="2" x2="1000" y2="2" />
+          </svg>
+
+          <!-- Node 1: AI Clients -->
+          <div class="c1-node active-node" onclick="selectNode(1)">
+            <div class="c1-node-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <div class="c1-node-meta">
+              <h4>1. External AI Clients</h4>
+              <span>Claude Desktop • Antigravity • Cursor</span>
+            </div>
+          </div>
+
+          <!-- Node 2: WCP Gateway -->
+          <div class="c1-node active-node" onclick="selectNode(2)" style="border-color:#38bdf8;">
+            <div class="c1-node-icon" style="background:rgba(59,130,246,0.15); color:#3b82f6;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="c1-node-meta">
+              <h4>2. WCP Security Gateway</h4>
+              <span>AES-256 Auth Guard • Rate Limiter</span>
+            </div>
+          </div>
+
+          <!-- Node 3: WordPress Core -->
+          <div class="c1-node" onclick="selectNode(3)">
+            <div class="c1-node-icon" style="background:rgba(16,185,129,0.15); color:#10b981;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="c1-node-meta">
+              <h4>3. WordPress Kernel</h4>
+              <span>7 Tools • Quarantine • Rollback</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Studio 2-Column Split -->
+      <div class="c1-studio-grid">
+        <!-- Left Column: Security Control Tower -->
+        <div class="c1-control-tower">
+          <!-- Gateway Credentials -->
+          <div class="c1-card">
+            <div class="c1-card-title">
+              <span>Security Credentials</span>
+              <button class="btn-copy-tool" onclick="alert('Token Regenerated!')">Rotate Key</button>
+            </div>
+            
+            <div style="margin-bottom:14px;">
+              <label style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Execution Gateway URL</label>
+              <div style="display:flex; gap:6px; margin-top:4px;">
+                <input type="text" readonly value="http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute" class="c1-input-field" />
+                <button class="btn-copy-tool" onclick="navigator.clipboard.writeText('http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute'); alert('Copied URL!')">Copy</button>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Bearer Secret Token</label>
+              <div style="display:flex; gap:6px; margin-top:4px;">
+                <input type="password" id="c1-token-input" readonly value="wcp_sec_9f81a7b03e484c6c9a2d847" class="c1-input-field" />
+                <button class="btn-copy-tool" onclick="toggleTokenView('c1-token-input')">Show</button>
+                <button class="btn-copy-tool" onclick="navigator.clipboard.writeText('wcp_sec_9f81a7b03e484c6c9a2d847'); alert('Copied Token!')">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Policy & Safety Boundary -->
+          <div class="c1-card">
+            <div class="c1-card-title">
+              <span>Permission Guardrail</span>
+              <span style="font-size:11px; color:#38bdf8;">Granular Safety</span>
+            </div>
+
+            <div class="c1-policy-toggle-box">
+              <label class="c1-policy-option selected" onclick="selectPolicyOption(this)">
+                <input type="radio" name="c1_policy" checked class="c1-policy-radio" />
+                <div>
+                  <strong style="font-size:13px; color:var(--text-main);">Observation Mode (Safe)</strong>
+                  <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">AI agents can only inspect security telemetry and audit reports. File edits or deletes are strictly rejected.</p>
+                </div>
+              </label>
+
+              <label class="c1-policy-option" onclick="selectPolicyOption(this)">
+                <input type="radio" name="c1_policy" class="c1-policy-radio" />
+                <div>
+                  <strong style="font-size:13px; color:var(--text-main);">Full Autonomous Remediation</strong>
+                  <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">Authorized for surgical quarantine, automated rollback, and whitelist suppression.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Rate Limiter Card -->
+          <div class="c1-card">
+            <div class="c1-card-title">
+              <span>Sliding Rate Limit</span>
+              <span style="font-size:11px; color:#10b981;">Active Protection</span>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Prevents infinite agent reasoning loops from overloading WordPress.</p>
+            <div class="c1-rate-pills">
+              <button class="c1-rate-btn active" onclick="setRate(this)">30/min</button>
+              <button class="c1-rate-btn" onclick="setRate(this)">60/min</button>
+              <button class="c1-rate-btn" onclick="setRate(this)">120/min</button>
+              <button class="c1-rate-btn" onclick="setRate(this)">300/min</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive Capabilities Studio -->
+        <div class="c1-workspace">
+          <!-- Client Quick Connect Hub -->
+          <div class="c1-clients-accordion">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <div>
+                <h4 style="font-size:15px; font-weight:700;">1-Click AI Client Setup Stanzas</h4>
+                <p style="font-size:12px; color:var(--text-muted);">Paste into your environment's configuration file.</p>
+              </div>
+              <div class="c1-tool-tabs">
+                <button class="c1-tab-btn active" onclick="switchClientTab('claude')">Claude Desktop</button>
+                <button class="c1-tab-btn" onclick="switchClientTab('antigravity')">Antigravity</button>
+                <button class="c1-tab-btn" onclick="switchClientTab('cursor')">Cursor IDE</button>
+                <button class="c1-tab-btn" onclick="switchClientTab('curl')">cURL</button>
+              </div>
+            </div>
+
+            <div class="code-terminal-view" id="c1-code-block">
+{
+  "mcpServers": {
+    "webcare-security": {
+      "url": "http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute",
+      "headers": {
+        "Authorization": "Bearer wcp_sec_9f81a7b03e484c6c9a2d847"
+      }
+    }
+  }
+}
+            </div>
+          </div>
+
+          <!-- Exposed Security Tools Catalog -->
+          <div class="c1-card">
+            <div class="c1-tools-header">
+              <div>
+                <h4 style="font-size:15px; font-weight:700;">Exposed Agent Security Tools (7 Loaded)</h4>
+                <p style="font-size:12px; color:var(--text-muted);">Standardized capabilities callable by external LLMs</p>
+              </div>
+              <div class="c1-tool-tabs">
+                <button class="c1-tab-btn active" onclick="filterTools('all')">All (7)</button>
+                <button class="c1-tab-btn" onclick="filterTools('read')">Read-Only (3)</button>
+                <button class="c1-tab-btn" onclick="filterTools('mutate')">Remediation (4)</button>
+              </div>
+            </div>
+
+            <div class="c1-tools-list">
+              <!-- Tool 1 -->
+              <div class="c1-tool-row">
+                <div class="c1-tool-main">
+                  <span class="c1-tool-badge badge-read">Read-Only</span>
+                  <div>
+                    <div class="c1-tool-name">wcpscan_get_security_posture</div>
+                    <div class="c1-tool-desc">Retrieves overall health grade, active malware indicators, and firewall posture.</div>
+                  </div>
+                </div>
+                <button class="btn-copy-tool" onclick="alert('Params: None required')">Inspect Schema</button>
+              </div>
+
+              <!-- Tool 2 -->
+              <div class="c1-tool-row">
+                <div class="c1-tool-main">
+                  <span class="c1-tool-badge badge-read">Read-Only</span>
+                  <div>
+                    <div class="c1-tool-name">wcpscan_list_findings</div>
+                    <div class="c1-tool-desc">Returns structured JSON of active threats, CVE advisories, and file integrity flags.</div>
+                  </div>
+                </div>
+                <button class="btn-copy-tool" onclick="alert('Params: severity, status, limit')">Inspect Schema</button>
+              </div>
+
+              <!-- Tool 3 -->
+              <div class="c1-tool-row">
+                <div class="c1-tool-main">
+                  <span class="c1-tool-badge badge-mutate">Mutating</span>
+                  <div>
+                    <div class="c1-tool-name">wcpscan_quarantine_file</div>
+                    <div class="c1-tool-desc">Safely moves infected script into encrypted quarantine vault with atomic rollback point.</div>
+                  </div>
+                </div>
+                <button class="btn-copy-tool" onclick="alert('Params: file_path, issue_id')">Inspect Schema</button>
+              </div>
+
+              <!-- Tool 4 -->
+              <div class="c1-tool-row">
+                <div class="c1-tool-main">
+                  <span class="c1-tool-badge badge-mutate">Mutating</span>
+                  <div>
+                    <div class="c1-tool-name">wcpscan_rollback_remediation</div>
+                    <div class="c1-tool-desc">Instantly restores prior file states or unblocks accidental false positives.</div>
+                  </div>
+                </div>
+                <button class="btn-copy-tool" onclick="alert('Params: transaction_id')">Inspect Schema</button>
+              </div>
+            </div>
+          <!-- Real-Time Agent Execution Audit Ledger Card -->
+          <div class="c1-audit-card" style="margin-top:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+              <div>
+                <h4 style="font-size:15px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
+                  <span style="color:#0284c7;">⚡</span>
+                  <span>Real-Time Agent Execution Audit Ledger</span>
+                </h4>
+                <p style="font-size:12px; color:var(--text-muted); margin:2px 0 0;">
+                  Forensic tracking of every autonomous tool call, caller IP, and execution status
+                </p>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-copy-tool" style="padding:5px 12px; font-size:11.5px;">Refresh</button>
+                <button class="btn-copy-tool" style="padding:5px 12px; font-size:11.5px; color:#ef4444; border-color:rgba(239,68,68,0.25);">Clear Log</button>
+              </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border-subtle); color:var(--text-muted);">
+                    <th style="padding:8px 12px;">Timestamp</th>
+                    <th style="padding:8px 12px;">Tool Invoked</th>
+                    <th style="padding:8px 12px;">Caller IP</th>
+                    <th style="padding:8px 12px;">HTTP Status</th>
+                    <th style="padding:8px 12px;">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:10px 12px; font-family:monospace; color:var(--text-muted);">Just now</td>
+                    <td style="padding:10px 12px; font-family:monospace; font-weight:600; color:var(--text-main);">wcpscan_get_security_posture</td>
+                    <td style="padding:10px 12px; font-family:monospace; color:var(--text-muted);">127.0.0.1</td>
+                    <td style="padding:10px 12px;">
+                      <span class="badge-read" style="padding:2px 8px; font-size:11px;">200 OK</span>
+                    </td>
+                    <td style="padding:10px 12px; font-family:monospace; color:#0284c7; font-weight:600;">14ms</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:10px 12px; font-family:monospace; color:var(--text-muted);">1 min ago</td>
+                    <td style="padding:10px 12px; font-family:monospace; font-weight:600; color:var(--text-main);">wcpscan_list_findings</td>
+                    <td style="padding:10px 12px; font-family:monospace; color:var(--text-muted);">127.0.0.1</td>
+                    <td style="padding:10px 12px;">
+                      <span class="badge-read" style="padding:2px 8px; font-size:11px;">200 OK</span>
+                    </td>
+                    <td style="padding:10px 12px; font-family:monospace; color:#0284c7; font-weight:600;">22ms</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- =========================================================
+         CONCEPT 2: EXECUTIVE GLASS BENTO GRID (Apple / Vercel Pro)
+         ========================================================= -->
+    <section id="concept-2" class="concept-section">
+      <div class="concept-pitch-banner">
+        <div class="concept-pitch-info">
+          <h3>
+            <span class="concept-number-badge">CONCEPT 2</span>
+            Executive Glass Bento Grid
+          </h3>
+          <p>
+            An ultra-modern, spacious Bento Grid layout inspired by Apple and Vercel. Eliminates cramped rectangles by organizing metrics, pairing cards, and tool matrices into dedicated visual proportions.
+          </p>
+        </div>
+        <button class="btn-handshake" onclick="simulatePing(2)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span id="ping-text-2">Run Protocol Benchmark</span>
+        </button>
+      </div>
+
+      <div class="c2-bento-grid">
+        <!-- Bento 1: Master Spotlight Card (8 cols) -->
+        <div class="bento-card bento-master">
+          <div>
+            <div class="bento-badge-live">
+              <span class="pulse-dot"></span> GATEWAY ACTIVE • JSON-RPC 2.0 DRAFT
+            </div>
+            <h2 class="bento-title">Autonomous Agent Gateway</h2>
+            <p class="bento-subtext">
+              Directly expose WordPress security operations to Claude, Google Antigravity, and Cursor. Perform autonomous malware triage, quarantine infected files, and inspect audit logs with cryptographic token authorization.
+            </p>
+          </div>
+
+          <!-- Unified Pill Bar -->
+          <div>
+            <div class="bento-credentials-pillbar">
+              <span class="bento-cred-label">ENDPOINT:</span>
+              <span class="bento-cred-val">http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute</span>
+              <button class="btn-copy-tool" onclick="alert('Endpoint Copied!')">Copy URL</button>
+            </div>
+            <div class="bento-credentials-pillbar" style="margin-top:8px;">
+              <span class="bento-cred-label">BEARER:</span>
+              <span class="bento-cred-val">••••••••••••••••••••••••••••••••••••••••</span>
+              <button class="btn-copy-tool" onclick="alert('Token Copied!')">Copy Token</button>
+              <button class="btn-copy-tool" onclick="alert('Token Regenerated!')">Rotate</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bento 2: Security & Rate Guard (4 cols) -->
+        <div class="bento-card bento-shield">
+          <div>
+            <span style="font-size:12px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Security Boundary</span>
+            <h3 style="font-size:18px; font-weight:800; margin:4px 0 14px;">Policy & Throughput</h3>
+          </div>
+
+          <div>
+            <div class="bento-circular-stat">
+              <div>
+                <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Execution Policy</span>
+                <h4 style="font-size:15px; font-weight:700; color:#10b981; margin-top:2px;">Read-Only Sentinel</h4>
+              </div>
+              <button class="btn-copy-tool" onclick="alert('Policy toggled to Full Remediation')">Change</button>
+            </div>
+
+            <div class="bento-circular-stat">
+              <div>
+                <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Rate Protection</span>
+                <h4 style="font-size:15px; font-weight:700; color:#38bdf8; margin-top:2px;">30 Req / Min Cap</h4>
+              </div>
+              <div class="bento-stat-num">30</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bento 3A: Claude Desktop -->
+        <div class="bento-card bento-client" onclick="alert('Claude Stanza Copied!')">
+          <div class="bento-client-header">
+            <div class="bento-client-icon icon-claude">C</div>
+            <div>
+              <h4 style="font-size:15px; font-weight:700;">Claude Desktop</h4>
+              <span style="font-size:12px; color:var(--text-muted);">claude_desktop_config.json</span>
+            </div>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Add as an official MCP server for Anthropic Desktop App.</p>
+          <button class="btn-copy-tool" style="width:100%; justify-content:center;">Copy Claude JSON</button>
+        </div>
+
+        <!-- Bento 3B: Google Antigravity -->
+        <div class="bento-card bento-client" onclick="alert('Antigravity Stanza Copied!')">
+          <div class="bento-client-header">
+            <div class="bento-client-icon icon-antigravity">A</div>
+            <div>
+              <h4 style="font-size:15px; font-weight:700;">Google Antigravity</h4>
+              <span style="font-size:12px; color:var(--text-muted);">mcp_config.json</span>
+            </div>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Native pairing for multi-agent autonomous secops orchestration.</p>
+          <button class="btn-copy-tool" style="width:100%; justify-content:center;">Copy Antigravity JSON</button>
+        </div>
+
+        <!-- Bento 3C: Cursor IDE -->
+        <div class="bento-card bento-client" onclick="alert('Cursor Stanza Copied!')">
+          <div class="bento-client-header">
+            <div class="bento-client-icon icon-cursor">⌘</div>
+            <div>
+              <h4 style="font-size:15px; font-weight:700;">Cursor / Windsurf</h4>
+              <span style="font-size:12px; color:var(--text-muted);">.cursor/mcp.json</span>
+            </div>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Direct coding agent diagnostics inside the developer editor.</p>
+          <button class="btn-copy-tool" style="width:100%; justify-content:center;">Copy Cursor JSON</button>
+        </div>
+
+        <!-- Bento 4: 7 Tools Showcase (12 cols) -->
+        <div class="bento-card bento-tools">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h3 style="font-size:18px; font-weight:800;">Autonomous Capabilities Catalog</h3>
+              <p style="font-size:13px; color:var(--text-muted);">Every tool follows strict JSON-RPC schema with pre-execution safety validation.</p>
+            </div>
+            <span style="font-size:12px; font-weight:700; color:#38bdf8;">7 REGISTERED TOOLS</span>
+          </div>
+
+          <div class="bento-tools-grid">
+            <div class="bento-tool-tile">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="c1-tool-badge badge-read">Telemetry</span>
+                <span style="font-size:11px; color:#10b981; font-weight:600;">Active</span>
+              </div>
+              <div>
+                <strong style="font-family:var(--font-mono); font-size:13px;">wcpscan_get_security_posture</strong>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Retrieves overall health grade, active threat count, and firewall posture.</p>
+              </div>
+              <span style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim);">Params: None</span>
+            </div>
+
+            <div class="bento-tool-tile">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="c1-tool-badge badge-read">Telemetry</span>
+                <span style="font-size:11px; color:#10b981; font-weight:600;">Active</span>
+              </div>
+              <div>
+                <strong style="font-family:var(--font-mono); font-size:13px;">wcpscan_list_findings</strong>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Queries active threats, file integrity flags, and severity grades.</p>
+              </div>
+              <span style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim);">Params: severity, status</span>
+            </div>
+
+            <div class="bento-tool-tile">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="c1-tool-badge badge-mutate">Remediation</span>
+                <span style="font-size:11px; color:#f59e0b; font-weight:600;">Policy Guard</span>
+              </div>
+              <div>
+                <strong style="font-family:var(--font-mono); font-size:13px;">wcpscan_quarantine_file</strong>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Encrypts and isolates malicious PHP backdoor into protected vault.</p>
+              </div>
+              <span style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim);">Params: file_path, issue_id</span>
+            </div>
+
+            <div class="bento-tool-tile">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="c1-tool-badge badge-mutate">Remediation</span>
+                <span style="font-size:11px; color:#f59e0b; font-weight:600;">Policy Guard</span>
+              </div>
+              <div>
+                <strong style="font-family:var(--font-mono); font-size:13px;">wcpscan_rollback_remediation</strong>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">1-click atomic restore of any prior remediation action.</p>
+              </div>
+              <span style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim);">Params: transaction_id</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- =========================================================
+         CONCEPT 3: DEVOPS TERMINAL HUD & TEST PLAYGROUND
+         ========================================================= -->
+    <section id="concept-3" class="concept-section">
+      <div class="concept-pitch-banner">
+        <div class="concept-pitch-info">
+          <h3>
+            <span class="concept-number-badge">CONCEPT 3</span>
+            DevOps Terminal HUD & Interactive Sandbox
+          </h3>
+          <p>
+            A developer-first, Linear / Warp style workstation. Features a top telemetry HUD, syntax-colored configuration editor, and an integrated interactive JSON-RPC sandbox where you can test live tool calls right on the page!
+          </p>
+        </div>
+        <button class="btn-handshake" onclick="simulatePing(3)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span id="ping-text-3">Run Live Ping</span>
+        </button>
+      </div>
+
+      <!-- Top Monospace HUD -->
+      <div class="c3-hud-bar">
+        <div class="c3-hud-stats">
+          <span class="c3-hud-stat"><span class="pulse-dot"></span> <b>MCP_DAEMON:</b> ONLINE</span>
+          <span class="c3-hud-stat"><b>PORT:</b> 443/REST</span>
+          <span class="c3-hud-stat"><b>PROTOCOL:</b> JSON-RPC 2.0</span>
+          <span class="c3-hud-stat"><b>LATENCY:</b> 12ms</span>
+          <span class="c3-hud-stat"><b>LOADED_TOOLS:</b> 7/7</span>
+        </div>
+        <div>
+          <button class="btn-copy-tool" onclick="alert('Configuration exported!')">Export Stanza</button>
+        </div>
+      </div>
+
+      <!-- 2-Window Split Terminal -->
+      <div class="c3-terminal-split">
+        <!-- Terminal 1: Configuration & Environment -->
+        <div class="c3-terminal-window">
+          <div class="c3-terminal-header">
+            <div class="c3-traffic-lights">
+              <span class="c3-dot dot-red"></span>
+              <span class="c3-dot dot-yellow"></span>
+              <span class="c3-dot dot-green"></span>
+            </div>
+            <span class="c3-terminal-title">wcp-mcp-environment.conf</span>
+            <button class="btn-copy-tool" onclick="alert('Environment file copied!')">Copy</button>
+          </div>
+
+          <div class="c3-terminal-body">
+            <div class="c3-cmd-line">
+              <span class="c3-prompt">wcp-sec@gateway:~$</span>
+              <span>cat /etc/wcp/mcp.env</span>
+            </div>
+
+            <div style="color:#64748b; margin-bottom:8px;"># WCP Autonomous Agent Gateway Credentials</div>
+            <div><span style="color:#38bdf8;">WCP_MCP_ENDPOINT</span>="http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute"</div>
+            <div><span style="color:#38bdf8;">WCP_MCP_AUTH_TYPE</span>="Bearer"</div>
+            <div><span style="color:#38bdf8;">WCP_MCP_BEARER_TOKEN</span>="wcp_sec_9f81a7b03e484c6c9a2d847"</div>
+            <div style="margin-top:10px;"><span style="color:#38bdf8;">WCP_SECURITY_POLICY</span>="OBSERVATION_ONLY"</div>
+            <div><span style="color:#38bdf8;">WCP_RATE_LIMIT_CAP</span>="30_REQ_PER_MIN"</div>
+            <div><span style="color:#38bdf8;">WCP_AUDIT_LOGGING</span>="ENABLED"</div>
+
+            <div style="margin-top:20px; padding-top:14px; border-top:1px dashed #1e293b;">
+              <span style="color:#94a3b8; font-size:12px;">Quick Action Toggles:</span>
+              <div style="display:flex; gap:10px; margin-top:8px;">
+                <button class="btn-copy-tool" onclick="alert('Switched to Full Remediation Mode')">Toggle Write Mode</button>
+                <button class="btn-copy-tool" onclick="alert('New Token Generated')">Rotate Token</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal 2: Interactive Sandbox & REPL -->
+        <div class="c3-terminal-window">
+          <div class="c3-terminal-header">
+            <div class="c3-traffic-lights">
+              <span class="c3-dot dot-red"></span>
+              <span class="c3-dot dot-yellow"></span>
+              <span class="c3-dot dot-green"></span>
+            </div>
+            <span class="c3-terminal-title">live-mcp-sandbox.sh</span>
+            <span style="font-size:11px; color:#10b981;">CONNECTED</span>
+          </div>
+
+          <div class="c3-terminal-body">
+            <div class="c3-cmd-line">
+              <span class="c3-prompt">sandbox@test:~$</span>
+              <span>mcp-client --invoke-tool</span>
+            </div>
+
+            <div class="c3-sandbox-runner">
+              <label style="font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Select Tool To Execute:</label>
+              <select class="c3-runner-select" id="c3-tool-select">
+                <option value="wcpscan_get_security_posture">wcpscan_get_security_posture (Health & Firewall Check)</option>
+                <option value="wcpscan_list_findings">wcpscan_list_findings (Active Threats & CVEs)</option>
+                <option value="wcpscan_quarantine_file">wcpscan_quarantine_file (Simulate Isolation)</option>
+              </select>
+
+              <button class="c3-execute-btn" onclick="executeMockTool()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Send JSON-RPC Invocation
+              </button>
+
+              <div class="c3-output-box" id="c3-json-output">
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "status": "ready",
+    "message": "Click 'Send JSON-RPC Invocation' to simulate live agent response."
+  },
+  "id": "req-1"
+}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER SELECTION HELPER -->
+    <div class="concept-footer-deck">
+      <h4>Which design direction do you prefer?</h4>
+      <p>
+        Tell me which concept you'd like to implement (or what specific components you want combined from Concept 1, 2, or 3), and I will build and deploy the production code into the settings page!
+      </p>
+      <div style="display:flex; gap:12px; margin-top:8px;">
+        <button class="concept-btn active" onclick="switchConcept(1)">Concept 1: Visual Pipeline Studio</button>
+        <button class="concept-btn" onclick="switchConcept(2)">Concept 2: Executive Bento Grid</button>
+        <button class="concept-btn" onclick="switchConcept(3)">Concept 3: Terminal HUD & Sandbox</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    function switchConcept(index) {
+      document.querySelectorAll('.concept-section').forEach(sec => sec.classList.remove('active'));
+      document.querySelectorAll('.concept-nav-pills .concept-btn').forEach(btn => btn.classList.remove('active'));
+
+      document.getElementById('concept-' + index).classList.add('active');
+      document.querySelectorAll('.concept-nav-pills .concept-btn')[index - 1].classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleTheme() {
+      const isLight = document.body.classList.toggle('light-mode');
+      document.getElementById('theme-icon').textContent = isLight ? '🌙' : '☀️';
+      document.getElementById('theme-label').textContent = isLight ? 'Dark Mode' : 'Light Mode';
+    }
+
+    function toggleTokenView(inputId) {
+      const el = document.getElementById(inputId);
+      el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    function selectPolicyOption(el) {
+      document.querySelectorAll('.c1-policy-option').forEach(opt => opt.classList.remove('selected'));
+      el.classList.add('selected');
+      el.querySelector('input').checked = true;
+    }
+
+    function setRate(btn) {
+      document.querySelectorAll('.c1-rate-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function simulatePing(id) {
+      const btnText = document.getElementById('ping-text-' + id);
+      btnText.textContent = 'Pinging...';
+      setTimeout(() => {
+        btnText.textContent = '✓ Verified (11ms Ping OK)';
+        setTimeout(() => {
+          btnText.textContent = id === 1 ? 'Verify Pipeline Handshake' : id === 2 ? 'Run Protocol Benchmark' : 'Run Live Ping';
+        }, 3000);
+      }, 500);
+    }
+
+    function switchClientTab(client) {
+      const codeBlock = document.getElementById('c1-code-block');
+      document.querySelectorAll('.c1-tool-tabs .c1-tab-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (client === 'claude') {
+        codeBlock.textContent = `{\n  "mcpServers": {\n    "webcare-security": {\n      "url": "http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute",\n      "headers": {\n        "Authorization": "Bearer wcp_sec_9f81a7b03e484c6c9a2d847"\n      }\n    }\n  }\n}`;
+      } else if (client === 'antigravity') {
+        codeBlock.textContent = `{\n  "servers": [\n    {\n      "id": "wcp-agent-bridge",\n      "transport": "http",\n      "url": "http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute",\n      "bearerToken": "wcp_sec_9f81a7b03e484c6c9a2d847"\n    }\n  ]\n}`;
+      } else if (client === 'cursor') {
+        codeBlock.textContent = `{\n  "cursor.mcpServers": {\n    "wcp-wp-security": {\n      "url": "http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute",\n      "auth": "Bearer wcp_sec_9f81a7b03e484c6c9a2d847"\n    }\n  }\n}`;
+      } else {
+        codeBlock.textContent = `curl -X POST "http://localhost:8080/wp-json/mcp-scanner/v1/mcp/execute" \\\n  -H "Authorization: Bearer wcp_sec_9f81a7b03e484c6c9a2d847" \\\n  -H "Content-Type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"wcpscan_get_security_posture","arguments":{}}}'`;
+      }
+    }
+
+    function executeMockTool() {
+      const tool = document.getElementById('c3-tool-select').value;
+      const output = document.getElementById('c3-json-output');
+      output.textContent = 'Sending JSON-RPC request to gateway...';
+
+      setTimeout(() => {
+        if (tool === 'wcpscan_get_security_posture') {
+          output.textContent = JSON.stringify({
+            jsonrpc: "2.0",
+            result: {
+              health_grade: "A+",
+              risk_score: 98,
+              total_active_threats: 0,
+              firewall_state: "armed",
+              core_integrity: "100% authentic",
+              active_policy: "OBSERVATION_MODE"
+            },
+            id: "req-posture-1"
+          }, null, 2);
+        } else if (tool === 'wcpscan_list_findings') {
+          output.textContent = JSON.stringify({
+            jsonrpc: "2.0",
+            result: {
+              scanned_files_count: 3842,
+              findings: [],
+              audit_summary: "No unresolved malware infections or backdoor webshells found."
+            },
+            id: "req-findings-2"
+          }, null, 2);
+        } else {
+          output.textContent = JSON.stringify({
+            jsonrpc: "2.0",
+            result: {
+              action: "quarantine_simulation",
+              status: "protected_by_policy",
+              notice: "Mutating tool call blocked because gateway is in Observation Mode."
+            },
+            id: "req-quarantine-3"
+          }, null, 2);
+        }
+      }, 400);
+    }
+  </script>
+</body>
+</html>

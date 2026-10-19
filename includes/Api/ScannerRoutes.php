@@ -823,6 +823,13 @@ class ScannerRoutes {
         }
 
         $target = sanitize_text_field($request->get_param('target') ?: 'plugins_themes');
+        $custom_options = $request->get_param('custom_options');
+        if (!is_array($custom_options)) {
+            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            $custom_options = $settings['custom_scan_options'] ?? \WcpScanner\System\SettingsManager::get_default_custom_scan_options();
+        } else {
+            $custom_options = \WcpScanner\System\SettingsManager::sanitize_custom_scan_options($custom_options);
+        }
         
         $paths = [];
         $all_files = [];
@@ -830,7 +837,45 @@ class ScannerRoutes {
         // Determine scannable filesystem files based on scan profile (0 = unlimited)
         $file_limit = (int) apply_filters('wcpscan_file_limit', 0, $target);
 
-        if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel', 'modified_files'], true)) {
+        if ($target === 'custom') {
+            $has_filesystem_scan = !empty($custom_options['scan_known_malware'])
+                || !empty($custom_options['scan_backdoors_heuristics'])
+                || !empty($custom_options['scan_malicious_urls'])
+                || !empty($custom_options['scan_core_integrity'])
+                || !empty($custom_options['scan_theme_integrity'])
+                || !empty($custom_options['scan_plugin_integrity'])
+                || !empty($custom_options['scan_unbundled_files'])
+                || !empty($custom_options['scan_outside_root'])
+                || !empty($custom_options['scan_images_executable']);
+
+            if (!$has_filesystem_scan) {
+                $all_files = [];
+            } else {
+                if (!empty($custom_options['scan_outside_root'])) {
+                    $parent = dirname(ABSPATH);
+                    if (is_dir($parent) && is_readable($parent) && realpath($parent) !== realpath(ABSPATH)) {
+                        $paths[] = untrailingslashit($parent);
+                    } else {
+                        $paths[] = untrailingslashit(ABSPATH);
+                    }
+                } elseif (!empty($custom_options['scan_core_integrity']) || !empty($custom_options['scan_unbundled_files'])) {
+                    $paths[] = untrailingslashit(ABSPATH);
+                } else {
+                    if (!empty($custom_options['scan_plugin_integrity'])) {
+                        $paths[] = WP_PLUGIN_DIR;
+                    }
+                    if (!empty($custom_options['scan_theme_integrity'])) {
+                        $paths[] = get_theme_root();
+                    }
+                    if (empty($paths)) {
+                        $paths[] = untrailingslashit(ABSPATH);
+                    }
+                }
+                foreach (array_unique($paths) as $path) {
+                    $all_files = array_merge($all_files, Engine::get_scannable_files($path, $file_limit));
+                }
+            }
+        } elseif (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel', 'modified_files'], true)) {
             // Targeted deep engines do not queue filesystem files
             $all_files = [];
         } elseif ($target === 'filesystem_only' || $target === 'full') {
@@ -867,6 +912,10 @@ class ScannerRoutes {
 
         // Acquire lock
         ScanLock::acquire($scan_id);
+
+        if ($target === 'custom' && !empty($custom_options)) {
+            set_transient("wcpscan_custom_options_{$scan_id}", $custom_options, HOUR_IN_SECONDS);
+        }
 
         set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
         set_transient("wcpscan_scan_queue_{$scan_id}", $all_files, HOUR_IN_SECONDS);
@@ -936,6 +985,9 @@ class ScannerRoutes {
 
             foreach ($findings as $f) {
                 $item = $f->to_array();
+                $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+                $status = ($matched_rule !== null) ? 'ignored' : 'open';
+
                 $wpdb->insert($table_issues, [
                     'scan_id'      => $scan_id,
                     'engine'       => $item['engine'],
@@ -947,7 +999,7 @@ class ScannerRoutes {
                     'code_snippet' => $item['code_snippet'] ?? null,
                     'evidence'     => $item['evidence'] ?? null,
                     'description'  => $item['description'],
-                    'status'       => 'open',
+                    'status'       => $status,
                     'created_at'   => current_time('mysql'),
                 ]);
             }
@@ -982,7 +1034,7 @@ class ScannerRoutes {
         $scanned_so_far = max(0, $scan_total - $remaining);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $current_issues_total = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
+            "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'", $scan_id
         ));
 
         $wpdb->update($table_scans, [
@@ -1147,6 +1199,130 @@ class ScannerRoutes {
                         }
                     }
                 }
+            } elseif ($target === 'custom') {
+                $custom_options = get_transient("wcpscan_custom_options_{$scan_id}");
+                if (!is_array($custom_options)) {
+                    $req_custom = $request->get_param('custom_options');
+                    if (is_array($req_custom)) {
+                        $custom_options = \WcpScanner\System\SettingsManager::sanitize_custom_scan_options($req_custom);
+                    } else {
+                        $settings = \WcpScanner\System\SettingsManager::get_settings();
+                        $custom_options = $settings['custom_scan_options'] ?? \WcpScanner\System\SettingsManager::get_default_custom_scan_options();
+                    }
+                }
+
+                // 1. Scan core files against repository versions for changes
+                if (!empty($custom_options['scan_core_integrity'])) {
+                    $core_integrity = new CoreIntegrity();
+                    $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+                }
+
+                // 2. Scan theme files against repository versions for changes
+                if (!empty($custom_options['scan_theme_integrity'])) {
+                    $theme_integrity = new ThemeIntegrity();
+                    $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
+                }
+
+                // 3. Scan plugin files against repository versions for changes
+                if (!empty($custom_options['scan_plugin_integrity'])) {
+                    $plugin_integrity = new PluginIntegrity();
+                    $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
+                }
+
+                // 4. Scan wp-admin and wp-includes for files not bundled with WordPress
+                if (!empty($custom_options['scan_unbundled_files']) && empty($custom_options['scan_core_integrity'])) {
+                    $core_integrity = new CoreIntegrity();
+                    $core_results = $core_integrity->verify((string) $scan_id);
+                    $unbundled = array_filter($core_results, function ($f) {
+                        $arr = is_array($f) ? $f : $f->to_array();
+                        return in_array($arr['type'] ?? '', ['unknown_core_file'], true);
+                    });
+                    $all_deep_findings = array_merge($all_deep_findings, $unbundled);
+                }
+
+                // 5. Scan for publicly accessible configuration, backup, or log files
+                if (!empty($custom_options['scan_public_config'])) {
+                    $important_fim = new ImportantFileFIM();
+                    $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
+                    $config_scanner = new \WcpScanner\WordPress\ConfigScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $config_scanner->scan((string) $scan_id));
+                    $exposed = self::audit_exposed_sensitive_files((string) $scan_id);
+                    $all_deep_findings = array_merge($all_deep_findings, $exposed);
+                }
+
+                // 6. Scan for publicly accessible quarantined files
+                if (!empty($custom_options['scan_public_quarantine'])) {
+                    $quarantine_exposure = self::audit_quarantine_exposure((string) $scan_id);
+                    $all_deep_findings = array_merge($all_deep_findings, $quarantine_exposure);
+                }
+
+                // 7. Scan for misconfigured visitor IP detection headers
+                if (!empty($custom_options['scan_ip_detection'])) {
+                    $ip_findings = self::audit_visitor_ip_detection((string) $scan_id);
+                    $all_deep_findings = array_merge($all_deep_findings, $ip_findings);
+                }
+
+                // 8. Scan posts for known dangerous URLs and suspicious content
+                if (!empty($custom_options['scan_posts_content'])) {
+                    $content_scanner = new ContentScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan_posts_only((string) $scan_id, 100));
+                }
+
+                // 9. Scan comments for known dangerous URLs and suspicious content
+                if (!empty($custom_options['scan_comments_content'])) {
+                    $content_scanner = new ContentScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan_comments_only((string) $scan_id, 100));
+                }
+
+                // 10. Scan WordPress core, plugin, and theme options
+                if (!empty($custom_options['scan_options_content'])) {
+                    $option_scanner = new \WcpScanner\Database\OptionScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $option_scanner->scan_options((string) $scan_id));
+                }
+
+                // 11. Scan for out of date, abandoned, and vulnerable plugins, themes, and WP
+                if (!empty($custom_options['scan_vulnerable_software'])) {
+                    $update_scanner = new UpdateScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
+                }
+
+                // 12. Scan for suspicious admin users created outside of WordPress
+                if (!empty($custom_options['scan_rogue_admins'])) {
+                    $rogue_detector = new \WcpScanner\Database\RogueAdminAnomalyDetector();
+                    $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
+                    $user_scanner = new UserScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
+                }
+
+                // 13. Check the strength of passwords
+                if (!empty($custom_options['scan_password_strength'])) {
+                    $pwd_findings = self::audit_password_strength((string) $scan_id);
+                    $all_deep_findings = array_merge($all_deep_findings, $pwd_findings);
+                }
+
+                // 14. Monitor disk space
+                if (!empty($custom_options['monitor_disk_space'])) {
+                    $disk_findings = self::audit_disk_space((string) $scan_id);
+                    $all_deep_findings = array_merge($all_deep_findings, $disk_findings);
+                }
+
+                // 15. Monitor Web Application Firewall status
+                if (!empty($custom_options['monitor_firewall_status'])) {
+                    $waf_findings = self::audit_waf_status((string) $scan_id);
+                    $all_deep_findings = array_merge($all_deep_findings, $waf_findings);
+                }
+
+                // 16. Scan images, binary, and other files as if they were executable
+                if (!empty($custom_options['scan_images_executable'])) {
+                    $uploads_scanner = new UploadsScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+                }
+
+                // 17. Reputation Checks (Domain blocklist, spamvertised, spam IP)
+                if (!empty($custom_options['check_domain_blocklist']) || !empty($custom_options['check_spamvertised']) || !empty($custom_options['check_spam_ip'])) {
+                    $reputation_findings = self::audit_reputation_checks((string) $scan_id, $custom_options);
+                    $all_deep_findings = array_merge($all_deep_findings, $reputation_findings);
+                }
             } elseif ($target === 'filesystem_only') {
                 // Filesystem-only scan: no additional deep audit engines needed
             } else {
@@ -1174,6 +1350,14 @@ class ScannerRoutes {
 
                 $uploads_scanner = new UploadsScanner();
                 $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+
+                // Reputation Checks (Domain blocklist, Spamvertised, Spam IP)
+                $reputation_findings = self::audit_reputation_checks((string) $scan_id, [
+                    'check_domain_blocklist' => true,
+                    'check_spamvertised'     => true,
+                    'check_spam_ip'          => true,
+                ]);
+                $all_deep_findings = array_merge($all_deep_findings, $reputation_findings);
             }
 
             // Cross-engine Correlation
@@ -1201,6 +1385,9 @@ class ScannerRoutes {
                 }
                 $inserted_signatures[$sig] = true;
 
+                $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+                $status = ($matched_rule !== null) ? 'ignored' : 'open';
+
                 $wpdb->insert($table_issues, [
                     'scan_id'      => $scan_id,
                     'engine'       => $item['engine'],
@@ -1212,19 +1399,25 @@ class ScannerRoutes {
                     'code_snippet' => UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
                     'evidence'     => UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
                     'description'  => $item['description'],
-                    'status'       => 'open',
+                    'status'       => $status,
                     'created_at'   => current_time('mysql'),
                 ]);
             }
 
-            // Calculate final risk score across all findings
+            // Calculate final risk score across all findings (decorating whitelist status)
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $all_scan_issues = $wpdb->get_results($wpdb->prepare(
                 "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
             ), ARRAY_A);
+            $enriched_issues = self::enrich_issues($all_scan_issues);
 
             $scorer = new RiskScorer();
-            $summary = $scorer->calculate($all_scan_issues);
+            $summary = $scorer->calculate($enriched_issues);
+
+            $open_issues_count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'",
+                $scan_id
+            ));
 
             // Calculate duration accurately with millisecond precision
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1292,9 +1485,9 @@ class ScannerRoutes {
                     'status'        => 'completed',
                     'scan_target'   => $target ?: 'full',
                     'trigger_type'  => 'manual',
-                    'scanned_files' => count($all_scan_issues),
-                    'total_files'   => count($all_scan_issues),
-                    'issues_found'  => count($all_scan_issues),
+                    'scanned_files' => (int) ($scan_row['scanned_files'] ?? ($scan_row['total_files'] ?? count($all_scan_issues))),
+                    'total_files'   => (int) ($scan_row['total_files'] ?? count($all_scan_issues)),
+                    'issues_found'  => $open_issues_count,
                     'risk_score'    => $summary['score'],
                     'duration'      => $duration_sec,
                     'duration_ms'   => $duration_ms,
@@ -1305,7 +1498,7 @@ class ScannerRoutes {
             } else {
                 $wpdb->update($table_scans, [
                     'status'        => 'completed',
-                    'issues_found'  => count($all_scan_issues),
+                    'issues_found'  => $open_issues_count,
                     'risk_score'    => $summary['score'],
                     'duration'      => $duration_sec,
                     'duration_ms'   => $duration_ms,
@@ -1317,7 +1510,7 @@ class ScannerRoutes {
             $completed_scan_row = [
                 'id'            => $scan_id,
                 'status'        => 'completed',
-                'issues_found'  => count($all_scan_issues),
+                'issues_found'  => $open_issues_count,
                 'risk_score'    => $summary['score'],
                 'duration'      => $duration_sec,
                 'duration_ms'   => $duration_ms,
@@ -1335,7 +1528,7 @@ class ScannerRoutes {
             return rest_ensure_response([
                 'success'     => true,
                 'summary'     => $summary,
-                'issues'      => self::enrich_issues($all_scan_issues),
+                'issues'      => $enriched_issues,
                 'diagnostics' => $diagnostics,
                 'status'      => 'completed'
             ]);
@@ -1358,31 +1551,71 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
-        // Dashboard ONLY displays comprehensive scans: 'plugins_themes' or 'full'.
-        // Targeted scans (user_security, spam_content, suspicious_uploads, crontab_audit, etc.)
-        // are retained in scan history, but excluded from the main dashboard.
+        // Retrieve available scans for the Dashboard scan ID switcher (comprehensive, custom & targeted scans)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $available_scans_raw = $wpdb->get_results(
+            "SELECT id, scan_target, status, started_at, completed_at, total_files, scanned_files, issues_found, risk_score 
+             FROM `{$table_scans}` 
+             ORDER BY id DESC LIMIT 50",
+            ARRAY_A
+        );
+        $available_scans = [];
+        if (!empty($available_scans_raw)) {
+            foreach ($available_scans_raw as $as_row) {
+                $as_meta = self::format_scan_target_meta($as_row['scan_target'] ?? 'plugins_themes');
+                $as_row['scan_target_name'] = $as_meta['name'];
+                $as_row['scan_target_short'] = $as_meta['short_name'];
+                $as_row['scan_target_category'] = $as_meta['category'];
+                $as_row['scan_category'] = $as_meta['category'];
+                $as_row['target_meta'] = $as_meta;
+                $available_scans[] = $as_row;
+            }
+        }
+
+        $requested_scan_id = (int) $request->get_param('scan_id');
+        if (!$requested_scan_id && isset($_GET['scan_id'])) {
+            $requested_scan_id = (int) $_GET['scan_id'];
+        }
+        if (!$requested_scan_id && !empty($_SERVER['REQUEST_URI']) && preg_match('/[?&]scan_id=(\d+)/', $_SERVER['REQUEST_URI'], $m)) {
+            $requested_scan_id = (int) $m[1];
+        }
         $target_filter = sanitize_text_field($request->get_param('target'));
-        if ($target_filter && in_array($target_filter, ['full', 'plugins_themes'], true)) {
+
+        if ($requested_scan_id > 0) {
+            // Specific scan ID requested via dashboard switcher
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $latest_scan = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM `{$table_scans}` WHERE id = %d",
+                $requested_scan_id
+            ), ARRAY_A);
+        } elseif ($target_filter) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $latest_scan = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM `{$table_scans}` WHERE scan_target = %s ORDER BY id DESC LIMIT 1",
                 $target_filter
             ), ARRAY_A);
         } else {
+            // Prefer comprehensive or custom scan for main dashboard view
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $latest_scan = $wpdb->get_row(
-                "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full') ORDER BY id DESC LIMIT 1",
+                "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full', 'custom') ORDER BY id DESC LIMIT 1",
                 ARRAY_A
             );
+            if (!$latest_scan) {
+                // Fallback to any latest scan if no standard/custom scan exists
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $latest_scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
+            }
         }
 
         if (!$latest_scan) {
             return rest_ensure_response([
-                'has_scan' => false,
-                'scan'     => null,
-                'summary'  => null,
-                'issues'   => [],
-                'files'    => [],
+                'has_scan'        => false,
+                'scan'            => null,
+                'summary'         => null,
+                'issues'          => [],
+                'files'           => [],
+                'available_scans' => $available_scans ?: [],
             ]);
         }
 
@@ -1425,6 +1658,15 @@ class ScannerRoutes {
         ), ARRAY_A);
         $issues = self::enrich_issues($issues);
 
+        // Recalculate true active open issues count for latest scan record
+        $open_issues_count = count(array_filter($issues, function ($i) {
+            return ($i['status'] ?? 'open') === 'open' && empty($i['is_whitelisted']);
+        }));
+        if ((int) $latest_scan['issues_found'] !== $open_issues_count) {
+            $wpdb->update($table_scans, ['issues_found' => $open_issues_count], ['id' => $latest_scan['id']]);
+            $latest_scan['issues_found'] = $open_issues_count;
+        }
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $scanned_files = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM `{$table_files}` WHERE scan_id = %d ORDER BY id ASC",
@@ -1438,15 +1680,22 @@ class ScannerRoutes {
             $wpdb->update($table_scans, ['risk_score' => (int) $summary['score']], ['id' => $latest_scan['id']]);
             $latest_scan['risk_score'] = (int) $summary['score'];
         }
+        $latest_target_meta = self::format_scan_target_meta($latest_scan['scan_target'] ?? 'plugins_themes');
+        $latest_scan['target_meta'] = $latest_target_meta;
+        $latest_scan['scan_target_name'] = $latest_target_meta['name'];
+        $latest_scan['scan_target_short'] = $latest_target_meta['short_name'];
+        $latest_scan['scan_target_category'] = $latest_target_meta['category'];
+
         $diagnostics = self::build_scan_diagnostics($latest_scan);
 
         return rest_ensure_response([
-            'has_scan'    => true,
-            'scan'        => $latest_scan,
-            'summary'     => $summary,
-            'issues'      => $issues,
-            'files'       => $scanned_files,
-            'diagnostics' => $diagnostics,
+            'has_scan'        => true,
+            'scan'            => $latest_scan,
+            'summary'         => $summary,
+            'issues'          => $issues,
+            'files'           => $scanned_files,
+            'diagnostics'     => $diagnostics,
+            'available_scans' => $available_scans ?: [],
         ]);
     }
 
@@ -1457,7 +1706,22 @@ class ScannerRoutes {
         $status = sanitize_text_field($request->get_param('status') ?: 'ignored');
 
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issue = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_issues} WHERE id = %d", $issue_id));
+
+        if ($status === 'open' && $issue && !empty($issue->file_path)) {
+            \WcpScanner\Findings\WhitelistManager::revoke_rules_for_target($issue->file_path, $issue->type ?? '');
+        }
+
         $updated = $wpdb->update($table_issues, ['status' => $status], ['id' => $issue_id]);
+
+        if ($issue && !empty($issue->scan_id)) {
+            $table_scans = $wpdb->prefix . 'wcpscan_scans';
+            $open_issues = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table_issues} WHERE scan_id = %d AND status = 'open'",
+                $issue->scan_id
+            ));
+            $wpdb->update($table_scans, ['issues_found' => $open_issues], ['id' => $issue->scan_id]);
+        }
 
         return rest_ensure_response([
             'success' => $updated !== false,
@@ -1530,6 +1794,13 @@ class ScannerRoutes {
                 if (empty($row['trigger_type'])) {
                     $row['trigger_type'] = 'manual';
                 }
+                $t_meta = self::format_scan_target_meta($row['scan_target'] ?? 'plugins_themes');
+                $row['target_meta'] = $t_meta;
+                $row['scan_target_name'] = $t_meta['name'];
+                $row['scan_target_short'] = $t_meta['short_name'];
+                $row['scan_target_category'] = $t_meta['category'];
+                $row['scan_category'] = $t_meta['category'];
+                $row['scan_target_badge'] = $t_meta['short_name'];
                 $scans[] = $row;
             }
         }
@@ -1639,6 +1910,11 @@ class ScannerRoutes {
         if (empty($scan['trigger_type'])) {
             $scan['trigger_type'] = 'manual';
         }
+        $detail_target_meta = self::format_scan_target_meta($scan['scan_target'] ?? 'plugins_themes');
+        $scan['target_meta'] = $detail_target_meta;
+        $scan['scan_target_name'] = $detail_target_meta['name'];
+        $scan['scan_target_short'] = $detail_target_meta['short_name'];
+        $scan['scan_target_category'] = $detail_target_meta['category'];
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
@@ -2341,6 +2617,36 @@ class ScannerRoutes {
                     }
                 }
             }
+            // 4b. Check if finding is a Server/Network Configuration entity (e.g. reverse proxy, IP detection, network headers)
+            elseif (
+                $engine === 'ip-detection' ||
+                $engine === 'waf-status' ||
+                $type === 'reverse_proxy_misconfigured' ||
+                strpos($filePath, 'server:') === 0
+            ) {
+                $item['is_server_config'] = true;
+                $item['is_network'] = true;
+                $item['is_file'] = false;
+                $item['is_dir'] = false;
+                $item['can_view'] = false;
+                $item['file_exists'] = false;
+
+                // Environment reconciliation: If running on local development or Docker container, reconcile open false-positives
+                $env_type = function_exists('wp_get_environment_type') ? wp_get_environment_type() : (defined('WP_ENVIRONMENT_TYPE') ? WP_ENVIRONMENT_TYPE : 'production');
+                $is_local_env = in_array($env_type, ['local', 'development'], true);
+                $site_url = get_site_url();
+                $host = wp_parse_url($site_url, PHP_URL_HOST) ?: '';
+                $is_local_host = in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+                    || (bool) preg_match('/\.(local|test|site|internal|lan|docker|localwp|ddev)$/i', $host);
+                $is_docker = file_exists('/.dockerenv')
+                    || (file_exists('/proc/1/cgroup') && strpos(@file_get_contents('/proc/1/cgroup'), 'docker') !== false);
+
+                if (($is_local_env || $is_local_host || $is_docker) && ($item['status'] ?? 'open') === 'open') {
+                    $item['status'] = 'ignored';
+                    $item['is_whitelisted'] = false;
+                    $item['ignore_reason'] = 'Local development / Docker container environment (internal IP is normal).';
+                }
+            }
             // 5. Otherwise treat as a Filesystem finding
             else {
                 $cleanPath = ltrim(str_replace(['../', '..\\'], '', $filePath), '/\\');
@@ -2541,9 +2847,13 @@ class ScannerRoutes {
             if ($matched_rule !== null) {
                 $item['is_whitelisted'] = true;
                 $item['whitelist_rule'] = $matched_rule;
+                if (!empty($item['id']) && ($item['status'] ?? '') === 'open') {
+                    global $wpdb;
+                    $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'ignored'], ['id' => (int) $item['id']]);
+                }
                 $item['status']         = 'ignored';
             } else {
-                $item['is_whitelisted'] = (($item['status'] ?? '') === 'ignored');
+                $item['is_whitelisted'] = false;
             }
         }
         unset($item);
@@ -3381,6 +3691,168 @@ class ScannerRoutes {
         $mins = floor($total_sec / 60);
         $rem_sec = $total_sec % 60;
         return "{$mins}m {$rem_sec}s";
+    }
+
+    /**
+     * Resolves and formats descriptive metadata for any scan target (standard, custom, or targeted).
+     *
+     * @param string $target The raw scan target identifier (e.g. 'custom', 'plugins_themes', 'suspicious_uploads', etc.)
+     * @return array Metadata array with name, short_name, category, category_label, and description.
+     */
+    public static function format_scan_target_meta(string $target): array {
+        $target = sanitize_key($target);
+
+        $definitions = [
+            'custom' => [
+                'name'           => 'Custom Security Scan',
+                'short_name'     => 'Custom Scan',
+                'category'       => 'custom',
+                'category_label' => 'Custom Scan',
+                'description'    => 'Administrator-configured modular audit tailored to specific security engines and directories.',
+            ],
+            'plugins_themes' => [
+                'name'           => 'Quick Scan (Plugins & Themes)',
+                'short_name'     => 'Quick Scan',
+                'category'       => 'standard',
+                'category_label' => 'Standard Scan',
+                'description'    => 'Standard audit of active and installed plugins and themes.',
+            ],
+            'full' => [
+                'name'           => 'Complete Website Scan (Full Filesystem)',
+                'short_name'     => 'Complete Scan',
+                'category'       => 'standard',
+                'category_label' => 'Standard Scan',
+                'description'    => 'Comprehensive audit of entire WordPress root, core, plugins, themes, uploads, and database.',
+            ],
+            'full_filesystem' => [
+                'name'           => 'Complete Website Scan (Full Filesystem)',
+                'short_name'     => 'Complete Scan',
+                'category'       => 'standard',
+                'category_label' => 'Standard Scan',
+                'description'    => 'Comprehensive audit of entire WordPress root filesystem and database.',
+            ],
+            'modified_files' => [
+                'name'           => 'Targeted: Modified Themes, Plugins & Core Audit',
+                'short_name'     => 'Targeted: Modified Files',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted cryptographic checksum verification against official WordPress.org manifests.',
+            ],
+            'suspicious_uploads' => [
+                'name'           => 'Targeted: Uploads Executables & Shell Audit',
+                'short_name'     => 'Targeted: Uploads',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted forensic scan isolating dangerous scripts, shells, and double extensions in uploads.',
+            ],
+            'unknown_files' => [
+                'name'           => 'Targeted: Unknown Files Integrity Audit',
+                'short_name'     => 'Targeted: Unknown Files',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted reconciliation against official repositories to detect orphan files and backdoors.',
+            ],
+            'spam_content' => [
+                'name'           => 'Targeted: Spam Content & Database Audit',
+                'short_name'     => 'Targeted: Spam Content',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted database scan hunting for cloaked spam, blackhat SEO injections, and malicious comments.',
+            ],
+            'filesystem_only' => [
+                'name'           => 'Targeted: Filesystem Permissions & Symlinks Audit',
+                'short_name'     => 'Targeted: Filesystem',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted audit evaluating Unix permissions, writeability hazards, and symlink breakouts.',
+            ],
+            'user_security' => [
+                'name'           => 'Targeted: User Accounts, Roles & Capability Auditor',
+                'short_name'     => 'Targeted: User Accounts',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted scan inspecting rogue administrator privileges, ghost users, and weak credentials.',
+            ],
+            'outdated_software' => [
+                'name'           => 'Targeted: Outdated Software & Vulnerability Audit',
+                'short_name'     => 'Targeted: Outdated Software',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted CVE intelligence matching against active WordPress core, plugins, and themes.',
+            ],
+            'crontab_audit' => [
+                'name'           => 'Targeted: Crontab & Scheduled Tasks Audit',
+                'short_name'     => 'Targeted: Crontab Audit',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted Linux crontab and WP-Cron virtual hook inspection for scheduled stealth persistence.',
+            ],
+            'crontab_hooks' => [
+                'name'           => 'Targeted: Crontab & Scheduled Tasks Audit',
+                'short_name'     => 'Targeted: Crontab Audit',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted Linux crontab and WP-Cron virtual hook inspection.',
+            ],
+            'core_integrity' => [
+                'name'           => 'Targeted: WordPress Core Integrity Audit',
+                'short_name'     => 'Targeted: Core Integrity',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted cryptographic checksum verification strictly auditing core WordPress files.',
+            ],
+            'rogue_admin' => [
+                'name'           => 'Targeted: Rogue Admins & DB Anomalies Audit',
+                'short_name'     => 'Targeted: Rogue Admins',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted database scan detecting backdoor accounts, hidden administrators, and tampered capability roles.',
+            ],
+            'hook_sentinel' => [
+                'name'           => 'Targeted: Hook Sentinel & LotL Traps Audit',
+                'short_name'     => 'Targeted: Hook Sentinel',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted runtime inspection uncovering malicious filters, actions, and Living-off-the-Land persistence hooks.',
+            ],
+            'uploads_database' => [
+                'name'           => 'Targeted: Uploads & Database Audit',
+                'short_name'     => 'Targeted: Uploads & DB',
+                'category'       => 'targeted',
+                'category_label' => 'Targeted Scan',
+                'description'    => 'Targeted inspection of media uploads folder and database tables.',
+            ],
+        ];
+
+        $res = isset($definitions[$target]) ? $definitions[$target] : null;
+        if (!$res) {
+            $human_target = ucwords(str_replace(['_', '-'], ' ', $target));
+            $is_custom = strpos($target, 'custom') !== false;
+            $res = [
+                'name'           => $is_custom ? ('Custom Scan: ' . $human_target) : ('Targeted: ' . $human_target),
+                'short_name'     => $is_custom ? 'Custom Scan' : ('Targeted: ' . $human_target),
+                'category'       => $is_custom ? 'custom' : 'targeted',
+                'category_label' => $is_custom ? 'Custom Scan' : 'Targeted Scan',
+                'description'    => 'Specialized security audit.',
+            ];
+        }
+
+        $res['badge'] = $res['category_label'];
+        if ($res['category'] === 'custom') {
+            $res['badge_bg'] = '#faf5ff';
+            $res['badge_color'] = '#7e22ce';
+            $res['badge_border'] = '#e9d5ff';
+        } elseif ($res['category'] === 'targeted') {
+            $res['badge_bg'] = '#ecfeff';
+            $res['badge_color'] = '#0891b2';
+            $res['badge_border'] = '#a5f3fc';
+        } else {
+            $res['badge_bg'] = '#eff6ff';
+            $res['badge_color'] = '#1d4ed8';
+            $res['badge_border'] = '#bfdbfe';
+        }
+
+        return $res;
     }
 
     /**
@@ -5352,6 +5824,415 @@ class ScannerRoutes {
             'message' => __('Vault rotation state and locks cleared successfully.', 'wcp-security-scanner'),
             'status'  => \WcpScanner\Security\VaultRotator::get_status(),
         ]);
+    }
+
+    /**
+     * Audit exposed sensitive files (.env, debug.log, backup.sql, .git/config, wp-config.php.bak)
+     */
+    public static function audit_exposed_sensitive_files(string $scan_id): array {
+        $findings = [];
+        $sensitive_files = [
+            '.env'                 => ['severity' => 'critical', 'desc' => 'Environment configuration file containing plain-text database credentials, API keys, or JWT secrets.'],
+            'debug.log'            => ['severity' => 'medium',   'desc' => 'WordPress debug log file containing stack traces, SQL errors, or sensitive payload data.'],
+            'wp-content/debug.log' => ['severity' => 'medium',   'desc' => 'WordPress debug log in wp-content containing runtime exceptions and system filepaths.'],
+            'wp-config.php.bak'    => ['severity' => 'critical', 'desc' => 'Backup copy of wp-config.php accessible via HTTP request, leaking raw database credentials.'],
+            'wp-config.bak'        => ['severity' => 'critical', 'desc' => 'Backup copy of wp-config.php accessible via HTTP request.'],
+            'wp-config.old'        => ['severity' => 'critical', 'desc' => 'Archived wp-config file leaking database secrets.'],
+            '.git/config'          => ['severity' => 'high',     'desc' => 'Exposed Git version control repository exposing source code commits and deploy keys.'],
+            'backup.sql'           => ['severity' => 'critical', 'desc' => 'Raw database dump backup file accessible in web root.'],
+            'database.sql'         => ['severity' => 'critical', 'desc' => 'Raw database SQL dump file located in publicly accessible folder.'],
+        ];
+
+        foreach ($sensitive_files as $rel => $meta) {
+            $abs = ABSPATH . $rel;
+            if (file_exists($abs) && is_readable($abs)) {
+                $size = @filesize($abs) ?: 0;
+                $findings[] = new \WcpScanner\Findings\Finding([
+                    'engine'      => 'system-config',
+                    'type'        => 'exposed_sensitive_file',
+                    'severity'    => $meta['severity'],
+                    'confidence'  => 100,
+                    'file_path'   => $rel,
+                    'description' => "Publicly accessible sensitive file found: {$rel}. {$meta['desc']}",
+                    'evidence'    => "File size: {$size} bytes. Permissions: " . substr(sprintf('%o', fileperms($abs)), -4),
+                ]);
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Audit quarantine directory isolation & .htaccess protection
+     */
+    public static function audit_quarantine_exposure(string $scan_id): array {
+        $findings = [];
+        $quarantine_dir = \WcpScanner\Quarantine\QuarantineManager::get_quarantine_dir();
+        if (!is_dir($quarantine_dir)) {
+            return $findings;
+        }
+
+        $htaccess = rtrim($quarantine_dir, '/\\') . '/.htaccess';
+        if (!file_exists($htaccess)) {
+            $findings[] = new \WcpScanner\Findings\Finding([
+                'engine'      => 'quarantine',
+                'type'        => 'quarantine_unprotected',
+                'severity'    => 'high',
+                'confidence'  => 95,
+                'file_path'   => str_replace(ABSPATH, '', $quarantine_dir),
+                'description' => 'Quarantine isolation storage is missing .htaccess web protection. Quarantined malware could potentially be executed or retrieved via direct URL requests.',
+                'evidence'    => 'Missing .htaccess blocking directive in quarantine vault directory.'
+            ]);
+        } else {
+            $content = (string) @file_get_contents($htaccess);
+            if (strpos($content, 'Deny from all') === false && strpos($content, 'Require all denied') === false) {
+                $findings[] = new \WcpScanner\Findings\Finding([
+                    'engine'      => 'quarantine',
+                    'type'        => 'quarantine_permissive_access',
+                    'severity'    => 'medium',
+                    'confidence'  => 90,
+                    'file_path'   => str_replace(ABSPATH, '', $htaccess),
+                    'description' => 'Quarantine .htaccess directive does not include strict "Require all denied" or "Deny from all" access control.',
+                    'evidence'    => 'Permissive quarantine web server rule.'
+                ]);
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Audit visitor IP detection headers & reverse proxy trust with high-level architecture intelligence.
+     *
+     * Handles:
+     * 1. Localhost / Docker / Local Development: Auto-suppressed (100% normal for local testing).
+     * 2. Direct VPS / Dedicated / Shared Hosting: Verifies raw public visitor IP (Direct mode, healthy).
+     * 3. Reverse Proxies & CDNs: Inspects all 8 standard proxy headers (Cloudflare, AWS ALB, Nginx, Fastly, Akamai, RFC 7239).
+     * 4. WP-Cron & CLI executions: Ignores internal loopback runs to prevent false-positives.
+     */
+    public static function audit_visitor_ip_detection(string $scan_id): array {
+        $findings = [];
+
+        // 1. Check for CLI, WP-Cron, or internal self-scan contexts
+        if ((php_sapi_name() === 'cli') || defined('WP_CLI') || (defined('DOING_CRON') && DOING_CRON)) {
+            return [];
+        }
+
+        // 2. High-Level Localhost & Containerized Environment Intelligence
+        $env_type = function_exists('wp_get_environment_type') ? wp_get_environment_type() : (defined('WP_ENVIRONMENT_TYPE') ? WP_ENVIRONMENT_TYPE : 'production');
+        $is_local_env = in_array($env_type, ['local', 'development'], true);
+
+        $site_url = get_site_url();
+        $host = wp_parse_url($site_url, PHP_URL_HOST) ?: '';
+        $is_local_host = in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+            || (bool) preg_match('/\.(local|test|site|internal|lan|docker|localwp|ddev)$/i', $host);
+
+        $is_docker = file_exists('/.dockerenv')
+            || (file_exists('/proc/1/cgroup') && strpos(@file_get_contents('/proc/1/cgroup'), 'docker') !== false);
+
+        // If running in local development or Docker container environment, internal IPs are standard and safe
+        if ($is_local_env || $is_local_host || $is_docker) {
+            return [];
+        }
+
+        $remote_addr = $_SERVER['REMOTE_ADDR'] ?? '';
+        if (empty($remote_addr)) {
+            return [];
+        }
+
+        // 3. Loopback Request Check (Server connecting to itself via HTTP loopback during background audit)
+        $server_addr = $_SERVER['SERVER_ADDR'] ?? '';
+        if ($remote_addr === '127.0.0.1' || $remote_addr === '::1' || ($server_addr && $remote_addr === $server_addr)) {
+            return [];
+        }
+
+        // 4. Direct Public Connection Mode (VPS / Dedicated / Shared hosting with no CDN or reverse proxy)
+        // If REMOTE_ADDR is already a public non-private IP, direct visitor logging is operating correctly!
+        $is_public_remote = filter_var($remote_addr, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+        if ($is_public_remote) {
+            return [];
+        }
+
+        // 5. Multi-Architecture Reverse Proxy & CDN Header Detection
+        // Inspects all 8 standard reverse proxy headers across Cloudflare, AWS ALB, Nginx, Fastly, Akamai, Traefik, RFC 7239
+        $proxy_headers = [
+            'HTTP_CF_CONNECTING_IP',       // Cloudflare
+            'HTTP_X_FORWARDED_FOR',        // Standard Reverse Proxy / AWS ALB / GCP
+            'HTTP_X_REAL_IP',              // Nginx Upstream
+            'HTTP_TRUE_CLIENT_IP',         // Akamai & Cloudflare Enterprise
+            'HTTP_FASTLY_CLIENT_IP',       // Fastly CDN
+            'HTTP_FORWARDED',              // RFC 7239 Standard (Forwarded: for=...)
+            'HTTP_X_CLUSTER_CLIENT_IP',    // Clustered Load Balancers
+            'HTTP_CLIENT_IP',              // Apache mod_remoteip / Proxies
+        ];
+
+        foreach ($proxy_headers as $hdr) {
+            if (!empty($_SERVER[$hdr])) {
+                $raw_val = (string) $_SERVER[$hdr];
+                // RFC 7239 Forwarded: for=198.51.100.1
+                if ($hdr === 'HTTP_FORWARDED' && preg_match('/for="?([^";,\s]+)"?/i', $raw_val, $fm)) {
+                    $raw_val = $fm[1];
+                }
+                $first_ip = trim(explode(',', $raw_val)[0]);
+                // If a valid IP was forwarded by any proxy/CDN, headers are operating properly
+                if (filter_var($first_ip, FILTER_VALIDATE_IP)) {
+                    return [];
+                }
+            }
+        }
+
+        // 6. Genuine Live Production Misconfiguration Alert:
+        // A live production website on a public domain is receiving external traffic through a private upstream IP
+        // with ZERO forwarding headers, collapsing all visitor IPs into a single internal proxy address.
+        $evidence_payload = [
+            'remote_addr'      => $remote_addr,
+            'environment'      => $env_type,
+            'is_server_config' => true,
+            'is_network'       => true,
+            'remediation'      => [
+                'type'        => 'reverse_proxy_config',
+                'description' => 'Configure your reverse proxy (Nginx, Apache, or Cloudflare) to pass standard visitor IP headers (X-Forwarded-For or CF-Connecting-IP), or define reverse proxy headers in wp-config.php.',
+                'wp_config_snippet' => "if (isset(\$_SERVER['HTTP_X_FORWARDED_FOR'])) {\n    \$ips = explode(',', \$_SERVER['HTTP_X_FORWARDED_FOR']);\n    \$_SERVER['REMOTE_ADDR'] = trim(\$ips[0]);\n}",
+            ],
+        ];
+
+        $findings[] = new \WcpScanner\Findings\Finding([
+            'engine'      => 'ip-detection',
+            'type'        => 'reverse_proxy_misconfigured',
+            'severity'    => 'medium',
+            'confidence'  => 85,
+            'file_path'   => 'server:REMOTE_ADDR',
+            'description' => "Server REMOTE_ADDR is an internal or loopback IP ({$remote_addr}) while no reverse proxy forwarding header was received. Rate limiting and IP bans may affect all visitors uniformly.",
+            'evidence'    => wp_json_encode($evidence_payload)
+        ]);
+
+        return $findings;
+    }
+
+    /**
+     * Audit password strength against common predictable dictionary terms
+     */
+    public static function audit_password_strength(string $scan_id): array {
+        $findings = [];
+        $common_passwords = [
+            'password', '123456', '12345678', '123456789', 'admin', 'admin123',
+            'root', 'welcome', 'qwerty', 'login', 'pass123', 'wordpress', 'master',
+            'pass@123', 'admin@123', 'change_me', 'iloveyou'
+        ];
+
+        $admins = get_users(['role' => 'administrator', 'number' => 50]);
+        foreach ($admins as $admin) {
+            $test_passwords = array_unique(array_filter([
+                $admin->user_login,
+                strtolower($admin->user_login),
+                $admin->user_nicename,
+                $admin->display_name,
+                strtolower(get_bloginfo('name')),
+                ...$common_passwords,
+            ]));
+
+            foreach ($test_passwords as $weak_pwd) {
+                if (strlen($weak_pwd) < 3) continue;
+                if (wp_check_password($weak_pwd, $admin->user_pass, $admin->ID)) {
+                    $findings[] = new \WcpScanner\Findings\Finding([
+                        'engine'      => 'user-credentials',
+                        'type'        => 'weak_admin_password',
+                        'severity'    => 'critical',
+                        'confidence'  => 100,
+                        'file_path'   => "user:{$admin->ID} ({$admin->user_login})",
+                        'description' => "CRITICAL: Administrator account '{$admin->user_login}' has an extremely weak password matching common dictionary entries or account username.",
+                        'evidence'    => "Password match verified against high-frequency attack wordlist. Immediate password change required."
+                    ]);
+                    break;
+                }
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Monitor disk space & inode capacity
+     */
+    public static function audit_disk_space(string $scan_id): array {
+        $findings = [];
+        $path = untrailingslashit(ABSPATH);
+        $total = @disk_total_space($path);
+        $free = @disk_free_space($path);
+
+        if ($total && $free && $total > 0) {
+            $used = $total - $free;
+            $percent_used = round(($used / $total) * 100, 1);
+            $free_mb = round($free / 1024 / 1024);
+
+            if ($percent_used >= 95 || $free_mb < 250) {
+                $findings[] = new \WcpScanner\Findings\Finding([
+                    'engine'      => 'system-storage',
+                    'type'        => 'disk_space_critical',
+                    'severity'    => 'critical',
+                    'confidence'  => 100,
+                    'file_path'   => 'system:storage:disk',
+                    'description' => "Server disk space is dangerously exhausted ({$percent_used}% used, only {$free_mb} MB available). Risk of immediate database corruption, failed updates, and log write halts.",
+                    'evidence'    => "Total: " . round($total / 1024 / 1024 / 1024, 2) . " GB, Free: " . round($free / 1024 / 1024 / 1024, 2) . " GB ({$percent_used}% used)."
+                ]);
+            } elseif ($percent_used >= 88) {
+                $findings[] = new \WcpScanner\Findings\Finding([
+                    'engine'      => 'system-storage',
+                    'type'        => 'disk_space_warning',
+                    'severity'    => 'medium',
+                    'confidence'  => 95,
+                    'file_path'   => 'system:storage:disk',
+                    'description' => "Server disk space usage is high ({$percent_used}% used, {$free_mb} MB available). Consider pruning old backups or log files.",
+                    'evidence'    => "Used: {$percent_used}%."
+                ]);
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Monitor Web Application Firewall status
+     */
+    public static function audit_waf_status(string $scan_id): array {
+        $findings = [];
+        $waf_enabled = \WcpScanner\System\SettingsManager::get('waf_enabled', true);
+        $waf_mode = \WcpScanner\System\SettingsManager::get('waf_mode', 'enabled');
+
+        if (!$waf_enabled || $waf_mode === 'disabled') {
+            $findings[] = new \WcpScanner\Findings\Finding([
+                'engine'      => 'firewall',
+                'type'        => 'waf_inactive',
+                'severity'    => 'high',
+                'confidence'  => 100,
+                'file_path'   => 'firewall:status',
+                'description' => 'Web Application Firewall (WAF) is currently disabled. Incoming malicious HTTP payloads (SQLi, XSS, Path Traversal) are not being filtered at the application boundary.',
+                'evidence'    => 'WAF state: disabled in plugin security settings.'
+            ]);
+        } elseif ($waf_mode === 'learning') {
+            $findings[] = new \WcpScanner\Findings\Finding([
+                'engine'      => 'firewall',
+                'type'        => 'waf_learning_mode',
+                'severity'    => 'low',
+                'confidence'  => 100,
+                'file_path'   => 'firewall:status',
+                'description' => 'Web Application Firewall is in Learning Mode. Requests are being inspected and logged but malicious requests are not actively blocked.',
+                'evidence'    => 'WAF mode: learning.'
+            ]);
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Reputation checks (Domain blocklist, Spamvertised, Spam IP)
+     */
+    public static function audit_reputation_checks(string $scan_id, array $opts): array {
+        $findings = [];
+        $site_url = get_bloginfo('url');
+        $host = wp_parse_url($site_url, PHP_URL_HOST);
+
+        // Allow test domain/IP override via options or filter for testing/verification
+        $test_host = apply_filters('wcpscan_test_reputation_domain', $opts['test_domain'] ?? null);
+        if (!empty($test_host)) {
+            $host = $test_host;
+        }
+
+        // Skip loopback/local dev hosts for public DNSBL checks unless a test domain is explicitly passed
+        $is_local_host = in_array(strtolower((string)$host), ['localhost', '127.0.0.1', '::1'], true) || preg_match('/\.(local|test|example|invalid)$/i', (string)$host);
+
+        // 1. Check if website is on a domain blocklist (Spamhaus DBL & SURBL)
+        if (!empty($opts['check_domain_blocklist']) && !empty($host) && (!$is_local_host || !empty($test_host))) {
+            // Forward lookup format: {domain}.dbl.spamhaus.org
+            $dbl_query = "{$host}.dbl.spamhaus.org";
+            $ip = @gethostbyname($dbl_query);
+            // 127.0.1.x indicates legitimate Spamhaus DBL listing; 127.255.255.x indicates public resolver rate-limit
+            if ($ip && $ip !== $dbl_query && strpos($ip, '127.0.1.') === 0) {
+                $findings[] = new \WcpScanner\Findings\Finding([
+                    'engine'      => 'reputation',
+                    'type'        => 'domain_blocklisted',
+                    'severity'    => 'critical',
+                    'confidence'  => 95,
+                    'file_path'   => "domain:{$host}",
+                    'description' => "CRITICAL REPUTATION ALERT: The domain '{$host}' is listed on the Spamhaus Domain Blocklist (DBL) as spam, malicious, or compromised.",
+                    'evidence'    => "Spamhaus DBL response code: {$ip}"
+                ]);
+            }
+        }
+
+        // 2. Check if website is being "Spamvertised" (SURBL multi.surbl.org)
+        if (!empty($opts['check_spamvertised']) && !empty($host) && (!$is_local_host || !empty($test_host))) {
+            $surbl_query = "{$host}.multi.surbl.org";
+            $surbl_res = @gethostbyname($surbl_query);
+            if ($surbl_res && $surbl_res !== $surbl_query && strpos($surbl_res, '127.0.0.') === 0) {
+                $findings[] = new \WcpScanner\Findings\Finding([
+                    'engine'      => 'reputation',
+                    'type'        => 'domain_spamvertised',
+                    'severity'    => 'critical',
+                    'confidence'  => 95,
+                    'file_path'   => "domain:{$host}",
+                    'description' => "CRITICAL REPUTATION ALERT: The domain '{$host}' is listed on SURBL as actively 'Spamvertised' in bulk unsolicited email or phishing campaigns.",
+                    'evidence'    => "SURBL return code: {$surbl_res}"
+                ]);
+            }
+        }
+
+        // 3. Check if website IP is generating spam (Spamcop, Barracuda, Spamhaus ZEN)
+        if (!empty($opts['check_spam_ip'])) {
+            $test_ip = apply_filters('wcpscan_test_reputation_ip', $opts['test_ip'] ?? null);
+            $server_ip = !empty($test_ip) ? $test_ip : ($_SERVER['SERVER_ADDR'] ?? gethostbyname($host ?: 'localhost'));
+
+            if (filter_var($server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) || !empty($test_ip)) {
+                $rev_ip = implode('.', array_reverse(explode('.', $server_ip)));
+
+                // 3.1 Spamcop SCBL
+                $spamcop_query = "{$rev_ip}.bl.spamcop.net";
+                $sc_res = @gethostbyname($spamcop_query);
+                if ($sc_res && $sc_res !== $spamcop_query && strpos($sc_res, '127.0.0.') === 0) {
+                    $findings[] = new \WcpScanner\Findings\Finding([
+                        'engine'      => 'reputation',
+                        'type'        => 'server_ip_spam_blocklisted',
+                        'severity'    => 'high',
+                        'confidence'  => 95,
+                        'file_path'   => "ip:{$server_ip}",
+                        'description' => "Server outbound IP '{$server_ip}' is actively listed on the Spamcop Blocking List (SCBL) as an active source of unsolicited spam.",
+                        'evidence'    => "Spamcop DNSBL code: {$sc_res}"
+                    ]);
+                }
+
+                // 3.2 Barracuda Reputation Network (BRBL)
+                $barracuda_query = "{$rev_ip}.b.barracudacentral.org";
+                $bc_res = @gethostbyname($barracuda_query);
+                if ($bc_res && $bc_res !== $barracuda_query && strpos($bc_res, '127.0.0.') === 0) {
+                    $findings[] = new \WcpScanner\Findings\Finding([
+                        'engine'      => 'reputation',
+                        'type'        => 'server_ip_spam_blocklisted',
+                        'severity'    => 'high',
+                        'confidence'  => 90,
+                        'file_path'   => "ip:{$server_ip}",
+                        'description' => "Server outbound IP '{$server_ip}' is listed on the Barracuda Reputation Network blocklist (BRBL). Outbound transactional emails may be rejected as spam.",
+                        'evidence'    => "Barracuda DNSBL code: {$bc_res}"
+                    ]);
+                }
+
+                // 3.3 Spamhaus ZEN
+                $zen_query = "{$rev_ip}.zen.spamhaus.org";
+                $zen_res = @gethostbyname($zen_query);
+                if ($zen_res && $zen_res !== $zen_query && strpos($zen_res, '127.0.0.') === 0) {
+                    $findings[] = new \WcpScanner\Findings\Finding([
+                        'engine'      => 'reputation',
+                        'type'        => 'server_ip_spam_blocklisted',
+                        'severity'    => 'high',
+                        'confidence'  => 90,
+                        'file_path'   => "ip:{$server_ip}",
+                        'description' => "Server outbound IP '{$server_ip}' is listed on the Spamhaus ZEN anti-spam database. Outbound transactional emails may be rejected as spam.",
+                        'evidence'    => "Spamhaus ZEN code: {$zen_res}"
+                    ]);
+                }
+            }
+        }
+
+        return $findings;
     }
 }
 

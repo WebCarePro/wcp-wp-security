@@ -78,8 +78,17 @@ class FindingsRepository {
                 $values[] = isset($row['line_number']) && $row['line_number'] !== null ? (int) $row['line_number'] : null;
                 $values[] = isset($row['code_snippet']) && $row['code_snippet'] !== null ? (string) $row['code_snippet'] : null;
                 $values[] = isset($row['evidence']) && $row['evidence'] !== null ? (string) $row['evidence'] : null;
+                $status = (string) ($row['status'] ?? '');
+                if (empty($status) || $status === 'open') {
+                    if (class_exists('\\WcpScanner\\Findings\\WhitelistManager')) {
+                        $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($row);
+                        $status = ($matched_rule !== null) ? 'ignored' : 'open';
+                    } else {
+                        $status = 'open';
+                    }
+                }
                 $values[] = (string) ($row['description'] ?? '');
-                $values[] = (string) ($row['status'] ?? 'open');
+                $values[] = $status;
                 $values[] = $now;
             }
 

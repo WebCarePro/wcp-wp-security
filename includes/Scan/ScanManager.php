@@ -67,20 +67,35 @@ class ScanManager {
             }
 
             $file_findings = $this->file_scanner->scan_file($file, $scan_id_str);
-            $has_threat = !empty($file_findings);
+            $has_unignored_threat = false;
+
+            if (!empty($file_findings)) {
+                foreach ($file_findings as $finding) {
+                    $item = method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding;
+                    if (class_exists('\\WcpScanner\\Findings\\WhitelistManager')) {
+                        $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+                        if ($matched_rule !== null) {
+                            $item['status'] = 'ignored';
+                            $item['whitelisted'] = true;
+                            $item['whitelist_rule'] = $matched_rule;
+                        } else {
+                            $item['status'] = 'open';
+                            $has_unignored_threat = true;
+                        }
+                    } else {
+                        $item['status'] = 'open';
+                        $has_unignored_threat = true;
+                    }
+                    $findings[] = $item;
+                    $issue_rows[] = $item;
+                }
+            }
 
             $file_rows[] = [
                 'file_path' => $file,
                 'file_size' => @filesize($file) ?: 0,
-                'status'    => $has_threat ? 'threat' : 'clean',
+                'status'    => $has_unignored_threat ? 'threat' : 'clean',
             ];
-
-            if ($has_threat) {
-                foreach ($file_findings as $finding) {
-                    $findings[] = $finding;
-                    $issue_rows[] = method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding;
-                }
-            }
 
             $files_scanned++;
 
@@ -98,8 +113,15 @@ class ScanManager {
         }
 
         // Update progress & cursor
+        $open_issues_count = 0;
+        foreach ($issue_rows as $ir) {
+            if (($ir['status'] ?? 'open') === 'open') {
+                $open_issues_count++;
+            }
+        }
+
         $state->increment_scanned($files_scanned);
-        $state->add_issues(count($issue_rows));
+        $state->add_issues($open_issues_count);
         $state->set_cursor($new_cursor);
         $state->set_memory_peak(memory_get_peak_usage(true));
 

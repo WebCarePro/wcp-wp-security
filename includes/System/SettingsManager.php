@@ -137,7 +137,56 @@ class SettingsManager {
             'mcp_token'                          => '',
             'mcp_permission_scope'               => 'read_write',
             'mcp_rate_limit_per_min'             => 60,
+
+            // 15. Custom Scan Engine Options (Wordfence-style scan customization)
+            'custom_scan_options'                => self::get_default_custom_scan_options(),
         ];
+    }
+
+    /**
+     * Default state for customizable scan engine options
+     */
+    public static function get_default_custom_scan_options(): array {
+        return [
+            // Reputation Checks (Free On-Premise DNSBL & Spam Feeds)
+            'check_domain_blocklist'     => true,
+            'check_spamvertised'         => true,
+            'check_spam_ip'              => true,
+
+            // General & Deep Detection Engines
+            'scan_ip_detection'          => true,
+            'scan_public_config'         => true,
+            'scan_public_quarantine'     => true,
+            'scan_core_integrity'        => true,
+            'scan_theme_integrity'       => true,
+            'scan_plugin_integrity'      => true,
+            'scan_unbundled_files'       => true,
+            'scan_known_malware'         => true,
+            'scan_backdoors_heuristics'  => true,
+            'scan_malicious_urls'        => true,
+            'scan_posts_content'         => true,
+            'scan_comments_content'      => true,
+            'scan_options_content'       => true,
+            'scan_vulnerable_software'   => true,
+            'scan_rogue_admins'          => true,
+            'scan_password_strength'     => false, // Disabled by default matching screenshot
+            'monitor_disk_space'         => true,
+            'monitor_firewall_status'    => true,
+            'scan_outside_root'          => true,
+            'scan_images_executable'     => true,
+        ];
+    }
+
+    /**
+     * Sanitize custom scan engine options
+     */
+    public static function sanitize_custom_scan_options(array $opts): array {
+        $defaults = self::get_default_custom_scan_options();
+        $clean = [];
+        foreach ($defaults as $key => $default_val) {
+            $clean[$key] = !empty($opts[$key]);
+        }
+        return $clean;
     }
 
     /**
@@ -432,6 +481,15 @@ class SettingsManager {
             : ($current['mcp_permission_scope'] ?? 'read_write');
 
         $clean['mcp_rate_limit_per_min'] = max(10, min(600, intval($input['mcp_rate_limit_per_min'] ?? ($current['mcp_rate_limit_per_min'] ?? 60))));
+
+        // 15. Custom Scan Engine Options
+        if (isset($input['custom_scan_options']) && is_array($input['custom_scan_options'])) {
+            $clean['custom_scan_options'] = self::sanitize_custom_scan_options($input['custom_scan_options']);
+        } elseif (isset($current['custom_scan_options']) && is_array($current['custom_scan_options'])) {
+            $clean['custom_scan_options'] = $current['custom_scan_options'];
+        } else {
+            $clean['custom_scan_options'] = self::get_default_custom_scan_options();
+        }
 
         update_option(self::OPTION_KEY, $clean);
 

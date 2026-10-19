@@ -59,7 +59,7 @@ class LoginHistoryManager {
      * Enqueue client-side display telemetry script using official WordPress script APIs
      */
     public static function enqueue_login_screen_detector() {
-        wp_register_script('wcpscan-login-detector', false, [], (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.18.0'), true);
+        wp_register_script('wcpscan-login-detector', false, [], (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.19.0'), true);
         wp_enqueue_script('wcpscan-login-detector');
         wp_add_inline_script('wcpscan-login-detector', '(function(){try{var s=document.getElementById("wcpscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("wcpscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();');
     }
