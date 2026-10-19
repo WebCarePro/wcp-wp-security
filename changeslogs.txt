@@ -1,5 +1,9 @@
 v:1.20.0 - 2026-10-20
-- UI/UX update
+- Welcome Modal White Mode Typography & Contrast Fix (`WelcomeModal.tsx`, `index.css`):
+  * Resolved contrast issue where global light mode (`.wcp-theme-light`) overrides forced headings (`h1`-`h6`), paragraphs (`p`), and inline light text inside the dark-themed Welcome Modal to near-black (`#0f172a`, `#334155`).
+  * Added `:not(.wcp-welcome-modal *):not(.wcp-welcome-dialog *)` exclusions to light mode typography rules.
+  * Added dedicated `.wcp-welcome-modal` and `.wcp-welcome-dialog` theme isolation rules safeguarding white headlines (`#ffffff`), clear description copy (`#94a3b8`), card titles (`#f1f5f9`), badges, and author credentials in both light and dark mode.
+  * Aligned welcome copy with solo freelancer identity requirement.
 
 v:1.19.0 - 2026-10-19
 - UI/UX update
