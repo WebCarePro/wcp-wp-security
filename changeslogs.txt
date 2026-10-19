@@ -1,4 +1,7 @@
 v:1.20.0 - 2026-10-20
+- Scan Logs Inspection Telemetry Font Sizing Refinement (`ScanLogsPage.tsx`, `index.css`):
+  * Normalized oversized font size (`28px` inherited from global card metrics) on telemetry values ("Execution Duration", "Peak Memory", "Throughput", "CPU Load") to a clean, proportionate, and balanced `13.5px` bold metric value (`.wcp-telemetry-metric-val`).
+  * Aligned labels, values, and subtexts neatly on the telemetry horizontal ribbon.
 - Welcome Modal White Mode Typography & Contrast Fix (`WelcomeModal.tsx`, `index.css`):
   * Resolved contrast issue where global light mode (`.wcp-theme-light`) overrides forced headings (`h1`-`h6`), paragraphs (`p`), and inline light text inside the dark-themed Welcome Modal to near-black (`#0f172a`, `#334155`).
   * Added `:not(.wcp-welcome-modal *):not(.wcp-welcome-dialog *)` exclusions to light mode typography rules.
