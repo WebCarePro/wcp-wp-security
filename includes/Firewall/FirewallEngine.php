@@ -911,7 +911,7 @@ class FirewallEngine {
         $current_usage_mb = round($current_usage / (1024 * 1024), 1);
         $peak_usage_mb = round($peak_usage / (1024 * 1024), 1);
 
-        // Physical Host RAM from /proc/meminfo
+        // Physical Shared Node RAM from /proc/meminfo
         $host_mem_total_mb = null;
         $host_mem_avail_mb = null;
         if (@is_readable('/proc/meminfo')) {
@@ -923,6 +923,42 @@ class FirewallEngine {
                 if (preg_match('/MemAvailable:\s+(\d+)\s+kB/i', $meminfo, $m2)) {
                     $host_mem_avail_mb = round((int)$m2[1] / 1024, 1);
                 }
+            }
+        }
+
+        // Shared Hosting / CloudLinux CageFS detection
+        $is_shared_hosting = false;
+        $hosting_env_label = 'Dedicated / Cloud VPS';
+
+        if (@file_exists('/usr/share/cagefs') || @file_exists('/var/cpanel') || @is_dir('/usr/local/cpanel') || @file_exists('/proc/lve/info')) {
+            $is_shared_hosting = true;
+            $hosting_env_label = 'cPanel / CloudLinux Shared Hosting';
+        } elseif (isset($_SERVER['DOCUMENT_ROOT']) && (strpos($_SERVER['DOCUMENT_ROOT'], '/home/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/home2/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/vhosts/') !== false)) {
+            $is_shared_hosting = true;
+            $hosting_env_label = 'Shared Hosting Environment';
+        }
+
+        // Detect Account Memory Limit from CloudLinux LVE or cgroups (e.g. 1GB plan)
+        $account_ram_limit = null;
+        // Check cgroups v2 memory.max
+        if (@is_readable('/sys/fs/cgroup/memory.max')) {
+            $cg_mem = trim((string) @file_get_contents('/sys/fs/cgroup/memory.max'));
+            if ($cg_mem !== 'max' && is_numeric($cg_mem) && (float)$cg_mem > 0) {
+                $account_ram_limit = round((float)$cg_mem / (1024 * 1024 * 1024), 1) . ' GB';
+            }
+        }
+        // Check cgroups v1 memory.limit_in_bytes
+        if ($account_ram_limit === null && @is_readable('/sys/fs/cgroup/memory/memory.limit_in_bytes')) {
+            $cg_mem = trim((string) @file_get_contents('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
+            if (is_numeric($cg_mem) && (float)$cg_mem > 0 && (float)$cg_mem < 9223372036854771712) {
+                $account_ram_limit = round((float)$cg_mem / (1024 * 1024 * 1024), 1) . ' GB';
+            }
+        }
+        // CloudLinux LVE /proc/lve/list
+        if ($account_ram_limit === null && @is_readable('/proc/lve/list')) {
+            $lve_data = @file_get_contents('/proc/lve/list');
+            if ($lve_data && preg_match('/\b(\d+)\b/', $lve_data)) {
+                $hosting_env_label = 'CloudLinux LVE Container';
             }
         }
 
@@ -963,7 +999,7 @@ class FirewallEngine {
         }
 
         $cpu_limit = null;
-        $cpu_limit_type = 'Host Uncapped (' . $host_cores . ' Cores)';
+        $cpu_limit_type = $is_shared_hosting ? 'Shared Hosting (cPanel)' : 'Host Uncapped (' . $host_cores . ' Cores)';
 
         // cgroups v2 check: /sys/fs/cgroup/cpu.max ($quota $period)
         if (@is_readable('/sys/fs/cgroup/cpu.max')) {
@@ -971,8 +1007,8 @@ class FirewallEngine {
             $parts = explode(' ', $cgroup_val);
             if (isset($parts[0], $parts[1]) && $parts[0] !== 'max' && (int)$parts[1] > 0) {
                 $allocated_cores = round((int)$parts[0] / (int)$parts[1], 2);
-                $cpu_limit = $allocated_cores . ' vCPUs Dedicated';
-                $cpu_limit_type = 'Cgroups v2 Quota (' . $allocated_cores . ' Cores)';
+                $cpu_limit = $allocated_cores . ' vCPU Allocated';
+                $cpu_limit_type = 'Cgroups v2 Quota (' . $allocated_cores . ' Core)';
             }
         }
 
@@ -982,14 +1018,15 @@ class FirewallEngine {
             $period = (int) trim((string) @file_get_contents('/sys/fs/cgroup/cpu/cpu.cfs_period_us'));
             if ($quota > 0 && $period > 0) {
                 $allocated_cores = round($quota / $period, 2);
-                $cpu_limit = $allocated_cores . ' vCPUs Dedicated';
-                $cpu_limit_type = 'Cgroups v1 Quota (' . $allocated_cores . ' Cores)';
+                $cpu_limit = $allocated_cores . ' vCPU Allocated';
+                $cpu_limit_type = 'Cgroups v1 Quota (' . $allocated_cores . ' Core)';
             }
         }
 
         // CloudLinux LVE check
-        if ($cpu_limit === null && @file_exists('/proc/lve/info')) {
-            $cpu_limit_type = 'CloudLinux LVE Limited';
+        if ($cpu_limit === null && (@file_exists('/proc/lve/info') || @file_exists('/proc/lve/list') || $is_shared_hosting)) {
+            $cpu_limit = '1 vCPU (cPanel Account Quota)';
+            $cpu_limit_type = 'cPanel / LVE Account Quota';
         }
 
         if ($cpu_limit === null) {
@@ -1038,6 +1075,9 @@ class FirewallEngine {
             'php_ram_peak'         => $peak_usage_mb . ' MB',
             'php_ram_free'         => $free_str,
             'php_ram_percent'      => $usage_percent,
+            'is_shared_hosting'    => $is_shared_hosting,
+            'hosting_env_label'    => $hosting_env_label,
+            'account_ram_limit'    => $account_ram_limit ?: ($is_shared_hosting ? 'cPanel Plan Limit (~1 GB)' : null),
             'host_ram_total'       => $host_mem_total_mb ? round($host_mem_total_mb / 1024, 1) . ' GB' : 'N/A',
             'host_ram_avail'       => $host_mem_avail_mb ? round($host_mem_avail_mb / 1024, 1) . ' GB' : 'N/A',
             'cpu_cores'            => $host_cores,

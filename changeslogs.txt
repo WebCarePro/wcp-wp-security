@@ -9,9 +9,9 @@ v:1.20.0 - 2026-10-20
     - PHP Runtime Engine: Installed PHP version, 64-bit architecture, and OPcache acceleration status badge.
     - Real Server Origin IP: Direct server IP address with internal/private subnet indicator and one-click clipboard copy button.
     - Website CDN Edge IP: Detected reverse proxy / CDN edge address (Cloudflare Anycast, Fastly, CloudFront, Sucuri, or direct origin indicator) with one-click copy.
-    - PHP RAM Allocation: Real-time memory gauge showing remaining free PHP memory, peak usage, configured limit, and physical host free memory.
-    - Website CPU Limitation: Container CPU quotas (cgroups v1/v2, CloudLinux LVE, or host uncapped cores) with live 1m/5m/15m system load average.
-  * Added collapsible "Dev Diagnostics & Tuning" drawer with developer-focused metrics: full kernel uname string, POSIX process execution user, max execution time limit, upload/post max body limits, web root disk storage capacity/free space, and WAF hook execution mode.
+    - PHP Script RAM Limit: Real-time memory gauge showing PHP script memory limit (`128M`/`256M`), current usage, and peak memory, with smart cPanel/CloudLinux account quota context (~1 GB) avoiding confusion with the underlying shared node total RAM.
+    - Website CPU Allocation: Dedicated shared hosting & cPanel LVE isolation detection showing account 1 vCPU allocation quota while identifying the shared physical node capacity and live system load.
+  * Added collapsible "Dev Diagnostics & Tuning" drawer with developer-focused metrics: hosting environment classification (cPanel / CloudLinux / Dedicated VPS), shared server node capacity, full kernel uname string, POSIX process execution user, max execution time limit, upload/post max body limits, web root disk storage capacity/free space, and WAF hook execution mode.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
 - Scan Logs Inspection Telemetry Font Sizing Refinement (`ScanLogsPage.tsx`, `index.css`):
   * Normalized oversized font size (`28px` inherited from global card metrics) on telemetry values ("Execution Duration", "Peak Memory", "Throughput", "CPU Load") to a clean, proportionate, and balanced `13.5px` bold metric value (`.wcp-telemetry-metric-val`).
