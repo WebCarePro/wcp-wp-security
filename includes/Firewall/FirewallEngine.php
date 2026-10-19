@@ -776,6 +776,282 @@ class FirewallEngine {
             'edge_advisor'       => class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')
                 ? \WcpScanner\Cloudflare\CloudflareService::get_edge_advisor()
                 : null,
+            'server_telemetry'   => self::get_server_telemetry(),
+        ];
+    }
+
+    /**
+     * Compute comprehensive server, host runtime, and developer diagnostics for the Firewall dashboard.
+     *
+     * @return array
+     */
+    public static function get_server_telemetry(): array {
+        // 1. Linux Uname & OS Distribution
+        $uname_s = php_uname('s');
+        $uname_r = php_uname('r');
+        $uname_m = php_uname('m');
+        $uname_n = php_uname('n');
+        $uname_full = php_uname('a');
+        $linux_uname_short = "{$uname_s} {$uname_r} ({$uname_m})";
+
+        $distro_name = '';
+        if (@is_readable('/etc/os-release')) {
+            $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (is_array($lines)) {
+                foreach ($lines as $line) {
+                    if (strpos($line, 'PRETTY_NAME=') === 0) {
+                        $distro_name = trim(substr($line, 12), '"\' ');
+                        break;
+                    }
+                }
+            }
+        }
+        if (empty($distro_name) && @is_readable('/etc/redhat-release')) {
+            $distro_name = trim((string) @file_get_contents('/etc/redhat-release'));
+        }
+        if (empty($distro_name)) {
+            $distro_name = $uname_s . ' ' . $uname_r;
+        }
+
+        // 2. Server Software & SAPI
+        $server_software_raw = !empty($_SERVER['SERVER_SOFTWARE'])
+            ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE']))
+            : (function_exists('apache_get_version') ? (string) @apache_get_version() : '');
+        if (empty($server_software_raw)) {
+            if (file_exists('/etc/nginx') || strpos(php_sapi_name(), 'fpm') !== false) {
+                $server_software_raw = 'nginx (PHP-FPM)';
+            } else {
+                $server_software_raw = 'Unknown Web Server';
+            }
+        }
+        $server_software_type = 'Other';
+        if (stripos($server_software_raw, 'litespeed') !== false || stripos($server_software_raw, 'openlitespeed') !== false) {
+            $server_software_type = 'LiteSpeed';
+        } elseif (stripos($server_software_raw, 'nginx') !== false) {
+            $server_software_type = 'Nginx';
+        } elseif (stripos($server_software_raw, 'apache') !== false) {
+            $server_software_type = 'Apache';
+        } elseif (stripos($server_software_raw, 'caddy') !== false) {
+            $server_software_type = 'Caddy';
+        } elseif (stripos($server_software_raw, 'microsoft-iis') !== false) {
+            $server_software_type = 'Microsoft IIS';
+        }
+        $php_sapi = php_sapi_name();
+
+        // 3. PHP Version & Architecture
+        $php_version = PHP_VERSION;
+        $php_arch = PHP_INT_SIZE === 8 ? '64-bit' : '32-bit';
+        $opcache_active = (bool) (extension_loaded('Zend OPcache') && ini_get('opcache.enable'));
+
+        // 4. Real Server Origin IP
+        $real_server_ip = class_exists('\\WcpScanner\\System\\ServerInfo')
+            ? \WcpScanner\System\ServerInfo::get_server_ip()
+            : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : 'Unknown');
+
+        $is_server_ip_private = !filter_var($real_server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+
+        // 5. Website CDN Detection & CDN IP
+        $cdn_detected = false;
+        $cdn_provider = 'None (Direct Origin)';
+        $cdn_ip = 'N/A';
+
+        // Check incoming CDN headers
+        if (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Cloudflare Anycast';
+            if (!empty($_SERVER['REMOTE_ADDR']) && self::is_cloudflare_ip($_SERVER['REMOTE_ADDR'])) {
+                $cdn_ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+            }
+        } elseif (!empty($_SERVER['HTTP_FASTLY_CLIENT_IP']) || !empty($_SERVER['HTTP_X_FASTLY_REQUEST_ID'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Fastly CDN';
+            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Fastly Edge';
+        } elseif (!empty($_SERVER['HTTP_X_AMZ_CF_ID']) || !empty($_SERVER['HTTP_CLOUDFRONT_FORWARDED_PROTO'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Amazon CloudFront';
+            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'CloudFront Edge';
+        } elseif (!empty($_SERVER['HTTP_TRUE_CLIENT_IP']) || !empty($_SERVER['HTTP_X_AKAMAI_EDGESCAPE'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Akamai CDN';
+            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Akamai Edge';
+        } elseif (!empty($_SERVER['HTTP_X_SUCURI_CLIENTIP'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Sucuri WAF/CDN';
+            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Sucuri Edge';
+        } elseif (!empty($_SERVER['HTTP_INCAP_CLIENT_IP'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Imperva / Incapsula';
+            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Imperva Edge';
+        }
+
+        // If not detected via headers, inspect DNS record of domain
+        if (!$cdn_detected) {
+            $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+            if (!empty($site_host) && function_exists('dns_get_record')) {
+                $records = @dns_get_record($site_host, DNS_A);
+                if (is_array($records)) {
+                    foreach ($records as $r) {
+                        if (!empty($r['ip'])) {
+                            if (self::is_cloudflare_ip($r['ip'])) {
+                                $cdn_detected = true;
+                                $cdn_provider = 'Cloudflare Anycast (via DNS)';
+                                $cdn_ip = $r['ip'];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. PHP RAM Available & Memory Diagnostics
+        $raw_limit = ini_get('memory_limit') ?: '256M';
+        $current_usage = memory_get_usage(true);
+        $peak_usage = memory_get_peak_usage(true);
+        $current_usage_mb = round($current_usage / (1024 * 1024), 1);
+        $peak_usage_mb = round($peak_usage / (1024 * 1024), 1);
+
+        // Physical Host RAM from /proc/meminfo
+        $host_mem_total_mb = null;
+        $host_mem_avail_mb = null;
+        if (@is_readable('/proc/meminfo')) {
+            $meminfo = @file_get_contents('/proc/meminfo');
+            if ($meminfo) {
+                if (preg_match('/MemTotal:\s+(\d+)\s+kB/i', $meminfo, $m1)) {
+                    $host_mem_total_mb = round((int)$m1[1] / 1024, 1);
+                }
+                if (preg_match('/MemAvailable:\s+(\d+)\s+kB/i', $meminfo, $m2)) {
+                    $host_mem_avail_mb = round((int)$m2[1] / 1024, 1);
+                }
+            }
+        }
+
+        if ($raw_limit === '-1') {
+            $display_limit = 'Unlimited (-1)';
+            $free_str = $host_mem_avail_mb ? round($host_mem_avail_mb, 0) . ' MB' : 'Unlimited';
+            $usage_percent = 5;
+        } else {
+            $display_limit = $raw_limit;
+            $limit_bytes = 0;
+            if (function_exists('wp_convert_hr_to_bytes')) {
+                $limit_bytes = wp_convert_hr_to_bytes($raw_limit);
+            } else {
+                $value = trim($raw_limit);
+                $last = strtolower($value[strlen($value) - 1]);
+                $val = (int) $value;
+                switch ($last) {
+                    case 'g': $val *= 1024 * 1024 * 1024; break;
+                    case 'm': $val *= 1024 * 1024; break;
+                    case 'k': $val *= 1024; break;
+                }
+                $limit_bytes = $val;
+            }
+            $free_bytes = $limit_bytes > 0 ? max(0, $limit_bytes - $current_usage) : 0;
+            $free_str = round($free_bytes / (1024 * 1024), 1) . ' MB';
+            $usage_percent = ($limit_bytes > 0) ? min(100, round(($current_usage / $limit_bytes) * 100, 1)) : 0;
+        }
+
+        // 7. Website CPU Limitation (Cores, Cgroups, LVE, Load Average)
+        $host_cores = 1;
+        if (@is_readable('/proc/cpuinfo')) {
+            $cpuinfo = @file_get_contents('/proc/cpuinfo');
+            if ($cpuinfo) {
+                $host_cores = max(1, substr_count($cpuinfo, 'processor'));
+            }
+        } elseif (getenv('NUMBER_OF_PROCESSORS')) {
+            $host_cores = max(1, (int) getenv('NUMBER_OF_PROCESSORS'));
+        }
+
+        $cpu_limit = null;
+        $cpu_limit_type = 'Host Uncapped (' . $host_cores . ' Cores)';
+
+        // cgroups v2 check: /sys/fs/cgroup/cpu.max ($quota $period)
+        if (@is_readable('/sys/fs/cgroup/cpu.max')) {
+            $cgroup_val = trim((string) @file_get_contents('/sys/fs/cgroup/cpu.max'));
+            $parts = explode(' ', $cgroup_val);
+            if (isset($parts[0], $parts[1]) && $parts[0] !== 'max' && (int)$parts[1] > 0) {
+                $allocated_cores = round((int)$parts[0] / (int)$parts[1], 2);
+                $cpu_limit = $allocated_cores . ' vCPUs Dedicated';
+                $cpu_limit_type = 'Cgroups v2 Quota (' . $allocated_cores . ' Cores)';
+            }
+        }
+
+        // cgroups v1 fallback: /sys/fs/cgroup/cpu/cpu.cfs_quota_us
+        if ($cpu_limit === null && @is_readable('/sys/fs/cgroup/cpu/cpu.cfs_quota_us') && @is_readable('/sys/fs/cgroup/cpu/cpu.cfs_period_us')) {
+            $quota = (int) trim((string) @file_get_contents('/sys/fs/cgroup/cpu/cpu.cfs_quota_us'));
+            $period = (int) trim((string) @file_get_contents('/sys/fs/cgroup/cpu/cpu.cfs_period_us'));
+            if ($quota > 0 && $period > 0) {
+                $allocated_cores = round($quota / $period, 2);
+                $cpu_limit = $allocated_cores . ' vCPUs Dedicated';
+                $cpu_limit_type = 'Cgroups v1 Quota (' . $allocated_cores . ' Cores)';
+            }
+        }
+
+        // CloudLinux LVE check
+        if ($cpu_limit === null && @file_exists('/proc/lve/info')) {
+            $cpu_limit_type = 'CloudLinux LVE Limited';
+        }
+
+        if ($cpu_limit === null) {
+            $cpu_limit = $host_cores . ' Cores (No Container Limit)';
+        }
+
+        // System Load Average
+        $load_avg = function_exists('sys_getloadavg') ? @sys_getloadavg() : false;
+        $load_formatted = (is_array($load_avg) && count($load_avg) >= 3)
+            ? sprintf('%.2f (1m), %.2f (5m), %.2f (15m)', $load_avg[0], $load_avg[1], $load_avg[2])
+            : 'N/A';
+
+        // 8. Helpful Developer Extras
+        $max_execution_time = ini_get('max_execution_time') ?: '30';
+        $upload_max_filesize = ini_get('upload_max_filesize') ?: '32M';
+        $post_max_size = ini_get('post_max_size') ?: '32M';
+
+        $posix_user = (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) ? @posix_getpwuid(posix_geteuid()) : null;
+        $php_user = (is_array($posix_user) && !empty($posix_user['name'])) ? $posix_user['name'] : (function_exists('get_current_user') ? get_current_user() : 'www-data');
+
+        $disk_free_gb = function_exists('disk_free_space') ? round(@disk_free_space(ABSPATH) / (1024 * 1024 * 1024), 1) : null;
+        $disk_total_gb = function_exists('disk_total_space') ? round(@disk_total_space(ABSPATH) / (1024 * 1024 * 1024), 1) : null;
+
+        $auto_prepend = ini_get('auto_prepend_file');
+        $waf_hook_mode = (!empty($auto_prepend) && strpos($auto_prepend, 'wcp') !== false)
+            ? 'Early Prepend (auto_prepend_file)'
+            : 'WordPress Runtime Filter (mu-plugin / action hook)';
+
+        return [
+            'linux_uname'          => $linux_uname_short,
+            'linux_uname_full'     => $uname_full,
+            'distro_name'          => $distro_name,
+            'server_software'      => $server_software_raw,
+            'server_software_type' => $server_software_type,
+            'php_version'          => $php_version,
+            'php_sapi'             => $php_sapi,
+            'php_arch'             => $php_arch,
+            'opcache_active'       => $opcache_active,
+            'real_server_ip'       => $real_server_ip,
+            'is_server_ip_private' => $is_server_ip_private,
+            'cdn_available'        => $cdn_detected,
+            'cdn_provider'         => $cdn_provider,
+            'cdn_ip'               => $cdn_ip,
+            'php_ram_limit'        => $display_limit,
+            'php_ram_used'         => $current_usage_mb . ' MB',
+            'php_ram_peak'         => $peak_usage_mb . ' MB',
+            'php_ram_free'         => $free_str,
+            'php_ram_percent'      => $usage_percent,
+            'host_ram_total'       => $host_mem_total_mb ? round($host_mem_total_mb / 1024, 1) . ' GB' : 'N/A',
+            'host_ram_avail'       => $host_mem_avail_mb ? round($host_mem_avail_mb / 1024, 1) . ' GB' : 'N/A',
+            'cpu_cores'            => $host_cores,
+            'cpu_limitation'       => $cpu_limit,
+            'cpu_limit_type'       => $cpu_limit_type,
+            'cpu_load_avg'         => $load_formatted,
+            'cpu_load_1m'          => is_array($load_avg) ? $load_avg[0] : null,
+            'max_execution_time'   => $max_execution_time . 's',
+            'upload_max_filesize'  => $upload_max_filesize,
+            'post_max_size'        => $post_max_size,
+            'php_user'             => $php_user,
+            'disk_free_gb'         => $disk_free_gb !== null ? $disk_free_gb . ' GB' : 'N/A',
+            'disk_total_gb'        => $disk_total_gb !== null ? $disk_total_gb . ' GB' : 'N/A',
+            'waf_hook_mode'        => $waf_hook_mode,
         ];
     }
 
