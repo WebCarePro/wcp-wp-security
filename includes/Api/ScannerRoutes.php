@@ -596,6 +596,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/auth/2fa/regenerate-backup-codes', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'regenerate_user_backup_codes'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/auth/unlock-ip', [
 
             'methods'             => 'POST',
@@ -625,6 +631,12 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/auth/admin-2fa/reset', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'admin_reset_user_2fa'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/admin-2fa/regenerate-backup-codes', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'admin_regenerate_user_backup_codes'],
             'permission_callback' => $permission,
         ]);
 
@@ -5318,6 +5330,7 @@ class ScannerRoutes {
             'lockouts'                  => array_values(\WcpScanner\Auth\LoginHardening::get_locked_ips()),
             'stats'                     => \WcpScanner\Auth\LoginHardening::get_stats(),
             'active_sessions'           => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+            'backup_codes_count'        => \WcpScanner\Auth\TwoFactorAuth::get_remaining_backup_codes_count($user_id),
             'current_ip'                => \WcpScanner\Firewall\FirewallEngine::get_client_ip(),
         ]);
     }
@@ -5399,6 +5412,38 @@ class ScannerRoutes {
             'success' => true,
             'message' => __('All remembered/trusted devices have been revoked. 2FA verification will be required on all browsers.', 'wcp-security-scanner'),
         ]);
+    }
+
+    /**
+     * Auth Security: Regenerate Backup Codes for Current User
+     */
+    public static function regenerate_user_backup_codes() {
+        $user_id = get_current_user_id();
+        $user    = wp_get_current_user();
+
+        if (!\WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
+            return new \WP_Error('2fa_not_enabled', __('Two-Factor Authentication is not enabled for your account.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        try {
+            $bundle = \WcpScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
+
+            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+                \WcpScanner\System\AuditLogger::log_event(
+                    '2fa_backup_codes_regenerated',
+                    sprintf(__('Administrator %s regenerated 2FA emergency backup codes.', 'wcp-security-scanner'), $user->user_login)
+                );
+            }
+
+            return rest_ensure_response([
+                'success'            => true,
+                'message'            => __('New 2FA emergency backup codes generated successfully.', 'wcp-security-scanner'),
+                'backup_codes'       => $bundle['backup_codes'],
+                'backup_codes_count' => $bundle['count'],
+            ]);
+        } catch (\Throwable $e) {
+            return new \WP_Error('regen_failed', $e->getMessage(), ['status' => 500]);
+        }
     }
 
 
@@ -5514,6 +5559,49 @@ class ScannerRoutes {
             ]);
         } catch (\Throwable $e) {
             return new \WP_Error('reset_failed', $e->getMessage(), ['status' => 500]);
+        }
+    }
+
+    /**
+     * Auth Security: Admin Regenerate Backup Codes for Target Administrator
+     */
+    public static function admin_regenerate_user_backup_codes(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = (int) ($params['user_id'] ?? 0);
+
+        if (!$user_id) {
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        if (!\WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
+            return new \WP_Error('2fa_not_enabled', sprintf(__('2FA is not enabled for user %s.', 'wcp-security-scanner'), $user->user_login), ['status' => 400]);
+        }
+
+        try {
+            $bundle = \WcpScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
+
+            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+                \WcpScanner\System\AuditLogger::log_event(
+                    'admin_2fa_backup_codes_regenerated',
+                    sprintf(__('Administrator %s regenerated backup codes for user "%s" (ID: %d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
+                );
+            }
+
+            return rest_ensure_response([
+                'success'            => true,
+                'message'            => sprintf(__('New backup codes generated for administrator %s.', 'wcp-security-scanner'), $user->user_login),
+                'user_login'         => $user->user_login,
+                'backup_codes'       => $bundle['backup_codes'],
+                'backup_codes_count' => $bundle['count'],
+                'admins'             => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            ]);
+        } catch (\Throwable $e) {
+            return new \WP_Error('regen_failed', $e->getMessage(), ['status' => 500]);
         }
     }
 

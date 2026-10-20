@@ -435,6 +435,32 @@ class TwoFactorAuth {
     }
 
     /**
+     * Get remaining backup codes count for a user
+     */
+    public static function get_remaining_backup_codes_count(int $user_id): int {
+        $stored = get_user_meta($user_id, self::META_BACKUP_CODES, true);
+        return is_array($stored) ? count($stored) : 0;
+    }
+
+    /**
+     * Regenerate emergency backup codes for a user with 2FA enabled
+     */
+    public static function regenerate_backup_codes(int $user_id, int $count = 8): array {
+        if (!self::is_user_enabled($user_id)) {
+            throw new \Exception(__('Two-factor authentication is not enabled for this account.', 'wcp-security-scanner'));
+        }
+
+        $bundle = self::generate_backup_codes($count);
+        update_user_meta($user_id, self::META_BACKUP_CODES, $bundle['hashed']);
+
+        return [
+            'backup_codes' => $bundle['plain'],
+            'count'        => count($bundle['plain']),
+        ];
+    }
+
+
+    /**
      * Enable 2FA for a user
      */
     public static function enable_user(int $user_id, string $secret, array $hashed_backup_codes): bool {
@@ -549,6 +575,7 @@ class TwoFactorAuth {
                 'is_2fa_enabled'   => self::is_user_enabled($uid),
                 'compliance'       => $compliance,
                 'trusted_devices'  => count($devices),
+                'backup_codes_count' => self::get_remaining_backup_codes_count($uid),
                 'registered_at'    => $user->user_registered,
                 'last_login'       => !empty($last_login) ? $last_login : null,
                 'is_locked'        => !empty($user_locked_ips),
