@@ -125,6 +125,14 @@ class LoginHardening {
                     sprintf(__('IP %s temporarily locked out after %d failed login attempts for user "%s".', 'wcp-security-scanner'), $ip, $attempts, $username)
                 );
             }
+
+            // Sync brute force attacker to Cloudflare Edge IP Access Rules if enabled
+            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+                \WcpScanner\Cloudflare\CloudflareService::block_ip(
+                    $ip,
+                    "WCP Brute Force: {$attempts} failed logins for {$username}"
+                );
+            }
         }
     }
 

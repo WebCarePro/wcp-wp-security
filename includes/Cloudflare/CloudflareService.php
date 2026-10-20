@@ -645,7 +645,7 @@ class CloudflareService {
             'enabled'            => false,
             'requests'           => 5,
             'period'             => 60,
-            'mitigation_timeout' => 3600,
+            'mitigation_timeout' => 10, // 10s is standard Cloudflare Free plan requirement
             'action'             => 'block',
             'path'               => '/wp-login.php',
             'bypass_ips'         => '',
@@ -693,7 +693,7 @@ class CloudflareService {
     }
 
     /**
-     * Toggle Rate Limiting Rule on sensitive endpoints with customizable thresholds & actions
+     * Toggle Rate Limiting Rule on sensitive endpoints (/wp-login.php) with customizable thresholds & actions
      *
      * @param bool $enable
      * @param array $custom_config
@@ -707,10 +707,10 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
         }
 
-        // Validate and sanitize customized options (Default: 5 requests / 60 seconds / 3600s block)
+        // Validate and sanitize customized options (Default: 5 requests / 60 seconds / 10s timeout for Cloudflare Free tier)
         $requests = isset($custom_config['requests']) ? max(2, min(500, (int) $custom_config['requests'])) : 5;
         $period = isset($custom_config['period']) && in_array((int) $custom_config['period'], [10, 60], true) ? (int) $custom_config['period'] : 60;
-        $timeout = isset($custom_config['mitigation_timeout']) ? max(10, min(86400, (int) $custom_config['mitigation_timeout'])) : 3600;
+        $timeout = isset($custom_config['mitigation_timeout']) ? max(10, min(86400, (int) $custom_config['mitigation_timeout'])) : 10;
         
         $allowed_actions = ['block', 'managed_challenge', 'js_challenge', 'challenge'];
         $action = isset($custom_config['action']) && in_array($custom_config['action'], $allowed_actions, true) ? $custom_config['action'] : 'block';
@@ -804,13 +804,62 @@ class CloudflareService {
         $payload = ['rules' => $preserved_rules];
         $res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint", 'PUT', $payload);
 
+        // Auto-fallback for Cloudflare Free plan restrictions:
+        // Free tier requires mitigation_timeout to be 10 seconds. If an extended timeout was rejected, retry with 10s.
+        if (empty($res['success']) && $enable) {
+            $raw_err = $res['errors'][0]['message'] ?? '';
+            $err_code = $res['errors'][0]['code'] ?? 0;
+            $needs_timeout_fallback = ($timeout !== 10) && (
+                $err_code === 10072 ||
+                stripos($raw_err, 'mitigation timeout') !== false ||
+                stripos($raw_err, 'not entitled') !== false
+            );
+
+            if ($needs_timeout_fallback) {
+                $timeout = 10;
+                foreach ($preserved_rules as &$p_rule) {
+                    if (isset($p_rule['description']) && strpos($p_rule['description'], self::WCP_RULE_TAG) !== false) {
+                        $p_rule['ratelimit']['mitigation_timeout'] = 10;
+                    }
+                }
+                unset($p_rule);
+
+                $retry_payload = ['rules' => $preserved_rules];
+                $res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint", 'PUT', $retry_payload);
+
+                if (!empty($res['success'])) {
+                    update_option('wcpscan_cloudflare_rate_limit_config', [
+                        'enabled'            => true,
+                        'requests'           => $requests,
+                        'period'             => $period,
+                        'mitigation_timeout' => 10,
+                        'action'             => $action,
+                        'path'               => $saved_path_string,
+                        'bypass_ips'         => $bypass_ips,
+                    ]);
+
+                    return [
+                        'success' => true,
+                        'enabled' => true,
+                        'rate_limit_info' => self::get_rate_limiting_info($zone_id),
+                        'message' => sprintf(
+                            __('Cloudflare Free Rate Limiter active (%d req / %ds, action: %s, penalty: 10s). Adjusted penalty to 10s per Cloudflare Free Plan requirements. For 12h/24h bans, enable Real-time WAF Auto-Ban Sync.', 'wcp-security-scanner'),
+                            $requests,
+                            $period,
+                            strtoupper($action)
+                        ),
+                    ];
+                }
+            }
+        }
+
         if (!empty($res['success'])) {
             return [
                 'success' => true,
                 'enabled' => $enable,
                 'rate_limit_info' => self::get_rate_limiting_info($zone_id),
                 'message' => $enable
-                    ? sprintf(__('Cloudflare Edge Rate Limiter deployed (%d req / %ds, action: %s).', 'wcp-security-scanner'), $requests, $period, strtoupper($action))
+                    ? sprintf(__('Cloudflare Free Rate Limiter deployed (%d req / %ds, action: %s, penalty: %ds) for %s.', 'wcp-security-scanner'), $requests, $period, strtoupper($action), $timeout, esc_html($saved_path_string))
                     : __('Cloudflare Edge Rate Limiter removed.', 'wcp-security-scanner'),
             ];
         }
