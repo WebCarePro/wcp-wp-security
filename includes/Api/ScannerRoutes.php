@@ -5567,10 +5567,11 @@ class ScannerRoutes {
         if (!self::ensure_cloudflare_service()) {
             return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
         }
-        $params = $request->get_json_params() ?: [];
-        $enable = !empty($params['enabled']);
+        $params  = $request->get_json_params() ?: [];
+        $enable  = !empty($params['enabled']);
+        $options = is_array($params['options'] ?? null) ? $params['options'] : [];
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable);
+        $result = \WcpScanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable, $options);
         return rest_ensure_response($result);
     }
 

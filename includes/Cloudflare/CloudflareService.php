@@ -269,7 +269,8 @@ class CloudflareService {
 
         // Fetch deployed WCP custom rules
         $active_rules = self::get_deployed_custom_rules($zone_id);
-        $rate_limit = self::get_rate_limiting_status($zone_id);
+        $rate_limit_info = self::get_rate_limiting_info($zone_id);
+        $rate_limit = !empty($rate_limit_info['enabled']);
         $ip_count = self::get_ip_rules_count($zone_id);
 
         $proxy_status = self::check_proxy_status($zone_id);
@@ -289,6 +290,7 @@ class CloudflareService {
             'plan'             => $verify['plan'],
             'active_rules'     => $active_rules,
             'rate_limiting'    => $rate_limit,
+            'rate_limit_info'  => $rate_limit_info,
             'ip_rules_count'   => $ip_count,
             'auto_sync_bans'   => !empty($settings['cloudflare_auto_sync_bans']),
             'proxy_status'     => $proxy_status,
@@ -632,40 +634,107 @@ class CloudflareService {
     }
 
     /**
+     * Get WCP rate limiting rule status and configuration
+     *
+     * @param string $zone_id
+     * @return array
+     */
+    public static function get_rate_limiting_info(string $zone_id): array {
+        $saved = get_option('wcpscan_cloudflare_rate_limit_config', []);
+        $default_config = [
+            'enabled'            => false,
+            'requests'           => 10,
+            'period'             => 10,
+            'mitigation_timeout' => 60,
+            'action'             => 'block',
+            'path'               => '/wp-login.php',
+            'bypass_ips'         => '',
+        ];
+        $config = wp_parse_args($saved, $default_config);
+
+        $res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint");
+        if (empty($res['success']) || empty($res['result']['rules'])) {
+            $config['enabled'] = false;
+            return $config;
+        }
+
+        foreach ($res['result']['rules'] as $rule) {
+            $desc = $rule['description'] ?? '';
+            if (strpos($desc, self::WCP_RULE_TAG) !== false && !empty($rule['enabled'])) {
+                $config['enabled'] = true;
+                if (!empty($rule['action'])) {
+                    $config['action'] = $rule['action'];
+                }
+                if (!empty($rule['ratelimit']['requests_per_period'])) {
+                    $config['requests'] = (int) $rule['ratelimit']['requests_per_period'];
+                }
+                if (!empty($rule['ratelimit']['period'])) {
+                    $config['period'] = (int) $rule['ratelimit']['period'];
+                }
+                if (!empty($rule['ratelimit']['mitigation_timeout'])) {
+                    $config['mitigation_timeout'] = (int) $rule['ratelimit']['mitigation_timeout'];
+                }
+                break;
+            }
+        }
+
+        return $config;
+    }
+
+    /**
      * Check if WCP rate limiting rule is active
      *
      * @param string $zone_id
      * @return bool
      */
     public static function get_rate_limiting_status(string $zone_id): bool {
-        $res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint");
-        if (empty($res['success']) || empty($res['result']['rules'])) {
-            return false;
-        }
-
-        foreach ($res['result']['rules'] as $rule) {
-            $desc = $rule['description'] ?? '';
-            if (strpos($desc, self::WCP_RULE_TAG) !== false && !empty($rule['enabled'])) {
-                return true;
-            }
-        }
-
-        return false;
+        $info = self::get_rate_limiting_info($zone_id);
+        return !empty($info['enabled']);
     }
 
     /**
-     * Toggle Rate Limiting Rule on wp-login.php (10 requests / 10s per IP)
+     * Toggle Rate Limiting Rule on wp-login.php with customizable thresholds & actions
      *
      * @param bool $enable
+     * @param array $custom_config
      * @return array
      */
-    public static function toggle_rate_limiting(bool $enable): array {
+    public static function toggle_rate_limiting(bool $enable, array $custom_config = []): array {
         $settings = SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id)) {
             return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
         }
+
+        // Validate and sanitize customized options
+        $requests = isset($custom_config['requests']) ? max(2, min(500, (int) $custom_config['requests'])) : 10;
+        $period = isset($custom_config['period']) && in_array((int) $custom_config['period'], [10, 60], true) ? (int) $custom_config['period'] : 10;
+        $timeout = isset($custom_config['mitigation_timeout']) ? max(10, min(86400, (int) $custom_config['mitigation_timeout'])) : 60;
+        
+        $allowed_actions = ['block', 'managed_challenge', 'js_challenge', 'challenge'];
+        $action = isset($custom_config['action']) && in_array($custom_config['action'], $allowed_actions, true) ? $custom_config['action'] : 'block';
+        
+        $path = isset($custom_config['path']) ? trim($custom_config['path']) : '/wp-login.php';
+        if (empty($path)) {
+            $path = '/wp-login.php';
+        }
+        if ($path[0] !== '/') {
+            $path = '/' . $path;
+        }
+
+        $bypass_ips = isset($custom_config['bypass_ips']) ? trim((string) $custom_config['bypass_ips']) : '';
+
+        // Save current configuration for UI state persistence
+        update_option('wcpscan_cloudflare_rate_limit_config', [
+            'enabled'            => $enable,
+            'requests'           => $requests,
+            'period'             => $period,
+            'mitigation_timeout' => $timeout,
+            'action'             => $action,
+            'path'               => $path,
+            'bypass_ips'         => $bypass_ips,
+        ]);
 
         $existing_res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint");
         $preserved_rules = [];
@@ -680,16 +749,32 @@ class CloudflareService {
         }
 
         if ($enable) {
+            // Build expression with target path and optional IP bypass
+            $expression = '(http.request.uri.path contains "' . esc_sql($path) . '")';
+
+            if (!empty($bypass_ips)) {
+                $raw_ips = array_filter(array_map('trim', explode(',', $bypass_ips)));
+                $valid_ips = [];
+                foreach ($raw_ips as $raw_ip) {
+                    if (filter_var($raw_ip, FILTER_VALIDATE_IP)) {
+                        $valid_ips[] = '"' . $raw_ip . '"';
+                    }
+                }
+                if (!empty($valid_ips)) {
+                    $expression .= ' and not (ip.src in {' . implode(' ', $valid_ips) . '})';
+                }
+            }
+
             $preserved_rules[] = [
-                'action'            => 'block',
-                'expression'        => '(http.request.uri.path contains "/wp-login.php")',
-                'description'       => self::WCP_RULE_TAG . ' wp-login.php Brute Force Rate Limiter',
+                'action'            => $action,
+                'expression'        => $expression,
+                'description'       => self::WCP_RULE_TAG . ' ' . $path . ' Rate Limiter (' . $requests . ' req / ' . $period . 's)',
                 'enabled'           => true,
                 'ratelimit'         => [
                     'characteristics'     => ['ip.src', 'cf.colo.id'],
-                    'period'              => 10,
-                    'requests_per_period' => 10,
-                    'mitigation_timeout'  => 10,
+                    'period'              => $period,
+                    'requests_per_period' => $requests,
+                    'mitigation_timeout'  => $timeout,
                 ],
             ];
         }
@@ -701,8 +786,9 @@ class CloudflareService {
             return [
                 'success' => true,
                 'enabled' => $enable,
+                'rate_limit_info' => self::get_rate_limiting_info($zone_id),
                 'message' => $enable
-                    ? __('Cloudflare Edge Rate Limiter deployed on wp-login.php.', 'wcp-security-scanner')
+                    ? sprintf(__('Cloudflare Edge Rate Limiter deployed (%d req / %ds, action: %s).', 'wcp-security-scanner'), $requests, $period, strtoupper($action))
                     : __('Cloudflare Edge Rate Limiter removed.', 'wcp-security-scanner'),
             ];
         }

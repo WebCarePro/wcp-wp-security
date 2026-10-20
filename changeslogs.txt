@@ -24,6 +24,15 @@ v:1.20.0 - 2026-10-20
     - Custom Action Selector: allows users to choose between `BLOCK`, `MANAGED CHALLENGE (Turnstile)`, `JS CHALLENGE`, `INTERACTIVE CAPTCHA`, and `LOG ONLY (MONITOR)`.
     - Customizable Wirefilter Expression Editor: added inline tuning drawer with live expression editing and a 1-click "Reset to Default" button.
     - IP Whitelist / Safe IP Bypass: added dedicated safe IP input with a 1-click "+ Add My IP" button to automatically exclude developer and client IPs (`and not (ip.src in {...})`) and prevent edge lockout.
+  * Cloudflare Free Rate Limiting Customizer & Tuning Panel (`CloudflareService.php`, `ScannerRoutes.php`, `FirewallPage.tsx`):
+    - Added comprehensive customization controls to Cloudflare Free Rate Limiting with interactive tuning drawer.
+    - Configurable Mitigation Action: supports `BLOCK`, `MANAGED CHALLENGE (Turnstile)`, `JS CHALLENGE`, and `INTERACTIVE CAPTCHA`.
+    - Configurable Request Threshold: interactive slider to tune allowed requests between 3 and 60 requests.
+    - Configurable Time Counting Window: select between 10 seconds (strict burst defense) and 60 seconds (1 minute sustained traffic).
+    - Configurable Penalty / Mitigation Timeout: tune block duration from 10s up to 24 hours (10s, 60s, 300s, 900s, 3600s, 86400s).
+    - Customizable Target Path: configurable endpoint targeting (defaults to `/wp-login.php`, with support for custom login slugs like `/my-login` or `/xmlrpc.php`).
+    - Developer Safe IP Bypass: allows whitelisting administrator/developer IPs directly into the rate limit wirefilter expression (`and not (ip.src in {...})`) with 1-click "+ Add My IP" helper.
+    - Automatic Persistence & Live Status: persists custom settings in WordPress database and auto-populates current edge parameters via `rate_limit_info`.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
 - Scan Logs Inspection Telemetry Font Sizing Refinement & Numerical Aggregation Fix (`ScanLogsPage.tsx`, `ScannerRoutes.php`, `index.css`):
   * Resolved string concatenation bug in historical metrics aggregation cards ("Files Examined", "Total Threats Logged", and "Average Risk Score") where MySQL returned string values from `wcpscan_scans` table (causing `0 + "5663" + "5509" + "5506"` to concatenate into `"0566355095506"` and threat counts into `"01196"`). Cast values explicitly using `Number()` in TypeScript and `(int)` in PHP REST route handlers for correct arithmetic summation.
