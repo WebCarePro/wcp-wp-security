@@ -23,6 +23,7 @@ v:1.20.0 - 2026-10-20
     - Apache & LiteSpeed Integration: supports real-time syntax generation with 1-click automatic deployment to root `.htaccess` (with automated timestamped backup) and 1-click clipboard copying.
   * Cloudflare Edge WAF Rule Customizer & Tuning Drawer (`CloudflareService.php`, `FirewallPage.tsx`):
     - Added granular customization controls for each 1-click Free Plan Cloudflare Edge rule.
+    - Embedded Built-in Fallback Definitions (`FirewallPage.tsx`): pre-seeded default rule definitions for all 5 Free Plan Cloudflare Edge WAF rules (WordPress Core & Sensitive System Armor, Webshell & Direct Script Execution Trap, Path Traversal & Code Injection Edge Shield, Recon & Username Harvesting Shield, and Login Portal Threat Defense) directly into client state so the rules always render immediately even before or if REST API responses are delayed or filtered by restrictive host firewalls.
     - Custom Action Selector: allows users to choose between `BLOCK`, `MANAGED CHALLENGE (Turnstile)`, `JS CHALLENGE`, `INTERACTIVE CAPTCHA`, and `LOG ONLY (MONITOR)`.
     - Customizable Wirefilter Expression Editor: added inline tuning drawer with live expression editing and a 1-click "Reset to Default" button.
     - IP Whitelist / Safe IP Bypass: added dedicated safe IP input with a 1-click "+ Add My IP" button to automatically exclude developer and client IPs (`and not (ip.src in {...})`) and prevent edge lockout.
