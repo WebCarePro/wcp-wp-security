@@ -355,6 +355,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Server Security (Web Server Level Armor) Endpoints
+        register_rest_route(self::NAMESPACE, '/firewall/server-security/config', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_server_security_config'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/server-security/save', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_server_security_config'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/server-security/deploy-htaccess', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'deploy_server_security_htaccess'],
+            'permission_callback' => $permission,
+        ]);
+
         // File Integrity Monitoring (FIM) & Code Diff Endpoints
         register_rest_route(self::NAMESPACE, '/integrity/recent-changes', [
             'methods'             => 'GET',
@@ -4527,6 +4546,55 @@ class ScannerRoutes {
             'enabled' => $enabled,
             'status'  => \WcpScanner\Firewall\FirewallEngine::get_status(),
         ]);
+    }
+
+    public static function get_server_security_config() {
+        if (!class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $options = \WcpScanner\Firewall\ServerSecurityEngine::get_options();
+        $file_info = \WcpScanner\Firewall\ServerSecurityEngine::get_file_info();
+        $nginx_content = \WcpScanner\Firewall\ServerSecurityEngine::generate_nginx_config($options);
+        $apache_content = \WcpScanner\Firewall\ServerSecurityEngine::generate_apache_config($options);
+
+        return rest_ensure_response([
+            'options'        => $options,
+            'file_info'      => $file_info,
+            'nginx_content'  => $nginx_content,
+            'apache_content' => $apache_content,
+        ]);
+    }
+
+    public static function save_server_security_config(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $params = $request->get_json_params() ?: [];
+        $server_type = !empty($params['server_type']) ? sanitize_key($params['server_type']) : 'nginx';
+        $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
+
+        $result = \WcpScanner\Firewall\ServerSecurityEngine::save_config_file($server_type, $options);
+        return rest_ensure_response($result);
+    }
+
+    public static function deploy_server_security_htaccess(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $params = $request->get_json_params() ?: [];
+        $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
+
+        $result = \WcpScanner\Firewall\ServerSecurityEngine::deploy_to_htaccess($options);
+        return rest_ensure_response($result);
     }
 
     public static function get_integrity_recent_changes(\WP_REST_Request $request) {
