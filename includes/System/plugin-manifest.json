@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-20T22:56:06.095Z",
+  "generated_at": "2026-10-20T23:07:24.621Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 426781
     },
     "build/index.asset.php": {
-      "sha256": "745cf3b3625c63c7c95d0b05d83fe8230477f88f7240af19210b71ec86a32697",
+      "sha256": "a992b535f269b87f970fa29342302d372a7f7a68cbbd3ae5547889c653a4acb1",
       "size": 121
     },
     "build/index.css": {
@@ -52,16 +52,16 @@
       "size": 426656
     },
     "build/index.js": {
-      "sha256": "fbbba8c0d7db39f06238dd2d1d93d9ca9f58342852e595b2439db3e4bee02c3e",
-      "size": 1184851
+      "sha256": "a4a46c64dbd954bfd0eaa889b34b951a45c6bb49e26b70f73c0b973de44f2e65",
+      "size": 1185183
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
       "size": 342
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "c67d440d5880d8387fddd757e857fd0efac53c4ad2930f6a6fb0d37aa6a8c5e0",
-      "size": 18913
+      "sha256": "821ad30e3fe5e7290d8b32a4bb214b5406b9c83d08deeedec6e62c228df83282",
+      "size": 19987
     },
     "includes/Api/MCPAgentService.php": {
       "sha256": "af63dea2b5678fae1c91966d9544485b94174b9cd94674ba39b466d5d9042d0d",
@@ -88,8 +88,8 @@
       "size": 30826
     },
     "includes/Auth/TwoFactorAuth.php": {
-      "sha256": "ec5d345a04c51ea9479d47985f64dd87a5d18c0cf7241db1e3499abd8b16a833",
-      "size": 41177
+      "sha256": "4821c32b4693dd2b2f4ad24948b698431f9e09937a054435aad988bbda72ca27",
+      "size": 41167
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "1b8296d12c5567f80b9664854f98fd9219d34a677abe06685666898921fff139",

@@ -229,20 +229,21 @@ class AdminMenu {
         }
 
         $active_tab = 'dashboard';
-        if ($current_page === 'wcp-scanner-scan') $active_tab = 'scan';
-        elseif ($current_page === 'wcp-scanner-vault') $active_tab = 'vault';
-        elseif ($current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
-        elseif ($current_page === 'wcp-scanner-logs') $active_tab = 'logs';
-        elseif ($current_page === 'wcp-scanner-forensics') $active_tab = 'forensics';
+        $tab_param = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
+        if ($current_page === 'wcp-scanner-scan' || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan')) $active_tab = 'scan';
+        elseif ($current_page === 'wcp-scanner-vault' || ($current_page === 'wcp-security-scanner' && in_array($tab_param, ['vault', 'quarantine'], true))) $active_tab = 'vault';
+        elseif ($current_page === 'wcp-scanner-tools' || ($current_page === 'wcp-security-scanner' && $tab_param === 'targeted')) $active_tab = 'targeted';
+        elseif ($current_page === 'wcp-scanner-logs' || ($current_page === 'wcp-security-scanner' && $tab_param === 'logs')) $active_tab = 'logs';
+        elseif ($current_page === 'wcp-scanner-forensics' || ($current_page === 'wcp-security-scanner' && $tab_param === 'forensics')) $active_tab = 'forensics';
         elseif ($current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
-        elseif ($current_page === 'wcp-scanner-backup') $active_tab = 'backup';
-        elseif ($current_page === 'wcp-scanner-server') $active_tab = 'server';
-        elseif ($current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
-        elseif ($current_page === 'wcp-scanner-firewall') $active_tab = 'firewall';
-        elseif ($current_page === 'wcp-scanner-fim') $active_tab = 'fim';
-        elseif ($current_page === 'wcp-scanner-auth') $active_tab = 'auth';
-        elseif ($current_page === 'wcp-scanner-settings') $active_tab = 'settings';
-        elseif ($current_page === 'wcp-scanner-about') $active_tab = 'about';
+        elseif ($current_page === 'wcp-scanner-backup' || ($current_page === 'wcp-security-scanner' && $tab_param === 'backup')) $active_tab = 'backup';
+        elseif ($current_page === 'wcp-scanner-server' || ($current_page === 'wcp-security-scanner' && $tab_param === 'server')) $active_tab = 'server';
+        elseif ($current_page === 'wcp-scanner-vulnerabilities' || ($current_page === 'wcp-security-scanner' && $tab_param === 'vulnerabilities')) $active_tab = 'vulnerabilities';
+        elseif ($current_page === 'wcp-scanner-firewall' || ($current_page === 'wcp-security-scanner' && $tab_param === 'firewall')) $active_tab = 'firewall';
+        elseif ($current_page === 'wcp-scanner-fim' || ($current_page === 'wcp-security-scanner' && $tab_param === 'fim')) $active_tab = 'fim';
+        elseif ($current_page === 'wcp-scanner-auth' || ($current_page === 'wcp-security-scanner' && $tab_param === 'auth')) $active_tab = 'auth';
+        elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
+        elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
 
         $asset_file = WCPSCAN_PATH . 'build/index.asset.php';
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];

@@ -49,7 +49,7 @@ v:1.21.0 - 2026-10-21
     2. Strict Enforcement with Grace Period: Allows an X-day grace countdown before locking access and requiring 2FA setup.
     3. Remind on Next Login & Grace Period: Displays prominent WP admin notices with dynamic countdown and direct setup links while allowing continued administrative login during the grace window.
   * Resolved Policy Save Critical Error (`AuditLogger.php`, `ScannerRoutes.php`, `LoginHardening.php`): Added `AuditLogger::log()` alias pointing to `log_event()` and updated REST route callers and parameter parsing to resolve `PHP Fatal error: Uncaught Error: Call to undefined method WcpScanner\System\AuditLogger::log()`, ensuring policy changes save reliably.
-  * Grace Period Warning Banners: Integrated non-intrusive WP Admin header warning notices informing administrators of remaining grace days with a direct 1-click link to setup 2FA.
+  * Grace Period Warning Banners & Direct Setup Linkage: Integrated non-intrusive WP Admin header warning notices informing administrators of remaining grace days. Updated the action button URL to target the dedicated `page=wcp-scanner-auth&tab=2fa&setup=1` route and configured `AuthSecurityPage.tsx` to automatically initialize the 2FA QR code setup package whenever `setup=1` is present in the query parameters.
   * Design System Compliance: Added theme-adaptive styling (`.wcp-admin-card`, `.wcp-admin-table`, `.wcp-admin-badge-*`, `.wcp-admin-btn-action`) matching both Light/White and Dark Mode standards.
 
 v:1.20.0 - 2026-10-20
