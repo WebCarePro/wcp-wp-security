@@ -63,8 +63,8 @@ class TwoFactorAuth {
      */
     public static function get_enforcement_policy_mode(): string {
         $settings = SettingsManager::get_settings();
-        $mode = $settings['auth_2fa_policy_mode'] ?? 'immediate';
-        return in_array($mode, ['immediate', 'grace_period', 'remind_login'], true) ? $mode : 'immediate';
+        $mode = $settings['auth_2fa_policy_mode'] ?? 'remind_login';
+        return in_array($mode, ['immediate', 'grace_period', 'remind_login'], true) ? $mode : 'remind_login';
     }
 
     /**

@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-20T23:07:24.621Z",
+  "generated_at": "2026-10-20T23:10:24.998Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 426781
     },
     "build/index.asset.php": {
-      "sha256": "a992b535f269b87f970fa29342302d372a7f7a68cbbd3ae5547889c653a4acb1",
+      "sha256": "3b4da97db538f3753397930f4d3604529fbc5cf95678633b27a63a2e4093a718",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 426656
     },
     "build/index.js": {
-      "sha256": "a4a46c64dbd954bfd0eaa889b34b951a45c6bb49e26b70f73c0b973de44f2e65",
-      "size": 1185183
+      "sha256": "882540b3dc3a132c8ead4e78ec1db19cb23de95edf5018260f73c3451a990373",
+      "size": 1185246
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "7d1e772792e9ec36b04fbf8b5cfa10f7aaadb5ec95edc3594cb58a4b28c76d14",
-      "size": 327188
+      "sha256": "383ba7f1957779eaa77cd5c6ca93e01f21346507661d412618d06bab456bfbca",
+      "size": 327232
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "ae9ac68dc326e1f2be5b1c1bb2c9509a3b27cfeac31dad4fd5f17870d95981fd",
@@ -88,8 +88,8 @@
       "size": 30826
     },
     "includes/Auth/TwoFactorAuth.php": {
-      "sha256": "4821c32b4693dd2b2f4ad24948b698431f9e09937a054435aad988bbda72ca27",
-      "size": 41167
+      "sha256": "39e3f73ecf855b9e606f8348428852bf2f2d00065fb3fbe9abe20557536fb383",
+      "size": 41173
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "1b8296d12c5567f80b9664854f98fd9219d34a677abe06685666898921fff139",
@@ -372,7 +372,7 @@
       "size": 18460
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "d99c54e7867dd95f12dde39e8843ffe846aa45f1107cdf2ebf5ad185a778de57",
+      "sha256": "590b9fb75f235b3c205932adbbc13fae374d2185bc66028124947452bb7ac407",
       "size": 41542
     },
     "includes/System/SystemReadinessChecker.php": {

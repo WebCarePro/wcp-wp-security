@@ -5555,9 +5555,9 @@ class ScannerRoutes {
         $settings = \WcpScanner\System\SettingsManager::get_settings();
 
         $enforce_admins = !empty($params['auth_2fa_enforce_admins']);
-        $raw_mode       = sanitize_key($params['auth_2fa_policy_mode'] ?? 'immediate');
-        $policy_mode    = in_array($raw_mode, ['immediate', 'grace_period', 'remind_login'], true) ? $raw_mode : 'immediate';
-        $grace_days     = max(0, min(90, (int) ($params['auth_2fa_grace_days'] ?? 0)));
+        $raw_mode       = sanitize_key($params['auth_2fa_policy_mode'] ?? 'remind_login');
+        $policy_mode    = in_array($raw_mode, ['immediate', 'grace_period', 'remind_login'], true) ? $raw_mode : 'remind_login';
+        $grace_days     = max(0, min(90, (int) ($params['auth_2fa_grace_days'] ?? ($policy_mode === 'immediate' ? 0 : 30))));
 
         $settings['auth_2fa_enforce_admins'] = $enforce_admins;
         $settings['auth_2fa_policy_mode']    = $policy_mode;

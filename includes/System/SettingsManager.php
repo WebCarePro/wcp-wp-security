@@ -97,8 +97,8 @@ class SettingsManager {
             'auth_2fa_remember_device'           => true,
             'auth_2fa_remember_days'             => 7, // Days to remember trusted device (default 7 days)
             'auth_2fa_enforce_admins'            => false, // Force all administrator accounts to enable 2FA
-            'auth_2fa_policy_mode'               => 'immediate', // 'immediate' | 'grace_period' | 'remind_login'
-            'auth_2fa_grace_days'                => 0, // Grace period in days (used when policy_mode is grace_period or remind_login)
+            'auth_2fa_policy_mode'               => 'remind_login', // 'immediate' | 'grace_period' | 'remind_login'
+            'auth_2fa_grace_days'                => 30, // Grace period in days (default 30 days when remind_login is active)
             'auth_2fa_enforce_since'             => 0, // Timestamp when enforcement policy was activated
             'login_hardening_enabled'            => true,
             'login_max_retries'                  => 5,
@@ -394,8 +394,8 @@ class SettingsManager {
         $clean['auth_2fa_remember_device']  = isset($input['auth_2fa_remember_device']) ? !empty($input['auth_2fa_remember_device']) : true;
         $clean['auth_2fa_remember_days']    = max(1, min(90, (int) ($input['auth_2fa_remember_days'] ?? 7)));
         $clean['auth_2fa_enforce_admins']   = !empty($input['auth_2fa_enforce_admins']);
-        $raw_mode                           = sanitize_key($input['auth_2fa_policy_mode'] ?? 'immediate');
-        $clean['auth_2fa_policy_mode']      = in_array($raw_mode, ['immediate', 'grace_period', 'remind_login'], true) ? $raw_mode : 'immediate';
+        $raw_mode                           = sanitize_key($input['auth_2fa_policy_mode'] ?? 'remind_login');
+        $clean['auth_2fa_policy_mode']      = in_array($raw_mode, ['immediate', 'grace_period', 'remind_login'], true) ? $raw_mode : 'remind_login';
         $clean['auth_2fa_grace_days']       = max(0, min(90, (int) ($input['auth_2fa_grace_days'] ?? 0)));
         // Record timestamp when enforcement is newly enabled
         $prev_enforce = !empty($current['auth_2fa_enforce_admins']);
