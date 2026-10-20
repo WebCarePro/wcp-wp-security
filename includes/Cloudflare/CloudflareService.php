@@ -451,10 +451,10 @@ class CloudflareService {
                 'id'           => 'wcpscan_compound_login_bot',
                 'title'        => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
                 'badge'        => 'Turnstile Challenge',
-                'description'  => 'Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
+                'description'  => 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
                 'action'       => 'managed_challenge',
                 'action_label' => 'Managed Challenge',
-                'expression'   => '(http.request.uri.path contains "wp-login.php" and cf.client.bot)',
+                'expression'   => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
             ],
         ];
     }
@@ -488,9 +488,9 @@ class CloudflareService {
                 'id'          => 'wcpscan_compound_login_bot',
                 'title'       => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
                 'badge'       => 'Turnstile Challenge',
-                'description' => __('Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'wcp-security-scanner'),
+                'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'wcp-security-scanner'),
                 'action'      => 'managed_challenge',
-                'expression'  => '(http.request.uri.path contains "wp-login.php" and cf.client.bot)',
+                'expression'  => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
             ],
         ];
     }

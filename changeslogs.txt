@@ -19,6 +19,7 @@ v:1.21.0 - 2026-10-21
   * Cloudflare Free Plan Quota & Operator Compatibility: Replaced unsupported regex `matches` operator (restricted to paid Cloudflare plans) with native Free-tier `http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}` and converted rigid exact-path `in` checks into universal `contains` checks for sensitive dotfiles (`.env`, `.git`, `.user.ini`, `debug.log`, `composer.json`, `package.json`, `readme.html`, `license.txt`).
   * Rate Limiting Path Sanitization: Updated Rate Limiting normalization in `CloudflareService::toggle_rate_limiting()` to automatically strip leading slashes (`ltrim($p, '/')`) and default to `wp-login.php`, ensuring rate limit expressions consistently generate `(http.request.uri.path contains "wp-login.php")`.
   * Virtual Patch Manager Edge Alignment: Stripped leading slashes from `VirtualPatchManager.php` edge expressions (`wp-json/litespeed`, `wp-admin/post.php`, `wp-admin/admin-ajax.php`, `wp-json`).
+  * Membership & WooCommerce Login Portal Bot Armor (Rule 3): Expanded Rule 3 to cover custom membership login slugs, WooCommerce account hubs, and registration endpoints (`wp-custom-login`, `my-account`, `login`, `register`) combined with `cf.client.bot` to protect e-commerce and member portals from automated credential stuffing and registration spam.
 
 v:1.20.0 - 2026-10-20
 - Login Security User Session Forensics & IP Shift Tracking (`UserSessionForensicsModal.tsx`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
