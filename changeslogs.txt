@@ -26,11 +26,11 @@ v:1.20.0 - 2026-10-20
     - IP Whitelist / Safe IP Bypass: added dedicated safe IP input with a 1-click "+ Add My IP" button to automatically exclude developer and client IPs (`and not (ip.src in {...})`) and prevent edge lockout.
   * Cloudflare Free Rate Limiting Customizer & Tuning Panel (`CloudflareService.php`, `ScannerRoutes.php`, `FirewallPage.tsx`):
     - Added comprehensive customization controls to Cloudflare Free Rate Limiting with interactive tuning drawer.
-    - Configurable Mitigation Action: supports `BLOCK`, `MANAGED CHALLENGE (Turnstile)`, `JS CHALLENGE`, and `INTERACTIVE CAPTCHA`.
-    - Configurable Request Threshold: interactive slider to tune allowed requests between 3 and 60 requests.
-    - Configurable Time Counting Window: select between 10 seconds (strict burst defense) and 60 seconds (1 minute sustained traffic).
-    - Configurable Penalty / Mitigation Timeout: tune block duration from 10s up to 24 hours (10s, 60s, 300s, 900s, 3600s, 86400s).
-    - Customizable Target Path: configurable endpoint targeting (defaults to `/wp-login.php`, with support for custom login slugs like `/my-login` or `/xmlrpc.php`).
+    - Configurable Mitigation Action: supports `BLOCK` (default), `MANAGED CHALLENGE (Turnstile)`, `JS CHALLENGE`, and `INTERACTIVE CAPTCHA`.
+    - Configurable Request Threshold: defaults to `5` requests with interactive slider (`3`-`60` reqs).
+    - Configurable Time Counting Window: defaults to `60 Seconds (1 Minute Sustained)` (or strict `10 Seconds`).
+    - Configurable Penalty / Mitigation Timeout: defaults to `3600 Seconds (1 Hour)` (tunable from 10s up to 24 hours).
+    - Multi-Path & Comma-Separated Target URIs: defaults to `/wp-login.php, /my-login, /xmlrpc.php` to protect standard logins, custom login slugs, and XML-RPC bot probes in a combined edge expression.
     - Developer Safe IP Bypass: allows whitelisting administrator/developer IPs directly into the rate limit wirefilter expression (`and not (ip.src in {...})`) with 1-click "+ Add My IP" helper.
     - Automatic Persistence & Live Status: persists custom settings in WordPress database and auto-populates current edge parameters via `rate_limit_info`.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.

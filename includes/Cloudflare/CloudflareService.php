@@ -643,9 +643,9 @@ class CloudflareService {
         $saved = get_option('wcpscan_cloudflare_rate_limit_config', []);
         $default_config = [
             'enabled'            => false,
-            'requests'           => 10,
-            'period'             => 10,
-            'mitigation_timeout' => 60,
+            'requests'           => 5,
+            'period'             => 60,
+            'mitigation_timeout' => 3600,
             'action'             => 'block',
             'path'               => '/wp-login.php',
             'bypass_ips'         => '',
@@ -693,7 +693,7 @@ class CloudflareService {
     }
 
     /**
-     * Toggle Rate Limiting Rule on wp-login.php with customizable thresholds & actions
+     * Toggle Rate Limiting Rule on sensitive endpoints with customizable thresholds & actions
      *
      * @param bool $enable
      * @param array $custom_config
@@ -707,21 +707,31 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
         }
 
-        // Validate and sanitize customized options
-        $requests = isset($custom_config['requests']) ? max(2, min(500, (int) $custom_config['requests'])) : 10;
-        $period = isset($custom_config['period']) && in_array((int) $custom_config['period'], [10, 60], true) ? (int) $custom_config['period'] : 10;
-        $timeout = isset($custom_config['mitigation_timeout']) ? max(10, min(86400, (int) $custom_config['mitigation_timeout'])) : 60;
+        // Validate and sanitize customized options (Default: 5 requests / 60 seconds / 3600s block)
+        $requests = isset($custom_config['requests']) ? max(2, min(500, (int) $custom_config['requests'])) : 5;
+        $period = isset($custom_config['period']) && in_array((int) $custom_config['period'], [10, 60], true) ? (int) $custom_config['period'] : 60;
+        $timeout = isset($custom_config['mitigation_timeout']) ? max(10, min(86400, (int) $custom_config['mitigation_timeout'])) : 3600;
         
         $allowed_actions = ['block', 'managed_challenge', 'js_challenge', 'challenge'];
         $action = isset($custom_config['action']) && in_array($custom_config['action'], $allowed_actions, true) ? $custom_config['action'] : 'block';
         
-        $path = isset($custom_config['path']) ? trim($custom_config['path']) : '/wp-login.php';
-        if (empty($path)) {
-            $path = '/wp-login.php';
+        $raw_path = isset($custom_config['path']) ? trim($custom_config['path']) : '/wp-login.php';
+        if (empty($raw_path)) {
+            $raw_path = '/wp-login.php';
         }
-        if ($path[0] !== '/') {
-            $path = '/' . $path;
+
+        // Support comma-separated multiple paths (e.g. /wp-login.php, /my-login, /xmlrpc.php)
+        $path_items = array_values(array_filter(array_map('trim', explode(',', $raw_path))));
+        if (empty($path_items)) {
+            $path_items = ['/wp-login.php'];
         }
+        $normalized_paths = [];
+        foreach ($path_items as $p) {
+            if ($p !== '') {
+                $normalized_paths[] = $p[0] === '/' ? $p : '/' . $p;
+            }
+        }
+        $saved_path_string = implode(', ', $normalized_paths);
 
         $bypass_ips = isset($custom_config['bypass_ips']) ? trim((string) $custom_config['bypass_ips']) : '';
 
@@ -732,7 +742,7 @@ class CloudflareService {
             'period'             => $period,
             'mitigation_timeout' => $timeout,
             'action'             => $action,
-            'path'               => $path,
+            'path'               => $saved_path_string,
             'bypass_ips'         => $bypass_ips,
         ]);
 
@@ -749,8 +759,18 @@ class CloudflareService {
         }
 
         if ($enable) {
-            // Build expression with target path and optional IP bypass
-            $expression = '(http.request.uri.path contains "' . esc_sql($path) . '")';
+            // Build expression: supports single or multiple contains
+            if (count($normalized_paths) === 1) {
+                $path_expr = '(http.request.uri.path contains "' . esc_sql($normalized_paths[0]) . '")';
+            } else {
+                $parts = [];
+                foreach ($normalized_paths as $np) {
+                    $parts[] = 'http.request.uri.path contains "' . esc_sql($np) . '"';
+                }
+                $path_expr = '(' . implode(' or ', $parts) . ')';
+            }
+
+            $expression = $path_expr;
 
             if (!empty($bypass_ips)) {
                 $raw_ips = array_filter(array_map('trim', explode(',', $bypass_ips)));
@@ -765,10 +785,12 @@ class CloudflareService {
                 }
             }
 
+            $rule_summary = count($normalized_paths) > 1 ? 'Sensitive Endpoints' : $normalized_paths[0];
+
             $preserved_rules[] = [
                 'action'            => $action,
                 'expression'        => $expression,
-                'description'       => self::WCP_RULE_TAG . ' ' . $path . ' Rate Limiter (' . $requests . ' req / ' . $period . 's)',
+                'description'       => self::WCP_RULE_TAG . ' ' . $rule_summary . ' Rate Limiter (' . $requests . ' req / ' . $period . 's)',
                 'enabled'           => true,
                 'ratelimit'         => [
                     'characteristics'     => ['ip.src', 'cf.colo.id'],
