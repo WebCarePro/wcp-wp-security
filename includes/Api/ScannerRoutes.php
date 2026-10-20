@@ -684,6 +684,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/cloudflare/deploy-single-rule', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'deploy_single_cloudflare_rule'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/cloudflare/rate-limiting', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'toggle_cloudflare_rate_limiting'],
@@ -5581,6 +5587,19 @@ class ScannerRoutes {
         $rules  = is_array($params['rules'] ?? null) ? $params['rules'] : [];
 
         $result = \WcpScanner\Cloudflare\CloudflareService::deploy_custom_rules($rules);
+        return rest_ensure_response($result);
+    }
+
+    public static function deploy_single_cloudflare_rule(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params   = $request->get_json_params() ?: [];
+        $rule_key = sanitize_key($params['rule_key'] ?? '');
+        $config   = is_array($params['config'] ?? null) ? $params['config'] : [];
+        $enable   = !isset($params['enabled']) || !empty($params['enabled']);
+
+        $result = \WcpScanner\Cloudflare\CloudflareService::deploy_single_rule($rule_key, $config, $enable);
         return rest_ensure_response($result);
     }
 

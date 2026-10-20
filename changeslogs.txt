@@ -1,4 +1,13 @@
 v:1.21.0 - 2026-10-21
+- Cloudflare Free Plan 3 Master Compound Rules & Individual Single-Rule Push (`CloudflareService.php`, `ScannerRoutes.php`, `FirewallPage.tsx`, `index.css`):
+  * 5-to-3 High-Density Master Rules Consolidation: Combined the previous 5 individual Cloudflare Free Edge WAF rules into 3 high-impact master compound rules:
+    1. Rule 1: Master Perimeter & Sensitive File Armor (Drops /xmlrpc.php, uploads directory PHP script execution, sensitive dotfiles/logs, and backups in 1 unified Block rule).
+    2. Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield (Terminates path traversal, dangerous script injection wrappers, ?author= harvesting, and REST user scraping).
+    3. Rule 3: Login Portal Automated Bot Defense (Challenges automated bots targeting wp-login.php with Managed Challenge / Turnstile).
+  * Cloudflare Free Quota Optimization: Consolidating into 3 rules leaves 2 free custom rule slots (40% of the 5-rule Cloudflare Free quota) available for client or user-specific firewall rules.
+  * Individual Single-Rule Push & Remove (`deploy_single_rule`): Added dedicated REST route `/cloudflare/deploy-single-rule` and individual per-rule action buttons on each rule row ("Push Rule to Edge", "Update on Edge", "Remove"). Users can now deploy, update, or remove any single rule independently without touching or re-deploying other rules.
+  * Batch Deploy Preservation: Kept the top "Deploy Selected Rules to Edge" button for 1-click bulk deployment of all selected rules.
+  * Theme Styling: Added theme-adaptive classes (`.wcp-cf-single-push-btn`, `.wcp-cf-single-remove-btn`) with calibrated light and dark mode contrasts.
 - Cloudflare Free Plan Rate Limiting (/wp-login.php) & Dual-Tier Brute Force Armor (`CloudflareService.php`, `LoginHardening.php`, `FirewallPage.tsx`, `index.css`):
   * Edge Rate Limiting Hardening for /wp-login.php: Configured Cloudflare Edge Rate Limiting strictly calibrated for Cloudflare Free Plan ruleset limitations (`http_ratelimit` phase). Defaults target to `/wp-login.php`, counting window to 60s, request threshold to 5 requests, and mitigation timeout to 10s (Free tier standard).
   * Cloudflare Free Plan Entitlement Auto-Fallback: Built resilient error interceptor in `CloudflareService::toggle_rate_limiting()`. If Cloudflare rejects an extended timeout (e.g., error 10072 "not entitled to use a mitigation timeout different from 10"), the engine automatically downgrades the mitigation timeout to 10s, updates stored configuration, and re-submits the deployment payload seamlessly without throwing an unhandled API error.

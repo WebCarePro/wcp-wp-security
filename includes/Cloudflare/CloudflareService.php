@@ -464,40 +464,36 @@ class CloudflareService {
      *
      * @return array
      */
+    /**
+     * Get rule definitions for 3 Master Cloudflare Free Custom WAF Rules (Consolidated & High-Density)
+     *
+     * Consolidates 5 rules into 3 high-impact rules to preserve Cloudflare Free plan quotas (leaving 2 slots free).
+     *
+     * @return array
+     */
     public static function get_rule_definitions(): array {
         return [
-            'block_core_sensitive' => [
-                'id'          => 'wcpscan_block_core_sensitive',
-                'title'       => 'WordPress Core & Sensitive System Armor',
-                'description' => 'Terminates /xmlrpc.php abuse, wp-config.php probes, .env, .git, .user.ini, debug.log, and package manifests in a single unified edge shield.',
+            'compound_perimeter' => [
+                'id'          => 'wcpscan_compound_perimeter',
+                'title'       => 'Rule 1: Master Perimeter & Sensitive File Armor',
+                'badge'       => 'Edge Shield',
+                'description' => __('Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.', 'wcp-security-scanner'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "/xmlrpc.php" or http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/.user.ini" "/wp-content/debug.log" "/composer.json" "/package.json"})',
+                'expression'  => '(http.request.uri.path contains "/xmlrpc.php") or ((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/.user.ini" "/wp-content/debug.log" "/composer.json" "/package.json"}) or (http.request.uri.path matches "\\.(sql|bak|tar|gz|zip|ini|sh)$") or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
-            'block_uploads_exec' => [
-                'id'          => 'wcpscan_block_uploads_exec',
-                'title'       => 'Webshell & Direct Script Execution Trap',
-                'description' => 'Stops direct HTTP execution of .php, .phtml, .phar, and shell scripts disguised inside wp-content/uploads/ or upgrade directories at the edge.',
+            'compound_exploits' => [
+                'id'          => 'wcpscan_compound_exploits',
+                'title'       => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
+                'badge'       => 'Zero-Day Shield',
+                'description' => __('Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.', 'wcp-security-scanner'),
                 'action'      => 'block',
-                'expression'  => '((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})',
+                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
             ],
-            'block_exploits_traversal' => [
-                'id'          => 'wcpscan_block_exploits_traversal',
-                'title'       => 'Path Traversal & Code Injection Edge Shield',
-                'description' => 'Blocks LFI/RFI directory traversal, dangerous PHP function execution wrappers, and null byte injections.',
-                'action'      => 'block',
-                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/' . 'passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00")',
-            ],
-            'block_author_recon' => [
-                'id'          => 'wcpscan_block_author_recon',
-                'title'       => 'Recon & Username Harvesting Shield',
-                'description' => 'Blocks bots scanning author parameter (?author=1) and enumerating WordPress usernames via public REST endpoints.',
-                'action'      => 'block',
-                'expression'  => '(http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
-            ],
-            'challenge_wp_login' => [
-                'id'          => 'wcpscan_challenge_wp_login',
-                'title'       => 'Login Portal Threat Defense (Managed Challenge)',
-                'description' => 'Triggers a non-intrusive Cloudflare Turnstile / Managed Challenge for automated bots targeting wp-login.php.',
+            'compound_login_bot' => [
+                'id'          => 'wcpscan_compound_login_bot',
+                'title'       => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
+                'badge'       => 'Turnstile Challenge',
+                'description' => __('Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'wcp-security-scanner'),
                 'action'      => 'managed_challenge',
                 'expression'  => '(http.request.uri.path contains "/wp-login.php" and cf.client.bot)',
             ],
@@ -522,8 +518,11 @@ class CloudflareService {
 
         foreach ($rules as $r) {
             $desc = $r['description'] ?? '';
+            if (strpos($desc, self::WCP_RULE_TAG) === false) {
+                continue;
+            }
             foreach ($definitions as $key => $def) {
-                if (strpos($desc, self::WCP_RULE_TAG) !== false && strpos($desc, $def['title']) !== false) {
+                if (strpos($desc, $def['title']) !== false || (isset($def['id']) && strpos($desc, $def['id']) !== false)) {
                     $deployed[$key] = [
                         'id'      => $r['id'] ?? '',
                         'enabled' => !empty($r['enabled']),
@@ -537,9 +536,103 @@ class CloudflareService {
     }
 
     /**
-     * Deploy or Update the Cloudflare Custom Ruleset
+     * Deploy or Remove a Single Cloudflare Custom Rule without affecting other rules
      *
-     * @param array $selected_rules Associative array of rule_key => bool
+     * @param string $rule_key
+     * @param array $rule_config
+     * @param bool $enable
+     * @return array
+     */
+    public static function deploy_single_rule(string $rule_key, array $rule_config = [], bool $enable = true): array {
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id)) {
+            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
+        }
+
+        $definitions = self::get_rule_definitions();
+        if (!isset($definitions[$rule_key])) {
+            return ['success' => false, 'message' => __('Invalid rule key specified.', 'wcp-security-scanner')];
+        }
+
+        $target_def = $definitions[$rule_key];
+        $target_title = $target_def['title'];
+
+        // 1. Fetch existing phase ruleset
+        $existing_res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
+        $preserved_rules = [];
+
+        if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
+            foreach ($existing_res['result']['rules'] as $rule) {
+                $desc = $rule['description'] ?? '';
+                // Keep rules that do not belong to WCP
+                if (strpos($desc, self::WCP_RULE_TAG) === false) {
+                    $preserved_rules[] = $rule;
+                    continue;
+                }
+                // For WCP rules: keep all OTHER WCP rules, exclude only this target rule (which we will re-add if enable is true)
+                if (strpos($desc, $target_title) === false && (empty($target_def['id']) || strpos($desc, $target_def['id']) === false)) {
+                    $preserved_rules[] = $rule;
+                }
+            }
+        }
+
+        // 2. If enabling, build the updated single rule
+        if ($enable) {
+            $action = !empty($rule_config['action']) ? sanitize_key($rule_config['action']) : $target_def['action'];
+            $expression = !empty($rule_config['expression']) ? trim((string) $rule_config['expression']) : $target_def['expression'];
+            $bypass_ips = !empty($rule_config['bypass_ips']) ? trim((string) $rule_config['bypass_ips']) : '';
+
+            if (!empty($bypass_ips)) {
+                $raw_ips = preg_split('/[\s,]+/', $bypass_ips, -1, PREG_SPLIT_NO_EMPTY);
+                $valid_ips = [];
+                foreach ($raw_ips as $rip) {
+                    if (filter_var($rip, FILTER_VALIDATE_IP)) {
+                        $valid_ips[] = $rip;
+                    }
+                }
+                if (!empty($valid_ips)) {
+                    $ip_list_str = '{"' . implode('" "', $valid_ips) . '"}';
+                    $expression = "({$expression}) and not (ip.src in {$ip_list_str})";
+                }
+            }
+
+            $preserved_rules[] = [
+                'action'      => $action,
+                'expression'  => $expression,
+                'description' => self::WCP_RULE_TAG . ' ' . $target_title,
+                'enabled'     => true,
+            ];
+        }
+
+        // 3. Update entrypoint ruleset
+        $payload = ['rules' => $preserved_rules];
+        $update_res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint", 'PUT', $payload);
+
+        if (!empty($update_res['success'])) {
+            return [
+                'success' => true,
+                'message' => $enable
+                    ? sprintf(__('Successfully pushed rule "%s" to Cloudflare Edge.', 'wcp-security-scanner'), $target_title)
+                    : sprintf(__('Successfully removed rule "%s" from Cloudflare Edge.', 'wcp-security-scanner'), $target_title),
+                'active_rules' => self::get_deployed_custom_rules($zone_id),
+                'rule_key'     => $rule_key,
+                'enabled'      => $enable,
+            ];
+        }
+
+        $err = $update_res['errors'][0]['message'] ?? __('Failed to update Cloudflare Edge rule.', 'wcp-security-scanner');
+        return [
+            'success' => false,
+            'message' => $err,
+        ];
+    }
+
+    /**
+     * Deploy or Update the Cloudflare Custom Ruleset (Batch)
+     *
+     * @param array $selected_rules Associative array of rule_key => bool or array of configurations
      * @return array
      */
     public static function deploy_custom_rules(array $selected_rules): array {

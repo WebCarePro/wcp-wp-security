@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-20T20:13:32.735Z",
+  "generated_at": "2026-10-20T20:26:58.116Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -40,20 +40,20 @@
       "size": 592076
     },
     "build/index-rtl.css": {
-      "sha256": "0caa1b975fdca4f7c0005870237b9c9a332734b6174c6165c4e50a8bfb824154",
-      "size": 411873
+      "sha256": "045c088d97d9839c2ed44b1d470a9c29a78161eebb43d8fa7473063c72319374",
+      "size": 413521
     },
     "build/index.asset.php": {
-      "sha256": "cc66202b461f83e8076ad8b6f30382825ad82fdf1aed8f75fe6487d78cd8a722",
+      "sha256": "91ddea80157bfcc9a39a5bf87ce3dbe20aa6bce48ad4acab29e8a6de4e9ff643",
       "size": 121
     },
     "build/index.css": {
-      "sha256": "195619f0888891c1e777d3cb084da37fe03734b741e8bc0bc4c0b879568e10fd",
-      "size": 411750
+      "sha256": "3277df5180d52648ca849b8f6dc40913f97264c8987f6b1d3b00929c7a8ce732",
+      "size": 413398
     },
     "build/index.js": {
-      "sha256": "80f8f24c6428ad1b81f84a253c688c08112dd0d18ed6d25ad5be0df1969f5c50",
-      "size": 1151786
+      "sha256": "2309a8b2faa09b88e732fd63e2cb8da8b2368cc9b7f496bb09e2e8ef06700785",
+      "size": 1153624
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "20d8e84ea45526d2c08a293147866069c3ae81b837d6287d97a404023d5fad5b",
-      "size": 315745
+      "sha256": "d1aa8f7c992094c5c11ea504c9ff269533a6b77d52eb385cd7ccd3b0802515f2",
+      "size": 316764
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "a0ba0f1d07d2fe6099726a1c7be551623891b8c6f90149e60cc2b1e952874eb8",
@@ -96,8 +96,8 @@
       "size": 42333
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "09056485b9ebc56146d034ed7e87b525167414b4e4d13c91900341f950fa36c8",
-      "size": 45615
+      "sha256": "e95ac86dc096ae02fc3f86815a6261c6a9255ccf122a7959282ce3ec4415431c",
+      "size": 50064
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",
