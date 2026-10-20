@@ -50,6 +50,21 @@ class Plugin {
             \WcpScanner\Firewall\FirewallEngine::init();
         }
 
+        // Cloudflare Service with fallback
+        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+            $cf_candidates = [
+                WCPSCAN_PATH . 'includes/Cloudflare/CloudflareService.php',
+                WCPSCAN_PATH . 'includes/cloudflare/CloudflareService.php',
+                WCPSCAN_PATH . 'includes/Firewall/CloudflareService.php',
+            ];
+            foreach ($cf_candidates as $cf_file) {
+                if (file_exists($cf_file)) {
+                    require_once $cf_file;
+                    break;
+                }
+            }
+        }
+
         if (class_exists('\\WcpScanner\\Hardening\\SecurityHeadersEngine')) {
             \WcpScanner\Hardening\SecurityHeadersEngine::init();
         }
