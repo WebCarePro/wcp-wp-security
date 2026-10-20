@@ -11,7 +11,7 @@ v:1.20.0 - 2026-10-20
     4. Real Server IP (Origin server IP with copy button and private/public indicator).
     5. Website CDN IP (Detected edge reverse proxy or direct origin indicator with copy button).
   * Card UI & Typography Redesign: Removed `white-space: nowrap` and ellipsis truncations so all text, kernel versions, memory allocations, CPU quotas, and routing details wrap naturally and display in full. Upgraded cards to a balanced fluid responsive layout (`minmax(280px, 1fr)`) with increased padding (`16px 18px`), refined line-heights (`1.4`-`1.5`), and subtle hover elevations.
-  * Added collapsible "Dev Diagnostics & Tuning" drawer with developer-focused metrics: hosting environment classification (cPanel / CloudLinux / Dedicated VPS), shared server node capacity, full kernel uname string, POSIX process execution user, max execution time limit, upload/post max body limits, web root disk storage capacity/free space, and WAF hook execution mode.
+  * Added collapsible "Dev Diagnostics & Tuning" drawer with developer-focused metrics: hosting environment classification (cPanel / CloudLinux / Dedicated VPS), full kernel uname string, POSIX process execution user, max execution time limit, upload/post max body limits, and WAF hook execution mode.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
 - Scan Logs Inspection Telemetry Font Sizing Refinement (`ScanLogsPage.tsx`, `index.css`):
   * Normalized oversized font size (`28px` inherited from global card metrics) on telemetry values ("Execution Duration", "Peak Memory", "Throughput", "CPU Load") to a clean, proportionate, and balanced `13.5px` bold metric value (`.wcp-telemetry-metric-val`).
