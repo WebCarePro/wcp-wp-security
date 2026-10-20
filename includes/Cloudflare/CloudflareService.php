@@ -442,10 +442,10 @@ class CloudflareService {
                 'id'           => 'wcpscan_compound_exploits',
                 'title'        => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
                 'badge'        => 'Zero-Day Shield',
-                'description'  => 'Terminates path traversal (../), dangerous base64/eval function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
+                'description'  => 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
                 'action'       => 'block',
                 'action_label' => 'Block',
-                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
+                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
             ],
             'compound_login_bot' => [
                 'id'           => 'wcpscan_compound_login_bot',

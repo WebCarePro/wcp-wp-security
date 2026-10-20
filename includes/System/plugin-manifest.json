@@ -1,6 +1,6 @@
 {
   "version": "1.20.0",
-  "generated_at": "2026-10-20T15:51:22.042Z",
+  "generated_at": "2026-10-20T16:43:42.703Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -96,8 +96,8 @@
       "size": 42333
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "f8fbe236c7a340630a0070b21c7d26e09b9dbbb2f3f0ef1fd2190f21f15cc168",
-      "size": 42959
+      "sha256": "7850c9d092e2c4c4f744217c81c155e44113f769c564b2e39fe01841af5930c0",
+      "size": 42964
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",
@@ -426,146 +426,6 @@
     "readme.txt": {
       "sha256": "3c13dd8ed993efc2f13d2db4e52c8b4020a9fc05d0e7611d3b7482a8f4f64029",
       "size": 41501
-    },
-    "src/AboutServicesPage.tsx": {
-      "sha256": "a76b12d59bceb3809a43e05e1eec4eb7cfac42dbc65048ec439a8b02877cad59",
-      "size": 24977
-    },
-    "src/App.tsx": {
-      "sha256": "aadd7ac1ca52d2974724f3a6954f43da4f38f53be2afc2c4483c84bae0635679",
-      "size": 552362
-    },
-    "src/AuthSecurityPage.tsx": {
-      "sha256": "74c4d3b55d85d4e76adbb8173ea9251da8de3867aa7afe00c43fa4fa7bb0fb2a",
-      "size": 60269
-    },
-    "src/components/AiForensicReportView.tsx": {
-      "sha256": "408aaaf41f357cc55d5cb46ccb8c6aa84a1bd1e7f6c838c4f73472c2fcb7d5e6",
-      "size": 22441
-    },
-    "src/components/AttackChainCard.tsx": {
-      "sha256": "e20eee2594bbfef37ae78285fabe311288e23c94bea5e1168eca7d57d8d6799c",
-      "size": 27433
-    },
-    "src/components/BehavioralBaselineCard.tsx": {
-      "sha256": "d19caee37bee5c899f07467240c4c0424bc47101b944b817d133e156f2339655",
-      "size": 11676
-    },
-    "src/components/CustomScanModal.tsx": {
-      "sha256": "76339e17778688632e93a81414252cd2ee6326a564a2ea8c6181d92d33c7063c",
-      "size": 28947
-    },
-    "src/components/DatabaseBackupVault.tsx": {
-      "sha256": "06bed9153cb864a9aa6e1f2c1de8df8cca38b13405705d72351c61d20f8876a0",
-      "size": 54186
-    },
-    "src/components/FilesystemPermissionHardeningCard.tsx": {
-      "sha256": "2e9d36f36db3547776e3a57d56c436ab2066d696c31c66d4bbfeef8d3ca2d234",
-      "size": 20259
-    },
-    "src/components/IncidentReportModal.tsx": {
-      "sha256": "05eb1d50fe59fea107dce732f459979608b5b9f6b0d92d229293daf2cd8ac427",
-      "size": 15919
-    },
-    "src/components/MCPAgentServiceCard.tsx": {
-      "sha256": "544be5c17bd96ff5133ef60daa8373af7f799a9f90afe499233d5c830debb355",
-      "size": 33947
-    },
-    "src/components/PersistenceSentinelCard.tsx": {
-      "sha256": "2af89555cfc9ad248af83364c8c52cd48ed375efbfe3ee9fce8dd291fee0c525",
-      "size": 36715
-    },
-    "src/components/PluginSelfDefenseCard.tsx": {
-      "sha256": "1d5f6a189125eddfb2623704e896bc9a5eaf196815298490dacf4e096a41f008",
-      "size": 22931
-    },
-    "src/components/RemediationTransactionsCard.tsx": {
-      "sha256": "c7d18ae5384a77607e15747f21bb198d7b9847802b85b66f82581bcdd514b46b",
-      "size": 27670
-    },
-    "src/components/ServerSecurityTab.tsx": {
-      "sha256": "a3fc757334b048350e36de9d90862024b26f72a518b5bd880b817a83602abde3",
-      "size": 36736
-    },
-    "src/components/VirtualPatchCard.tsx": {
-      "sha256": "53ec28f520abc85e4736cf584a2654c155fe573aaae8beca47b4d8f7d09b50c3",
-      "size": 31935
-    },
-    "src/components/WcpBrandLogo.tsx": {
-      "sha256": "8f2f5a594d09810371bacce573af3187dbcdcbceffbaa126081af0dfa0192000",
-      "size": 2313
-    },
-    "src/components/WelcomeModal.tsx": {
-      "sha256": "d374105969f5a1e001d1ecd1e3ec4656a37aba5c04055c8430717a0cb0340ee3",
-      "size": 41079
-    },
-    "src/components/WhitelistManagerTab.tsx": {
-      "sha256": "f66251ee2399b9a1439e94aa61ec0da46b021bffde1344c680426b2fbd1d594e",
-      "size": 13332
-    },
-    "src/components/WhitelistModal.tsx": {
-      "sha256": "0bc8c0172929259013b8989d6d61082c2b4e7aaea2b78064e05b8212dab6cf10",
-      "size": 24110
-    },
-    "src/ExportResultsDropdown.tsx": {
-      "sha256": "ea4ae450716636d5fdb2f9c4efe76ff21ce3fd42bcfdabcce0590ef55d245ba2",
-      "size": 20418
-    },
-    "src/exportUtils.ts": {
-      "sha256": "7a5bb8dc1a3ad057be7c8c56ddbe2c6a0df9d88f14694e75b250ed8009aff53c",
-      "size": 71127
-    },
-    "src/FileIntegrityPage.tsx": {
-      "sha256": "004c553dad07385fb85b53498dcf2ebf04f1d15603adf5cd4844c7fcf161412b",
-      "size": 64071
-    },
-    "src/FilesystemForensicsCard.tsx": {
-      "sha256": "849a2cfb27f8abbc476ca20d5d139e0829624f99a787e67acf3b8eb44fc45096",
-      "size": 30585
-    },
-    "src/FirewallPage.tsx": {
-      "sha256": "a9e63ee68ee89f3633617a9c677c43d658ba91d3401735322f2301058aa61bcb",
-      "size": 137529
-    },
-    "src/ForensicsPage.tsx": {
-      "sha256": "137d5c9bb7331c89b240292cdbeccacdedd18cbc40a888a20eeb70d2870a8fb5",
-      "size": 21714
-    },
-    "src/index.css": {
-      "sha256": "f25815e7f7b0bae1262bfc95ea86d5f6c0f1f3c7643abb2c231e2b0bad835239",
-      "size": 501198
-    },
-    "src/index.tsx": {
-      "sha256": "d0e98c062e7e1544bf0730c5faa955cdcea2a91a1e3912e0d848f579fb54c909",
-      "size": 799
-    },
-    "src/QuarantinePage.tsx": {
-      "sha256": "6c060eb6a9b3ef141a2e35b0204d024911ecdbc80fc33658e94030b7fc9bc829",
-      "size": 27199
-    },
-    "src/ScanLogsPage.tsx": {
-      "sha256": "298fc45ec9064c65e6d0b3c3dd5c6ccbc63fc1311796fc949b6c606cc3b34bf4",
-      "size": 93817
-    },
-    "src/SettingsPage.tsx": {
-      "sha256": "c75a449aa824b028668be2442e3e74a92718d51065009d36441e1665362140e9",
-      "size": 210636
-    },
-    "src/UserSessionForensicsModal.tsx": {
-      "sha256": "a263b01ce2391b3128d403aa16508c7af7451c05c5c8c64fecefeeac69da03d0",
-      "size": 35847
-    },
-    "src/VisualDiffModal.tsx": {
-      "sha256": "51170ae0475fe0e9d270317669b89d9e4eecad36e7a9b90652f1587132d1d5b9",
-      "size": 39688
-    },
-    "src/VulnerabilitiesPage.tsx": {
-      "sha256": "99c038337dcfff138a0730a466d390418bf79a83a5be1722d6b69d533e7a286b",
-      "size": 41999
-    },
-    "src/WcpVaultPage.tsx": {
-      "sha256": "54360cb4367a2a22f632db3ac20d0643933662ad83abb66e1cf3e76f5a47b0ac",
-      "size": 40733
     },
     "uninstall.php": {
       "sha256": "717e588044bff49173f22822d87743c9b280b912867d5c3f83ad541633bea6ba",
