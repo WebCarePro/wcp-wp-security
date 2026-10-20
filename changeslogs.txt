@@ -20,7 +20,8 @@ v:1.20.0 - 2026-10-20
     - Modular Nginx Integration: automatically writes generated rules to `wp-content/uploads/wcp-waf/nginx-wcp-security.conf` and provides the exact server-level `include` directive for sysadmins to include in `/etc/nginx/sites-available/` with `nginx -t` validation instructions.
     - Apache & LiteSpeed Integration: supports real-time syntax generation with 1-click automatic deployment to root `.htaccess` (with automated timestamped backup) and 1-click clipboard copying.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
-- Scan Logs Inspection Telemetry Font Sizing Refinement (`ScanLogsPage.tsx`, `index.css`):
+- Scan Logs Inspection Telemetry Font Sizing Refinement & Numerical Aggregation Fix (`ScanLogsPage.tsx`, `ScannerRoutes.php`, `index.css`):
+  * Resolved string concatenation bug in historical metrics aggregation cards ("Files Examined", "Total Threats Logged", and "Average Risk Score") where MySQL returned string values from `wcpscan_scans` table (causing `0 + "5663" + "5509" + "5506"` to concatenate into `"0566355095506"` and threat counts into `"01196"`). Cast values explicitly using `Number()` in TypeScript and `(int)` in PHP REST route handlers for correct arithmetic summation.
   * Normalized oversized font size (`28px` inherited from global card metrics) on telemetry values ("Execution Duration", "Peak Memory", "Throughput", "CPU Load") to a clean, proportionate, and balanced `13.5px` bold metric value (`.wcp-telemetry-metric-val`).
   * Aligned labels, values, and subtexts neatly on the telemetry horizontal ribbon.
 - Welcome Modal White Mode Typography & Contrast Fix (`WelcomeModal.tsx`, `index.css`):

@@ -1818,8 +1818,11 @@ class ScannerRoutes {
                 $row['scan_target_name'] = $t_meta['name'];
                 $row['scan_target_short'] = $t_meta['short_name'];
                 $row['scan_target_category'] = $t_meta['category'];
-                $row['scan_category'] = $t_meta['category'];
-                $row['scan_target_badge'] = $t_meta['short_name'];
+                $row['id'] = (int) $row['id'];
+                $row['scanned_files'] = (int) ($row['scanned_files'] ?? 0);
+                $row['issues_found'] = (int) ($row['issues_found'] ?? 0);
+                $row['risk_score'] = (int) ($row['risk_score'] ?? 0);
+                $row['duration'] = is_numeric($row['duration'] ?? null) ? (float) $row['duration'] : 0.0;
                 $scans[] = $row;
             }
         }
