@@ -1,4 +1,9 @@
 v:1.20.0 - 2026-10-20
+- Plugin Self-Defense Light & White Mode Color System (`PluginSelfDefenseCard.tsx`, `index.css`, `AGENTS.md`):
+  * Refactored `PluginSelfDefenseCard.tsx` from hardcoded dark inline styles (`rgba(15, 23, 42, 0.65)`) to theme-adaptive CSS classes (`.wcp-self-defense-card`, `.wcp-self-defense-kpi-card`, `.wcp-self-defense-banner-pristine`, `.wcp-self-defense-banner-alert`, `.wcp-self-defense-watchdog-strip`, `.wcp-self-defense-table-box`, `.wcp-self-defense-search-input`).
+  * In Light/White Mode, KPI panels display clean white cards (`#ffffff`) with subtle borders (`#e2e8f0`), dark slate typography (`#0f172a`, `#334155`), vibrant high-contrast status accents (`#0284c7`, `#10b981`, `#d97706`, `#dc2626`), and soft badges, fixing previous faded or dark-on-white appearance.
+  * In Dark Mode, preserves obsidian background (`#090d16` / `#0f172a`), neon accents, and crisp text (`#f8fafc`, `#94a3b8`).
+  * Documented the complete UI Design System and Color Palette rules (Canvas, Typography, Accents, Status Badges, and form rules for both White and Dark Modes) in `AGENTS.md` for consistent future feature development.
 - Universal Dropdown Menu Indicators (`index.css`):
   * Added distinct, sleek SVG chevron dropdown indicators (`polyline` arrow) across all `<select>` dropdown controls in the plugin (including Scan Run audit selector `.wcp-ribbon-select`, findings severity filter `.wcp-filter-select`, scan log filters `.wcp-select-severity`, firewall mode selector `.wcp-firewall-select`, and settings dropdowns).
   * Styled with dedicated padding (`padding-right: 32px`), smooth hover/focus transitions, and theme-adaptive vector colors (`#475569` for light mode and `#94a3b8` for dark mode).
