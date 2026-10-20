@@ -524,7 +524,7 @@ class FirewallEngine {
     /**
      * Check if an IP is in the user-defined whitelist
      */
-    private static function is_ip_whitelisted(string $ip, string $whitelist_str): bool {
+    public static function is_ip_whitelisted(string $ip, string $whitelist_str): bool {
         if (empty($whitelist_str)) {
             return false;
         }
