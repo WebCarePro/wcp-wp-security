@@ -794,34 +794,17 @@ class FirewallEngine {
         $uname_full = php_uname('a');
         $linux_uname_short = "{$uname_s} {$uname_r} ({$uname_m})";
 
-        $distro_name = '';
-        if (@is_readable('/etc/os-release')) {
-            $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if (is_array($lines)) {
-                foreach ($lines as $line) {
-                    if (strpos($line, 'PRETTY_NAME=') === 0) {
-                        $distro_name = trim(substr($line, 12), '"\' ');
-                        break;
-                    }
-                }
-            }
-        }
-        if (empty($distro_name) && @is_readable('/etc/redhat-release')) {
-            $distro_name = trim((string) @file_get_contents('/etc/redhat-release'));
-        }
-        if (empty($distro_name)) {
-            $distro_name = $uname_s . ' ' . $uname_r;
-        }
+        $distro_name = $uname_s . ' ' . $uname_r;
 
         // 2. Server Software & SAPI
         $server_software_raw = !empty($_SERVER['SERVER_SOFTWARE'])
             ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE']))
             : (function_exists('apache_get_version') ? (string) @apache_get_version() : '');
         if (empty($server_software_raw)) {
-            if (file_exists('/etc/nginx') || strpos(php_sapi_name(), 'fpm') !== false) {
-                $server_software_raw = 'nginx (PHP-FPM)';
+            if (strpos(php_sapi_name(), 'fpm') !== false) {
+                $server_software_raw = 'nginx / PHP-FPM';
             } else {
-                $server_software_raw = 'Unknown Web Server';
+                $server_software_raw = 'Web Server (' . php_sapi_name() . ')';
             }
         }
         $server_software_type = 'Other';
@@ -904,67 +887,24 @@ class FirewallEngine {
             }
         }
 
-        // 6. PHP RAM Available & Memory Diagnostics
+        // 6. PHP RAM Limit & Process Allocation
         $raw_limit = ini_get('memory_limit') ?: '256M';
         $current_usage = memory_get_usage(true);
         $peak_usage = memory_get_peak_usage(true);
         $current_usage_mb = round($current_usage / (1024 * 1024), 1);
         $peak_usage_mb = round($peak_usage / (1024 * 1024), 1);
 
-        // Physical Shared Node RAM from /proc/meminfo
-        $host_mem_total_mb = null;
-        $host_mem_avail_mb = null;
-        if (@is_readable('/proc/meminfo')) {
-            $meminfo = @file_get_contents('/proc/meminfo');
-            if ($meminfo) {
-                if (preg_match('/MemTotal:\s+(\d+)\s+kB/i', $meminfo, $m1)) {
-                    $host_mem_total_mb = round((int)$m1[1] / 1024, 1);
-                }
-                if (preg_match('/MemAvailable:\s+(\d+)\s+kB/i', $meminfo, $m2)) {
-                    $host_mem_avail_mb = round((int)$m2[1] / 1024, 1);
-                }
-            }
-        }
-
-        // Shared Hosting / CloudLinux CageFS detection
+        // Shared hosting detection via server root path (without probing /proc or system directories)
         $is_shared_hosting = false;
-        $hosting_env_label = 'Dedicated / Cloud VPS';
-
-        if (@file_exists('/usr/share/cagefs') || @file_exists('/var/cpanel') || @is_dir('/usr/local/cpanel') || @file_exists('/proc/lve/info')) {
+        $hosting_env_label = 'Standard Web Hosting';
+        if (isset($_SERVER['DOCUMENT_ROOT']) && (strpos($_SERVER['DOCUMENT_ROOT'], '/home/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/home2/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/vhosts/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], 'public_html') !== false)) {
             $is_shared_hosting = true;
-            $hosting_env_label = 'cPanel / CloudLinux Shared Hosting';
-        } elseif (isset($_SERVER['DOCUMENT_ROOT']) && (strpos($_SERVER['DOCUMENT_ROOT'], '/home/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/home2/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/vhosts/') !== false)) {
-            $is_shared_hosting = true;
-            $hosting_env_label = 'Shared Hosting Environment';
-        }
-
-        // Detect Account Memory Limit from CloudLinux LVE or cgroups (e.g. 1GB plan)
-        $account_ram_limit = null;
-        // Check cgroups v2 memory.max
-        if (@is_readable('/sys/fs/cgroup/memory.max')) {
-            $cg_mem = trim((string) @file_get_contents('/sys/fs/cgroup/memory.max'));
-            if ($cg_mem !== 'max' && is_numeric($cg_mem) && (float)$cg_mem > 0) {
-                $account_ram_limit = round((float)$cg_mem / (1024 * 1024 * 1024), 1) . ' GB';
-            }
-        }
-        // Check cgroups v1 memory.limit_in_bytes
-        if ($account_ram_limit === null && @is_readable('/sys/fs/cgroup/memory/memory.limit_in_bytes')) {
-            $cg_mem = trim((string) @file_get_contents('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
-            if (is_numeric($cg_mem) && (float)$cg_mem > 0 && (float)$cg_mem < 9223372036854771712) {
-                $account_ram_limit = round((float)$cg_mem / (1024 * 1024 * 1024), 1) . ' GB';
-            }
-        }
-        // CloudLinux LVE /proc/lve/list
-        if ($account_ram_limit === null && @is_readable('/proc/lve/list')) {
-            $lve_data = @file_get_contents('/proc/lve/list');
-            if ($lve_data && preg_match('/\b(\d+)\b/', $lve_data)) {
-                $hosting_env_label = 'CloudLinux LVE Container';
-            }
+            $hosting_env_label = 'cPanel Shared Hosting';
         }
 
         if ($raw_limit === '-1') {
             $display_limit = 'Unlimited (-1)';
-            $free_str = $host_mem_avail_mb ? round($host_mem_avail_mb, 0) . ' MB' : 'Unlimited';
+            $free_str = 'Unlimited';
             $usage_percent = 5;
         } else {
             $display_limit = $raw_limit;
@@ -987,68 +927,11 @@ class FirewallEngine {
             $usage_percent = ($limit_bytes > 0) ? min(100, round(($current_usage / $limit_bytes) * 100, 1)) : 0;
         }
 
-        // 7. Website CPU Limitation (Cores, Cgroups, LVE, Load Average)
-        $host_cores = 1;
-        if (@is_readable('/proc/cpuinfo')) {
-            $cpuinfo = @file_get_contents('/proc/cpuinfo');
-            if ($cpuinfo) {
-                $host_cores = max(1, substr_count($cpuinfo, 'processor'));
-            }
-        } elseif (getenv('NUMBER_OF_PROCESSORS')) {
-            $host_cores = max(1, (int) getenv('NUMBER_OF_PROCESSORS'));
-        }
-
-        $cpu_limit = null;
-        $cpu_limit_type = $is_shared_hosting ? 'Shared Hosting (cPanel)' : 'Host Uncapped (' . $host_cores . ' Cores)';
-
-        // cgroups v2 check: /sys/fs/cgroup/cpu.max ($quota $period)
-        if (@is_readable('/sys/fs/cgroup/cpu.max')) {
-            $cgroup_val = trim((string) @file_get_contents('/sys/fs/cgroup/cpu.max'));
-            $parts = explode(' ', $cgroup_val);
-            if (isset($parts[0], $parts[1]) && $parts[0] !== 'max' && (int)$parts[1] > 0) {
-                $allocated_cores = round((int)$parts[0] / (int)$parts[1], 2);
-                $cpu_limit = $allocated_cores . ' vCPU Allocated';
-                $cpu_limit_type = 'Cgroups v2 Quota (' . $allocated_cores . ' Core)';
-            }
-        }
-
-        // cgroups v1 fallback: /sys/fs/cgroup/cpu/cpu.cfs_quota_us
-        if ($cpu_limit === null && @is_readable('/sys/fs/cgroup/cpu/cpu.cfs_quota_us') && @is_readable('/sys/fs/cgroup/cpu/cpu.cfs_period_us')) {
-            $quota = (int) trim((string) @file_get_contents('/sys/fs/cgroup/cpu/cpu.cfs_quota_us'));
-            $period = (int) trim((string) @file_get_contents('/sys/fs/cgroup/cpu/cpu.cfs_period_us'));
-            if ($quota > 0 && $period > 0) {
-                $allocated_cores = round($quota / $period, 2);
-                $cpu_limit = $allocated_cores . ' vCPU Allocated';
-                $cpu_limit_type = 'Cgroups v1 Quota (' . $allocated_cores . ' Core)';
-            }
-        }
-
-        // CloudLinux LVE check
-        if ($cpu_limit === null && (@file_exists('/proc/lve/info') || @file_exists('/proc/lve/list') || $is_shared_hosting)) {
-            $cpu_limit = '1 vCPU (cPanel Account Quota)';
-            $cpu_limit_type = 'cPanel / LVE Account Quota';
-        }
-
-        if ($cpu_limit === null) {
-            $cpu_limit = $host_cores . ' Cores (No Container Limit)';
-        }
-
-        // System Load Average
-        $load_avg = function_exists('sys_getloadavg') ? @sys_getloadavg() : false;
-        $load_formatted = (is_array($load_avg) && count($load_avg) >= 3)
-            ? sprintf('%.2f (1m), %.2f (5m), %.2f (15m)', $load_avg[0], $load_avg[1], $load_avg[2])
-            : 'N/A';
-
-        // 8. Helpful Developer Extras
+        // 7. Developer Extras (Max Execution Time, Upload Limits, Execution User)
         $max_execution_time = ini_get('max_execution_time') ?: '30';
         $upload_max_filesize = ini_get('upload_max_filesize') ?: '32M';
         $post_max_size = ini_get('post_max_size') ?: '32M';
-
-        $posix_user = (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) ? @posix_getpwuid(posix_geteuid()) : null;
-        $php_user = (is_array($posix_user) && !empty($posix_user['name'])) ? $posix_user['name'] : (function_exists('get_current_user') ? get_current_user() : 'www-data');
-
-        $disk_free_gb = function_exists('disk_free_space') ? round(@disk_free_space(ABSPATH) / (1024 * 1024 * 1024), 1) : null;
-        $disk_total_gb = function_exists('disk_total_space') ? round(@disk_total_space(ABSPATH) / (1024 * 1024 * 1024), 1) : null;
+        $php_user = function_exists('get_current_user') ? get_current_user() : 'web-user';
 
         $auto_prepend = ini_get('auto_prepend_file');
         $waf_hook_mode = (!empty($auto_prepend) && strpos($auto_prepend, 'wcp') !== false)
@@ -1077,20 +960,11 @@ class FirewallEngine {
             'php_ram_percent'      => $usage_percent,
             'is_shared_hosting'    => $is_shared_hosting,
             'hosting_env_label'    => $hosting_env_label,
-            'account_ram_limit'    => $account_ram_limit ?: ($is_shared_hosting ? 'cPanel Plan Limit (~1 GB)' : null),
-            'host_ram_total'       => $host_mem_total_mb ? round($host_mem_total_mb / 1024, 1) . ' GB' : 'N/A',
-            'host_ram_avail'       => $host_mem_avail_mb ? round($host_mem_avail_mb / 1024, 1) . ' GB' : 'N/A',
-            'cpu_cores'            => $host_cores,
-            'cpu_limitation'       => $cpu_limit,
-            'cpu_limit_type'       => $cpu_limit_type,
-            'cpu_load_avg'         => $load_formatted,
-            'cpu_load_1m'          => is_array($load_avg) ? $load_avg[0] : null,
+            'account_ram_limit'    => $is_shared_hosting ? 'cPanel Plan Limit (~1 GB)' : null,
             'max_execution_time'   => $max_execution_time . 's',
             'upload_max_filesize'  => $upload_max_filesize,
             'post_max_size'        => $post_max_size,
             'php_user'             => $php_user,
-            'disk_free_gb'         => $disk_free_gb !== null ? $disk_free_gb . ' GB' : 'N/A',
-            'disk_total_gb'        => $disk_total_gb !== null ? $disk_total_gb . ' GB' : 'N/A',
             'waf_hook_mode'        => $waf_hook_mode,
         ];
     }
