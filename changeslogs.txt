@@ -28,6 +28,11 @@ v:1.21.0 - 2026-10-21
   * Deep Forensic Evidence Preservation: Retained deep filesystem forensics (Created Time ctime, Modified Time mtime, Accessed Time atime, File Size, Ownership UID/GID, and MIME type) alongside "Inspect File" raw code viewing, providing vital forensic timestamps of when the rogue script was introduced to the server.
   * Dynamic Threat Advisory Notice: Replaced standard permission compliance text with an intelligent threat containment advisory detailing the difference between safe Quarantine isolation and Permanent Deletion.
   * Permission Hardening Preservation: Maintained the standard 0644 / 0755 / 0600 permission hardening controls exclusively for genuine permission findings (`unsafe_permissions`).
+- Modified Official Files Auto-Cure & View File Restoration (`App.tsx`, `FilesystemForensicsCard.tsx`):
+  * "Auto-Cure: Restore Official WP.org" in File Viewer Modal: Added 1-click official code restoration directly within the File Viewer Modal (`FileViewerModal`) when inspecting modified Core, Plugin, or Theme files. Users can view the exact differences or tampering, then immediately cure the file back to its authentic WordPress.org pristine state without exiting the viewer.
+  * Extended Forensics & Integrity Auto-Cure Integration: Updated `FilesystemForensicsCard` to accurately classify modified official files, displaying a dedicated "Filesystem Forensics & Integrity Auto-Cure" title, an Amber "Modified Official File (Integrity Mismatch)" badge, and high-visibility "Auto-Cure: Restore Official WP.org" action buttons in both the header and footer.
+  * 14-Day Emergency Safety Snapshot: Auto-Cure triggers an automatic backup snapshot to the local WCP Vault (`.wcp_vault`) before downloading and replacing the file with the verified bit-for-bit release from WordPress.org, ensuring instant 1-click rollback if needed.
+  * Intact Forensics & Code Viewer: Maintained access to raw file viewing, diff inspection, and inode forensic timestamps alongside the 1-click restoration action.
 
 v:1.20.0 - 2026-10-20
 - Login Security User Session Forensics & IP Shift Tracking (`UserSessionForensicsModal.tsx`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
