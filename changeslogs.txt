@@ -50,6 +50,7 @@ v:1.21.0 - 2026-10-21
     3. Remind on Next Login & Grace Period: Set as the default enforcement timeline with a 30-day countdown before enforcement restrictions, displaying persistent informational admin notices with direct setup links.
   * Resolved Policy Save Critical Error (`AuditLogger.php`, `ScannerRoutes.php`, `LoginHardening.php`): Added `AuditLogger::log()` alias pointing to `log_event()` and updated REST route callers and parameter parsing to resolve `PHP Fatal error: Uncaught Error: Call to undefined method WcpScanner\System\AuditLogger::log()`, ensuring policy changes save reliably.
   * Grace Period Warning Banners & Direct Setup Linkage: Integrated non-intrusive WP Admin header warning notices informing administrators of remaining grace days. Updated the action button URL to target the dedicated `page=wcp-scanner-auth&tab=2fa&setup=1` route and configured `AuthSecurityPage.tsx` to automatically initialize the 2FA QR code setup package whenever `setup=1` is present in the query parameters.
+  * Active Sessions Sentinel Rendering Fix: Resolved an unhandled React runtime error caused by a missing `<Radio />` icon import in `AuthSecurityPage.tsx` which caused the tab to crash to a blank white page when clicked. Wrapped `AuthSecurityPage` with `<SafeErrorBoundary>` in `App.tsx` for resilient fault isolation.
   * Design System Compliance: Added theme-adaptive styling (`.wcp-admin-card`, `.wcp-admin-table`, `.wcp-admin-badge-*`, `.wcp-admin-btn-action`) matching both Light/White and Dark Mode standards.
 
 v:1.20.0 - 2026-10-20
