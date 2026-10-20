@@ -1,6 +1,6 @@
 {
   "version": "1.20.0",
-  "generated_at": "2026-10-20T17:15:05.405Z",
+  "generated_at": "2026-10-20T19:45:23.948Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -40,20 +40,20 @@
       "size": 592076
     },
     "build/index-rtl.css": {
-      "sha256": "ef45f6b67d5c48765fe4b1a1a5d0b569a5f249d001556e9cfdbe673e75311773",
-      "size": 396715
+      "sha256": "f4d3a66d84ef88e5271f4c992571a2c0ee0812d9c06974e41685e5aa4f841c4a",
+      "size": 401691
     },
     "build/index.asset.php": {
-      "sha256": "b60837345c4da01f0e5d9af92ea52a22f8c2879e3e59229d4ea7b150c033a4ec",
+      "sha256": "ac5257148573a91ed20aed167bf260600cf2670c69da23f548ed6b1e76e34448",
       "size": 121
     },
     "build/index.css": {
-      "sha256": "72ad129413825dfdd775524c154e1428ddb5ad0db95ddd9831a7337feff72ad9",
-      "size": 396593
+      "sha256": "5388a9f735012a352854f55825b201315abf866071aa725f29bd411e4830f655",
+      "size": 401569
     },
     "build/index.js": {
-      "sha256": "976d9b190eb21c753d1625c720f92f0892a12d2faf1d30691dd87b4fe809d4f2",
-      "size": 1143640
+      "sha256": "0d1341d3c7432038229d560e3b8147dda7927fc8e8ebea0df01cb595e32078a8",
+      "size": 1152974
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,16 +68,16 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "3fc33ce0750d2ca3f5544f298a2e7994ab175a87f7dcd821cbec0f8c417d8017",
-      "size": 315437
+      "sha256": "20d8e84ea45526d2c08a293147866069c3ae81b837d6287d97a404023d5fad5b",
+      "size": 315745
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "715ae4b7f6c7951d774a26a62ad5c3aa9c23f3d49ca6fbfa892ca7372caa4311",
       "size": 6750
     },
     "includes/Auth/LoginHistoryManager.php": {
-      "sha256": "b76cd19fdd9146a61070f7392c93916e27a8bb39dbf404af655093892eb0f8ce",
-      "size": 22883
+      "sha256": "e82e3c1eb0eb81b3f336b847f7ab0ce28e76e6404efe4eabd4ec97e7811da610",
+      "size": 23037
     },
     "includes/Auth/QRCodeGenerator.php": {
       "sha256": "827b00efb51a59a0501d314dc6ecd037dd327726d1e5c348021a2cec64a31c16",

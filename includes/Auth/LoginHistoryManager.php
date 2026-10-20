@@ -291,11 +291,14 @@ class LoginHistoryManager {
             \WcpScanner\Database\Migration::install();
         }
 
+        // Calculate query limit: 0 or values >= 1000 retrieve full history
+        $sql_limit = ($limit <= 0 || $limit >= 1000) ? 1000 : max(1, min(500, $limit));
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT %d",
             $user_id,
-            max(1, min(50, $limit))
+            $sql_limit
         ));
 
         // Get currently active sessions from WP core session tokens
@@ -539,7 +542,7 @@ class LoginHistoryManager {
     }
 
     /**
-     * Prune older login records keeping recent 25 per user
+     * Prune older login records keeping recent 500 per user
      */
     private static function prune_old_logins(int $user_id) {
         global $wpdb;
@@ -547,7 +550,7 @@ class LoginHistoryManager {
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $cutoff_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT 1 OFFSET 25",
+            "SELECT id FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT 1 OFFSET 500",
             $user_id
         ));
 

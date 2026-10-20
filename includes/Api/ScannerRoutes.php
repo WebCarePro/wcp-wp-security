@@ -5422,7 +5422,15 @@ class ScannerRoutes {
             $user_id = get_current_user_id();
         }
 
-        $limit = (int) ($request->get_param('limit') ?: 10);
+        $raw_limit = $request->get_param('limit');
+        if ($raw_limit === '0' || $raw_limit === 0 || $raw_limit === 'all' || $raw_limit === 'unlimited') {
+            $limit = 0; // Retrieve full historical audit log
+        } elseif (!empty($raw_limit)) {
+            $limit = max(1, (int) $raw_limit);
+        } else {
+            $limit = 10;
+        }
+
         $result = \WcpScanner\Auth\LoginHistoryManager::get_user_history($user_id, $limit);
 
         return rest_ensure_response($result);
