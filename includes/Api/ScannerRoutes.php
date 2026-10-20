@@ -418,6 +418,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/remediation/delete-file', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_delete_file'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/permissions/audit', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'permissions_audit'],
@@ -4738,6 +4744,21 @@ class ScannerRoutes {
 
         $manager = new \WcpScanner\Remediation\RemediationManager();
         $result = $manager->fix_permissions($file_path, $target_perm, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function remediate_delete_file(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $result = $manager->delete_file($file_path, $issue_id);
 
         return rest_ensure_response($result);
     }

@@ -583,6 +583,65 @@ class RemediationManager {
     }
 
     /**
+     * Delete an unrecognized/rogue file or confirmed malware finding.
+     * Takes an atomic safety snapshot in WCP Vault before unlinking to allow recovery.
+     *
+     * @param string $file_path
+     * @param int|null $issue_id
+     * @return array
+     */
+    public function delete_file($file_path, $issue_id = null) {
+        $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
+        if (!$real_path || !file_exists($real_path)) {
+            return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
+        }
+
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+            return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner')];
+        }
+
+        // Prevent accidental deletion of protected core WordPress files
+        $base_name = strtolower(basename($real_path));
+        $protected_files = [
+            'wp-config.php', 'wp-settings.php', 'wp-load.php', 'index.php', '.htaccess',
+            'wp-blog-header.php', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php'
+        ];
+        if (in_array($base_name, $protected_files, true)) {
+            return ['success' => false, 'message' => sprintf(__('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'wcp-security-scanner'), $base_name)];
+        }
+
+        // Take safety backup snapshot in WCP Vault
+        $backup_res = $this->create_file_backup($real_path, 'delete_rogue_file');
+        $backup_id = !empty($backup_res['backup_id']) ? $backup_res['backup_id'] : null;
+
+        // Unlink the file
+        $unlinked = @unlink($real_path);
+        clearstatcache(true, $real_path);
+
+        if (!$unlinked && file_exists($real_path)) {
+            return [
+                'success' => false,
+                'message' => sprintf(__('Failed to delete %s. Check server filesystem write permissions.', 'wcp-security-scanner'), basename($real_path))
+            ];
+        }
+
+        $this->mark_file_issues_repaired($real_path, $issue_id);
+
+        return [
+            'success'   => true,
+            'message'   => sprintf(__('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WCP Vault.', 'wcp-security-scanner'), basename($real_path)),
+            'backup_id' => $backup_id,
+            'file_path' => $real_path,
+        ];
+    }
+
+    /**
      * Create safety backup before any remediation action
      */
     private function create_file_backup($file_path, $action_type) {
