@@ -19,6 +19,11 @@ v:1.20.0 - 2026-10-20
     - Hardened HTTP Response Headers: toggles for `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, and `Strict-Transport-Security` (HSTS).
     - Modular Nginx Integration: automatically writes generated rules to `wp-content/uploads/wcp-waf/nginx-wcp-security.conf` and provides the exact server-level `include` directive for sysadmins to include in `/etc/nginx/sites-available/` with `nginx -t` validation instructions.
     - Apache & LiteSpeed Integration: supports real-time syntax generation with 1-click automatic deployment to root `.htaccess` (with automated timestamped backup) and 1-click clipboard copying.
+  * Cloudflare Edge WAF Rule Customizer & Tuning Drawer (`CloudflareService.php`, `FirewallPage.tsx`):
+    - Added granular customization controls for each 1-click Free Plan Cloudflare Edge rule.
+    - Custom Action Selector: allows users to choose between `BLOCK`, `MANAGED CHALLENGE (Turnstile)`, `JS CHALLENGE`, `INTERACTIVE CAPTCHA`, and `LOG ONLY (MONITOR)`.
+    - Customizable Wirefilter Expression Editor: added inline tuning drawer with live expression editing and a 1-click "Reset to Default" button.
+    - IP Whitelist / Safe IP Bypass: added dedicated safe IP input with a 1-click "+ Add My IP" button to automatically exclude developer and client IPs (`and not (ip.src in {...})`) and prevent edge lockout.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
 - Scan Logs Inspection Telemetry Font Sizing Refinement & Numerical Aggregation Fix (`ScanLogsPage.tsx`, `ScannerRoutes.php`, `index.css`):
   * Resolved string concatenation bug in historical metrics aggregation cards ("Files Examined", "Total Threats Logged", and "Average Risk Score") where MySQL returned string values from `wcpscan_scans` table (causing `0 + "5663" + "5509" + "5506"` to concatenate into `"0566355095506"` and threat counts into `"01196"`). Cast values explicitly using `Number()` in TypeScript and `(int)` in PHP REST route handlers for correct arithmetic summation.

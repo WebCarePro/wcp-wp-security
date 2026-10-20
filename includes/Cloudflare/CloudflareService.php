@@ -562,15 +562,37 @@ class CloudflareService {
             }
         }
 
-        // 2. Build newly selected WCP rules
+        // 2. Build newly selected WCP rules (with customization support)
         $definitions = self::get_rule_definitions();
         $new_wcp_rules = [];
 
         foreach ($definitions as $key => $def) {
-            if (!empty($selected_rules[$key])) {
+            $rule_config = $selected_rules[$key] ?? null;
+            $is_enabled = is_array($rule_config) ? !empty($rule_config['enabled']) : !empty($rule_config);
+
+            if ($is_enabled) {
+                $action = (is_array($rule_config) && !empty($rule_config['action'])) ? sanitize_key($rule_config['action']) : $def['action'];
+                $expression = (is_array($rule_config) && !empty($rule_config['expression'])) ? trim((string) $rule_config['expression']) : $def['expression'];
+                $bypass_ips = (is_array($rule_config) && !empty($rule_config['bypass_ips'])) ? trim((string) $rule_config['bypass_ips']) : '';
+
+                // If bypass IPs provided, append "and not (ip.src in {...})" to expression
+                if (!empty($bypass_ips)) {
+                    $raw_ips = preg_split('/[\s,]+/', $bypass_ips, -1, PREG_SPLIT_NO_EMPTY);
+                    $valid_ips = [];
+                    foreach ($raw_ips as $rip) {
+                        if (filter_var($rip, FILTER_VALIDATE_IP)) {
+                            $valid_ips[] = $rip;
+                        }
+                    }
+                    if (!empty($valid_ips)) {
+                        $ip_list_str = '{"' . implode('" "', $valid_ips) . '"}';
+                        $expression = "({$expression}) and not (ip.src in {$ip_list_str})";
+                    }
+                }
+
                 $new_wcp_rules[] = [
-                    'action'      => $def['action'],
-                    'expression'  => $def['expression'],
+                    'action'      => $action,
+                    'expression'  => $expression,
                     'description' => self::WCP_RULE_TAG . ' ' . $def['title'],
                     'enabled'     => true,
                 ];
