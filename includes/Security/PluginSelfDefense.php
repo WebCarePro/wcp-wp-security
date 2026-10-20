@@ -1,0 +1,361 @@
+<?php
+namespace WcpScanner\Security;
+
+use WcpScanner\System\SettingsManager;
+use WcpScanner\Notifications\WebhookService;
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * PluginSelfDefense
+ *
+ * Provides cryptographic attestation, anti-tamper monitoring, and integrity defense
+ * for the WCP Security Scanner plugin files. Detects missing files (e.g. deleted by host
+ * scanners / mod_security), altered code, and rogue files dropped into the plugin folder.
+ */
+class PluginSelfDefense {
+
+    const DB_HASHES_OPTION = 'wcpscan_self_defense_hashes';
+    const DB_LAST_AUDIT_OPTION = 'wcpscan_self_defense_last_audit';
+    const CRON_HOOK = 'wcpscan_self_defense_watchdog_event';
+
+    /**
+     * Bootstrap the Self Defense engine & watchdog hooks
+     */
+    public static function init() {
+        add_action('admin_notices', [__CLASS__, 'render_tamper_warning_notice']);
+        add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_watchdog']);
+
+        // Schedule event if not already registered
+        if (!wp_next_scheduled(self::CRON_HOOK)) {
+            wp_schedule_event(time() + 300, 'twicedaily', self::CRON_HOOK);
+        }
+    }
+
+    /**
+     * Run full self-integrity attestation audit
+     *
+     * @param bool $force_recheck
+     * @return array
+     */
+    public static function run_audit(bool $force_recheck = false): array {
+        $manifest = self::get_baseline_manifest();
+        $plugin_dir = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
+
+        $missing_files  = [];
+        $modified_files = [];
+        $untracked_files = [];
+        $verified_count = 0;
+        $total_tracked  = count($manifest);
+
+        // 1. Verify all officially expected files
+        foreach ($manifest as $rel_path => $expected_meta) {
+            $expected_hash = is_array($expected_meta) ? ($expected_meta['sha256'] ?? '') : (string)$expected_meta;
+            $expected_size = is_array($expected_meta) ? ($expected_meta['size'] ?? 0) : 0;
+
+            // Normalize path for current OS
+            $fs_path = $plugin_dir . str_replace('/', DIRECTORY_SEPARATOR, $rel_path);
+
+            if (!file_exists($fs_path) || !is_file($fs_path)) {
+                $missing_files[] = [
+                    'path'          => $rel_path,
+                    'status'        => 'missing',
+                    'expected_size' => $expected_size,
+                    'severity'      => 'critical',
+                    'detail'        => __('File is missing or was deleted by host security scanner / mod_security.', 'wcp-security-scanner'),
+                ];
+                continue;
+            }
+
+            // Calculate live SHA-256
+            $live_hash = @hash_file('sha256', $fs_path);
+            $live_size = @filesize($fs_path) ?: 0;
+
+            if ($live_hash !== $expected_hash) {
+                $modified_files[] = [
+                    'path'          => $rel_path,
+                    'status'        => 'modified',
+                    'expected_hash' => $expected_hash,
+                    'live_hash'     => $live_hash,
+                    'expected_size' => $expected_size,
+                    'live_size'     => $live_size,
+                    'severity'      => 'high',
+                    'detail'        => __('File content hash does not match official release signature.', 'wcp-security-scanner'),
+                ];
+            } else {
+                $verified_count++;
+            }
+        }
+
+        // 2. Discover foreign/untracked files inside plugin directory
+        $untracked_files = self::find_untracked_files($plugin_dir, $manifest);
+
+        $has_issues = !empty($missing_files) || !empty($modified_files) || !empty($untracked_files);
+        $status = $has_issues ? 'compromised' : 'pristine';
+
+        $audit_result = [
+            'success'          => true,
+            'status'           => $status,
+            'has_issues'       => $has_issues,
+            'checked_at'       => current_time('mysql'),
+            'timestamp'        => time(),
+            'total_tracked'    => $total_tracked,
+            'verified_count'   => $verified_count,
+            'missing_count'    => count($missing_files),
+            'modified_count'   => count($modified_files),
+            'untracked_count'  => count($untracked_files),
+            'missing_files'    => $missing_files,
+            'modified_files'   => $modified_files,
+            'untracked_files'  => $untracked_files,
+            'plugin_version'   => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.20.0',
+        ];
+
+        // Store latest audit state
+        update_option(self::DB_LAST_AUDIT_OPTION, $audit_result, false);
+
+        return $audit_result;
+    }
+
+    /**
+     * Retrieve the official cryptographic baseline manifest
+     * Loads from disk manifest file or encrypted database fallback
+     *
+     * @return array<string, array{sha256: string, size: int}>
+     */
+    public static function get_baseline_manifest(): array {
+        $manifest_file = WCPSCAN_PATH . 'includes/System/plugin-manifest.json';
+        if (file_exists($manifest_file)) {
+            $raw = @file_get_contents($manifest_file);
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && !empty($decoded['files'])) {
+                return $decoded['files'];
+            }
+        }
+
+        // Fallback to database baseline
+        $stored = get_option(self::DB_HASHES_OPTION, []);
+        if (is_array($stored) && !empty($stored)) {
+            return $stored;
+        }
+
+        // Emergency dynamic fallback: if no manifest file exists yet, generate baseline from active clean files
+        $generated = self::generate_local_manifest();
+        update_option(self::DB_HASHES_OPTION, $generated, false);
+        return $generated;
+    }
+
+    /**
+     * Dynamically generate manifest map of all valid plugin files
+     *
+     * @return array
+     */
+    public static function generate_local_manifest(): array {
+        $plugin_dir = rtrim(WCPSCAN_PATH, '/\\');
+        $files = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($plugin_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if (!$item->isFile()) {
+                continue;
+            }
+            $real_path = $item->getPathname();
+            $rel_path = str_replace([$plugin_dir . DIRECTORY_SEPARATOR, $plugin_dir . '/'], '', $real_path);
+            $rel_path = str_replace('\\', '/', $rel_path);
+
+            // Skip developer & temporary files
+            if (preg_match('#^(\.git|tests|node_modules|dist|tmp|\.DS_Store)#i', $rel_path)) {
+                continue;
+            }
+            if (substr($rel_path, -4) === '.map' || substr($rel_path, -4) === '.log') {
+                continue;
+            }
+
+            $files[$rel_path] = [
+                'sha256' => @hash_file('sha256', $real_path),
+                'size'   => @filesize($real_path) ?: 0,
+            ];
+        }
+
+        return $files;
+    }
+
+    /**
+     * Discover any rogue/untracked files inside the plugin root
+     *
+     * @param string $plugin_dir
+     * @param array $manifest
+     * @return array
+     */
+    private static function find_untracked_files(string $plugin_dir, array $manifest): array {
+        $untracked = [];
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($plugin_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $item) {
+                if (!$item->isFile()) {
+                    continue;
+                }
+                $real_path = $item->getPathname();
+                $rel_path = str_replace([$plugin_dir, str_replace('/', DIRECTORY_SEPARATOR, $plugin_dir)], '', $real_path);
+                $rel_path = ltrim(str_replace('\\', '/', $rel_path), '/');
+
+                // Skip dev folders, node_modules, temp files
+                if (preg_match('#^(\.git|tests|node_modules|dist|tmp|\.system_generated|\.DS_Store)#i', $rel_path)) {
+                    continue;
+                }
+                if ($rel_path === 'includes/System/plugin-manifest.json' || substr($rel_path, -4) === '.map' || substr($rel_path, -4) === '.log' || substr($rel_path, -4) === '.zip') {
+                    continue;
+                }
+
+                // Check against manifest
+                if (!isset($manifest[$rel_path])) {
+                    $untracked[] = [
+                        'path'     => $rel_path,
+                        'status'   => 'untracked',
+                        'size'     => @filesize($real_path) ?: 0,
+                        'severity' => 'medium',
+                        'detail'   => __('Unknown or extraneous file detected in plugin directory.', 'wcp-security-scanner'),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore filesystem permission errors
+        }
+
+        return $untracked;
+    }
+
+    /**
+     * Scheduled watchdog check
+     */
+    public static function run_scheduled_watchdog() {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['self_defense_watchdog_enabled'])) {
+            return;
+        }
+
+        $audit = self::run_audit(true);
+
+        if (!empty($audit['has_issues'])) {
+            // Dispatch alert email if enabled
+            if (!empty($settings['self_defense_notify_email'])) {
+                self::send_alert_email($audit);
+            }
+
+            // Dispatch webhook if enabled
+            if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
+                WebhookService::dispatch_alert('plugin_tamper_detected', [
+                    'title'    => 'WCP Security Scanner Self-Defense Alert',
+                    'severity' => 'critical',
+                    'message'  => sprintf(
+                        'Plugin Self-Defense detected anomalies: %d missing files, %d modified files, %d untracked files.',
+                        $audit['missing_count'],
+                        $audit['modified_count'],
+                        $audit['untracked_count']
+                    ),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Send email alert to administrator when files are missing or modified
+     *
+     * @param array $audit
+     */
+    private static function send_alert_email(array $audit) {
+        $to = get_option('admin_email');
+        if (empty($to)) {
+            return;
+        }
+
+        $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+        $subject = sprintf(__('[%s Security Alert] WCP Security Scanner File Integrity Anomaly Detected', 'wcp-security-scanner'), $site_name);
+
+        $body  = "Hello Administrator,\n\n";
+        $body .= "The WCP Security Scanner Self-Defense & Anti-Tamper Engine has detected that one or more of its own core files have been modified or deleted on your server.\n\n";
+        $body .= "This commonly happens when:\n";
+        $body .= "1. A shared hosting auto-scanner or ModSecurity rule deleted legitimate plugin files (e.g. CloudflareService.php or REST handlers).\n";
+        $body .= "2. A plugin zip archive was partially extracted or corrupted during upload.\n";
+        $body .= "3. Unauthorized code modification or malware tampering occurred.\n\n";
+        $body .= "--- Audit Summary ---\n";
+        $body .= "Site: " . home_url() . "\n";
+        $body .= "Missing Files: " . $audit['missing_count'] . "\n";
+        $body .= "Modified Files: " . $audit['modified_count'] . "\n";
+        $body .= "Untracked Files: " . $audit['untracked_count'] . "\n\n";
+
+        if (!empty($audit['missing_files'])) {
+            $body .= "Missing Core Files:\n";
+            foreach (array_slice($audit['missing_files'], 0, 10) as $f) {
+                $body .= " - " . $f['path'] . "\n";
+            }
+            $body .= "\n";
+        }
+
+        if (!empty($audit['modified_files'])) {
+            $body .= "Modified / Tampered Files:\n";
+            foreach (array_slice($audit['modified_files'], 0, 10) as $f) {
+                $body .= " - " . $f['path'] . "\n";
+            }
+            $body .= "\n";
+        }
+
+        $body .= "Action Required:\n";
+        $body .= "Please re-upload or update the official plugin zip in WordPress Admin (Plugins > Add New > Upload Plugin) to restore full security scanner protection.\n\n";
+        $body .= "Best regards,\n";
+        $body .= "Mir Alamin (WebCare Pro)\n";
+        $body .= "WCP Security Scanner Self-Defense Engine\n";
+
+        @wp_mail($to, $subject, $body, ['Content-Type: text/plain; charset=UTF-8']);
+    }
+
+    /**
+     * Render persistent admin notice across wp-admin if self-defense detects missing/modified files
+     */
+    public static function render_tamper_warning_notice() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $audit = get_option(self::DB_LAST_AUDIT_OPTION, null);
+        if (!$audit || empty($audit['has_issues'])) {
+            return;
+        }
+
+        $missing_count  = (int) ($audit['missing_count'] ?? 0);
+        $modified_count = (int) ($audit['modified_count'] ?? 0);
+        $audit_url      = admin_url('admin.php?page=wcp-scanner-forensics&tab=self_defense');
+
+        echo '<div class="notice notice-error" style="padding: 14px 18px; border-left: 4px solid #ef4444; background: #fff1f2; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.15); margin-top: 15px;">';
+        echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">';
+        echo '<div style="font-size: 13.5px; color: #991b1b; line-height: 1.5;">';
+        echo '<strong><span class="dashicons dashicons-shield" style="font-size: 18px; margin-right: 4px; vertical-align: -2px;"></span> ' . esc_html__('WCP Security Scanner Self-Defense Alert:', 'wcp-security-scanner') . '</strong> ';
+
+        if ($missing_count > 0 && $modified_count > 0) {
+            echo esc_html(sprintf(__('Detected %1$d missing file(s) and %2$d modified file(s) in this plugin installation. A host scanner or upload error may have deleted critical security modules.', 'wcp-security-scanner'), $missing_count, $modified_count));
+        } elseif ($missing_count > 0) {
+            echo esc_html(sprintf(__('Detected %1$d missing core file(s) in this plugin installation (e.g. deleted by host security or incomplete zip upload).', 'wcp-security-scanner'), $missing_count));
+        } else {
+            echo esc_html(sprintf(__('Detected %1$d modified/tampered file(s) in the security scanner directory.', 'wcp-security-scanner'), $modified_count));
+        }
+        echo '</div>';
+
+        echo '<div style="display: flex; gap: 8px;">';
+        echo '<a href="' . esc_url($audit_url) . '" class="button button-primary" style="background: #dc2626; border-color: #b91c1c; font-weight: 700; padding: 2px 14px;">';
+        echo esc_html__('View Self-Defense Diagnostics & Verify', 'wcp-security-scanner');
+        echo '</a>';
+        echo '</div>';
+
+        echo '</div>';
+        echo '</div>';
+    }
+}

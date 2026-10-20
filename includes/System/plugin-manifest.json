@@ -1,0 +1,579 @@
+{
+  "version": "1.20.0",
+  "generated_at": "2026-10-20T15:51:22.042Z",
+  "algorithm": "sha256",
+  "files": {
+    "assets/cubes.svg": {
+      "sha256": "ea276b924b4f9ad0f5a2b5b3d110b36723d45520779c8dcf2725a708fb243f5d",
+      "size": 689
+    },
+    "assets/icon-128x128.png": {
+      "sha256": "085b69a423aac06e7430df1a3be6c2a714db5d960fe4976b6167ddd91a71a1a1",
+      "size": 29141
+    },
+    "assets/icon-256x256.png": {
+      "sha256": "b2b39cb5ad6928b4787382a9e7da30ba5fc4e2e8660d252446891ed8419589b8",
+      "size": 83907
+    },
+    "assets/icon.svg": {
+      "sha256": "b4ee012d3914d478fa4914d36255e2b24cae7d0c3a9f7df3bf6168ea415e6321",
+      "size": 2026
+    },
+    "assets/logo-96x96.png": {
+      "sha256": "025a25ca61df25c924c684530df16d49ec3d41324bbb69c335996338219a8233",
+      "size": 13320
+    },
+    "assets/logo.png": {
+      "sha256": "b2b39cb5ad6928b4787382a9e7da30ba5fc4e2e8660d252446891ed8419589b8",
+      "size": 83907
+    },
+    "assets/logo.svg": {
+      "sha256": "2266ed055ad3150ed149b8dddd6c8118a0c58868484dec4d9dcb22d53b7a1710",
+      "size": 2499
+    },
+    "assets/webcare-3d-emblem.png": {
+      "sha256": "7ba6c70733929f53561ff3362df50b792b05ea01278041878c995caf0882bf89",
+      "size": 218602
+    },
+    "assets/webcare-original-logo-3d.jpg": {
+      "sha256": "bcf6cebcbcf9752bebaf95776a12b57a038d10562cb6c9ec2cd48d69b62122f5",
+      "size": 592076
+    },
+    "build/index-rtl.css": {
+      "sha256": "0140d8410eeca87b519f41ac6f7460597b99984130d1b8610ae719994c51e3a7",
+      "size": 389092
+    },
+    "build/index.asset.php": {
+      "sha256": "0b9065b4b2e30669eb448d3968ba620888bf3b4ea5dc637ea30927f2baebdc07",
+      "size": 121
+    },
+    "build/index.css": {
+      "sha256": "0a9a549499ca5986052b68d40dc9e35691939bd62a051d6079404ec734ce4760",
+      "size": 388974
+    },
+    "build/index.js": {
+      "sha256": "aa18e127029d8d4e351553424bff35ad01eb3acf45f10cff7e042c1f57233e55",
+      "size": 1145140
+    },
+    "composer.json": {
+      "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
+      "size": 342
+    },
+    "includes/Admin/AdminMenu.php": {
+      "sha256": "c67d440d5880d8387fddd757e857fd0efac53c4ad2930f6a6fb0d37aa6a8c5e0",
+      "size": 18913
+    },
+    "includes/Api/MCPAgentService.php": {
+      "sha256": "af63dea2b5678fae1c91966d9544485b94174b9cd94674ba39b466d5d9042d0d",
+      "size": 23923
+    },
+    "includes/Api/ScannerRoutes.php": {
+      "sha256": "3fc33ce0750d2ca3f5544f298a2e7994ab175a87f7dcd821cbec0f8c417d8017",
+      "size": 315437
+    },
+    "includes/Auth/LoginHardening.php": {
+      "sha256": "715ae4b7f6c7951d774a26a62ad5c3aa9c23f3d49ca6fbfa892ca7372caa4311",
+      "size": 6750
+    },
+    "includes/Auth/LoginHistoryManager.php": {
+      "sha256": "b76cd19fdd9146a61070f7392c93916e27a8bb39dbf404af655093892eb0f8ce",
+      "size": 22883
+    },
+    "includes/Auth/QRCodeGenerator.php": {
+      "sha256": "827b00efb51a59a0501d314dc6ecd037dd327726d1e5c348021a2cec64a31c16",
+      "size": 13108
+    },
+    "includes/Auth/SessionSentinel.php": {
+      "sha256": "2c0e6fa6457dc26216e3abfa5b79ace686098b32aa15c53322667fe875d3bcf7",
+      "size": 30826
+    },
+    "includes/Auth/TwoFactorAuth.php": {
+      "sha256": "66de0cbff9697da315479b347906719ba664a1d82e964fd6608f1206ab8c8400",
+      "size": 25586
+    },
+    "includes/Backup/DatabaseBackup.php": {
+      "sha256": "1b8296d12c5567f80b9664854f98fd9219d34a677abe06685666898921fff139",
+      "size": 42333
+    },
+    "includes/Cloudflare/CloudflareService.php": {
+      "sha256": "f8fbe236c7a340630a0070b21c7d26e09b9dbbb2f3f0ef1fd2190f21f15cc168",
+      "size": 42959
+    },
+    "includes/Content/CommentScanner.php": {
+      "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",
+      "size": 4897
+    },
+    "includes/Content/ContentScanner.php": {
+      "sha256": "31f1f2bcb9f1a222c17d7cd8628985c0e6ba060c934d73903a15eaf108b9660c",
+      "size": 5476
+    },
+    "includes/Content/HTMLAnalyzer.php": {
+      "sha256": "221d6c79311e0a0d643afd0ca98454329f43c0833b50092967d29130be7bf4e5",
+      "size": 4545
+    },
+    "includes/Content/SpamDetector.php": {
+      "sha256": "d679099d792fd8bf55ccadd7eb9c95e92220993f9590125625bddfe42ed8b554",
+      "size": 3711
+    },
+    "includes/Content/URLScanner.php": {
+      "sha256": "a6136da69fa2ae1849c8ce4bfc454fbad8b180969cd0dcb6ad2175824598c48c",
+      "size": 2732
+    },
+    "includes/Database/DatabaseRemediationManager.php": {
+      "sha256": "667f1447e064230f395ed1778961fbfd7c0d7e6b09a590376e7c7ab0761f2804",
+      "size": 11496
+    },
+    "includes/Database/DatabaseScanner.php": {
+      "sha256": "65747ec4aa88e4763e929274110640b9820e2a430e045768c78ff6c484ce295d",
+      "size": 2579
+    },
+    "includes/Database/Migration.php": {
+      "sha256": "9a705bf9228daf89b3f3e7351a77c5adeb428708475ab7d257255ce147a10a7f",
+      "size": 5663
+    },
+    "includes/Database/OptionScanner.php": {
+      "sha256": "f57b1f83ad9b32dd49922bb5a79661a4232041eea5fb590b3c313e88c473dd0e",
+      "size": 5168
+    },
+    "includes/Database/RogueAdminAnomalyDetector.php": {
+      "sha256": "f14bd6783d995449edf47b7ddaeeeb1f0724b26751a2a087b4a817f626f00be3",
+      "size": 10222
+    },
+    "includes/Database/SerializedDataScanner.php": {
+      "sha256": "eb33d4c9db4ddd41be6599807f41570969a72f8c551a3ad1d8d33f5fa5c56fc3",
+      "size": 3579
+    },
+    "includes/Database/TableScanner.php": {
+      "sha256": "88653a8bd675edbc1ff61a829eb7d33c27a9d2e7778348f15c1d962267d7465e",
+      "size": 12007
+    },
+    "includes/Filesystem/DirectoryWalker.php": {
+      "sha256": "c7791c91fcc2d07515cba9360d2e6ae505c1b2984aa0ea7b6fd0dc8830330c01",
+      "size": 6791
+    },
+    "includes/Filesystem/FileHasher.php": {
+      "sha256": "30b0219b9838e0dd39e93be39c342a70436478dc9ac94987040c7424877c433a",
+      "size": 558
+    },
+    "includes/Filesystem/FileMetadata.php": {
+      "sha256": "876368263e1efa34929d610e71d3a586165eddb2f90354e688dd9a1040823bca",
+      "size": 1065
+    },
+    "includes/Filesystem/FileScanner.php": {
+      "sha256": "ed9218d41cc6cf2dfd6d0c59b2bc78137e0cb3a967be644e8d34dd0f1317ff40",
+      "size": 3865
+    },
+    "includes/Filesystem/PathValidator.php": {
+      "sha256": "6167ce827aea2ed8a0c2e843aae4873adf9762edf2b79f92919167bb8fca5f13",
+      "size": 14600
+    },
+    "includes/Filesystem/PermissionScanner.php": {
+      "sha256": "c837aa98de0aed66faa536fa2513b008f4a06176c8a11c7368f41f48c669599d",
+      "size": 1090
+    },
+    "includes/Filesystem/SymlinkScanner.php": {
+      "sha256": "c8f13d0bc8e66b008715d15c39c8936933ed578f035cd0cd6e59643abc14a2c5",
+      "size": 763
+    },
+    "includes/Filesystem/UploadsScanner.php": {
+      "sha256": "4f33f06f3ca3f7782e3806d96c345d7b8489acea5609b7b011c9a4a1228a7970",
+      "size": 22926
+    },
+    "includes/Findings/CorrelationEngine.php": {
+      "sha256": "30f3dee614c2b86043c9a67534904b4cded1be544e965da71a098467de40ce37",
+      "size": 3802
+    },
+    "includes/Findings/Finding.php": {
+      "sha256": "413e67b9bde99fab44f3aa961e88df004ba96433cf6e657f07005319096bf06c",
+      "size": 1367
+    },
+    "includes/Findings/FindingRepository.php": {
+      "sha256": "f0b51a2399d9555b370787f6d83c198ad05e26f8b898da512e70f458dc657bd1",
+      "size": 2571
+    },
+    "includes/Findings/FindingsRepository.php": {
+      "sha256": "58ecd6c95322fa739029c1a1629427175c1759e6a9fa6da883213e98fe7fa7ac",
+      "size": 5015
+    },
+    "includes/Findings/RiskScorer.php": {
+      "sha256": "08d7050e31d2b7ed173f02619765cdc248ca2cf751d701e8421206e89eec944d",
+      "size": 3060
+    },
+    "includes/Findings/WhitelistManager.php": {
+      "sha256": "0ac5990859aa68758b7088649ea35c663ceae14b5f3388ce51585fc335a96fc5",
+      "size": 14308
+    },
+    "includes/Firewall/BotReconDefense.php": {
+      "sha256": "cf264c65548dd5322a8f785809075e57a0c914a9f333d03faad1945b69287111",
+      "size": 7838
+    },
+    "includes/Firewall/FirewallEngine.php": {
+      "sha256": "35a13203cfa72905f46a568e80e240d319a60fb1ccf8ecc741620499eb09d7a2",
+      "size": 42268
+    },
+    "includes/Firewall/ServerSecurityEngine.php": {
+      "sha256": "af523af493a07524c58810c6b2e641ba473730aff9364809851651ab9ce016a9",
+      "size": 20493
+    },
+    "includes/Firewall/ThreatIntelService.php": {
+      "sha256": "08cddd675c029807fcfda1ee0cd75f3b41c000ceec297d9a36cce3ada82279a0",
+      "size": 20992
+    },
+    "includes/Firewall/VirtualPatchManager.php": {
+      "sha256": "218c823ca689597701e4abea2c40b1fb71dcd853c69fb707cc1a9a28fece3414",
+      "size": 21005
+    },
+    "includes/Forensics/AttackChainEngine.php": {
+      "sha256": "34f7ec550279aea434d5efb4a7f8065a9aa07136a151275a0215ae3ad86ebba6",
+      "size": 40165
+    },
+    "includes/Hardening/PermissionHardeningManager.php": {
+      "sha256": "96368d7e86934d7138d97131124f2bacf2e3837e4aa46a4cb663cff38a6c17af",
+      "size": 27602
+    },
+    "includes/Hardening/SecurityHeadersEngine.php": {
+      "sha256": "c390475b37c446b6b7f40fc4e7c7b658293ab5d83e6ddba6e05b5108931bff6f",
+      "size": 13068
+    },
+    "includes/Integrity/BehavioralBaselineEngine.php": {
+      "sha256": "72cc84b06e4c2cb0ee6790ad84f4fcd7cc794e1aea0d2f6465bccdca497023e6",
+      "size": 19948
+    },
+    "includes/Integrity/ChecksumProvider.php": {
+      "sha256": "2bfb30af1f59540d8b613124501214a5e28b6a025980aeca2aafae4d78c9c567",
+      "size": 7310
+    },
+    "includes/Integrity/CoreIntegrity.php": {
+      "sha256": "c8ba21ab1d5b0e2e1b545d4534b0cd750efd66fb1d7df16c9c4bfc9f047ff6f4",
+      "size": 5808
+    },
+    "includes/Integrity/FileIntegrityMonitor.php": {
+      "sha256": "6629a88357887d097cffc61cbc0fe01eebd4e0605753b1229620df9e01204873",
+      "size": 57838
+    },
+    "includes/Integrity/ImportantFileFIM.php": {
+      "sha256": "b60df0c31fd1f5273eaa9975ffe2255220a22af59bda7f64502183810ac89030",
+      "size": 3459
+    },
+    "includes/Integrity/PluginIntegrity.php": {
+      "sha256": "36b24558ff3f9b0e47ff0d5d627115d8b1f69427105f5a6694a6908d78f4888e",
+      "size": 13987
+    },
+    "includes/Integrity/ThemeIntegrity.php": {
+      "sha256": "8184ce42b8ef35eb23205ea7d5e08fc70fa47d7acfc948761c8fb87b719902bc",
+      "size": 10731
+    },
+    "includes/Malware/DeobfuscationEngine.php": {
+      "sha256": "7e448e468068de4aa3b9a24a98cb2daff9170eec3ef8ba12e9fe162c53928f6e",
+      "size": 5321
+    },
+    "includes/Malware/HeuristicEngine.php": {
+      "sha256": "88498f2d0335fbd43f08c2d5fa737e2575118054787a80edb52a27060a4b82d4",
+      "size": 2902
+    },
+    "includes/Malware/KnownHashDetector.php": {
+      "sha256": "01956706b7db3c8d4c0ef85a48414ca667a1423392c3a66d0cae24273ed9d1a4",
+      "size": 2080
+    },
+    "includes/Malware/ObfuscationDetector.php": {
+      "sha256": "6cd0514104a99241a3ef37ce279b617ee7d42032299171f2b34a58443d4e26d9",
+      "size": 6528
+    },
+    "includes/Malware/SuspiciousStringDetector.php": {
+      "sha256": "e9bfac3d562b8e4539aed0047c13a15eede93058bad97158e5f3c43957fae452",
+      "size": 3841
+    },
+    "includes/Malware/WebshellDetector.php": {
+      "sha256": "0e5f7dd1c809e2e308af3d95ef635d3746377a08b6fa8b1c7880b3d0f1218059",
+      "size": 3575
+    },
+    "includes/Notifications/WebhookService.php": {
+      "sha256": "cd333737a14557f5c3c0654273c455bec7306da730cf021ac5a2a08f1e128713",
+      "size": 32210
+    },
+    "includes/Plugin.php": {
+      "sha256": "25e21388817fb5283df20c58faab456b8dd8c408fad17effae087e1c3c595226",
+      "size": 3213
+    },
+    "includes/Quarantine/CoreRepairManager.php": {
+      "sha256": "b07003c796a8f65d783113ee8653a4ec7bf9fe17fb21f5da174bd4112a57bd43",
+      "size": 1215
+    },
+    "includes/Quarantine/QuarantineManager.php": {
+      "sha256": "13ab6b9944379286cc3cf53c99b8be24479ff68639732d522390f1d6b4c1f76b",
+      "size": 21260
+    },
+    "includes/Remediation/RemediationManager.php": {
+      "sha256": "e550aa660a9d3b9be7886ab3d6ac36daba8023f4f0548cae98cee3d1855d1867",
+      "size": 36462
+    },
+    "includes/Remediation/TransactionalRemediation.php": {
+      "sha256": "6d06c92b1681573345e8dcd35fdf6973b4e7f5564e47ed06ca570465147501d1",
+      "size": 17802
+    },
+    "includes/Reports/IncidentReportEngine.php": {
+      "sha256": "4ffd0e6ae6e7c66a4db4d7cca1225c10065d169a6e72311788c0b1e63572a9a7",
+      "size": 38880
+    },
+    "includes/Resource/ResourceMonitor.php": {
+      "sha256": "3f434160e36de4a7e476e536ebae1e5981f1cec6c40db864c801d74c11e5c41f",
+      "size": 1965
+    },
+    "includes/Scan/ScanLock.php": {
+      "sha256": "b71458fb9d5d16778f12f69c83dd2484508aa4fe4fe60183a0cd78e1dd39424f",
+      "size": 2513
+    },
+    "includes/Scan/ScanManager.php": {
+      "sha256": "ee9172d553841d3626a5b77ff7f170ca02ade8ebb9f868c1257b7647ebe229f4",
+      "size": 6814
+    },
+    "includes/Scan/ScanState.php": {
+      "sha256": "3c2a5808e318e45f4c0a5fa6ce2cb73efefae458c0e549e195f69319ffdb9db1",
+      "size": 5679
+    },
+    "includes/Scanner/CoreChecksum.php": {
+      "sha256": "d819b315398ebebe971f9cb7fd3cc449c4e4cfdc724f6cf871da38e392e251f8",
+      "size": 2670
+    },
+    "includes/Scanner/Engine.php": {
+      "sha256": "07f45c32debade076fa8bdba32963602bde8e4833081e2072638e3cb013914fe",
+      "size": 4477
+    },
+    "includes/Scanner/Rules.php": {
+      "sha256": "a056d161c560e031377676efa5ad62183734abab5819f918dea1ca5b9ff259fc",
+      "size": 4405
+    },
+    "includes/Security/PluginSelfDefense.php": {
+      "sha256": "0ce880fee4efd9d23b403504bdd1eeca50cefe8958ee5e7aaf24b27d7256df7b",
+      "size": 15223
+    },
+    "includes/Security/SecretVault.php": {
+      "sha256": "db225b272b57bbfd92a022c5ef22b4537fd2ec86ed0d259e4df4fa716310c664",
+      "size": 12866
+    },
+    "includes/Security/VaultRotator.php": {
+      "sha256": "ad5a4ac25bea775883d4cebdc3bc971f8c38c9497bb387453621c9698e6d11f6",
+      "size": 19037
+    },
+    "includes/System/AIService.php": {
+      "sha256": "13a39721a60a9d460c644903f04338eb7f00666e5f94de78a09e2a471d12b149",
+      "size": 46985
+    },
+    "includes/System/AuditLogger.php": {
+      "sha256": "ddbd649cd41f65886e4bed538d4f71bc0c43cdd4d76331d948f8aef3140a3afb",
+      "size": 5920
+    },
+    "includes/System/Scheduler.php": {
+      "sha256": "954d651915710264d8d2ef5bcf76dce738120ea1d1375b2bbf5edac3dc29a253",
+      "size": 24432
+    },
+    "includes/System/ServerInfo.php": {
+      "sha256": "84e4bf97b4d52087f7c278dd1fe3f684f57771d06409e29c6f7995a7d4960a52",
+      "size": 18460
+    },
+    "includes/System/SettingsManager.php": {
+      "sha256": "0a2fd9c1b1f3b307ed9a43889014996450292945d316487f5777c6c50a77d06d",
+      "size": 40125
+    },
+    "includes/System/SystemReadinessChecker.php": {
+      "sha256": "a9203fb189659c87a2143008a6bcf5e56c54d42c9c675022822276e923a12490",
+      "size": 25216
+    },
+    "includes/WordPress/ConfigScanner.php": {
+      "sha256": "b083565ec1150fef9f67b4e71b1fb03f14ddc63354f7998b96e4edd65896f813",
+      "size": 5530
+    },
+    "includes/WordPress/CronScanner.php": {
+      "sha256": "592b9f784bb70d4bd33d2308b5abfee51363a91d636c96784f5b22575998abff",
+      "size": 8917
+    },
+    "includes/WordPress/HookInfiltrationSentinel.php": {
+      "sha256": "6bdf9b98f63dcb1f18dd89124cc37f8583fdf2eb5d647ff16b4556af86610445",
+      "size": 11563
+    },
+    "includes/WordPress/PersistenceScanner.php": {
+      "sha256": "3f3b3d6196d3541fd1a1e234ca519224f9d00d468728fc6df8bb4dc4cace353c",
+      "size": 40993
+    },
+    "includes/WordPress/UpdateScanner.php": {
+      "sha256": "ba0578211f4b3a60071e543e952052f7bd0af1db5e37912f9acf4cdc14a3a3d5",
+      "size": 44544
+    },
+    "includes/WordPress/UserRemediationManager.php": {
+      "sha256": "378f358933100eef270f8702a0063cd657eeff0023f75deece9d9ba3a01d4913",
+      "size": 24645
+    },
+    "includes/WordPress/UserScanner.php": {
+      "sha256": "24e719d6f190d51a2ef72d8a2d0102bcee01fe7a6face1bed808143f05d47d10",
+      "size": 21547
+    },
+    "includes/WordPress/WordPressSecurityScanner.php": {
+      "sha256": "f2855e2c57ce5db6f91bcf878b80ff119855b389a915294c58340584f83a6178",
+      "size": 2234
+    },
+    "languages/index.php": {
+      "sha256": "bd48c24ce4500e60d2524571756787283f0d3fbfa50b116331309c09773f0cd1",
+      "size": 28
+    },
+    "package.json": {
+      "sha256": "db7417c2a38890112c93da96ec71676714f63340803ef69a987c93a51f0c4260",
+      "size": 386
+    },
+    "README.md": {
+      "sha256": "8cf10f235ef913dac3e20b057fbf47ef22d1a70416cf71dd8688c84dbab5f01f",
+      "size": 41041
+    },
+    "readme.txt": {
+      "sha256": "3c13dd8ed993efc2f13d2db4e52c8b4020a9fc05d0e7611d3b7482a8f4f64029",
+      "size": 41501
+    },
+    "src/AboutServicesPage.tsx": {
+      "sha256": "a76b12d59bceb3809a43e05e1eec4eb7cfac42dbc65048ec439a8b02877cad59",
+      "size": 24977
+    },
+    "src/App.tsx": {
+      "sha256": "aadd7ac1ca52d2974724f3a6954f43da4f38f53be2afc2c4483c84bae0635679",
+      "size": 552362
+    },
+    "src/AuthSecurityPage.tsx": {
+      "sha256": "74c4d3b55d85d4e76adbb8173ea9251da8de3867aa7afe00c43fa4fa7bb0fb2a",
+      "size": 60269
+    },
+    "src/components/AiForensicReportView.tsx": {
+      "sha256": "408aaaf41f357cc55d5cb46ccb8c6aa84a1bd1e7f6c838c4f73472c2fcb7d5e6",
+      "size": 22441
+    },
+    "src/components/AttackChainCard.tsx": {
+      "sha256": "e20eee2594bbfef37ae78285fabe311288e23c94bea5e1168eca7d57d8d6799c",
+      "size": 27433
+    },
+    "src/components/BehavioralBaselineCard.tsx": {
+      "sha256": "d19caee37bee5c899f07467240c4c0424bc47101b944b817d133e156f2339655",
+      "size": 11676
+    },
+    "src/components/CustomScanModal.tsx": {
+      "sha256": "76339e17778688632e93a81414252cd2ee6326a564a2ea8c6181d92d33c7063c",
+      "size": 28947
+    },
+    "src/components/DatabaseBackupVault.tsx": {
+      "sha256": "06bed9153cb864a9aa6e1f2c1de8df8cca38b13405705d72351c61d20f8876a0",
+      "size": 54186
+    },
+    "src/components/FilesystemPermissionHardeningCard.tsx": {
+      "sha256": "2e9d36f36db3547776e3a57d56c436ab2066d696c31c66d4bbfeef8d3ca2d234",
+      "size": 20259
+    },
+    "src/components/IncidentReportModal.tsx": {
+      "sha256": "05eb1d50fe59fea107dce732f459979608b5b9f6b0d92d229293daf2cd8ac427",
+      "size": 15919
+    },
+    "src/components/MCPAgentServiceCard.tsx": {
+      "sha256": "544be5c17bd96ff5133ef60daa8373af7f799a9f90afe499233d5c830debb355",
+      "size": 33947
+    },
+    "src/components/PersistenceSentinelCard.tsx": {
+      "sha256": "2af89555cfc9ad248af83364c8c52cd48ed375efbfe3ee9fce8dd291fee0c525",
+      "size": 36715
+    },
+    "src/components/PluginSelfDefenseCard.tsx": {
+      "sha256": "1d5f6a189125eddfb2623704e896bc9a5eaf196815298490dacf4e096a41f008",
+      "size": 22931
+    },
+    "src/components/RemediationTransactionsCard.tsx": {
+      "sha256": "c7d18ae5384a77607e15747f21bb198d7b9847802b85b66f82581bcdd514b46b",
+      "size": 27670
+    },
+    "src/components/ServerSecurityTab.tsx": {
+      "sha256": "a3fc757334b048350e36de9d90862024b26f72a518b5bd880b817a83602abde3",
+      "size": 36736
+    },
+    "src/components/VirtualPatchCard.tsx": {
+      "sha256": "53ec28f520abc85e4736cf584a2654c155fe573aaae8beca47b4d8f7d09b50c3",
+      "size": 31935
+    },
+    "src/components/WcpBrandLogo.tsx": {
+      "sha256": "8f2f5a594d09810371bacce573af3187dbcdcbceffbaa126081af0dfa0192000",
+      "size": 2313
+    },
+    "src/components/WelcomeModal.tsx": {
+      "sha256": "d374105969f5a1e001d1ecd1e3ec4656a37aba5c04055c8430717a0cb0340ee3",
+      "size": 41079
+    },
+    "src/components/WhitelistManagerTab.tsx": {
+      "sha256": "f66251ee2399b9a1439e94aa61ec0da46b021bffde1344c680426b2fbd1d594e",
+      "size": 13332
+    },
+    "src/components/WhitelistModal.tsx": {
+      "sha256": "0bc8c0172929259013b8989d6d61082c2b4e7aaea2b78064e05b8212dab6cf10",
+      "size": 24110
+    },
+    "src/ExportResultsDropdown.tsx": {
+      "sha256": "ea4ae450716636d5fdb2f9c4efe76ff21ce3fd42bcfdabcce0590ef55d245ba2",
+      "size": 20418
+    },
+    "src/exportUtils.ts": {
+      "sha256": "7a5bb8dc1a3ad057be7c8c56ddbe2c6a0df9d88f14694e75b250ed8009aff53c",
+      "size": 71127
+    },
+    "src/FileIntegrityPage.tsx": {
+      "sha256": "004c553dad07385fb85b53498dcf2ebf04f1d15603adf5cd4844c7fcf161412b",
+      "size": 64071
+    },
+    "src/FilesystemForensicsCard.tsx": {
+      "sha256": "849a2cfb27f8abbc476ca20d5d139e0829624f99a787e67acf3b8eb44fc45096",
+      "size": 30585
+    },
+    "src/FirewallPage.tsx": {
+      "sha256": "a9e63ee68ee89f3633617a9c677c43d658ba91d3401735322f2301058aa61bcb",
+      "size": 137529
+    },
+    "src/ForensicsPage.tsx": {
+      "sha256": "137d5c9bb7331c89b240292cdbeccacdedd18cbc40a888a20eeb70d2870a8fb5",
+      "size": 21714
+    },
+    "src/index.css": {
+      "sha256": "f25815e7f7b0bae1262bfc95ea86d5f6c0f1f3c7643abb2c231e2b0bad835239",
+      "size": 501198
+    },
+    "src/index.tsx": {
+      "sha256": "d0e98c062e7e1544bf0730c5faa955cdcea2a91a1e3912e0d848f579fb54c909",
+      "size": 799
+    },
+    "src/QuarantinePage.tsx": {
+      "sha256": "6c060eb6a9b3ef141a2e35b0204d024911ecdbc80fc33658e94030b7fc9bc829",
+      "size": 27199
+    },
+    "src/ScanLogsPage.tsx": {
+      "sha256": "298fc45ec9064c65e6d0b3c3dd5c6ccbc63fc1311796fc949b6c606cc3b34bf4",
+      "size": 93817
+    },
+    "src/SettingsPage.tsx": {
+      "sha256": "c75a449aa824b028668be2442e3e74a92718d51065009d36441e1665362140e9",
+      "size": 210636
+    },
+    "src/UserSessionForensicsModal.tsx": {
+      "sha256": "a263b01ce2391b3128d403aa16508c7af7451c05c5c8c64fecefeeac69da03d0",
+      "size": 35847
+    },
+    "src/VisualDiffModal.tsx": {
+      "sha256": "51170ae0475fe0e9d270317669b89d9e4eecad36e7a9b90652f1587132d1d5b9",
+      "size": 39688
+    },
+    "src/VulnerabilitiesPage.tsx": {
+      "sha256": "99c038337dcfff138a0730a466d390418bf79a83a5be1722d6b69d533e7a286b",
+      "size": 41999
+    },
+    "src/WcpVaultPage.tsx": {
+      "sha256": "54360cb4367a2a22f632db3ac20d0643933662ad83abb66e1cf3e76f5a47b0ac",
+      "size": 40733
+    },
+    "uninstall.php": {
+      "sha256": "717e588044bff49173f22822d87743c9b280b912867d5c3f83ad541633bea6ba",
+      "size": 3426
+    },
+    "wcp-wp-scanner.php": {
+      "sha256": "9215c165c284cb66c3e57ad8e669e6eb5a10856f739bca4b78220e6116cc353b",
+      "size": 2769
+    }
+  }
+}

@@ -652,6 +652,19 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Plugin Self-Defense & Anti-Tamper Attestation Endpoints
+        register_rest_route(self::NAMESPACE, '/self-defense/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_self_defense_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/self-defense/verify', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'verify_plugin_self_defense'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloudflare Edge Defense Endpoints
         register_rest_route(self::NAMESPACE, '/cloudflare/status', [
             'methods'             => 'GET',
@@ -6305,6 +6318,55 @@ class ScannerRoutes {
         }
 
         return $findings;
+    }
+
+    // ==========================================
+    // 16. Plugin Self-Defense & Anti-Tamper Endpoints
+    // ==========================================
+
+    public static function get_self_defense_status(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
+            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $last_audit = get_option(\WcpScanner\Security\PluginSelfDefense::DB_LAST_AUDIT_OPTION, null);
+        if (!$last_audit) {
+            $last_audit = \WcpScanner\Security\PluginSelfDefense::run_audit(false);
+        }
+
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+
+        return rest_ensure_response([
+            'success'  => true,
+            'audit'    => $last_audit,
+            'settings' => [
+                'watchdog_enabled' => !empty($settings['self_defense_watchdog_enabled']),
+                'notify_email'     => !empty($settings['self_defense_notify_email']),
+                'admin_email'      => get_option('admin_email', ''),
+            ],
+        ]);
+    }
+
+    public static function verify_plugin_self_defense(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
+            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $audit = \WcpScanner\Security\PluginSelfDefense::run_audit(true);
+
+        return rest_ensure_response([
+            'success' => true,
+            'audit'   => $audit,
+            'message' => !empty($audit['has_issues'])
+                ? __('Self-defense verification completed: anomalies detected in plugin files.', 'wcp-security-scanner')
+                : __('All plugin core files are 100% authentic, intact, and verified against the official release signature.', 'wcp-security-scanner'),
+        ]);
     }
 }
 

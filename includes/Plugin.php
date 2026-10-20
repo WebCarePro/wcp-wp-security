@@ -80,6 +80,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
             \WcpScanner\Auth\LoginHistoryManager::init();
         }
+        if (class_exists('\\WcpScanner\\Security\\PluginSelfDefense')) {
+            \WcpScanner\Security\PluginSelfDefense::init();
+        }
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

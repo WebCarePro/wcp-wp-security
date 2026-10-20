@@ -38,6 +38,21 @@ v:1.20.0 - 2026-10-20
     - Automatic Persistence & Live Status: persists custom settings in WordPress database and auto-populates current edge parameters via `rate_limit_info`.
     - Dark Mode & High-Contrast Adaptive Styling (`index.css`, `FirewallPage.tsx`): resolved contrast clash where tuning drawers and input fields displayed stark light backgrounds (`#f8fafc`, `#ffffff`) and low-contrast labels in dark mode. Styled `.wcp-cf-tuning-drawer`, `.wcp-cf-tuning-label`, `.wcp-cf-input`, `.wcp-cf-mono-input`, `.wcp-cf-hint`, `.wcp-cf-tune-toggle-btn`, and action badges (`.wcp-action-block`, `.wcp-action-managed_challenge`, `.wcp-action-challenge`) with dark obsidian backgrounds (`#090d16` / `rgba(15, 23, 42, 0.75)`), subtle borders (`rgba(255, 255, 255, 0.08)` / `#334155`), neon code highlights (`#38bdf8`), and calibrated high-contrast status colors.
   * Synchronized backend `FirewallEngine::get_server_telemetry()` into `/firewall/status` endpoint and implemented responsive light/dark theme styling.
+- Plugin Self-Defense & Anti-Tamper Attestation Engine (`PluginSelfDefense.php`, `package.js`, `ForensicsPage.tsx`, `PluginSelfDefenseCard.tsx`, `ScannerRoutes.php`):
+  * Automated Build Manifest Generation (`scripts/package.js`): Automatically calculates SHA-256 cryptographic signatures and exact byte sizes for all official plugin files during packaging and seals them into `includes/System/plugin-manifest.json`.
+  * Real-Time File Attestation & Anti-Tamper Audit (`PluginSelfDefense.php`):
+    - Automatically audits live files against the cryptographic release baseline.
+    - Accurately categorizes and reports:
+      1. Missing Core Files (e.g., legitimate files deleted by cPanel Imunify360, ClamAV, or host ModSecurity auto-quarantine rules).
+      2. Modified / Tampered Files (PHP or asset files altered on disk by unauthorized edits or malware injection).
+      3. Untracked / Extraneous Files (unknown files or webshells dropped directly into the plugin directory).
+  * Automated Background Watchdog & Admin Alerting (`PluginSelfDefense.php`, `SettingsManager.php`):
+    - Implemented twice-daily background watchdog via WP-Cron (`wcpscan_self_defense_watchdog_event`).
+    - Dispatches urgent email alerts to the site administrator and fires DevSecOps webhooks upon detecting missing or modified core files.
+    - Injects high-visibility WordPress Admin warning banner (`admin_notices`) across wp-admin alerting the administrator to missing files with a 1-click gateway to the diagnostic page.
+  * Dedicated Plugin Self-Defense Interface (`ForensicsPage.tsx`, `PluginSelfDefenseCard.tsx`):
+    - Added dedicated "Plugin Self-Defense" subtab inside System Forensics console (`/wp-admin/admin.php?page=wcp-scanner-forensics&tab=self_defense`).
+    - Features a 1-click "Verify Plugin Integrity Now" attestation button, 4-card telemetry ribbon (Tracked Core Files, 100% Intact, Missing Files, Modified/Tampered), interactive filtering tabs (All, Missing, Modified, Untracked), live search, and diagnostic remediation instructions.
 - Resilient Cloudflare Service Class Loading & Shared Hosting Hardening (`Plugin.php`, `ScannerRoutes.php`):
   * Added explicit pre-flight fallback loader for `\WcpScanner\Cloudflare\CloudflareService` inside `Plugin::init()` to ensure Cloudflare Edge defense handlers and API token verifications function reliably on cPanel shared hosting environments where restrictive file permissions, opcode caching, or host firewalls delay autoloading of submodule classes.
 - Changelog Modal & Location & Context Column Dark Mode Contrast Overhaul (`src/App.tsx`, `src/index.css`):

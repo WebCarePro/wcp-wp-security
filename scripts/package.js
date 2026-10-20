@@ -88,6 +88,51 @@ for (const dir of includeDirs) {
   }
 }
 
+// 4.1 Generate Cryptographic Baseline Manifest for Plugin Self-Defense
+console.log('\n--- Generating Cryptographic Self-Defense Manifest ---');
+const crypto = require('crypto');
+
+function computeManifestFiles(baseDir, currentDir = '') {
+  let results = {};
+  const entries = fs.readdirSync(path.join(baseDir, currentDir), { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const rel = currentDir ? path.join(currentDir, entry.name) : entry.name;
+    const full = path.join(baseDir, rel);
+    if (entry.isDirectory()) {
+      Object.assign(results, computeManifestFiles(baseDir, rel));
+    } else {
+      // Don't hash the manifest itself or zip archives
+      if (rel.replace(/\\/g, '/') === 'includes/System/plugin-manifest.json' || rel.endsWith('.zip')) {
+        continue;
+      }
+      const fileBuffer = fs.readFileSync(full);
+      const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+      const normalizedKey = rel.replace(/\\/g, '/');
+      results[normalizedKey] = {
+        sha256: hash,
+        size: fileBuffer.length,
+      };
+    }
+  }
+  return results;
+}
+
+const manifestData = {
+  version: require(path.join(ROOT_DIR, 'package.json')).version || '1.20.0',
+  generated_at: new Date().toISOString(),
+  algorithm: 'sha256',
+  files: computeManifestFiles(PACKAGE_DIR),
+};
+
+const manifestPath = path.join(PACKAGE_DIR, 'includes', 'System', 'plugin-manifest.json');
+fs.writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2), 'utf8');
+// Also save into root source directory so it is present during development & docker copy
+const rootManifestPath = path.join(ROOT_DIR, 'includes', 'System', 'plugin-manifest.json');
+fs.writeFileSync(rootManifestPath, JSON.stringify(manifestData, null, 2), 'utf8');
+
+console.log(`✓ Generated official manifest with ${Object.keys(manifestData.files).length} tracked files.`);
+
 // 5. Verification checks
 console.log('\n--- Running Validation Checks on Staged Package ---');
 

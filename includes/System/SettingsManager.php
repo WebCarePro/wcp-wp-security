@@ -140,6 +140,10 @@ class SettingsManager {
 
             // 15. Custom Scan Engine Options (Wordfence-style scan customization)
             'custom_scan_options'                => self::get_default_custom_scan_options(),
+
+            // 16. Plugin Self-Defense & Anti-Tamper Attestation
+            'self_defense_watchdog_enabled'      => true,
+            'self_defense_notify_email'          => true,
         ];
     }
 
