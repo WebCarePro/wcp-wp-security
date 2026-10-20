@@ -5300,6 +5300,7 @@ class ScannerRoutes {
             'auth_2fa_remember_device'  => !empty($settings['auth_2fa_remember_device']),
             'auth_2fa_remember_days'    => (int) ($settings['auth_2fa_remember_days'] ?? 7),
             'auth_2fa_enforce_admins'   => !empty($settings['auth_2fa_enforce_admins']),
+            'auth_2fa_policy_mode'      => $settings['auth_2fa_policy_mode'] ?? 'immediate',
             'auth_2fa_grace_days'       => (int) ($settings['auth_2fa_grace_days'] ?? 0),
             'auth_2fa_enforce_since'    => (int) ($settings['auth_2fa_enforce_since'] ?? 0),
             'login_hardening_enabled'   => !empty($settings['login_hardening_enabled']),
@@ -5440,6 +5441,7 @@ class ScannerRoutes {
             'admins'             => $admins,
             'total_admins'       => count($admins),
             'enforce_admins'     => !empty($settings['auth_2fa_enforce_admins']),
+            'policy_mode'        => $settings['auth_2fa_policy_mode'] ?? 'immediate',
             'grace_days'         => (int) ($settings['auth_2fa_grace_days'] ?? 0),
             'enforce_since'      => (int) ($settings['auth_2fa_enforce_since'] ?? 0),
             'global_2fa_enabled' => !empty($settings['auth_2fa_enabled']),
@@ -5465,7 +5467,7 @@ class ScannerRoutes {
         \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
 
         if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-            \WcpScanner\System\AuditLogger::log(
+            \WcpScanner\System\AuditLogger::log_event(
                 'admin_2fa_disabled',
                 sprintf(__('Administrator %s disabled 2FA for user "%s" (ID: %d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
             );
@@ -5498,7 +5500,7 @@ class ScannerRoutes {
             $setup_pkg = \WcpScanner\Auth\TwoFactorAuth::reset_user_2fa($user_id);
 
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log(
+                \WcpScanner\System\AuditLogger::log_event(
                     'admin_2fa_reset',
                     sprintf(__('Administrator %s regenerated 2FA credentials for user "%s" (ID: %d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
                 );
@@ -5546,13 +5548,19 @@ class ScannerRoutes {
      * Auth Security: Save 2FA Policy & Enforce Settings
      */
     public static function save_auth_security_policy(\WP_REST_Request $request) {
-        $params   = $request->get_json_params() ?: [];
+        $params   = $request->get_json_params();
+        if (empty($params)) {
+            $params = $request->get_params();
+        }
         $settings = \WcpScanner\System\SettingsManager::get_settings();
 
         $enforce_admins = !empty($params['auth_2fa_enforce_admins']);
+        $raw_mode       = sanitize_key($params['auth_2fa_policy_mode'] ?? 'immediate');
+        $policy_mode    = in_array($raw_mode, ['immediate', 'grace_period', 'remind_login'], true) ? $raw_mode : 'immediate';
         $grace_days     = max(0, min(90, (int) ($params['auth_2fa_grace_days'] ?? 0)));
 
         $settings['auth_2fa_enforce_admins'] = $enforce_admins;
+        $settings['auth_2fa_policy_mode']    = $policy_mode;
         $settings['auth_2fa_grace_days']     = $grace_days;
 
         if ($enforce_admins && empty($settings['auth_2fa_enforce_since'])) {
@@ -5564,11 +5572,12 @@ class ScannerRoutes {
         \WcpScanner\System\SettingsManager::save_settings($settings);
 
         if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-            \WcpScanner\System\AuditLogger::log(
+            \WcpScanner\System\AuditLogger::log_event(
                 'auth_policy_updated',
                 sprintf(
-                    __('Administrator 2FA policy updated: Enforce=%s, Grace Days=%d.', 'wcp-security-scanner'),
+                    __('Administrator 2FA policy updated: Enforce=%s, Mode=%s, Grace Days=%d.', 'wcp-security-scanner'),
                     $enforce_admins ? 'YES' : 'NO',
+                    strtoupper($policy_mode),
                     $grace_days
                 )
             );
@@ -5579,6 +5588,7 @@ class ScannerRoutes {
             'message' => __('2FA enforcement policy updated successfully.', 'wcp-security-scanner'),
             'policy'  => [
                 'enforce_admins' => $enforce_admins,
+                'policy_mode'    => $policy_mode,
                 'grace_days'     => $grace_days,
                 'enforce_since'  => $settings['auth_2fa_enforce_since'],
             ],

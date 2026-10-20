@@ -120,7 +120,7 @@ class LoginHardening {
 
             // Trigger audit log if available
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log(
+                \WcpScanner\System\AuditLogger::log_event(
                     'login_lockout',
                     sprintf(__('IP %s temporarily locked out after %d failed login attempts for user "%s".', 'wcp-security-scanner'), $ip, $attempts, $username)
                 );

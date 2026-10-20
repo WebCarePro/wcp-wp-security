@@ -59,6 +59,15 @@ class TwoFactorAuth {
     }
 
     /**
+     * Get 2FA enforcement policy mode ('immediate' | 'grace_period' | 'remind_login')
+     */
+    public static function get_enforcement_policy_mode(): string {
+        $settings = SettingsManager::get_settings();
+        $mode = $settings['auth_2fa_policy_mode'] ?? 'immediate';
+        return in_array($mode, ['immediate', 'grace_period', 'remind_login'], true) ? $mode : 'immediate';
+    }
+
+    /**
      * Get 2FA grace period in days (0 = immediate)
      */
     public static function get_enforcement_grace_days(): int {
@@ -68,7 +77,7 @@ class TwoFactorAuth {
 
     /**
      * Check compliance status for a specific user
-     * Returns: 'compliant' | 'grace_period' | 'enforcement_required' | 'not_enforced'
+     * Returns: 'compliant' | 'grace_period' | 'remind_login' | 'enforcement_required' | 'not_enforced'
      */
     public static function get_user_compliance_status(int $user_id): array {
         $is_enabled = self::is_user_enabled($user_id);
@@ -103,18 +112,22 @@ class TwoFactorAuth {
             ];
         }
 
+        $mode       = self::get_enforcement_policy_mode();
         $grace_days = self::get_enforcement_grace_days();
-        if ($grace_days <= 0) {
+
+        // 1. Immediate Enforcement
+        if ($mode === 'immediate' || ($mode === 'grace_period' && $grace_days <= 0)) {
             return [
                 'status'         => 'enforcement_required',
-                'label'          => __('Enforced Immediately (Locked)', 'wcp-security-scanner'),
+                'label'          => __('Enforced Immediately (Action Required)', 'wcp-security-scanner'),
                 'is_compliant'   => false,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
+                'mode'           => 'immediate',
             ];
         }
 
-        // Check user grace start
+        // 2. Check user grace start
         $grace_start = (int) get_user_meta($user_id, self::META_GRACE_START, true);
         if ($grace_start <= 0) {
             $settings = SettingsManager::get_settings();
@@ -128,16 +141,31 @@ class TwoFactorAuth {
         if ($now >= $grace_expires) {
             return [
                 'status'         => 'enforcement_required',
-                'label'          => __('Grace Period Expired (Action Required)', 'wcp-security-scanner'),
+                'label'          => __('Grace Period Expired (Locked)', 'wcp-security-scanner'),
                 'is_compliant'   => false,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
+                'mode'           => $mode,
             ];
         }
 
         $seconds_left = $grace_expires - $now;
         $days_left    = max(1, (int) ceil($seconds_left / DAY_IN_SECONDS));
 
+        // 3. Remind on Next Login (with Grace Period)
+        if ($mode === 'remind_login') {
+            return [
+                'status'         => 'remind_login',
+                'label'          => sprintf(__('Remind on Login (%dd grace left)', 'wcp-security-scanner'), $days_left),
+                'is_compliant'   => false,
+                'grace_remaining'=> $seconds_left,
+                'days_left'      => $days_left,
+                'expires_at'     => $grace_expires,
+                'mode'           => 'remind_login',
+            ];
+        }
+
+        // 4. Standard Grace Period
         return [
             'status'         => 'grace_period',
             'label'          => sprintf(__('Grace Period: %d day(s) left', 'wcp-security-scanner'), $days_left),
@@ -145,6 +173,7 @@ class TwoFactorAuth {
             'grace_remaining'=> $seconds_left,
             'days_left'      => $days_left,
             'expires_at'     => $grace_expires,
+            'mode'           => 'grace_period',
         ];
     }
 
@@ -194,7 +223,21 @@ class TwoFactorAuth {
         }
 
         $compliance = self::get_user_compliance_status($user_id);
-        if ($compliance['status'] === 'grace_period') {
+        if ($compliance['status'] === 'remind_login') {
+            $days_left = $compliance['days_left'] ?? 1;
+            $setup_url = admin_url('admin.php?page=wcp-security-scanner&tab=auth&subtab=2fa&setup=1');
+            ?>
+            <div class="notice notice-info is-dismissible" style="border-left-color: #0284c7; padding: 12px 16px;">
+                <p style="margin: 0; font-size: 13.5px; font-weight: 500; color: #1e293b;">
+                    <strong style="color: #0284c7;">🔔 <?php esc_html_e('Security Reminder: Configure Administrator 2FA', 'wcp-security-scanner'); ?></strong> —
+                    <?php printf(esc_html__('Two-factor authentication is recommended for your account. You have %d day(s) before enforcement is finalized.', 'wcp-security-scanner'), (int) $days_left); ?>
+                    <a href="<?php echo esc_url($setup_url); ?>" class="button button-primary" style="margin-left: 10px; background: #0284c7; border-color: #0284c7; font-weight: 600;">
+                        <?php esc_html_e('Configure 2FA', 'wcp-security-scanner'); ?> &rarr;
+                    </a>
+                </p>
+            </div>
+            <?php
+        } elseif ($compliance['status'] === 'grace_period') {
             $days_left = $compliance['days_left'] ?? 1;
             $setup_url = admin_url('admin.php?page=wcp-security-scanner&tab=auth');
             ?>

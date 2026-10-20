@@ -136,5 +136,12 @@ class AuditLogger {
         $instance->ensure_log_directory();
         $instance->write_log($event_type, $message);
     }
+
+    /**
+     * Alias for log_event
+     */
+    public static function log($event_type, $message) {
+        self::log_event($event_type, $message);
+    }
 }
 
