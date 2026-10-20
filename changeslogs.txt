@@ -20,6 +20,7 @@ v:1.21.0 - 2026-10-21
   * Rate Limiting Path Sanitization: Updated Rate Limiting normalization in `CloudflareService::toggle_rate_limiting()` to automatically strip leading slashes (`ltrim($p, '/')`) and default to `wp-login.php`, ensuring rate limit expressions consistently generate `(http.request.uri.path contains "wp-login.php")`.
   * Virtual Patch Manager Edge Alignment: Stripped leading slashes from `VirtualPatchManager.php` edge expressions (`wp-json/litespeed`, `wp-admin/post.php`, `wp-admin/admin-ajax.php`, `wp-json`).
   * Membership & WooCommerce Login Portal Bot Armor (Rule 3): Expanded Rule 3 to cover custom membership login slugs, WooCommerce account hubs, and registration endpoints (`wp-custom-login`, `my-account`, `login`, `register`) combined with `cf.client.bot` to protect e-commerce and member portals from automated credential stuffing and registration spam.
+  * Rate Limiting Multi-Path Quick Chips & Smart WooCommerce Safe Mode (`FirewallPage.tsx`, `index.css`): Added dynamic card title display reflecting active targeted endpoints, 1-click toggle chips (`wp-login.php`, `wp-custom-login`, `my-account`, `xmlrpc.php`, `register`, `login`), and an automated WooCommerce caution banner recommending `Managed Challenge` over `Block` when account/membership endpoints are selected to prevent accidental customer lockout.
 
 v:1.20.0 - 2026-10-20
 - Login Security User Session Forensics & IP Shift Tracking (`UserSessionForensicsModal.tsx`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
