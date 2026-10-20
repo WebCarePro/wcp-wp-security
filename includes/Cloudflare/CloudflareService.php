@@ -436,7 +436,7 @@ class CloudflareService {
                 'description'  => 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
                 'action'       => 'block',
                 'action_label' => 'Block',
-                'expression'   => '(http.request.uri.path contains "/xmlrpc.php") or ((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "cgi" "pl" "exe"}) or (http.request.uri.path in {"/wp-config.php" "/.env" "/.git" "/composer.json" "/wp-content/debug.log"}) or (http.request.uri.path matches "\.(sql|bak|tar|gz|zip|ini|sh)$") or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
+                'expression'   => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
             'compound_exploits' => [
                 'id'           => 'wcpscan_compound_exploits',
@@ -445,7 +445,7 @@ class CloudflareService {
                 'description'  => 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
                 'action'       => 'block',
                 'action_label' => 'Block',
-                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
+                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "wp-json/wp/v2/users")',
             ],
             'compound_login_bot' => [
                 'id'           => 'wcpscan_compound_login_bot',
@@ -454,16 +454,11 @@ class CloudflareService {
                 'description'  => 'Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
                 'action'       => 'managed_challenge',
                 'action_label' => 'Managed Challenge',
-                'expression'   => '(http.request.uri.path contains "/wp-login.php" and cf.client.bot)',
+                'expression'   => '(http.request.uri.path contains "wp-login.php" and cf.client.bot)',
             ],
         ];
     }
 
-    /**
-     * Get rule definitions for 5 Cloudflare Free Custom WAF Rules (Consolidated & Multi-Vector)
-     *
-     * @return array
-     */
     /**
      * Get rule definitions for 3 Master Cloudflare Free Custom WAF Rules (Consolidated & High-Density)
      *
@@ -479,7 +474,7 @@ class CloudflareService {
                 'badge'       => 'Edge Shield',
                 'description' => __('Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.', 'wcp-security-scanner'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "/xmlrpc.php") or ((http.request.uri.path contains "/wp-content/uploads/" or http.request.uri.path contains "/wp-content/upgrade/") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path in {"/wp-config.php" "/readme.html" "/license.txt" "/.env" "/.git" "/.user.ini" "/wp-content/debug.log" "/composer.json" "/package.json"}) or (http.request.uri.path matches "\\.(sql|bak|tar|gz|zip|ini|sh)$") or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
+                'expression'  => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
             'compound_exploits' => [
                 'id'          => 'wcpscan_compound_exploits',
@@ -487,7 +482,7 @@ class CloudflareService {
                 'badge'       => 'Zero-Day Shield',
                 'description' => __('Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.', 'wcp-security-scanner'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "/etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "/wp-json/wp/v2/users")',
+                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or http.request.uri.path contains "wp-json/wp/v2/users")',
             ],
             'compound_login_bot' => [
                 'id'          => 'wcpscan_compound_login_bot',
@@ -495,7 +490,7 @@ class CloudflareService {
                 'badge'       => 'Turnstile Challenge',
                 'description' => __('Challenges automated bot crawlers targeting wp-login.php with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'wcp-security-scanner'),
                 'action'      => 'managed_challenge',
-                'expression'  => '(http.request.uri.path contains "/wp-login.php" and cf.client.bot)',
+                'expression'  => '(http.request.uri.path contains "wp-login.php" and cf.client.bot)',
             ],
         ];
     }
@@ -740,10 +735,15 @@ class CloudflareService {
             'period'             => 60,
             'mitigation_timeout' => 10, // 10s is standard Cloudflare Free plan requirement
             'action'             => 'block',
-            'path'               => '/wp-login.php',
+            'path'               => 'wp-login.php',
             'bypass_ips'         => '',
         ];
         $config = wp_parse_args($saved, $default_config);
+        if (!empty($config['path'])) {
+            $config['path'] = implode(', ', array_filter(array_map(function($p) {
+                return ltrim(trim($p), '/');
+            }, explode(',', (string) $config['path']))));
+        }
 
         $res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint");
         if (empty($res['success']) || empty($res['result']['rules'])) {
@@ -786,7 +786,7 @@ class CloudflareService {
     }
 
     /**
-     * Toggle Rate Limiting Rule on sensitive endpoints (/wp-login.php) with customizable thresholds & actions
+     * Toggle Rate Limiting Rule on sensitive endpoints (wp-login.php) with customizable thresholds & actions
      *
      * @param bool $enable
      * @param array $custom_config
@@ -808,21 +808,27 @@ class CloudflareService {
         $allowed_actions = ['block', 'managed_challenge', 'js_challenge', 'challenge'];
         $action = isset($custom_config['action']) && in_array($custom_config['action'], $allowed_actions, true) ? $custom_config['action'] : 'block';
         
-        $raw_path = isset($custom_config['path']) ? trim($custom_config['path']) : '/wp-login.php';
+        $raw_path = isset($custom_config['path']) ? trim($custom_config['path']) : 'wp-login.php';
         if (empty($raw_path)) {
-            $raw_path = '/wp-login.php';
+            $raw_path = 'wp-login.php';
         }
 
-        // Support comma-separated multiple paths (e.g. /wp-login.php, /my-login, /xmlrpc.php)
+        // Support comma-separated multiple paths without leading slashes (e.g. wp-login.php, xmlrpc.php)
         $path_items = array_values(array_filter(array_map('trim', explode(',', $raw_path))));
         if (empty($path_items)) {
-            $path_items = ['/wp-login.php'];
+            $path_items = ['wp-login.php'];
         }
         $normalized_paths = [];
         foreach ($path_items as $p) {
             if ($p !== '') {
-                $normalized_paths[] = $p[0] === '/' ? $p : '/' . $p;
+                $clean = ltrim($p, '/');
+                if ($clean !== '') {
+                    $normalized_paths[] = $clean;
+                }
             }
+        }
+        if (empty($normalized_paths)) {
+            $normalized_paths = ['wp-login.php'];
         }
         $saved_path_string = implode(', ', $normalized_paths);
 

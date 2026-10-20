@@ -44,7 +44,7 @@ class VirtualPatchManager {
                     'headers'     => ['X-LSCACHE-VARY'],
                     'regex'       => '/(litespeed_role|litespeed_hash|user_id=1)/i',
                 ],
-                'cf_expression' => '(http.request.uri.path contains "/wp-json/litespeed" or http.request.uri.query contains "async_litespeed") and (http.request.uri.query contains "user_id=1" or any(http.request.headers["x-lscache-vary"][*] contains "role"))',
+                'cf_expression' => '(http.request.uri.path contains "wp-json/litespeed" or http.request.uri.query contains "async_litespeed") and (http.request.uri.query contains "user_id=1" or any(http.request.headers["x-lscache-vary"][*] contains "role"))',
             ],
             'CVE-2024-31210' => [
                 'patch_id'     => 'CVE-2024-31210',
@@ -57,7 +57,7 @@ class VirtualPatchManager {
                     'target_uris' => ['/wp-admin/post.php', '/wp-admin/admin-ajax.php'],
                     'regex'       => '/(\.\.\/|\.\.\\\\|\%2e\%2e|\%252e)/i',
                 ],
-                'cf_expression' => '(http.request.uri.path contains "/wp-admin/post.php" or http.request.uri.path contains "/wp-admin/admin-ajax.php") and (http.request.uri.query contains ".." or http.request.body contains "..")',
+                'cf_expression' => '(http.request.uri.path contains "wp-admin/post.php" or http.request.uri.path contains "wp-admin/admin-ajax.php") and (http.request.uri.query contains ".." or http.request.body contains "..")',
             ],
             'CVE-2024-5654' => [
                 'patch_id'     => 'CVE-2024-5654',
@@ -111,7 +111,7 @@ class VirtualPatchManager {
                     'methods'     => ['POST'],
                     'regex'       => '/(filename=[\'"][^\'"]+\.(php[0-9]?|phtml|sh|bash|cgi|exe)[\'"]|application\/x-php)/i',
                 ],
-                'cf_expression' => '(http.request.uri.path contains "admin-ajax.php" or http.request.uri.path contains "/wp-json/") and http.request.method eq "POST" and (http.request.body contains ".php" or http.request.body contains "application/x-php")',
+                'cf_expression' => '(http.request.uri.path contains "admin-ajax.php" or http.request.uri.path contains "wp-json") and http.request.method eq "POST" and (http.request.body contains ".php" or http.request.body contains "application/x-php")',
             ],
             'VPATCH-SQLI-DEEP' => [
                 'patch_id'     => 'VPATCH-SQLI-DEEP',

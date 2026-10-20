@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-20T20:26:58.116Z",
+  "generated_at": "2026-10-20T20:39:18.613Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 413521
     },
     "build/index.asset.php": {
-      "sha256": "91ddea80157bfcc9a39a5bf87ce3dbe20aa6bce48ad4acab29e8a6de4e9ff643",
+      "sha256": "0f6d77aa5b48fd0e334e568f4ec797821bb1d47c641fb95383d42afea348efda",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 413398
     },
     "build/index.js": {
-      "sha256": "2309a8b2faa09b88e732fd63e2cb8da8b2368cc9b7f496bb09e2e8ef06700785",
-      "size": 1153624
+      "sha256": "f0f548daad0436d55399ec0161a554d0eb4d8c1a076b88dc81c32852bbb4368c",
+      "size": 1154284
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -96,8 +96,8 @@
       "size": 42333
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "e95ac86dc096ae02fc3f86815a6261c6a9255ccf122a7959282ce3ec4415431c",
-      "size": 50064
+      "sha256": "5afe4a768804f4302bcc19a74fb0fe590dc9c9cf9b972e962f1d6c66e1eb427f",
+      "size": 50989
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",
@@ -220,8 +220,8 @@
       "size": 20992
     },
     "includes/Firewall/VirtualPatchManager.php": {
-      "sha256": "218c823ca689597701e4abea2c40b1fb71dcd853c69fb707cc1a9a28fece3414",
-      "size": 21005
+      "sha256": "db6fb142abdc1540629c687f574b7f45ec47153ed454044a455788925793456a",
+      "size": 21000
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "34f7ec550279aea434d5efb4a7f8065a9aa07136a151275a0215ae3ad86ebba6",
@@ -420,7 +420,7 @@
       "size": 386
     },
     "README.md": {
-      "sha256": "8cf10f235ef913dac3e20b057fbf47ef22d1a70416cf71dd8688c84dbab5f01f",
+      "sha256": "cdb7b2514b5fea897fcd4fe61076b949974eb5e1f55d818e74da7315ee969e85",
       "size": 41041
     },
     "readme.txt": {
