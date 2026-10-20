@@ -609,6 +609,37 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Administrator 2FA Governance & Management Endpoints
+        register_rest_route(self::NAMESPACE, '/auth/admins', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_admin_directory_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/admin-2fa/disable', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'admin_disable_user_2fa'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/admin-2fa/reset', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'admin_reset_user_2fa'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/admin-lockout/clear', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'admin_clear_user_lockout'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/policy/save', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_auth_security_policy'],
+            'permission_callback' => $permission,
+        ]);
+
         // Session Sentinel Endpoints
         register_rest_route(self::NAMESPACE, '/auth/sessions/list', [
             'methods'             => 'GET',
@@ -5268,6 +5299,9 @@ class ScannerRoutes {
             'auth_2fa_enabled'          => !empty($settings['auth_2fa_enabled']),
             'auth_2fa_remember_device'  => !empty($settings['auth_2fa_remember_device']),
             'auth_2fa_remember_days'    => (int) ($settings['auth_2fa_remember_days'] ?? 7),
+            'auth_2fa_enforce_admins'   => !empty($settings['auth_2fa_enforce_admins']),
+            'auth_2fa_grace_days'       => (int) ($settings['auth_2fa_grace_days'] ?? 0),
+            'auth_2fa_enforce_since'    => (int) ($settings['auth_2fa_enforce_since'] ?? 0),
             'login_hardening_enabled'   => !empty($settings['login_hardening_enabled']),
             'login_max_retries'         => (int) ($settings['login_max_retries'] ?? 5),
             'login_lockout_duration'    => (int) ($settings['login_lockout_duration'] ?? 15),
@@ -5275,6 +5309,7 @@ class ScannerRoutes {
             'session_block_concurrent'  => !empty($settings['session_block_concurrent']),
             'session_lock_ip'           => !empty($settings['session_lock_ip']),
             'user_2fa_enabled'          => \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
+            'user_compliance'           => \WcpScanner\Auth\TwoFactorAuth::get_user_compliance_status($user_id),
             'user_login'                => $user ? $user->user_login : '',
             'user_email'                => $user ? $user->user_email : '',
             'trusted_devices_count'     => count(\WcpScanner\Auth\TwoFactorAuth::get_trusted_devices($user_id)),
@@ -5390,6 +5425,164 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             'message' => __('All temporary IP lockouts have been cleared.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    /**
+     * Auth Security: Get Administrator Directory & 2FA Compliance Status
+     */
+    public static function get_admin_directory_status() {
+        $admins = \WcpScanner\Auth\TwoFactorAuth::get_administrators_status();
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+
+        return rest_ensure_response([
+            'success'            => true,
+            'admins'             => $admins,
+            'total_admins'       => count($admins),
+            'enforce_admins'     => !empty($settings['auth_2fa_enforce_admins']),
+            'grace_days'         => (int) ($settings['auth_2fa_grace_days'] ?? 0),
+            'enforce_since'      => (int) ($settings['auth_2fa_enforce_since'] ?? 0),
+            'global_2fa_enabled' => !empty($settings['auth_2fa_enabled']),
+        ]);
+    }
+
+    /**
+     * Auth Security: Admin Disable 2FA for target user (Emergency recovery / lockout unlock)
+     */
+    public static function admin_disable_user_2fa(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = (int) ($params['user_id'] ?? 0);
+
+        if (!$user_id) {
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
+
+        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+            \WcpScanner\System\AuditLogger::log(
+                'admin_2fa_disabled',
+                sprintf(__('Administrator %s disabled 2FA for user "%s" (ID: %d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
+            );
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => sprintf(__('2FA has been disabled and unlocked for administrator %s.', 'wcp-security-scanner'), $user->user_login),
+            'admins'  => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+        ]);
+    }
+
+    /**
+     * Auth Security: Admin Reset 2FA & Generate New Setup Package for target user
+     */
+    public static function admin_reset_user_2fa(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = (int) ($params['user_id'] ?? 0);
+
+        if (!$user_id) {
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        try {
+            $setup_pkg = \WcpScanner\Auth\TwoFactorAuth::reset_user_2fa($user_id);
+
+            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+                \WcpScanner\System\AuditLogger::log(
+                    'admin_2fa_reset',
+                    sprintf(__('Administrator %s regenerated 2FA credentials for user "%s" (ID: %d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
+                );
+            }
+
+            return rest_ensure_response([
+                'success'       => true,
+                'message'       => sprintf(__('New 2FA credentials generated for %s.', 'wcp-security-scanner'), $user->user_login),
+                'setup_package' => $setup_pkg,
+                'admins'        => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            ]);
+        } catch (\Throwable $e) {
+            return new \WP_Error('reset_failed', $e->getMessage(), ['status' => 500]);
+        }
+    }
+
+    /**
+     * Auth Security: Clear Login Hardening Lockouts for Target Administrator
+     */
+    public static function admin_clear_user_lockout(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = (int) ($params['user_id'] ?? 0);
+
+        if (!$user_id) {
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        $res = \WcpScanner\Auth\TwoFactorAuth::unlock_user_lockouts($user_id);
+
+        return rest_ensure_response([
+            'success'          => true,
+            'message'          => sprintf(__('Login lockouts and rate-limiting blocks cleared for user %s.', 'wcp-security-scanner'), $user->user_login),
+            'unlocked_ips'     => $res['unlocked_ips'],
+            'admins'           => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            'lockouts'         => array_values(\WcpScanner\Auth\LoginHardening::get_locked_ips()),
+        ]);
+    }
+
+    /**
+     * Auth Security: Save 2FA Policy & Enforce Settings
+     */
+    public static function save_auth_security_policy(\WP_REST_Request $request) {
+        $params   = $request->get_json_params() ?: [];
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+
+        $enforce_admins = !empty($params['auth_2fa_enforce_admins']);
+        $grace_days     = max(0, min(90, (int) ($params['auth_2fa_grace_days'] ?? 0)));
+
+        $settings['auth_2fa_enforce_admins'] = $enforce_admins;
+        $settings['auth_2fa_grace_days']     = $grace_days;
+
+        if ($enforce_admins && empty($settings['auth_2fa_enforce_since'])) {
+            $settings['auth_2fa_enforce_since'] = time();
+        } elseif (!$enforce_admins) {
+            $settings['auth_2fa_enforce_since'] = 0;
+        }
+
+        \WcpScanner\System\SettingsManager::save_settings($settings);
+
+        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+            \WcpScanner\System\AuditLogger::log(
+                'auth_policy_updated',
+                sprintf(
+                    __('Administrator 2FA policy updated: Enforce=%s, Grace Days=%d.', 'wcp-security-scanner'),
+                    $enforce_admins ? 'YES' : 'NO',
+                    $grace_days
+                )
+            );
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('2FA enforcement policy updated successfully.', 'wcp-security-scanner'),
+            'policy'  => [
+                'enforce_admins' => $enforce_admins,
+                'grace_days'     => $grace_days,
+                'enforce_since'  => $settings['auth_2fa_enforce_since'],
+            ],
+            'admins'  => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
         ]);
     }
 

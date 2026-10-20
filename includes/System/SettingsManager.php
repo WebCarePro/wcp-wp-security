@@ -96,6 +96,9 @@ class SettingsManager {
             'auth_2fa_enabled'                   => true,
             'auth_2fa_remember_device'           => true,
             'auth_2fa_remember_days'             => 7, // Days to remember trusted device (default 7 days)
+            'auth_2fa_enforce_admins'            => false, // Force all administrator accounts to enable 2FA
+            'auth_2fa_grace_days'                => 0, // 0 = Immediate on next login, > 0 = Grace period in days
+            'auth_2fa_enforce_since'             => 0, // Timestamp when enforcement policy was activated
             'login_hardening_enabled'            => true,
             'login_max_retries'                  => 5,
             'login_lockout_duration'             => 15,
@@ -389,6 +392,17 @@ class SettingsManager {
         $clean['auth_2fa_enabled']          = isset($input['auth_2fa_enabled']) ? !empty($input['auth_2fa_enabled']) : true;
         $clean['auth_2fa_remember_device']  = isset($input['auth_2fa_remember_device']) ? !empty($input['auth_2fa_remember_device']) : true;
         $clean['auth_2fa_remember_days']    = max(1, min(90, (int) ($input['auth_2fa_remember_days'] ?? 7)));
+        $clean['auth_2fa_enforce_admins']   = !empty($input['auth_2fa_enforce_admins']);
+        $clean['auth_2fa_grace_days']       = max(0, min(90, (int) ($input['auth_2fa_grace_days'] ?? 0)));
+        // Record timestamp when enforcement is newly enabled
+        $prev_enforce = !empty($current['auth_2fa_enforce_admins']);
+        if ($clean['auth_2fa_enforce_admins'] && !$prev_enforce) {
+            $clean['auth_2fa_enforce_since'] = time();
+        } elseif (!$clean['auth_2fa_enforce_admins']) {
+            $clean['auth_2fa_enforce_since'] = 0;
+        } else {
+            $clean['auth_2fa_enforce_since'] = (int) ($current['auth_2fa_enforce_since'] ?? time());
+        }
         $clean['login_hardening_enabled']   = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
         $clean['login_max_retries']         = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
         $clean['login_lockout_duration']    = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));

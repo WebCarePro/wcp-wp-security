@@ -20,6 +20,7 @@ class TwoFactorAuth {
     const META_SECRET          = '_wcpscan_2fa_secret';
     const META_BACKUP_CODES    = '_wcpscan_2fa_backup_codes';
     const META_TRUSTED_DEVICES = '_wcpscan_2fa_trusted_devices';
+    const META_GRACE_START     = '_wcpscan_2fa_grace_start';
     const SESSION_TRANSIENT    = 'wcpscan_2fa_pending_';
     const COOKIE_DEVICE        = 'wcpscan_2fa_trusted_device';
 
@@ -32,8 +33,11 @@ class TwoFactorAuth {
         add_action('login_form_wcpscan_2fa', [__CLASS__, 'render_2fa_challenge_screen']);
         // Revoke trusted devices on password reset for security
         add_action('password_reset', [__CLASS__, 'on_password_reset'], 10, 2);
+        // Intercept admin dashboard if 2FA is strictly enforced and user grace period expired
+        add_action('admin_init', [__CLASS__, 'enforce_admin_dashboard_access']);
+        // Display admin notice during grace period
+        add_action('admin_notices', [__CLASS__, 'render_enforcement_grace_notice']);
     }
-
 
     /**
      * Check if 2FA is globally enabled in settings
@@ -41,6 +45,183 @@ class TwoFactorAuth {
     public static function is_globally_enabled(): bool {
         $settings = SettingsManager::get_settings();
         return !empty($settings['auth_2fa_enabled']);
+    }
+
+    /**
+     * Check if 2FA is enforced for administrators
+     */
+    public static function is_enforced_for_admins(): bool {
+        if (!self::is_globally_enabled()) {
+            return false;
+        }
+        $settings = SettingsManager::get_settings();
+        return !empty($settings['auth_2fa_enforce_admins']);
+    }
+
+    /**
+     * Get 2FA grace period in days (0 = immediate)
+     */
+    public static function get_enforcement_grace_days(): int {
+        $settings = SettingsManager::get_settings();
+        return max(0, min(90, (int) ($settings['auth_2fa_grace_days'] ?? 0)));
+    }
+
+    /**
+     * Check compliance status for a specific user
+     * Returns: 'compliant' | 'grace_period' | 'enforcement_required' | 'not_enforced'
+     */
+    public static function get_user_compliance_status(int $user_id): array {
+        $is_enabled = self::is_user_enabled($user_id);
+        if ($is_enabled) {
+            return [
+                'status'         => 'compliant',
+                'label'          => __('2FA Active & Compliant', 'wcp-security-scanner'),
+                'is_compliant'   => true,
+                'grace_remaining'=> 0,
+                'days_left'      => 0,
+            ];
+        }
+
+        if (!self::is_enforced_for_admins()) {
+            return [
+                'status'         => 'not_enforced',
+                'label'          => __('2FA Optional / Disabled', 'wcp-security-scanner'),
+                'is_compliant'   => false,
+                'grace_remaining'=> 0,
+                'days_left'      => 0,
+            ];
+        }
+
+        $user = get_user_by('id', $user_id);
+        if (!$user || !in_array('administrator', (array) $user->roles, true)) {
+            return [
+                'status'         => 'not_enforced',
+                'label'          => __('Non-Admin (Exempt)', 'wcp-security-scanner'),
+                'is_compliant'   => true,
+                'grace_remaining'=> 0,
+                'days_left'      => 0,
+            ];
+        }
+
+        $grace_days = self::get_enforcement_grace_days();
+        if ($grace_days <= 0) {
+            return [
+                'status'         => 'enforcement_required',
+                'label'          => __('Enforced Immediately (Locked)', 'wcp-security-scanner'),
+                'is_compliant'   => false,
+                'grace_remaining'=> 0,
+                'days_left'      => 0,
+            ];
+        }
+
+        // Check user grace start
+        $grace_start = (int) get_user_meta($user_id, self::META_GRACE_START, true);
+        if ($grace_start <= 0) {
+            $settings = SettingsManager::get_settings();
+            $grace_start = !empty($settings['auth_2fa_enforce_since']) ? (int) $settings['auth_2fa_enforce_since'] : time();
+            update_user_meta($user_id, self::META_GRACE_START, $grace_start);
+        }
+
+        $grace_expires = $grace_start + ($grace_days * DAY_IN_SECONDS);
+        $now = time();
+
+        if ($now >= $grace_expires) {
+            return [
+                'status'         => 'enforcement_required',
+                'label'          => __('Grace Period Expired (Action Required)', 'wcp-security-scanner'),
+                'is_compliant'   => false,
+                'grace_remaining'=> 0,
+                'days_left'      => 0,
+            ];
+        }
+
+        $seconds_left = $grace_expires - $now;
+        $days_left    = max(1, (int) ceil($seconds_left / DAY_IN_SECONDS));
+
+        return [
+            'status'         => 'grace_period',
+            'label'          => sprintf(__('Grace Period: %d day(s) left', 'wcp-security-scanner'), $days_left),
+            'is_compliant'   => false,
+            'grace_remaining'=> $seconds_left,
+            'days_left'      => $days_left,
+            'expires_at'     => $grace_expires,
+        ];
+    }
+
+    /**
+     * Enforce admin dashboard access: redirect unconfigured administrators if enforcement is mandatory
+     */
+    public static function enforce_admin_dashboard_access() {
+        if (wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+        if (!$user_id || !current_user_can('administrator')) {
+            return;
+        }
+
+        if (self::is_user_enabled($user_id)) {
+            return;
+        }
+
+        if (!self::is_enforced_for_admins()) {
+            return;
+        }
+
+        $compliance = self::get_user_compliance_status($user_id);
+        if ($compliance['status'] === 'enforcement_required') {
+            // Allow access ONLY to the 2FA configuration page
+            $current_page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
+            if ($current_page !== 'wcp-security-scanner' || (isset($_GET['tab']) && $_GET['tab'] !== 'auth')) {
+                wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner&tab=auth&forced=1'));
+                exit;
+            }
+        }
+    }
+
+    /**
+     * Render Grace Period Warning Notice in WP Admin Header
+     */
+    public static function render_enforcement_grace_notice() {
+        $user_id = get_current_user_id();
+        if (!$user_id || !current_user_can('administrator')) {
+            return;
+        }
+
+        if (self::is_user_enabled($user_id) || !self::is_enforced_for_admins()) {
+            return;
+        }
+
+        $compliance = self::get_user_compliance_status($user_id);
+        if ($compliance['status'] === 'grace_period') {
+            $days_left = $compliance['days_left'] ?? 1;
+            $setup_url = admin_url('admin.php?page=wcp-security-scanner&tab=auth');
+            ?>
+            <div class="notice notice-warning is-dismissible" style="border-left-color: #f59e0b; padding: 12px 16px;">
+                <p style="margin: 0; font-size: 13.5px; font-weight: 500; color: #1e293b;">
+                    <strong style="color: #b45309;">⚠️ <?php esc_html_e('Action Required: Administrator 2FA Policy Enforced', 'wcp-security-scanner'); ?></strong> —
+                    <?php printf(esc_html__('Two-factor authentication is mandatory for all administrator accounts. You have %d day(s) remaining before your account is restricted.', 'wcp-security-scanner'), (int) $days_left); ?>
+                    <a href="<?php echo esc_url($setup_url); ?>" class="button button-secondary" style="margin-left: 10px; font-weight: 600;">
+                        <?php esc_html_e('Setup 2FA Now', 'wcp-security-scanner'); ?> &rarr;
+                    </a>
+                </p>
+            </div>
+            <?php
+        } elseif ($compliance['status'] === 'enforcement_required') {
+            $setup_url = admin_url('admin.php?page=wcp-security-scanner&tab=auth');
+            ?>
+            <div class="notice notice-error" style="border-left-color: #ef4444; padding: 12px 16px;">
+                <p style="margin: 0; font-size: 13.5px; font-weight: 600; color: #991b1b;">
+                    🛑 <?php esc_html_e('Mandatory Security Enforcement: Administrator 2FA Required', 'wcp-security-scanner'); ?> —
+                    <?php esc_html_e('Your grace period has expired. You must configure two-factor authentication to restore full administrator privileges.', 'wcp-security-scanner'); ?>
+                    <a href="<?php echo esc_url($setup_url); ?>" class="button button-primary" style="margin-left: 10px; background: #dc2626; border-color: #dc2626; font-weight: 600;">
+                        <?php esc_html_e('Enable 2FA Now', 'wcp-security-scanner'); ?>
+                    </a>
+                </p>
+            </div>
+            <?php
+        }
     }
 
     /**
@@ -229,8 +410,110 @@ class TwoFactorAuth {
         delete_user_meta($user_id, self::META_SECRET);
         delete_user_meta($user_id, self::META_BACKUP_CODES);
         delete_user_meta($user_id, self::META_TRUSTED_DEVICES);
+        delete_user_meta($user_id, self::META_GRACE_START);
         self::clear_trusted_device_cookie();
         return true;
+    }
+
+    /**
+     * Reset 2FA for a user and generate new provisioning package
+     */
+    public static function reset_user_2fa(int $user_id): array {
+        self::disable_user($user_id);
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            throw new \Exception(__('User not found.', 'wcp-security-scanner'));
+        }
+
+        $secret           = self::generate_secret(16);
+        $provisioning_uri = self::get_provisioning_uri($secret, $user->user_login);
+        $qr_data_uri      = self::get_qr_data_uri($provisioning_uri);
+        $backup_bundle    = self::generate_backup_codes(8);
+
+        // Auto-enable with the generated secret and backup codes
+        self::enable_user($user_id, $secret, $backup_bundle['hashed']);
+
+        return [
+            'user_id'          => $user_id,
+            'user_login'       => $user->user_login,
+            'secret'           => $secret,
+            'provisioning_uri' => $provisioning_uri,
+            'qr_code_url'      => $qr_data_uri,
+            'backup_codes'     => $backup_bundle['plain'],
+        ];
+    }
+
+    /**
+     * Clear all login failures/lockouts for a user's associated IP addresses or username
+     */
+    public static function unlock_user_lockouts(int $user_id): array {
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            return ['unlocked_ips' => [], 'cleared_attempts' => false];
+        }
+
+        $unlocked_ips = [];
+        $username = $user->user_login;
+
+        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
+            $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
+            foreach ($lockouts as $ip => $data) {
+                if (isset($data['username']) && strtolower($data['username']) === strtolower($username)) {
+                    \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
+                    $unlocked_ips[] = $ip;
+                }
+            }
+        }
+
+        return [
+            'unlocked_ips'     => $unlocked_ips,
+            'cleared_attempts' => true,
+        ];
+    }
+
+    /**
+     * Get all administrator users with 2FA status, compliance, lockouts, and session forensics
+     */
+    public static function get_administrators_status(): array {
+        $admins = get_users(['role' => 'administrator', 'orderby' => 'registered', 'order' => 'ASC']);
+        $result = [];
+
+        $locked_ips = class_exists('\\WcpScanner\\Auth\\LoginHardening') ? \WcpScanner\Auth\LoginHardening::get_locked_ips() : [];
+        $locked_usernames = [];
+        foreach ($locked_ips as $ip => $data) {
+            if (!empty($data['username'])) {
+                $locked_usernames[strtolower($data['username'])][] = $ip;
+            }
+        }
+
+        $current_user_id = get_current_user_id();
+
+        foreach ($admins as $user) {
+            $uid = (int) $user->ID;
+            $compliance = self::get_user_compliance_status($uid);
+            $devices    = self::get_trusted_devices($uid);
+            $last_login = get_user_meta($uid, '_wcpscan_last_login', true);
+
+            $user_locked_ips = $locked_usernames[strtolower($user->user_login)] ?? [];
+
+            $result[] = [
+                'user_id'          => $uid,
+                'user_login'       => $user->user_login,
+                'display_name'     => $user->display_name ?: $user->user_login,
+                'user_email'       => $user->user_email,
+                'avatar_url'       => get_avatar_url($user->user_email, ['size' => 64]),
+                'is_current_user'  => ($uid === $current_user_id),
+                'is_2fa_enabled'   => self::is_user_enabled($uid),
+                'compliance'       => $compliance,
+                'trusted_devices'  => count($devices),
+                'registered_at'    => $user->user_registered,
+                'last_login'       => !empty($last_login) ? $last_login : null,
+                'is_locked'        => !empty($user_locked_ips),
+                'locked_ips'       => $user_locked_ips,
+            ];
+        }
+
+        return $result;
     }
 
     /**
@@ -485,6 +768,16 @@ class TwoFactorAuth {
 
         // Check if user has 2FA enabled
         if (!self::is_user_enabled($user->ID)) {
+            // Check if user is an administrator and 2FA is enforced
+            if (self::is_enforced_for_admins() && in_array('administrator', (array) $user->roles, true)) {
+                $compliance = self::get_user_compliance_status($user->ID);
+                if ($compliance['status'] === 'enforcement_required') {
+                    // Force redirect directly to 2FA configuration wizard upon completing password auth
+                    add_filter('login_redirect', function ($url, $requested, $user_obj) {
+                        return admin_url('admin.php?page=wcp-security-scanner&tab=auth&subtab=2fa&setup=1&forced=1');
+                    }, 99, 3);
+                }
+            }
             return $user;
         }
 
