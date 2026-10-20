@@ -57,7 +57,11 @@ v:1.21.0 - 2026-10-21
     - Added "New Codes" action button in the Administrator 2FA Policy Directory table, enabling administrators to remotely regenerate and deliver fresh backup keys for any administrator account.
     - Built interactive "Emergency Backup Codes Delivery Modal" allowing 1-click clipboard copy and direct `.txt` download formatted as `{domain}_2F_backup_code.txt`.
     - Implemented secure REST routes `/auth/2fa/regenerate-backup-codes` and `/auth/admin-2fa/regenerate-backup-codes` with atomic hashing, previous key revocation, and full cryptographic audit logging.
-  * Design System Compliance: Added theme-adaptive styling (`.wcp-admin-card`, `.wcp-admin-table`, `.wcp-admin-badge-*`, `.wcp-admin-btn-action`) matching both Light/White and Dark Mode standards.
+  * Comprehensive Dark Mode & Design System Harmonization: Strictly eliminated hardcoded `#fff` card backgrounds, fixed light-blue boxes, hardcoded dark text, and uncalibrated borders in `AuthSecurityPage.tsx` and `index.css`.
+    - Implemented `.wcp-2fa-card`, `.wcp-2fa-status-box`, `.wcp-2fa-setup-box`, `.wcp-2fa-secret-box`, `.wcp-2fa-codes-container`, `.wcp-2fa-code-badge`, `.wcp-2fa-input-code`, and `.wcp-2fa-mini-panel`.
+    - In Dark Mode, cards adapt to `#0f172a` (Slate 900) panels with `#1e293b` borders and `#ffffff` / `#f1f5f9` high-contrast typography; QR code preserves white perimeter padding for reliable camera scanning; step headings and codes adapt to sky/cyan (`#38bdf8`), inputs adapt to `#0f172a` with glowing borders, and action buttons dynamically adapt to theme contrast.
+    - Full bidirectional contrast fidelity maintained for both Light / White Mode (`#ffffff`, `#f8fafc`, `#0f172a`) and Dark Mode (`#090d16`, `#0f172a`, `#1e293b`, `#f1f5f9`).
+  * Design System Compliance: Added theme-adaptive styling (`.wcp-admin-card`, `.wcp-admin-table`, `.wcp-admin-badge-*`, `.wcp-admin-btn-action`, `.wcp-2fa-*`) strictly matching AGENTS.md Light/White and Dark Mode foundations.
 
 v:1.20.0 - 2026-10-20
 - Login Security User Session Forensics & IP Shift Tracking (`UserSessionForensicsModal.tsx`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
