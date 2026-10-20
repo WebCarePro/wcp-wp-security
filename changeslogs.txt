@@ -35,8 +35,9 @@ v:1.21.0 - 2026-10-21
   * Intact Forensics & Code Viewer: Maintained access to raw file viewing, diff inspection, and inode forensic timestamps alongside the 1-click restoration action.
 - Login Hardening IP Whitelist Scope Fix (`FirewallEngine.php`):
   * Resolved Fatal Error on Login/Logout: Changed `FirewallEngine::is_ip_whitelisted()` from `private static` to `public static`. When a user logs in or out, WordPress triggers `wp_authenticate()` / `check_ip_lockout()`, which checks the WAF whitelisted IPs setting. Calling the previously private method caused `Fatal error: Call to private method WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted() from scope WcpScanner\Auth\LoginHardening`.
-- User Session Forensics Modal Overlay Clearance (`UserSessionForensicsModal.tsx`):
+- User Session Forensics Modal Overlay Clearance & White Mode Harmonization (`UserSessionForensicsModal.tsx`, `index.css`):
   * Header & Navigation Clearance: Positioned modal backdrop starting below the executive plugin header (`top: 105px`, `zIndex: 99999`) and adjusted maximum height to `calc(100vh - 140px)` so the modal window rests cleanly below the floating header bar without covering the plugin logo, status badges, or navigation tabs.
+  * Complete White (Light) Mode Harmonization: Replaced hardcoded dark obsidian styles with theme-adaptive design classes (`.wcp-usf-window`, `.wcp-usf-header`, `.wcp-usf-kpi-card`, `.wcp-usf-toolbar`, `.wcp-usf-panel`, `.wcp-usf-session-row`, `.wcp-usf-meta-box`, `.wcp-usf-table-head`, `.wcp-usf-footer`, `.wcp-usf-btn-action`). In White Mode, surfaces adapt to pure white cards (`#ffffff`), soft slate backgrounds (`#f8fafc` / `#f1f5f9`), crisp slate borders (`#e2e8f0` / `#cbd5e1`), and high-contrast dark slate typography (`#0f172a`), while seamlessly transitioning to deep midnight obsidian (`#0f172a` / `#1e293b`) with glowing borders in Dark Mode.
 
 v:1.20.0 - 2026-10-20
 - Login Security User Session Forensics & IP Shift Tracking (`UserSessionForensicsModal.tsx`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
