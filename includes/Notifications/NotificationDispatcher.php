@@ -502,7 +502,9 @@ class NotificationDispatcher {
         $dash_url  = $payload['dashboard_url'];
         $notif_url = !empty($payload['notifications_url']) ? $payload['notifications_url'] : admin_url('admin.php?page=wcp-scanner-notifications');
 
-        $subject = sprintf('[%s Alert: %s] %s', $site_name, $severity, $title);
+        // High-density factual subject line for AI parsing
+        $host = parse_url($site_url, PHP_URL_HOST) ?: $site_url;
+        $subject = sprintf('[%s Alert: %s] %s for %s', $site_name, $severity, $title, $host);
 
         $severity_color = '#0284c7';
         if ($severity === 'CRITICAL') {
@@ -521,22 +523,25 @@ class NotificationDispatcher {
         // Logo URL as requested: siteurl.tld/wp-content/plugins/wcp-security-scanner/assets/logo.png
         $logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
 
-        // Generate AI-ready preheader text (single-line executive brief)
-        $ai_summary_line = sprintf(
-            '%s security alert for %s: %s. Event: %s. Time: %s. Action required: Inspect findings in WCP Security Dashboard.',
+        // Gemini AI Overview format (e.g. "WebCare Pro detected an unauthorized plugin deactivation attempt on example.com by user dev2admin.")
+        $details = $payload['details'] ?? [];
+        $actor   = !empty($details['Triggered By']) ? $details['Triggered By'] : 'system process';
+        $ai_overview_summary = sprintf(
+            'WebCare Pro triggered a %s security alert (%s) for %s on %s. Triggered by: %s.',
             $severity,
-            $site_name,
             $title,
-            $payload['event_key'] ?? 'security_event',
-            $time
+            $host,
+            $time,
+            $actor
         );
 
-        // Build Schema.org / JSON-LD machine-readable envelope
+        // Build Schema.org / JSON-LD machine-readable envelope for Gmail & Gemini
         $json_ld = [
             '@context'         => 'https://schema.org',
             '@type'            => 'SecurityIncident',
             'name'             => $title,
-            'description'      => $message,
+            'description'      => $ai_overview_summary,
+            'disambiguatingDescription' => $message,
             'severity'         => $severity,
             'eventCode'        => $payload['event_key'] ?? 'security_event',
             'datePublished'    => $time,
@@ -550,27 +555,27 @@ class NotificationDispatcher {
                 'name'  => 'WebCare Pro',
                 'url'   => 'https://webcarespro.com',
             ],
-            'diagnosticDetails' => $payload['details'] ?? [],
+            'diagnosticDetails' => $details,
             'potentialAction'  => [
                 '@type'  => 'ViewAction',
-                'name'   => 'Review Security Incident in Dashboard',
+                'name'   => 'Open Security Dashboard',
                 'target' => $dash_url,
             ],
         ];
         $json_ld_string = wp_json_encode($json_ld, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 
         $html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">';
-        $html .= '<meta name="description" content="' . esc_attr($ai_summary_line) . '">';
+        $html .= '<meta name="description" content="' . esc_attr($ai_overview_summary) . '">';
         $html .= '<meta name="wcp-security-severity" content="' . esc_attr($severity) . '">';
         $html .= '<meta name="wcp-event-code" content="' . esc_attr($payload['event_key'] ?? '') . '">';
         $html .= '<meta name="wcp-site-url" content="' . esc_attr($site_url) . '">';
         $html .= '<script type="application/ld+json">' . $json_ld_string . '</script>';
         $html .= '</head><body style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; background-color: #f1f5f9; margin: 0; padding: 28px 12px;">';
 
-        // Hidden AI & Email Client Preheader (Zero visible footprint, immediately captured by AI models & email client preview panes)
+        // Hidden AI & Email Client Preheader (Zero visible footprint, exactly what Gemini AI Overview ingests)
         $html .= '<div style="display:none;font-size:1px;color:#f1f5f9;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">';
-        $html .= esc_html($ai_summary_line);
-        $html .= ' &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy;';
+        $html .= esc_html($ai_overview_summary);
+        $html .= ' &zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;';
         $html .= '</div>';
 
         $html .= '<div style="max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08);">';
@@ -610,7 +615,7 @@ class NotificationDispatcher {
         $html .= '⚡ AI Executive Incident Brief';
         $html .= '</div>';
         $html .= '<div style="font-size: 13.5px; color: #1e293b; line-height: 1.5; font-weight: 500;">';
-        $html .= esc_html($ai_summary_line);
+        $html .= esc_html($ai_overview_summary);
         $html .= '</div>';
         $html .= '</div>';
 

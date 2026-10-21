@@ -404,21 +404,21 @@ class Scheduler {
         $admin_url = admin_url('admin.php?page=wcp-security-scanner');
 
         $status_label = ($critical_count > 0 || $high_count > 0) ? '🔴 SECURITY ALERT' : '🛡️ Security Scan Report';
-        $subject = "[$status_label] {$site_name} - Scan #{$scan_id} Completed ({$total_issues} findings)";
+        $host = parse_url($site_url, PHP_URL_HOST) ?: $site_url;
+        $subject = "[$status_label] {$site_name} - Scan #{$scan_id} Completed for {$host} ({$total_issues} findings)";
 
         $headers = ['Content-Type: text/html; charset=UTF-8'];
         $logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
         $sev_badge_color = ($critical_count > 0 || $high_count > 0) ? '#dc2626' : '#10b981';
 
-        // Generate AI-ready preheader text (single-line executive brief)
+        // Generate Gemini AI Overview preheader text (single-line executive brief)
         $ai_summary_line = sprintf(
-            'Security Scan #%d completed for %s. Risk Score: %d/100. Critical Threats: %d. Total Findings: %d. Action: %s.',
+            'WebCare Pro completed security scan #%d for %s with a risk score of %d/100 (%d critical threats, %d total findings).',
             $scan_id,
-            $site_name,
+            $host,
             $risk_score,
             $critical_count,
-            $total_issues,
-            $critical_count > 0 ? 'Immediate administrative remediation required in WCP Security Dashboard' : 'No critical intervention required; baseline secured'
+            $total_issues
         );
 
         // Schema.org / JSON-LD security audit report
