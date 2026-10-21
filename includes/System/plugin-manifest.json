@@ -1,6 +1,6 @@
 {
-  "version": "1.21.0",
-  "generated_at": "2026-10-21T17:23:56.334Z",
+  "version": "1.22.0",
+  "generated_at": "2026-10-21T18:20:31.464Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -40,20 +40,20 @@
       "size": 592076
     },
     "build/index-rtl.css": {
-      "sha256": "9e05d87ddde2718d48922fb4b7dd8fe44fa316629099a0d6fb4a4821a0eaf542",
-      "size": 453047
+      "sha256": "ba6b87fbe6fb0ec88cfb8ad7fcf754e28e1acbc68780ead6c583791ef3c6b236",
+      "size": 455275
     },
     "build/index.asset.php": {
-      "sha256": "63d8dbd185e656a2c1404a8f530ffbc5e837956658715803e52160224f989b3c",
+      "sha256": "3cadeb263d9492af5adeb65bf2a93134ecf3bafac0855b49417c36ac8dcfe253",
       "size": 121
     },
     "build/index.css": {
-      "sha256": "b7aa8787767da80554d289aba9b957b434603ebdcb0079708969ea065a748a3d",
-      "size": 452914
+      "sha256": "1a65138409a3c778bea33fe5333e3355a2dcebda4396e946fe4995b5b7249333",
+      "size": 455142
     },
     "build/index.js": {
-      "sha256": "535027d64f9940b49655a48dbdf45802a3ec85309b08c69ec77ffc4a433bb15a",
-      "size": 1249955
+      "sha256": "08cbbffdadab155e81e1d2f4c49d2a4680526a9bbae6c6e02ed5ae2cd88dd554",
+      "size": 1250158
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -420,15 +420,15 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "d05be6fdbb7f270c8482fa22280c44d39775d4771d59a19957c2a3a2df40e366",
+      "sha256": "e9775e1c88be5c7fc2bcaca12ccac800526c2dd8518c90d38df3cf3a74c86ddb",
       "size": 386
     },
     "README.md": {
-      "sha256": "baa8981c498410c48873ba06f765b320c4bab5f3fc9b4bd430e54d4f5fe6b245",
+      "sha256": "9b6dcb919c8a1741c38855390741b307e0cdd7cb105adffbf666aa10c19aca50",
       "size": 40740
     },
     "readme.txt": {
-      "sha256": "12f92df0835f8755affd429a8ca69fedad0f9edc472570ace642a34b0b63c0ac",
+      "sha256": "a585b37364be63c262e8e3df5bed47422c489996e7e84a8a8f4770cc90439444",
       "size": 41344
     },
     "uninstall.php": {
@@ -436,7 +436,7 @@
       "size": 4471
     },
     "wcp-wp-scanner.php": {
-      "sha256": "186d370454d4b1e60e66b22ae02510688c197740d1c2b61fdb07eb1b03a18c6b",
+      "sha256": "4d8d145af686668617f1d41669675f7337b3facc21679eb4b4366db2b5d76eaa",
       "size": 3513
     }
   }

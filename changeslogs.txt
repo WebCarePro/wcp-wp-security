@@ -1,3 +1,9 @@
+v:1.22.0 - 2026-10-22
+- Targeted Scan Auto-Scroll & Workflow Enhancements (`App.tsx`, `AGENTS.md`):
+  * Automatic Smooth Viewport Scroll: When any targeted scan (Database Injection Audit, Uploads Quarantine Check, Theme Integrity Deep Scan, Plugin Vulnerabilities, Core Checksums, Privilege Escalation Check, Runtime Hook Infiltration) completes, the UI smoothly auto-scrolls the viewport directly to the Targeted Audit Results section.
+  * Enhanced Results Container Anchor: Integrated `targetedResultRef` with standard viewport scroll-margin offsets for seamless positioning on both desktop and mobile viewports.
+  * Release Workflow Requirement: Updated project agent instructions in `AGENTS.md` to mandate compiling and building the distribution ZIP package (`npm run package` -> `wcp-security-scanner.zip`) on every git push.
+
 v:1.21.0 - 2026-10-21
 - Smart 404 Scanner Rate-Limiter & Reconnaissance Shield (`FirewallEngine.php`, `BotReconDefense.php`, `SettingsManager.php`, `FirewallPage.tsx`, `WafLogsPage.tsx`):
   * Automated 404 Scanner Lockouts: Implemented automated temporary lockout mitigation against fuzzing and vulnerability scanning bots that trigger repetitive 404 errors across WordPress installations.
