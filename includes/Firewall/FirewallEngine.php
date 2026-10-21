@@ -9,12 +9,18 @@ if (!defined('ABSPATH')) {
 
 class FirewallEngine {
     private static $real_ip = null;
+    private static $connecting_peer_ip = null;
     private static $detected_environment = null;
 
     /**
      * Bootstrap the Firewall
      */
     public static function init() {
+        // Record raw connecting peer IP before any normalization occurs
+        if (!empty($_SERVER['REMOTE_ADDR']) && self::$connecting_peer_ip === null) {
+            self::$connecting_peer_ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+        }
+
         // Normalize $_SERVER['REMOTE_ADDR'] if incoming request connects via a verified trusted reverse proxy (e.g. Cloudflare)
         self::normalize_server_remote_addr();
 
@@ -854,53 +860,126 @@ class FirewallEngine {
         $cdn_provider = 'None (Direct Origin)';
         $cdn_ip = 'N/A';
 
+        // Check if connecting peer or raw peer is an edge proxy
+        $raw_peer = self::$connecting_peer_ip ?: (!empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
+
         // Check incoming CDN headers
         if (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
             $cdn_detected = true;
             $cdn_provider = 'Cloudflare Anycast';
-            if (!empty($_SERVER['REMOTE_ADDR']) && self::is_cloudflare_ip($_SERVER['REMOTE_ADDR'])) {
-                $cdn_ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+            if (!empty($raw_peer) && self::is_cloudflare_ip($raw_peer)) {
+                $cdn_ip = $raw_peer;
             }
         } elseif (!empty($_SERVER['HTTP_FASTLY_CLIENT_IP']) || !empty($_SERVER['HTTP_X_FASTLY_REQUEST_ID'])) {
             $cdn_detected = true;
             $cdn_provider = 'Fastly CDN';
-            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Fastly Edge';
+            if (!empty($raw_peer) && filter_var($raw_peer, FILTER_VALIDATE_IP)) {
+                $cdn_ip = $raw_peer;
+            }
         } elseif (!empty($_SERVER['HTTP_X_AMZ_CF_ID']) || !empty($_SERVER['HTTP_CLOUDFRONT_FORWARDED_PROTO'])) {
             $cdn_detected = true;
             $cdn_provider = 'Amazon CloudFront';
-            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'CloudFront Edge';
+            if (!empty($raw_peer) && filter_var($raw_peer, FILTER_VALIDATE_IP)) {
+                $cdn_ip = $raw_peer;
+            }
         } elseif (!empty($_SERVER['HTTP_TRUE_CLIENT_IP']) || !empty($_SERVER['HTTP_X_AKAMAI_EDGESCAPE'])) {
             $cdn_detected = true;
             $cdn_provider = 'Akamai CDN';
-            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Akamai Edge';
+            if (!empty($raw_peer) && filter_var($raw_peer, FILTER_VALIDATE_IP)) {
+                $cdn_ip = $raw_peer;
+            }
         } elseif (!empty($_SERVER['HTTP_X_SUCURI_CLIENTIP'])) {
             $cdn_detected = true;
             $cdn_provider = 'Sucuri WAF/CDN';
-            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Sucuri Edge';
+            if (!empty($raw_peer) && filter_var($raw_peer, FILTER_VALIDATE_IP)) {
+                $cdn_ip = $raw_peer;
+            }
         } elseif (!empty($_SERVER['HTTP_INCAP_CLIENT_IP'])) {
             $cdn_detected = true;
             $cdn_provider = 'Imperva / Incapsula';
-            $cdn_ip = !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Imperva Edge';
+            if (!empty($raw_peer) && filter_var($raw_peer, FILTER_VALIDATE_IP)) {
+                $cdn_ip = $raw_peer;
+            }
+        } elseif (!empty($_SERVER['HTTP_X_BUNNY_CLIENT_IP'])) {
+            $cdn_detected = true;
+            $cdn_provider = 'Bunny CDN';
+            if (!empty($raw_peer) && filter_var($raw_peer, FILTER_VALIDATE_IP)) {
+                $cdn_ip = $raw_peer;
+            }
         }
 
-        // If not detected via headers, inspect DNS record of domain
-        if (!$cdn_detected) {
-            $site_host = parse_url(get_site_url(), PHP_URL_HOST);
-            if (!empty($site_host) && function_exists('dns_get_record')) {
-                $records = @dns_get_record($site_host, DNS_A);
-                if (is_array($records)) {
-                    foreach ($records as $r) {
-                        if (!empty($r['ip'])) {
-                            if (self::is_cloudflare_ip($r['ip'])) {
-                                $cdn_detected = true;
-                                $cdn_provider = 'Cloudflare Anycast (via DNS)';
-                                $cdn_ip = $r['ip'];
-                                break;
-                            }
+        // Domain Host resolution for Edge IP verification
+        $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+        $is_local_host = empty($site_host) || in_array($site_host, ['localhost', '127.0.0.1', '::1', 'local.test'], true) || preg_match('/\.local$/i', $site_host) || preg_match('/\.test$/i', $site_host);
+
+        // If CDN was detected via headers, but CDN IP could not be derived from connecting peer (e.g. mod_remoteip restored client IP)
+        // OR if CDN was not detected via request headers, query DNS records for the website hostname
+        if ((!$cdn_detected || $cdn_ip === 'N/A') && !$is_local_host) {
+            $resolved_ips = [];
+
+            // Method A: dns_get_record for A and AAAA
+            if (function_exists('dns_get_record')) {
+                $dns_a = @dns_get_record($site_host, DNS_A);
+                if (is_array($dns_a)) {
+                    foreach ($dns_a as $rec) {
+                        if (!empty($rec['ip'])) {
+                            $resolved_ips[] = $rec['ip'];
+                        }
+                    }
+                }
+                $dns_aaaa = @dns_get_record($site_host, DNS_AAAA);
+                if (is_array($dns_aaaa)) {
+                    foreach ($dns_aaaa as $rec) {
+                        if (!empty($rec['ipv6'])) {
+                            $resolved_ips[] = $rec['ipv6'];
                         }
                     }
                 }
             }
+
+            // Method B: gethostbynamel / gethostbyname fallback
+            if (empty($resolved_ips) && function_exists('gethostbynamel')) {
+                $hosts = @gethostbynamel($site_host);
+                if (is_array($hosts)) {
+                    $resolved_ips = array_merge($resolved_ips, $hosts);
+                }
+            }
+            if (empty($resolved_ips) && function_exists('gethostbyname')) {
+                $single = @gethostbyname($site_host);
+                if (!empty($single) && $single !== $site_host && filter_var($single, FILTER_VALIDATE_IP)) {
+                    $resolved_ips[] = $single;
+                }
+            }
+
+            $resolved_ips = array_unique(array_filter($resolved_ips));
+
+            // Test resolved IPs against CDN networks
+            foreach ($resolved_ips as $rip) {
+                if (self::is_cloudflare_ip($rip)) {
+                    $cdn_detected = true;
+                    if ($cdn_provider === 'None (Direct Origin)') {
+                        $cdn_provider = 'Cloudflare Anycast';
+                    }
+                    $cdn_ip = $rip;
+                    break;
+                }
+            }
+
+            // If still no CDN IP found, but CDN headers confirmed provider, use first public DNS resolved IP
+            if ($cdn_detected && $cdn_ip === 'N/A' && !empty($resolved_ips)) {
+                $cdn_ip = reset($resolved_ips);
+            }
+        }
+
+        // Contextual defaults when no CDN is active
+        if (!$cdn_detected) {
+            if ($is_local_host) {
+                $cdn_ip = 'Local Dev (No CDN)';
+            } else {
+                $cdn_ip = 'Direct Connection';
+            }
+        } elseif ($cdn_ip === 'N/A') {
+            $cdn_ip = $cdn_provider . ' Edge';
         }
 
         // 6. PHP RAM Limit & Process Allocation
