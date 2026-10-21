@@ -221,29 +221,39 @@ class SessionSentinel {
                 $current_login_ip = $session_info['login_ip'] ?? '';
             }
 
-            // Auto-initialize if session was active before sentinel activation or if IP was recorded as Cloudflare proxy
-            if (!$session_info || empty($current_login_ip) || \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($current_login_ip)) {
-                $entry = [
-                    'login_time'     => $session_info['login_time'] ?? time(),
-                    'last_seen'      => time(),
-                    'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
-                        'login_ip'   => $ip,
-                        'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255),
-                    ])),
-                ];
-                $sessions_meta[$current_token]    = $entry;
-                $sessions_meta[$current_verifier] = $entry;
-                update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+            // Auto-initialize if session was active before sentinel activation or if IP was recorded as Cloudflare proxy or loopback
+            $is_cf_ip = \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($current_login_ip);
+            $is_local_ip = ($current_login_ip === '127.0.0.1' || $current_login_ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_private_ip($current_login_ip));
+
+            if (!$session_info || empty($current_login_ip) || $is_cf_ip || $is_local_ip) {
+                self::anchor_session($user_id, $current_token, $current_verifier, $ip, $session_info ?: []);
                 return;
             }
 
             // 1. IP Lock / Hijack Defense Check
             if (!empty($settings['session_lock_ip']) && !empty($current_login_ip)) {
-                if ($current_login_ip !== $ip) {
-                    // Potential cookie replay or session hijack from a different IP address!
-                    self::terminate_session($user_id, $current_token, 'Session terminated due to IP address mismatch (Anti-Hijack Lock).');
+                $current_ua = substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255);
+
+                if (!self::is_ip_match_or_subnet($current_login_ip, $ip, $decoded, $current_ua)) {
+                    // Potential cookie replay or session hijack from a completely different foreign network!
+                    self::terminate_session($user_id, $current_token, 'Session terminated due to cross-network IP mismatch (Anti-Hijack Lock).');
                     wp_safe_redirect(wp_login_url() . '?wcpscan_session_alert=ip_mismatch');
                     exit;
+                }
+
+                // If user transitioned between legitimate IPv4 and IPv6 under dual-stack, record alt_ip to memoize
+                $is_base_v4 = filter_var($current_login_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+                $is_inc_v6  = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
+                $is_base_v6 = filter_var($current_login_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
+                $is_inc_v4  = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+
+                if (($is_base_v4 && $is_inc_v6) || ($is_base_v6 && $is_inc_v4)) {
+                    if (empty($decoded['alt_ip']) || $decoded['alt_ip'] !== $ip) {
+                        $decoded['alt_ip'] = $ip;
+                        $sessions_meta[$current_token]['encrypted_meta']    = \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode($decoded));
+                        $sessions_meta[$current_verifier]['encrypted_meta'] = $sessions_meta[$current_token]['encrypted_meta'];
+                        update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+                    }
                 }
             }
 
@@ -256,6 +266,141 @@ class SessionSentinel {
         } catch (\Throwable $e) {
             // Failsafe: never disrupt WordPress admin execution
         }
+    }
+
+    /**
+     * Check if an incoming IP address matches the recorded session baseline IP or falls within
+     * the legitimate carrier/ISP subnet (IPv4 /24 or IPv6 /64 prefix) or verified dual-stack profile.
+     *
+     * @param string $baseline_ip
+     * @param string $incoming_ip
+     * @param array  $decoded_meta
+     * @param string $current_ua
+     * @return bool
+     */
+    public static function is_ip_match_or_subnet(string $baseline_ip, string $incoming_ip, array $decoded_meta = [], string $current_ua = ''): bool {
+        if (empty($baseline_ip) || empty($incoming_ip)) {
+            return true; // Failsafe
+        }
+
+        // 1. Exact string match
+        if ($baseline_ip === $incoming_ip) {
+            return true;
+        }
+
+        // 2. Check if incoming IP matches verified alternate dual-stack IP (IPv4 vs IPv6)
+        if (!empty($decoded_meta['alt_ip']) && $decoded_meta['alt_ip'] === $incoming_ip) {
+            return true;
+        }
+
+        // 3. IPv4 Subnet Comparison (/24 - First 3 octets match, e.g. 114.130.156.x)
+        // Defends against CGNAT / cellular / ISP rotation while blocking cross-network hijacking
+        $is_base_v4 = filter_var($baseline_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+        $is_inc_v4  = filter_var($incoming_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+
+        if ($is_base_v4 && $is_inc_v4) {
+            $base_parts = explode('.', $baseline_ip);
+            $inc_parts  = explode('.', $incoming_ip);
+            if (count($base_parts) === 4 && count($inc_parts) === 4) {
+                if ($base_parts[0] === $inc_parts[0] && $base_parts[1] === $inc_parts[1] && $base_parts[2] === $inc_parts[2]) {
+                    return true;
+                }
+            }
+        }
+
+        // 4. IPv6 Subnet Comparison (/64 - First 64 bits / 8 bytes match)
+        // Defends against RFC 4941 client privacy interface identifier rotation
+        $is_base_v6 = filter_var($baseline_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
+        $is_inc_v6  = filter_var($incoming_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
+
+        if ($is_base_v6 && $is_inc_v6) {
+            $base_bin = @inet_pton($baseline_ip);
+            $inc_bin  = @inet_pton($incoming_ip);
+            if ($base_bin !== false && $inc_bin !== false && strlen($base_bin) === 16 && strlen($inc_bin) === 16) {
+                if (substr($base_bin, 0, 8) === substr($inc_bin, 0, 8)) {
+                    return true;
+                }
+            }
+        }
+
+        // 5. Dual-Stack Cloudflare Flapping (One is IPv4 and one is IPv6)
+        // Under Cloudflare and modern browsers (RFC 8305 Happy Eyeballs),
+        // browser races IPv4 and IPv6 sockets. If User-Agent is an exact match and request arrives via Cloudflare:
+        if (($is_base_v4 && $is_inc_v6) || ($is_base_v6 && $is_inc_v4)) {
+            $recorded_ua = $decoded_meta['user_agent'] ?? '';
+            $env = \WcpScanner\Firewall\FirewallEngine::detect_environment();
+            $is_cf = !empty($env['has_cloudflare']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
+
+            if ($is_cf && !empty($recorded_ua) && !empty($current_ua) && $recorded_ua === $current_ua) {
+                return true;
+            }
+        }
+
+        // 6. Loopback / Internal Proxy Failsafe
+        // If incoming request resolved to localhost/private IP due to internal proxy/cron/loopback, do not kill admin session
+        if ($incoming_ip === '127.0.0.1' || $incoming_ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_private_ip($incoming_ip)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Anchor or heal an active session with cryptographic metadata binding.
+     *
+     * @param int    $user_id
+     * @param string $token
+     * @param string $verifier
+     * @param string $ip
+     * @param array  $existing_info
+     * @return void
+     */
+    public static function anchor_session(int $user_id, string $token, string $verifier, string $ip, array $existing_info = []): void {
+        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true);
+        if (!is_array($sessions_meta)) {
+            $sessions_meta = [];
+        }
+
+        $existing_decoded = [];
+        if (!empty($existing_info['encrypted_meta'])) {
+            $dec = \WcpScanner\Security\SecretVault::decrypt((string) $existing_info['encrypted_meta']);
+            $existing_decoded = is_string($dec) ? (json_decode($dec, true) ?: []) : [];
+        }
+
+        $entry = [
+            'login_time'     => $existing_info['login_time'] ?? time(),
+            'last_seen'      => time(),
+            'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+                'login_ip'   => $ip,
+                'alt_ip'     => $existing_decoded['alt_ip'] ?? '',
+                'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? ($existing_decoded['user_agent'] ?? 'Unknown')), 0, 255),
+            ])),
+        ];
+
+        $sessions_meta[$token]    = $entry;
+        $sessions_meta[$verifier] = $entry;
+        update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+    }
+
+    /**
+     * Re-anchor the current user's active session to their current verified IP address.
+     * Prevents false-positive logouts when Strict IP Lock is toggled on or settings are saved.
+     */
+    public static function reanchor_current_user_session(): void {
+        if (!is_user_logged_in()) {
+            return;
+        }
+        $user_id = get_current_user_id();
+        $token = wp_get_session_token();
+        if (empty($user_id) || empty($token)) {
+            return;
+        }
+        $verifier = hash('sha256', $token);
+        $ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+        $session_info = $sessions_meta[$verifier] ?? ($sessions_meta[$token] ?? []);
+
+        self::anchor_session($user_id, $token, $verifier, $ip, $session_info);
     }
 
     /**

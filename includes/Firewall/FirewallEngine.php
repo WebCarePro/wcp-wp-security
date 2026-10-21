@@ -216,14 +216,29 @@ class FirewallEngine {
             }
         }
 
-        // 3. Localhost / loopback check (if WCP_TRUST_LOCAL_PROXY is explicitly enabled)
-        if (defined('WCP_TRUST_LOCAL_PROXY') && WCP_TRUST_LOCAL_PROXY) {
-            if ($ip === '127.0.0.1' || $ip === '::1') {
+        // 3. Localhost / loopback / internal reverse proxy check (e.g. Cloudflare Tunnel, Docker, cPanel Nginx reverse proxy)
+        // If connecting from local/private network AND Cloudflare header is present or WCP_TRUST_LOCAL_PROXY is enabled
+        $is_local_or_private = ($ip === '127.0.0.1' || $ip === '::1' || self::is_private_ip($ip));
+        if ($is_local_or_private) {
+            if ((defined('WCP_TRUST_LOCAL_PROXY') && WCP_TRUST_LOCAL_PROXY) || !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Check if an IP address belongs to private or loopback ranges (RFC 1918 / RFC 4193).
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function is_private_ip(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+        return !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
     }
 
     /**
