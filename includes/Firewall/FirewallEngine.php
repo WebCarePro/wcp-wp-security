@@ -668,6 +668,22 @@ class FirewallEngine {
             ]);
         }
 
+        // Dispatch granular event notifications via NotificationDispatcher
+        if ($action === 'blocked' && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $is_virtual_patch = !empty($rule['is_virtual_patch']) || stripos($rule['category'] ?? '', 'Virtual Patch') !== false;
+            if ($is_virtual_patch) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_virtual_patch_hit', [
+                    'severity' => 'critical',
+                    'message'  => sprintf(__('Virtual Patch intercepted an exploit payload from %s targeting "%s".', 'wcp-security-scanner'), $ip, $rule['name'] ?? $rule['category']),
+                    'details'  => [
+                        'attacker_ip' => $ip,
+                        'rule_name'   => $rule['name'] ?? $rule['category'],
+                        'category'    => $rule['category'],
+                    ],
+                ]);
+            }
+        }
+
         // Auto-sync banned IP to Cloudflare Edge Access Rules if enabled
         if ($action === 'blocked') {
             $settings = SettingsManager::get_settings();

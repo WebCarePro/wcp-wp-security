@@ -663,6 +663,19 @@ class DatabaseBackup {
                 $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
                 $final_size = @filesize($filepath) ?: 0;
                 $state['final_size_mb'] = round($final_size / (1024 * 1024), 2);
+
+                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_completed', [
+                        'severity' => 'info',
+                        'message'  => sprintf(__('Database backup completed successfully (%s MB, %d tables in %s seconds).', 'wcp-security-scanner'), $state['final_size_mb'], $state['tables_completed'], $state['total_time_seconds']),
+                        'details'  => [
+                            'filename'      => basename($filepath),
+                            'size_mb'       => $state['final_size_mb'],
+                            'tables'        => $state['tables_completed'],
+                            'duration_sec'  => $state['total_time_seconds'],
+                        ],
+                    ]);
+                }
             } else {
                 if ($use_gzip) {
                     gzclose($fp);
@@ -697,6 +710,17 @@ class DatabaseBackup {
             $state['stop_time'] = current_time('mysql');
             $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
             $state['error_details'] = $error_details;
+
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_failed', [
+                    'severity' => 'high',
+                    'message'  => sprintf(__('Database backup failed while exporting table "%s": %s', 'wcp-security-scanner'), $state['current_table_name'] ?? 'unknown', $e->getMessage()),
+                    'details'  => [
+                        'table'             => $state['current_table_name'] ?? 'unknown',
+                        'technical_message' => $e->getMessage(),
+                    ],
+                ]);
+            }
 
             $this->save_session_state($session_id, $state);
 

@@ -1,4 +1,19 @@
 v:1.21.0 - 2026-10-21
+- Dedicated Notification Center & Granular Per-Event Alert Matrix (`NotificationsPage.tsx`, `NotificationDispatcher.php`, `SettingsManager.php`, `ScannerRoutes.php`, `AdminMenu.php`, `App.tsx`, `SettingsPage.tsx`):
+  * Dedicated Notification Center Admin Page (`wcp-scanner-notifications`): Transformed notifications from a simple subtab into a dedicated, enterprise-grade administrative hub and sub-menu item with complete White/Dark mode support.
+  * 32+ Granular Security Events Catalog: Rebuilt the notification engine with granular independent switches for Email (`wp_mail`) and DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Generic JSON) across 8 distinct categories:
+    1. Core Scans & Threats (scheduled complete, manual complete, targeted complete, critical/high threats found, auto-quarantined threats, execution timeout).
+    2. Plugin Self-Defense (anti-tamper file mismatch, host-deleted files, unauthorized deactivation, uninstallation).
+    3. Cloudflare & WAF Defense (firewall rules deployed/removed, attack block surges, virtual patch exploits intercepted, .htaccess/Nginx hardening updates).
+    4. Authentication & Access Security (2FA enabled/disabled, admin password changed/reset, brute-force IP lockouts, Cloudflare edge IP auto-bans, session IP shift/hijack, rogue admin creation/privilege escalation).
+    5. File Integrity Monitoring (FIM core file modifications, plugin/theme tampering, suspicious PHP scripts in uploads, Auto-Cure restorations, baseline snapshot updates).
+    6. Vulnerabilities & CVE Feeds (core unpatched CVEs, plugin/theme vulnerability advisories, abandoned plugins, threat intel sync).
+    7. Database Backups & Vault (backup completed, backup failed, database restored, quarantine restored to filesystem, quarantine purged).
+    8. DevSecOps & AI Forensics (webhook channel toggled, webhook delivery HTTP failures, AI forensics engine status, MCP agent surface status).
+  * Instant Per-Event Delivery Testing: Added interactive "Test" buttons on each security event to trigger immediate verification alerts via REST API (`/notifications/test-event`).
+  * Quick Presets: Added 1-click configuration presets ("DevSecOps Recommended", "Minimalist Security", "Enable All", "Disable All").
+  * Settings Subtab Cross-Linkage: Placed a prominent, styled deep-link callout card in Settings > Email to direct administrators straight to the dedicated Notification Center.
+  * Real-Time Event Hook Integrations: Connected `NotificationDispatcher::trigger()` across `Scheduler.php`, `PluginSelfDefense.php`, `TwoFactorAuth.php`, `LoginHardening.php`, `DatabaseBackup.php`, `QuarantineManager.php`, `FirewallEngine.php`, `Plugin.php`, and `wcp-wp-scanner.php`.
 - Cloudflare Free Plan 3 Master Compound Rules & Individual Single-Rule Push (`CloudflareService.php`, `ScannerRoutes.php`, `FirewallPage.tsx`, `index.css`):
   * 5-to-3 High-Density Master Rules Consolidation: Combined the previous 5 individual Cloudflare Free Edge WAF rules into 3 high-impact master compound rules:
     1. Rule 1: Master Perimeter & Sensitive File Armor (Drops /xmlrpc.php, uploads directory PHP script execution, sensitive dotfiles/logs, and backups in 1 unified Block rule).

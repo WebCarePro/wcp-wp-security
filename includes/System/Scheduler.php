@@ -325,6 +325,37 @@ class Scheduler {
             $scan_id
         ), ARRAY_A) ?: [];
 
+        // Dispatch granular event notifications via NotificationDispatcher
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            // 1. Scheduled scan complete event
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_scheduled_complete', [
+                'severity' => ($total_issues > 0) ? 'high' : 'info',
+                'message'  => sprintf(__('Scheduled background scan #%d finished for target "%s". %d issue(s) identified (Risk Score: %d/100).', 'wcp-security-scanner'), $scan_id, $target, $total_issues, $risk_score),
+                'details'  => [
+                    'scan_id'      => $scan_id,
+                    'target'       => $target,
+                    'issues_found' => $total_issues,
+                    'risk_score'   => $risk_score,
+                ],
+            ]);
+
+            // 2. Critical / High threats found event
+            $critical_or_high = array_filter($issues, function($i) {
+                return in_array($i['severity'] ?? '', ['critical', 'high'], true);
+            });
+            if (!empty($critical_or_high)) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
+                    'severity' => 'critical',
+                    'message'  => sprintf(__('Critical or high-priority security threats were detected during scan #%d (%d threats).', 'wcp-security-scanner'), $scan_id, count($critical_or_high)),
+                    'details'  => [
+                        'scan_id'        => $scan_id,
+                        'critical_count' => count($critical_or_high),
+                        'sample'         => array_column(array_slice($critical_or_high, 0, 3), 'description'),
+                    ],
+                ]);
+            }
+        }
+
         // Dispatch DevSecOps Webhooks (Slack & Discord)
         if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
             \WcpScanner\Notifications\WebhookService::send_scan_alert($scan_id, $total_issues, $risk_score, $target, $issues);

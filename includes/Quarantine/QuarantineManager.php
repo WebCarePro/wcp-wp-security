@@ -323,6 +323,18 @@ class QuarantineManager {
             $wpdb->update($issues_table, ['status' => 'open'], ['file_path' => $record['original_path']]);
         }
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_restored', [
+                'severity' => 'warning',
+                'message'  => sprintf(__('A file in security quarantine was restored back to the active filesystem: "%s".', 'wcp-security-scanner'), $dest_path),
+                'details'  => [
+                    'original_path' => $dest_path,
+                    'restored_by'   => wp_get_current_user()->user_login ?: 'admin',
+                    'quarantine_id' => $quarantine_id,
+                ],
+            ]);
+        }
+
         return ['success' => true, 'message' => 'File successfully restored to original location.'];
     }
 
@@ -458,6 +470,18 @@ class QuarantineManager {
             }
             if (!empty($record['original_path'])) {
                 $wpdb->update($issues_table, ['status' => 'repaired'], ['file_path' => $record['original_path']]);
+            }
+
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_deleted', [
+                    'severity' => 'info',
+                    'message'  => sprintf(__('Quarantined file was permanently purged from vault storage: "%s".', 'wcp-security-scanner'), $record['original_path'] ?? 'unknown'),
+                    'details'  => [
+                        'file_path'     => $record['original_path'] ?? 'unknown',
+                        'purged_by'     => wp_get_current_user()->user_login ?: 'admin',
+                        'quarantine_id' => $quarantine_id,
+                    ],
+                ]);
             }
 
             return ['success' => true, 'message' => 'Quarantined threat permanently purged from vault storage.'];

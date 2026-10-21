@@ -468,6 +468,20 @@ class TwoFactorAuth {
         update_user_meta($user_id, self::META_SECRET, $encrypted_secret);
         update_user_meta($user_id, self::META_BACKUP_CODES, $hashed_backup_codes);
         update_user_meta($user_id, self::META_ENABLED, 1);
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $user = get_userdata($user_id);
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_enabled', [
+                'severity' => 'info',
+                'message'  => sprintf(__('Two-Factor Authentication (2FA) was activated for user "%s".', 'wcp-security-scanner'), $user ? $user->user_login : 'user #' . $user_id),
+                'details'  => [
+                    'user_id'    => $user_id,
+                    'user_login' => $user ? $user->user_login : 'unknown',
+                    'user_roles' => $user ? implode(', ', $user->roles) : '',
+                ],
+            ]);
+        }
+
         return true;
     }
 
@@ -481,6 +495,20 @@ class TwoFactorAuth {
         delete_user_meta($user_id, self::META_TRUSTED_DEVICES);
         delete_user_meta($user_id, self::META_GRACE_START);
         self::clear_trusted_device_cookie();
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $user = get_userdata($user_id);
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_disabled', [
+                'severity' => 'high',
+                'message'  => sprintf(__('Two-Factor Authentication (2FA) was deactivated for user "%s".', 'wcp-security-scanner'), $user ? $user->user_login : 'user #' . $user_id),
+                'details'  => [
+                    'user_id'    => $user_id,
+                    'user_login' => $user ? $user->user_login : 'unknown',
+                    'user_roles' => $user ? implode(', ', $user->roles) : '',
+                ],
+            ]);
+        }
+
         return true;
     }
 
@@ -592,6 +620,20 @@ class TwoFactorAuth {
     public static function on_password_reset($user, $new_pass = '') {
         if ($user instanceof \WP_User) {
             self::revoke_all_trusted_devices($user->ID);
+
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                $is_admin = in_array('administrator', (array) $user->roles, true);
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
+                    'severity' => $is_admin ? 'high' : 'info',
+                    'message'  => sprintf(__('Password was reset for user "%s"%s.', 'wcp-security-scanner'), $user->user_login, $is_admin ? ' (Administrator account)' : ''),
+                    'details'  => [
+                        'user_id'    => $user->ID,
+                        'user_login' => $user->user_login,
+                        'user_roles' => implode(', ', $user->roles),
+                        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    ],
+                ]);
+            }
         }
     }
 

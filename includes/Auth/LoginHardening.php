@@ -126,12 +126,37 @@ class LoginHardening {
                 );
             }
 
+            // Trigger granular notification via NotificationDispatcher
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_bruteforce_lockout', [
+                    'severity' => 'high',
+                    'message'  => sprintf(__('Brute-force defense locked out IP "%s" after %d consecutive login failures targeting username "%s".', 'wcp-security-scanner'), $ip, $attempts, $username),
+                    'details'  => [
+                        'attacker_ip'      => $ip,
+                        'target_username'  => $username,
+                        'failed_attempts'  => $attempts,
+                        'lockout_duration' => $lockout_duration . ' minutes',
+                    ],
+                ]);
+            }
+
             // Sync brute force attacker to Cloudflare Edge IP Access Rules if enabled
             if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
                 \WcpScanner\Cloudflare\CloudflareService::block_ip(
                     $ip,
                     "WCP Brute Force: {$attempts} failed logins for {$username}"
                 );
+
+                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_cf_edge_ban_synced', [
+                        'severity' => 'info',
+                        'message'  => sprintf(__('Attacker IP "%s" was escalated and synchronized to Cloudflare Edge IP Access Rules.', 'wcp-security-scanner'), $ip),
+                        'details'  => [
+                            'banned_ip' => $ip,
+                            'reason'    => "Brute force lockout ({$attempts} attempts)",
+                        ],
+                    ]);
+                }
             }
         }
     }

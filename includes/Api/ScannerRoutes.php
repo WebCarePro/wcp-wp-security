@@ -701,6 +701,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Granular Event Notifications Endpoints
+        register_rest_route(self::NAMESPACE, '/notifications/settings', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_notification_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/notifications/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_notification_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/notifications/test-event', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'test_notification_event'],
+            'permission_callback' => $permission,
+        ]);
+
         // Plugin Self-Defense & Anti-Tamper Attestation Endpoints
         register_rest_route(self::NAMESPACE, '/self-defense/status', [
             'methods'             => 'GET',
@@ -5837,6 +5856,89 @@ class ScannerRoutes {
 
         $result = \WcpScanner\Notifications\WebhookService::send_test($platform, $url);
         return rest_ensure_response($result);
+    }
+
+    /**
+     * Get granular notification settings & catalog
+     */
+    public static function get_notification_settings(\WP_REST_Request $request) {
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $catalog  = \WcpScanner\Notifications\NotificationDispatcher::get_event_catalog();
+
+        return rest_ensure_response([
+            'success'                     => true,
+            'notification_master_enabled' => !empty($settings['notification_master_enabled']),
+            'notification_events'         => $settings['notification_events'] ?? \WcpScanner\System\SettingsManager::get_default_notification_events(),
+            'catalog'                     => $catalog,
+            'alert_emails'                => $settings['alert_emails'] ?? get_option('admin_email'),
+            'webhooks_configured'         => [
+                'slack'   => !empty($settings['slack_enabled']) && !empty($settings['slack_webhook_url']),
+                'discord' => !empty($settings['discord_enabled']) && !empty($settings['discord_webhook_url']),
+                'clickup' => !empty($settings['clickup_enabled']) && !empty($settings['clickup_webhook_url']),
+                'asana'   => !empty($settings['asana_enabled']) && !empty($settings['asana_webhook_url']),
+                'generic' => !empty($settings['generic_webhook_enabled']) && !empty($settings['generic_webhook_url']),
+            ],
+        ]);
+    }
+
+    /**
+     * Save granular notification settings
+     */
+    public static function save_notification_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $current = \WcpScanner\System\SettingsManager::get_settings();
+
+        if (isset($params['notification_master_enabled'])) {
+            $current['notification_master_enabled'] = !empty($params['notification_master_enabled']);
+        }
+        if (isset($params['notification_events']) && is_array($params['notification_events'])) {
+            $current['notification_events'] = \WcpScanner\System\SettingsManager::sanitize_notification_events($params['notification_events']);
+        }
+        if (isset($params['alert_emails'])) {
+            $current['alert_emails'] = sanitize_text_field($params['alert_emails']);
+        }
+
+        $saved = \WcpScanner\System\SettingsManager::save_settings($current);
+
+        return rest_ensure_response([
+            'success'                     => true,
+            'message'                     => __('Notification settings saved successfully.', 'wcp-security-scanner'),
+            'notification_master_enabled' => !empty($saved['notification_master_enabled']),
+            'notification_events'         => $saved['notification_events'],
+        ]);
+    }
+
+    /**
+     * Test a specific notification event
+     */
+    public static function test_notification_event(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $event_key = sanitize_text_field($params['event_key'] ?? '');
+
+        if (empty($event_key)) {
+            return new \WP_Error('missing_event', __('Event key is required for notification testing.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $catalog = \WcpScanner\Notifications\NotificationDispatcher::get_event_catalog();
+        if (!isset($catalog[$event_key])) {
+            return new \WP_Error('invalid_event', __('Unknown security event identifier.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        $result = \WcpScanner\Notifications\NotificationDispatcher::trigger($event_key, [
+            'title'   => sprintf(__('🧪 [TEST] %s', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'message' => sprintf(__('This is an instant verification alert triggered from the WCP Notification Center for "%s".', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'details' => [
+                'triggered_by' => wp_get_current_user()->user_login ?: 'admin',
+                'event_code'   => $event_key,
+                'test_mode'    => 'manual_verification',
+            ],
+        ]);
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => sprintf(__('Test notification dispatched for event: %s', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'result'  => $result,
+        ]);
     }
 
     /**

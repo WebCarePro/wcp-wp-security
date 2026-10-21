@@ -148,6 +148,73 @@ class SettingsManager {
             // 16. Plugin Self-Defense & Anti-Tamper Attestation
             'self_defense_watchdog_enabled'      => true,
             'self_defense_notify_email'          => true,
+
+            // 17. Granular Event Notifications Matrix
+            'notification_master_enabled'        => true,
+            'notification_events'                => self::get_default_notification_events(),
+        ];
+    }
+
+    /**
+     * Default states for all granular notification events
+     */
+    public static function get_default_notification_events(): array {
+        return [
+            // Core Scans & Threats
+            'scan_scheduled_complete'   => ['email' => true,  'webhook' => true],
+            'scan_manual_complete'      => ['email' => false, 'webhook' => true],
+            'scan_targeted_complete'    => ['email' => false, 'webhook' => false],
+            'scan_threats_found'        => ['email' => true,  'webhook' => true],
+            'scan_auto_quarantine'      => ['email' => true,  'webhook' => true],
+            'scan_aborted_timeout'      => ['email' => true,  'webhook' => true],
+
+            // Plugin Self-Defense
+            'plugin_file_tampered'      => ['email' => true,  'webhook' => true],
+            'plugin_file_missing'       => ['email' => true,  'webhook' => true],
+            'plugin_deactivate_attempt' => ['email' => true,  'webhook' => true],
+            'plugin_uninstall'          => ['email' => true,  'webhook' => true],
+
+            // Cloudflare & WAF
+            'cf_firewall_updated'       => ['email' => false, 'webhook' => true],
+            'cf_firewall_rule_deleted'  => ['email' => false, 'webhook' => true],
+            'waf_block_surge'           => ['email' => true,  'webhook' => true],
+            'waf_virtual_patch_hit'     => ['email' => true,  'webhook' => true],
+            'waf_server_rules_updated'  => ['email' => false, 'webhook' => false],
+
+            // Authentication & 2FA
+            'auth_2fa_enabled'          => ['email' => true,  'webhook' => false],
+            'auth_2fa_disabled'         => ['email' => true,  'webhook' => true],
+            'auth_admin_password_reset' => ['email' => true,  'webhook' => true],
+            'auth_bruteforce_lockout'   => ['email' => true,  'webhook' => true],
+            'auth_cf_edge_ban_synced'   => ['email' => false, 'webhook' => true],
+            'auth_session_hijack_flag'  => ['email' => true,  'webhook' => true],
+            'auth_rogue_admin_created'  => ['email' => true,  'webhook' => true],
+
+            // File Integrity Monitoring (FIM)
+            'fim_core_file_modified'    => ['email' => true,  'webhook' => true],
+            'fim_plugin_theme_modified' => ['email' => true,  'webhook' => true],
+            'fim_suspicious_php_found'  => ['email' => true,  'webhook' => true],
+            'fim_auto_cure_applied'     => ['email' => true,  'webhook' => true],
+            'fim_baseline_refreshed'    => ['email' => false, 'webhook' => false],
+
+            // Vulnerabilities & Updates (CVE)
+            'vuln_core_cve_detected'    => ['email' => true,  'webhook' => true],
+            'vuln_plugin_theme_cve'     => ['email' => true,  'webhook' => true],
+            'vuln_abandoned_extension'  => ['email' => false, 'webhook' => false],
+            'vuln_feed_synced'          => ['email' => false, 'webhook' => false],
+
+            // Database Backups & Vault
+            'backup_db_completed'       => ['email' => true,  'webhook' => true],
+            'backup_db_failed'          => ['email' => true,  'webhook' => true],
+            'backup_db_restored'        => ['email' => true,  'webhook' => true],
+            'vault_quarantine_restored' => ['email' => true,  'webhook' => false],
+            'vault_quarantine_deleted'  => ['email' => false, 'webhook' => false],
+
+            // DevSecOps Webhooks & AI Forensics
+            'webhook_status_toggled'    => ['email' => false, 'webhook' => false],
+            'webhook_delivery_failed'   => ['email' => true,  'webhook' => false],
+            'ai_forensics_toggled'      => ['email' => false, 'webhook' => false],
+            'mcp_service_toggled'       => ['email' => false, 'webhook' => false],
         ];
     }
 
@@ -193,6 +260,22 @@ class SettingsManager {
         $clean = [];
         foreach ($defaults as $key => $default_val) {
             $clean[$key] = !empty($opts[$key]);
+        }
+        return $clean;
+    }
+
+    /**
+     * Sanitize granular notification events dictionary
+     */
+    public static function sanitize_notification_events(array $events): array {
+        $defaults = self::get_default_notification_events();
+        $clean = [];
+        foreach ($defaults as $key => $default_channels) {
+            $incoming = isset($events[$key]) && is_array($events[$key]) ? $events[$key] : [];
+            $clean[$key] = [
+                'email'   => isset($incoming['email']) ? !empty($incoming['email']) : ($default_channels['email'] ?? false),
+                'webhook' => isset($incoming['webhook']) ? !empty($incoming['webhook']) : ($default_channels['webhook'] ?? false),
+            ];
         }
         return $clean;
     }
@@ -510,6 +593,20 @@ class SettingsManager {
             $clean['custom_scan_options'] = $current['custom_scan_options'];
         } else {
             $clean['custom_scan_options'] = self::get_default_custom_scan_options();
+        }
+
+        // 16. Plugin Self-Defense
+        $clean['self_defense_watchdog_enabled'] = isset($input['self_defense_watchdog_enabled']) ? !empty($input['self_defense_watchdog_enabled']) : true;
+        $clean['self_defense_notify_email']     = isset($input['self_defense_notify_email']) ? !empty($input['self_defense_notify_email']) : true;
+
+        // 17. Granular Event Notifications Matrix
+        $clean['notification_master_enabled']   = isset($input['notification_master_enabled']) ? !empty($input['notification_master_enabled']) : true;
+        if (isset($input['notification_events']) && is_array($input['notification_events'])) {
+            $clean['notification_events'] = self::sanitize_notification_events($input['notification_events']);
+        } elseif (isset($current['notification_events']) && is_array($current['notification_events'])) {
+            $clean['notification_events'] = self::sanitize_notification_events($current['notification_events']);
+        } else {
+            $clean['notification_events'] = self::get_default_notification_events();
         }
 
         update_option(self::OPTION_KEY, $clean);

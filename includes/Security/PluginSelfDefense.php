@@ -246,23 +246,32 @@ class PluginSelfDefense {
         $audit = self::run_audit(true);
 
         if (!empty($audit['has_issues'])) {
-            // Dispatch alert email if enabled
-            if (!empty($settings['self_defense_notify_email'])) {
-                self::send_alert_email($audit);
+            // Dispatch granular events via NotificationDispatcher
+            if (!empty($audit['modified_count'])) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_tampered', [
+                    'severity' => 'critical',
+                    'message'  => sprintf(__('Plugin Self-Defense detected %d modified plugin file(s) with SHA256 checksum mismatches.', 'wcp-security-scanner'), $audit['modified_count']),
+                    'details'  => [
+                        'modified_count' => $audit['modified_count'],
+                        'sample_files'   => array_column(array_slice($audit['modified_files'], 0, 5), 'path'),
+                    ],
+                ]);
             }
 
-            // Dispatch webhook if enabled
-            if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
-                WebhookService::dispatch_alert('plugin_tamper_detected', [
-                    'title'    => 'WCP Security Scanner Self-Defense Alert',
+            if (!empty($audit['missing_count'])) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
                     'severity' => 'critical',
-                    'message'  => sprintf(
-                        'Plugin Self-Defense detected anomalies: %d missing files, %d modified files, %d untracked files.',
-                        $audit['missing_count'],
-                        $audit['modified_count'],
-                        $audit['untracked_count']
-                    ),
+                    'message'  => sprintf(__('Plugin Self-Defense detected %d missing or host-deleted plugin core file(s).', 'wcp-security-scanner'), $audit['missing_count']),
+                    'details'  => [
+                        'missing_count' => $audit['missing_count'],
+                        'sample_files'  => array_column(array_slice($audit['missing_files'], 0, 5), 'path'),
+                    ],
                 ]);
+            }
+
+            // Legacy alert fallback if self_defense_notify_email is on
+            if (!empty($settings['self_defense_notify_email'])) {
+                self::send_alert_email($audit);
             }
         }
     }

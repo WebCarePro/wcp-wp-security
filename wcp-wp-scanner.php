@@ -76,6 +76,20 @@ register_activation_hook(__FILE__, function () {
 });
 
 register_deactivation_hook(__FILE__, function () {
+    // Notify via NotificationDispatcher before cleaning up crons
+    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        $user = wp_get_current_user();
+        \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_deactivate_attempt', [
+            'severity' => 'high',
+            'message'  => sprintf(__('WCP Security Scanner was deactivated by user "%s".', 'wcp-security-scanner'), $user->user_login ?: 'system/cron'),
+            'details'  => [
+                'user_login' => $user->user_login ?: 'unknown',
+                'user_email' => $user->user_email ?: 'unknown',
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+            ],
+        ]);
+    }
+
     wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');
     wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
 });

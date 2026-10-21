@@ -161,6 +161,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: Notifications & Alerts
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Notifications & Security Alerts', 'wcp-security-scanner'),
+            __('Notifications', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-notifications',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Settings
         add_submenu_page(
             'wcp-security-scanner',
@@ -201,6 +211,7 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-firewall',
             'wcp-security-scanner_page_wcp-scanner-fim',
             'wcp-security-scanner_page_wcp-scanner-auth',
+            'wcp-security-scanner_page_wcp-scanner-notifications',
             'wcp-security-scanner_page_wcp-scanner-settings',
             'wcp-security-scanner_page_wcp-scanner-about',
             'security-scanner_page_wcp-scanner-scan',
@@ -215,6 +226,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-firewall',
             'security-scanner_page_wcp-scanner-fim',
             'security-scanner_page_wcp-scanner-auth',
+            'security-scanner_page_wcp-scanner-notifications',
             'security-scanner_page_wcp-scanner-settings',
             'security-scanner_page_wcp-scanner-about',
         ];
