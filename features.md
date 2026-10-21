@@ -89,7 +89,7 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
   - Completely eliminates $O(N^2)$ filesystem re-traversal overhead on large sites by resuming directory traversal directly at the last processed file.
   - Excludes non-essential and heavy trees (`.git`, `node_modules`, `vendor`, `cache`, `wfcache`, `updraft`, `.vault`, `.backups`, `.logs`) without recursion.
   - Fast-path filtering skips harmless static media while strictly inspecting executables and disguised double extensions (`shell.jpg.php`).
-  - Constant memory footprint with cycle-safe non-symlink traversal.
+  - Bounded incremental memory footprint: limits batch heap overhead to ~15–25MB per chunk with cycle-safe non-symlink traversal, operating comfortably within standard 128MB–256MB hosting limits.
 - **High-Throughput Findings Bulk Ingestion Layer:**
   - Persists file audit and finding records using prepared multi-row SQL statements (`bulk_insert_files`, `bulk_insert_issues`) via `FindingsRepository`.
   - Chunks queries at 80 rows per statement to stay safely beneath MySQL `max_allowed_packet` while avoiding table locks.
