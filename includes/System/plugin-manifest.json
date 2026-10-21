@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-20T23:47:13.766Z",
+  "generated_at": "2026-10-21T00:01:25.935Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -428,8 +428,8 @@
       "size": 41501
     },
     "uninstall.php": {
-      "sha256": "717e588044bff49173f22822d87743c9b280b912867d5c3f83ad541633bea6ba",
-      "size": 3426
+      "sha256": "f345d17452c527e9c1518ec9346586665e7e49d47f6904cdd53d16115035f797",
+      "size": 4471
     },
     "wcp-wp-scanner.php": {
       "sha256": "d2e4a067c4a743e5927c75262e3f0b56fb863353062c720d3f588bdb2f857851",
