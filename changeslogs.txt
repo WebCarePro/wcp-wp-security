@@ -3,8 +3,9 @@ v:1.22.0 - 2026-10-22
   * Automatic Smooth Viewport Scroll: When any targeted scan (Database Injection Audit, Uploads Quarantine Check, Theme Integrity Deep Scan, Plugin Vulnerabilities, Core Checksums, Privilege Escalation Check, Runtime Hook Infiltration) completes, the UI smoothly auto-scrolls the viewport directly to the Targeted Audit Results section.
   * Enhanced Results Container Anchor: Integrated `targetedResultRef` with standard viewport scroll-margin offsets for seamless positioning on both desktop and mobile viewports.
   * Release Workflow Requirement: Updated project agent instructions in `AGENTS.md` to mandate compiling and building the distribution ZIP package (`npm run package` -> `wcp-security-scanner.zip`) on every git push.
-- Admin Submenu Declutter & Deep-Link Navigation Architecture (`AdminMenu.php`, `FirewallPage.tsx`, `SettingsPage.tsx`):
+- Admin Submenu Declutter & Deep-Link Navigation Architecture (`AdminMenu.php`, `App.tsx`, `FirewallPage.tsx`, `SettingsPage.tsx`):
   * Uncluttered WordPress Sidebar: Removed standalone "WAF Logs" and "Notifications" items from the WordPress admin sidebar menu, registering them with `parent_slug: null` to maintain direct route fidelity while reducing menu clutter.
+  * Streamlined Header Bar: Removed the "Notifications" button from the plugin's top executive navigation header (leaving the core 4 tabs: Dashboard, Scan, Firewall, and Settings).
   * Contextual Firewall Hyperlink: Embedded high-contrast direct links to WAF Incident Logs & Forensics in the Firewall header actions and subtabs navigation bar.
   * Contextual Settings Hyperlink: Added direct access links to the 32+ Event Notification Center in the Settings page header action buttons and breadcrumb query toolbar.
 
