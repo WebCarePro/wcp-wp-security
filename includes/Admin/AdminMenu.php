@@ -107,6 +107,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Submenu: WAF Incident Logs & Telemetry
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
+            __('WAF Logs', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-waf-logs',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Submenu: Login Security & 2FA
         add_submenu_page(
             'wcp-security-scanner',
@@ -209,6 +219,7 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-server',
             'wcp-security-scanner_page_wcp-scanner-vulnerabilities',
             'wcp-security-scanner_page_wcp-scanner-firewall',
+            'wcp-security-scanner_page_wcp-scanner-waf-logs',
             'wcp-security-scanner_page_wcp-scanner-fim',
             'wcp-security-scanner_page_wcp-scanner-auth',
             'wcp-security-scanner_page_wcp-scanner-notifications',
@@ -224,6 +235,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-server',
             'security-scanner_page_wcp-scanner-vulnerabilities',
             'security-scanner_page_wcp-scanner-firewall',
+            'security-scanner_page_wcp-scanner-waf-logs',
             'security-scanner_page_wcp-scanner-fim',
             'security-scanner_page_wcp-scanner-auth',
             'security-scanner_page_wcp-scanner-notifications',
@@ -252,8 +264,10 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-server' || ($current_page === 'wcp-security-scanner' && $tab_param === 'server')) $active_tab = 'server';
         elseif ($current_page === 'wcp-scanner-vulnerabilities' || ($current_page === 'wcp-security-scanner' && $tab_param === 'vulnerabilities')) $active_tab = 'vulnerabilities';
         elseif ($current_page === 'wcp-scanner-firewall' || ($current_page === 'wcp-security-scanner' && $tab_param === 'firewall')) $active_tab = 'firewall';
+        elseif ($current_page === 'wcp-scanner-waf-logs' || ($current_page === 'wcp-security-scanner' && $tab_param === 'waf_logs')) $active_tab = 'waf_logs';
         elseif ($current_page === 'wcp-scanner-fim' || ($current_page === 'wcp-security-scanner' && $tab_param === 'fim')) $active_tab = 'fim';
         elseif ($current_page === 'wcp-scanner-auth' || ($current_page === 'wcp-security-scanner' && $tab_param === 'auth')) $active_tab = 'auth';
+        elseif ($current_page === 'wcp-scanner-notifications' || ($current_page === 'wcp-security-scanner' && $tab_param === 'notifications')) $active_tab = 'notifications';
         elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
 

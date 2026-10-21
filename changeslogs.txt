@@ -1,4 +1,14 @@
 v:1.21.0 - 2026-10-21
+- Dedicated WAF Incident Logs & Threat Intelligence Page (`WafLogsPage.tsx`, `FirewallEngine.php`, `ScannerRoutes.php`, `AdminMenu.php`, `App.tsx`, `FirewallPage.tsx`, `index.css`):
+  * Dedicated Submenu & Edge Route (`admin.php?page=wcp-scanner-waf-logs`): Added a full-page WAF logs forensics view accessible directly from the WordPress admin sidebar under "WAF Logs" and deep-linked from Firewall > Live Incident Stream.
+  * Real-Time Telemetry & Threat Metrics: Implemented 4 live KPI cards (Total Incursions Blocked, 24h Attack Surge, Distinct Attack IPs, Simulation/Learning mode hits) with auto-refresh polling controls.
+  * Threat Vector & Offender Analytics Grid: Added Top Attack Vectors visual breakdown with proportional percentage bars and a Frequent Offending Hostile IP Directory with hit counts, last seen timestamps, and 1-click Filter/Block actions.
+  * Multi-Field Search & Forensic Filtering: Implemented real-time search across IP addresses, target URIs, malicious payload signatures, and User-Agents, combined with category, action (Blocked vs Simulated), HTTP method, and page size filters.
+  * Expandable Forensic Deep-Dive Accordion: Added per-incident inspection view displaying rule trigger descriptions, raw User-Agent fingerprints, and syntax-highlighted malicious payload excerpts with 1-click JSON export.
+  * Export & Forensics Reporting: Integrated export tools to download filtered incident records as CSV (`.csv`), raw JSON (`.json`), or formatted printable audit reports (`window.print()`).
+  * Instant Perimeter Mitigation: Added 1-click "Block IP" (appends directly to `waf_blocked_ips` blocklist) and "Allow IP" actions directly from the forensic log table.
+  * Theme Adaptive Design System: Built fully compliant with Light Mode (`#ffffff`, `#f8fafc`, `#e2e8f0`, `#0f172a`) and Dark Mode (`#090d16`, `#0f172a`, `#1e293b`, `#f8fafc`), with high-contrast badge pills and responsive table layout.
+  * Solo Freelancer Identity: Authored with direct personal consultation linking to Mir Alamin and WebCare Pro.
 - Inline Expandable User Session Forensics (`AuthSecurityPage.tsx`, `UserSessionForensicsModal.tsx`, `index.css`):
   * In-Table Accordion Expansion: Replaced the detached fixed-overlay modal popup with seamless inline expandable rows directly below each administrator username in the Active Administrator Sessions directory table.
   * Direct Interactive Toggle: Clicking the user name or "Forensics" pill now expands or collapses the forensic audit panel in place (`Hide Forensics` / `Forensics`), completely eliminating viewport overlaps with the top header bar and admin notices.

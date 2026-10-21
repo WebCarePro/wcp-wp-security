@@ -336,6 +336,28 @@ class FirewallEngine {
             return;
         }
 
+        // Check custom user IP blocklist
+        if (!empty($settings['waf_blocked_ips']) && self::is_ip_blocked($client_ip, $settings['waf_blocked_ips'])) {
+            $rule_triggered = [
+                'id'          => 'USER-CUSTOM-IP-BLOCK',
+                'name'        => 'Custom Administrator IP Blocklist',
+                'category'    => 'Custom IP Blocklist',
+                'description' => 'Connection blocked by administrator-defined custom IP rule.',
+                'match_type'  => 'Custom Blocklist',
+                'match_value' => $client_ip,
+                'payload'     => $client_ip,
+            ];
+
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($rule_triggered, 'detected');
+            } else {
+                self::log_incident($rule_triggered, 'blocked');
+                self::render_block_page($rule_triggered, $client_ip);
+                exit;
+            }
+        }
+
         // Check Cloud Threat Intelligence Botnet / Malicious IP Blacklist
         if (!empty($settings['threat_intel_enabled']) && !empty($settings['threat_intel_block_blacklisted_ips'])) {
             if (ThreatIntelService::is_ip_blacklisted($client_ip)) {
@@ -551,6 +573,32 @@ class FirewallEngine {
         }
 
         $lines = explode("\n", str_replace("\r", "", $whitelist_str));
+        foreach ($lines as $line) {
+            $clean = trim($line);
+            if ($clean === '') {
+                continue;
+            }
+            if ($clean === $ip) {
+                return true;
+            }
+            // Simple CIDR / subnet support
+            if (strpos($clean, '/') !== false && self::ip_in_range($ip, $clean)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if an IP is in the user-defined blocklist
+     */
+    public static function is_ip_blocked(string $ip, string $blocklist_str): bool {
+        if (empty($blocklist_str)) {
+            return false;
+        }
+
+        $lines = explode("\n", str_replace("\r", "", $blocklist_str));
         foreach ($lines as $line) {
             $clean = trim($line);
             if ($clean === '') {
@@ -1080,22 +1128,171 @@ class FirewallEngine {
     }
 
     /**
-     * Get recent blocked logs
+     * Get recent blocked logs with optional filtering, search, pagination, and category filters
      */
-    public static function get_logs(int $limit = 50): array {
+    public static function get_logs(int $limit = 50, int $offset = 0, array $filters = []): array {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if (!$table_exists) {
-            return [];
+            return [
+                'logs'        => [],
+                'total'       => 0,
+                'page'        => 1,
+                'total_pages' => 1,
+            ];
         }
 
-        $limit = max(1, min(200, $limit));
-        return $wpdb->get_results(
-            $wpdb->prepare("SELECT * FROM `{$table}` ORDER BY id DESC LIMIT %d", $limit),
+        $limit = max(1, min(500, $limit));
+        $offset = max(0, $offset);
+
+        $where_clauses = ['1=1'];
+        $where_params = [];
+
+        // Search IP or URI or Payload
+        if (!empty($filters['search'])) {
+            $like = '%' . $wpdb->esc_like(trim($filters['search'])) . '%';
+            $where_clauses[] = "(ip_address LIKE %s OR request_uri LIKE %s OR rule_description LIKE %s OR payload_sample LIKE %s OR user_agent LIKE %s)";
+            $where_params[] = $like;
+            $where_params[] = $like;
+            $where_params[] = $like;
+            $where_params[] = $like;
+            $where_params[] = $like;
+        }
+
+        // Filter by rule category
+        if (!empty($filters['category']) && $filters['category'] !== 'all') {
+            $where_clauses[] = "rule_category = %s";
+            $where_params[] = sanitize_text_field($filters['category']);
+        }
+
+        // Filter by action taken (blocked vs detected)
+        if (!empty($filters['action']) && $filters['action'] !== 'all') {
+            $where_clauses[] = "action_taken = %s";
+            $where_params[] = sanitize_text_field($filters['action']);
+        }
+
+        // Filter by HTTP method
+        if (!empty($filters['method']) && $filters['method'] !== 'all') {
+            $where_clauses[] = "request_method = %s";
+            $where_params[] = sanitize_text_field($filters['method']);
+        }
+
+        // Filter by specific IP
+        if (!empty($filters['ip'])) {
+            $where_clauses[] = "ip_address = %s";
+            $where_params[] = sanitize_text_field($filters['ip']);
+        }
+
+        $where_sql = implode(' AND ', $where_clauses);
+
+        // Count total matching
+        $count_sql = "SELECT COUNT(*) FROM `{$table}` WHERE {$where_sql}";
+        if (!empty($where_params)) {
+            $count_sql = $wpdb->prepare($count_sql, ...$where_params);
+        }
+        $total = (int) $wpdb->get_var($count_sql);
+
+        // Fetch paginated results
+        $data_sql = "SELECT * FROM `{$table}` WHERE {$where_sql} ORDER BY id DESC LIMIT %d OFFSET %d";
+        $data_params = array_merge($where_params, [$limit, $offset]);
+        $rows = $wpdb->get_results($wpdb->prepare($data_sql, ...$data_params), ARRAY_A) ?: [];
+
+        $page = (int) floor($offset / $limit) + 1;
+        $total_pages = max(1, (int) ceil($total / $limit));
+
+        return [
+            'logs'        => $rows,
+            'total'       => $total,
+            'page'        => $page,
+            'total_pages' => $total_pages,
+            'limit'       => $limit,
+            'offset'      => $offset,
+        ];
+    }
+
+    /**
+     * Get aggregate statistics and metrics for WAF logs dashboard
+     */
+    public static function get_log_stats(): array {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+        if (!$table_exists) {
+            return [
+                'total_intercepted' => 0,
+                'blocked_24h'       => 0,
+                'detected_learning' => 0,
+                'unique_attack_ips' => 0,
+                'top_categories'    => [],
+                'top_ips'           => [],
+                'top_targets'       => [],
+                'methods_breakdown' => [],
+                'hourly_trend'      => [],
+            ];
+        }
+
+        $total_intercepted = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}`");
+        $blocked_24h       = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+        $detected_learning = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'detected'");
+        $unique_attack_ips = (int) $wpdb->get_var("SELECT COUNT(DISTINCT ip_address) FROM `{$table}`");
+
+        // Top Attack Categories
+        $top_categories = $wpdb->get_results(
+            "SELECT rule_category, COUNT(*) as count FROM `{$table}` GROUP BY rule_category ORDER BY count DESC LIMIT 8",
             ARRAY_A
         ) ?: [];
+
+        // Top Offending IPs
+        $top_ips = $wpdb->get_results(
+            "SELECT ip_address, COUNT(*) as count, MAX(created_at) as last_seen, rule_category as primary_reason FROM `{$table}` GROUP BY ip_address ORDER BY count DESC LIMIT 10",
+            ARRAY_A
+        ) ?: [];
+
+        // Top Targeted Endpoints
+        $top_targets = $wpdb->get_results(
+            "SELECT request_uri, COUNT(*) as count FROM `{$table}` GROUP BY request_uri ORDER BY count DESC LIMIT 8",
+            ARRAY_A
+        ) ?: [];
+
+        // HTTP Methods Breakdown
+        $methods_breakdown = $wpdb->get_results(
+            "SELECT request_method, COUNT(*) as count FROM `{$table}` GROUP BY request_method ORDER BY count DESC",
+            ARRAY_A
+        ) ?: [];
+
+        // 24-hour volume trend by hour
+        $hourly_trend = $wpdb->get_results(
+            "SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_slot, COUNT(*) as count 
+             FROM `{$table}` 
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) 
+             GROUP BY hour_slot 
+             ORDER BY hour_slot ASC",
+            ARRAY_A
+        ) ?: [];
+
+        return [
+            'total_intercepted' => $total_intercepted,
+            'blocked_24h'       => $blocked_24h,
+            'detected_learning' => $detected_learning,
+            'unique_attack_ips' => $unique_attack_ips,
+            'top_categories'    => $top_categories,
+            'top_ips'           => $top_ips,
+            'top_targets'       => $top_targets,
+            'methods_breakdown' => $methods_breakdown,
+            'hourly_trend'      => $hourly_trend,
+        ];
+    }
+
+    /**
+     * Delete a single firewall incident log row
+     */
+    public static function delete_log(int $id): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        return (bool) $wpdb->delete($table, ['id' => $id], ['%d']);
     }
 
     /**
@@ -1106,4 +1303,47 @@ class FirewallEngine {
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
         return (bool) $wpdb->query("TRUNCATE TABLE `{$table}`");
     }
+
+    /**
+     * Add IP to custom blocklist
+     */
+    public static function add_blocked_ip(string $ip): bool {
+        $ip = trim($ip);
+        if (!filter_var($ip, FILTER_VALIDATE_IP) && strpos($ip, '/') === false) {
+            return false;
+        }
+
+        $settings = SettingsManager::get_settings();
+        $current = trim($settings['waf_blocked_ips'] ?? '');
+        $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $current))));
+
+        if (!in_array($ip, $lines, true)) {
+            $lines[] = $ip;
+            $settings['waf_blocked_ips'] = implode("\n", $lines);
+            SettingsManager::save_settings($settings);
+        }
+        return true;
+    }
+
+    /**
+     * Add IP to custom whitelist
+     */
+    public static function add_whitelisted_ip(string $ip): bool {
+        $ip = trim($ip);
+        if (!filter_var($ip, FILTER_VALIDATE_IP) && strpos($ip, '/') === false) {
+            return false;
+        }
+
+        $settings = SettingsManager::get_settings();
+        $current = trim($settings['waf_whitelisted_ips'] ?? '');
+        $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $current))));
+
+        if (!in_array($ip, $lines, true)) {
+            $lines[] = $ip;
+            $settings['waf_whitelisted_ips'] = implode("\n", $lines);
+            SettingsManager::save_settings($settings);
+        }
+        return true;
+    }
 }
+

@@ -343,6 +343,30 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/firewall/logs/stats', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_log_stats'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs/delete', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'delete_firewall_log'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs/block-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'add_firewall_blocked_ip'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs/whitelist-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'add_firewall_whitelisted_ip'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/firewall/clear-logs', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'clear_firewall_logs'],
@@ -4610,9 +4634,68 @@ class ScannerRoutes {
     }
 
     public static function get_firewall_logs(\WP_REST_Request $request) {
-        $limit = (int) ($request->get_param('limit') ?: 50);
+        $limit   = (int) ($request->get_param('limit') ?: 50);
+        $offset  = (int) ($request->get_param('offset') ?: 0);
+        $search   = sanitize_text_field((string) ($request->get_param('search') ?: ''));
+        $category = sanitize_text_field((string) ($request->get_param('category') ?: ''));
+        $action   = sanitize_text_field((string) ($request->get_param('action') ?: ''));
+        $method   = sanitize_text_field((string) ($request->get_param('method') ?: ''));
+        $ip       = sanitize_text_field((string) ($request->get_param('ip') ?: ''));
+
+        $filters = array_filter([
+            'search'   => $search,
+            'category' => $category,
+            'action'   => $action,
+            'method'   => $method,
+            'ip'       => $ip,
+        ]);
+
+        $res = \WcpScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);
+        return rest_ensure_response($res);
+    }
+
+    public static function get_firewall_log_stats() {
         return rest_ensure_response([
-            'logs' => \WcpScanner\Firewall\FirewallEngine::get_logs($limit),
+            'stats' => \WcpScanner\Firewall\FirewallEngine::get_log_stats(),
+        ]);
+    }
+
+    public static function delete_firewall_log(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $id = (int) ($params['id'] ?? 0);
+        if ($id <= 0) {
+            return new \WP_Error('invalid_id', 'Valid log ID is required', ['status' => 400]);
+        }
+        $deleted = \WcpScanner\Firewall\FirewallEngine::delete_log($id);
+        return rest_ensure_response([
+            'success' => $deleted,
+            'message' => $deleted ? 'Log entry deleted successfully.' : 'Failed to delete log entry.',
+        ]);
+    }
+
+    public static function add_firewall_blocked_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field(trim($params['ip'] ?? ''));
+        if (empty($ip)) {
+            return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
+        }
+        $added = \WcpScanner\Firewall\FirewallEngine::add_blocked_ip($ip);
+        return rest_ensure_response([
+            'success' => $added,
+            'message' => $added ? sprintf('IP %s added to custom WAF blocklist.', $ip) : 'Failed to add IP.',
+        ]);
+    }
+
+    public static function add_firewall_whitelisted_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field(trim($params['ip'] ?? ''));
+        if (empty($ip)) {
+            return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
+        }
+        $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip);
+        return rest_ensure_response([
+            'success' => $added,
+            'message' => $added ? sprintf('IP %s added to trusted WAF allowlist.', $ip) : 'Failed to whitelist IP.',
         ]);
     }
 
