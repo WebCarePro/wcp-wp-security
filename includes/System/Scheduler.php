@@ -410,7 +410,61 @@ class Scheduler {
         $logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
         $sev_badge_color = ($critical_count > 0 || $high_count > 0) ? '#dc2626' : '#10b981';
 
-        $body = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;background-color:#f1f5f9;margin:0;padding:28px 12px;color:#0f172a;'>";
+        // Generate AI-ready preheader text (single-line executive brief)
+        $ai_summary_line = sprintf(
+            'Security Scan #%d completed for %s. Risk Score: %d/100. Critical Threats: %d. Total Findings: %d. Action: %s.',
+            $scan_id,
+            $site_name,
+            $risk_score,
+            $critical_count,
+            $total_issues,
+            $critical_count > 0 ? 'Immediate administrative remediation required in WCP Security Dashboard' : 'No critical intervention required; baseline secured'
+        );
+
+        // Schema.org / JSON-LD security audit report
+        $json_ld = [
+            '@context'         => 'https://schema.org',
+            '@type'            => 'SecurityAssessment',
+            'name'             => "WCP Security Scan #{$scan_id}",
+            'description'      => $ai_summary_line,
+            'datePublished'    => gmdate('Y-m-d H:i:s') . ' GMT',
+            'about'            => [
+                '@type' => 'WebSite',
+                'name'  => $site_name,
+                'url'   => $site_url,
+            ],
+            'publisher'        => [
+                '@type' => 'Organization',
+                'name'  => 'WebCare Pro',
+                'url'   => 'https://webcarespro.com',
+            ],
+            'assessmentResult' => [
+                'riskScore'       => $risk_score,
+                'criticalThreats' => $critical_count,
+                'highThreats'     => $high_count,
+                'totalFindings'   => $total_issues,
+            ],
+            'potentialAction'  => [
+                '@type'  => 'ViewAction',
+                'name'   => 'View Scan Forensic Report',
+                'target' => $admin_url,
+            ],
+        ];
+        $json_ld_string = wp_json_encode($json_ld, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+
+        $body = "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+        $body .= "<meta name='description' content='" . esc_attr($ai_summary_line) . "'>";
+        $body .= "<meta name='wcp-risk-score' content='" . esc_attr((string)$risk_score) . "'>";
+        $body .= "<meta name='wcp-critical-threats' content='" . esc_attr((string)$critical_count) . "'>";
+        $body .= "<script type='application/ld+json'>{$json_ld_string}</script>";
+        $body .= "</head><body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;background-color:#f1f5f9;margin:0;padding:28px 12px;color:#0f172a;'>";
+
+        // Hidden AI & Email Client Preheader
+        $body .= "<div style='display:none;font-size:1px;color:#f1f5f9;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;'>";
+        $body .= esc_html($ai_summary_line);
+        $body .= " &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy;";
+        $body .= "</div>";
+
         $body .= "<div style='max-width:620px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 10px 25px -5px rgba(15,23,42,0.08);'>";
         
         // Header matching brand
@@ -428,6 +482,16 @@ class Scheduler {
 
         // Body Metrics
         $body .= "<div style='padding:32px 32px 28px 32px;background:#ffffff;'>";
+
+        // AI Summary Quick-Glance Callout
+        $body .= "<div style='background:linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(99, 102, 241, 0.03) 100%);border:1px solid rgba(79, 70, 229, 0.2);border-radius:10px;padding:14px 18px;margin-bottom:24px;'>";
+        $body .= "<div style='display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;color:#4338ca;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;'>";
+        $body .= "⚡ AI Executive Incident Brief";
+        $body .= "</div>";
+        $body .= "<div style='font-size:13.5px;color:#1e293b;line-height:1.5;font-weight:500;'>";
+        $body .= esc_html($ai_summary_line);
+        $body .= "</div>";
+        $body .= "</div>";
         $body .= "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px;'>";
         $body .= "<div style='background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;text-align:center;'>";
         $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;'>Risk Score</div>";

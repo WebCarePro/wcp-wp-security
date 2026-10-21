@@ -521,7 +521,58 @@ class NotificationDispatcher {
         // Logo URL as requested: siteurl.tld/wp-content/plugins/wcp-security-scanner/assets/logo.png
         $logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
 
-        $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; background-color: #f1f5f9; margin: 0; padding: 28px 12px;">';
+        // Generate AI-ready preheader text (single-line executive brief)
+        $ai_summary_line = sprintf(
+            '%s security alert for %s: %s. Event: %s. Time: %s. Action required: Inspect findings in WCP Security Dashboard.',
+            $severity,
+            $site_name,
+            $title,
+            $payload['event_key'] ?? 'security_event',
+            $time
+        );
+
+        // Build Schema.org / JSON-LD machine-readable envelope
+        $json_ld = [
+            '@context'         => 'https://schema.org',
+            '@type'            => 'SecurityIncident',
+            'name'             => $title,
+            'description'      => $message,
+            'severity'         => $severity,
+            'eventCode'        => $payload['event_key'] ?? 'security_event',
+            'datePublished'    => $time,
+            'about'            => [
+                '@type' => 'WebSite',
+                'name'  => $site_name,
+                'url'   => $site_url,
+            ],
+            'publisher'        => [
+                '@type' => 'Organization',
+                'name'  => 'WebCare Pro',
+                'url'   => 'https://webcarespro.com',
+            ],
+            'diagnosticDetails' => $payload['details'] ?? [],
+            'potentialAction'  => [
+                '@type'  => 'ViewAction',
+                'name'   => 'Review Security Incident in Dashboard',
+                'target' => $dash_url,
+            ],
+        ];
+        $json_ld_string = wp_json_encode($json_ld, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+
+        $html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">';
+        $html .= '<meta name="description" content="' . esc_attr($ai_summary_line) . '">';
+        $html .= '<meta name="wcp-security-severity" content="' . esc_attr($severity) . '">';
+        $html .= '<meta name="wcp-event-code" content="' . esc_attr($payload['event_key'] ?? '') . '">';
+        $html .= '<meta name="wcp-site-url" content="' . esc_attr($site_url) . '">';
+        $html .= '<script type="application/ld+json">' . $json_ld_string . '</script>';
+        $html .= '</head><body style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; background-color: #f1f5f9; margin: 0; padding: 28px 12px;">';
+
+        // Hidden AI & Email Client Preheader (Zero visible footprint, immediately captured by AI models & email client preview panes)
+        $html .= '<div style="display:none;font-size:1px;color:#f1f5f9;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">';
+        $html .= esc_html($ai_summary_line);
+        $html .= ' &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy; &#847; &zwnj; &nbsp; &#8199; &shy;';
+        $html .= '</div>';
+
         $html .= '<div style="max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08);">';
         
         // Header matching screenshot: Dark Obsidian background (#0b1120 / #0f172a), subtle top blue highlight, pill badge with shield icon, large brand logo, title & subtitle
@@ -552,6 +603,17 @@ class NotificationDispatcher {
 
         // Body Content
         $html .= '<div style="padding: 32px 32px 28px 32px; background: #ffffff;">';
+
+        // AI Summary Quick-Glance Callout (Structured semantic box)
+        $html .= '<div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(99, 102, 241, 0.03) 100%); border: 1px solid rgba(79, 70, 229, 0.2); border-radius: 10px; padding: 14px 18px; margin-bottom: 22px;">';
+        $html .= '<div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; color: #4338ca; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">';
+        $html .= '⚡ AI Executive Incident Brief';
+        $html .= '</div>';
+        $html .= '<div style="font-size: 13.5px; color: #1e293b; line-height: 1.5; font-weight: 500;">';
+        $html .= esc_html($ai_summary_line);
+        $html .= '</div>';
+        $html .= '</div>';
+
         $html .= '<p style="font-size: 15px; color: #334155; margin-top: 0; line-height: 1.6;">' . nl2br(esc_html($message)) . '</p>';
 
         if (!empty($payload['details']) && is_array($payload['details'])) {
