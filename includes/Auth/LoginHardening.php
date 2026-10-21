@@ -31,6 +31,10 @@ class LoginHardening {
 
         // Reset failed attempt count on successful login
         add_action('wp_login', [__CLASS__, 'record_successful_login'], 10, 2);
+
+        // Real-time Rogue Admin & Elevated Privilege Monitor
+        add_action('user_register', [__CLASS__, 'on_user_registered']);
+        add_action('set_user_role', [__CLASS__, 'on_user_role_changed'], 10, 3);
     }
 
     /**
@@ -232,5 +236,50 @@ class LoginHardening {
             'total_locked' => count($locked),
             'locked_ips'   => array_values($locked),
         ];
+    }
+
+    /**
+     * Hook: Detect newly registered Administrator accounts
+     */
+    public static function on_user_registered($user_id): void {
+        $user = get_userdata($user_id);
+        if ($user && in_array('administrator', (array) $user->roles, true)) {
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
+                    'severity' => 'critical',
+                    'message'  => sprintf(__('A new user account with Administrator privileges was registered: "%s" (%s).', 'wcp-security-scanner'), $user->user_login, $user->user_email),
+                    'details'  => [
+                        'user_id'    => $user_id,
+                        'user_login' => $user->user_login,
+                        'user_email' => $user->user_email,
+                        'created_at' => current_time('mysql'),
+                        'ip_address' => FirewallEngine::get_client_ip(),
+                    ],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Hook: Detect user privilege escalation to Administrator
+     */
+    public static function on_user_role_changed($user_id, $role, $old_roles): void {
+        if ($role === 'administrator' && !in_array('administrator', (array) $old_roles, true)) {
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                $user = get_userdata($user_id);
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
+                    'severity' => 'critical',
+                    'message'  => sprintf(__('Existing user "%s" was promoted to Administrator role.', 'wcp-security-scanner'), $user ? $user->user_login : 'user #' . $user_id),
+                    'details'  => [
+                        'user_id'    => $user_id,
+                        'user_login' => $user ? $user->user_login : 'user_' . $user_id,
+                        'old_roles'  => implode(', ', (array) $old_roles),
+                        'new_role'   => $role,
+                        'promoted_at'=> current_time('mysql'),
+                        'ip_address' => FirewallEngine::get_client_ip(),
+                    ],
+                ]);
+            }
+        }
     }
 }

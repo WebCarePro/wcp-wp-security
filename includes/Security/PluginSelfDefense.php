@@ -44,6 +44,43 @@ class PluginSelfDefense {
         $manifest = self::get_baseline_manifest();
         $plugin_dir = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
 
+        // If authoritative manifest is missing or empty, flag critical tamper state
+        if (empty($manifest)) {
+            $audit_result = [
+                'success'          => false,
+                'status'           => 'compromised',
+                'has_issues'       => true,
+                'checked_at'       => current_time('mysql'),
+                'timestamp'        => time(),
+                'total_tracked'    => 0,
+                'verified_count'   => 0,
+                'missing_count'    => 1,
+                'modified_count'   => 0,
+                'untracked_count'  => 0,
+                'missing_files'    => [[
+                    'path'          => 'includes/System/plugin-manifest.json',
+                    'status'        => 'missing',
+                    'expected_size' => 0,
+                    'severity'      => 'critical',
+                    'detail'        => __('Authoritative release manifest is missing or unreadable. Plugin self-defense integrity cannot be verified.', 'wcp-security-scanner'),
+                ]],
+                'modified_files'   => [],
+                'untracked_files'  => [],
+                'plugin_version'   => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.21.0',
+            ];
+            update_option(self::DB_LAST_AUDIT_OPTION, $audit_result, false);
+
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('defense_tamper_detected', [
+                    'severity' => 'critical',
+                    'message'  => __('CRITICAL: Authoritative plugin self-defense manifest is missing or unreadable.', 'wcp-security-scanner'),
+                    'details'  => ['file' => 'includes/System/plugin-manifest.json'],
+                ]);
+            }
+
+            return $audit_result;
+        }
+
         $missing_files  = [];
         $modified_files = [];
         $untracked_files = [];
@@ -134,16 +171,16 @@ class PluginSelfDefense {
             }
         }
 
-        // Fallback to database baseline
+        // Fallback to cached verified database baseline if available
         $stored = get_option(self::DB_HASHES_OPTION, []);
         if (is_array($stored) && !empty($stored)) {
             return $stored;
         }
 
-        // Emergency dynamic fallback: if no manifest file exists yet, generate baseline from active clean files
-        $generated = self::generate_local_manifest();
-        update_option(self::DB_HASHES_OPTION, $generated, false);
-        return $generated;
+        // Authoritative security rule: Shipped plugin-manifest.json is required.
+        // Never dynamically baseline from a live potentially compromised disk in runtime.
+        error_log('[WCP Security] CRITICAL: Authoritative plugin-manifest.json is missing or corrupted.');
+        return [];
     }
 
     /**

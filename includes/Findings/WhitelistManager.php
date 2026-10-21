@@ -222,22 +222,20 @@ class WhitelistManager {
             return 0;
         }
 
-        $norm_target = wp_normalize_path($file_path);
+        $norm_target = strtolower(trim(wp_normalize_path($file_path)));
         $revoked_count = 0;
         $updated = [];
 
         foreach ($rules as $rule) {
-            $rule_norm = wp_normalize_path($rule['target_path'] ?? '');
+            $rule_norm = strtolower(trim(wp_normalize_path($rule['target_path'] ?? '')));
             
-            // Check path match (exact, relative, or ends-with match)
+            // Check path match (exact, relative, or directory-boundary suffix match)
             $is_path_match = false;
             if (!empty($norm_target) && !empty($rule_norm)) {
                 $is_path_match = (
                     $norm_target === $rule_norm ||
                     str_ends_with($norm_target, '/' . ltrim($rule_norm, '/')) ||
-                    str_ends_with($rule_norm, '/' . ltrim($norm_target, '/')) ||
-                    str_ends_with($norm_target, ltrim($rule_norm, '/')) ||
-                    str_ends_with($rule_norm, ltrim($norm_target, '/'))
+                    str_ends_with($rule_norm, '/' . ltrim($norm_target, '/'))
                 );
             }
 
@@ -261,9 +259,10 @@ class WhitelistManager {
      * Test whether a specific finding matches an active whitelist rule.
      *
      * @param array $finding
+     * @param array|null $hash_cache Optional memoization cache array [path => sha256] passed by reference
      * @return array|null Returns matching rule if whitelisted, null otherwise.
      */
-    public static function match_finding(array $finding): ?array {
+    public static function match_finding(array $finding, ?array &$hash_cache = null): ?array {
         $active_rules = self::get_whitelist_rules(true);
         if (empty($active_rules)) {
             return null;
@@ -275,9 +274,16 @@ class WhitelistManager {
 
         $current_hash = '';
         if (!empty($path)) {
-            $abs = self::resolve_file_path($path);
-            if ($abs && file_exists($abs) && is_file($abs)) {
-                $current_hash = hash_file('sha256', $abs);
+            if ($hash_cache !== null && isset($hash_cache[$path])) {
+                $current_hash = $hash_cache[$path];
+            } else {
+                $abs = self::resolve_file_path($path);
+                if ($abs && file_exists($abs) && is_file($abs)) {
+                    $current_hash = hash_file('sha256', $abs);
+                }
+                if ($hash_cache !== null) {
+                    $hash_cache[$path] = $current_hash;
+                }
             }
         }
 
@@ -313,11 +319,9 @@ class WhitelistManager {
                         return $rule;
                     }
 
-                    // Suffix / Relative path matching (e.g. /var/www/html/wp-content/... vs wp-content/...)
+                    // Controlled directory boundary matching (e.g. /var/www/html/wp-content/... vs wp-content/...)
+                    // Must start after a path separator ('/') to prevent over-matching (e.g. not_evil.php matching evil.php)
                     if (str_ends_with($norm_p1, '/' . ltrim($norm_p2, '/')) || str_ends_with($norm_p2, '/' . ltrim($norm_p1, '/'))) {
-                        return $rule;
-                    }
-                    if (str_ends_with($norm_p1, ltrim($norm_p2, '/')) || str_ends_with($norm_p2, ltrim($norm_p1, '/'))) {
                         return $rule;
                     }
 

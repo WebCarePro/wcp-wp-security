@@ -40,7 +40,11 @@ class FindingsRepository {
 
             $sql = "INSERT INTO {$table} (scan_id, file_path, file_size, status, scanned_at) VALUES " . implode(', ', $placeholders);
             $prepared = $wpdb->prepare($sql, $values);
-            $wpdb->query($prepared);
+            $res = $wpdb->query($prepared);
+
+            if ($res === false && !empty($wpdb->last_error)) {
+                error_log(sprintf('[WCP Security] Error bulk-inserting files into %s: %s', $table, $wpdb->last_error));
+            }
         }
     }
 
@@ -58,6 +62,7 @@ class FindingsRepository {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_scan_issues';
         $now = current_time('mysql');
+        $batch_hash_cache = [];
 
         foreach (array_chunk($rows, self::MAX_ROWS_PER_QUERY) as $chunk) {
             $placeholders = [];
@@ -81,7 +86,7 @@ class FindingsRepository {
                 $status = (string) ($row['status'] ?? '');
                 if (empty($status) || $status === 'open') {
                     if (class_exists('\\WcpScanner\\Findings\\WhitelistManager')) {
-                        $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($row);
+                        $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($row, $batch_hash_cache);
                         $status = ($matched_rule !== null) ? 'ignored' : 'open';
                     } else {
                         $status = 'open';
@@ -94,7 +99,11 @@ class FindingsRepository {
 
             $sql = "INSERT INTO {$table} (scan_id, engine, type, severity, confidence, file_path, line_number, code_snippet, evidence, description, status, created_at) VALUES " . implode(', ', $placeholders);
             $prepared = $this->prepare_with_nulls($sql, $values);
-            $wpdb->query($prepared);
+            $res = $wpdb->query($prepared);
+
+            if ($res === false && !empty($wpdb->last_error)) {
+                error_log(sprintf('[WCP Security] Error bulk-inserting issues into %s: %s', $table, $wpdb->last_error));
+            }
         }
     }
 
@@ -108,11 +117,14 @@ class FindingsRepository {
 
     /**
      * Safely prepare SQL queries containing nullable values with $wpdb->prepare.
+     * WordPress's $wpdb->prepare lacks native nullable binding syntax for string placeholders (%s),
+     * rendering NULL as empty string ''. This method safely replaces a unique, non-colliding token with literal NULL.
      */
     private function prepare_with_nulls(string $sql, array $values): string {
         global $wpdb;
 
-        $token = '##WCP_SQL_NULL##';
+        // Unique session token to avoid any conceivable collision with scanned source text
+        $token = '##WCP_SQL_NULL_' . md5(__FILE__) . '##';
         $safe_values = [];
 
         foreach ($values as $v) {

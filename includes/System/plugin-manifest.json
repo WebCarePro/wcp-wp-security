@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-21T04:01:59.988Z",
+  "generated_at": "2026-10-21T04:29:30.537Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -72,8 +72,8 @@
       "size": 336810
     },
     "includes/Auth/LoginHardening.php": {
-      "sha256": "38ab0b77050b36ecb4c9b4b4198fefcd0bc2e2f6497709fc196bd2a38b4c23ef",
-      "size": 8713
+      "sha256": "d74c49718eed656ce089f633201e6e415b078922651da50bc59d3f84fbec3436",
+      "size": 11305
     },
     "includes/Auth/LoginHistoryManager.php": {
       "sha256": "e82e3c1eb0eb81b3f336b847f7ab0ce28e76e6404efe4eabd4ec97e7811da610",
@@ -192,16 +192,16 @@
       "size": 2571
     },
     "includes/Findings/FindingsRepository.php": {
-      "sha256": "58ecd6c95322fa739029c1a1629427175c1759e6a9fa6da883213e98fe7fa7ac",
-      "size": 5015
+      "sha256": "ceaba02951a3735d1192a524040bc84e54bf16b2850dd4c6df736a448e83b365",
+      "size": 5823
     },
     "includes/Findings/RiskScorer.php": {
       "sha256": "08d7050e31d2b7ed173f02619765cdc248ca2cf751d701e8421206e89eec944d",
       "size": 3060
     },
     "includes/Findings/WhitelistManager.php": {
-      "sha256": "0ac5990859aa68758b7088649ea35c663ceae14b5f3388ce51585fc335a96fc5",
-      "size": 14308
+      "sha256": "84eb3a74922663d578396fc26fcf0390e8b0ed7e3dd9752facf5ebf7af0b26db",
+      "size": 14586
     },
     "includes/Firewall/BotReconDefense.php": {
       "sha256": "cf264c65548dd5322a8f785809075e57a0c914a9f333d03faad1945b69287111",
@@ -296,8 +296,8 @@
       "size": 32210
     },
     "includes/Plugin.php": {
-      "sha256": "8901569a46405c8cda3cb2e445fbb766b743038fe0a886693a6c9c172d9aa04c",
-      "size": 5577
+      "sha256": "8e87299705f5db15816eded5860e25b05f996c5077e105e14c345d024cdc4065",
+      "size": 2334
     },
     "includes/Quarantine/CoreRepairManager.php": {
       "sha256": "b07003c796a8f65d783113ee8653a4ec7bf9fe17fb21f5da174bd4112a57bd43",
@@ -348,8 +348,8 @@
       "size": 4405
     },
     "includes/Security/PluginSelfDefense.php": {
-      "sha256": "65c5efe5100b4e5d1a9aa1c31734a7fd214648181b0f6d1bcc15b11e72c30f7f",
-      "size": 15926
+      "sha256": "16e5cc6e0a995714fdbee9c8505bad5c3638af797742c898fb26d7f33a1e5320",
+      "size": 17873
     },
     "includes/Security/SecretVault.php": {
       "sha256": "db225b272b57bbfd92a022c5ef22b4537fd2ec86ed0d259e4df4fa716310c664",
