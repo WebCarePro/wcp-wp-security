@@ -10,8 +10,9 @@ v:1.21.0 - 2026-10-21
     6. Vulnerabilities & CVE Feeds (core unpatched CVEs, plugin/theme vulnerability advisories, abandoned plugins, threat intel sync).
     7. Database Backups & Vault (backup completed, backup failed, database restored, quarantine restored to filesystem, quarantine purged).
     8. DevSecOps & AI Forensics (webhook channel toggled, webhook delivery HTTP failures, AI forensics engine status, MCP agent surface status).
+  * Granular Default Notification Baseline: Configured default notification preferences so that by default only two essential, high-priority events are activated: "Plugin Deactivated" (`plugin_deactivate_attempt`) and "Critical / High Threats Detected" (`scan_threats_found`), while all other 30+ operational and diagnostic events start cleanly turned off until customized by the administrator.
   * Instant Per-Event Delivery Testing: Added interactive "Test" buttons on each security event to trigger immediate verification alerts via REST API (`/notifications/test-event`).
-  * Quick Presets: Added 1-click configuration presets ("DevSecOps Recommended", "Minimalist Security", "Enable All", "Disable All").
+  * Quick Presets: Added 1-click configuration presets ("⭐ Default (Deactivate & Threats Only)", "DevSecOps Complete", "Enable All", "Disable All").
   * Settings Subtab Cross-Linkage: Placed a prominent, styled deep-link callout card in Settings > Email to direct administrators straight to the dedicated Notification Center.
   * Real-Time Event Hook Integrations: Connected `NotificationDispatcher::trigger()` across `Scheduler.php`, `PluginSelfDefense.php`, `TwoFactorAuth.php`, `LoginHardening.php`, `DatabaseBackup.php`, `QuarantineManager.php`, `FirewallEngine.php`, `Plugin.php`, and `wcp-wp-scanner.php`.
 - Cloudflare Free Plan 3 Master Compound Rules & Individual Single-Rule Push (`CloudflareService.php`, `ScannerRoutes.php`, `FirewallPage.tsx`, `index.css`):

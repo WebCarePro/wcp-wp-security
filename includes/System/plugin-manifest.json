@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-21T02:01:24.412Z",
+  "generated_at": "2026-10-21T02:54:15.045Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 433517
     },
     "build/index.asset.php": {
-      "sha256": "74acc8bf8569dc43506140c264eeecf59f2c2bd95a23fd5bb798d693a8218cbc",
+      "sha256": "70a3c14612b8e162a5a478b747de0fd07f779700034a9e950ddf7140395388e0",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 433390
     },
     "build/index.js": {
-      "sha256": "06870c12ae33a2babec2c3b316bb4662d1645afe848b5fb1f0b3ff10e5a0bed2",
-      "size": 1219508
+      "sha256": "25d044df73d028ca219bf4654fa067dec7872cad8bc8e4c886ff070a68e1e0b2",
+      "size": 1219783
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -376,8 +376,8 @@
       "size": 18460
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "d7b687b780f442c1668d00f8aee47e7a73cf7413a8c87b33b688dc28d56e15f2",
-      "size": 47451
+      "sha256": "b7f2aad82dc6d1a080011718dd0cf909eba35168e5973229620880dc767e30fb",
+      "size": 47477
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "a9203fb189659c87a2143008a6bcf5e56c54d42c9c675022822276e923a12490",
