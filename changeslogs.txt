@@ -15,6 +15,10 @@ v:1.21.0 - 2026-10-21
   * Export & Forensics Reporting: Integrated export tools to download filtered incident records as CSV (`.csv`), raw JSON (`.json`), or formatted printable audit reports (`window.print()`).
   * Instant Perimeter Mitigation: Added 1-click "Block IP" (appends directly to `waf_blocked_ips` blocklist) and "Allow IP" actions directly from the forensic log table.
   * Theme Adaptive Design System: Built fully compliant with Light Mode (`#ffffff`, `#f8fafc`, `#e2e8f0`, `#0f172a`) and Dark Mode (`#090d16`, `#0f172a`, `#1e293b`, `#f8fafc`), with high-contrast badge pills and responsive table layout.
+  * White Mode Contrast & Empty State Fix: Normalized empty state container margins and icon container styling, ensuring flawless high-contrast readability in light/white mode across both WAF overview and dedicated incident logs.
+  * REST API Client Path Normalization: Fixed `apiRequest()` in `App.tsx` and endpoints in `WafLogsPage.tsx` to ensure all API subpaths consistently include a leading slash, resolving 404/route mismatch errors on firewall logs endpoints.
+  * WAF Page Component Fix: Fixed missing `FileText` icon import from `lucide-react` in `FirewallPage.tsx` resolving runtime React view crash.
+  * Dedicated Action Buttons Styling: Added complete theme-adaptive CSS definitions for `.wcp-btn`, `.wcp-btn-outline`, `.wcp-btn-success`, and `.wcp-btn-micro` providing crisp contrast in both Light and Dark themes.
   * Solo Freelancer Identity: Authored with direct personal consultation linking to Mir Alamin and WebCare Pro.
 - Inline Expandable User Session Forensics (`AuthSecurityPage.tsx`, `UserSessionForensicsModal.tsx`, `index.css`):
   * In-Table Accordion Expansion: Replaced the detached fixed-overlay modal popup with seamless inline expandable rows directly below each administrator username in the Active Administrator Sessions directory table.
