@@ -66,11 +66,15 @@ v:1.21.0 - 2026-10-21
     - Implemented `.wcp-2fa-card`, `.wcp-2fa-status-box`, `.wcp-2fa-setup-box`, `.wcp-2fa-secret-box`, `.wcp-2fa-codes-container`, `.wcp-2fa-code-badge`, `.wcp-2fa-input-code`, and `.wcp-2fa-mini-panel`.
     - In Dark Mode, cards adapt to `#0f172a` (Slate 900) panels with `#1e293b` borders and `#ffffff` / `#f1f5f9` high-contrast typography; QR code preserves white perimeter padding for reliable camera scanning; step headings and codes adapt to sky/cyan (`#38bdf8`), inputs adapt to `#0f172a` with glowing borders, and action buttons dynamically adapt to theme contrast.
     - Full bidirectional contrast fidelity maintained for both Light / White Mode (`#ffffff`, `#f8fafc`, `#0f172a`) and Dark Mode (`#090d16`, `#0f172a`, `#1e293b`, `#f1f5f9`).
-  * Uninstaller & Database Purge Engine Hardening (`uninstall.php`):
+   * Uninstaller & Database Purge Engine Hardening (`uninstall.php`):
     - Expanded `uninstall.php` to clean all standalone and dynamic options added in recent releases, including `wcpscan_welcome_dismissed`, `wcpscan_server_security_options`, `wcpscan_self_defense_hashes`, `wcpscan_self_defense_last_audit`, `wcpscan_vault_salt`, `wcpscan_cloudflare_rate_limit_config`, and dynamic `wcpscan_vault_backup_*` snapshots.
     - Added sweeping wildcard database deletion queries (`DELETE FROM wp_options WHERE option_name LIKE 'wcpscan_%' OR option_name LIKE 'wcp_%'`) and multisite `sitemeta` purge to guarantee zero residual configuration or backup rows remain after deletion.
     - Added comprehensive user meta cleanup covering both `_wcpscan_%` and `wcpscan_%` (including `wcpscan_session_meta`), plus unscheduling for all cron hooks (`wcpscan_scheduled_scan_cron`, `wcpscan_scheduled_scan_event`, `wcpscan_threat_intel_cron_sync`, `wcpscan_self_defense_watchdog_event`).
   * Design System Compliance: Added theme-adaptive styling (`.wcp-admin-card`, `.wcp-admin-table`, `.wcp-admin-badge-*`, `.wcp-admin-btn-action`, `.wcp-2fa-*`) strictly matching AGENTS.md Light/White and Dark Mode foundations.
+- Subsequent Scan DOM Reconciliation & Blank White Page Fix (`App.tsx`, `ScanLogsPage.tsx`, `index.tsx`):
+  * Root Error Boundary Resilience (`index.tsx`): Wrapped application mount root with `<RootErrorBoundary>` to prevent unhandled React reconciliation or runtime crashes from emptying the DOM to a blank white screen, rendering a clean fault-isolation card with a 1-click recovery button.
+  * Consecutive Scan State Reset (`App.tsx`): In `handleStartScan()`, added `setExpandedIssue(null)` prior to initiating a new scan to collapse any expanded table finding row before the scan progress HUD updates.
+  * Table Fragment & Row Reconciliation Keys (`App.tsx`, `ScanLogsPage.tsx`): Added explicit, unique keys to both primary rows (`key={`threat-row-${issue.id}`}`) and expanded detail rows (`key={`threat-expanded-${issue.id}`}`) within table `<tbody>` mapping fragments. Resolves `NotFoundError: Failed to execute 'removeChild' on 'Node'` during rapid DOM re-renders between completed scans and newly initiated scans.
 
 v:1.20.0 - 2026-10-20
 - Login Security User Session Forensics & IP Shift Tracking (`UserSessionForensicsModal.tsx`, `LoginHistoryManager.php`, `ScannerRoutes.php`):
