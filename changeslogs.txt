@@ -1,4 +1,7 @@
 v:1.21.0 - 2026-10-21
+- User Session Forensics Modal Visual Positioning & Spacing (`index.css`):
+  * Header Clear-Zone & 20px+ Gap: Adjusted `.wcp-usf-backdrop` `top` to `135px` and top padding to `20px`, ensuring the forensics inspection modal cleanly floats beneath the top navigation/header bar with at least 20px of breathing room without obscuring header items.
+  * Adaptive Responsive Window Height: Calibrated `.wcp-usf-window` `max-height` to `calc(100vh - 175px)` so that modal scrolling, timeline forensics, and device details render fully visible with balanced vertical centering.
 - User Session Forensics Authentic Login IP Preservation (`LoginHistoryManager.php`, `TwoFactorAuth.php`):
   * Eliminated Active Session Inspector IP Collision: Fixed bug in `LoginHistoryManager::get_user_history()` where inspecting an active session belonging to another user (e.g. an administrator logging in from Pakistan) incorrectly evaluated `FirewallEngine::get_client_ip()` at view time and overwrote the monitored user's IP with the viewing administrator's current IP (`114.130.156.154`).
   * Strict Decrypted Payload IP Fidelity: Forensics inspector now strictly preserves and outputs the authentic user's decrypted login IP recorded at authentication time (`$data['ip']`), ensuring multi-region administrators, remote clients, and forensic auditors view genuine origin IPs without Cloudflare/viewer proxy overwriting.
