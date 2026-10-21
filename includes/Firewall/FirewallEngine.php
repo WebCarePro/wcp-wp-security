@@ -38,6 +38,23 @@ class FirewallEngine {
 
         // Smart 404 Scanner Rate Limiter & Reconnaissance Shield
         add_action('template_redirect', [__CLASS__, 'track_404_request'], 1);
+
+        // Real-Time Malicious File Upload Interceptor
+        add_filter('wp_handle_upload_prefilter', [__CLASS__, 'inspect_uploaded_file'], 1);
+
+        // Generic Login Error Masking (prevent revealing valid usernames)
+        add_filter('login_errors', [__CLASS__, 'mask_login_errors'], 999);
+
+        // Prevent Registering 'admin' or Prohibited Usernames
+        add_filter('validate_username', [__CLASS__, 'validate_registration_username'], 10, 2);
+        add_filter('registration_errors', [__CLASS__, 'filter_registration_errors'], 10, 3);
+
+        // Immediately Block IP of Users Trying to Sign in as Forbidden Usernames
+        add_filter('authenticate', [__CLASS__, 'check_forbidden_username_login'], 20, 3);
+
+        // Enforce Strong Passwords & Check Leaked/Pwned Passwords on Password Change/Reset
+        add_action('user_profile_update_errors', [__CLASS__, 'validate_user_password_policy'], 10, 3);
+        add_action('validate_password_reset', [__CLASS__, 'validate_reset_password_policy'], 10, 2);
     }
 
     /**
@@ -339,6 +356,68 @@ class FirewallEngine {
             return;
         }
 
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+
+        // Check Allowlisted URLs / URI paths (bypasses all subsequent firewall rules)
+        if (!empty($settings['waf_whitelisted_urls']) && self::is_url_whitelisted($request_uri, $settings['waf_whitelisted_urls'])) {
+            return;
+        }
+
+        // Check HTTP Request Method Whitelist / Block Unsafe Methods (TRACE, TRACK, CONNECT, DEBUG)
+        if (!empty($settings['waf_block_unsafe_http_methods'])) {
+            $http_method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+            $unsafe_methods = ['TRACE', 'TRACK', 'CONNECT', 'DEBUG'];
+            if (in_array($http_method, $unsafe_methods, true)) {
+                $rule_triggered = [
+                    'id'          => 'WAF-UNSAFE-HTTP-METHOD',
+                    'name'        => 'Unsafe HTTP Method Block',
+                    'category'    => 'Protocol Defense',
+                    'description' => sprintf('HTTP %s request blocked by administrator firewall policy.', $http_method),
+                    'match_type'  => 'HTTP Method',
+                    'match_value' => $http_method,
+                    'payload'     => "Method: {$http_method} URI: {$request_uri}",
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                }
+            }
+        }
+
+        // Block IPs who send POST requests with blank User-Agent and Referer
+        if (!empty($settings['waf_block_empty_post_ua_referer'])) {
+            $is_post = (isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) === 'POST');
+            if ($is_post) {
+                $has_ua  = !empty(trim($_SERVER['HTTP_USER_AGENT'] ?? ''));
+                $has_ref = !empty(trim($_SERVER['HTTP_REFERER'] ?? ''));
+                if (!$has_ua && !$has_ref) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-EMPTY-POST-UA-REFERER',
+                        'name'        => 'Blank User-Agent & Referer POST Block',
+                        'category'    => 'Bot Defense',
+                        'description' => 'Automated POST payload rejected: Both User-Agent and Referer headers were missing or empty.',
+                        'match_type'  => 'Missing Headers',
+                        'match_value' => 'POST without UA or Referer',
+                        'payload'     => "IP: {$client_ip} URI: {$request_uri}",
+                    ];
+
+                    $mode = $settings['waf_mode'] ?? 'enabled';
+                    if ($mode === 'learning') {
+                        self::log_incident($rule_triggered, 'detected');
+                    } else {
+                        self::log_incident($rule_triggered, 'blocked');
+                        self::render_block_page($rule_triggered, $client_ip);
+                        exit;
+                    }
+                }
+            }
+        }
+
         // Check custom user IP blocklist
         if (!empty($settings['waf_blocked_ips']) && self::is_ip_blocked($client_ip, $settings['waf_blocked_ips'])) {
             $rule_triggered = [
@@ -568,6 +647,17 @@ class FirewallEngine {
                         'payload'     => substr($combined_payload, 0, 200),
                     ];
                 }
+            }
+        }
+
+        // 5. Null Byte Poison Attacks (%00 / \0)
+        if (!empty($settings['waf_block_null_byte_attacks'])) {
+            if (strpos($uri, '%00') !== false || strpos($combined_payload, "\0") !== false || strpos($combined_payload, '%00') !== false) {
+                return [
+                    'category'    => 'Null Byte Poison',
+                    'description' => 'Null byte string termination attack (%00) detected in URI or request payload.',
+                    'payload'     => substr($combined_payload, 0, 200),
+                ];
             }
         }
 
@@ -1537,5 +1627,444 @@ class FirewallEngine {
         }
         return true;
     }
-}
+    /**
+     * Check if a given request URI is whitelisted
+     */
+    public static function is_url_whitelisted(string $uri, string $whitelist_text): bool {
+        if (empty(trim($whitelist_text))) {
+            return false;
+        }
 
+        $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $whitelist_text))));
+        $path  = (string) parse_url($uri, PHP_URL_PATH);
+
+        foreach ($lines as $allowed) {
+            if ($allowed === '') {
+                continue;
+            }
+            // Strip any query or hash from whitelist line for comparison
+            $allowed_clean = (string) parse_url($allowed, PHP_URL_PATH);
+            if (empty($allowed_clean)) {
+                $allowed_clean = $allowed;
+            }
+
+            // Exact match or prefix match
+            if ($uri === $allowed || $path === $allowed_clean || strpos($path, rtrim($allowed_clean, '/')) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Intercept and audit uploaded files in real-time (Rule 8)
+     */
+    public static function inspect_uploaded_file(array $file): array {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_block_malicious_uploads'])) {
+            return $file;
+        }
+
+        if (empty($file['name']) || empty($file['tmp_name'])) {
+            return $file;
+        }
+
+        $filename = strtolower(basename($file['name']));
+        $tmp_path = $file['tmp_name'];
+        $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        // 1. Prohibited executable extensions
+        $prohibited_exts = [
+            'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar', 'phps',
+            'sh', 'bash', 'zsh', 'ksh', 'csh', 'bin', 'cgi', 'pl', 'py', 'pyc', 'pyw',
+            'rb', 'asp', 'aspx', 'cer', 'csr', 'jsp', 'jspx', 'exe', 'com', 'bat', 'cmd',
+            'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'msi', 'dll', 'drv', 'sys'
+        ];
+
+        if (in_array($ext, $prohibited_exts, true)) {
+            self::log_incident([
+                'category'    => 'Malicious File Upload',
+                'description' => sprintf('Upload of executable file "%s" was blocked by firewall.', esc_html($filename)),
+                'payload'     => "Filename: {$filename} Extension: .{$ext}",
+            ], 'blocked');
+
+            $file['error'] = __('Security Firewall: Uploading executable scripts or programs is strictly prohibited.', 'wcp-security-scanner');
+            return $file;
+        }
+
+        // 2. Double extension check (e.g. image.php.jpg, doc.php.png)
+        if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|cgi|pl|py|exe)\.([a-z0-9]+)$/i', $filename, $m)) {
+            self::log_incident([
+                'category'    => 'Malicious File Upload',
+                'description' => sprintf('Upload with disguised double-extension "%s" was blocked by firewall.', esc_html($filename)),
+                'payload'     => "Filename: {$filename} Hidden extension: .{$m[1]}",
+            ], 'blocked');
+
+            $file['error'] = __('Security Firewall: Disguised double-extension file upload detected and blocked.', 'wcp-security-scanner');
+            return $file;
+        }
+
+        // 3. Inspect binary magic bytes if temp file exists
+        if (file_exists($tmp_path) && is_readable($tmp_path)) {
+            $handle = @fopen($tmp_path, 'rb');
+            if ($handle) {
+                $header = fread($handle, 16);
+                fclose($handle);
+
+                if ($header !== false && strlen($header) >= 2) {
+                    // Windows PE (MZ)
+                    if (substr($header, 0, 2) === 'MZ') {
+                        $file['error'] = __('Security Firewall: Spoofed Windows executable binary detected in upload.', 'wcp-security-scanner');
+                        return $file;
+                    }
+                    // Linux ELF (\x7fELF)
+                    if (substr($header, 0, 4) === "\x7fELF") {
+                        $file['error'] = __('Security Firewall: Spoofed Linux ELF executable binary detected in upload.', 'wcp-security-scanner');
+                        return $file;
+                    }
+                    // macOS Mach-O
+                    $macho_sigs = ["\xca\xfe\xba\xbe", "\xcf\xfa\xed\xfe", "\xce\xfa\xed\xfe"];
+                    if (in_array(substr($header, 0, 4), $macho_sigs, true)) {
+                        $file['error'] = __('Security Firewall: Spoofed Mach-O executable binary detected in upload.', 'wcp-security-scanner');
+                        return $file;
+                    }
+                    // Unix Shebang in image/media
+                    if (substr($header, 0, 2) === '#!' && preg_match('/^#!\s*\/(bin|usr)/i', $header)) {
+                        $file['error'] = __('Security Firewall: Spoofed shell script detected in upload.', 'wcp-security-scanner');
+                        return $file;
+                    }
+                }
+            }
+
+            // 4. SVG XSS & Active JavaScript Audit
+            if ($ext === 'svg' || $ext === 'svgz') {
+                $content = @file_get_contents($tmp_path, false, null, 0, 1048576); // Inspect up to 1MB
+                if (!empty($content)) {
+                    if (substr($content, 0, 2) === "\x1f\x8b" && function_exists('gzdecode')) {
+                        $decompressed = @gzdecode($content);
+                        if ($decompressed !== false) {
+                            $content = $decompressed;
+                        }
+                    }
+
+                    if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object)\b)/i', $content, $m)) {
+                        self::log_incident([
+                            'category'    => 'Malicious File Upload',
+                            'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
+                            'payload'     => "Filename: {$filename} Match: {$m[0]}",
+                        ], 'blocked');
+
+                        $file['error'] = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'wcp-security-scanner');
+                        return $file;
+                    }
+                }
+            }
+
+            // 5. Embedded PHP Polyglots in Media
+            $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf'];
+            if (in_array($ext, $image_exts, true)) {
+                $head = @file_get_contents($tmp_path, false, null, 0, 8192);
+                $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
+                if (!empty($head) && preg_match($php_pattern, $head)) {
+                    $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell detected inside image headers.', 'wcp-security-scanner');
+                    return $file;
+                }
+            }
+        }
+
+        return $file;
+    }
+
+    /**
+     * Generic Login Error Masking (Rule 5)
+     * Replaces detailed WordPress user enumeration errors with a generic message.
+     */
+    public static function mask_login_errors(string $error): string {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_mask_login_errors'])) {
+            return $error;
+        }
+
+        if (!empty($error)) {
+            return sprintf(
+                '<strong>%s:</strong> %s',
+                __('Error', 'wcp-security-scanner'),
+                __('Invalid username, email address, or password.', 'wcp-security-scanner')
+            );
+        }
+
+        return $error;
+    }
+
+    /**
+     * Prevent Registering 'admin' or Forbidden Usernames (Rule 4)
+     */
+    public static function validate_registration_username(bool $valid, string $username): bool {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_prevent_admin_registration'])) {
+            return $valid;
+        }
+
+        $sanitized = strtolower(trim($username));
+        if ($sanitized === 'admin') {
+            return false;
+        }
+
+        return $valid;
+    }
+
+    /**
+     * Registration Errors Filter (Rule 4)
+     */
+    public static function filter_registration_errors(\WP_Error $errors, string $sanitized_user_login, string $user_email): \WP_Error {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_prevent_admin_registration'])) {
+            return $errors;
+        }
+
+        $lower = strtolower(trim($sanitized_user_login));
+        if ($lower === 'admin') {
+            $errors->add(
+                'registration_admin_prohibited',
+                __('<strong>Error:</strong> The username "admin" is reserved and prohibited for security.', 'wcp-security-scanner')
+            );
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Immediately Block IP of Users Trying to Sign in as Forbidden Usernames (Rule 3)
+     */
+    public static function check_forbidden_username_login($user, $username, $password) {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_block_forbidden_usernames'])) {
+            return $user;
+        }
+
+        if (empty($username) || !is_string($username)) {
+            return $user;
+        }
+
+        $forbidden_raw = $settings['waf_forbidden_usernames_list'] ?? "admin\nadministrator\nroot";
+        $forbidden_list = array_filter(array_map('trim', explode("\n", str_replace("\r", "", strtolower($forbidden_raw)))));
+        if (empty($forbidden_list)) {
+            $forbidden_list = ['admin', 'administrator', 'root'];
+        }
+
+        $test_user = strtolower(trim($username));
+        if (in_array($test_user, $forbidden_list, true)) {
+            $client_ip = self::get_client_ip();
+
+            // Skip whitelisted IPs
+            if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+                return $user;
+            }
+
+            // Immediately permanently block IP
+            self::add_blocked_ip($client_ip);
+
+            // Log incident
+            self::log_incident([
+                'id'          => 'WAF-FORBIDDEN-USERNAME-TRAP',
+                'name'        => 'Forbidden Honeypot Username Trap',
+                'category'    => 'Identity Defense',
+                'description' => sprintf('Attacker IP tried to log in using forbidden honeypot username "%s". IP permanently banned.', esc_html($username)),
+                'match_type'  => 'Honeypot Username',
+                'match_value' => $username,
+                'payload'     => "User: {$username} IP: {$client_ip}",
+            ], 'blocked');
+
+            // Also lock in LoginHardening
+            if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
+                $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
+                $now = time();
+                $lockouts[$client_ip] = [
+                    'ip'         => $client_ip,
+                    'attempts'   => 999,
+                    'username'   => $username,
+                    'blocked_at' => date('Y-m-d H:i:s', $now),
+                    'expires_at' => $now + (365 * 86400),
+                    'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
+                ];
+                update_option(\WcpScanner\Auth\LoginHardening::OPTION_LOCKOUTS, $lockouts, false);
+            }
+
+            // Return immediate access denied error
+            return new \WP_Error(
+                'wcp_forbidden_username_blocked',
+                __('<strong>Access Blocked:</strong> Attempting to sign in with this username is strictly prohibited. Your IP has been permanently banned by the security firewall.', 'wcp-security-scanner')
+            );
+        }
+
+        return $user;
+    }
+
+    /**
+     * Enforce Strong Passwords & Check Pwned Passwords on Profile Update (Rules 6 & 7)
+     */
+    public static function validate_user_password_policy(\WP_Error $errors, bool $update, \stdClass $user): void {
+        $pass1 = isset($_POST['pass1']) ? (string) $_POST['pass1'] : '';
+        if (empty($pass1)) {
+            return;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled'])) {
+            return;
+        }
+
+        // Get user roles
+        $target_roles = [];
+        if (!empty($user->roles) && is_array($user->roles)) {
+            $target_roles = $user->roles;
+        } elseif (!empty($user->role)) {
+            $target_roles = [$user->role];
+        } elseif (!empty($user->ID)) {
+            $existing = get_userdata($user->ID);
+            if ($existing) {
+                $target_roles = (array) $existing->roles;
+            }
+        }
+
+        // 1. Strong Passwords Check (Rule 6)
+        if (!empty($settings['waf_enforce_strong_passwords'])) {
+            $configured_roles_raw = $settings['waf_strong_passwords_roles'] ?? 'administrator, editor, author';
+            $configured_roles = array_map('trim', explode(',', strtolower($configured_roles_raw)));
+
+            $role_match = false;
+            foreach ($target_roles as $r) {
+                if (in_array(strtolower($r), $configured_roles, true)) {
+                    $role_match = true;
+                    break;
+                }
+            }
+
+            if ($role_match && !self::check_password_strength($pass1)) {
+                $errors->add(
+                    'wcp_weak_password',
+                    __('<strong>Security Policy:</strong> Your role requires a strong password. It must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.', 'wcp-security-scanner')
+                );
+            }
+        }
+
+        // 2. Leaked / Pwned Passwords Check (Rule 7)
+        if (!empty($settings['waf_check_pwned_passwords'])) {
+            if (self::is_password_pwned($pass1)) {
+                $errors->add(
+                    'wcp_pwned_password',
+                    __('<strong>Security Breach Warning:</strong> This password has appeared in known public data breaches and cannot be used. Please choose a different, secure password.', 'wcp-security-scanner')
+                );
+            }
+        }
+    }
+
+    /**
+     * Enforce Strong Passwords & Check Pwned Passwords on Reset Password (Rules 6 & 7)
+     */
+    public static function validate_reset_password_policy(\WP_Error $errors, $user): void {
+        $pass1 = isset($_POST['pass1']) ? (string) $_POST['pass1'] : '';
+        if (empty($pass1) || !is_object($user)) {
+            return;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled'])) {
+            return;
+        }
+
+        $target_roles = (array) ($user->roles ?? []);
+
+        // Strong password check
+        if (!empty($settings['waf_enforce_strong_passwords'])) {
+            $configured_roles_raw = $settings['waf_strong_passwords_roles'] ?? 'administrator, editor, author';
+            $configured_roles = array_map('trim', explode(',', strtolower($configured_roles_raw)));
+
+            $role_match = false;
+            foreach ($target_roles as $r) {
+                if (in_array(strtolower($r), $configured_roles, true)) {
+                    $role_match = true;
+                    break;
+                }
+            }
+
+            if ($role_match && !self::check_password_strength($pass1)) {
+                $errors->add(
+                    'wcp_weak_password',
+                    __('<strong>Security Policy:</strong> Your role requires a strong password. It must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.', 'wcp-security-scanner')
+                );
+            }
+        }
+
+        // Leaked password check
+        if (!empty($settings['waf_check_pwned_passwords'])) {
+            if (self::is_password_pwned($pass1)) {
+                $errors->add(
+                    'wcp_pwned_password',
+                    __('<strong>Security Breach Warning:</strong> This password has appeared in known public data breaches and cannot be used. Please choose a different, secure password.', 'wcp-security-scanner')
+                );
+            }
+        }
+    }
+
+    /**
+     * Validate password complexity: Min 12 chars, upper, lower, number, symbol
+     */
+    public static function check_password_strength(string $password): bool {
+        if (strlen($password) < 12) {
+            return false;
+        }
+        if (!preg_match('/[A-Z]/', $password)) {
+            return false;
+        }
+        if (!preg_match('/[a-z]/', $password)) {
+            return false;
+        }
+        if (!preg_match('/[0-9]/', $password)) {
+            return false;
+        }
+        if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Check if a password was compromised in public data breaches using HaveIBeenPwned k-Anonymity API
+     */
+    public static function is_password_pwned(string $password): bool {
+        $hash   = strtoupper(sha1($password));
+        $prefix = substr($hash, 0, 5);
+        $suffix = substr($hash, 5);
+
+        $url = 'https://api.pwnedpasswords.com/range/' . $prefix;
+        $response = wp_remote_get($url, [
+            'timeout'   => 3,
+            'sslverify' => true,
+            'headers'   => [
+                'User-Agent' => 'WCP-Security-Scanner-Password-Sentinel/1.0',
+            ],
+        ]);
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            // Fail open if HIBP API is unreachable to prevent locking out legitimate admins
+            return false;
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $lines = explode("\n", str_replace("\r", "", $body));
+
+        foreach ($lines as $line) {
+            $parts = explode(':', trim($line));
+            if (strtoupper($parts[0]) === $suffix) {
+                $count = isset($parts[1]) ? (int) $parts[1] : 0;
+                if ($count > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}

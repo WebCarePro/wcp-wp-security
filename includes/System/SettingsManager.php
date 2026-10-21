@@ -93,6 +93,20 @@ class SettingsManager {
             'waf_404_window_seconds'   => 60,   // Rolling time window in seconds (default 60s)
             'waf_404_lockout_duration' => 30,   // Lockout duration in minutes (default 30 mins)
 
+            // Enhanced Perimeter & Identity Protection Rules
+            'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
+            'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
+            'waf_block_forbidden_usernames'     => true, // Immediately block IP trying to sign in as forbidden honeypot usernames
+            'waf_forbidden_usernames_list'      => "admin\nadministrator\nroot", // Forbidden/honeypot username list
+            'waf_prevent_admin_registration'    => true, // Prevent users from registering 'admin' username
+            'waf_mask_login_errors'             => true, // Don't let WordPress reveal valid users in login errors
+            'waf_enforce_strong_passwords'      => true, // Enforce strong passwords for specific roles
+            'waf_strong_passwords_roles'        => 'administrator, editor, author', // Roles subject to strong password policy
+            'waf_check_pwned_passwords'         => true, // Prevent use of passwords leaked in data breaches (HIBP API)
+            'waf_block_malicious_uploads'       => true, // Intercept & prevent malicious file uploads (executables, double ext, polyglots, SVG XSS)
+            'waf_block_unsafe_http_methods'     => true, // Block TRACE, TRACK, CONNECT, DEBUG HTTP methods
+            'waf_block_null_byte_attacks'       => true, // Block null byte (%00) poison attacks in URI & inputs
+
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
             'threat_intel_block_blacklisted_ips' => true,
@@ -476,6 +490,20 @@ class SettingsManager {
         $clean['waf_404_threshold']        = max(3, min(100, (int) ($input['waf_404_threshold'] ?? 10)));
         $clean['waf_404_window_seconds']   = max(10, min(600, (int) ($input['waf_404_window_seconds'] ?? 60)));
         $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($input['waf_404_lockout_duration'] ?? 30)));
+
+        // Enhanced Perimeter & Identity Protection Rules
+        $clean['waf_block_empty_post_ua_referer'] = isset($input['waf_block_empty_post_ua_referer']) ? !empty($input['waf_block_empty_post_ua_referer']) : true;
+        $clean['waf_whitelisted_urls']            = sanitize_textarea_field($input['waf_whitelisted_urls'] ?? '');
+        $clean['waf_block_forbidden_usernames']   = isset($input['waf_block_forbidden_usernames']) ? !empty($input['waf_block_forbidden_usernames']) : true;
+        $clean['waf_forbidden_usernames_list']    = sanitize_textarea_field($input['waf_forbidden_usernames_list'] ?? "admin\nadministrator\nroot");
+        $clean['waf_prevent_admin_registration']  = isset($input['waf_prevent_admin_registration']) ? !empty($input['waf_prevent_admin_registration']) : true;
+        $clean['waf_mask_login_errors']           = isset($input['waf_mask_login_errors']) ? !empty($input['waf_mask_login_errors']) : true;
+        $clean['waf_enforce_strong_passwords']    = isset($input['waf_enforce_strong_passwords']) ? !empty($input['waf_enforce_strong_passwords']) : true;
+        $clean['waf_strong_passwords_roles']      = sanitize_text_field($input['waf_strong_passwords_roles'] ?? 'administrator, editor, author');
+        $clean['waf_check_pwned_passwords']       = isset($input['waf_check_pwned_passwords']) ? !empty($input['waf_check_pwned_passwords']) : true;
+        $clean['waf_block_malicious_uploads']     = isset($input['waf_block_malicious_uploads']) ? !empty($input['waf_block_malicious_uploads']) : true;
+        $clean['waf_block_unsafe_http_methods']   = isset($input['waf_block_unsafe_http_methods']) ? !empty($input['waf_block_unsafe_http_methods']) : true;
+        $clean['waf_block_null_byte_attacks']     = isset($input['waf_block_null_byte_attacks']) ? !empty($input['waf_block_null_byte_attacks']) : true;
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;
