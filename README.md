@@ -138,11 +138,9 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Zero-Day CVE Feed & Site Correlation**: Real-time zero-day vulnerability definitions with WAF virtual patching. Automatically correlates CVEs with installed WordPress Core, plugins, and themes.
 - **IP Reputation Diagnostic Tool**: Built-in checker to test client or visitor IPs against the active threat database.
 
-### 12. Active Session Sentinel & Anti-Hijack Defense
+### 12. Active Session Sentinel & Access Control
 - **Administrative Session Telemetry**: Real-time tracking of active user logins via `\WP_Session_Tokens` with IP address, browser, OS, and timestamp telemetry.
-- **Strict IP Lock & Anti-Replay**: Detects and revokes hijacked sessions if client IP shifts during an active login.
-- **Single Concurrent Session Policy**: Invalidate prior sessions when logging in from a new machine to prevent credential sharing or undetected parallel access.
-- **Configurable Idle Inactivity Revocation**: Automatically logs out abandoned admin sessions after configurable periods (default: 120m).
+- **Dual-Device Concurrency Control**: Allows at most 2 devices (strictly 1 Desktop + 1 Mobile maximum per administrator).
 - **1-Click Remote Termination**: Remotely terminate individual compromised sessions or revoke all other sessions with 1-click.
 
 ### 13. Multi-Factor Authentication (2FA) & Login Hardening

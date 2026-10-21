@@ -233,43 +233,6 @@ class SessionSentinel {
                 return;
             }
 
-            // 1. IP Lock / Hijack Defense Check
-            if (!empty($settings['session_lock_ip']) && !empty($current_login_ip)) {
-                $current_ua = substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255);
-
-                // Do not terminate sessions on AJAX or REST background polls (e.g. heartbeat, scan poller, rest-nonce)
-                // Terminating during background fetches breaks the SPA and drops cookies silently.
-                $is_ajax = wp_doing_ajax() || (defined('DOING_AJAX') && DOING_AJAX);
-                $is_rest = (defined('REST_REQUEST') && REST_REQUEST) || (!empty($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/wp-json/') !== false);
-
-                if (!self::is_ip_match_or_subnet($current_login_ip, $ip, $decoded, $current_ua)) {
-                    if ($is_ajax || $is_rest) {
-                        // For background polling, do not destroy session cookies or redirect
-                        return;
-                    }
-
-                    // Potential cookie replay or session hijack from a completely different foreign network!
-                    self::terminate_session($user_id, $current_token, 'Session terminated due to cross-network IP mismatch (Anti-Hijack Lock).');
-                    wp_safe_redirect(wp_login_url() . '?wcpscan_session_alert=ip_mismatch');
-                    exit;
-                }
-
-                // If user transitioned between legitimate IPv4 and IPv6 under dual-stack, or within trusted ISP under Cloudflare, update anchor
-                $is_base_v4 = filter_var($current_login_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
-                $is_inc_v6  = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
-                $is_base_v6 = filter_var($current_login_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
-                $is_inc_v4  = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
-
-                if (($is_base_v4 && $is_inc_v6) || ($is_base_v6 && $is_inc_v4)) {
-                    if (empty($decoded['alt_ip']) || $decoded['alt_ip'] !== $ip) {
-                        $decoded['alt_ip'] = $ip;
-                        $sessions_meta[$current_token]['encrypted_meta']    = \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode($decoded));
-                        $sessions_meta[$current_verifier]['encrypted_meta'] = $sessions_meta[$current_token]['encrypted_meta'];
-                        update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
-                    }
-                }
-            }
-
             // Update last seen timestamp (throttled every 60 seconds to save DB writes)
             if (time() - ($session_info['last_seen'] ?? 0) > 60) {
                 $sessions_meta[$current_token]['last_seen'] = time();
@@ -405,7 +368,7 @@ class SessionSentinel {
 
     /**
      * Re-anchor the current user's active session to their current verified IP address.
-     * Prevents false-positive logouts when Strict IP Lock is toggled on or settings are saved.
+     * Keeps session metadata in sync with the administrator's active connection.
      */
     public static function reanchor_current_user_session(): void {
         if (!is_user_logged_in()) {

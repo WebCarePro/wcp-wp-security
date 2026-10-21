@@ -5339,7 +5339,6 @@ class ScannerRoutes {
             'login_lockout_duration'    => (int) ($settings['login_lockout_duration'] ?? 15),
             'session_sentinel_enabled'  => !empty($settings['session_sentinel_enabled']),
             'session_block_concurrent'  => !empty($settings['session_block_concurrent']),
-            'session_lock_ip'           => !empty($settings['session_lock_ip']),
             'user_2fa_enabled'          => \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
             'user_compliance'           => \WcpScanner\Auth\TwoFactorAuth::get_user_compliance_status($user_id),
             'user_login'                => $user ? $user->user_login : '',

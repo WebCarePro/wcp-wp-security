@@ -105,7 +105,6 @@ class SettingsManager {
             'login_lockout_duration'             => 15,
             'session_sentinel_enabled'           => true,
             'session_block_concurrent'           => false,
-            'session_lock_ip'                    => false,
 
             // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n)
             'slack_enabled'                      => false,
@@ -494,7 +493,6 @@ class SettingsManager {
         $clean['login_lockout_duration']    = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
         $clean['session_sentinel_enabled']  = isset($input['session_sentinel_enabled']) ? !empty($input['session_sentinel_enabled']) : true;
         $clean['session_block_concurrent']  = !empty($input['session_block_concurrent']);
-        $clean['session_lock_ip']           = !empty($input['session_lock_ip']);
 
 
         // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n - Encrypted with SecretVault)
@@ -610,11 +608,6 @@ class SettingsManager {
         }
 
         update_option(self::OPTION_KEY, $clean);
-
-        // If Strict IP Lock was just saved or active, re-anchor current administrator session to avoid immediate logout
-        if (!empty($clean['session_lock_ip']) && class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-            \WcpScanner\Auth\SessionSentinel::reanchor_current_user_session();
-        }
 
         // Synchronize Cron Schedule
         self::sync_cron_schedule($clean);

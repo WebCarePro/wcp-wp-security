@@ -237,12 +237,10 @@ Built with a modern **React 18 + TypeScript** administrative single-page dashboa
 
 ---
 
-## 12. Active Session Sentinel & Anti-Hijack Defense
+## 12. Active Session Sentinel & Access Control
 
 - **Administrative Session Telemetry:** Real-time tracking of active user logins via `\WP_Session_Tokens` with IP address, browser, OS, and timestamp telemetry.
-- **Strict IP Lock & Anti-Replay:** Automatically detects and revokes hijacked sessions if client IP shifts during an active login.
-- **Single Concurrent Session Policy:** Enforces single-session policies by invalidating older sessions when an administrator logs in from a new machine.
-- **Configurable Idle Inactivity Revocation:** Automatically logs out abandoned admin sessions after configurable periods (default: 120m).
+- **Dual-Device Concurrency Control:** Enforces flexible session policies (strictly 1 Desktop + 1 Mobile maximum per administrator).
 - **1-Click Remote Termination:** Remotely terminate individual compromised sessions or revoke all other sessions with 1-click.
 
 ---

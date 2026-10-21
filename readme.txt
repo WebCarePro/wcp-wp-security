@@ -83,10 +83,9 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 * **Zero-Day CVE Feed & Site Correlation**: Real-time zero-day vulnerability definitions with WAF virtual patching. Automatically correlates CVEs with installed WordPress Core, plugins, and themes, displaying status badges (Installed - Vulnerable, Installed - Patched, Global Virtual Shield).
 * **IP Reputation Diagnostic Tool**: Built-in checker to test client or visitor IPs against the active threat database.
 
-= 12. Active Session Sentinel & Anti-Hijack Defense =
+= 12. Active Session Sentinel & Access Control =
 * **Active Administrative Session Inspector**: Real-time tracking of active user logins via WP_Session_Tokens with IP address, browser, OS, and timestamp telemetry.
-* **Strict IP Lock & Anti-Replay**: Automatically detects and revokes hijacked sessions if client IP shifts during an active login.
-* **Concurrent Login Block**: Enforces single-session policies by invalidating older sessions when an administrator logs in from a new machine.
+* **Dual-Device Concurrency Control**: Enforces flexible session policies (1 Desktop + 1 Mobile maximum per administrator).
 * **1-Click Remote Termination**: Remotely terminate individual compromised sessions or revoke all other sessions with 1-click.
 
 = 13. Multi-Factor Authentication (2FA) & Login Hardening =
