@@ -107,9 +107,9 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: WAF Incident Logs & Telemetry
+        // Page: WAF Incident Logs & Telemetry (Hidden from side menu, accessible via direct link / WAF page)
         add_submenu_page(
-            'wcp-security-scanner',
+            null,
             __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
             __('WAF Logs', 'wcp-security-scanner'),
             'manage_options',
@@ -171,9 +171,9 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: Notifications & Alerts
+        // Page: Notifications & Alerts (Hidden from side menu, accessible via direct link / Settings page)
         add_submenu_page(
-            'wcp-security-scanner',
+            null,
             __('Notifications & Security Alerts', 'wcp-security-scanner'),
             __('Notifications', 'wcp-security-scanner'),
             'manage_options',
