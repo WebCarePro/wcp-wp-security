@@ -484,8 +484,9 @@ class Scheduler {
         $body .= "<p style='margin:0 0 16px 0;color:#cbd5e1;font-size:12.5px;line-height:1.6;'>";
         $body .= "WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.";
         $body .= "</p>";
-        $body .= "<div style='border-top:1px solid #1e293b;padding-top:14px;font-size:11.5px;color:#64748b;text-align:center;'>";
-        $body .= "Automated Security Audit Report generated on " . current_time('mysql') . " &bull; <a href='{$site_url}' style='color:#38bdf8;text-decoration:none;'>{$site_url}</a>";
+        $notif_url = admin_url('admin.php?page=wcp-scanner-notifications');
+        $body .= "<div style='border-top:1px solid #1e293b;padding-top:14px;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;'>";
+        $body .= "Automated Security Audit Report generated on <span style='color:#e2e8f0;font-weight:600;'>" . gmdate('Y-m-d H:i:s') . " GMT</span>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href='{$notif_url}' style='color:#38bdf8;text-decoration:underline;font-weight:600;'>Notifications</a></strong>.";
         $body .= "</div>";
         $body .= "</div>";
 

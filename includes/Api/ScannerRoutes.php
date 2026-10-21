@@ -5925,7 +5925,7 @@ class ScannerRoutes {
         }
 
         $result = \WcpScanner\Notifications\NotificationDispatcher::trigger($event_key, [
-            'title'   => sprintf(__('🧪 [TEST] %s', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'title'   => sprintf(__('[TEST] %s', 'wcp-security-scanner'), $catalog[$event_key]['title']),
             'message' => sprintf(__('This is an instant verification alert triggered from the WCP Notification Center for "%s".', 'wcp-security-scanner'), $catalog[$event_key]['title']),
             'details' => [
                 'triggered_by' => wp_get_current_user()->user_login ?: 'admin',

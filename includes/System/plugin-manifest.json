@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-21T03:10:50.064Z",
+  "generated_at": "2026-10-21T03:22:39.870Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "ba63b71c9299ee701261b4bee2c4e70fe111cb8898bcd8b0c0d9553d00e09396",
-      "size": 336815
+      "sha256": "947a43fcde68336b781e1e2e73e3de715201f3f4f7720a5402fd096f895b5129",
+      "size": 336810
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "38ab0b77050b36ecb4c9b4b4198fefcd0bc2e2f6497709fc196bd2a38b4c23ef",
@@ -288,8 +288,8 @@
       "size": 3575
     },
     "includes/Notifications/NotificationDispatcher.php": {
-      "sha256": "d155f97daa2368d07d26d96461311e4d06eb30c7d0cac275d1377e28b6148a5c",
-      "size": 37681
+      "sha256": "32b273e0ce25af799abc471ce174d9d69db43a2c4e3d38cd42e5ee67fdd481cd",
+      "size": 42476
     },
     "includes/Notifications/WebhookService.php": {
       "sha256": "cd333737a14557f5c3c0654273c455bec7306da730cf021ac5a2a08f1e128713",
@@ -368,8 +368,8 @@
       "size": 6081
     },
     "includes/System/Scheduler.php": {
-      "sha256": "3363d0b6b53c3e4db06b8256dbe4632a34af23c226271f07838af2f75aa841a8",
-      "size": 29598
+      "sha256": "f633184f6465182c90f737d5e1092a52f78a6dce7ef3020d84cf326c201f9842",
+      "size": 29861
     },
     "includes/System/ServerInfo.php": {
       "sha256": "84e4bf97b4d52087f7c278dd1fe3f684f57771d06409e29c6f7995a7d4960a52",

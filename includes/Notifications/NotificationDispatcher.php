@@ -321,6 +321,45 @@ class NotificationDispatcher {
     }
 
     /**
+     * Detect client browser device type (Desktop, Mobile, Tablet)
+     */
+    public static function detect_device_type(): string {
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? strtolower((string)$_SERVER['HTTP_USER_AGENT']) : '';
+        if (empty($ua)) {
+            return 'Unknown Device';
+        }
+        if (strpos($ua, 'ipad') !== false || strpos($ua, 'tablet') !== false || strpos($ua, 'playbook') !== false) {
+            return 'Tablet';
+        }
+        if (strpos($ua, 'mobile') !== false || strpos($ua, 'iphone') !== false || strpos($ua, 'android') !== false || strpos($ua, 'blackberry') !== false) {
+            return 'Mobile';
+        }
+        return 'Desktop';
+    }
+
+    /**
+     * Detect real client IP address respecting Cloudflare, proxy headers, and direct remote address
+     */
+    public static function get_real_client_ip(): string {
+        $headers = [
+            'HTTP_CF_CONNECTING_IP',
+            'HTTP_X_REAL_IP',
+            'HTTP_X_FORWARDED_FOR',
+            'REMOTE_ADDR'
+        ];
+        foreach ($headers as $h) {
+            if (!empty($_SERVER[$h])) {
+                $ips = explode(',', (string)$_SERVER[$h]);
+                $ip = trim($ips[0]);
+                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    return $ip;
+                }
+            }
+        }
+        return !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field($_SERVER['REMOTE_ADDR']) : '127.0.0.1';
+    }
+
+    /**
      * Trigger a granular security event notification
      *
      * @param string $event_key
@@ -351,6 +390,65 @@ class NotificationDispatcher {
             'severity'    => 'info',
         ];
 
+        // Contextual user & execution intelligence
+        $is_cli = (php_sapi_name() === 'cli') || defined('WP_CLI');
+        $is_cron = defined('DOING_CRON') && DOING_CRON;
+        $is_system = $is_cli || $is_cron;
+
+        $current_user = function_exists('wp_get_current_user') ? wp_get_current_user() : null;
+        $admin_username = ($current_user && $current_user->exists()) ? $current_user->user_login : null;
+        $client_ip = self::get_real_client_ip();
+        $device_type = self::detect_device_type();
+        $gmt_time = gmdate('Y-m-d H:i:s') . ' GMT';
+
+        // Prepare standard developer-friendly details
+        $enhanced_details = [];
+
+        // Check if explicitly passed or extract
+        $incoming_details = $payload['details'] ?? [];
+
+        // 1. Triggered By (with Real Client IP)
+        if (!empty($admin_username)) {
+            $enhanced_details['Triggered By'] = sprintf('%s (%s)', $admin_username, $client_ip);
+            // Mention device/browser only if triggered by an authenticated admin user (not system auto generated)
+            $enhanced_details['User Browser Type'] = $device_type;
+        } elseif (!empty($incoming_details['triggered_by'])) {
+            $user_str = (string)$incoming_details['triggered_by'];
+            if (strpos($user_str, '(') === false) {
+                $enhanced_details['Triggered By'] = sprintf('%s (%s)', $user_str, $client_ip);
+            } else {
+                $enhanced_details['Triggered By'] = $user_str;
+            }
+            if (!$is_system) {
+                $enhanced_details['User Browser Type'] = $device_type;
+            }
+        } elseif ($is_cron) {
+            $enhanced_details['Triggered By'] = 'Automated WP-Cron Scheduler (Server)';
+        } elseif ($is_cli) {
+            $enhanced_details['Triggered By'] = 'WP-CLI / Server Process';
+        } else {
+            $enhanced_details['Triggered By'] = sprintf('Visitor / External Request (%s)', $client_ip);
+        }
+
+        // 2. Event Code
+        $enhanced_details['Event Code'] = $event_key;
+
+        // 3. Test Mode / Additional Details
+        if (isset($incoming_details['test_mode'])) {
+            $enhanced_details['Test Mode'] = $incoming_details['test_mode'];
+        }
+
+        // Merge any other diagnostic fields passed by caller
+        foreach ($incoming_details as $dk => $dv) {
+            $normalized_key = ucwords(str_replace('_', ' ', $dk));
+            if (!in_array($dk, ['triggered_by', 'event_code', 'test_mode', 'date', 'date_gmt', 'Date', 'Event Code', 'Triggered By', 'Test Mode', 'User Browser Type'], true)) {
+                $enhanced_details[$normalized_key] = $dv;
+            }
+        }
+
+        // 4. Date in GMT
+        $enhanced_details['Date'] = $gmt_time;
+
         // Merge payload defaults
         $full_payload = array_merge([
             'event_key'   => $event_key,
@@ -358,11 +456,14 @@ class NotificationDispatcher {
             'message'     => $payload['message'] ?? $meta['description'],
             'severity'    => $payload['severity'] ?? $meta['severity'],
             'timestamp'   => time(),
-            'datetime'    => current_time('mysql'),
+            'datetime'    => $gmt_time,
             'site_name'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress',
             'site_url'    => get_site_url(),
             'dashboard_url' => admin_url('admin.php?page=wcp-security-scanner'),
+            'notifications_url' => admin_url('admin.php?page=wcp-scanner-notifications'),
         ], $payload);
+
+        $full_payload['details'] = $enhanced_details;
 
         $results = [
             'email'   => null,
@@ -399,6 +500,7 @@ class NotificationDispatcher {
         $time      = $payload['datetime'];
         $site_url  = $payload['site_url'];
         $dash_url  = $payload['dashboard_url'];
+        $notif_url = !empty($payload['notifications_url']) ? $payload['notifications_url'] : admin_url('admin.php?page=wcp-scanner-notifications');
 
         $subject = sprintf('[%s Alert: %s] %s', $site_name, $severity, $title);
 
@@ -440,7 +542,7 @@ class NotificationDispatcher {
         $html .= 'High-Performance WordPress Security & Autonomous Defense';
         $html .= '</div>';
 
-        // Event Title
+        // Event Title Card
         $html .= '<div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 18px; margin-top: 8px;">';
         $html .= '<h1 style="color: #ffffff; font-size: 18px; margin: 0; font-weight: 700; line-height: 1.4;">' . esc_html($title) . '</h1>';
         $html .= '<p style="color: #64748b; font-size: 12.5px; margin: 6px 0 0 0;">Site: <strong style="color: #cbd5e1;">' . esc_html($site_name) . '</strong> (<a href="' . esc_url($site_url) . '" style="color: #38bdf8; text-decoration: none;">' . esc_html($site_url) . '</a>)</p>';
@@ -458,7 +560,7 @@ class NotificationDispatcher {
             $html .= '<table style="width: 100%; font-size: 13px; color: #0f172a; border-collapse: collapse;">';
             foreach ($payload['details'] as $k => $v) {
                 $val = is_scalar($v) ? (string)$v : wp_json_encode($v);
-                $html .= '<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px 6px 0; font-weight: 600; width: 140px; color: #64748b;">' . esc_html(ucwords(str_replace('_', ' ', $k))) . ':</td><td style="padding: 6px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #0f172a; word-break: break-all;">' . esc_html($val) . '</td></tr>';
+                $html .= '<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 7px 10px 7px 0; font-weight: 600; width: 150px; color: #64748b;">' . esc_html(ucwords(str_replace('_', ' ', (string)$k))) . ':</td><td style="padding: 7px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #0f172a; word-break: break-all;">' . esc_html((string)$val) . '</td></tr>';
             }
             $html .= '</table></div>';
         }
@@ -482,8 +584,9 @@ class NotificationDispatcher {
         $html .= '<p style="margin: 0 0 16px 0; color: #cbd5e1; font-size: 12.5px; line-height: 1.6;">';
         $html .= 'WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.';
         $html .= '</p>';
-        $html .= '<div style="border-top: 1px solid #1e293b; padding-top: 14px; font-size: 11.5px; color: #64748b; text-align: center;">';
-        $html .= 'Dispatched by WCP Security Scanner on ' . esc_html($time) . '. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; Notifications</strong>.';
+        // Polished footer note color (#94a3b8 high-contrast) and hyperlinked Notifications
+        $html .= '<div style="border-top: 1px solid #1e293b; padding-top: 14px; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.6;">';
+        $html .= 'Dispatched by WCP Security Scanner on <span style="color: #e2e8f0; font-weight: 600;">' . esc_html($time) . '</span>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline; font-weight: 600;">Notifications</a></strong>.';
         $html .= '</div>';
         $html .= '</div>';
 
