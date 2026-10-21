@@ -39,6 +39,9 @@ class SessionSentinel {
      * Cache the freshly minted session token from WordPress core's set_auth_cookie hook
      */
     public static function on_set_auth_cookie($auth_cookie, $expire, $expiration, $user_id, $scheme, $token) {
+        if (!empty($token)) {
+            self::$last_auth_token = $token;
+        }
         $cookie_name = defined('LOGGED_IN_COOKIE') ? LOGGED_IN_COOKIE : '';
         if (!empty($cookie_name) && (!isset($_COOKIE[$cookie_name]) || empty($_COOKIE[$cookie_name]))) {
             $_COOKIE[$cookie_name] = $auth_cookie;
@@ -60,8 +63,8 @@ class SessionSentinel {
         }
 
         $session_token = !empty(self::$last_auth_token) ? self::$last_auth_token : wp_get_session_token();
+        $wp_sessions = get_user_meta($user->ID, 'session_tokens', true);
         if (empty($session_token)) {
-            $wp_sessions = get_user_meta($user->ID, 'session_tokens', true);
             if (is_array($wp_sessions) && !empty($wp_sessions)) {
                 $keys = array_keys($wp_sessions);
                 $session_token = end($keys);
@@ -234,14 +237,24 @@ class SessionSentinel {
             if (!empty($settings['session_lock_ip']) && !empty($current_login_ip)) {
                 $current_ua = substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'), 0, 255);
 
+                // Do not terminate sessions on AJAX or REST background polls (e.g. heartbeat, scan poller, rest-nonce)
+                // Terminating during background fetches breaks the SPA and drops cookies silently.
+                $is_ajax = wp_doing_ajax() || (defined('DOING_AJAX') && DOING_AJAX);
+                $is_rest = (defined('REST_REQUEST') && REST_REQUEST) || (!empty($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/wp-json/') !== false);
+
                 if (!self::is_ip_match_or_subnet($current_login_ip, $ip, $decoded, $current_ua)) {
+                    if ($is_ajax || $is_rest) {
+                        // For background polling, do not destroy session cookies or redirect
+                        return;
+                    }
+
                     // Potential cookie replay or session hijack from a completely different foreign network!
                     self::terminate_session($user_id, $current_token, 'Session terminated due to cross-network IP mismatch (Anti-Hijack Lock).');
                     wp_safe_redirect(wp_login_url() . '?wcpscan_session_alert=ip_mismatch');
                     exit;
                 }
 
-                // If user transitioned between legitimate IPv4 and IPv6 under dual-stack, record alt_ip to memoize
+                // If user transitioned between legitimate IPv4 and IPv6 under dual-stack, or within trusted ISP under Cloudflare, update anchor
                 $is_base_v4 = filter_var($current_login_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
                 $is_inc_v6  = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
                 $is_base_v6 = filter_var($current_login_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
@@ -293,8 +306,7 @@ class SessionSentinel {
             return true;
         }
 
-        // 3. IPv4 Subnet Comparison (/24 - First 3 octets match, e.g. 114.130.156.x)
-        // Defends against CGNAT / cellular / ISP rotation while blocking cross-network hijacking
+        // 3. IPv4 Subnet Comparison (/24 or /16 for ISP CGNAT/dynamic allocation)
         $is_base_v4 = filter_var($baseline_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
         $is_inc_v4  = filter_var($incoming_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
 
@@ -302,8 +314,18 @@ class SessionSentinel {
             $base_parts = explode('.', $baseline_ip);
             $inc_parts  = explode('.', $incoming_ip);
             if (count($base_parts) === 4 && count($inc_parts) === 4) {
+                // Strict /24 match (first 3 octets match)
                 if ($base_parts[0] === $inc_parts[0] && $base_parts[1] === $inc_parts[1] && $base_parts[2] === $inc_parts[2]) {
                     return true;
+                }
+
+                // If behind Cloudflare and User-Agent is an exact identical match, tolerate /16 subnet (ISP regional CGNAT pool)
+                $recorded_ua = $decoded_meta['user_agent'] ?? '';
+                $is_cf = !empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_CF_RAY']);
+                if ($is_cf && !empty($recorded_ua) && !empty($current_ua) && $recorded_ua === $current_ua) {
+                    if ($base_parts[0] === $inc_parts[0] && $base_parts[1] === $inc_parts[1]) {
+                        return true;
+                    }
                 }
             }
         }
@@ -328,8 +350,7 @@ class SessionSentinel {
         // browser races IPv4 and IPv6 sockets. If User-Agent is an exact match and request arrives via Cloudflare:
         if (($is_base_v4 && $is_inc_v6) || ($is_base_v6 && $is_inc_v4)) {
             $recorded_ua = $decoded_meta['user_agent'] ?? '';
-            $env = \WcpScanner\Firewall\FirewallEngine::detect_environment();
-            $is_cf = !empty($env['has_cloudflare']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
+            $is_cf = !empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_CF_RAY']);
 
             if ($is_cf && !empty($recorded_ua) && !empty($current_ua) && $recorded_ua === $current_ua) {
                 return true;
