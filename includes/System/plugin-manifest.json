@@ -1,6 +1,6 @@
 {
   "version": "1.21.0",
-  "generated_at": "2026-10-21T04:29:30.537Z",
+  "generated_at": "2026-10-21T04:53:51.906Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -76,8 +76,8 @@
       "size": 11305
     },
     "includes/Auth/LoginHistoryManager.php": {
-      "sha256": "e82e3c1eb0eb81b3f336b847f7ab0ce28e76e6404efe4eabd4ec97e7811da610",
-      "size": 23037
+      "sha256": "624c5f3e9c75781e0fd0d2294b6a091e1a2fa7e753ebf79bddc9a6c5f2fe72a8",
+      "size": 22716
     },
     "includes/Auth/QRCodeGenerator.php": {
       "sha256": "827b00efb51a59a0501d314dc6ecd037dd327726d1e5c348021a2cec64a31c16",
@@ -88,8 +88,8 @@
       "size": 30826
     },
     "includes/Auth/TwoFactorAuth.php": {
-      "sha256": "29614815d1d8af9ba9a760bb0e1ee51727efd53d0f01a09c52e55307929dd54d",
-      "size": 44541
+      "sha256": "075014d4af0989c88d6c3f394cb573e95229a1d5895790c038bb70808cc3198c",
+      "size": 44655
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "cfe8cca5431cda38784c3237119dcf77d8caf4c4b72ecf470448677b0550a9d8",

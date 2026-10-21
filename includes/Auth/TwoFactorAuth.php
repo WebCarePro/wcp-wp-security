@@ -630,7 +630,7 @@ class TwoFactorAuth {
                         'user_id'    => $user->ID,
                         'user_login' => $user->user_login,
                         'user_roles' => implode(', ', $user->roles),
-                        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                        'ip_address' => class_exists('\\WcpScanner\\Firewall\\FirewallEngine') ? \WcpScanner\Firewall\FirewallEngine::get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
                     ],
                 ]);
             }

@@ -1,4 +1,9 @@
 v:1.21.0 - 2026-10-21
+- User Session Forensics Authentic Login IP Preservation (`LoginHistoryManager.php`, `TwoFactorAuth.php`):
+  * Eliminated Active Session Inspector IP Collision: Fixed bug in `LoginHistoryManager::get_user_history()` where inspecting an active session belonging to another user (e.g. an administrator logging in from Pakistan) incorrectly evaluated `FirewallEngine::get_client_ip()` at view time and overwrote the monitored user's IP with the viewing administrator's current IP (`114.130.156.154`).
+  * Strict Decrypted Payload IP Fidelity: Forensics inspector now strictly preserves and outputs the authentic user's decrypted login IP recorded at authentication time (`$data['ip']`), ensuring multi-region administrators, remote clients, and forensic auditors view genuine origin IPs without Cloudflare/viewer proxy overwriting.
+  * Fallback Session Integrity: Corrected WP core session token fallback iteration to retain `$sdata['ip']` instead of falling back to the viewing admin's current connection IP.
+  * Password Reset Alert Real IP: Updated `TwoFactorAuth::on_password_reset()` to resolve client IP via `FirewallEngine::get_client_ip()` with Cloudflare Anycast and trusted proxy verification.
 - Dedicated Notification Center & Granular Per-Event Alert Matrix (`NotificationsPage.tsx`, `NotificationDispatcher.php`, `SettingsManager.php`, `ScannerRoutes.php`, `AdminMenu.php`, `App.tsx`, `SettingsPage.tsx`):
   * Dedicated Notification Center Admin Page (`wcp-scanner-notifications`): Transformed notifications from a simple subtab into a dedicated, enterprise-grade administrative hub and sub-menu item with complete White/Dark mode support.
   * 32+ Granular Security Events Catalog: Rebuilt the notification engine with granular independent switches for Email (`wp_mail`) and DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Generic JSON) across 8 distinct categories:
