@@ -187,6 +187,32 @@ class BotReconDefense {
     }
 
     /**
+     * Check whether an incoming request belongs to an authenticated, verified search engine crawler.
+     *
+     * Examines the User-Agent string, and if it claims to be a recognized search engine (Google, Bing, DuckDuckGo,
+     * Yandex, Baidu, Yahoo), executes full Reverse DNS (PTR) + Forward DNS (A/AAAA) confirmation.
+     * Returns true ONLY if DNS cryptographic hostname confirmation succeeds.
+     *
+     * @param string $ip Client IP address.
+     * @param string $user_agent Client User-Agent string.
+     * @return bool True if genuine search engine, false otherwise.
+     */
+    public static function is_genuine_search_engine(string $ip, string $user_agent): bool {
+        if (empty($user_agent)) {
+            return false;
+        }
+
+        $ua_lower = strtolower($user_agent);
+        $bot_key  = self::detect_claimed_search_bot($ua_lower);
+
+        if ($bot_key === null) {
+            return false;
+        }
+
+        return self::verify_search_bot_reverse_dns($ip, $bot_key);
+    }
+
+    /**
      * Append AI Scraper blocking rules to virtual robots.txt
      */
     public static function filter_dynamic_robots_txt(string $output, bool $public): string {

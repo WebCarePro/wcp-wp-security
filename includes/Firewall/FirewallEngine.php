@@ -35,6 +35,9 @@ class FirewallEngine {
 
         // Protect XML-RPC early if enabled
         add_action('init', [__CLASS__, 'check_xmlrpc_guard'], 0);
+
+        // Smart 404 Scanner Rate Limiter & Reconnaissance Shield
+        add_action('template_redirect', [__CLASS__, 'track_404_request'], 1);
     }
 
     /**
@@ -358,6 +361,35 @@ class FirewallEngine {
             }
         }
 
+        // Check active temporary 404 Scanner Lockout
+        $lockout_transient = 'wcpscan_404_lock_' . md5($client_ip);
+        $lockout_data = get_transient($lockout_transient);
+        if ($lockout_data !== false) {
+            $rule_triggered = [
+                'id'          => 'RATE-LIMIT-404-LOCKOUT',
+                'name'        => '404 Scanner Rate Limit Exceeded',
+                'category'    => '404 Scanner Rate Limit',
+                'description' => sprintf(
+                    'Temporary lockout enforced: IP generated excessive 404 errors (%d probes in %ds). Locked out for %d minutes.',
+                    (int) ($lockout_data['count'] ?? 10),
+                    (int) ($lockout_data['window'] ?? 60),
+                    (int) ($lockout_data['duration'] ?? 30)
+                ),
+                'match_type'  => '404 Threshold Exceeded',
+                'match_value' => $client_ip,
+                'payload'     => 'Recent 404 endpoint: ' . ($lockout_data['last_uri'] ?? 'N/A'),
+            ];
+
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($rule_triggered, 'detected');
+            } else {
+                self::log_incident($rule_triggered, 'blocked');
+                self::render_block_page($rule_triggered, $client_ip);
+                exit;
+            }
+        }
+
         // Check Cloud Threat Intelligence Botnet / Malicious IP Blacklist
         if (!empty($settings['threat_intel_enabled']) && !empty($settings['threat_intel_block_blacklisted_ips'])) {
             if (ThreatIntelService::is_ip_blacklisted($client_ip)) {
@@ -562,6 +594,166 @@ class FirewallEngine {
                 exit;
             }
         }
+    }
+
+    /**
+     * Smart 404 Scanner Rate Limiter & Reconnaissance Shield
+     *
+     * Hooks into template_redirect when WordPress evaluates is_404().
+     * Accurately distinguishes between:
+     * 1. Verified genuine search crawlers (Google, Bing, DuckDuckGo) -> ALWAYS exempt via reverse DNS.
+     * 2. Static media/asset 404s (.css, .js, images, fonts) -> Ignored to prevent false-positives for humans.
+     * 3. High-risk reconnaissance probes (.env, .git, .bak, shell.php, etc.) -> Rapid detection.
+     * 4. Automated directory fuzzing / scanners exceeding threshold (e.g. 10 hits in 60s) -> Enforces temporary lockout.
+     */
+    public static function track_404_request() {
+        if (!function_exists('is_404') || !is_404()) {
+            return;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || ($settings['waf_mode'] ?? 'enabled') === 'disabled') {
+            return;
+        }
+
+        if (empty($settings['waf_block_404_scanners'])) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+
+        // 1. Skip if client IP is whitelisted by administrator
+        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+            return;
+        }
+
+        $raw_uri    = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+
+        // 2. Ignore missing static assets (images, fonts, stylesheets, scripts, favicons)
+        if (self::is_static_asset($raw_uri)) {
+            return;
+        }
+
+        // 3. Genuine Search Engine Exemption:
+        // If the request belongs to an authenticated search crawler (Googlebot, Bingbot, etc.)
+        // verified via DNS PTR/A records, DO NOT penalize or rate-limit.
+        if (BotReconDefense::is_genuine_search_engine($client_ip, $user_agent)) {
+            return;
+        }
+
+        $threshold        = (int) ($settings['waf_404_threshold'] ?? 10);
+        $window_seconds   = (int) ($settings['waf_404_window_seconds'] ?? 60);
+        $lockout_duration = (int) ($settings['waf_404_lockout_duration'] ?? 30);
+
+        // Check if URI is a known high-risk vulnerability reconnaissance probe
+        $is_high_risk = self::is_high_risk_recon_probe($raw_uri);
+
+        // Transient tracking counter per IP
+        $counter_transient = 'wcpscan_404_cnt_' . md5($client_ip);
+        $current_count     = (int) get_transient($counter_transient);
+
+        // High risk probes advance counter by 3 to accelerate lockout
+        $increment = $is_high_risk ? 3 : 1;
+        $new_count = $current_count + $increment;
+
+        if ($new_count >= $threshold) {
+            // Threshold exceeded: Enforce temporary lockout
+            $lockout_transient = 'wcpscan_404_lock_' . md5($client_ip);
+            set_transient($lockout_transient, [
+                'ip'       => $client_ip,
+                'count'    => $new_count,
+                'window'   => $window_seconds,
+                'duration' => $lockout_duration,
+                'last_uri' => substr($raw_uri, 0, 200),
+            ], $lockout_duration * MINUTE_IN_SECONDS);
+
+            delete_transient($counter_transient);
+
+            $rule_triggered = [
+                'id'          => 'RATE-LIMIT-404-LOCKOUT',
+                'name'        => '404 Scanner Rate Limit Enforced',
+                'category'    => '404 Scanner Rate Limit',
+                'description' => sprintf(
+                    'IP triggered %d non-existent 404 endpoints within %d seconds. Enforced %d-minute automated lockout.',
+                    $new_count,
+                    $window_seconds,
+                    $lockout_duration
+                ),
+                'match_type'  => '404 Flood Detection',
+                'match_value' => $client_ip,
+                'payload'     => 'Probe: ' . substr($raw_uri, 0, 200),
+            ];
+
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($rule_triggered, 'detected');
+            } else {
+                self::log_incident($rule_triggered, 'blocked');
+                self::render_block_page($rule_triggered, $client_ip);
+                exit;
+            }
+        } else {
+            // Update transient counter for rolling window
+            set_transient($counter_transient, $new_count, $window_seconds);
+        }
+    }
+
+    /**
+     * Check if requested URI path is a static media/asset file.
+     *
+     * @param string $uri
+     * @return bool
+     */
+    public static function is_static_asset(string $uri): bool {
+        $path = parse_url($uri, PHP_URL_PATH);
+        if (!$path) {
+            return false;
+        }
+
+        // Common static extensions that shouldn't cause user lockouts
+        $static_extensions = '/\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|map|woff|woff2|ttf|eot|otf|mp4|webm|mp3|ogg|wav|pdf)$/i';
+        if (preg_match($static_extensions, $path)) {
+            return true;
+        }
+
+        // Common harmless web assets
+        if ($path === '/favicon.ico' || $path === '/robots.txt' || $path === '/sitemap.xml') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Detect high-risk reconnaissance probes seeking sensitive files or backdoors.
+     *
+     * @param string $uri
+     * @return bool
+     */
+    public static function is_high_risk_recon_probe(string $uri): bool {
+        $path = strtolower(parse_url($uri, PHP_URL_PATH) ?: $uri);
+
+        $high_risk_patterns = [
+            '/\.env($|\.)/i',
+            '/\.git(\/|$)/i',
+            '/\.svn(\/|$)/i',
+            '/\.htaccess(\.bak|\.old|\.save)?$/i',
+            '/wp-config\.php(\.bak|\.old|\.save|\.swp|\.dist|\.inc)?$/i',
+            '/(phpinfo|phpmyadmin|pma|adminer|wso|c99|r57|alfa|shell)\.php$/i',
+            '/\/(backup|dump|db|database|sql)\.(sql|tar|gz|zip|bz2)$/i',
+            '/\/eval-stdin\.php$/i',
+            '/\/vendor\/phpunit\//i',
+            '/\/solr\/admin\//i',
+        ];
+
+        foreach ($high_risk_patterns as $pattern) {
+            if (preg_match($pattern, $path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

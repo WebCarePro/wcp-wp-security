@@ -88,6 +88,10 @@ class SettingsManager {
             'waf_block_fake_bots'      => true,
             'waf_block_ai_scrapers'    => false,
             'waf_dynamic_robots_ai'    => true,
+            'waf_block_404_scanners'   => true, // Smart 404 scanner rate limiter
+            'waf_404_threshold'        => 10,   // Max 404s before temporary ban (e.g. 10)
+            'waf_404_window_seconds'   => 60,   // Rolling time window in seconds (default 60s)
+            'waf_404_lockout_duration' => 30,   // Lockout duration in minutes (default 30 mins)
 
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
@@ -468,6 +472,10 @@ class SettingsManager {
         $clean['waf_block_fake_bots']     = isset($input['waf_block_fake_bots']) ? !empty($input['waf_block_fake_bots']) : true;
         $clean['waf_block_ai_scrapers']   = !empty($input['waf_block_ai_scrapers']);
         $clean['waf_dynamic_robots_ai']   = isset($input['waf_dynamic_robots_ai']) ? !empty($input['waf_dynamic_robots_ai']) : true;
+        $clean['waf_block_404_scanners']   = isset($input['waf_block_404_scanners']) ? !empty($input['waf_block_404_scanners']) : true;
+        $clean['waf_404_threshold']        = max(3, min(100, (int) ($input['waf_404_threshold'] ?? 10)));
+        $clean['waf_404_window_seconds']   = max(10, min(600, (int) ($input['waf_404_window_seconds'] ?? 60)));
+        $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($input['waf_404_lockout_duration'] ?? 30)));
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;

@@ -1,4 +1,11 @@
 v:1.21.0 - 2026-10-21
+- Smart 404 Scanner Rate-Limiter & Reconnaissance Shield (`FirewallEngine.php`, `BotReconDefense.php`, `SettingsManager.php`, `FirewallPage.tsx`, `WafLogsPage.tsx`):
+  * Automated 404 Scanner Lockouts: Implemented automated temporary lockout mitigation against fuzzing and vulnerability scanning bots that trigger repetitive 404 errors across WordPress installations.
+  * DNS-Verified Search Engine Exemption: Genuine search engines (Googlebot, Bingbot, DuckDuckBot, Yandex, Baidu, Yahoo) verified via Reverse DNS (PTR) + Forward DNS (A/AAAA) confirmation are strictly exempted to prevent search engine indexing drops or SEO penalties.
+  * Static Asset & Media Exclusion: Missing static assets (`.jpg`, `.png`, `.webp`, `.svg`, `.css`, `.js`, `.ico`, `.woff`, `.pdf`) are ignored from 404 tallies, completely preventing false-positive lockouts for legitimate human visitors loading broken theme images or missing stylesheet icons.
+  * High-Risk Reconnaissance Acceleration: High-threat backdoor and sensitive file probes (`.env`, `.git`, `.bak`, `wp-config.php.bak`, `shell.php`, database dumps) advance the counter by 3 to swiftly isolate active exploit scanners.
+  * Configurable Admin Controls: Added toggles in Firewall Rules & Settings for threshold (default 10 probes), rolling time window (default 60s), and lockout duration (default 30 minutes).
+  * WAF Log & Incident Correlation: Blocked 404 attacks are recorded under the "404 Scanner Rate Limit" category with incident telemetry, showing recent target endpoints and duration in the dedicated WAF Incident Logs center.
 - Dedicated WAF Incident Logs & Threat Intelligence Page (`WafLogsPage.tsx`, `FirewallEngine.php`, `ScannerRoutes.php`, `AdminMenu.php`, `App.tsx`, `FirewallPage.tsx`, `index.css`):
   * Dedicated Submenu & Edge Route (`admin.php?page=wcp-scanner-waf-logs`): Added a full-page WAF logs forensics view accessible directly from the WordPress admin sidebar under "WAF Logs" and deep-linked from Firewall > Live Incident Stream.
   * Real-Time Telemetry & Threat Metrics: Implemented 4 live KPI cards (Total Incursions Blocked, 24h Attack Surge, Distinct Attack IPs, Simulation/Learning mode hits) with auto-refresh polling controls.
