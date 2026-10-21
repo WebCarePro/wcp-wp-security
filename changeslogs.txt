@@ -14,6 +14,11 @@ v:1.21.0 - 2026-10-21
   * Instant Per-Event Delivery Testing: Added interactive "Test" buttons on each security event to trigger immediate verification alerts via REST API (`/notifications/test-event`).
   * Quick Presets: Added 1-click configuration presets ("⭐ Default (Deactivate & Threats Only)", "DevSecOps Complete", "Enable All", "Disable All").
   * Settings Subtab Cross-Linkage: Placed a prominent, styled deep-link callout card in Settings > Email to direct administrators straight to the dedicated Notification Center.
+  * Modernized Executive Email Template & Brand Identity: Overhauled outgoing security alert emails (`NotificationDispatcher.php` and `Scheduler.php`) to match the obsidian visual identity from user mockups:
+    - Added high-resolution brand logo at `siteurl/wp-content/plugins/wcp-security-scanner/assets/logo.png`.
+    - Styled executive obsidian header (`#0b1120`) with glowing protocol priority badges (`#60a5fa` on `rgba(59, 130, 246, 0.12)`), blue top accent bar, and event summary chips.
+    - Added clean diagnostic table cards with monospace keys, high-contrast values, and vibrant CTA buttons (`#4f46e5`).
+    - Added dedicated "About WebCare Pro" company footer detailing our server security, Linux infrastructure, Cloudflare, migrations, and performance engineering services with direct link to https://webcarespro.com.
   * Real-Time Event Hook Integrations: Connected `NotificationDispatcher::trigger()` across `Scheduler.php`, `PluginSelfDefense.php`, `TwoFactorAuth.php`, `LoginHardening.php`, `DatabaseBackup.php`, `QuarantineManager.php`, `FirewallEngine.php`, `Plugin.php`, and `wcp-wp-scanner.php`.
 - Cloudflare Free Plan 3 Master Compound Rules & Individual Single-Rule Push (`CloudflareService.php`, `ScannerRoutes.php`, `FirewallPage.tsx`, `index.css`):
   * 5-to-3 High-Density Master Rules Consolidation: Combined the previous 5 individual Cloudflare Free Edge WAF rules into 3 high-impact master compound rules:

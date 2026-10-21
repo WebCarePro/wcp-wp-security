@@ -407,35 +407,49 @@ class Scheduler {
         $subject = "[$status_label] {$site_name} - Scan #{$scan_id} Completed ({$total_issues} findings)";
 
         $headers = ['Content-Type: text/html; charset=UTF-8'];
+        $logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
+        $sev_badge_color = ($critical_count > 0 || $high_count > 0) ? '#dc2626' : '#10b981';
 
-        $body = "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:620px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;color:#1e293b;'>";
-        $body .= "<div style='background:#0f172a;padding:20px;border-radius:8px;color:#fff;margin-bottom:20px;'>";
-        $body .= "<h2 style='margin:0 0 6px 0;font-size:20px;color:#38bdf8;'>WCP Security Scanner</h2>";
-        $body .= "<p style='margin:0;font-size:13px;color:#94a3b8;'>Automated Security Audit Report for <strong>{$site_name}</strong> ({$site_url})</p>";
+        $body = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;background-color:#f1f5f9;margin:0;padding:28px 12px;color:#0f172a;'>";
+        $body .= "<div style='max-width:620px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 10px 25px -5px rgba(15,23,42,0.08);'>";
+        
+        // Header matching brand
+        $body .= "<div style='background:#0b1120;padding:36px 32px 30px 32px;text-align:center;border-top:4px solid #3b82f6;border-bottom:3px solid {$sev_badge_color};'>";
+        $body .= "<div style='display:inline-block;padding:6px 16px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);margin-bottom:20px;'>";
+        $body .= "🛡️ " . esc_html($status_label);
+        $body .= "</div>";
+        $body .= "<div style='margin-bottom:14px;'><img src='" . esc_url($logo_url) . "' alt='WebCare Pro Logo' style='max-height:48px;width:auto;display:inline-block;'></div>";
+        $body .= "<div style='color:#94a3b8;font-size:13.5px;font-weight:500;margin-bottom:18px;'>High-Performance WordPress Security & Autonomous Defense</div>";
+        $body .= "<div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 18px;'>";
+        $body .= "<h1 style='color:#ffffff;font-size:18px;margin:0;font-weight:700;'>Scan #{$scan_id} Completed</h1>";
+        $body .= "<p style='color:#64748b;font-size:12.5px;margin:6px 0 0 0;'>Site: <strong style='color:#cbd5e1;'>{$site_name}</strong> (<a href='{$site_url}' style='color:#38bdf8;text-decoration:none;'>{$site_url}</a>)</p>";
+        $body .= "</div>";
         $body .= "</div>";
 
-        $body .= "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;'>";
-        $body .= "<div style='background:#fff;padding:12px;border-radius:8px;border:1px solid #e2e8f0;text-align:center;'>";
-        $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;'>Risk Score</div>";
-        $body .= "<div style='font-size:22px;font-weight:700;color:" . ($risk_score > 60 ? '#ef4444' : ($risk_score > 25 ? '#f59e0b' : '#10b981')) . ";'>{$risk_score}/100</div>";
+        // Body Metrics
+        $body .= "<div style='padding:32px 32px 28px 32px;background:#ffffff;'>";
+        $body .= "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px;'>";
+        $body .= "<div style='background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;text-align:center;'>";
+        $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;'>Risk Score</div>";
+        $body .= "<div style='font-size:24px;font-weight:800;margin-top:4px;color:" . ($risk_score > 60 ? '#ef4444' : ($risk_score > 25 ? '#f59e0b' : '#10b981')) . ";'>{$risk_score}/100</div>";
         $body .= "</div>";
 
-        $body .= "<div style='background:#fff;padding:12px;border-radius:8px;border:1px solid #e2e8f0;text-align:center;'>";
-        $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;'>Critical Threats</div>";
-        $body .= "<div style='font-size:22px;font-weight:700;color:#ef4444;'>{$critical_count}</div>";
+        $body .= "<div style='background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;text-align:center;'>";
+        $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;'>Critical Threats</div>";
+        $body .= "<div style='font-size:24px;font-weight:800;margin-top:4px;color:#ef4444;'>{$critical_count}</div>";
         $body .= "</div>";
 
-        $body .= "<div style='background:#fff;padding:12px;border-radius:8px;border:1px solid #e2e8f0;text-align:center;'>";
-        $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;'>Total Findings</div>";
-        $body .= "<div style='font-size:22px;font-weight:700;color:#0f172a;'>{$total_issues}</div>";
+        $body .= "<div style='background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;text-align:center;'>";
+        $body .= "<div style='font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;'>Total Findings</div>";
+        $body .= "<div style='font-size:24px;font-weight:800;margin-top:4px;color:#0f172a;'>{$total_issues}</div>";
         $body .= "</div>";
         $body .= "</div>";
 
         if (!empty($issues)) {
-            $body .= "<h3 style='font-size:15px;color:#0f172a;margin:20px 0 10px 0;'>Top Detected Issues:</h3>";
-            $body .= "<table style='width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;font-size:13px;'>";
+            $body .= "<h3 style='font-size:14px;font-weight:700;color:#0f172a;margin:20px 0 10px 0;text-transform:uppercase;letter-spacing:0.5px;'>Top Detected Issues:</h3>";
+            $body .= "<table style='width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;font-size:13px;border:1px solid #e2e8f0;'>";
             $body .= "<tr style='background:#f1f5f9;color:#475569;text-align:left;'>";
-            $body .= "<th style='padding:8px 12px;'>Severity</th><th style='padding:8px 12px;'>Type</th><th style='padding:8px 12px;'>Target / File</th>";
+            $body .= "<th style='padding:10px 12px;font-size:11px;text-transform:uppercase;'>Severity</th><th style='padding:10px 12px;font-size:11px;text-transform:uppercase;'>Type</th><th style='padding:10px 12px;font-size:11px;text-transform:uppercase;'>Target / File</th>";
             $body .= "</tr>";
             $limit = 10;
             $count = 0;
@@ -444,8 +458,8 @@ class Scheduler {
                 $sev_color = $iss['severity'] === 'critical' ? '#dc2626' : ($iss['severity'] === 'high' ? '#ea580c' : '#ca8a04');
                 $body .= "<tr style='border-top:1px solid #e2e8f0;'>";
                 $body .= "<td style='padding:8px 12px;'><span style='background:{$sev_color};color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;'>".strtoupper($iss['severity'])."</span></td>";
-                $body .= "<td style='padding:8px 12px;color:#334155;'>".esc_html($iss['type'])."</td>";
-                $body .= "<td style='padding:8px 12px;color:#64748b;word-break:break-all;'><code>".esc_html($iss['file_path'])."</code></td>";
+                $body .= "<td style='padding:8px 12px;color:#334155;font-weight:500;'>".esc_html($iss['type'])."</td>";
+                $body .= "<td style='padding:8px 12px;color:#64748b;word-break:break-all;font-family:monospace;font-size:12px;'>".esc_html($iss['file_path'])."</td>";
                 $body .= "</tr>";
             }
             $body .= "</table>";
@@ -455,12 +469,27 @@ class Scheduler {
             }
         }
 
-        $body .= "<div style='margin-top:24px;text-align:center;'>";
-        $body .= "<a href='{$admin_url}' style='display:inline-block;padding:12px 24px;background:#0284c7;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;'>Open Security Scanner Dashboard</a>";
+        $body .= "<div style='margin-top:32px;text-align:center;'>";
+        $body .= "<a href='{$admin_url}' style='display:inline-block;padding:13px 30px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;box-shadow:0 4px 14px rgba(79,70,229,0.35);'>Open Security Scanner Dashboard &rarr;</a>";
+        $body .= "</div>";
         $body .= "</div>";
 
-        $body .= "<p style='font-size:11px;color:#94a3b8;margin-top:24px;text-align:center;border-top:1px solid #e2e8f0;padding-top:12px;'>Generated by WCP Security Scanner by WebCare Pro &bull; {$site_url}</p>";
+        // About Us & Company Footer
+        $body .= "<div style='background:#0f172a;padding:28px 32px;border-top:1px solid #1e293b;color:#94a3b8;font-size:12.5px;line-height:1.6;'>";
+        $body .= "<div style='display:flex;align-items:center;margin-bottom:12px;'>";
+        $body .= "<strong style='color:#ffffff;font-size:14px;letter-spacing:0.2px;'>About WebCare Pro</strong>";
+        $body .= "<span style='color:#475569;margin:0 8px;'>•</span>";
+        $body .= "<a href='https://webcarespro.com' target='_blank' style='color:#38bdf8;text-decoration:none;font-weight:600;'>https://webcarespro.com</a>";
         $body .= "</div>";
+        $body .= "<p style='margin:0 0 16px 0;color:#cbd5e1;font-size:12.5px;line-height:1.6;'>";
+        $body .= "WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.";
+        $body .= "</p>";
+        $body .= "<div style='border-top:1px solid #1e293b;padding-top:14px;font-size:11.5px;color:#64748b;text-align:center;'>";
+        $body .= "Automated Security Audit Report generated on " . current_time('mysql') . " &bull; <a href='{$site_url}' style='color:#38bdf8;text-decoration:none;'>{$site_url}</a>";
+        $body .= "</div>";
+        $body .= "</div>";
+
+        $body .= "</div></body></html>";
 
         foreach ($recipients as $email) {
             if (is_email($email)) {
