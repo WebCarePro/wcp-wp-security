@@ -49,6 +49,11 @@ v:1.22.0 - 2026-10-22
   * 1-Click Version Rollback Engine: Enables administrators to revert instantly to any past local snapshot or historical GitHub release package with automatic decompression, integrity verification, and cache invalidation.
   * Zero-Trust GitHub Self-Defense Attestation: Connected `PluginSelfDefense.php` to GitHub's authoritative remote release manifest (`includes/System/plugin-manifest.json`). Enables administrators to run a Zero-Trust audit comparing local files directly against the cryptographic SHA256 baseline on GitHub.
   * 1-Click Self-Defense Cloud Cure: Added per-file "Restore from GitHub" action in the Self-Defense Diagnostics table, allowing instant 1-click restoration of any tampered or missing plugin core files directly from GitHub with verified hash integrity.
+- WAF Incident Logs & Threat Intelligence Customization Suite (`Migration.php`, `FirewallEngine.php`, `ScannerRoutes.php`, `WafLogsPage.tsx`):
+  * HTTP Status Code & Referer Forensic Telemetry: Extended database schema (`wp_wcpscan_firewall_logs`) with dedicated `http_status_code` (`int(5)`) and `http_referer` (`text`) columns. Updated `FirewallEngine::log_incident()` to log HTTP response codes (`403 Forbidden`, `404 Not Found`, `405 Method Block`, `200 Simulated`) and origin referer URL on every intercepted request.
+  * Customizable Column Visibility Selector: Added dropdown menu in WafLogsPage allowing administrators and developers to toggle visibility of any table column (`Timestamp`, `HTTP Status`, `Client IP`, `Attack Vector`, `Target URI`, `Method`, `HTTP Referer`, `User-Agent`, `Action Taken`, `Forensic Controls`) with instant `localStorage` persistence.
+  * HTTP Status Code Filter Dropdown: Added high-precision status filter to the WAF toolbar allowing developers to isolate `403 Forbidden`, `404 Rate Limited`, `405 Method Block`, or `200 Simulated` incidents with a single click.
+  * Color-Coded Forensic Status Badges: Rendered distinct semantic badges for status codes (`403` in red, `404` in amber, `405` in purple, `200` in blue) along with detailed HTTP status code and referer breakdowns in the expandable forensic accordion view.
 
 
 

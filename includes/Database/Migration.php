@@ -92,6 +92,8 @@ class Migration {
             ip_address varchar(100) NOT NULL,
             request_uri text NOT NULL,
             request_method varchar(10) NOT NULL DEFAULT 'GET',
+            http_status_code int(5) NOT NULL DEFAULT 403,
+            http_referer text DEFAULT NULL,
             rule_category varchar(50) NOT NULL,
             rule_description text NOT NULL,
             payload_sample text DEFAULT NULL,
@@ -101,6 +103,7 @@ class Migration {
             PRIMARY KEY  (id),
             KEY ip_address (ip_address(50)),
             KEY rule_category (rule_category),
+            KEY http_status_code (http_status_code),
             KEY created_at (created_at)
         ) $charset_collate;";
 
@@ -129,6 +132,18 @@ class Migration {
         dbDelta($sql5);
         dbDelta($sql6);
 
-        update_option('wcpscan_db_version', '1.8.0');
+        // Ensure columns exist on already-created tables in existing databases
+        $col_status = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'http_status_code'");
+        if (!$col_status) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `http_status_code` int(5) NOT NULL DEFAULT 403 AFTER `request_method`");
+        }
+        $col_referer = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'http_referer'");
+        if (!$col_referer) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `http_referer` text DEFAULT NULL AFTER `http_status_code`");
+        }
+
+        update_option('wcpscan_db_version', '1.9.0');
     }
 }

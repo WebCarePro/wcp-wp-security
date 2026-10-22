@@ -4682,15 +4682,17 @@ class ScannerRoutes {
         $search   = sanitize_text_field((string) ($request->get_param('search') ?: ''));
         $category = sanitize_text_field((string) ($request->get_param('category') ?: ''));
         $action   = sanitize_text_field((string) ($request->get_param('action') ?: ''));
-        $method   = sanitize_text_field((string) ($request->get_param('method') ?: ''));
-        $ip       = sanitize_text_field((string) ($request->get_param('ip') ?: ''));
+        $method      = sanitize_text_field((string) ($request->get_param('method') ?: ''));
+        $ip          = sanitize_text_field((string) ($request->get_param('ip') ?: ''));
+        $status_code = sanitize_text_field((string) ($request->get_param('status_code') ?: ''));
 
         $filters = array_filter([
-            'search'   => $search,
-            'category' => $category,
-            'action'   => $action,
-            'method'   => $method,
-            'ip'       => $ip,
+            'search'      => $search,
+            'category'    => $category,
+            'action'      => $action,
+            'method'      => $method,
+            'ip'          => $ip,
+            'status_code' => $status_code,
         ]);
 
         $res = \WcpScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);

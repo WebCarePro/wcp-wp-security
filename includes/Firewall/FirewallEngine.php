@@ -983,6 +983,19 @@ class FirewallEngine {
         $raw_ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         $user_agent = substr($raw_ua, 0, 300);
 
+        $raw_referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
+        $referer = substr($raw_referer, 0, 500);
+
+        // Determine HTTP Status Code
+        $status_code = 403;
+        if ($action === 'detected') {
+            $status_code = 200;
+        } elseif (isset($rule['category']) && $rule['category'] === '404 Scanner Rate Limit') {
+            $status_code = 404;
+        } elseif (isset($rule['category']) && (stripos($rule['category'], 'method') !== false || stripos($rule['description'] ?? '', 'method') !== false)) {
+            $status_code = 405;
+        }
+
         // Deduplication safeguard: don't log the same IP/rule more than once per minute
         $recent = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) LIMIT 1",
@@ -1000,6 +1013,8 @@ class FirewallEngine {
                 'ip_address'       => sanitize_text_field($ip),
                 'request_uri'      => sanitize_text_field($uri),
                 'request_method'   => sanitize_key($method),
+                'http_status_code' => (int) $status_code,
+                'http_referer'     => !empty($referer) ? sanitize_text_field($referer) : null,
                 'rule_category'    => sanitize_key($rule['category']),
                 'rule_description' => sanitize_text_field($rule['description']),
                 'payload_sample'   => sanitize_text_field(substr($rule['payload'] ?? '', 0, 255)),
@@ -1007,7 +1022,7 @@ class FirewallEngine {
                 'action_taken'     => sanitize_key($action),
                 'created_at'       => current_time('mysql'),
             ],
-            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         // Dispatch DevSecOps Webhook on blocked attack
@@ -1432,15 +1447,22 @@ class FirewallEngine {
         $where_clauses = ['1=1'];
         $where_params = [];
 
-        // Search IP or URI or Payload
+        // Search IP or URI or Payload or Referer
         if (!empty($filters['search'])) {
             $like = '%' . $wpdb->esc_like(trim($filters['search'])) . '%';
-            $where_clauses[] = "(ip_address LIKE %s OR request_uri LIKE %s OR rule_description LIKE %s OR payload_sample LIKE %s OR user_agent LIKE %s)";
+            $where_clauses[] = "(ip_address LIKE %s OR request_uri LIKE %s OR rule_description LIKE %s OR payload_sample LIKE %s OR user_agent LIKE %s OR http_referer LIKE %s)";
             $where_params[] = $like;
             $where_params[] = $like;
             $where_params[] = $like;
             $where_params[] = $like;
             $where_params[] = $like;
+            $where_params[] = $like;
+        }
+
+        // Filter by HTTP Status Code
+        if (!empty($filters['status_code']) && $filters['status_code'] !== 'all') {
+            $where_clauses[] = "http_status_code = %d";
+            $where_params[] = (int) $filters['status_code'];
         }
 
         // Filter by rule category
