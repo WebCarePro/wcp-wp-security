@@ -3,6 +3,7 @@ namespace WcpScanner\Firewall;
 
 use WcpScanner\System\SettingsManager;
 use WcpScanner\System\AuditLogger;
+use WcpScanner\Cloudflare\CloudflareService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -416,6 +417,17 @@ class VirtualPatchManager {
             return ['success' => false, 'message' => __('Cloudflare API Token or Zone ID is not configured in Settings.', 'wcp-security-scanner')];
         }
 
+        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+            $cf_file = defined('WCPSCAN_PATH') ? WCPSCAN_PATH . 'includes/Cloudflare/CloudflareService.php' : dirname(__DIR__) . '/Cloudflare/CloudflareService.php';
+            if (file_exists($cf_file)) {
+                require_once $cf_file;
+            }
+        }
+
+        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+            return ['success' => false, 'message' => __('Cloudflare integration service is unavailable.', 'wcp-security-scanner')];
+        }
+
         // Fetch existing ruleset
         $res = CloudflareService::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
         $rules = [];
@@ -470,6 +482,17 @@ class VirtualPatchManager {
         $settings = SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
         if (empty($zone_id)) {
+            return false;
+        }
+
+        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+            $cf_file = defined('WCPSCAN_PATH') ? WCPSCAN_PATH . 'includes/Cloudflare/CloudflareService.php' : dirname(__DIR__) . '/Cloudflare/CloudflareService.php';
+            if (file_exists($cf_file)) {
+                require_once $cf_file;
+            }
+        }
+
+        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
             return false;
         }
 

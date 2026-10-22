@@ -30,7 +30,9 @@ v:1.23.0 - 2026-10-23
   * Shopper 404 Lockout Immunity: Granted 404 rate-limiting immunity to genuine customers with active cart cookies (`woocommerce_items_in_cart`, `woocommerce_cart_hash`, `wp_woocommerce_session_`, `edd_items_in_cart`, `mp_session_`) or visiting store/cart/checkout endpoints.
   * Customer Checkout Form Heuristic Isolation: Automatically sanitizes benign customer shipping/billing inputs (e.g. apartment numbers, names with apostrophes) during checkout evaluation to prevent false path traversal or SQL injection triggers.
   * Virtual Patch E-Commerce Protection: Bypasses unrelated CVE virtual patches on verified cart, checkout, and store API endpoints to safeguard customer transactions.
-  * Dedicated Emerald UI Control Card: Added an E-Commerce & Membership Smart Shield section in the "Firewall Rules & Controls" tab with real-time active store detection telemetry and an individual Save control.
+- Cloudflare Edge Virtual Patching Class Loading Fix (`VirtualPatchManager.php`, `VirtualPatchCard.tsx`):
+  * CloudflareService Import & Defensive Bootstrap: Fixed `Class "WcpScanner\Firewall\CloudflareService" not found` fatal error during "1-Click Virtual Patch" on Cloudflare-connected sites. Corrected the namespace resolution (`use WcpScanner\Cloudflare\CloudflareService;`) and added runtime defensive file inclusion to guarantee Cloudflare edge rules deploy seamlessly.
+  * Stripped Raw HTML from Virtual Patch Error Feedback: Enhanced `VirtualPatchCard.tsx` error banner to strip raw HTML markup from exception messages for clean, readable error reporting.
 - Agent Guidelines & Release Automation Updates (`AGENTS.md`):
   * GitHub Release Tracking Architecture: Updated workflow rules to mandate tracking `wcp-security-scanner.zip` release archive in git for 1-click in-plugin updates.
   * Synchronized Version Manifest Matrix: Formatted version synchronization specifications across all 5 key files (`changeslogs.txt`, `wcp-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`).
