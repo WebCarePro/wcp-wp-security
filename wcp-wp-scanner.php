@@ -94,7 +94,6 @@ register_deactivation_hook(__FILE__, function () {
     wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
 });
 
-// Initialize the plugin
-add_action('plugins_loaded', function () {
-    \WcpScanner\Plugin::get_instance();
-});
+// Initialize the plugin early so WAF inspection hooks into plugins_loaded priority 0
+\WcpScanner\Plugin::get_instance();
+

@@ -363,6 +363,30 @@ class FirewallEngine {
             return;
         }
 
+        // Check XML-RPC Disabled Guard early at plugins_loaded:0
+        if (!empty($settings['waf_disable_xmlrpc']) && (strpos($request_uri, 'xmlrpc.php') !== false || (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'xmlrpc.php') !== false))) {
+            $rule_triggered = [
+                'id'          => 'WAF-XMLRPC-DISABLED',
+                'name'        => 'XML-RPC Access Prohibited',
+                'category'    => 'XML-RPC Disabled',
+                'description' => 'XML-RPC request blocked by administrator security policy.',
+                'match_type'  => 'Endpoint Block',
+                'match_value' => 'xmlrpc.php',
+                'payload'     => 'xmlrpc.php invocation',
+            ];
+
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($rule_triggered, 'detected');
+            } else {
+                self::log_incident($rule_triggered, 'blocked');
+                status_header(403);
+                header('Content-Type: text/plain; charset=utf-8');
+                echo 'XML-RPC services are disabled on this WordPress installation by WCP Security Scanner.';
+                exit;
+            }
+        }
+
         // Check HTTP Request Method Whitelist / Block Unsafe Methods (TRACE, TRACK, CONNECT, DEBUG)
         if (!empty($settings['waf_block_unsafe_http_methods'])) {
             $http_method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -545,25 +569,28 @@ class FirewallEngine {
      * Evaluate protection rules across GET, POST, and URI
      */
     private static function evaluate_rules(array $settings, bool $is_complementary): ?array {
-        $uri          = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        $query_string = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
-        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+        $raw_uri      = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '';
+        $uri          = urldecode($raw_uri);
+        $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(wp_unslash($_SERVER['QUERY_STRING'])) : '';
+        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
 
-        // Combine request parameters for deep inspection
+        // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];
 
+        if (!empty($query_string)) {
+            $params_to_check[] = $query_string;
+        }
+
         if (!empty($_GET) && is_array($_GET)) {
-            $clean_get = map_deep(wp_unslash($_GET), 'sanitize_text_field');
-            $params_to_check[] = urldecode(http_build_query($clean_get));
+            $params_to_check[] = urldecode(http_build_query(wp_unslash($_GET)));
         }
         if (!empty($_POST) && is_array($_POST)) {
-            $clean_post = map_deep(wp_unslash($_POST), 'sanitize_text_field');
-            $params_to_check[] = urldecode(http_build_query($clean_post));
+            $params_to_check[] = urldecode(http_build_query(wp_unslash($_POST)));
         }
 
         $raw_input = @file_get_contents('php://input');
         if (!empty($raw_input) && strlen($raw_input) < 131072) { // Inspect up to 128KB payload
-            $params_to_check[] = sanitize_text_field(wp_unslash($raw_input));
+            $params_to_check[] = wp_unslash($raw_input);
         }
 
         $combined_payload = implode(' ', $params_to_check);
@@ -1015,9 +1042,9 @@ class FirewallEngine {
                 'request_method'   => sanitize_key($method),
                 'http_status_code' => (int) $status_code,
                 'http_referer'     => !empty($referer) ? sanitize_text_field($referer) : null,
-                'rule_category'    => sanitize_key($rule['category']),
-                'rule_description' => sanitize_text_field($rule['description']),
-                'payload_sample'   => sanitize_text_field(substr($rule['payload'] ?? '', 0, 255)),
+                'rule_category'    => sanitize_key($rule['category'] ?? 'General Defense'),
+                'rule_description' => sanitize_text_field($rule['description'] ?? $rule['name'] ?? 'Threat payload blocked by firewall policy.'),
+                'payload_sample'   => sanitize_text_field(substr($rule['payload'] ?? $rule['match_value'] ?? '', 0, 255)),
                 'user_agent'       => sanitize_text_field($user_agent),
                 'action_taken'     => sanitize_key($action),
                 'created_at'       => current_time('mysql'),
