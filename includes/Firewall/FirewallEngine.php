@@ -442,6 +442,127 @@ class FirewallEngine {
             }
         }
 
+        // Rule 18: Instant Sensitive File & Backup Probes Shield
+        if (!empty($settings['waf_block_sensitive_file_probes'])) {
+            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            $sensitive_patterns = [
+                '/\.(env|git|svn|htaccess|user\.ini)(\/|$)/i',
+                '/\.(sql|sql\.gz|tar\.gz|bak)$/i',
+                '/(backup|dump|db_backup|wp-config\.php[~_\.bak])/i',
+                '/(phpinfo\.php|info\.php)$/i',
+            ];
+            foreach ($sensitive_patterns as $spat) {
+                if (preg_match($spat, $clean_path)) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-SENSITIVE-FILE-PROBE',
+                        'name'        => 'Sensitive File & Backup Probe Block',
+                        'category'    => 'File Reconnaissance',
+                        'description' => 'Unauthorized probe targeting sensitive system configuration, git repository, or database backup file.',
+                        'match_type'  => 'Path Reconnaissance',
+                        'match_value' => $clean_path,
+                        'payload'     => "Path: {$clean_path} IP: {$client_ip}",
+                    ];
+
+                    $mode = $settings['waf_mode'] ?? 'enabled';
+                    if ($mode === 'learning') {
+                        self::log_incident($rule_triggered, 'detected');
+                    } else {
+                        self::log_incident($rule_triggered, 'blocked');
+                        self::render_block_page($rule_triggered, $client_ip);
+                        exit;
+                    }
+                }
+            }
+        }
+
+        // Rule 19: Direct Execution Deny for wp-content/uploads/ PHP Scripts
+        if (!empty($settings['waf_block_uploads_php_exec'])) {
+            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            if (preg_match('/\/wp-content\/uploads\/.*\.php([0-9]|s|tml)?(\/|\?|$)/i', $clean_path) || preg_match('/\/wp-content\/uploads\/.*\.php([0-9]|s|tml)?/i', $request_uri)) {
+                $rule_triggered = [
+                    'id'          => 'WAF-UPLOADS-PHP-DENY',
+                    'name'        => 'Uploads Directory PHP Execution Deny',
+                    'category'    => 'Execution Armor',
+                    'description' => 'Direct execution request to PHP script inside media uploads folder was blocked.',
+                    'match_type'  => 'Script Execution Defense',
+                    'match_value' => $clean_path,
+                    'payload'     => "Upload Script: {$clean_path} IP: {$client_ip}",
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                }
+            }
+        }
+
+        // Rule 20: External wp-cron.php Abuse & Flooding Blocker
+        if (!empty($settings['waf_block_external_cron'])) {
+            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            if (strpos($clean_path, 'wp-cron.php') !== false) {
+                $server_addr = $_SERVER['SERVER_ADDR'] ?? '';
+                $is_loopback = in_array($client_ip, ['127.0.0.1', '::1', $server_addr], true);
+                $is_admin = is_user_logged_in() && current_user_can('manage_options');
+
+                if (!$is_loopback && !$is_admin) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-EXTERNAL-CRON-BLOCK',
+                        'name'        => 'External wp-cron.php Abuse Block',
+                        'category'    => 'DoS & Resource Shield',
+                        'description' => 'Direct external HTTP trigger to wp-cron.php rejected to prevent resource starvation.',
+                        'match_type'  => 'Endpoint Protection',
+                        'match_value' => 'wp-cron.php',
+                        'payload'     => "External IP: {$client_ip} URI: {$request_uri}",
+                    ];
+
+                    $mode = $settings['waf_mode'] ?? 'enabled';
+                    if ($mode === 'learning') {
+                        self::log_incident($rule_triggered, 'detected');
+                    } else {
+                        self::log_incident($rule_triggered, 'blocked');
+                        status_header(403);
+                        header('Content-Type: text/plain; charset=utf-8');
+                        echo 'External access to wp-cron.php is blocked by WCP Security Scanner.';
+                        exit;
+                    }
+                }
+            }
+        }
+
+        // Rule 23: Lockdown install.php & upgrade.php on Already Installed Sites
+        if (!empty($settings['waf_block_install_php'])) {
+            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            if (strpos($clean_path, 'wp-admin/install.php') !== false || strpos($clean_path, 'wp-admin/upgrade.php') !== false) {
+                if (function_exists('is_blog_installed') && is_blog_installed()) {
+                    $is_admin = is_user_logged_in() && current_user_can('manage_options');
+                    if (!$is_admin) {
+                        $rule_triggered = [
+                            'id'          => 'WAF-INSTALL-LOCKDOWN',
+                            'name'        => 'WordPress Installer Lockdown',
+                            'category'    => 'Hardening Defense',
+                            'description' => 'Public access to WordPress install.php/upgrade.php blocked on already established site.',
+                            'match_type'  => 'Installer Probe',
+                            'match_value' => $clean_path,
+                            'payload'     => "Endpoint: {$clean_path} IP: {$client_ip}",
+                        ];
+
+                        $mode = $settings['waf_mode'] ?? 'enabled';
+                        if ($mode === 'learning') {
+                            self::log_incident($rule_triggered, 'detected');
+                        } else {
+                            self::log_incident($rule_triggered, 'blocked');
+                            self::render_block_page($rule_triggered, $client_ip);
+                            exit;
+                        }
+                    }
+                }
+            }
+        }
+
         // Check custom user IP blocklist
         if (!empty($settings['waf_blocked_ips']) && self::is_ip_blocked($client_ip, $settings['waf_blocked_ips'])) {
             $rule_triggered = [
@@ -685,6 +806,49 @@ class FirewallEngine {
                     'description' => 'Null byte string termination attack (%00) detected in URI or request payload.',
                     'payload'     => substr($combined_payload, 0, 200),
                 ];
+            }
+        }
+
+        // Rule 21: Open Redirect Phishing Guard
+        if (!empty($settings['waf_block_open_redirects'])) {
+            $redirect_keys = ['redirect_to', 'redirect', 'url', 'return_to', 'next', 'target'];
+            $all_params = array_merge($_GET, $_POST);
+            $home_host = strtolower(parse_url(home_url(), PHP_URL_HOST) ?: '');
+
+            foreach ($redirect_keys as $key) {
+                if (!empty($all_params[$key]) && is_string($all_params[$key])) {
+                    $val = trim(urldecode($all_params[$key]));
+                    if (preg_match('#^https?://#i', $val) || strpos($val, '//') === 0) {
+                        $parsed_host = strtolower(parse_url($val, PHP_URL_HOST) ?: '');
+                        // If host is specified and does not match the home host or localhost
+                        if (!empty($parsed_host) && $parsed_host !== $home_host && $parsed_host !== 'localhost' && $parsed_host !== '127.0.0.1') {
+                            return [
+                                'category'    => 'Protocol Defense',
+                                'description' => sprintf('Unsanitized open redirect targeting unauthorized external destination: %s', substr($parsed_host, 0, 60)),
+                                'payload'     => substr($val, 0, 200),
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Rule 22: Cloud Metadata & SSRF Shield (AWS/GCP/Azure IMDS)
+        if (!empty($settings['waf_block_ssrf_metadata'])) {
+            $ssrf_patterns = [
+                '/169\.254\.169\.254/i',
+                '/metadata\.google\.internal/i',
+                '/metadata\.internal/i',
+                '/instance-identity\/document/i',
+            ];
+            foreach ($ssrf_patterns as $pattern) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                    return [
+                        'category'    => 'SSRF Defense',
+                        'description' => 'Cloud instance metadata service (IMDS) SSRF exploitation probe intercepted.',
+                        'payload'     => substr($combined_payload, 0, 200),
+                    ];
+                }
             }
         }
 

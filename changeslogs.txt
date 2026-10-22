@@ -8,6 +8,14 @@ v:1.23.0 - 2026-10-23
   * Early Priority 0 Hook Bootstrapping: Fixed bootstrap sequence in `wcp-wp-scanner.php` to instantiate `\WcpScanner\Plugin::get_instance()` immediately upon load so that `FirewallEngine::inspect_incoming_request` binds to `plugins_loaded` at priority 0 ahead of other core callbacks.
   * Raw Payload Threat Inspection: Updated `FirewallEngine::evaluate_rules()` to inspect un-sanitized raw query strings, URIs, and payloads before WordPress core text sanitization can strip raw `<script>` tags, guaranteeing 100% detection of Cross-Site Scripting (XSS) vectors.
   * Automated 11-Vector Penetration Verification Suite: Created `test_waf_rules.js` testing SQLi, Path Traversal, PHP Injection, XSS, Null Byte Poisoning, Unsafe HTTP Verbs (TRACE), Blank POST Drop, XML-RPC Prohibitions, AI Scrapers (GPTBot), Virtual Patches, and Honeypot Username Traps with 100% intercept fidelity.
+- High-Impact WAF Rule Expansion Suite (`SettingsManager.php`, `FirewallEngine.php`, `FirewallPage.tsx`):
+  * Sensitive File & Backup Probes Shield: Instant HTTP 403 block on automated probes targeting `.env`, `.git`, `.svn`, database dumps (`.sql`, `.sql.gz`), and backup archives (`db_backup`, `backup.zip`).
+  * Uploads Directory PHP Execution Deny: Blocks direct HTTP execution requests to any `.php` scripts located inside `wp-content/uploads/` to neutralize uploaded webshells.
+  * External `wp-cron.php` Abuse Blocker: Drops external HTTP triggers to `wp-cron.php` (exempting server loopback, localhost, and CLI) to prevent server DoS and resource starvation.
+  * Open Redirect Phishing Guard: Intercepts and rejects untrusted external redirect parameters (`redirect_to`, `redirect`, `url`, `return_to`) pointing to external phishing domains.
+  * Cloud Metadata & SSRF Shield: Drops Server-Side Request Forgery probes targeting AWS/GCP/Azure instance metadata (`169.254.169.254`, `metadata.google.internal`).
+  * WordPress Installer Lockdown: Enforces strict access controls on `install.php` and `upgrade.php` on already established WordPress sites.
+  * Modern Responsive UI Controls: Added individual on/off toggle switches for all 6 new defense layers in the "Firewall Rules & Perimeter" tab with full Dark and Light mode support.
 - Agent Guidelines & Release Automation Updates (`AGENTS.md`):
   * GitHub Release Tracking Architecture: Updated workflow rules to mandate tracking `wcp-security-scanner.zip` release archive in git for 1-click in-plugin updates.
   * Synchronized Version Manifest Matrix: Formatted version synchronization specifications across all 5 key files (`changeslogs.txt`, `wcp-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`).

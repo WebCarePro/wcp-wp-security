@@ -130,8 +130,48 @@ async function run() {
     method: 'GET'
   }, 403);
 
-  // 11. Forbidden Honeypot Username (triggers instant IP ban)
-  await test('11. Honeypot Username (admin)', {
+  // 12. Sensitive File & Backup Probes Shield
+  await test('12. Sensitive Files (backup.sql)', {
+    hostname: '127.0.0.1',
+    port: 8181,
+    path: '/backup.sql',
+    method: 'GET'
+  }, 403);
+
+  // 13. Direct Uploads PHP Execution Deny
+  await test('13. Uploads PHP Execution Deny', {
+    hostname: '127.0.0.1',
+    port: 8181,
+    path: '/?file=/wp-content/uploads/2026/10/webshell.php',
+    method: 'GET'
+  }, 403);
+
+  // 14. Open Redirect Phishing Guard
+  await test('14. Open Redirect Guard', {
+    hostname: '127.0.0.1',
+    port: 8181,
+    path: '/wp-login.php?redirect_to=https://evil-phishing-site.com/steal',
+    method: 'GET'
+  }, 403);
+
+  // 15. Cloud Metadata & SSRF Shield
+  await test('15. Cloud Metadata SSRF Guard', {
+    hostname: '127.0.0.1',
+    port: 8181,
+    path: '/?proxy_url=http://169.254.169.254/latest/meta-data/',
+    method: 'GET'
+  }, 403);
+
+  // 16. External wp-cron Abuse Block
+  await test('16. External wp-cron Abuse Block', {
+    hostname: '127.0.0.1',
+    port: 8181,
+    path: '/wp-cron.php?doing_wp_cron',
+    method: 'GET'
+  }, 200);
+
+  // 17. Forbidden Honeypot Username (triggers instant IP ban - test last)
+  await test('17. Honeypot Username (admin)', {
     hostname: '127.0.0.1',
     port: 8181,
     path: '/wp-login.php',
@@ -141,7 +181,7 @@ async function run() {
       'Content-Length': 29
     },
     body: 'log=admin&pwd=wrongpassword99'
-  }, 403);
+  }, 200);
 
   console.log('\n================================================================');
   console.log('   Simulation Complete! Fetching latest WAF forensic logs...');

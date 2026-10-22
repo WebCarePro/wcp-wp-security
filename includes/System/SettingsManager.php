@@ -106,6 +106,12 @@ class SettingsManager {
             'waf_block_malicious_uploads'       => true, // Intercept & prevent malicious file uploads (executables, double ext, polyglots, SVG XSS)
             'waf_block_unsafe_http_methods'     => true, // Block TRACE, TRACK, CONNECT, DEBUG HTTP methods
             'waf_block_null_byte_attacks'       => true, // Block null byte (%00) poison attacks in URI & inputs
+            'waf_block_sensitive_file_probes'   => true, // Block instant .env, .git, .sql, and backup file reconnaissance
+            'waf_block_uploads_php_exec'        => true, // Deny direct execution requests to php files in wp-content/uploads/
+            'waf_block_external_cron'           => false, // Block external HTTP hits to wp-cron.php (exempt loopback/cli)
+            'waf_block_open_redirects'          => true, // Block open redirects targeting external phishing destinations
+            'waf_block_ssrf_metadata'           => true, // Block SSRF probes targeting 169.254.169.254 cloud metadata
+            'waf_block_install_php'             => true, // Lockdown install.php and upgrade.php on installed sites
 
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
@@ -504,6 +510,12 @@ class SettingsManager {
         $clean['waf_block_malicious_uploads']     = isset($input['waf_block_malicious_uploads']) ? !empty($input['waf_block_malicious_uploads']) : true;
         $clean['waf_block_unsafe_http_methods']   = isset($input['waf_block_unsafe_http_methods']) ? !empty($input['waf_block_unsafe_http_methods']) : true;
         $clean['waf_block_null_byte_attacks']     = isset($input['waf_block_null_byte_attacks']) ? !empty($input['waf_block_null_byte_attacks']) : true;
+        $clean['waf_block_sensitive_file_probes'] = isset($input['waf_block_sensitive_file_probes']) ? !empty($input['waf_block_sensitive_file_probes']) : true;
+        $clean['waf_block_uploads_php_exec']      = isset($input['waf_block_uploads_php_exec']) ? !empty($input['waf_block_uploads_php_exec']) : true;
+        $clean['waf_block_external_cron']         = !empty($input['waf_block_external_cron']);
+        $clean['waf_block_open_redirects']        = isset($input['waf_block_open_redirects']) ? !empty($input['waf_block_open_redirects']) : true;
+        $clean['waf_block_ssrf_metadata']         = isset($input['waf_block_ssrf_metadata']) ? !empty($input['waf_block_ssrf_metadata']) : true;
+        $clean['waf_block_install_php']           = isset($input['waf_block_install_php']) ? !empty($input['waf_block_install_php']) : true;
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;
