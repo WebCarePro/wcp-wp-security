@@ -1350,7 +1350,39 @@ class FirewallEngine {
                 ? \WcpScanner\Cloudflare\CloudflareService::get_edge_advisor()
                 : null,
             'server_telemetry'   => self::get_server_telemetry(),
+            'available_roles'    => self::get_available_roles(),
         ];
+    }
+
+    /**
+     * Get available WordPress user roles on this site.
+     *
+     * @return array Array of role slugs and their display names.
+     */
+    public static function get_available_roles(): array {
+        global $wp_roles;
+        if (!isset($wp_roles) && function_exists('wp_roles')) {
+            $wp_roles = wp_roles();
+        }
+        $roles = [];
+        if (!empty($wp_roles->roles) && is_array($wp_roles->roles)) {
+            foreach ($wp_roles->roles as $slug => $data) {
+                $roles[] = [
+                    'slug' => (string) $slug,
+                    'name' => isset($data['name']) ? translate_user_role($data['name']) : ucfirst((string) $slug),
+                ];
+            }
+        }
+        if (empty($roles)) {
+            $roles = [
+                ['slug' => 'administrator', 'name' => 'Administrator'],
+                ['slug' => 'editor', 'name' => 'Editor'],
+                ['slug' => 'author', 'name' => 'Author'],
+                ['slug' => 'contributor', 'name' => 'Contributor'],
+                ['slug' => 'subscriber', 'name' => 'Subscriber'],
+            ];
+        }
+        return $roles;
     }
 
     /**

@@ -379,6 +379,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/firewall/save-rule', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_single_firewall_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/roles', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_roles'],
+            'permission_callback' => $permission,
+        ]);
+
         // Server Security (Web Server Level Armor) Endpoints
         register_rest_route(self::NAMESPACE, '/firewall/server-security/config', [
             'methods'             => 'GET',
@@ -4768,6 +4780,40 @@ class ScannerRoutes {
             'success' => true,
             'enabled' => $enabled,
             'status'  => \WcpScanner\Firewall\FirewallEngine::get_status(),
+        ]);
+    }
+
+    /**
+     * Save an individual firewall rule or setting immediately
+     */
+    public static function save_single_firewall_rule(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $key = sanitize_key($params['key'] ?? '');
+        if (empty($key)) {
+            return new \WP_Error('invalid_key', 'Setting key is required.', ['status' => 400]);
+        }
+
+        $val = $params['value'] ?? null;
+        $current = \WcpScanner\System\SettingsManager::get_settings();
+        $current[$key] = $val;
+
+        $saved = \WcpScanner\System\SettingsManager::save_settings($current);
+        return rest_ensure_response([
+            'success'  => true,
+            'message'  => sprintf('Rule "%s" successfully saved.', $key),
+            'key'      => $key,
+            'value'    => $saved[$key] ?? $val,
+            'settings' => $saved,
+        ]);
+    }
+
+    /**
+     * Get available WordPress user roles for firewall role-enforcement rules
+     */
+    public static function get_firewall_roles() {
+        return rest_ensure_response([
+            'success' => true,
+            'roles'   => \WcpScanner\Firewall\FirewallEngine::get_available_roles(),
         ]);
     }
 

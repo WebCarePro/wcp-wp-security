@@ -16,6 +16,10 @@ v:1.23.0 - 2026-10-23
   * Cloud Metadata & SSRF Shield: Drops Server-Side Request Forgery probes targeting AWS/GCP/Azure instance metadata (`169.254.169.254`, `metadata.google.internal`).
   * WordPress Installer Lockdown: Enforces strict access controls on `install.php` and `upgrade.php` on already established WordPress sites.
   * Modern Responsive UI Controls: Added individual on/off toggle switches for all 6 new defense layers in the "Firewall Rules & Perimeter" tab with full Dark and Light mode support.
+- Firewall Rules & Controls Complete Rebuild & Granular Architecture (`FirewallPage.tsx`, `ScannerRoutes.php`, `FirewallEngine.php`):
+  * Multi-Column Grid Redesign: Completely overhauled the "Firewall Rules & Controls" tab. Expanded the "Protection Rules & Security Modes" column to take primary focus (65% width) while neatly stacking "Whitelisted IP Addresses" and "Allowlisted URLs / Endpoints" into a clean, dedicated right-hand column (35% width).
+  * Individual Rule Save Controls: Added dedicated per-rule/per-section Save buttons (`/firewall/save-rule` API endpoint) allowing administrators to save any individual security rule, threshold, or whitelist instantly without having to save the entire form.
+  * Interactive Strong Password Role Selector: Replaced the manual text input for "Enforce Strong Passwords" with an interactive role badge manager featuring dynamic tag chips with remove ('x') icons, an automated dropdown populated with all registered WordPress roles via `FirewallEngine::get_available_roles()`, and a "+ Add Role" action button.
 - Agent Guidelines & Release Automation Updates (`AGENTS.md`):
   * GitHub Release Tracking Architecture: Updated workflow rules to mandate tracking `wcp-security-scanner.zip` release archive in git for 1-click in-plugin updates.
   * Synchronized Version Manifest Matrix: Formatted version synchronization specifications across all 5 key files (`changeslogs.txt`, `wcp-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`).

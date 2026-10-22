@@ -1,6 +1,6 @@
 {
   "version": "1.23.0",
-  "generated_at": "2026-10-22T21:17:16.103Z",
+  "generated_at": "2026-10-22T22:35:24.754Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 455275
     },
     "build/index.asset.php": {
-      "sha256": "e2737d130f7000554a817c54526f898683c7df8fb7dacbfbdacac9012bd28871",
+      "sha256": "8400338a4c1d1c5dc5ef7019b4c9a3e101afb9fd5893933b6115a370baee6d1a",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 455142
     },
     "build/index.js": {
-      "sha256": "c52113d9c6eb2b512c7cc446e817c1c7160a60bb3bb4690522edf649c02c14c9",
-      "size": 1289482
+      "sha256": "c16c17471c070257e5804cda63f61c685a15c169452ecd442fef8f3457b7c90e",
+      "size": 1305308
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "0081353aaeb0bb3ed3cad690d8ca4fcd9c069414517df288da043e637b034132",
-      "size": 340748
+      "sha256": "4210ea63909c73323ba494fda0f3b69060ca67f2d258f78cf9b8c628df8906fb",
+      "size": 342465
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "d74c49718eed656ce089f633201e6e415b078922651da50bc59d3f84fbec3436",
@@ -208,8 +208,8 @@
       "size": 8877
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "ad76b73747da42cb23816dad2c88e6276233b83848138b25ae6ab935d76fe732",
-      "size": 97899
+      "sha256": "e43a9aa0f405e894d859d90461fdae63328c4858a5d6817a70bfc539d3ebfdd0",
+      "size": 99115
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "af523af493a07524c58810c6b2e641ba473730aff9364809851651ab9ce016a9",
