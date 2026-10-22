@@ -332,6 +332,32 @@ class FirewallEngine {
     }
 
     /**
+     * Check if the incoming request is made by a verified authenticated WordPress administrator.
+     *
+     * @return bool
+     */
+    public static function is_authenticated_administrator(): bool {
+        if (function_exists('is_user_logged_in') && function_exists('current_user_can')) {
+            if (is_user_logged_in() && (current_user_can('manage_options') || current_user_can('activate_plugins'))) {
+                return true;
+            }
+        }
+
+        if (function_exists('wp_validate_auth_cookie')) {
+            $user_id = wp_validate_auth_cookie('', 'logged_in')
+                ?: (wp_validate_auth_cookie('', 'secure_auth') ?: wp_validate_auth_cookie('', 'auth'));
+            if ($user_id && function_exists('get_userdata')) {
+                $user = get_userdata($user_id);
+                if ($user && ($user->has_cap('manage_options') || $user->has_cap('activate_plugins') || in_array('administrator', (array) $user->roles, true))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Inspect Incoming Request
      */
     public static function inspect_incoming_request() {
@@ -361,6 +387,30 @@ class FirewallEngine {
         // Check Allowlisted URLs / URI paths (bypasses all subsequent firewall rules)
         if (!empty($settings['waf_whitelisted_urls']) && self::is_url_whitelisted($request_uri, $settings['waf_whitelisted_urls'])) {
             return;
+        }
+
+        // Safe Bypass for Verified Authenticated Administrators performing core admin duties
+        // (Prevents false-positive blocks when deactivating, activating, updating, or uploading plugins in wp-admin)
+        if (self::is_authenticated_administrator()) {
+            $clean_script = basename(parse_url($request_uri, PHP_URL_PATH) ?: '');
+            $core_admin_pages = [
+                'plugins.php',
+                'update.php',
+                'plugin-install.php',
+                'theme-install.php',
+                'theme-editor.php',
+                'plugin-editor.php',
+                'options.php',
+                'options-general.php',
+                'options-permalink.php',
+                'site-health.php',
+                'admin-ajax.php',
+                'admin-post.php',
+            ];
+            $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false);
+            if ($is_admin_path && in_array($clean_script, $core_admin_pages, true)) {
+                return;
+            }
         }
 
         // Check XML-RPC Disabled Guard early at plugins_loaded:0
@@ -694,6 +744,11 @@ class FirewallEngine {
         $uri          = urldecode($raw_uri);
         $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(wp_unslash($_SERVER['QUERY_STRING'])) : '';
         $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
+
+        // Authenticated administrators performing back-end actions in wp-admin are exempt from payload heuristic blocks
+        if (self::is_authenticated_administrator() && (is_admin() || strpos($raw_uri, '/wp-admin/') !== false)) {
+            return null;
+        }
 
         // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];

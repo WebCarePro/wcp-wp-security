@@ -248,6 +248,32 @@ class VirtualPatchManager {
     }
 
     /**
+     * Check if current request originates from an authenticated WordPress administrator.
+     *
+     * @return bool
+     */
+    public static function is_authenticated_administrator(): bool {
+        if (function_exists('is_user_logged_in') && function_exists('current_user_can')) {
+            if (is_user_logged_in() && (current_user_can('manage_options') || current_user_can('activate_plugins'))) {
+                return true;
+            }
+        }
+
+        if (function_exists('wp_validate_auth_cookie')) {
+            $user_id = wp_validate_auth_cookie('', 'logged_in')
+                ?: (wp_validate_auth_cookie('', 'secure_auth') ?: wp_validate_auth_cookie('', 'auth'));
+            if ($user_id && function_exists('get_userdata')) {
+                $user = get_userdata($user_id);
+                if ($user && ($user->has_cap('manage_options') || $user->has_cap('activate_plugins') || in_array('administrator', (array) $user->roles, true))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Fast-Path Runtime Inspection: Evaluate Incoming Request against Active Virtual Patches.
      * Hooked directly into FirewallEngine before request processing.
      *
@@ -256,6 +282,11 @@ class VirtualPatchManager {
      * @return array|null Triggered rule array or null if clean
      */
     public static function evaluate_request(string $client_ip, string $request_uri): ?array {
+        // Authenticated administrators managing the site must never be blocked by virtual patches
+        if (self::is_authenticated_administrator()) {
+            return null;
+        }
+
         $active_patches = self::get_active_patches();
         if (empty($active_patches)) {
             return null;
@@ -315,6 +346,8 @@ class VirtualPatchManager {
                         }
                     }
                 }
+                // Header-targeted rules must not leak their header regex into query string or POST parameters
+                continue;
             }
 
             // Check Query string and Body with Regex
