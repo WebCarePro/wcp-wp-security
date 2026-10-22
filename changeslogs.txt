@@ -27,6 +27,12 @@ v:1.22.0 - 2026-10-22
   * Contextual Settings Hyperlink: Added direct access links to the 32+ Event Notification Center in the Settings page header action buttons and breadcrumb query toolbar.
 - Cloudflare Free Rate Limiting Counting Window Calibration (`FirewallPage.tsx`, `CloudflareService.php`):
   * Calibrated Default Counting Window: Updated the default Counting Window from 60s to 10s (`10 Seconds (Strict Burst Defense — Recommended)`) in both the React UI and PHP backend (`deploy_rate_limiting_rule` and `get_rate_limiting_info`), matching strict burst protection requirements and aligning with the recommended 1-click free preset button.
+- Timezone-Aware Timestamp Synchronization & Relative Time Fix (`AdminMenu.php`, `timeUtils.ts`, `App.tsx`, `WafLogsPage.tsx`, `FirewallPage.tsx`, `ScanLogsPage.tsx`):
+  * WordPress Site Timezone Localization: Exported `timezoneString` and `timezoneOffset` (in seconds from UTC) in `wcpScannerSettings` via `wp_localize_script()` in `AdminMenu.php`, bridging the server/WordPress timezone and browser client.
+  * Centralized Timezone-Aware Parser (`timeUtils.ts`): Implemented `parseWpDate()` which converts WordPress MySQL timestamps into accurate UTC epochs by factoring in the localized site timezone offset, eliminating the 6-hour drift between UTC servers and GMT+6/local user timezones.
+  * Real-Time Relative Formatting: Enhanced `formatRelativeTime()`, `formatTelemetryTime()`, and `formatTelemetryDateFull()` to render accurate relative times ("Just now", "2m ago") and localized date tooltips across the Live Defense Timeline, WAF Incident Logs, Firewall Overview table, and Scan Audit History.
+
+
 
 
 v:1.21.0 - 2026-10-21

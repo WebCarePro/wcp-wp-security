@@ -295,19 +295,24 @@ class AdminMenu {
                 ];
             }
 
+            $wp_tz = function_exists('wp_timezone') ? wp_timezone() : new \DateTimeZone(get_option('timezone_string') ?: 'UTC');
+            $wp_tz_offset = $wp_tz->getOffset(new \DateTime('now', new \DateTimeZone('UTC')));
+
             wp_enqueue_script('wcp-scanner-app', $js_url, $deps, $version, true);
             wp_localize_script('wcp-scanner-app', 'wcpScannerSettings', [
-                'root'       => esc_url_raw(rest_url('wcp-scanner/v1')),
-                'nonce'      => wp_create_nonce('wp_rest'),
-                'siteUrl'    => get_site_url(),
-                'siteName'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
-                'initialTab'    => $active_tab,
-                'version'       => WCPSCAN_VERSION,
-                'currentUserId' => get_current_user_id(),
-                'serverInfo'    => $server_info,
-                'assetsUrl'     => esc_url_raw(WCPSCAN_URL . 'assets/'),
-                'logo3dUrl'     => esc_url_raw(WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
-                'emblem3dUrl'   => esc_url_raw(WCPSCAN_URL . 'assets/webcare-3d-emblem.png'),
+                'root'            => esc_url_raw(rest_url('wcp-scanner/v1')),
+                'nonce'           => wp_create_nonce('wp_rest'),
+                'siteUrl'         => get_site_url(),
+                'siteName'        => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
+                'initialTab'      => $active_tab,
+                'version'         => WCPSCAN_VERSION,
+                'currentUserId'   => get_current_user_id(),
+                'serverInfo'      => $server_info,
+                'timezoneString'  => wp_timezone_string(),
+                'timezoneOffset'  => $wp_tz_offset, // in seconds from UTC
+                'assetsUrl'       => esc_url_raw(WCPSCAN_URL . 'assets/'),
+                'logo3dUrl'       => esc_url_raw(WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
+                'emblem3dUrl'     => esc_url_raw(WCPSCAN_URL . 'assets/webcare-3d-emblem.png'),
             ]);
         }
 
