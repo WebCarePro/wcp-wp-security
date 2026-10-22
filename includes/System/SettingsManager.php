@@ -94,6 +94,7 @@ class SettingsManager {
             'waf_404_lockout_duration' => 30,   // Lockout duration in minutes (default 30 mins)
 
             // Enhanced Perimeter & Identity Protection Rules
+            'waf_ecommerce_safe_mode'           => true, // E-Commerce & Membership Smart Shield (zero false-positives for WooCommerce, EDD, MemberPress, carts, checkouts, and payment webhooks)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
             'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
             'waf_block_forbidden_usernames'     => true, // Immediately block IP trying to sign in as forbidden honeypot usernames
@@ -498,6 +499,7 @@ class SettingsManager {
         $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($input['waf_404_lockout_duration'] ?? 30)));
 
         // Enhanced Perimeter & Identity Protection Rules
+        $clean['waf_ecommerce_safe_mode']         = isset($input['waf_ecommerce_safe_mode']) ? !empty($input['waf_ecommerce_safe_mode']) : true;
         $clean['waf_block_empty_post_ua_referer'] = isset($input['waf_block_empty_post_ua_referer']) ? !empty($input['waf_block_empty_post_ua_referer']) : true;
         $clean['waf_whitelisted_urls']            = sanitize_textarea_field($input['waf_whitelisted_urls'] ?? '');
         $clean['waf_block_forbidden_usernames']   = isset($input['waf_block_forbidden_usernames']) ? !empty($input['waf_block_forbidden_usernames']) : true;

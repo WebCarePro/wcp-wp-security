@@ -287,6 +287,14 @@ class VirtualPatchManager {
             return null;
         }
 
+        // E-Commerce & Membership Smart Shield: Never disrupt legitimate checkout, cart, or payment webhooks with unrelated CVE virtual patches
+        $settings = SettingsManager::get_settings();
+        if (!empty($settings['waf_ecommerce_safe_mode']) && class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            if (FirewallEngine::is_commerce_or_membership_request($request_uri)) {
+                return null;
+            }
+        }
+
         $active_patches = self::get_active_patches();
         if (empty($active_patches)) {
             return null;
