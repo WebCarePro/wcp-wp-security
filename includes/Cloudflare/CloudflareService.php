@@ -732,7 +732,7 @@ class CloudflareService {
         $default_config = [
             'enabled'            => false,
             'requests'           => 5,
-            'period'             => 60,
+            'period'             => 10,
             'mitigation_timeout' => 10, // 10s is standard Cloudflare Free plan requirement
             'action'             => 'block',
             'path'               => 'wp-login.php',
@@ -800,9 +800,9 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
         }
 
-        // Validate and sanitize customized options (Default: 5 requests / 60 seconds / 10s timeout for Cloudflare Free tier)
+        // Validate and sanitize customized options (Default: 5 requests / 10 seconds / 10s timeout for Cloudflare Free tier)
         $requests = isset($custom_config['requests']) ? max(2, min(500, (int) $custom_config['requests'])) : 5;
-        $period = isset($custom_config['period']) && in_array((int) $custom_config['period'], [10, 60], true) ? (int) $custom_config['period'] : 60;
+        $period = isset($custom_config['period']) && in_array((int) $custom_config['period'], [10, 60], true) ? (int) $custom_config['period'] : 10;
         $timeout = isset($custom_config['mitigation_timeout']) ? max(10, min(86400, (int) $custom_config['mitigation_timeout'])) : 10;
         
         $allowed_actions = ['block', 'managed_challenge', 'js_challenge', 'challenge'];

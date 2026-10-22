@@ -1,6 +1,6 @@
 {
   "version": "1.22.0",
-  "generated_at": "2026-10-21T20:28:57.096Z",
+  "generated_at": "2026-10-22T17:51:30.356Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 455275
     },
     "build/index.asset.php": {
-      "sha256": "c0ffa82771217f4e4ad2cf4d2290fccbdc2c8b94a1c3cd66eb3432a8675ca491",
+      "sha256": "31be67c351018ab843570f7555ba4628c1282887112c1ebe3f1c743d42819cac",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 455142
     },
     "build/index.js": {
-      "sha256": "69e60ae149f205e6c1544e0e7c4e59d79a9e7819f5d5f288db534927aa33ef0d",
-      "size": 1259988
+      "sha256": "979037d7bee6cb08d8439264cea5c9b3b4c53214d156f36126f5397c4f872549",
+      "size": 1259998
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -96,7 +96,7 @@
       "size": 43896
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "90b81c9ff1d1f9914f597787cd48bdae0b180eb3aff1c58fbbc750e9570cf322",
+      "sha256": "29f6cb10980929e067eb87d46910762b8f040467848e5fe7db9f4e3ff3a8e9a6",
       "size": 51501
     },
     "includes/Content/CommentScanner.php": {

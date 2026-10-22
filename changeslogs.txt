@@ -25,6 +25,9 @@ v:1.22.0 - 2026-10-22
   * Streamlined Header Bar: Removed the "Notifications" button from the plugin's top executive navigation header (leaving the core 4 tabs: Dashboard, Scan, Firewall, and Settings).
   * Contextual Firewall Hyperlink: Embedded high-contrast direct links to WAF Incident Logs & Forensics in the Firewall header actions and subtabs navigation bar.
   * Contextual Settings Hyperlink: Added direct access links to the 32+ Event Notification Center in the Settings page header action buttons and breadcrumb query toolbar.
+- Cloudflare Free Rate Limiting Counting Window Calibration (`FirewallPage.tsx`, `CloudflareService.php`):
+  * Calibrated Default Counting Window: Updated the default Counting Window from 60s to 10s (`10 Seconds (Strict Burst Defense — Recommended)`) in both the React UI and PHP backend (`deploy_rate_limiting_rule` and `get_rate_limiting_info`), matching strict burst protection requirements and aligning with the recommended 1-click free preset button.
+
 
 v:1.21.0 - 2026-10-21
 - Smart 404 Scanner Rate-Limiter & Reconnaissance Shield (`FirewallEngine.php`, `BotReconDefense.php`, `SettingsManager.php`, `FirewallPage.tsx`, `WafLogsPage.tsx`):
