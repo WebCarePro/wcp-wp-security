@@ -1,3 +1,15 @@
+v:1.23.0 - 2026-10-23
+- WAF Incident Logs & Threat Intelligence Customization Suite (`Migration.php`, `FirewallEngine.php`, `ScannerRoutes.php`, `WafLogsPage.tsx`):
+  * HTTP Status Code & Referer Forensic Telemetry: Extended database schema (`wp_wcpscan_firewall_logs`) with dedicated `http_status_code` (`int(5)`) and `http_referer` (`text`) columns. Updated `FirewallEngine::log_incident()` to log HTTP response codes (`403 Forbidden`, `404 Not Found`, `405 Method Block`, `200 Simulated`) and origin referer URL on every intercepted request.
+  * Customizable Column Visibility Selector: Added dropdown menu in WafLogsPage allowing administrators and developers to toggle visibility of any table column (`Timestamp`, `HTTP Status`, `Client IP`, `Attack Vector`, `Target URI`, `Method`, `HTTP Referer`, `User-Agent`, `Action Taken`, `Forensic Controls`) with instant `localStorage` persistence.
+  * HTTP Status Code Filter Dropdown: Added high-precision status filter to the WAF toolbar allowing developers to isolate `403 Forbidden`, `404 Rate Limited`, `405 Method Block`, or `200 Simulated` incidents with a single click.
+  * Color-Coded Forensic Status Badges: Rendered distinct semantic badges for status codes (`403` in red, `404` in amber, `405` in purple, `200` in blue) along with detailed HTTP status code and referer breakdowns in the expandable forensic accordion view.
+- Agent Guidelines & Release Automation Updates (`AGENTS.md`):
+  * GitHub Release Tracking Architecture: Updated workflow rules to mandate tracking `wcp-security-scanner.zip` release archive in git for 1-click in-plugin updates.
+  * Synchronized Version Manifest Matrix: Formatted version synchronization specifications across all 5 key files (`changeslogs.txt`, `wcp-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`).
+
+
+
 v:1.22.0 - 2026-10-22
 - Comprehensive Documentation Overhaul (`readme.txt`, `README.md`, `features.md`):
   * Complete 30-Engine Architectural Reference: Rewrote `features.md`, `README.md`, and `readme.txt` from the ground up to detail every specialized engine and feature in full depth (Cyber Command Center, Deep Malware Scanning, Targeted Audits with Auto-Scroll, FIM, 1-Click Auto-Cure, Quarantine Vault, Software CVE Intelligence, LotL Hook Sentinel, Database Anomaly Trap, WAF Lite, WAF Incident Logs, Smart 404 Rate-Limiter, Cloudflare Free Edge Defense, Community Threat Intel, Active Session Sentinel, Inline Session Forensics, 2FA, Dedicated Notification Center with 32+ events, HTTP Security Headers, Bot Recon Shield, AI Code Forensics, MCP Agentic Surface, Secret Vault AES-256-GCM AEAD, Unified WCP Vault, Database Backups, Microsecond Telemetry, Behavioral Baselines, 1-Click Hash-Locking Ignore, Data Privacy, and Dual-Theme System).
@@ -49,11 +61,6 @@ v:1.22.0 - 2026-10-22
   * 1-Click Version Rollback Engine: Enables administrators to revert instantly to any past local snapshot or historical GitHub release package with automatic decompression, integrity verification, and cache invalidation.
   * Zero-Trust GitHub Self-Defense Attestation: Connected `PluginSelfDefense.php` to GitHub's authoritative remote release manifest (`includes/System/plugin-manifest.json`). Enables administrators to run a Zero-Trust audit comparing local files directly against the cryptographic SHA256 baseline on GitHub.
   * 1-Click Self-Defense Cloud Cure: Added per-file "Restore from GitHub" action in the Self-Defense Diagnostics table, allowing instant 1-click restoration of any tampered or missing plugin core files directly from GitHub with verified hash integrity.
-- WAF Incident Logs & Threat Intelligence Customization Suite (`Migration.php`, `FirewallEngine.php`, `ScannerRoutes.php`, `WafLogsPage.tsx`):
-  * HTTP Status Code & Referer Forensic Telemetry: Extended database schema (`wp_wcpscan_firewall_logs`) with dedicated `http_status_code` (`int(5)`) and `http_referer` (`text`) columns. Updated `FirewallEngine::log_incident()` to log HTTP response codes (`403 Forbidden`, `404 Not Found`, `405 Method Block`, `200 Simulated`) and origin referer URL on every intercepted request.
-  * Customizable Column Visibility Selector: Added dropdown menu in WafLogsPage allowing administrators and developers to toggle visibility of any table column (`Timestamp`, `HTTP Status`, `Client IP`, `Attack Vector`, `Target URI`, `Method`, `HTTP Referer`, `User-Agent`, `Action Taken`, `Forensic Controls`) with instant `localStorage` persistence.
-  * HTTP Status Code Filter Dropdown: Added high-precision status filter to the WAF toolbar allowing developers to isolate `403 Forbidden`, `404 Rate Limited`, `405 Method Block`, or `200 Simulated` incidents with a single click.
-  * Color-Coded Forensic Status Badges: Rendered distinct semantic badges for status codes (`403` in red, `404` in amber, `405` in purple, `200` in blue) along with detailed HTTP status code and referer breakdowns in the expandable forensic accordion view.
 
 
 
