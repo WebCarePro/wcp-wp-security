@@ -42,6 +42,14 @@ v:1.22.0 - 2026-10-22
   * Edge SQL Injection Wirefilter Armor: Added 4th compound Cloudflare Free WAF custom rule terminating SQL injection probes directly at Cloudflare's Anycast Edge before requests ever reach origin servers or boot WordPress/MySQL.
   * Broad SQLi Attack Vector Coverage: Matches case-insensitive query signatures including UNION SELECT probes (`author_exclude=0) AND 1=0 UNION ALL SELECT ...`), `information_schema` reconnaissance, time-based blind SQLi (`sleep()`, `benchmark()`, `waitfor delay`), hex payloads (`concat(` with `0x...`), XML extraction (`extractvalue()`, `updatexml()`), boolean tautologies (`and 1=0`, `and 1=1`, `' or 1=1`), `group_concat`, and file writes (`into outfile`, `into dumpfile`).
   * 1-Click Cloudflare Dashboard Copy-Paste & API Sync: Fully integrated into both manual 1-click copy-paste expressions (zero API token required) and automated 1-click Edge API deployment, leaving 1 remaining custom rule slot on Cloudflare's Free tier for administrator-defined rules.
+- GitHub Direct Plugin Updates, Rollback Engine & Zero-Trust Cloud Self-Healing (`PluginUpdater.php`, `PluginSelfDefense.php`, `SettingsPage.tsx`, `PluginSelfDefenseCard.tsx`, `package.js`, `version.json`):
+  * GitHub Release Tracking & Version Manifest: Shipped root `version.json` automatically generated and synchronized during `npm run package` (`scripts/package.js`), enabling direct GitHub distribution for sites installing outside of WordPress.org.
+  * Native WordPress Transient & Plugin Update Integration: Implemented `PluginUpdater.php` hooking into `pre_set_site_transient_update_plugins` and `plugins_api`, showing native update prompts and changelog modals in `wp-admin/plugins.php`.
+  * Dedicated Plugin Updates & Rollback Settings Center: Added dedicated subtab inside Settings (`admin.php?page=wcp-security-scanner-settings&tab=updates`) featuring 1-click "Check for Updates", 1-click "Update to Latest Version", and automated pre-upgrade safety ZIP backups in `wp-content/uploads/wcp-quarantine/backups/`.
+  * 1-Click Version Rollback Engine: Enables administrators to revert instantly to any past local snapshot or historical GitHub release package with automatic decompression, integrity verification, and cache invalidation.
+  * Zero-Trust GitHub Self-Defense Attestation: Connected `PluginSelfDefense.php` to GitHub's authoritative remote release manifest (`includes/System/plugin-manifest.json`). Enables administrators to run a Zero-Trust audit comparing local files directly against the cryptographic SHA256 baseline on GitHub.
+  * 1-Click Self-Defense Cloud Cure: Added per-file "Restore from GitHub" action in the Self-Defense Diagnostics table, allowing instant 1-click restoration of any tampered or missing plugin core files directly from GitHub with verified hash integrity.
+
 
 
 v:1.21.0 - 2026-10-21

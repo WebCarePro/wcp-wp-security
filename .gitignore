@@ -4,6 +4,8 @@ vendor/
 
 # Build and distribution archives
 *.zip
+!wcp-security-scanner.zip
+
 
 # Environment & OS files
 .DS_Store

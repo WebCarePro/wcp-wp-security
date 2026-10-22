@@ -62,8 +62,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Security\\PluginSelfDefense')) {
             \WcpScanner\Security\PluginSelfDefense::init();
         }
-
-
+        if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
+            \WcpScanner\System\PluginUpdater::init();
+        }
 
         add_action('rest_api_init', function () {
             ScannerRoutes::register();

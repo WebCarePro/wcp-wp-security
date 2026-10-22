@@ -757,6 +757,49 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/self-defense/audit-github', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'audit_self_defense_against_github'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/self-defense/restore-file', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'restore_self_defense_file'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Plugin GitHub Update & Rollback Endpoints
+        register_rest_route(self::NAMESPACE, '/updater/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_updater_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/updater/check', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'check_for_updates'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/updater/update-now', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'execute_plugin_update'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/updater/create-backup', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'create_plugin_backup'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/updater/rollback', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'execute_plugin_rollback'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloudflare Edge Defense Endpoints
         register_rest_route(self::NAMESPACE, '/cloudflare/status', [
             'methods'             => 'GET',
@@ -6896,5 +6939,132 @@ class ScannerRoutes {
                 : __('All plugin core files are 100% authentic, intact, and verified against the official release signature.', 'wcp-security-scanner'),
         ]);
     }
+
+    public static function audit_self_defense_against_github(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
+            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $res = \WcpScanner\Security\PluginSelfDefense::audit_against_github(true);
+        return rest_ensure_response($res);
+    }
+
+    public static function restore_self_defense_file(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
+            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $params = $request->get_json_params();
+        $path = sanitize_text_field($params['path'] ?? '');
+
+        if (empty($path)) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => __('Path parameter is required for file restoration.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $res = \WcpScanner\Security\PluginSelfDefense::restore_file_from_github($path);
+        return rest_ensure_response($res);
+    }
+
+    // ==========================================
+    // 17. Plugin GitHub Updater & Rollback Endpoints
+    // ==========================================
+
+    public static function get_updater_status(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
+            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $status = \WcpScanner\System\PluginUpdater::check_update_status(false);
+        $backups = \WcpScanner\System\PluginUpdater::get_local_backups();
+
+        return rest_ensure_response([
+            'success' => true,
+            'status'  => $status,
+            'backups' => $backups,
+        ]);
+    }
+
+    public static function check_for_updates(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
+            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $status = \WcpScanner\System\PluginUpdater::check_update_status(true);
+        $backups = \WcpScanner\System\PluginUpdater::get_local_backups();
+
+        return rest_ensure_response([
+            'success' => true,
+            'status'  => $status,
+            'backups' => $backups,
+            'message' => $status['has_update']
+                ? sprintf(__('New update %s is available on GitHub!', 'wcp-security-scanner'), $status['latest_version'])
+                : __('You are running the latest version directly from GitHub.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function execute_plugin_update(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
+            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $params = $request->get_json_params();
+        $download_url = !empty($params['download_url']) ? esc_url_raw($params['download_url']) : null;
+
+        $res = \WcpScanner\System\PluginUpdater::execute_update($download_url);
+        return rest_ensure_response($res);
+    }
+
+    public static function create_plugin_backup(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
+            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $res = \WcpScanner\System\PluginUpdater::create_local_backup();
+        $backups = \WcpScanner\System\PluginUpdater::get_local_backups();
+
+        return rest_ensure_response([
+            'success' => $res['success'],
+            'message' => $res['message'],
+            'backups' => $backups,
+        ]);
+    }
+
+    public static function execute_plugin_rollback(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
+            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+
+        $params = $request->get_json_params();
+        $backup_id = sanitize_text_field($params['backup_id'] ?? '');
+        $download_url = !empty($params['download_url']) ? esc_url_raw($params['download_url']) : null;
+
+        $res = \WcpScanner\System\PluginUpdater::execute_rollback($backup_id, $download_url);
+        return rest_ensure_response($res);
+    }
 }
+
 

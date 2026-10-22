@@ -404,4 +404,190 @@ class PluginSelfDefense {
         echo '</div>';
         echo '</div>';
     }
+
+    /**
+     * Fetch remote authoritative manifest from GitHub (Zero-Trust Attestation)
+     *
+     * @param bool $force_refresh
+     * @return array|null
+     */
+    public static function get_remote_github_manifest(bool $force_refresh = false): ?array {
+        $transient_key = 'wcpscan_github_remote_manifest';
+        if (!$force_refresh) {
+            $cached = get_transient($transient_key);
+            if (is_array($cached) && !empty($cached['files'])) {
+                return $cached;
+            }
+        }
+
+        $remote_url = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json';
+        $res = wp_remote_get($remote_url, [
+            'timeout'    => 12,
+            'user-agent' => 'WCP-Self-Defense/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0'),
+            'sslverify'  => true,
+            'headers'    => [
+                'Cache-Control' => 'no-cache, must-revalidate',
+            ],
+        ]);
+
+        if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) {
+            return null;
+        }
+
+        $decoded = json_decode(wp_remote_retrieve_body($res), true);
+        if (!is_array($decoded) || empty($decoded['files'])) {
+            return null;
+        }
+
+        // Cache for 6 hours
+        set_transient($transient_key, $decoded, 6 * HOUR_IN_SECONDS);
+
+        return $decoded;
+    }
+
+    /**
+     * Audit local files directly against the authoritative remote GitHub manifest
+     *
+     * @param bool $force_refresh
+     * @return array
+     */
+    public static function audit_against_github(bool $force_refresh = false): array {
+        $remote_manifest = self::get_remote_github_manifest($force_refresh);
+        if (!$remote_manifest) {
+            return [
+                'success' => false,
+                'message' => __('Unable to connect to GitHub remote repository to fetch authoritative manifest.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $local_manifest = self::get_baseline_manifest();
+        $remote_files = $remote_manifest['files'] ?? [];
+        $remote_version = $remote_manifest['version'] ?? 'Unknown';
+
+        // Check if local manifest JSON was itself tampered with relative to GitHub
+        $manifest_intact = true;
+        if (count($local_manifest) !== count($remote_files)) {
+            $manifest_intact = false;
+        }
+
+        // Run audit against remote hashes
+        $plugin_dir = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
+        $missing_files = [];
+        $modified_files = [];
+        $verified_count = 0;
+
+        foreach ($remote_files as $rel_path => $meta) {
+            $expected_hash = is_array($meta) ? ($meta['sha256'] ?? '') : (string)$meta;
+            $fs_path = $plugin_dir . str_replace('/', DIRECTORY_SEPARATOR, $rel_path);
+
+            if (!file_exists($fs_path) || !is_file($fs_path)) {
+                $missing_files[] = [
+                    'path'          => $rel_path,
+                    'status'        => 'missing',
+                    'expected_size' => $meta['size'] ?? 0,
+                    'severity'      => 'high',
+                    'detail'        => __('File is missing compared to official GitHub release.', 'wcp-security-scanner'),
+                ];
+                continue;
+            }
+
+            $current_hash = @hash_file('sha256', $fs_path);
+            if ($current_hash !== $expected_hash) {
+                $modified_files[] = [
+                    'path'          => $rel_path,
+                    'status'        => 'modified',
+                    'expected_hash' => $expected_hash,
+                    'actual_hash'   => $current_hash,
+                    'severity'      => 'critical',
+                    'detail'        => __('File hash differs from official GitHub release commit.', 'wcp-security-scanner'),
+                ];
+            } else {
+                $verified_count++;
+            }
+        }
+
+        return [
+            'success'          => true,
+            'github_version'   => $remote_version,
+            'manifest_intact'  => $manifest_intact,
+            'total_remote'     => count($remote_files),
+            'verified_count'   => $verified_count,
+            'missing_count'    => count($missing_files),
+            'modified_count'   => count($modified_files),
+            'missing_files'    => $missing_files,
+            'modified_files'   => $modified_files,
+            'checked_at'       => current_time('mysql'),
+        ];
+    }
+
+    /**
+     * Restore a tampered or missing plugin file directly from GitHub
+     *
+     * @param string $rel_path Relative path to file (e.g. includes/Api/ScannerRoutes.php)
+     * @return array
+     */
+    public static function restore_file_from_github(string $rel_path): array {
+        if (!current_user_can('manage_options')) {
+            return ['success' => false, 'message' => __('Permission denied: manage_options required.', 'wcp-security-scanner')];
+        }
+
+        // Sanitize path against directory traversal
+        $clean_path = str_replace(['..', '\\'], ['', '/'], $rel_path);
+        $clean_path = ltrim($clean_path, '/');
+
+        // Verify against remote manifest
+        $remote_manifest = self::get_remote_github_manifest(false);
+        $expected_meta = $remote_manifest['files'][$clean_path] ?? null;
+
+        if (!$expected_meta) {
+            return ['success' => false, 'message' => __('File is not part of official GitHub plugin distribution.', 'wcp-security-scanner')];
+        }
+
+        $expected_hash = is_array($expected_meta) ? ($expected_meta['sha256'] ?? '') : (string)$expected_meta;
+        $github_raw_url = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/' . $clean_path;
+
+        $response = wp_remote_get($github_raw_url, [
+            'timeout'    => 15,
+            'sslverify'  => true,
+            'headers'    => [
+                'Cache-Control' => 'no-cache, must-revalidate',
+            ],
+        ]);
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return ['success' => false, 'message' => __('Failed to fetch clean file from GitHub repository.', 'wcp-security-scanner')];
+        }
+
+        $content = wp_remote_retrieve_body($response);
+        $downloaded_hash = hash('sha256', $content);
+
+        if ($downloaded_hash !== $expected_hash) {
+            return [
+                'success' => false,
+                'message' => __('Cryptographic verification failed: Downloaded file hash did not match official GitHub manifest.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Write safely to disk
+        $fs_path = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $clean_path);
+        $parent_dir = dirname($fs_path);
+        if (!file_exists($parent_dir)) {
+            @wp_mkdir_p($parent_dir);
+        }
+
+        $written = @file_put_contents($fs_path, $content);
+        if ($written === false) {
+            return ['success' => false, 'message' => __('Filesystem write failure. Check folder permissions.', 'wcp-security-scanner')];
+        }
+
+        // Run local audit to refresh state
+        self::run_audit(true);
+
+        return [
+            'success' => true,
+            'path'    => $clean_path,
+            'message' => sprintf(__('Successfully restored %s from official GitHub release with verified SHA256 integrity.', 'wcp-security-scanner'), $clean_path),
+        ];
+    }
 }
+

@@ -1,0 +1,27 @@
+{
+  "version": "1.22.0",
+  "requires_wp": "5.8",
+  "requires_php": "7.4",
+  "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip",
+  "manifest_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json",
+  "released_at": "2026-10-22",
+  "author": "Mir Alamin (WebCare Pro)",
+  "author_homepage": "https://profiles.wordpress.org/webcarepro/",
+  "homepage": "https://github.com/WebCarePro/wcp-wp-security",
+  "sections": {
+    "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
+    "changelog": "v:1.22.0 - 2026-10-22:\n- Cloudflare Edge Master Rule 4: Deep SQL Injection & Database Armor.\n- Real-Time Malicious File Upload Armor and forbidden honeypot traps.\n- Timezone-Aware Timestamp Synchronization & Relative Time Fix."
+  },
+  "previous_versions": [
+    {
+      "version": "1.21.0",
+      "released_at": "2026-10-21",
+      "summary": "Smart 404 Scanner Rate-Limiter & Dedicated WAF Incident Logs center"
+    },
+    {
+      "version": "1.20.0",
+      "released_at": "2026-10-20",
+      "summary": "Full Dual-Theme Color System & Zero-Trust Plugin Self-Defense baseline"
+    }
+  ]
+}

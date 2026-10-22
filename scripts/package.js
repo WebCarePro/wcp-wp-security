@@ -209,3 +209,22 @@ try {
 // Clean up staging folder
 fs.rmSync(DIST_DIR, { recursive: true, force: true });
 console.log('\n--- Staging directory cleaned up. Package is ready for WordPress.org upload! ---');
+
+// 7. Update version.json with current release metadata
+const versionJsonPath = path.join(ROOT_DIR, 'version.json');
+try {
+  let vData = {};
+  if (fs.existsSync(versionJsonPath)) {
+    vData = JSON.parse(fs.readFileSync(versionJsonPath, 'utf8'));
+  }
+  const currentVersion = manifestData.version;
+  vData.version = currentVersion;
+  vData.download_url = `https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/${PLUGIN_SLUG}.zip`;
+  vData.manifest_url = `https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json`;
+  vData.released_at = new Date().toISOString().split('T')[0];
+  fs.writeFileSync(versionJsonPath, JSON.stringify(vData, null, 2), 'utf8');
+  console.log(`✓ Synchronized version.json for version ${currentVersion}`);
+} catch (e) {
+  console.warn(`[Warning] Could not update version.json: ${e.message}`);
+}
+
