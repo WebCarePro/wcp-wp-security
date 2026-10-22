@@ -38,6 +38,11 @@ v:1.22.0 - 2026-10-22
 - Firewall Toggle State Synchronization & Operating Mode Persistence (`ScannerRoutes.php`, `FirewallPage.tsx`):
   * Bidirectional State Synchronization: Updated `toggle_firewall` REST endpoint in `ScannerRoutes.php` to synchronize `waf_mode` alongside `waf_enabled` (setting `waf_mode = 'enabled'` when enabling from disabled state, and `'disabled'` when toggling off), preventing operating mode desynchronization.
   * Resilient KPI Status Card Rendering: Enhanced `FirewallPage.tsx` KPI Status card and toggle actions to evaluate firewall active state across both `wafSettings.waf_enabled`, `wafSettings.waf_mode`, and live backend `status.enabled`/`status.active_mode`, ensuring the active status ("Active & Shielding", "Learning Mode", or "Disabled") persists accurately across browser page navigation and tab reloads.
+- Cloudflare Edge Master Rule 4: Deep SQL Injection & Database Armor (`CloudflareService.php`, `FirewallPage.tsx`):
+  * Edge SQL Injection Wirefilter Armor: Added 4th compound Cloudflare Free WAF custom rule terminating SQL injection probes directly at Cloudflare's Anycast Edge before requests ever reach origin servers or boot WordPress/MySQL.
+  * Broad SQLi Attack Vector Coverage: Matches case-insensitive query signatures including UNION SELECT probes (`author_exclude=0) AND 1=0 UNION ALL SELECT ...`), `information_schema` reconnaissance, time-based blind SQLi (`sleep()`, `benchmark()`, `waitfor delay`), hex payloads (`concat(` with `0x...`), XML extraction (`extractvalue()`, `updatexml()`), boolean tautologies (`and 1=0`, `and 1=1`, `' or 1=1`), `group_concat`, and file writes (`into outfile`, `into dumpfile`).
+  * 1-Click Cloudflare Dashboard Copy-Paste & API Sync: Fully integrated into both manual 1-click copy-paste expressions (zero API token required) and automated 1-click Edge API deployment, leaving 1 remaining custom rule slot on Cloudflare's Free tier for administrator-defined rules.
+
 
 v:1.21.0 - 2026-10-21
 - Smart 404 Scanner Rate-Limiter & Reconnaissance Shield (`FirewallEngine.php`, `BotReconDefense.php`, `SettingsManager.php`, `FirewallPage.tsx`, `WafLogsPage.tsx`):

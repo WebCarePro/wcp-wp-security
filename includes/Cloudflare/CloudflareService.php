@@ -456,13 +456,22 @@ class CloudflareService {
                 'action_label' => 'Managed Challenge',
                 'expression'   => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
             ],
+            'compound_sqli' => [
+                'id'           => 'wcpscan_compound_sqli',
+                'title'        => 'Rule 4: Deep SQL Injection & Database Armor',
+                'badge'        => 'SQLi Shield',
+                'description'  => 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',
+                'action'       => 'block',
+                'action_label' => 'Block',
+                'expression'   => '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")',
+            ],
         ];
     }
 
     /**
-     * Get rule definitions for 3 Master Cloudflare Free Custom WAF Rules (Consolidated & High-Density)
+     * Get rule definitions for Master Cloudflare Free Custom WAF Rules (Consolidated & High-Density)
      *
-     * Consolidates 5 rules into 3 high-impact rules to preserve Cloudflare Free plan quotas (leaving 2 slots free).
+     * Consolidates high-impact rules to preserve Cloudflare Free plan quotas (leaving remaining slots free for user rules).
      *
      * @return array
      */
@@ -491,6 +500,14 @@ class CloudflareService {
                 'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'wcp-security-scanner'),
                 'action'      => 'managed_challenge',
                 'expression'  => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
+            ],
+            'compound_sqli' => [
+                'id'          => 'wcpscan_compound_sqli',
+                'title'       => 'Rule 4: Deep SQL Injection & Database Armor',
+                'badge'       => 'SQLi Shield',
+                'description' => __('Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.', 'wcp-security-scanner'),
+                'action'      => 'block',
+                'expression'  => '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")',
             ],
         ];
     }
