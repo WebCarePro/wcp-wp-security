@@ -35,6 +35,10 @@ v:1.22.0 - 2026-10-22
 
 
 
+- Firewall Toggle State Synchronization & Operating Mode Persistence (`ScannerRoutes.php`, `FirewallPage.tsx`):
+  * Bidirectional State Synchronization: Updated `toggle_firewall` REST endpoint in `ScannerRoutes.php` to synchronize `waf_mode` alongside `waf_enabled` (setting `waf_mode = 'enabled'` when enabling from disabled state, and `'disabled'` when toggling off), preventing operating mode desynchronization.
+  * Resilient KPI Status Card Rendering: Enhanced `FirewallPage.tsx` KPI Status card and toggle actions to evaluate firewall active state across both `wafSettings.waf_enabled`, `wafSettings.waf_mode`, and live backend `status.enabled`/`status.active_mode`, ensuring the active status ("Active & Shielding", "Learning Mode", or "Disabled") persists accurately across browser page navigation and tab reloads.
+
 v:1.21.0 - 2026-10-21
 - Smart 404 Scanner Rate-Limiter & Reconnaissance Shield (`FirewallEngine.php`, `BotReconDefense.php`, `SettingsManager.php`, `FirewallPage.tsx`, `WafLogsPage.tsx`):
   * Automated 404 Scanner Lockouts: Implemented automated temporary lockout mitigation against fuzzing and vulnerability scanning bots that trigger repetitive 404 errors across WordPress installations.

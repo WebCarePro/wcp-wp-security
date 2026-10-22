@@ -1,6 +1,6 @@
 {
   "version": "1.22.0",
-  "generated_at": "2026-10-22T18:19:45.943Z",
+  "generated_at": "2026-10-22T18:50:01.772Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 455275
     },
     "build/index.asset.php": {
-      "sha256": "00568f6d2d586a0720a60194c1289111ec5bfafd9073c2a002d3862968c48139",
+      "sha256": "15eb54a66d2d1a4abacf64ba890ba0ede316a7784feb3637f729a2df3235a79c",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 455142
     },
     "build/index.js": {
-      "sha256": "361a47f5f37abf34f780a30eb23abb1690c91a82f616daaa92163d93fef115eb",
-      "size": 1261178
+      "sha256": "f7a3c9ad3db4e5b92f5388616b97e3093e5b2d085fb87bb04fe39f09b0e4844b",
+      "size": 1261377
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "ff6daea5c15975bace17cf703037697595d57dd6f29c9a59ec99a7faa0c762b2",
-      "size": 340559
+      "sha256": "97a4a1f16457a8a3d3ebc479f195554e5a3a5992781a7aa6458f71f7c4b29117",
+      "size": 340772
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "d74c49718eed656ce089f633201e6e415b078922651da50bc59d3f84fbec3436",

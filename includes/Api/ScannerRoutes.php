@@ -4712,6 +4712,11 @@ class ScannerRoutes {
         $enabled = !empty($params['enabled']);
         $settings = \WcpScanner\System\SettingsManager::get_settings();
         $settings['waf_enabled'] = $enabled;
+        if ($enabled && ($settings['waf_mode'] ?? '') === 'disabled') {
+            $settings['waf_mode'] = 'enabled';
+        } elseif (!$enabled) {
+            $settings['waf_mode'] = 'disabled';
+        }
         \WcpScanner\System\SettingsManager::save_settings($settings);
 
         return rest_ensure_response([
