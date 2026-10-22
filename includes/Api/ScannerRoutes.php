@@ -4794,10 +4794,7 @@ class ScannerRoutes {
         }
 
         $val = $params['value'] ?? null;
-        $current = \WcpScanner\System\SettingsManager::get_settings();
-        $current[$key] = $val;
-
-        $saved = \WcpScanner\System\SettingsManager::save_settings($current);
+        $saved = \WcpScanner\System\SettingsManager::save_settings([$key => $val]);
         return rest_ensure_response([
             'success'  => true,
             'message'  => sprintf('Rule "%s" successfully saved.', $key),

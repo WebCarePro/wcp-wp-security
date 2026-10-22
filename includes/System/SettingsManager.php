@@ -386,36 +386,40 @@ class SettingsManager {
         }
 
         $defaults = self::get_defaults();
+        // Merge defaults, current options, and input so partial saves (from individual rule toggles,
+        // specific settings pages, or cloudflare verifications) NEVER inadvertently reset or uncheck omitted rules!
+        $merged = array_merge($defaults, $current, $input);
+
         $clean = [];
 
         // 1. Schedule Scan Settings
-        $clean['schedule_enabled']   = !empty($input['schedule_enabled']);
+        $clean['schedule_enabled']   = !empty($merged['schedule_enabled']);
         $valid_freq = ['hourly', 'twicedaily', 'daily', 'weekly'];
-        $clean['schedule_frequency'] = in_array($input['schedule_frequency'] ?? '', $valid_freq, true) 
-            ? $input['schedule_frequency'] 
+        $clean['schedule_frequency'] = in_array($merged['schedule_frequency'] ?? '', $valid_freq, true) 
+            ? $merged['schedule_frequency'] 
             : 'daily';
-        $clean['schedule_time']      = sanitize_text_field($input['schedule_time'] ?? '02:00');
+        $clean['schedule_time']      = sanitize_text_field($merged['schedule_time'] ?? '02:00');
         $valid_targets = ['plugins_themes', 'full', 'core_integrity', 'suspicious_uploads', 'spam_content'];
-        $clean['schedule_scan_type'] = in_array($input['schedule_scan_type'] ?? '', $valid_targets, true)
-            ? $input['schedule_scan_type']
+        $clean['schedule_scan_type'] = in_array($merged['schedule_scan_type'] ?? '', $valid_targets, true)
+            ? $merged['schedule_scan_type']
             : 'plugins_themes';
 
         // 2. Email Notifications
-        $clean['email_alerts_enabled']    = !empty($input['email_alerts_enabled']);
-        $clean['alert_emails']            = sanitize_textarea_field($input['alert_emails'] ?? '');
+        $clean['email_alerts_enabled']    = !empty($merged['email_alerts_enabled']);
+        $clean['alert_emails']            = sanitize_textarea_field($merged['alert_emails'] ?? '');
         $valid_sev = ['critical', 'high', 'medium', 'all'];
-        $clean['alert_min_severity']      = in_array($input['alert_min_severity'] ?? '', $valid_sev, true) 
-            ? $input['alert_min_severity'] 
+        $clean['alert_min_severity']      = in_array($merged['alert_min_severity'] ?? '', $valid_sev, true) 
+            ? $merged['alert_min_severity'] 
             : 'high';
-        $clean['email_digest_enabled']    = !empty($input['email_digest_enabled']);
-        $clean['email_on_scan_completed'] = !empty($input['email_on_scan_completed']);
-        $clean['notify_on_cve_detected']  = !empty($input['notify_on_cve_detected']);
+        $clean['email_digest_enabled']    = !empty($merged['email_digest_enabled']);
+        $clean['email_on_scan_completed'] = !empty($merged['email_on_scan_completed']);
+        $clean['notify_on_cve_detected']  = !empty($merged['notify_on_cve_detected']);
 
         // 3. AI Threat Integration
-        $clean['ai_enabled']               = !empty($input['ai_enabled']);
+        $clean['ai_enabled']               = !empty($merged['ai_enabled']);
         $valid_ai = ['openai', 'gemini', 'claude', 'wp_ai_connect'];
-        $clean['ai_provider']              = in_array($input['ai_provider'] ?? '', $valid_ai, true) 
-            ? $input['ai_provider'] 
+        $clean['ai_provider']              = in_array($merged['ai_provider'] ?? '', $valid_ai, true) 
+            ? $merged['ai_provider'] 
             : 'openai';
 
         // Preserve existing keys if incoming is masked or empty, and securely encrypt for database storage
@@ -424,113 +428,113 @@ class SettingsManager {
             ? \WcpScanner\Security\SecretVault::decrypt($current['openai_api_key'] ?? '') 
             : sanitize_text_field($in_openai);
         $clean['openai_api_key'] = \WcpScanner\Security\SecretVault::encrypt($openai_val);
-        $clean['openai_model'] = sanitize_text_field($input['openai_model'] ?? 'gpt-6.1-sol');
+        $clean['openai_model'] = sanitize_text_field($merged['openai_model'] ?? 'gpt-6.1-sol');
 
         $in_gemini = trim($input['gemini_api_key'] ?? '');
         $gemini_val = ($in_gemini === '' || $in_gemini === '••••••••') 
             ? \WcpScanner\Security\SecretVault::decrypt($current['gemini_api_key'] ?? '') 
             : sanitize_text_field($in_gemini);
         $clean['gemini_api_key'] = \WcpScanner\Security\SecretVault::encrypt($gemini_val);
-        $clean['gemini_model'] = sanitize_text_field($input['gemini_model'] ?? 'gemini-3.8-flash');
+        $clean['gemini_model'] = sanitize_text_field($merged['gemini_model'] ?? 'gemini-3.8-flash');
 
         $in_claude = trim($input['claude_api_key'] ?? '');
         $claude_val = ($in_claude === '' || $in_claude === '••••••••') 
             ? \WcpScanner\Security\SecretVault::decrypt($current['claude_api_key'] ?? '') 
             : sanitize_text_field($in_claude);
         $clean['claude_api_key'] = \WcpScanner\Security\SecretVault::encrypt($claude_val);
-        $clean['claude_model'] = sanitize_text_field($input['claude_model'] ?? 'claude-sonnet-5-5');
+        $clean['claude_model'] = sanitize_text_field($merged['claude_model'] ?? 'claude-sonnet-5-5');
 
-        $clean['ai_temperature']           = max(0.0, min(1.0, floatval($input['ai_temperature'] ?? 0.2)));
-        $clean['ai_auto_analyze_critical'] = !empty($input['ai_auto_analyze_critical']);
+        $clean['ai_temperature']           = max(0.0, min(1.0, floatval($merged['ai_temperature'] ?? 0.2)));
+        $clean['ai_auto_analyze_critical'] = !empty($merged['ai_auto_analyze_critical']);
 
         // 4. Scanner Performance & Throttle
-        $batch = intval($input['scan_batch_size'] ?? 50);
+        $batch = intval($merged['scan_batch_size'] ?? 50);
         $clean['scan_batch_size']          = ($batch >= 10 && $batch <= 300) ? $batch : 50;
-        $clean['memory_limit_override']    = sanitize_text_field($input['memory_limit_override'] ?? '512M');
-        $clean['max_file_size_kb']         = max(100, intval($input['max_file_size_kb'] ?? 1024));
-        $clean['auto_quarantine_critical'] = !empty($input['auto_quarantine_critical']);
+        $clean['memory_limit_override']    = sanitize_text_field($merged['memory_limit_override'] ?? '512M');
+        $clean['max_file_size_kb']         = max(100, intval($merged['max_file_size_kb'] ?? 1024));
+        $clean['auto_quarantine_critical'] = !empty($merged['auto_quarantine_critical']);
 
         // 5. Exclusions & Ignore Rules
-        $clean['excluded_paths']    = sanitize_textarea_field($input['excluded_paths'] ?? $defaults['excluded_paths']);
-        $clean['custom_extensions'] = sanitize_text_field($input['custom_extensions'] ?? $defaults['custom_extensions']);
+        $clean['excluded_paths']    = sanitize_textarea_field($merged['excluded_paths'] ?? $defaults['excluded_paths']);
+        $clean['custom_extensions'] = sanitize_text_field($merged['custom_extensions'] ?? $defaults['custom_extensions']);
 
         // 6. Security Tweaks & HTTP Security Headers
-        $clean['disable_file_editing']  = !empty($input['disable_file_editing']);
-        $clean['hide_wp_version']       = !empty($input['hide_wp_version']);
-        $clean['block_sensitive_files'] = !empty($input['block_sensitive_files']);
-        $clean['block_user_enumeration'] = isset($input['block_user_enumeration']) ? !empty($input['block_user_enumeration']) : true;
+        $clean['disable_file_editing']  = !empty($merged['disable_file_editing']);
+        $clean['hide_wp_version']       = !empty($merged['hide_wp_version']);
+        $clean['block_sensitive_files'] = !empty($merged['block_sensitive_files']);
+        $clean['block_user_enumeration'] = !empty($merged['block_user_enumeration']);
 
         // HTTP Security Headers
-        $clean['header_hsts']                 = isset($input['header_hsts']) ? !empty($input['header_hsts']) : true;
-        $clean['header_hsts_preload']         = !empty($input['header_hsts_preload']);
-        $clean['header_x_frame_options']      = isset($input['header_x_frame_options']) ? !empty($input['header_x_frame_options']) : true;
-        $clean['header_x_frame_options_mode'] = in_array(strtoupper($input['header_x_frame_options_mode'] ?? ''), ['DENY', 'SAMEORIGIN'], true) ? strtoupper($input['header_x_frame_options_mode']) : 'SAMEORIGIN';
-        $clean['header_nosniff']              = isset($input['header_nosniff']) ? !empty($input['header_nosniff']) : true;
-        $clean['header_referrer_policy']      = isset($input['header_referrer_policy']) ? !empty($input['header_referrer_policy']) : true;
-        $clean['header_referrer_policy_value'] = sanitize_text_field($input['header_referrer_policy_value'] ?? 'strict-origin-when-cross-origin');
-        $clean['header_permissions_policy']   = isset($input['header_permissions_policy']) ? !empty($input['header_permissions_policy']) : true;
-        $clean['header_permissions_policy_value'] = sanitize_text_field($input['header_permissions_policy_value'] ?? 'geolocation=(), camera=(), microphone=(), payment=()');
-        $clean['header_xss_protection']       = isset($input['header_xss_protection']) ? !empty($input['header_xss_protection']) : true;
-        $clean['header_csp_enabled']          = !empty($input['header_csp_enabled']);
-        $clean['header_csp_custom']           = sanitize_text_field($input['header_csp_custom'] ?? '');
+        $clean['header_hsts']                 = !empty($merged['header_hsts']);
+        $clean['header_hsts_preload']         = !empty($merged['header_hsts_preload']);
+        $clean['header_x_frame_options']      = !empty($merged['header_x_frame_options']);
+        $clean['header_x_frame_options_mode'] = in_array(strtoupper($merged['header_x_frame_options_mode'] ?? ''), ['DENY', 'SAMEORIGIN'], true) ? strtoupper($merged['header_x_frame_options_mode']) : 'SAMEORIGIN';
+        $clean['header_nosniff']              = !empty($merged['header_nosniff']);
+        $clean['header_referrer_policy']      = !empty($merged['header_referrer_policy']);
+        $clean['header_referrer_policy_value'] = sanitize_text_field($merged['header_referrer_policy_value'] ?? 'strict-origin-when-cross-origin');
+        $clean['header_permissions_policy']   = !empty($merged['header_permissions_policy']);
+        $clean['header_permissions_policy_value'] = sanitize_text_field($merged['header_permissions_policy_value'] ?? 'geolocation=(), camera=(), microphone=(), payment=()');
+        $clean['header_xss_protection']       = !empty($merged['header_xss_protection']);
+        $clean['header_csp_enabled']          = !empty($merged['header_csp_enabled']);
+        $clean['header_csp_custom']           = sanitize_text_field($merged['header_csp_custom'] ?? '');
 
         // 7. Cleanup & Data Privacy on Plugin Uninstall
-        $clean['delete_data_on_uninstall'] = isset($input['delete_data_on_uninstall']) ? !empty($input['delete_data_on_uninstall']) : true;
+        $clean['delete_data_on_uninstall'] = !empty($merged['delete_data_on_uninstall']);
 
         // 8. Web Application Firewall (WAF) Lite
-        $clean['waf_enabled']             = isset($input['waf_enabled']) ? !empty($input['waf_enabled']) : true;
+        $clean['waf_enabled']             = !empty($merged['waf_enabled']);
         $valid_waf_modes                  = ['enabled', 'learning', 'disabled'];
-        $clean['waf_mode']                = in_array($input['waf_mode'] ?? '', $valid_waf_modes, true) ? $input['waf_mode'] : 'enabled';
-        $clean['waf_complementary_mode']  = isset($input['waf_complementary_mode']) ? !empty($input['waf_complementary_mode']) : true;
-        $clean['waf_block_sqli']          = isset($input['waf_block_sqli']) ? !empty($input['waf_block_sqli']) : true;
-        $clean['waf_block_xss']           = isset($input['waf_block_xss']) ? !empty($input['waf_block_xss']) : true;
-        $clean['waf_block_traversal']     = isset($input['waf_block_traversal']) ? !empty($input['waf_block_traversal']) : true;
-        $clean['waf_block_php_injection'] = isset($input['waf_block_php_injection']) ? !empty($input['waf_block_php_injection']) : true;
-        $clean['waf_disable_xmlrpc']      = !empty($input['waf_disable_xmlrpc']);
-        $clean['waf_login_rate_limit']    = isset($input['waf_login_rate_limit']) ? !empty($input['waf_login_rate_limit']) : true;
-        $clean['waf_whitelisted_ips']     = sanitize_textarea_field($input['waf_whitelisted_ips'] ?? '');
-        $clean['waf_blocked_ips']         = sanitize_textarea_field($input['waf_blocked_ips'] ?? '');
-        $clean['waf_block_fake_bots']     = isset($input['waf_block_fake_bots']) ? !empty($input['waf_block_fake_bots']) : true;
-        $clean['waf_block_ai_scrapers']   = !empty($input['waf_block_ai_scrapers']);
-        $clean['waf_dynamic_robots_ai']   = isset($input['waf_dynamic_robots_ai']) ? !empty($input['waf_dynamic_robots_ai']) : true;
-        $clean['waf_block_404_scanners']   = isset($input['waf_block_404_scanners']) ? !empty($input['waf_block_404_scanners']) : true;
-        $clean['waf_404_threshold']        = max(3, min(100, (int) ($input['waf_404_threshold'] ?? 10)));
-        $clean['waf_404_window_seconds']   = max(10, min(600, (int) ($input['waf_404_window_seconds'] ?? 60)));
-        $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($input['waf_404_lockout_duration'] ?? 30)));
+        $clean['waf_mode']                = in_array($merged['waf_mode'] ?? '', $valid_waf_modes, true) ? $merged['waf_mode'] : 'enabled';
+        $clean['waf_complementary_mode']  = !empty($merged['waf_complementary_mode']);
+        $clean['waf_block_sqli']          = !empty($merged['waf_block_sqli']);
+        $clean['waf_block_xss']           = !empty($merged['waf_block_xss']);
+        $clean['waf_block_traversal']     = !empty($merged['waf_block_traversal']);
+        $clean['waf_block_php_injection'] = !empty($merged['waf_block_php_injection']);
+        $clean['waf_disable_xmlrpc']      = !empty($merged['waf_disable_xmlrpc']);
+        $clean['waf_login_rate_limit']    = !empty($merged['waf_login_rate_limit']);
+        $clean['waf_whitelisted_ips']     = sanitize_textarea_field($merged['waf_whitelisted_ips'] ?? '');
+        $clean['waf_blocked_ips']         = sanitize_textarea_field($merged['waf_blocked_ips'] ?? '');
+        $clean['waf_block_fake_bots']     = !empty($merged['waf_block_fake_bots']);
+        $clean['waf_block_ai_scrapers']   = !empty($merged['waf_block_ai_scrapers']);
+        $clean['waf_dynamic_robots_ai']   = !empty($merged['waf_dynamic_robots_ai']);
+        $clean['waf_block_404_scanners']   = !empty($merged['waf_block_404_scanners']);
+        $clean['waf_404_threshold']        = max(3, min(100, (int) ($merged['waf_404_threshold'] ?? 10)));
+        $clean['waf_404_window_seconds']   = max(10, min(600, (int) ($merged['waf_404_window_seconds'] ?? 60)));
+        $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($merged['waf_404_lockout_duration'] ?? 30)));
 
         // Enhanced Perimeter & Identity Protection Rules
-        $clean['waf_ecommerce_safe_mode']         = isset($input['waf_ecommerce_safe_mode']) ? !empty($input['waf_ecommerce_safe_mode']) : true;
-        $clean['waf_block_empty_post_ua_referer'] = isset($input['waf_block_empty_post_ua_referer']) ? !empty($input['waf_block_empty_post_ua_referer']) : true;
-        $clean['waf_whitelisted_urls']            = sanitize_textarea_field($input['waf_whitelisted_urls'] ?? '');
-        $clean['waf_block_forbidden_usernames']   = isset($input['waf_block_forbidden_usernames']) ? !empty($input['waf_block_forbidden_usernames']) : true;
-        $clean['waf_forbidden_usernames_list']    = sanitize_textarea_field($input['waf_forbidden_usernames_list'] ?? "admin\nadministrator\nroot");
-        $clean['waf_prevent_admin_registration']  = isset($input['waf_prevent_admin_registration']) ? !empty($input['waf_prevent_admin_registration']) : true;
-        $clean['waf_mask_login_errors']           = isset($input['waf_mask_login_errors']) ? !empty($input['waf_mask_login_errors']) : true;
-        $clean['waf_enforce_strong_passwords']    = isset($input['waf_enforce_strong_passwords']) ? !empty($input['waf_enforce_strong_passwords']) : true;
-        $clean['waf_strong_passwords_roles']      = sanitize_text_field($input['waf_strong_passwords_roles'] ?? 'administrator, editor, author');
-        $clean['waf_check_pwned_passwords']       = isset($input['waf_check_pwned_passwords']) ? !empty($input['waf_check_pwned_passwords']) : true;
-        $clean['waf_block_malicious_uploads']     = isset($input['waf_block_malicious_uploads']) ? !empty($input['waf_block_malicious_uploads']) : true;
-        $clean['waf_block_unsafe_http_methods']   = isset($input['waf_block_unsafe_http_methods']) ? !empty($input['waf_block_unsafe_http_methods']) : true;
-        $clean['waf_block_null_byte_attacks']     = isset($input['waf_block_null_byte_attacks']) ? !empty($input['waf_block_null_byte_attacks']) : true;
-        $clean['waf_block_sensitive_file_probes'] = isset($input['waf_block_sensitive_file_probes']) ? !empty($input['waf_block_sensitive_file_probes']) : true;
-        $clean['waf_block_uploads_php_exec']      = isset($input['waf_block_uploads_php_exec']) ? !empty($input['waf_block_uploads_php_exec']) : true;
-        $clean['waf_block_external_cron']         = !empty($input['waf_block_external_cron']);
-        $clean['waf_block_open_redirects']        = isset($input['waf_block_open_redirects']) ? !empty($input['waf_block_open_redirects']) : true;
-        $clean['waf_block_ssrf_metadata']         = isset($input['waf_block_ssrf_metadata']) ? !empty($input['waf_block_ssrf_metadata']) : true;
-        $clean['waf_block_install_php']           = isset($input['waf_block_install_php']) ? !empty($input['waf_block_install_php']) : true;
+        $clean['waf_ecommerce_safe_mode']         = !empty($merged['waf_ecommerce_safe_mode']);
+        $clean['waf_block_empty_post_ua_referer'] = !empty($merged['waf_block_empty_post_ua_referer']);
+        $clean['waf_whitelisted_urls']            = sanitize_textarea_field($merged['waf_whitelisted_urls'] ?? '');
+        $clean['waf_block_forbidden_usernames']   = !empty($merged['waf_block_forbidden_usernames']);
+        $clean['waf_forbidden_usernames_list']    = sanitize_textarea_field($merged['waf_forbidden_usernames_list'] ?? "admin\nadministrator\nroot");
+        $clean['waf_prevent_admin_registration']  = !empty($merged['waf_prevent_admin_registration']);
+        $clean['waf_mask_login_errors']           = !empty($merged['waf_mask_login_errors']);
+        $clean['waf_enforce_strong_passwords']    = !empty($merged['waf_enforce_strong_passwords']);
+        $clean['waf_strong_passwords_roles']      = sanitize_text_field($merged['waf_strong_passwords_roles'] ?? 'administrator, editor, author');
+        $clean['waf_check_pwned_passwords']       = !empty($merged['waf_check_pwned_passwords']);
+        $clean['waf_block_malicious_uploads']     = !empty($merged['waf_block_malicious_uploads']);
+        $clean['waf_block_unsafe_http_methods']   = !empty($merged['waf_block_unsafe_http_methods']);
+        $clean['waf_block_null_byte_attacks']     = !empty($merged['waf_block_null_byte_attacks']);
+        $clean['waf_block_sensitive_file_probes'] = !empty($merged['waf_block_sensitive_file_probes']);
+        $clean['waf_block_uploads_php_exec']      = !empty($merged['waf_block_uploads_php_exec']);
+        $clean['waf_block_external_cron']         = !empty($merged['waf_block_external_cron']);
+        $clean['waf_block_open_redirects']        = !empty($merged['waf_block_open_redirects']);
+        $clean['waf_block_ssrf_metadata']         = !empty($merged['waf_block_ssrf_metadata']);
+        $clean['waf_block_install_php']           = !empty($merged['waf_block_install_php']);
 
         // 9. Cloud Threat Intelligence & Community Blacklists
-        $clean['threat_intel_enabled']               = isset($input['threat_intel_enabled']) ? !empty($input['threat_intel_enabled']) : true;
-        $clean['threat_intel_block_blacklisted_ips'] = isset($input['threat_intel_block_blacklisted_ips']) ? !empty($input['threat_intel_block_blacklisted_ips']) : true;
+        $clean['threat_intel_enabled']               = !empty($merged['threat_intel_enabled']);
+        $clean['threat_intel_block_blacklisted_ips'] = !empty($merged['threat_intel_block_blacklisted_ips']);
 
         // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
-        $clean['auth_2fa_enabled']          = isset($input['auth_2fa_enabled']) ? !empty($input['auth_2fa_enabled']) : true;
-        $clean['auth_2fa_remember_device']  = isset($input['auth_2fa_remember_device']) ? !empty($input['auth_2fa_remember_device']) : true;
-        $clean['auth_2fa_remember_days']    = max(1, min(90, (int) ($input['auth_2fa_remember_days'] ?? 7)));
-        $clean['auth_2fa_enforce_admins']   = !empty($input['auth_2fa_enforce_admins']);
-        $raw_mode                           = sanitize_key($input['auth_2fa_policy_mode'] ?? 'remind_login');
+        $clean['auth_2fa_enabled']          = !empty($merged['auth_2fa_enabled']);
+        $clean['auth_2fa_remember_device']  = !empty($merged['auth_2fa_remember_device']);
+        $clean['auth_2fa_remember_days']    = max(1, min(90, (int) ($merged['auth_2fa_remember_days'] ?? 7)));
+        $clean['auth_2fa_enforce_admins']   = !empty($merged['auth_2fa_enforce_admins']);
+        $raw_mode                           = sanitize_key($merged['auth_2fa_policy_mode'] ?? 'remind_login');
         $clean['auth_2fa_policy_mode']      = in_array($raw_mode, ['immediate', 'grace_period', 'remind_login'], true) ? $raw_mode : 'remind_login';
-        $clean['auth_2fa_grace_days']       = max(0, min(90, (int) ($input['auth_2fa_grace_days'] ?? 0)));
+        $clean['auth_2fa_grace_days']       = max(0, min(90, (int) ($merged['auth_2fa_grace_days'] ?? 0)));
         // Record timestamp when enforcement is newly enabled
         $prev_enforce = !empty($current['auth_2fa_enforce_admins']);
         if ($clean['auth_2fa_enforce_admins'] && !$prev_enforce) {
@@ -540,15 +544,15 @@ class SettingsManager {
         } else {
             $clean['auth_2fa_enforce_since'] = (int) ($current['auth_2fa_enforce_since'] ?? time());
         }
-        $clean['login_hardening_enabled']   = isset($input['login_hardening_enabled']) ? !empty($input['login_hardening_enabled']) : true;
-        $clean['login_max_retries']         = max(1, min(20, (int) ($input['login_max_retries'] ?? 5)));
-        $clean['login_lockout_duration']    = max(1, min(1440, (int) ($input['login_lockout_duration'] ?? 15)));
-        $clean['session_sentinel_enabled']  = isset($input['session_sentinel_enabled']) ? !empty($input['session_sentinel_enabled']) : true;
-        $clean['session_block_concurrent']  = !empty($input['session_block_concurrent']);
+        $clean['login_hardening_enabled']   = !empty($merged['login_hardening_enabled']);
+        $clean['login_max_retries']         = max(1, min(20, (int) ($merged['login_max_retries'] ?? 5)));
+        $clean['login_lockout_duration']    = max(1, min(1440, (int) ($merged['login_lockout_duration'] ?? 15)));
+        $clean['session_sentinel_enabled']  = !empty($merged['session_sentinel_enabled']);
+        $clean['session_block_concurrent']  = !empty($merged['session_block_concurrent']);
 
 
         // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n - Encrypted with SecretVault)
-        $clean['slack_enabled']                 = !empty($input['slack_enabled']);
+        $clean['slack_enabled']                 = !empty($merged['slack_enabled']);
         $in_slack                               = trim($input['slack_webhook_url'] ?? '');
         $is_masked_slack                        = $in_slack === '' || strpos($in_slack, '••') !== false;
         $slack_val                              = $is_masked_slack
@@ -556,7 +560,7 @@ class SettingsManager {
             : esc_url_raw($in_slack);
         $clean['slack_webhook_url']             = \WcpScanner\Security\SecretVault::encrypt($slack_val);
 
-        $clean['discord_enabled']               = !empty($input['discord_enabled']);
+        $clean['discord_enabled']               = !empty($merged['discord_enabled']);
         $in_discord                             = trim($input['discord_webhook_url'] ?? '');
         $is_masked_discord                      = $in_discord === '' || strpos($in_discord, '••') !== false;
         $discord_val                            = $is_masked_discord
@@ -564,7 +568,7 @@ class SettingsManager {
             : esc_url_raw($in_discord);
         $clean['discord_webhook_url']           = \WcpScanner\Security\SecretVault::encrypt($discord_val);
 
-        $clean['clickup_enabled']               = !empty($input['clickup_enabled']);
+        $clean['clickup_enabled']               = !empty($merged['clickup_enabled']);
         $in_clickup                             = trim($input['clickup_webhook_url'] ?? '');
         $is_masked_clickup                      = $in_clickup === '' || strpos($in_clickup, '••') !== false;
         $clickup_val                            = $is_masked_clickup
@@ -572,7 +576,7 @@ class SettingsManager {
             : esc_url_raw($in_clickup);
         $clean['clickup_webhook_url']           = \WcpScanner\Security\SecretVault::encrypt($clickup_val);
 
-        $clean['asana_enabled']                 = !empty($input['asana_enabled']);
+        $clean['asana_enabled']                 = !empty($merged['asana_enabled']);
         $in_asana                               = trim($input['asana_webhook_url'] ?? '');
         $is_masked_asana                        = $in_asana === '' || strpos($in_asana, '••') !== false;
         $asana_val                              = $is_masked_asana
@@ -580,7 +584,7 @@ class SettingsManager {
             : esc_url_raw($in_asana);
         $clean['asana_webhook_url']             = \WcpScanner\Security\SecretVault::encrypt($asana_val);
 
-        $clean['generic_webhook_enabled']       = !empty($input['generic_webhook_enabled']);
+        $clean['generic_webhook_enabled']       = !empty($merged['generic_webhook_enabled']);
         $in_generic                             = trim($input['generic_webhook_url'] ?? '');
         $is_masked_generic                      = $in_generic === '' || strpos($in_generic, '••') !== false;
         $generic_val                            = $is_masked_generic
@@ -588,13 +592,13 @@ class SettingsManager {
             : esc_url_raw($in_generic);
         $clean['generic_webhook_url']           = \WcpScanner\Security\SecretVault::encrypt($generic_val);
 
-        $clean['webhook_notify_on_critical']    = isset($input['webhook_notify_on_critical']) ? !empty($input['webhook_notify_on_critical']) : true;
-        $clean['webhook_notify_on_fim']         = isset($input['webhook_notify_on_fim']) ? !empty($input['webhook_notify_on_fim']) : true;
-        $clean['webhook_notify_on_waf_block']   = !empty($input['webhook_notify_on_waf_block']);
-        $clean['webhook_notify_on_scan_finish'] = isset($input['webhook_notify_on_scan_finish']) ? !empty($input['webhook_notify_on_scan_finish']) : true;
+        $clean['webhook_notify_on_critical']    = !empty($merged['webhook_notify_on_critical']);
+        $clean['webhook_notify_on_fim']         = !empty($merged['webhook_notify_on_fim']);
+        $clean['webhook_notify_on_waf_block']   = !empty($merged['webhook_notify_on_waf_block']);
+        $clean['webhook_notify_on_scan_finish'] = !empty($merged['webhook_notify_on_scan_finish']);
 
         // 12. Cloudflare Edge Defense Integration (Encrypted with SecretVault)
-        $clean['cloudflare_enabled']        = !empty($input['cloudflare_enabled']);
+        $clean['cloudflare_enabled']        = !empty($merged['cloudflare_enabled']);
         $in_cf_token                        = trim($input['cloudflare_api_token'] ?? '');
         $is_masked_token                    = $in_cf_token === '' || strpos($in_cf_token, '••') !== false;
         $cf_token_val                       = $is_masked_token
@@ -609,32 +613,32 @@ class SettingsManager {
             : sanitize_text_field($in_zone_id);
         $clean['cloudflare_zone_id']        = \WcpScanner\Security\SecretVault::encrypt($zone_id_val);
 
-        $clean['cloudflare_auto_sync_bans'] = !empty($input['cloudflare_auto_sync_bans']);
+        $clean['cloudflare_auto_sync_bans'] = !empty($merged['cloudflare_auto_sync_bans']);
 
         // 13. False-Positive Tuning & Confidence Thresholds
-        $clean['confidence_threshold_filesystem'] = max(1, min(100, intval($input['confidence_threshold_filesystem'] ?? 50)));
-        $clean['confidence_threshold_lotl']       = max(1, min(100, intval($input['confidence_threshold_lotl'] ?? 60)));
-        $clean['confidence_threshold_ai']         = max(1, min(100, intval($input['confidence_threshold_ai'] ?? 70)));
-        $clean['confidence_threshold_db']         = max(1, min(100, intval($input['confidence_threshold_db'] ?? 50)));
-        $clean['auto_suppress_whitelisted']       = isset($input['auto_suppress_whitelisted']) ? !empty($input['auto_suppress_whitelisted']) : true;
+        $clean['confidence_threshold_filesystem'] = max(1, min(100, intval($merged['confidence_threshold_filesystem'] ?? 50)));
+        $clean['confidence_threshold_lotl']       = max(1, min(100, intval($merged['confidence_threshold_lotl'] ?? 60)));
+        $clean['confidence_threshold_ai']         = max(1, min(100, intval($merged['confidence_threshold_ai'] ?? 70)));
+        $clean['confidence_threshold_db']         = max(1, min(100, intval($merged['confidence_threshold_db'] ?? 50)));
+        $clean['auto_suppress_whitelisted']       = !empty($merged['auto_suppress_whitelisted']);
 
         // 14. Model Context Protocol (MCP) Agent Service Surface
-        $clean['mcp_enabled'] = isset($input['mcp_enabled']) ? !empty($input['mcp_enabled']) : true;
+        $clean['mcp_enabled'] = !empty($merged['mcp_enabled']);
         $mcp_tok = trim($input['mcp_token'] ?? '');
         if (empty($mcp_tok) && !empty($current['mcp_token'])) {
             $clean['mcp_token'] = $current['mcp_token'];
         } elseif (!empty($mcp_tok)) {
             $clean['mcp_token'] = sanitize_text_field($mcp_tok);
         } else {
-            $clean['mcp_token'] = 'wcpscan_mcp_' . bin2hex(random_bytes(16));
+            $clean['mcp_token'] = $current['mcp_token'] ?? ('wcpscan_mcp_' . bin2hex(random_bytes(16)));
         }
 
         $valid_scopes = ['read_only', 'read_write'];
-        $clean['mcp_permission_scope'] = in_array($input['mcp_permission_scope'] ?? '', $valid_scopes, true)
-            ? $input['mcp_permission_scope']
+        $clean['mcp_permission_scope'] = in_array($merged['mcp_permission_scope'] ?? '', $valid_scopes, true)
+            ? $merged['mcp_permission_scope']
             : ($current['mcp_permission_scope'] ?? 'read_write');
 
-        $clean['mcp_rate_limit_per_min'] = max(10, min(600, intval($input['mcp_rate_limit_per_min'] ?? ($current['mcp_rate_limit_per_min'] ?? 60))));
+        $clean['mcp_rate_limit_per_min'] = max(10, min(600, intval($merged['mcp_rate_limit_per_min'] ?? ($current['mcp_rate_limit_per_min'] ?? 60))));
 
         // 15. Custom Scan Engine Options
         if (isset($input['custom_scan_options']) && is_array($input['custom_scan_options'])) {
@@ -646,11 +650,11 @@ class SettingsManager {
         }
 
         // 16. Plugin Self-Defense
-        $clean['self_defense_watchdog_enabled'] = isset($input['self_defense_watchdog_enabled']) ? !empty($input['self_defense_watchdog_enabled']) : true;
-        $clean['self_defense_notify_email']     = isset($input['self_defense_notify_email']) ? !empty($input['self_defense_notify_email']) : true;
+        $clean['self_defense_watchdog_enabled'] = !empty($merged['self_defense_watchdog_enabled']);
+        $clean['self_defense_notify_email']     = !empty($merged['self_defense_notify_email']);
 
         // 17. Granular Event Notifications Matrix
-        $clean['notification_master_enabled']   = isset($input['notification_master_enabled']) ? !empty($input['notification_master_enabled']) : true;
+        $clean['notification_master_enabled']   = !empty($merged['notification_master_enabled']);
         if (isset($input['notification_events']) && is_array($input['notification_events'])) {
             $clean['notification_events'] = self::sanitize_notification_events($input['notification_events']);
         } elseif (isset($current['notification_events']) && is_array($current['notification_events'])) {
