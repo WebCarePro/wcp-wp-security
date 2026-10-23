@@ -1,6 +1,6 @@
 {
   "version": "1.23.0",
-  "generated_at": "2026-10-23T00:04:40.487Z",
+  "generated_at": "2026-10-23T00:20:34.550Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 455275
     },
     "build/index.asset.php": {
-      "sha256": "f360847d6ff3bd845af331a2dc1346049c4bdf3b1874f699a78eb095d19eb044",
+      "sha256": "9c2dcd98724b5c117c50e3b58fd58359b5aa55ee4de4056f356ce4bd139bd221",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 455142
     },
     "build/index.js": {
-      "sha256": "0a4a04c58563b0575338f0153f7512c5f64e8529f1262751b37212fd19f95b5a",
-      "size": 1309051
+      "sha256": "b6a5fcfbf33ea430c55305c4282e32ded2fbc8bf872fa8030eadb827b9fb9bee",
+      "size": 1309447
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -208,8 +208,8 @@
       "size": 8877
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "880896b401f71d66e723464cfa2562e867519278384cbed25e3572b0f772fa06",
-      "size": 109895
+      "sha256": "e7210d3c2389544c32ac8b70a8141d3b3e86ab9cd3ea0b8d0b2624d06c564218",
+      "size": 110143
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "af523af493a07524c58810c6b2e641ba473730aff9364809851651ab9ce016a9",
@@ -220,8 +220,8 @@
       "size": 20992
     },
     "includes/Firewall/VirtualPatchManager.php": {
-      "sha256": "fb4da782723e2fb7404481047d931ab6da061ed7c244cecebf2ec068b3494a7b",
-      "size": 23983
+      "sha256": "855a056e5bb1fcbb5fbe2dbd72bbcc32a291b09cc3da5ad28d8473ed5138df51",
+      "size": 23941
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "34f7ec550279aea434d5efb4a7f8065a9aa07136a151275a0215ae3ad86ebba6",

@@ -302,12 +302,12 @@ class VirtualPatchManager {
         }
 
         $method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
-        $query_string = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
+        $query_string = isset($_SERVER['QUERY_STRING']) ? wp_unslash($_SERVER['QUERY_STRING']) : '';
         $raw_body = '';
 
         if ($method === 'POST') {
             $raw_input = @file_get_contents('php://input');
-            $raw_body = !empty($raw_input) ? sanitize_text_field(wp_unslash($raw_input)) : '';
+            $raw_body = !empty($raw_input) ? wp_unslash($raw_input) : '';
         }
 
         foreach ($active_patches as $patch_id => &$patch) {

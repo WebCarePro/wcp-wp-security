@@ -1932,8 +1932,12 @@ class FirewallEngine {
 
         // Filter by rule category
         if (!empty($filters['category']) && $filters['category'] !== 'all') {
-            $where_clauses[] = "rule_category = %s";
-            $where_params[] = sanitize_text_field($filters['category']);
+            $cat_input = sanitize_text_field($filters['category']);
+            $cat_slug  = sanitize_key($cat_input);
+            $where_clauses[] = "(rule_category = %s OR rule_category = %s OR rule_category LIKE %s)";
+            $where_params[] = $cat_input;
+            $where_params[] = $cat_slug;
+            $where_params[] = '%' . $wpdb->esc_like($cat_slug) . '%';
         }
 
         // Filter by action taken (blocked vs detected)
