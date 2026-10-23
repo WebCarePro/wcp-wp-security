@@ -36,8 +36,8 @@ class FirewallEngine {
         // Protect XML-RPC early if enabled
         add_action('init', [__CLASS__, 'check_xmlrpc_guard'], 0);
 
-        // Smart 404 Scanner Rate Limiter & Reconnaissance Shield
-        add_action('template_redirect', [__CLASS__, 'track_404_request'], 1);
+        // Smart 404 Scanner Rate Limiter & Reconnaissance Shield (Priority 999: Allow redirection plugins & template logic to process first)
+        add_action('template_redirect', [__CLASS__, 'track_404_request'], 999);
 
         // Real-Time Malicious File Upload Interceptor
         add_filter('wp_handle_upload_prefilter', [__CLASS__, 'inspect_uploaded_file'], 1);
@@ -1326,7 +1326,15 @@ class FirewallEngine {
             return;
         }
 
-        // 4. E-Commerce & Membership Shopper Immunity:
+        // 4. Redirection & Header Exemption:
+        // If another plugin (e.g. Redirection, Rank Math, Yoast, Safe Redirect Manager) or WordPress core
+        // has already emitted or staged a redirection (HTTP 301, 302, 307, 308 or Location header),
+        // or if the URL is actively being redirected, do NOT penalize as a 404 scan probe.
+        if (self::is_redirect_in_progress()) {
+            return;
+        }
+
+        // 5. E-Commerce & Membership Shopper Immunity:
         // Genuine customers browsing a store with active cart cookies or accessing commerce endpoints
         // must never be locked out by 404 scanner rate-limits (e.g., broken product images or expired variation links).
         if (!empty($settings['waf_ecommerce_safe_mode'])) {
@@ -1413,6 +1421,30 @@ class FirewallEngine {
         // Common harmless web assets
         if ($path === '/favicon.ico' || $path === '/robots.txt' || $path === '/sitemap.xml') {
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a redirection has been emitted or staged by WordPress or a redirection plugin.
+     * Prevents false-positive 404 lockout on URLs handled by redirection rules.
+     *
+     * @return bool
+     */
+    public static function is_redirect_in_progress(): bool {
+        // 1. Check if PHP HTTP response code is already set to a 3xx redirect
+        $http_code = http_response_code();
+        if ($http_code && in_array($http_code, [301, 302, 303, 307, 308], true)) {
+            return true;
+        }
+
+        // 2. Check if a 'Location' header has already been queued or sent
+        $headers = headers_list();
+        foreach ($headers as $header) {
+            if (stripos($header, 'Location:') === 0) {
+                return true;
+            }
         }
 
         return false;
