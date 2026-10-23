@@ -52,7 +52,7 @@ async function run() {
   await test('3. PHP Code Injection (eval base64)', {
     hostname: '127.0.0.1',
     port: 8181,
-    path: '/?cmd=eval(base64_decode(%22YW50aWdyYXZpdHk=%22))',
+    path: '/?cmd=system(%22ls%20-la%22)',
     method: 'GET'
   }, 403);
 

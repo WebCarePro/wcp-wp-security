@@ -227,4 +227,3 @@ try {
 } catch (e) {
   console.warn(`[Warning] Could not update version.json: ${e.message}`);
 }
-
