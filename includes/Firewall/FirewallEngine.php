@@ -506,11 +506,13 @@ class FirewallEngine {
         if (!empty($settings['waf_block_oversized_requests'])) {
             $is_upload_endpoint = (strpos($request_uri, 'async-upload.php') !== false || strpos($request_uri, '/wp-json/wp/v2/media') !== false);
             $is_admin_area = is_admin() || strpos($request_uri, '/wp-admin/') !== false;
+            $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($request_uri);
+            $is_exempt_endpoint = $is_upload_endpoint || $is_admin_area || $is_commerce_safe;
             $uri_length = strlen($request_uri);
             $query_length = strlen($_SERVER['QUERY_STRING'] ?? '');
             $post_count = is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
 
-            if ($uri_length > 2048 && !$is_upload_endpoint && !$is_admin_area) {
+            if ($uri_length > 2048 && !$is_exempt_endpoint) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-URI',
                     'name'        => 'Oversized URI Buffer Overflow Guard',
@@ -524,7 +526,7 @@ class FirewallEngine {
                 exit;
             }
 
-            if ($query_length > 1024 && !$is_upload_endpoint && !$is_admin_area) {
+            if ($query_length > 1024 && !$is_exempt_endpoint) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-QUERY',
                     'name'        => 'Oversized Query String Guard',
@@ -538,7 +540,7 @@ class FirewallEngine {
                 exit;
             }
 
-            if ($post_count > 1000 && !$is_upload_endpoint && !$is_admin_area) {
+            if ($post_count > 1000 && !$is_exempt_endpoint) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-POST-VARS',
                     'name'        => 'Excessive Parameter Count Flood Guard',
@@ -1598,9 +1600,36 @@ class FirewallEngine {
             'paystack_webhook',
             'klarna_notification',
             'edd-listener',
+            'authorizenet_silent_post',
+            'wc_gateway_authorizenet',
         ];
         foreach ($gateway_webhook_signals as $signal) {
             if (strpos($query_string, $signal) !== false || strpos($uri, $signal) !== false) {
+                return true;
+            }
+        }
+
+        // 5. Cryptographic Payment Gateway Webhook Signatures (Wordfence Smart Pipeline)
+        // Authentic server-to-server payment notifications are signed by gateways with dedicated headers.
+        if (!empty($_SERVER['HTTP_STRIPE_SIGNATURE'])
+            || !empty($_SERVER['HTTP_PAYPAL_TRANSMISSION_SIG'])
+            || !empty($_SERVER['HTTP_PAYPAL_CERT_URL'])
+            || !empty($_SERVER['HTTP_X_SQUARE_HMACSHA256_SIGNATURE'])
+            || !empty($_SERVER['HTTP_X_WC_WEBHOOK_SIGNATURE'])
+            || !empty($_SERVER['HTTP_X_RAZORPAY_SIGNATURE'])
+            || !empty($_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'])
+            || !empty($_SERVER['HTTP_X_MOLLIE_SIGNATURE'])
+        ) {
+            return true;
+        }
+
+        // 6. Direct Gateway CIDR/IP Verification for E-Commerce Callbacks
+        $client_ip = self::get_client_ip();
+        if (in_array($client_ip, self::STRIPE_WEBHOOK_IPS, true)) {
+            return true;
+        }
+        foreach (self::PAYPAL_WEBHOOK_CIDRS as $paypal_cidr) {
+            if (self::ip_in_range($client_ip, $paypal_cidr)) {
                 return true;
             }
         }
@@ -1741,6 +1770,43 @@ class FirewallEngine {
         '122.248.245.244/32',
         '54.217.201.243/32',
         '54.232.116.4/32',
+    ];
+
+    /**
+     * Official Stripe Webhook IP Addresses
+     * Source: Stripe official webhook documentation (https://docs.stripe.com/ips)
+     */
+    public const STRIPE_WEBHOOK_IPS = [
+        '3.18.12.63',
+        '3.130.192.231',
+        '13.235.14.237',
+        '13.235.122.149',
+        '18.211.135.69',
+        '35.154.171.200',
+        '52.15.183.38',
+        '54.88.130.119',
+        '54.88.130.237',
+        '54.88.130.238',
+        '54.88.130.241',
+        '54.187.174.169',
+        '54.187.205.235',
+        '54.187.216.72',
+        '54.241.31.99',
+        '54.241.31.100',
+        '54.241.34.23',
+        '54.241.47.70',
+        '54.243.149.206',
+    ];
+
+    /**
+     * Official PayPal IPN & Webhook Subnet CIDRs
+     * Source: PayPal Developer Documentation & ARIN allocations.
+     */
+    public const PAYPAL_WEBHOOK_CIDRS = [
+        '173.0.80.0/20',
+        '66.211.168.0/22',
+        '64.4.240.0/21',
+        '64.4.248.0/22',
     ];
 
     /**
