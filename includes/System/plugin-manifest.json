@@ -1,6 +1,6 @@
 {
   "version": "1.23.0",
-  "generated_at": "2026-10-23T18:25:36.031Z",
+  "generated_at": "2026-10-23T20:57:03.810Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -288,8 +288,8 @@
       "size": 3575
     },
     "includes/Notifications/NotificationDispatcher.php": {
-      "sha256": "89e4cce95b31117a406dba7cc9df90aef53949228643af84a1fb2cf837d0a933",
-      "size": 46196
+      "sha256": "9538f2d99a574c8a8d1666a7b19b278dc7d47766e91c026192ded64c324357fd",
+      "size": 46386
     },
     "includes/Notifications/WebhookService.php": {
       "sha256": "cd333737a14557f5c3c0654273c455bec7306da730cf021ac5a2a08f1e128713",
@@ -440,8 +440,8 @@
       "size": 4471
     },
     "wcp-wp-scanner.php": {
-      "sha256": "7171ccc91da9e665e99e4d867a79126e75149121e5f5251ec1b074f60a16c83b",
-      "size": 3424
+      "sha256": "ef5415bbe6a8bfb1f9f853036f7df82eababc58e16b479a05dad25ec3f52f368",
+      "size": 3779
     }
   }
 }

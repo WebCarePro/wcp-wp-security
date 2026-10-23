@@ -659,7 +659,12 @@ class NotificationDispatcher {
 
         $html .= '</div></body></html>';
 
-        return (bool) wp_mail($to, $subject, $html, $headers);
+        try {
+            return (bool) wp_mail($to, $subject, $html, $headers);
+        } catch (\Throwable $e) {
+            error_log('WCP Scanner: wp_mail failed due to mailer engine error: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**

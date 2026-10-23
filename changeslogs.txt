@@ -1,4 +1,6 @@
 v:1.23.0 - 2026-10-23
+- Plugin Deactivation Resiliency & 3rd-Party Mailer Shield (`wcp-wp-scanner.php`, `NotificationDispatcher.php`):
+  * Defensive Deactivation Trigger: Wrapped `register_deactivation_hook()` notification dispatch and `wp_mail()` call in defensive `try...catch (\Throwable $e)` blocks. If a site has a broken third-party mailer plugin (such as Post SMTP with missing Zend libraries), its fatal error is caught and logged, completely preventing third-party mailer errors from blocking the deactivation of WCP Security Scanner.
 - UI Design System Documentation & Anti-Pattern Specifications (`AGENTS.md`):
   * Comprehensive Dark Mode & Light Mode Standards: Codified all standardized component CSS classes (`.wcp-firewall-section-group`, `.wcp-firewall-rule-card`, `.wcp-waf-ip-row`, `.wcp-waf-expanded-row`, `.wcp-waf-forensic-accordion`, `.wcp-cf-edge-main-card`, `.wcp-cf-edge-header`, `.wcp-cf-edge-toolbar`, `.wcp-cf-edge-footer`, `.wcp-action-btn-clean`) directly into `AGENTS.md`.
   * Explicit Anti-Patterns & Rules: Defined strict rules preventing hardcoded inline background colors on table rows (`<tr>`), intermediate toolbar containers, and inputs to ensure permanent dual-mode contrast across all future pages without manual re-patching.
