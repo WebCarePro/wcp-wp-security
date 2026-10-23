@@ -1,4 +1,9 @@
 v:1.23.0 - 2026-10-23
+- Light / White Mode High Contrast & Typography Theme Hardening (`FilesystemForensicsCard.tsx`, `App.tsx`, `index.css`):
+  * Forensics Header Action Buttons: Replaced washed-out dark-mode-only styles on "View Changelog", "Manage in WP-Admin", and "Official Website" with high-contrast Light Mode theme tokens (`#1d4ed8` on soft blue, `#0f172a` on slate, `#047857` on soft emerald) that seamlessly adapt in Dark Mode.
+  * Inode Mode & Permissions Comparison Badges: Migrated hardcoded dark RGBA/emerald pill styles (`rgba(16, 185, 129, 0.15)` and `#34d399`) to `.wcp-fs-perm-pill-clean` and `.wcp-fs-optimal-tag`, rendering crisp dark forest emerald text (`#047857`) on clean mint background (`#ecfdf5`) in Light Mode.
+  * Security Advisory Banner Legibility: Eliminated low-contrast inline pastel text in the bottom Security Advisory container. Introduced `.wcp-fs-advisory-clean`, `.wcp-fs-advisory-warn`, and `.wcp-fs-advisory-danger` providing deep, high-contrast typography (`#065f46`, `#92400e`, `#991b1b`) over subtle tinted alert panels.
+  * Footer Optimal Posture Chip: Styled `.wcp-fs-footer-optimal-chip` and action buttons with high-contrast text and borders for crisp visibility across both White and Dark canvas backgrounds.
 - Finding Details Expand White Screen Elimination & Error Boundary Hardening (`FilesystemForensicsCard.tsx`, `App.tsx`, `ScanLogsPage.tsx`):
   * Missing Icon Import Fix: Resolved critical JavaScript `ReferenceError: Info is not defined` inside `FilesystemForensicsCard.tsx` that crashed the React component tree and rendered a white blank screen when expanding finding rows for unmanaged/proprietary plugins.
   * Resilient Defensive Error Boundaries: Wrapped all expandable finding rows across Scan Results, Targeted Scans, and Scan Logs with `<SafeErrorBoundary>` to prevent any child rendering exception from crashing the main dashboard.
