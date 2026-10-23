@@ -114,6 +114,12 @@ class SettingsManager {
             'waf_block_ssrf_metadata'           => true, // Block SSRF probes targeting 169.254.169.254 cloud metadata
             'waf_block_install_php'             => true, // Lockdown install.php and upgrade.php on installed sites
 
+            // Specialized Armor: phpMyAdmin & File Manager Restrictions
+            'waf_disallow_phpmyadmin_plugins'   => true, // Disallow installation of phpMyAdmin & database manager plugins
+            'waf_disallow_filemanager_plugins'  => true, // Disallow installation of File Manager plugins
+            'waf_disallow_phpmyadmin_uploads'   => true, // Block uploads of phpMyAdmin / Adminer / standalone database scripts
+            'waf_disallow_filemanager_uploads'  => true, // Block uploads of standalone File Manager / Webshell explorer scripts
+
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
             'threat_intel_block_blacklisted_ips' => true,
@@ -522,6 +528,12 @@ class SettingsManager {
         $clean['waf_block_open_redirects']        = !empty($merged['waf_block_open_redirects']);
         $clean['waf_block_ssrf_metadata']         = !empty($merged['waf_block_ssrf_metadata']);
         $clean['waf_block_install_php']           = !empty($merged['waf_block_install_php']);
+
+        // Specialized Armor: phpMyAdmin & File Manager Restrictions
+        $clean['waf_disallow_phpmyadmin_plugins']  = !empty($merged['waf_disallow_phpmyadmin_plugins']);
+        $clean['waf_disallow_filemanager_plugins'] = !empty($merged['waf_disallow_filemanager_plugins']);
+        $clean['waf_disallow_phpmyadmin_uploads']  = !empty($merged['waf_disallow_phpmyadmin_uploads']);
+        $clean['waf_disallow_filemanager_uploads'] = !empty($merged['waf_disallow_filemanager_uploads']);
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = !empty($merged['threat_intel_enabled']);

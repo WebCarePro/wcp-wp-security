@@ -42,6 +42,10 @@ class FirewallEngine {
         // Real-Time Malicious File Upload Interceptor
         add_filter('wp_handle_upload_prefilter', [__CLASS__, 'inspect_uploaded_file'], 1);
 
+        // Disallow phpMyAdmin & File Manager Plugin Installations (Admin-ajax, REST API, & WP Upgrader)
+        add_filter('upgrader_pre_install', [__CLASS__, 'prevent_prohibited_plugin_install'], 10, 2);
+        add_filter('plugins_api_result', [__CLASS__, 'filter_prohibited_plugin_api'], 10, 3);
+
         // Generic Login Error Masking (prevent revealing valid usernames)
         add_filter('login_errors', [__CLASS__, 'mask_login_errors'], 999);
 
@@ -634,6 +638,88 @@ class FirewallEngine {
                 } else {
                     self::log_incident($rule_triggered, 'blocked');
                     self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                }
+            }
+        }
+
+        // Specialized Rule: Disallow phpMyAdmin & Database Manager Plugin Installations (AJAX/REST/Query inspection)
+        if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
+            $req_slug = strtolower($_POST['slug'] ?? $_GET['slug'] ?? $_POST['plugin'] ?? $_GET['plugin'] ?? '');
+            if (empty($req_slug) && !empty($_POST['data']['slug'])) {
+                $req_slug = strtolower(sanitize_text_field($_POST['data']['slug']));
+            }
+            $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager', 'database-management'];
+            $is_pma_install = false;
+            foreach ($pma_signatures as $sig) {
+                if (strpos($req_slug, $sig) !== false) {
+                    $is_pma_install = true;
+                    break;
+                }
+            }
+            if ($is_pma_install) {
+                $rule_triggered = [
+                    'id'          => 'WAF-DISALLOW-PHPMYADMIN-PLUGIN',
+                    'name'        => 'Prohibited Database Manager Plugin Installation',
+                    'category'    => 'Security Policy Enforcement',
+                    'description' => sprintf('Attempted installation of database manager / phpMyAdmin plugin ("%s") was blocked.', esc_html($req_slug)),
+                    'match_type'  => 'Plugin Installation Policy',
+                    'match_value' => $req_slug,
+                    'payload'     => "Slug: {$req_slug} IP: {$client_ip}",
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    if (wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+                        status_header(403);
+                        wp_send_json_error(['message' => 'Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer) is disallowed by WCP Security Firewall.']);
+                    } else {
+                        self::render_block_page($rule_triggered, $client_ip);
+                    }
+                    exit;
+                }
+            }
+        }
+
+        // Specialized Rule: Disallow File Manager Plugin Installations (AJAX/REST/Query inspection)
+        if (!empty($settings['waf_disallow_filemanager_plugins'])) {
+            $req_slug = strtolower($_POST['slug'] ?? $_GET['slug'] ?? $_POST['plugin'] ?? $_GET['plugin'] ?? '');
+            if (empty($req_slug) && !empty($_POST['data']['slug'])) {
+                $req_slug = strtolower(sanitize_text_field($_POST['data']['slug']));
+            }
+            $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager', 'wp-filemanager'];
+            $is_fm_install = false;
+            foreach ($fm_signatures as $sig) {
+                if (strpos($req_slug, $sig) !== false) {
+                    $is_fm_install = true;
+                    break;
+                }
+            }
+            if ($is_fm_install) {
+                $rule_triggered = [
+                    'id'          => 'WAF-DISALLOW-FILEMANAGER-PLUGIN',
+                    'name'        => 'Prohibited File Manager Plugin Installation',
+                    'category'    => 'Security Policy Enforcement',
+                    'description' => sprintf('Attempted installation of file manager plugin ("%s") was blocked.', esc_html($req_slug)),
+                    'match_type'  => 'Plugin Installation Policy',
+                    'match_value' => $req_slug,
+                    'payload'     => "Slug: {$req_slug} IP: {$client_ip}",
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    if (wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+                        status_header(403);
+                        wp_send_json_error(['message' => 'Security Policy Violation: Installation of File Manager plugins is disallowed by WCP Security Firewall.']);
+                    } else {
+                        self::render_block_page($rule_triggered, $client_ip);
+                    }
                     exit;
                 }
             }
@@ -2363,9 +2449,213 @@ class FirewallEngine {
                     return $file;
                 }
             }
+
+            // 6. Prohibited Standalone phpMyAdmin / Database Script Uploads
+            if (!empty($settings['waf_disallow_phpmyadmin_uploads'])) {
+                $pma_name_patterns = ['/pma/i', '/phpmyadmin/i', '/adminer/i', '/sql[_-]?buddy/i', '/db[_-]?admin/i', '/mini[_-]?sql/i'];
+                $is_pma_file = false;
+                foreach ($pma_name_patterns as $pma_pat) {
+                    if (preg_match($pma_pat, $filename)) {
+                        $is_pma_file = true;
+                        break;
+                    }
+                }
+
+                // Check text/script content if candidate extension (e.g. .txt, .inc, .sql, .zip)
+                if (!$is_pma_file && in_array($ext, ['txt', 'inc', 'zip', 'gz', 'tar'], true)) {
+                    $sample = @file_get_contents($tmp_path, false, null, 0, 16384);
+                    if ($sample && (stripos($sample, 'phpMyAdmin') !== false || stripos($sample, 'Adminer - Compact database') !== false || stripos($sample, 'PMA_sendHeaderLocation') !== false)) {
+                        $is_pma_file = true;
+                    }
+                }
+
+                // Deep ZIP inspect if archive upload
+                if (!$is_pma_file && $ext === 'zip' && class_exists('ZipArchive')) {
+                    $zip = new \ZipArchive();
+                    if ($zip->open($tmp_path) === true) {
+                        for ($i = 0; $i < min(200, $zip->numFiles); $i++) {
+                            $entry_name = strtolower($zip->getNameIndex($i));
+                            if (preg_match('/(phpmyadmin|adminer|sqlbuddy|db-manager)/i', $entry_name)) {
+                                $is_pma_file = true;
+                                break;
+                            }
+                        }
+                        $zip->close();
+                    }
+                }
+
+                if ($is_pma_file) {
+                    self::log_incident([
+                        'category'    => 'Prohibited Script Upload',
+                        'description' => sprintf('Upload of phpMyAdmin / Adminer database management script "%s" was blocked by policy.', esc_html($filename)),
+                        'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
+                    ], 'blocked');
+
+                    $file['error'] = __('Security Firewall: Uploading phpMyAdmin or standalone database management scripts is strictly disallowed.', 'wcp-security-scanner');
+                    return $file;
+                }
+            }
+
+            // 7. Prohibited File Manager & Web Shell Explorer Script Uploads
+            if (!empty($settings['waf_disallow_filemanager_uploads'])) {
+                $fm_name_patterns = [
+                    '/tinyfilemanager/i', '/filemanager/i', '/file_manager/i', '/fileorganizer/i',
+                    '/filester/i', '/elfinder/i', '/responsivefilemanager/i', '/alfa[_-]?shell/i',
+                    '/c99/i', '/r57/i', '/wso[_-]?shell/i', '/b374k/i', '/webadmin/i'
+                ];
+                $is_fm_file = false;
+                foreach ($fm_name_patterns as $fm_pat) {
+                    if (preg_match($fm_pat, $filename)) {
+                        $is_fm_file = true;
+                        break;
+                    }
+                }
+
+                // Check text/script content if candidate extension
+                if (!$is_fm_file && in_array($ext, ['txt', 'inc', 'zip', 'tar', 'gz'], true)) {
+                    $sample = @file_get_contents($tmp_path, false, null, 0, 16384);
+                    if ($sample && (
+                        stripos($sample, 'TinyFileManager') !== false ||
+                        stripos($sample, 'elFinder') !== false ||
+                        stripos($sample, 'Responsive FileManager') !== false ||
+                        stripos($sample, 'WSO 4.2.5') !== false ||
+                        stripos($sample, 'FilesMan') !== false
+                    )) {
+                        $is_fm_file = true;
+                    }
+                }
+
+                // Deep ZIP inspect if archive upload
+                if (!$is_fm_file && $ext === 'zip' && class_exists('ZipArchive')) {
+                    $zip = new \ZipArchive();
+                    if ($zip->open($tmp_path) === true) {
+                        for ($i = 0; $i < min(200, $zip->numFiles); $i++) {
+                            $entry_name = strtolower($zip->getNameIndex($i));
+                            if (preg_match('/(tinyfilemanager|filemanager|fileorganizer|elfinder|responsivefilemanager|filester)/i', $entry_name)) {
+                                $is_fm_file = true;
+                                break;
+                            }
+                        }
+                        $zip->close();
+                    }
+                }
+
+                if ($is_fm_file) {
+                    self::log_incident([
+                        'category'    => 'Prohibited Script Upload',
+                        'description' => sprintf('Upload of standalone File Manager / Web Shell script "%s" was blocked by policy.', esc_html($filename)),
+                        'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
+                    ], 'blocked');
+
+                    $file['error'] = __('Security Firewall: Uploading standalone File Manager or explorer scripts is strictly disallowed.', 'wcp-security-scanner');
+                    return $file;
+                }
+            }
         }
 
         return $file;
+    }
+
+    /**
+     * Intercept and prevent prohibited plugin installations via WP Upgrader (Rule 1 & 2)
+     *
+     * @param bool|object $response
+     * @param array $hook_extra Extra upgrader hook arguments (contains 'plugin', 'package', 'type')
+     * @return bool|object
+     */
+    public static function prevent_prohibited_plugin_install($response, array $hook_extra) {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled'])) {
+            return $response;
+        }
+
+        $slug = '';
+        if (!empty($hook_extra['plugin'])) {
+            $slug = strtolower(dirname($hook_extra['plugin']));
+        }
+        if (empty($slug) && !empty($_POST['slug'])) {
+            $slug = strtolower(sanitize_text_field($_POST['slug']));
+        }
+
+        // Check phpMyAdmin restriction
+        if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
+            $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager', 'database-management'];
+            foreach ($pma_signatures as $sig) {
+                if (strpos($slug, $sig) !== false) {
+                    self::log_incident([
+                        'category'    => 'Security Policy Enforcement',
+                        'description' => sprintf('Upgrader installation of database manager / phpMyAdmin plugin ("%s") was blocked.', esc_html($slug)),
+                        'payload'     => "Slug: {$slug}",
+                    ], 'blocked');
+
+                    return new \WP_Error(
+                        'wcp_prohibited_plugin_pma',
+                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer) is disallowed by WCP Security Firewall.', 'wcp-security-scanner')
+                    );
+                }
+            }
+        }
+
+        // Check File Manager restriction
+        if (!empty($settings['waf_disallow_filemanager_plugins'])) {
+            $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager', 'wp-filemanager'];
+            foreach ($fm_signatures as $sig) {
+                if (strpos($slug, $sig) !== false) {
+                    self::log_incident([
+                        'category'    => 'Security Policy Enforcement',
+                        'description' => sprintf('Upgrader installation of File Manager plugin ("%s") was blocked.', esc_html($slug)),
+                        'payload'     => "Slug: {$slug}",
+                    ], 'blocked');
+
+                    return new \WP_Error(
+                        'wcp_prohibited_plugin_fm',
+                        __('Security Policy Violation: Installation of File Manager plugins is disallowed by WCP Security Firewall.', 'wcp-security-scanner')
+                    );
+                }
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Filter WordPress.org Plugins API results to prevent 1-click install/queries of prohibited plugins
+     */
+    public static function filter_prohibited_plugin_api($res, $action, $args) {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled'])) {
+            return $res;
+        }
+
+        if ($action === 'plugin_information' && isset($args->slug)) {
+            $slug = strtolower($args->slug);
+
+            if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
+                $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager'];
+                foreach ($pma_signatures as $sig) {
+                    if (strpos($slug, $sig) !== false) {
+                        return new \WP_Error(
+                            'wcp_disallowed_plugin',
+                            __('Security Policy: phpMyAdmin and database manager plugins are blocked by WCP Security Firewall.', 'wcp-security-scanner')
+                        );
+                    }
+                }
+            }
+
+            if (!empty($settings['waf_disallow_filemanager_plugins'])) {
+                $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager'];
+                foreach ($fm_signatures as $sig) {
+                    if (strpos($slug, $sig) !== false) {
+                        return new \WP_Error(
+                            'wcp_disallowed_plugin',
+                            __('Security Policy: File Manager plugins are blocked by WCP Security Firewall.', 'wcp-security-scanner')
+                        );
+                    }
+                }
+            }
+        }
+
+        return $res;
     }
 
     /**
