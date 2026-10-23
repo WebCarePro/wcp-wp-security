@@ -1418,12 +1418,13 @@ class FirewallEngine {
         } elseif (isset($rule['category']) && (stripos($rule['category'], 'method') !== false || stripos($rule['description'] ?? '', 'method') !== false)) {
             $status_code = 405;
         }
+        $category = sanitize_key($rule['category'] ?? 'general_defense');
 
         // Deduplication safeguard: don't log the same IP/rule more than once per minute
         $recent = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) LIMIT 1",
             $ip,
-            $rule['category']
+            $category
         ));
 
         if ($recent) {
@@ -1438,7 +1439,7 @@ class FirewallEngine {
                 'request_method'   => sanitize_key($method),
                 'http_status_code' => (int) $status_code,
                 'http_referer'     => !empty($referer) ? sanitize_text_field($referer) : null,
-                'rule_category'    => sanitize_key($rule['category'] ?? 'General Defense'),
+                'rule_category'    => $category,
                 'rule_description' => sanitize_text_field($rule['description'] ?? $rule['name'] ?? 'Threat payload blocked by firewall policy.'),
                 'payload_sample'   => sanitize_text_field(substr($rule['payload'] ?? $rule['match_value'] ?? '', 0, 255)),
                 'user_agent'       => sanitize_text_field($user_agent),
