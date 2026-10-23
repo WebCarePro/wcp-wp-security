@@ -2095,6 +2095,12 @@ class FirewallEngine {
             return false;
         }
 
+        // Safety Guard: Refuse to add current administrator's active IP or whitelisted IP to custom blocklist
+        $current_client_ip = self::get_client_ip();
+        if ($ip === $current_client_ip && self::is_authenticated_administrator()) {
+            return false;
+        }
+
         $settings = SettingsManager::get_settings();
         $current = trim($settings['waf_blocked_ips'] ?? '');
         $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $current))));

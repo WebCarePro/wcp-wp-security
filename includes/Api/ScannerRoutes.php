@@ -4720,6 +4720,7 @@ class ScannerRoutes {
         ]);
 
         $res = \WcpScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);
+        $res['current_client_ip'] = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
         return rest_ensure_response($res);
     }
 
@@ -4748,6 +4749,16 @@ class ScannerRoutes {
         if (empty($ip)) {
             return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
         }
+
+        $current_client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        if ($ip === $current_client_ip && \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator()) {
+            return new \WP_Error(
+                'self_ban_prohibited',
+                sprintf(__('Safety Guard: IP %s is your active administrator connection. You cannot block your own IP to prevent site lockout.', 'wcp-security-scanner'), $ip),
+                ['status' => 400]
+            );
+        }
+
         $added = \WcpScanner\Firewall\FirewallEngine::add_blocked_ip($ip);
         return rest_ensure_response([
             'success' => $added,
