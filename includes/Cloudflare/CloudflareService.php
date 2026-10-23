@@ -1277,4 +1277,274 @@ class CloudflareService {
             'message' => __('Cloudflare disconnected and API token removed successfully.', 'wcp-security-scanner'),
         ];
     }
+
+    /**
+     * Get path to the secure WCP Vault JSON storage for Cloudflare Edge Events.
+     *
+     * @return string
+     */
+    public static function get_vault_events_filepath(): string {
+        $uploads = wp_upload_dir();
+        $base = untrailingslashit($uploads['basedir']);
+        $vault_dir = $base . '/wcp-security-scanner/.vault';
+
+        if (!is_dir($vault_dir)) {
+            wp_mkdir_p($vault_dir);
+        }
+
+        // Defensive guard files to prevent direct web execution / download
+        $htaccess = $vault_dir . '/.htaccess';
+        if (!file_exists($htaccess)) {
+            $rules = "# Block all public web access to WCP vault\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n<FilesMatch \".*\">\n    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n    <IfModule !mod_authz_core.c>\n        Order deny,allow\n        Deny from all\n    </IfModule>\n</FilesMatch>\n";
+            @file_put_contents($htaccess, $rules);
+        }
+
+        $index = $vault_dir . '/index.php';
+        if (!file_exists($index)) {
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+        }
+
+        return $vault_dir . '/cloudflare-edge-events.json';
+    }
+
+    /**
+     * Get stored Cloudflare Edge Security Events from WCP Vault JSON file.
+     * Fast retrieval with zero external API calls or MySQL database load.
+     *
+     * @return array
+     */
+    public static function get_stored_firewall_events(): array {
+        $file = self::get_vault_events_filepath();
+
+        if (!file_exists($file) || !is_readable($file)) {
+            return [
+                'success'      => true,
+                'events'       => [],
+                'total_stored' => 0,
+                'last_synced'  => null,
+                'zone_name'    => '',
+            ];
+        }
+
+        $content = @file_get_contents($file);
+        if ($content === false || empty(trim($content))) {
+            return [
+                'success'      => true,
+                'events'       => [],
+                'total_stored' => 0,
+                'last_synced'  => null,
+                'zone_name'    => '',
+            ];
+        }
+
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            return [
+                'success'      => true,
+                'events'       => [],
+                'total_stored' => 0,
+                'last_synced'  => null,
+                'zone_name'    => '',
+            ];
+        }
+
+        return [
+            'success'      => true,
+            'events'       => $data['events'] ?? [],
+            'total_stored' => count($data['events'] ?? []),
+            'last_synced'  => $data['last_synced'] ?? null,
+            'zone_name'    => $data['zone_name'] ?? '',
+        ];
+    }
+
+    /**
+     * Fetch latest Cloudflare Edge Security Events via GraphQL API and store into WCP Vault JSON file.
+     *
+     * @param int $limit Max events to request in this fetch (default 100)
+     * @return array
+     */
+    public static function fetch_and_store_firewall_events(int $limit = 100): array {
+        $settings = SettingsManager::get_settings();
+        $token = $settings['cloudflare_api_token'] ?? '';
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($token) || empty($zone_id)) {
+            return [
+                'success' => false,
+                'message' => __('Cloudflare API credentials not configured. Please connect your API token and Zone ID in Settings.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Cloudflare GraphQL query for firewallEventsAdaptive dataset
+        $query = 'query GetFirewallEvents($zoneTag: String!, $limit: Int!) {
+          viewer {
+            zones(filter: { zoneTag: $zoneTag }) {
+              firewallEventsAdaptive(
+                limit: $limit
+                filter: { datetime_geq: "' . gmdate('Y-m-d\TH:i:s\Z', strtotime('-72 hours')) . '" }
+                orderBy: [datetime_DESC]
+              ) {
+                datetime
+                action
+                ruleId
+                source
+                clientIP
+                clientRequestHTTPHost
+                clientRequestHTTPMethodName
+                clientRequestHTTPProtocol
+                clientRequestPath
+                clientRequestQuery
+                clientRequestUserAgent
+                clientReferer
+                clientCountryName
+                clientAsn
+                clientASNDescription
+                rayName
+              }
+            }
+          }
+        }';
+
+        $payload = [
+            'query'     => $query,
+            'variables' => [
+                'zoneTag' => $zone_id,
+                'limit'   => max(10, min(500, $limit)),
+            ],
+        ];
+
+        $res = self::request('graphql', 'POST', $payload);
+
+        // Check for common permission error (missing Zone.Analytics:Read)
+        if (!empty($res['errors'])) {
+            $err_msg = '';
+            foreach ($res['errors'] as $err) {
+                $err_msg .= ($err['message'] ?? 'Error') . ' ';
+            }
+
+            if (stripos($err_msg, 'permission') !== false || stripos($err_msg, 'unauthorized') !== false || stripos($err_msg, 'access denied') !== false) {
+                return [
+                    'success'            => false,
+                    'missing_permission' => true,
+                    'message'            => __('Cloudflare API Token lacks "Zone.Analytics: Read" permission. Please edit your API token in the Cloudflare dashboard to include Zone > Analytics > Read.', 'wcp-security-scanner'),
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => trim($err_msg),
+            ];
+        }
+
+        $zones = $res['data']['viewer']['zones'] ?? [];
+        if (empty($zones) || !isset($zones[0]['firewallEventsAdaptive'])) {
+            return [
+                'success' => false,
+                'message' => __('No firewall analytics data returned from Cloudflare GraphQL endpoint.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $raw_events = $zones[0]['firewallEventsAdaptive'];
+
+        // Map rule IDs back to human-friendly WCP Rule titles if known
+        $definitions = self::get_compound_rule_definitions();
+        $mapped_events = [];
+
+        foreach ($raw_events as $ev) {
+            $ray_id = $ev['rayName'] ?? '';
+            if (empty($ray_id)) {
+                $ray_id = md5(($ev['datetime'] ?? '') . ($ev['clientIP'] ?? '') . ($ev['clientRequestPath'] ?? ''));
+            }
+
+            $rule_id = $ev['ruleId'] ?? '';
+            $rule_name = $ev['source'] ? ucfirst($ev['source']) : 'Custom Rule';
+
+            // Check if rule matches known WCP rule definitions
+            foreach ($definitions as $def) {
+                if (!empty($def['title'])) {
+                    // WCP compound titles
+                    $rule_name = $def['title'];
+                    break;
+                }
+            }
+
+            $mapped_events[] = [
+                'ray_id'       => $ray_id,
+                'datetime'     => $ev['datetime'] ?? gmdate('Y-m-d H:i:s'),
+                'action'       => $ev['action'] ?? 'block',
+                'rule_id'      => $rule_id,
+                'rule_name'    => $rule_name,
+                'source'       => $ev['source'] ?? 'waf',
+                'client_ip'    => $ev['clientIP'] ?? 'unknown',
+                'host'         => $ev['clientRequestHTTPHost'] ?? '',
+                'method'       => $ev['clientRequestHTTPMethodName'] ?? 'GET',
+                'protocol'     => $ev['clientRequestHTTPProtocol'] ?? 'HTTP/1.1',
+                'path'         => $ev['clientRequestPath'] ?? '/',
+                'query'        => $ev['clientRequestQuery'] ?? '',
+                'user_agent'   => $ev['clientRequestUserAgent'] ?? '',
+                'referer'      => $ev['clientReferer'] ?? '',
+                'country'      => $ev['clientCountryName'] ?? 'Unknown',
+                'asn'          => $ev['clientAsn'] ?? '',
+                'asn_desc'     => $ev['clientASNDescription'] ?? '',
+            ];
+        }
+
+        // Read existing stored events to merge by ray_id without duplication
+        $current_store = self::get_stored_firewall_events();
+        $existing_events = $current_store['events'] ?? [];
+
+        $by_ray = [];
+        // Put existing events into map first
+        foreach ($existing_events as $ex) {
+            $k = $ex['ray_id'] ?? '';
+            if (!empty($k)) {
+                $by_ray[$k] = $ex;
+            }
+        }
+
+        $new_count = 0;
+        // Merge freshly fetched events
+        foreach ($mapped_events as $m) {
+            $k = $m['ray_id'];
+            if (!isset($by_ray[$k])) {
+                $new_count++;
+            }
+            $by_ray[$k] = $m;
+        }
+
+        // Sort descending by datetime
+        $all_events = array_values($by_ray);
+        usort($all_events, function($a, $b) {
+            return strcmp($b['datetime'] ?? '', $a['datetime'] ?? '');
+        });
+
+        // Cap to latest 1000 events to prevent JSON file bloat
+        if (count($all_events) > 1000) {
+            $all_events = array_slice($all_events, 0, 1000);
+        }
+
+        // Get zone name for metadata
+        $verify = self::verify_zone($zone_id);
+        $zone_name = $verify['zone_name'] ?? '';
+
+        $data_to_store = [
+            'last_synced' => current_time('mysql'),
+            'zone_id'     => $zone_id,
+            'zone_name'   => $zone_name,
+            'events'      => $all_events,
+        ];
+
+        // Atomically write JSON to WCP Vault
+        $filepath = self::get_vault_events_filepath();
+        @file_put_contents($filepath, wp_json_encode($data_to_store, JSON_PRETTY_PRINT), LOCK_EX);
+
+        return [
+            'success'      => true,
+            'new_fetched'  => $new_count,
+            'total_stored' => count($all_events),
+            'last_synced'  => $data_to_store['last_synced'],
+            'zone_name'    => $zone_name,
+            'events'       => $all_events,
+        ];
+    }
 }

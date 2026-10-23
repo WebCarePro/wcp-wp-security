@@ -71,6 +71,11 @@ v:1.23.0 - 2026-10-23
   * Rule #33: admin-ajax.php Burst Flood Guard: Enforces sliding window rate limit (default 60 requests/min) on unauthenticated `admin-ajax.php` calls while preserving complete safe-mode immunity for legitimate WooCommerce customer cart actions.
   * Rule #34: Oversized Request Buffer & DoS Guard: Immediate buffer boundary protection dropping oversized URIs (> 2048 bytes with 414 URI Too Long), query strings (> 1024 bytes), and parameter flooding (> 1000 POST variables with 400 Bad Request), safely exempting media uploads and admin tasks.
   * Dedicated "Advanced API, Protocol & Abuse Defense" UI Section: Integrated sequential badge numbers `#29` through `#34` with independent toggles, individual rule saving buttons, and configurable thresholds in `FirewallPage.tsx`.
+- Cloudflare Edge Firewall Block Events & Vault Cache Integration (`CloudflareService.php`, `ScannerRoutes.php`, `WafLogsPage.tsx`):
+  * Zero-Database Edge Event Vault Architecture: Implemented on-demand retrieval of Cloudflare Security Analytics firewall block events via GraphQL (`firewallEventsAdaptive`). All retrieved events are stored securely in the local WCP Vault (`wp-content/uploads/wcp-security-scanner/.vault/cloudflare-edge-events.json`) with `.htaccess` and `index.php` 403 guards, eliminating database table bloat and minimizing repetitive Cloudflare API calls.
+  * Atomic Vault Deduplication & Merging: In-memory and disk deduplication merges incoming edge events by Cloudflare `ray_id`, preserving up to 1,000 historical edge events in chronological order while auto-mapping WCP custom edge rule IDs to human-readable rule names.
+  * GraphQL API & Permission Telemetry: Added intelligent detection for missing `Zone > Analytics > Read` API token scopes, returning human-friendly diagnostic guidance directly within the modal.
+  * Interactive Forensic Modal & 1-Click Allowlist: Integrated a "Check Cloudflare Edge Block Logs" button on the WAF Logs page, opening a slide-over modal with real-time text search, action filtering (Block, Challenge, Managed Challenge, JS Challenge), Ray ID copy, ASN and geographic details, and 1-click "Allow IP" synchronization directly to Cloudflare Edge IP Access Rules.
 
 
 
