@@ -102,7 +102,7 @@ class SettingsManager {
             'waf_prevent_admin_registration'    => true, // Prevent users from registering 'admin' username
             'waf_mask_login_errors'             => true, // Don't let WordPress reveal valid users in login errors
             'waf_enforce_strong_passwords'      => true, // Enforce strong passwords for specific roles
-            'waf_strong_passwords_roles'        => 'administrator, editor, author', // Roles subject to strong password policy
+            'waf_strong_passwords_roles'        => 'administrator, editor', // Roles subject to strong password policy
             'waf_check_pwned_passwords'         => true, // Prevent use of passwords leaked in data breaches (HIBP API)
             'waf_block_malicious_uploads'       => true, // Intercept & prevent malicious file uploads (executables, double ext, polyglots, SVG XSS)
             'waf_block_unsafe_http_methods'     => true, // Block TRACE, TRACK, CONNECT, DEBUG HTTP methods
@@ -511,7 +511,7 @@ class SettingsManager {
         $clean['waf_prevent_admin_registration']  = !empty($merged['waf_prevent_admin_registration']);
         $clean['waf_mask_login_errors']           = !empty($merged['waf_mask_login_errors']);
         $clean['waf_enforce_strong_passwords']    = !empty($merged['waf_enforce_strong_passwords']);
-        $clean['waf_strong_passwords_roles']      = sanitize_text_field($merged['waf_strong_passwords_roles'] ?? 'administrator, editor, author');
+        $clean['waf_strong_passwords_roles']      = sanitize_text_field($merged['waf_strong_passwords_roles'] ?? 'administrator, editor');
         $clean['waf_check_pwned_passwords']       = !empty($merged['waf_check_pwned_passwords']);
         $clean['waf_block_malicious_uploads']     = !empty($merged['waf_block_malicious_uploads']);
         $clean['waf_block_unsafe_http_methods']   = !empty($merged['waf_block_unsafe_http_methods']);

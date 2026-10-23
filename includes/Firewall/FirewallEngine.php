@@ -2417,7 +2417,7 @@ class FirewallEngine {
 
         // 1. Strong Passwords Check (Rule 6)
         if (!empty($settings['waf_enforce_strong_passwords'])) {
-            $configured_roles_raw = $settings['waf_strong_passwords_roles'] ?? 'administrator, editor, author';
+            $configured_roles_raw = $settings['waf_strong_passwords_roles'] ?? 'administrator, editor';
             $configured_roles = array_map('trim', explode(',', strtolower($configured_roles_raw)));
 
             $role_match = false;
@@ -2465,7 +2465,7 @@ class FirewallEngine {
 
         // Strong password check
         if (!empty($settings['waf_enforce_strong_passwords'])) {
-            $configured_roles_raw = $settings['waf_strong_passwords_roles'] ?? 'administrator, editor, author';
+            $configured_roles_raw = $settings['waf_strong_passwords_roles'] ?? 'administrator, editor';
             $configured_roles = array_map('trim', explode(',', strtolower($configured_roles_raw)));
 
             $role_match = false;

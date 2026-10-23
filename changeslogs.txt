@@ -36,9 +36,12 @@ v:1.23.0 - 2026-10-23
 - Firewall Rule State Persistence & Partial-Save Sanitization Hardening (`SettingsManager.php`, `ScannerRoutes.php`):
   * Partial-Save Setting Merging: Fixed bug where saving settings from individual rule toggles (`/firewall/save-rule`), Cloudflare verification modals, or individual tabs unintentionally reset omitted firewall rules (such as `waf_disable_xmlrpc`, `waf_block_ai_scrapers`, `waf_block_external_cron`, etc.) to false. Refactored `SettingsManager::save_settings()` to safely merge incoming inputs on top of current database settings and defaults (`array_merge($defaults, $current, $input)`).
   * Direct Partial Key-Value Routing: Streamlined `ScannerRoutes::save_single_firewall_rule()` to pass the exact updated key-value payload directly to `SettingsManager::save_settings()`, preventing stale in-memory state or masked credentials from colliding with persisted firewall rule states.
+- Role Enforced Password Policy Defaults (`SettingsManager.php`, `FirewallEngine.php`, `FirewallPage.tsx`):
+  * Restrict Default Enforced Strong Password Roles to Administrator and Editor: Updated default settings and fallbacks for `waf_strong_passwords_roles` across `SettingsManager`, `FirewallEngine`, and `FirewallPage` from `administrator, editor, author` to `administrator, editor`. Authors and lower-privileged contributors are no longer subjected to the strict complexity policy by default unless explicitly configured by the administrator in the role badge selector.
 - Agent Guidelines & Release Automation Updates (`AGENTS.md`):
   * GitHub Release Tracking Architecture: Updated workflow rules to mandate tracking `wcp-security-scanner.zip` release archive in git for 1-click in-plugin updates.
   * Synchronized Version Manifest Matrix: Formatted version synchronization specifications across all 5 key files (`changeslogs.txt`, `wcp-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`).
+
 
 
 
