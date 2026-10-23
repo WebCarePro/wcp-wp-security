@@ -63,6 +63,14 @@ v:1.23.0 - 2026-10-23
   * Block Standalone File Manager & Web Shell Uploads: Added real-time filename, internal script header, and ZIP archive inspection blocking standalone file managers and webshells (`tinyfilemanager.php`, `elFinder`, `responsivefilemanager`, `c99`, `r57`, `wso`, `alfa`).
   * Responsive UI Controls: Integrated individual toggle switches with instant per-rule saving in the "Core Web Application Exploits & Injection Defense" firewall card.
   * Sequential Numeric Rule Badges: Added numbered badges (`#1` to `#28`) across all rule cards on the "Firewall Rules & Controls" page, giving clients and administrators clean, unambiguous reference numbers to identify and discuss specific rules.
+- Advanced API, Protocol & Abuse Defense Suite — Rules #29 to #34 (`FirewallEngine.php`, `SettingsManager.php`, `FirewallPage.tsx`):
+  * Rule #29: REST API User Enumeration Interceptor: Intercepts unauthenticated GET requests targeting `/wp/v2/users`, `/wp/v2/users/{id}`, and `?rest_route=/wp/v2/users` with an immediate 403 Forbidden WP_Error, while cleanly allowing authenticated users and `/wp/v2/users/me`.
+  * Rule #30: Author Permalink Query Suppression: Intercepts automated `/?author=\d+` user harvesting scans for guests and non-editors, redirecting cleanly (301) to the homepage without leaking WordPress usernames.
+  * Rule #31: Lost-Password & Auth Flood Guard: Sliding window rate-limiter restricting password reset form submissions to max 3 per 15 minutes per client IP and per target account identifier/email, preventing transactional email quota exhaustion and inbox spamming.
+  * Rule #32: Strict Host Header Allowlist: Validates `HTTP_HOST` and `HTTP_X_FORWARDED_HOST` headers against configured site and home URLs (plus configurable alias hostnames), terminating poisoned host header attacks, password reset poisoning, and web cache poisoning.
+  * Rule #33: admin-ajax.php Burst Flood Guard: Enforces sliding window rate limit (default 60 requests/min) on unauthenticated `admin-ajax.php` calls while preserving complete safe-mode immunity for legitimate WooCommerce customer cart actions.
+  * Rule #34: Oversized Request Buffer & DoS Guard: Immediate buffer boundary protection dropping oversized URIs (> 2048 bytes with 414 URI Too Long), query strings (> 1024 bytes), and parameter flooding (> 1000 POST variables with 400 Bad Request), safely exempting media uploads and admin tasks.
+  * Dedicated "Advanced API, Protocol & Abuse Defense" UI Section: Integrated sequential badge numbers `#29` through `#34` with independent toggles, individual rule saving buttons, and configurable thresholds in `FirewallPage.tsx`.
 
 
 

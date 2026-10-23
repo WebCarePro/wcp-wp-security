@@ -59,6 +59,16 @@ class FirewallEngine {
         // Enforce Strong Passwords & Check Leaked/Pwned Passwords on Password Change/Reset
         add_action('user_profile_update_errors', [__CLASS__, 'validate_user_password_policy'], 10, 3);
         add_action('validate_password_reset', [__CLASS__, 'validate_reset_password_policy'], 10, 2);
+
+        // Rule #29: REST API User Enumeration Interceptor
+        add_filter('rest_authentication_errors', [__CLASS__, 'check_rest_user_enumeration'], 20);
+
+        // Rule #30: Author Permalink Query Suppression (?author=N)
+        add_action('template_redirect', [__CLASS__, 'check_author_scan_suppression'], 0);
+
+        // Rule #31: Lost-Password Reset Burst Flooding Guard
+        add_action('login_form_lostpassword', [__CLASS__, 'check_lostpassword_flood'], 0);
+        add_action('lostpassword_post', [__CLASS__, 'check_lostpassword_submission'], 0);
     }
 
     /**
@@ -450,7 +460,7 @@ class FirewallEngine {
      */
     public static function inspect_incoming_request() {
         // Skip CLI and background WordPress cron tasks
-        if (defined('WP_CLI') && WP_CLI) {
+        if (php_sapi_name() === 'cli' || (defined('WP_CLI') && WP_CLI)) {
             return;
         }
         if (defined('DOING_CRON') && DOING_CRON) {
@@ -498,6 +508,122 @@ class FirewallEngine {
             $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/wcp-scanner/') !== false);
             if ($is_admin_path && (in_array($clean_script, $core_admin_pages, true) || strpos($request_uri, '/wp-json/wcp-scanner/') !== false)) {
                 return;
+            }
+        }
+
+        // Rule #34: Oversized Request Buffer & DoS Guard (Earliest execution check)
+        if (!empty($settings['waf_block_oversized_requests'])) {
+            $is_upload_endpoint = (strpos($request_uri, 'async-upload.php') !== false || strpos($request_uri, '/wp-json/wp/v2/media') !== false);
+            $uri_length = strlen($request_uri);
+            $query_length = strlen($_SERVER['QUERY_STRING'] ?? '');
+            $post_count = is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
+
+            if ($uri_length > 2048 && !$is_upload_endpoint) {
+                $rule_triggered = [
+                    'id'          => 'WAF-OVERSIZED-URI',
+                    'name'        => 'Oversized URI Buffer Overflow Guard',
+                    'category'    => 'DoS & Resource Shield',
+                    'description' => sprintf('Request URI length of %d bytes exceeded security threshold (2048 bytes).', $uri_length),
+                    'match_type'  => 'Buffer Overflow Protection',
+                    'match_value' => (string) $uri_length,
+                    'payload'     => "URI Length: {$uri_length} IP: {$client_ip}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 414);
+                exit;
+            }
+
+            if ($query_length > 1024 && !$is_upload_endpoint) {
+                $rule_triggered = [
+                    'id'          => 'WAF-OVERSIZED-QUERY',
+                    'name'        => 'Oversized Query String Guard',
+                    'category'    => 'DoS & Resource Shield',
+                    'description' => sprintf('Query string length of %d bytes exceeded security threshold (1024 bytes).', $query_length),
+                    'match_type'  => 'Buffer Overflow Protection',
+                    'match_value' => (string) $query_length,
+                    'payload'     => "Query Length: {$query_length} IP: {$client_ip}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                exit;
+            }
+
+            if ($post_count > 1000 && !$is_upload_endpoint && !is_admin()) {
+                $rule_triggered = [
+                    'id'          => 'WAF-OVERSIZED-POST-VARS',
+                    'name'        => 'Excessive Parameter Count Flood Guard',
+                    'category'    => 'DoS & Resource Shield',
+                    'description' => sprintf('POST payload contains %d recursive variables, exceeding security threshold (1000).', $post_count),
+                    'match_type'  => 'Parameter Flooding Defense',
+                    'match_value' => (string) $post_count,
+                    'payload'     => "Params: {$post_count} IP: {$client_ip}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 400);
+                exit;
+            }
+        }
+
+        // Rule #32: Strict Host & Forwarded Host Header Allowlist Guard
+        if (!empty($settings['waf_enforce_host_allowlist'])) {
+            $is_valid_host = self::validate_host_headers($settings);
+            if (!$is_valid_host) {
+                $presented_host = sanitize_text_field($_SERVER['HTTP_HOST'] ?? 'unknown');
+                $forwarded_host = sanitize_text_field($_SERVER['HTTP_X_FORWARDED_HOST'] ?? '');
+                $rule_triggered = [
+                    'id'          => 'WAF-HOST-HEADER-POISON',
+                    'name'        => 'Host Header Poisoning & Cache Spoof Defense',
+                    'category'    => 'Protocol Defense',
+                    'description' => sprintf('HTTP Host ("%s") or X-Forwarded-Host ("%s") does not match configured site domain allowlist.', esc_html($presented_host), esc_html($forwarded_host)),
+                    'match_type'  => 'Host Header Validation',
+                    'match_value' => $presented_host,
+                    'payload'     => "Host: {$presented_host} Forwarded: {$forwarded_host} IP: {$client_ip}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                exit;
+            }
+        }
+
+        // Rule #33: admin-ajax.php Unauthenticated Request Burst Rate-Limiter
+        if (!empty($settings['waf_limit_admin_ajax'])) {
+            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            if (strpos($clean_path, 'admin-ajax.php') !== false) {
+                $is_logged_in = is_user_logged_in() || self::is_authenticated_administrator();
+                if (!$is_logged_in) {
+                    $ajax_action = sanitize_text_field($_POST['action'] ?? $_GET['action'] ?? '');
+                    // Exclude WooCommerce public customer cart actions if e-commerce smart shield is active
+                    $is_woo_public = !empty($settings['waf_ecommerce_safe_mode']) && in_array($ajax_action, [
+                        'woocommerce_get_refreshed_fragments',
+                        'woocommerce_apply_coupon',
+                        'woocommerce_remove_coupon',
+                        'woocommerce_update_shipping_method',
+                        'woocommerce_update_order_review',
+                        'woocommerce_checkout',
+                        'woocommerce_add_to_cart',
+                    ], true);
+
+                    if (!$is_woo_public) {
+                        $limit_per_min = (int) ($settings['waf_admin_ajax_limit_per_min'] ?? 60);
+                        $rate_check = self::check_rate_limit('ajax:' . md5($client_ip), $limit_per_min, 60);
+                        if (!$rate_check['allowed']) {
+                            $rule_triggered = [
+                                'id'          => 'WAF-ADMIN-AJAX-BURST',
+                                'name'        => 'admin-ajax.php Burst Flood Limit Exceeded',
+                                'category'    => 'DoS & Resource Shield',
+                                'description' => sprintf('Unauthenticated client exceeded rate threshold (%d requests/min) on admin-ajax.php.', $limit_per_min),
+                                'match_type'  => 'AJAX Rate Limiting',
+                                'match_value' => $ajax_action ?: 'unknown',
+                                'payload'     => "Action: {$ajax_action} IP: {$client_ip}",
+                            ];
+                            self::log_incident($rule_triggered, 'blocked');
+                            status_header(429);
+                            header('Retry-After: ' . $rate_check['retry_after']);
+                            header('Content-Type: application/json; charset=utf-8');
+                            echo json_encode([
+                                'success' => false,
+                                'data'    => 'Too many AJAX requests. Please wait a moment and try again.'
+                            ]);
+                            exit;
+                        }
+                    }
+                }
             }
         }
 
@@ -2948,5 +3074,402 @@ class FirewallEngine {
         }
 
         return false;
+    }
+
+    /**
+     * Handle firewall rule violation with mode sensitivity (learning vs blocking).
+     *
+     * @param array  $rule
+     * @param array  $settings
+     * @param string $client_ip
+     * @param int    $status_code
+     * @return void
+     */
+    public static function handle_rule_violation(array $rule, array $settings, string $client_ip, int $status_code = 403): void {
+        $mode = $settings['waf_mode'] ?? 'enabled';
+        if ($mode === 'learning') {
+            self::log_incident($rule, 'detected');
+            return;
+        }
+
+        self::log_incident($rule, 'blocked');
+
+        if ($status_code !== 403) {
+            status_header($status_code);
+        }
+
+        self::render_block_page($rule, $client_ip);
+        exit;
+    }
+
+    /**
+     * Strict Host Header & Forwarded Host Header Allowlist Validator (Rule #32).
+     * Defends against Host Header Poisoning, Password Reset Poisoning, and Cache Poisoning.
+     *
+     * @param array $settings
+     * @return bool
+     */
+    public static function validate_host_headers(array $settings): bool {
+        $raw_host = $_SERVER['HTTP_HOST'] ?? '';
+        if (empty($raw_host)) {
+            return false;
+        }
+
+        // Strip port if present (e.g. localhost:8181 -> localhost)
+        $clean_host = strtolower(trim(preg_replace('/:\d+$/', '', $raw_host)));
+
+        // Build list of valid hosts from site_url, home_url, and optional aliases
+        $allowed = [];
+
+        $site_host = parse_url(site_url(), PHP_URL_HOST);
+        if ($site_host) {
+            $allowed[] = strtolower($site_host);
+        }
+
+        $home_host = parse_url(home_url(), PHP_URL_HOST);
+        if ($home_host) {
+            $allowed[] = strtolower($home_host);
+        }
+
+        // Automatically tolerate www vs non-www variant of configured site domains
+        foreach ([$site_host, $home_host] as $h) {
+            if ($h) {
+                $h = strtolower($h);
+                if (strpos($h, 'www.') === 0) {
+                    $allowed[] = substr($h, 4);
+                } else {
+                    $allowed[] = 'www.' . $h;
+                }
+            }
+        }
+
+        // Custom administrator aliases
+        $custom_aliases = $settings['waf_allowed_host_aliases'] ?? '';
+        if (!empty($custom_aliases)) {
+            $lines = preg_split('/[\r\n,]+/', $custom_aliases);
+            foreach ($lines as $line) {
+                $alias = strtolower(trim($line));
+                if ($alias !== '') {
+                    $alias = preg_replace('/:\d+$/', '', $alias);
+                    $allowed[] = $alias;
+                }
+            }
+        }
+
+        $allowed = array_unique(array_filter($allowed));
+
+        // 1. Verify HTTP_HOST against allowed list
+        if (!in_array($clean_host, $allowed, true)) {
+            return false;
+        }
+
+        // 2. If HTTP_X_FORWARDED_HOST is present, it MUST also strictly match the allowed list
+        if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+            $fwd_raw = explode(',', $_SERVER['HTTP_X_FORWARDED_HOST']);
+            $fwd_host = strtolower(trim(preg_replace('/:\d+$/', '', $fwd_raw[0])));
+            if (!in_array($fwd_host, $allowed, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Sliding Transient Rate Limiter for firewall controls.
+     *
+     * @param string $key Unique identifier (e.g. 'lostpw:ip:127.0.0.1')
+     * @param int    $limit Max requests allowed
+     * @param int    $window_seconds Window duration in seconds
+     * @return array ['allowed' => bool, 'retry_after' => int, 'current' => int]
+     */
+    public static function check_rate_limit(string $key, int $limit, int $window_seconds): array {
+        $transient_name = 'wcpscan_rl_' . substr(md5($key), 0, 24);
+        $data = get_transient($transient_name);
+        $now = time();
+
+        if ($data === false || !is_array($data) || empty($data['reset'])) {
+            $data = [
+                'count' => 1,
+                'reset' => $now + $window_seconds,
+            ];
+            set_transient($transient_name, $data, $window_seconds);
+            return [
+                'allowed'     => true,
+                'retry_after' => 0,
+                'current'     => 1,
+            ];
+        }
+
+        if ($now > $data['reset']) {
+            $data = [
+                'count' => 1,
+                'reset' => $now + $window_seconds,
+            ];
+            set_transient($transient_name, $data, $window_seconds);
+            return [
+                'allowed'     => true,
+                'retry_after' => 0,
+                'current'     => 1,
+            ];
+        }
+
+        $data['count'] = (int) $data['count'] + 1;
+        $remaining_ttl = max(1, $data['reset'] - $now);
+        set_transient($transient_name, $data, $remaining_ttl);
+
+        if ($data['count'] > $limit) {
+            return [
+                'allowed'     => false,
+                'retry_after' => $remaining_ttl,
+                'current'     => $data['count'],
+            ];
+        }
+
+        return [
+            'allowed'     => true,
+            'retry_after' => 0,
+            'current'     => $data['count'],
+        ];
+    }
+
+    /**
+     * Rule #29: REST API User Enumeration Interceptor.
+     * Blocks unauthenticated access to /wp-json/wp/v2/users, user archives, and ?rest_route=/wp/v2/users.
+     *
+     * @param mixed $access
+     * @return mixed
+     */
+    public static function check_rest_user_enumeration($access) {
+        if (is_wp_error($access)) {
+            return $access;
+        }
+
+        // Authenticated users are completely permitted
+        if (is_user_logged_in() || self::is_authenticated_administrator()) {
+            return $access;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || ($settings['waf_mode'] ?? 'enabled') === 'disabled') {
+            return $access;
+        }
+
+        if (empty($settings['waf_block_rest_user_enum'])) {
+            return $access;
+        }
+
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $rest_route  = $_GET['rest_route'] ?? '';
+        $clean_uri   = strtolower(urldecode($request_uri));
+        $clean_route = strtolower(urldecode($rest_route));
+
+        // Check for /wp/v2/users endpoint queries
+        $is_user_endpoint = (
+            strpos($clean_uri, '/wp-json/wp/v2/users') !== false ||
+            strpos($clean_route, '/wp/v2/users') !== false
+        );
+
+        if (!$is_user_endpoint) {
+            return $access;
+        }
+
+        // Check if accessing /wp/v2/users/me (standard profile query)
+        // If unauthenticated, core returns not logged in, but we allow /me to flow to core auth handler
+        $is_me_endpoint = (
+            strpos($clean_uri, '/wp/v2/users/me') !== false ||
+            strpos($clean_route, '/wp/v2/users/me') !== false
+        );
+
+        if ($is_me_endpoint) {
+            return $access;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+            return $access;
+        }
+
+        $rule_triggered = [
+            'id'          => 'WAF-REST-USER-ENUM',
+            'name'        => 'REST API User Enumeration Interceptor',
+            'category'    => 'Reconnaissance & Enumeration',
+            'description' => 'Unauthenticated REST API user enumeration request intercepted on /wp/v2/users.',
+            'match_type'  => 'REST Route Intercept',
+            'match_value' => '/wp/v2/users',
+            'payload'     => "URI: {$request_uri} IP: {$client_ip}",
+        ];
+
+        $mode = $settings['waf_mode'] ?? 'enabled';
+        if ($mode === 'learning') {
+            self::log_incident($rule_triggered, 'detected');
+            return $access;
+        }
+
+        self::log_incident($rule_triggered, 'blocked');
+
+        return new \WP_Error(
+            'rest_user_enum_forbidden',
+            __('User enumeration via REST API is disabled by WCP Security Firewall.', 'wcp-security-scanner'),
+            ['status' => 403]
+        );
+    }
+
+    /**
+     * Rule #30: Author Permalink Query Suppression (?author=N).
+     * Defends against query-based author enumeration scans that probe WordPress user IDs to harvest usernames.
+     *
+     * @return void
+     */
+    public static function check_author_scan_suppression(): void {
+        if (!isset($_GET['author'])) {
+            return;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || ($settings['waf_mode'] ?? 'enabled') === 'disabled') {
+            return;
+        }
+
+        if (empty($settings['waf_block_author_scan'])) {
+            return;
+        }
+
+        // Only suppress if unauthenticated or non-editor (editors may need author filters in admin)
+        if (is_admin() || current_user_can('edit_others_posts')) {
+            return;
+        }
+
+        $author_param = (string) $_GET['author'];
+        if (!preg_match('/^[0-9]+$/', trim($author_param))) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+            return;
+        }
+
+        $rule_triggered = [
+            'id'          => 'WAF-AUTHOR-ENUM',
+            'name'        => 'Author Permalink Enumeration Suppression',
+            'category'    => 'Reconnaissance & Enumeration',
+            'description' => sprintf('Author ID enumeration query (?author=%s) blocked from harvesting usernames.', esc_html($author_param)),
+            'match_type'  => 'Author Query Probe',
+            'match_value' => '?author=' . $author_param,
+            'payload'     => "URI: {$_SERVER['REQUEST_URI']} IP: {$client_ip}",
+        ];
+
+        $mode = $settings['waf_mode'] ?? 'enabled';
+        if ($mode === 'learning') {
+            self::log_incident($rule_triggered, 'detected');
+            return;
+        }
+
+        self::log_incident($rule_triggered, 'blocked');
+
+        // Clean suppression: 301 Permanent Redirect to homepage, preventing username enumeration leaks
+        wp_safe_redirect(home_url('/'), 301);
+        exit;
+    }
+
+    /**
+     * Rule #31: Lost-Password Rate Limiter on Form View (GET).
+     * Prevents automated bots from flooding the lost password endpoint.
+     *
+     * @return void
+     */
+    public static function check_lostpassword_flood(): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || ($settings['waf_mode'] ?? 'enabled') === 'disabled') {
+            return;
+        }
+
+        if (empty($settings['waf_limit_lostpassword'])) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+            return;
+        }
+
+        // Allow max 10 view requests per 15 minutes per IP
+        $rate_check = self::check_rate_limit('lostpw_view:' . md5($client_ip), 10, 900);
+        if (!$rate_check['allowed']) {
+            $rule_triggered = [
+                'id'          => 'WAF-LOSTPW-VIEW-FLOOD',
+                'name'        => 'Lost-Password View Burst Limit Exceeded',
+                'category'    => 'Brute Force & Auth Armor',
+                'description' => 'Client IP exceeded threshold for lost-password page views.',
+                'match_type'  => 'Form Rate Limiting',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip}",
+            ];
+
+            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 429);
+            exit;
+        }
+    }
+
+    /**
+     * Rule #31: Lost-Password Reset Submission Guard (POST).
+     * Rate-limits password reset email triggers per IP (max 3 / 15m) and per target user (max 3 / 15m).
+     * Defends against transactional email quota exhaustion and inbox bombing.
+     *
+     * @return void
+     */
+    public static function check_lostpassword_submission(): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || ($settings['waf_mode'] ?? 'enabled') === 'disabled') {
+            return;
+        }
+
+        if (empty($settings['waf_limit_lostpassword'])) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+            return;
+        }
+
+        // 1. IP-based limit: max 3 reset submissions per 15 minutes
+        $ip_check = self::check_rate_limit('lostpw_post_ip:' . md5($client_ip), 3, 900);
+        if (!$ip_check['allowed']) {
+            $rule_triggered = [
+                'id'          => 'WAF-LOSTPW-FLOOD-IP',
+                'name'        => 'Lost-Password Request Flood Limit (IP)',
+                'category'    => 'Brute Force & Auth Armor',
+                'description' => sprintf('Too many password reset requests from IP (%s). Limit is 3 per 15 minutes.', $client_ip),
+                'match_type'  => 'Email Flood Protection',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} Submissions: {$ip_check['current']}",
+            ];
+
+            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 429);
+            exit;
+        }
+
+        // 2. User/Login identifier-based limit: max 3 reset submissions per target login/email per 15 minutes
+        $user_login = sanitize_text_field($_POST['user_login'] ?? '');
+        if (!empty($user_login)) {
+            $user_key = 'lostpw_post_user:' . md5(strtolower(trim($user_login)));
+            $user_check = self::check_rate_limit($user_key, 3, 900);
+            if (!$user_check['allowed']) {
+                $rule_triggered = [
+                    'id'          => 'WAF-LOSTPW-FLOOD-USER',
+                    'name'        => 'Lost-Password Target User Bombing Guard',
+                    'category'    => 'Brute Force & Auth Armor',
+                    'description' => 'Too many password reset requests targeted at this account identifier within 15 minutes.',
+                    'match_type'  => 'Email Bombing Defense',
+                    'match_value' => substr(md5($user_login), 0, 10),
+                    'payload'     => "Target hash: " . md5($user_login) . " IP: {$client_ip}",
+                ];
+
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 429);
+                exit;
+            }
+        }
     }
 }

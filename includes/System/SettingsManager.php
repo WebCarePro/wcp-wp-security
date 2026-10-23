@@ -120,6 +120,16 @@ class SettingsManager {
             'waf_disallow_phpmyadmin_uploads'   => true, // Block uploads of phpMyAdmin / Adminer / standalone database scripts
             'waf_disallow_filemanager_uploads'  => true, // Block uploads of standalone File Manager / Webshell explorer scripts
 
+            // Phase 2: Enumeration Suppression & Abuse / Rate Guards (Rules #29 - #34)
+            'waf_block_rest_user_enum'          => true, // Rule #29: Block unauthenticated REST API user enumeration (/wp/v2/users)
+            'waf_block_author_scan'             => true, // Rule #30: Suppress author ID permalink query scans (?author=N)
+            'waf_limit_lostpassword'            => true, // Rule #31: Rate-limit lost-password reset attempts (3 / 15 min per IP & identity)
+            'waf_enforce_host_allowlist'        => true, // Rule #32: Strict Host header allowlist against cache & reset poisoning
+            'waf_allowed_host_aliases'          => '',   // Extra allowed host aliases/domains (one per line)
+            'waf_limit_admin_ajax'              => true, // Rule #33: admin-ajax.php unauthenticated request burst rate limiter
+            'waf_admin_ajax_limit_per_min'      => 60,   // Max unauthenticated admin-ajax requests per minute per IP
+            'waf_block_oversized_requests'      => true, // Rule #34: Oversized request URI, query string, & parameter count guard
+
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
             'threat_intel_block_blacklisted_ips' => true,
@@ -534,6 +544,16 @@ class SettingsManager {
         $clean['waf_disallow_filemanager_plugins'] = !empty($merged['waf_disallow_filemanager_plugins']);
         $clean['waf_disallow_phpmyadmin_uploads']  = !empty($merged['waf_disallow_phpmyadmin_uploads']);
         $clean['waf_disallow_filemanager_uploads'] = !empty($merged['waf_disallow_filemanager_uploads']);
+
+        // Phase 2: Enumeration Suppression & Abuse / Rate Guards (Rules #29 - #34)
+        $clean['waf_block_rest_user_enum']     = !empty($merged['waf_block_rest_user_enum']);
+        $clean['waf_block_author_scan']        = !empty($merged['waf_block_author_scan']);
+        $clean['waf_limit_lostpassword']       = !empty($merged['waf_limit_lostpassword']);
+        $clean['waf_enforce_host_allowlist']   = !empty($merged['waf_enforce_host_allowlist']);
+        $clean['waf_allowed_host_aliases']     = sanitize_textarea_field($merged['waf_allowed_host_aliases'] ?? '');
+        $clean['waf_limit_admin_ajax']         = !empty($merged['waf_limit_admin_ajax']);
+        $clean['waf_admin_ajax_limit_per_min'] = max(10, min(300, (int) ($merged['waf_admin_ajax_limit_per_min'] ?? 60)));
+        $clean['waf_block_oversized_requests'] = !empty($merged['waf_block_oversized_requests']);
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = !empty($merged['threat_intel_enabled']);
