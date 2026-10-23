@@ -82,7 +82,7 @@ class SettingsManager {
             'waf_block_traversal'      => true,
             'waf_block_php_injection'  => true,
             'waf_disable_xmlrpc'       => false,
-            'waf_allow_jetpack_xmlrpc' => true, // Allow verified Automattic Jetpack sync via xmlrpc.php even if XML-RPC is disabled
+            'waf_allow_jetpack_xmlrpc' => false, // Allow verified Automattic Jetpack sync via xmlrpc.php if Jetpack is used
             'waf_login_rate_limit'     => true,
             'waf_whitelisted_ips'      => '',
             'waf_blocked_ips'          => '',
@@ -93,12 +93,12 @@ class SettingsManager {
             'waf_404_threshold'        => 10,   // Max 404s before temporary ban (e.g. 10)
             'waf_404_window_seconds'   => 60,   // Rolling time window in seconds (default 60s)
             'waf_404_lockout_duration' => 30,   // Lockout duration in minutes (default 30 mins)
-            'waf_allow_uptime_monitors'        => true, // Allow verified Uptime Monitoring services (UptimeRobot, Pingdom, StatusCake, BetterUptime)
-            'waf_allow_central_management'     => true, // Allow central WordPress management workers (ManageWP, MainWP, InfiniteWP) via cryptographic handshake
+            'waf_allow_uptime_monitors'        => false, // Allow verified Uptime Monitoring services (UptimeRobot, Pingdom, StatusCake, BetterUptime)
+            'waf_allow_central_management'     => false, // Allow central WordPress management workers (ManageWP, MainWP, InfiniteWP) via cryptographic handshake
 
             // Enhanced Perimeter & Identity Protection Rules
-            'waf_ecommerce_safe_mode'           => true, // E-Commerce & Membership Smart Shield (zero false-positives for WooCommerce, EDD, MemberPress, carts, checkouts, and payment webhooks)
-            'waf_allow_page_builders'           => true, // Visual Page Builder & Editor Smart Pass (Elementor, Divi, Gutenberg, Bricks, Beaver Builder)
+            'waf_ecommerce_safe_mode'           => false, // E-Commerce & Membership Smart Shield (off by default, recommended when shop/membership active)
+            'waf_allow_page_builders'           => false, // Visual Page Builder & Editor Smart Pass (off by default, recommended when Elementor/Divi active)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
             'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
             'waf_block_forbidden_usernames'     => true, // Immediately block IP trying to sign in as forbidden honeypot usernames

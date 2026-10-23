@@ -2249,14 +2249,16 @@ class FirewallEngine {
                     defined('ET_BUILDER_VERSION') ||
                     defined('BRICKS_VERSION') ||
                     defined('FL_BUILDER_VERSION') ||
-                    class_exists('\\WP_Block_Type_Registry')
+                    defined('WPB_VC_VERSION') ||
+                    defined('OXYGEN_VERSION')
                 ),
                 'builder_names' => array_values(array_filter([
                     defined('ELEMENTOR_VERSION') ? 'Elementor' : null,
                     defined('ET_BUILDER_VERSION') ? 'Divi Builder' : null,
                     defined('BRICKS_VERSION') ? 'Bricks' : null,
                     defined('FL_BUILDER_VERSION') ? 'Beaver Builder' : null,
-                    class_exists('\\WP_Block_Type_Registry') ? 'Gutenberg Block Editor' : null,
+                    defined('WPB_VC_VERSION') ? 'WPBakery' : null,
+                    defined('OXYGEN_VERSION') ? 'Oxygen' : null,
                 ])),
                 'has_jetpack' => class_exists('Jetpack'),
                 'has_central_management' => (
