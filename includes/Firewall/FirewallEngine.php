@@ -1665,19 +1665,55 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_commerce_active(): bool {
-        return class_exists('WooCommerce')
+        // E-Commerce Suites
+        $has_ecommerce = class_exists('WooCommerce')
             || class_exists('Easy_Digital_Downloads')
-            || class_exists('MeprAppCtrl') // MemberPress
+            || class_exists('\\SureCart\\SureCart') || defined('SURECART_PLUGIN_FILE') // SureCart
+            || class_exists('Ecwid_Product') || defined('ECWID_PLUGIN_DIR') // Ecwid
+            || class_exists('wp_easycart') || defined('EC_CURRENT_VERSION') // WP EasyCart
+            || class_exists('\\FluentCart\\App\\App') || defined('FLUENTCART_VERSION') // FluentCart
+            || class_exists('\\BigCommerce\\Container') || defined('BIGCOMMERCE_VERSION') // BigCommerce
+            || class_exists('SimplePay') || defined('SIMPLE_PAY_VERSION') // WP Simple Pay
+            || class_exists('Cart66') || defined('CART66_VERSION') // Cart66
+            || class_exists('WP_DLM') // Download Monitor
+            || class_exists('Give') || defined('GIVE_VERSION'); // GiveWP
+
+        // Membership & Subscription Suites
+        $has_membership = class_exists('MeprAppCtrl') // MemberPress
             || defined('PMPRO_VERSION') // Paid Memberships Pro
-            || class_exists('Restrict_Content_Pro') // RCP
+            || class_exists('Restrict_Content_Pro') || defined('RCP_PLUGIN_VERSION') // Restrict Content Pro / Kadence Memberships
+            || class_exists('\\SureMembers\\SureMembers') || defined('SUREMEMBERS_VERSION') // SureMembers
+            || class_exists('ARM_main') || defined('MEMBERSHIP_VERSION') // ARMember
+            || class_exists('MemberMouse') || defined('MM_VERSION') // MemberMouse
+            || class_exists('WishListMember') || defined('WLM_VERSION') // WishList Member
+            || class_exists('SimpleWpMembership') || defined('SWPM_VERSION') // Simple Membership
+            || class_exists('WC_Memberships') // WooCommerce Memberships
+            || class_exists('Pms_Member') || defined('PMS_VERSION') // Paid Member Subscriptions
+            || class_exists('c_ws_plugin__s2member_menu_pages') // s2Member
+            || class_exists('IhsuMpMain') || defined('UHP_VERSION') // Ultimate Membership Pro
             || class_exists('LearnDash_Settings_Section') // LearnDash
-            || class_exists('LifterLMS') // LifterLMS
-            || defined('WCP_COMMERCE_OVERRIDE');
+            || class_exists('LifterLMS'); // LifterLMS
+
+        // User Profile & Registration Management Suites
+        $has_profiles = class_exists('UM') || defined('um_plugin') // Ultimate Member
+            || class_exists('Profile_Builder') || defined('WPPB_PLUGIN_DIR') // User Profile Builder (Cozmoslabs)
+            || class_exists('WP_User_Manager') || defined('WPUM_VERSION') // WP User Manager
+            || class_exists('ProfilePress') || defined('PPRESS_VERSION_NUMBER') // ProfilePress
+            || class_exists('User_Registration') || defined('UR_VERSION') // User Registration (WPEverest)
+            || class_exists('Registration_Magic') || defined('RM_PLUGIN_VERSION') // RegistrationMagic
+            || class_exists('Profile_Grid') || defined('PG_PLUGIN_VERSION') // ProfileGrid
+            || class_exists('Theme_My_Login') || defined('TML_VERSION') // ThemeMyLogin
+            || class_exists('FrmRegAppController') // Formidable Forms User Registration
+            || class_exists('wpmembers') // WP-Members
+            || class_exists('BuddyBoss_Platform') || defined('BP_PLATFORM_VERSION') // BuddyBoss Platform
+            || class_exists('Youzify') || defined('YOUZIFY_VERSION'); // Youzify
+
+        return $has_ecommerce || $has_membership || $has_profiles || defined('WCP_COMMERCE_OVERRIDE');
     }
 
     /**
      * Check if current request has an active shopper or customer session.
-     * Genuine shoppers browsing a store have cart cookies or active WooCommerce sessions.
+     * Genuine shoppers browsing a store have cart cookies or active customer/membership sessions.
      *
      * @return bool
      */
@@ -1692,6 +1728,11 @@ class FirewallEngine {
                 || strpos($cookie_name, 'wp_woocommerce_session_') !== false
                 || strpos($cookie_name, 'edd_items_in_cart') !== false
                 || strpos($cookie_name, 'mp_session_') !== false
+                || strpos($cookie_name, 'surecart_session') !== false
+                || strpos($cookie_name, 'give_items_in_cart') !== false
+                || strpos($cookie_name, 'wp_ec_session_') !== false
+                || strpos($cookie_name, 'swpm_session') !== false
+                || strpos($cookie_name, 'um_cache_') !== false
             ) {
                 return true;
             }
@@ -1711,15 +1752,21 @@ class FirewallEngine {
         $parsed_path = strtolower(parse_url($uri, PHP_URL_PATH) ?: $uri);
         $query_string = isset($_SERVER['QUERY_STRING']) ? strtolower((string) $_SERVER['QUERY_STRING']) : '';
 
-        // 1. Direct WooCommerce AJAX & API parameters
+        // 1. Direct E-Commerce AJAX & API parameters
         if (strpos($uri, 'wc-ajax=') !== false || strpos($query_string, 'wc-ajax=') !== false) {
             return true;
         }
         if (strpos($uri, 'wc-api=') !== false || strpos($query_string, 'wc-api=') !== false) {
             return true;
         }
+        if (strpos($uri, 'surecart_action=') !== false || strpos($query_string, 'surecart_action=') !== false) {
+            return true;
+        }
+        if (strpos($uri, 'give-api=') !== false || strpos($query_string, 'give-api=') !== false) {
+            return true;
+        }
 
-        // 2. REST API Store, Cart & Webhook Endpoints
+        // 2. REST API Store, Cart, Profile & Webhook Endpoints
         $commerce_rest_prefixes = [
             '/wp-json/wc/store/',
             '/wp-json/wc/v3/',
@@ -1730,8 +1777,20 @@ class FirewallEngine {
             '/wp-json/mollie/',
             '/wp-json/square/',
             '/wp-json/edd/',
-            '/wp-json/mp/v1/', // MemberPress
-            '/wp-json/pmpro/v1/', // Paid Memberships Pro
+            '/wp-json/surecart/',
+            '/wp-json/give-api/',
+            '/wp-json/fluentcart/',
+            '/wp-json/bigcommerce/',
+            '/wp-json/mp/v1/',       // MemberPress
+            '/wp-json/pmpro/v1/',    // Paid Memberships Pro
+            '/wp-json/rcp/v1/',      // Restrict Content Pro
+            '/wp-json/suremembers/', // SureMembers
+            '/wp-json/armember/',    // ARMember
+            '/wp-json/wpum/',        // WP User Manager
+            '/wp-json/profilepress/',
+            '/wp-json/user-registration/',
+            '/wp-json/buddyboss/',
+            '/wp-json/youzify/',
         ];
         foreach ($commerce_rest_prefixes as $prefix) {
             if (strpos($parsed_path, $prefix) !== false) {
@@ -1739,7 +1798,7 @@ class FirewallEngine {
             }
         }
 
-        // 3. Typical Store, Cart, Checkout, and Customer Portal URI slugs
+        // 3. Typical Store, Cart, Checkout, Profile, and Member Portal URI slugs
         $store_slug_patterns = [
             '/\/shop(\/|$)/i',
             '/\/product(\/|$)/i',
@@ -1751,6 +1810,12 @@ class FirewallEngine {
             '/\/membership-account(\/|$)/i',
             '/\/membership-checkout(\/|$)/i',
             '/\/register-membership(\/|$)/i',
+            '/\/user-profile(\/|$)/i',
+            '/\/my-profile(\/|$)/i',
+            '/\/client-portal(\/|$)/i',
+            '/\/donations(\/|$)/i',
+            '/\/donate(\/|$)/i',
+            '/\/give(\/|$)/i',
         ];
         foreach ($store_slug_patterns as $spat) {
             if (preg_match($spat, $parsed_path)) {
@@ -1772,6 +1837,10 @@ class FirewallEngine {
             'edd-listener',
             'authorizenet_silent_post',
             'wc_gateway_authorizenet',
+            'surecart_webhook',
+            'give_webhook',
+            'fluentcart_webhook',
+            'simple_pay_webhook',
         ];
         foreach ($gateway_webhook_signals as $signal) {
             if (strpos($query_string, $signal) !== false || strpos($uri, $signal) !== false) {
@@ -1789,6 +1858,7 @@ class FirewallEngine {
             || !empty($_SERVER['HTTP_X_RAZORPAY_SIGNATURE'])
             || !empty($_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'])
             || !empty($_SERVER['HTTP_X_MOLLIE_SIGNATURE'])
+            || !empty($_SERVER['HTTP_X_SURECART_SIGNATURE'])
         ) {
             return true;
         }
@@ -2285,14 +2355,49 @@ class FirewallEngine {
             'server_telemetry'   => self::get_server_telemetry(),
             'available_roles'    => self::get_available_roles(),
             'commerce_telemetry' => [
-                'is_active'       => self::is_commerce_active(),
-                'has_woocommerce' => class_exists('WooCommerce'),
-                'has_edd'         => class_exists('Easy_Digital_Downloads'),
-                'has_memberpress' => class_exists('MeprAppCtrl'),
-                'has_pmpro'       => defined('PMPRO_VERSION'),
-                'has_rcp'         => class_exists('Restrict_Content_Pro'),
-                'has_learndash'   => class_exists('LearnDash_Settings_Section'),
-                'has_lifterlms'   => class_exists('LifterLMS'),
+                'is_active' => self::is_commerce_active(),
+                'detected_names' => array_values(array_filter([
+                    // E-Commerce
+                    class_exists('WooCommerce') ? 'WooCommerce' : null,
+                    class_exists('Easy_Digital_Downloads') ? 'Easy Digital Downloads' : null,
+                    (class_exists('\\SureCart\\SureCart') || defined('SURECART_PLUGIN_FILE')) ? 'SureCart' : null,
+                    (class_exists('Ecwid_Product') || defined('ECWID_PLUGIN_DIR')) ? 'Ecwid by Lightspeed' : null,
+                    (class_exists('wp_easycart') || defined('EC_CURRENT_VERSION')) ? 'WP EasyCart' : null,
+                    (class_exists('\\FluentCart\\App\\App') || defined('FLUENTCART_VERSION')) ? 'FluentCart' : null,
+                    (class_exists('\\BigCommerce\\Container') || defined('BIGCOMMERCE_VERSION')) ? 'BigCommerce' : null,
+                    (class_exists('SimplePay') || defined('SIMPLE_PAY_VERSION')) ? 'WP Simple Pay' : null,
+                    (class_exists('Cart66') || defined('CART66_VERSION')) ? 'Cart66' : null,
+                    class_exists('WP_DLM') ? 'Download Monitor' : null,
+                    (class_exists('Give') || defined('GIVE_VERSION')) ? 'GiveWP' : null,
+                    // Membership
+                    class_exists('MeprAppCtrl') ? 'MemberPress' : null,
+                    defined('PMPRO_VERSION') ? 'Paid Memberships Pro' : null,
+                    (class_exists('Restrict_Content_Pro') || defined('RCP_PLUGIN_VERSION')) ? 'Restrict Content Pro / Kadence Memberships' : null,
+                    (class_exists('\\SureMembers\\SureMembers') || defined('SUREMEMBERS_VERSION')) ? 'SureMembers' : null,
+                    (class_exists('ARM_main') || defined('MEMBERSHIP_VERSION')) ? 'ARMember' : null,
+                    (class_exists('MemberMouse') || defined('MM_VERSION')) ? 'MemberMouse' : null,
+                    (class_exists('WishListMember') || defined('WLM_VERSION')) ? 'WishList Member' : null,
+                    (class_exists('SimpleWpMembership') || defined('SWPM_VERSION')) ? 'Simple Membership' : null,
+                    class_exists('WC_Memberships') ? 'WooCommerce Memberships' : null,
+                    (class_exists('Pms_Member') || defined('PMS_VERSION')) ? 'Paid Member Subscriptions' : null,
+                    class_exists('c_ws_plugin__s2member_menu_pages') ? 's2Member' : null,
+                    (class_exists('IhsuMpMain') || defined('UHP_VERSION')) ? 'Ultimate Membership Pro' : null,
+                    class_exists('LearnDash_Settings_Section') ? 'LearnDash' : null,
+                    class_exists('LifterLMS') ? 'LifterLMS' : null,
+                    // Profiles & Registration
+                    (class_exists('UM') || defined('um_plugin')) ? 'Ultimate Member' : null,
+                    (class_exists('Profile_Builder') || defined('WPPB_PLUGIN_DIR')) ? 'User Profile Builder' : null,
+                    (class_exists('WP_User_Manager') || defined('WPUM_VERSION')) ? 'WP User Manager' : null,
+                    (class_exists('ProfilePress') || defined('PPRESS_VERSION_NUMBER')) ? 'ProfilePress' : null,
+                    (class_exists('User_Registration') || defined('UR_VERSION')) ? 'User Registration' : null,
+                    (class_exists('Registration_Magic') || defined('RM_PLUGIN_VERSION')) ? 'RegistrationMagic' : null,
+                    (class_exists('Profile_Grid') || defined('PG_PLUGIN_VERSION')) ? 'ProfileGrid' : null,
+                    (class_exists('Theme_My_Login') || defined('TML_VERSION')) ? 'ThemeMyLogin' : null,
+                    class_exists('FrmRegAppController') ? 'Formidable User Registration' : null,
+                    class_exists('wpmembers') ? 'WP-Members' : null,
+                    (class_exists('BuddyBoss_Platform') || defined('BP_PLATFORM_VERSION')) ? 'BuddyBoss Platform' : null,
+                    (class_exists('Youzify') || defined('YOUZIFY_VERSION')) ? 'Youzify' : null,
+                ])),
             ],
             'integrations_telemetry' => [
                 'has_builders' => (
