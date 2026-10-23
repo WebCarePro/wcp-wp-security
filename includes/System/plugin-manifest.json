@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-23T22:47:15.932Z",
+  "generated_at": "2026-10-23T22:57:57.481Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 473509
     },
     "build/index.asset.php": {
-      "sha256": "33c4ab404976899566e552cd0445f2c37c18e188aa9fe5c7aebb015f913dae3c",
+      "sha256": "f904f161f621da1b3926ac59f86115495b726cef9267e0dc528b25281b50ba82",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 473376
     },
     "build/index.js": {
-      "sha256": "7c38505f013b96148d4658955ea9f4439dec224e3f380d33a0e049430406c197",
-      "size": 1366158
+      "sha256": "475623a31b315b27a9ae9e49ad34d6450a8d3fd3ea0b4c86c6076aa2c3a3db0e",
+      "size": 1370029
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -204,12 +204,12 @@
       "size": 14586
     },
     "includes/Firewall/BotReconDefense.php": {
-      "sha256": "150668b825fea7e7eb749f254049bea24669d37d1793c5bfcdc20bbd8a3f53f8",
-      "size": 8877
+      "sha256": "2f79ccaeecbb5588be17476bd3f5f8f18d62c890a6a2a4b5145bddc397e6f10b",
+      "size": 11846
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "73649d09c4bb2b98b90b700059071b1322fbb2ceb2fdd7e71b9a5280c666fcf2",
-      "size": 164977
+      "sha256": "aa21d0fee917e5771416e6c543c66c537322cdd83f99a3c4b5f06dd32661a210",
+      "size": 167267
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "af523af493a07524c58810c6b2e641ba473730aff9364809851651ab9ce016a9",
@@ -380,8 +380,8 @@
       "size": 18460
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "26855960305b64fa2a01b68bf39cee63ee9d3d0f6a2b5966b439fd521cbe9db6",
-      "size": 54988
+      "sha256": "f62eb72ed02530364b22dc8814459adae2a9dfdc741bdd20c6e70a73e0ff9657",
+      "size": 55504
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "a9203fb189659c87a2143008a6bcf5e56c54d42c9c675022822276e923a12490",

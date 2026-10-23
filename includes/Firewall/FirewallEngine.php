@@ -600,6 +600,12 @@ class FirewallEngine {
             }
         }
 
+        // Central Management Worker Bypass (ManageWP, MainWP, InfiniteWP)
+        $is_central_mgmt = self::is_verified_central_management_request($request_uri, $settings);
+        if ($is_central_mgmt) {
+            return;
+        }
+
         // Rule #34: Oversized Request Buffer & DoS Guard (Earliest execution check)
         if (!empty($settings['waf_block_oversized_requests'])) {
             $is_upload_endpoint = (strpos($request_uri, 'async-upload.php') !== false || strpos($request_uri, '/wp-json/wp/v2/media') !== false);
@@ -1430,10 +1436,13 @@ class FirewallEngine {
             return;
         }
 
-        // 3. Genuine Search Engine Exemption:
+        // 3. Genuine Search Engine & Uptime Monitor Exemption:
         // If the request belongs to an authenticated search crawler (Googlebot, Bingbot, etc.)
-        // verified via DNS PTR/A records, DO NOT penalize or rate-limit.
+        // or a verified uptime monitor (UptimeRobot, Pingdom, StatusCake), DO NOT penalize or rate-limit.
         if (BotReconDefense::is_genuine_search_engine($client_ip, $user_agent)) {
+            return;
+        }
+        if (BotReconDefense::is_genuine_uptime_monitor($client_ip, $user_agent, $settings)) {
             return;
         }
 
@@ -1961,6 +1970,48 @@ class FirewallEngine {
         }
 
         return true;
+    }
+
+    /**
+     * Check whether an incoming request belongs to an authenticated central WordPress management
+     * network worker (ManageWP, MainWP, InfiniteWP).
+     *
+     * Validates:
+     * 1. Setting 'waf_allow_central_management' is enabled.
+     * 2. Request targets legitimate worker endpoints or carries worker cryptographic signature headers:
+     *    - ManageWP Worker: HTTP_X_MWP_SIGNATURE or HTTP_X_MANAGEWP_SIGNATURE
+     *    - MainWP Child: HTTP_X_MAINWP_SIGNATURE or POST parameter 'mainwp_signature'
+     *    - InfiniteWP: HTTP_IWP_ACTION or POST parameter 'iwp_action'
+     * 3. Confirms corresponding official worker plugin is actively installed and running.
+     *
+     * @param string $request_uri
+     * @param array $settings
+     * @return bool
+     */
+    public static function is_verified_central_management_request(string $request_uri, array $settings): bool {
+        if (empty($settings['waf_allow_central_management'])) {
+            return false;
+        }
+
+        // ManageWP Worker validation
+        $has_mwp_sig = !empty($_SERVER['HTTP_X_MWP_SIGNATURE']) || !empty($_SERVER['HTTP_X_MANAGEWP_SIGNATURE']);
+        if ($has_mwp_sig && (class_exists('MMB_Core') || defined('MMB_WORKER_VERSION') || function_exists('mwp_core'))) {
+            return true;
+        }
+
+        // MainWP Child validation
+        $has_mainwp_sig = !empty($_SERVER['HTTP_X_MAINWP_SIGNATURE']) || isset($_POST['mainwp_signature']);
+        if ($has_mainwp_sig && (class_exists('MainWP_Child') || defined('MAINWP_CHILD_PLUGIN_DIR'))) {
+            return true;
+        }
+
+        // InfiniteWP Client validation
+        $has_iwp_action = !empty($_SERVER['HTTP_IWP_ACTION']) || isset($_POST['iwp_action']);
+        if ($has_iwp_action && (class_exists('IWP_MMB_Core') || defined('IWP_MMB_USER_AGENT'))) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

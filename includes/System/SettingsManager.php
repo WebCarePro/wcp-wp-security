@@ -93,6 +93,8 @@ class SettingsManager {
             'waf_404_threshold'        => 10,   // Max 404s before temporary ban (e.g. 10)
             'waf_404_window_seconds'   => 60,   // Rolling time window in seconds (default 60s)
             'waf_404_lockout_duration' => 30,   // Lockout duration in minutes (default 30 mins)
+            'waf_allow_uptime_monitors'        => true, // Allow verified Uptime Monitoring services (UptimeRobot, Pingdom, StatusCake, BetterUptime)
+            'waf_allow_central_management'     => true, // Allow central WordPress management workers (ManageWP, MainWP, InfiniteWP) via cryptographic handshake
 
             // Enhanced Perimeter & Identity Protection Rules
             'waf_ecommerce_safe_mode'           => true, // E-Commerce & Membership Smart Shield (zero false-positives for WooCommerce, EDD, MemberPress, carts, checkouts, and payment webhooks)
@@ -519,6 +521,8 @@ class SettingsManager {
         $clean['waf_404_threshold']        = max(3, min(100, (int) ($merged['waf_404_threshold'] ?? 10)));
         $clean['waf_404_window_seconds']   = max(10, min(600, (int) ($merged['waf_404_window_seconds'] ?? 60)));
         $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($merged['waf_404_lockout_duration'] ?? 30)));
+        $clean['waf_allow_uptime_monitors']        = !empty($merged['waf_allow_uptime_monitors']);
+        $clean['waf_allow_central_management']     = !empty($merged['waf_allow_central_management']);
 
         // Enhanced Perimeter & Identity Protection Rules
         $clean['waf_ecommerce_safe_mode']         = !empty($merged['waf_ecommerce_safe_mode']);

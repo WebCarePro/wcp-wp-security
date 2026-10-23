@@ -38,6 +38,17 @@ class BotReconDefense {
     ];
 
     /**
+     * Map of verified uptime & performance monitoring services and their authorized reverse DNS host suffixes.
+     */
+    private const MONITORING_BOTS = [
+        'uptimerobot' => ['uptimerobot.com'],
+        'pingdom'     => ['pingdom.com'],
+        'statuscake'  => ['statuscake.com'],
+        'betteruptime'=> ['betteruptime.com'],
+        'gtmetrix'    => ['gtmetrix.com'],
+    ];
+
+    /**
      * Known AI scrapers & training harvesters User-Agent signatures.
      */
     private const AI_SCRAPERS = [
@@ -210,6 +221,76 @@ class BotReconDefense {
         }
 
         return self::verify_search_bot_reverse_dns($ip, $bot_key);
+    }
+
+    /**
+     * Check whether an incoming request belongs to an authenticated, verified uptime monitoring service
+     * (UptimeRobot, Pingdom, StatusCake, BetterUptime, GTmetrix).
+     *
+     * Validates:
+     * 1. Setting 'waf_allow_uptime_monitors' is active.
+     * 2. User-Agent matches recognized monitoring service signature.
+     * 3. Forward & reverse DNS confirmation against official domain suffix (cached for 24 hours).
+     *
+     * @param string $ip
+     * @param string $user_agent
+     * @param array $settings
+     * @return bool
+     */
+    public static function is_genuine_uptime_monitor(string $ip, string $user_agent, array $settings): bool {
+        if (empty($settings['waf_allow_uptime_monitors']) || empty($user_agent)) {
+            return false;
+        }
+
+        $ua_lower = strtolower($user_agent);
+        $matched_key = null;
+        foreach (self::MONITORING_BOTS as $bot_key => $domains) {
+            if (strpos($ua_lower, $bot_key) !== false) {
+                $matched_key = $bot_key;
+                break;
+            }
+        }
+
+        if ($matched_key === null) {
+            return false;
+        }
+
+        // Validate via cached DNS PTR / Forward A record check
+        $transient_key = 'wcpscan_monitor_dns_' . md5($ip . '_' . $matched_key);
+        $cached = get_transient($transient_key);
+        if ($cached !== false) {
+            return ($cached === 'genuine');
+        }
+
+        // Skip private or local IPs
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+
+        $allowed_domains = self::MONITORING_BOTS[$matched_key] ?? [];
+        $is_genuine = false;
+
+        $hostname = @gethostbyaddr($ip);
+        if (!empty($hostname) && $hostname !== $ip) {
+            $hostname_lower = strtolower($hostname);
+            $domain_matches = false;
+            foreach ($allowed_domains as $domain) {
+                if ($hostname_lower === $domain || str_ends_with($hostname_lower, '.' . $domain)) {
+                    $domain_matches = true;
+                    break;
+                }
+            }
+
+            if ($domain_matches) {
+                $resolved_ip = @gethostbyname($hostname);
+                if ($resolved_ip === $ip) {
+                    $is_genuine = true;
+                }
+            }
+        }
+
+        set_transient($transient_key, $is_genuine ? 'genuine' : 'fake', DAY_IN_SECONDS);
+        return $is_genuine;
     }
 
     /**
