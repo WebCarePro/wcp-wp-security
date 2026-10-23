@@ -621,6 +621,12 @@ class FirewallEngine {
 
         // Check XML-RPC Disabled Guard early at plugins_loaded:0
         if (!empty($settings['waf_disable_xmlrpc']) && (strpos($request_uri, 'xmlrpc.php') !== false || (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'xmlrpc.php') !== false))) {
+            // Smart Pass: Exclude verified Automattic Jetpack sync requests
+            if (self::is_verified_jetpack_request($client_ip, $request_uri, $settings)) {
+                // Legitimate Jetpack request from official Automattic CIDR with valid tokens: permit execution
+                return;
+            }
+
             $rule_triggered = [
                 'id'          => 'WAF-XMLRPC-DISABLED',
                 'name'        => 'XML-RPC Access Prohibited',
@@ -1259,6 +1265,12 @@ class FirewallEngine {
         if (!empty($settings['waf_enabled']) && !empty($settings['waf_disable_xmlrpc'])) {
             $uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
             if (strpos($uri, 'xmlrpc.php') !== false) {
+                $client_ip = self::get_client_ip();
+                // Smart Pass: Exclude verified Automattic Jetpack sync requests
+                if (self::is_verified_jetpack_request($client_ip, $uri, $settings)) {
+                    return;
+                }
+
                 self::log_incident([
                     'category'    => 'XML-RPC Disabled',
                     'description' => 'XML-RPC request blocked by administrator policy.',
@@ -1714,6 +1726,71 @@ class FirewallEngine {
         }
 
         return false;
+    }
+
+    /**
+     * Automattic / WordPress.com Jetpack Official IP CIDR Ranges
+     * Source: Automattic official Jetpack documentation & ARIN/RIPE allocations.
+     */
+    public const JETPACK_IP_RANGES = [
+        '192.0.64.0/18',
+        '192.0.80.0/20',
+        '192.0.96.0/20',
+        '192.0.112.0/20',
+        '195.234.108.0/22',
+        '122.248.245.244/32',
+        '54.217.201.243/32',
+        '54.232.116.4/32',
+    ];
+
+    /**
+     * Check whether an incoming request to xmlrpc.php is a verified, authentic Jetpack sync from Automattic.
+     *
+     * Validates:
+     * 1. Setting 'waf_allow_jetpack_xmlrpc' is enabled.
+     * 2. Request targets xmlrpc.php and contains query parameter ?for=jetpack.
+     * 3. Client IP belongs strictly to Automattic's verified CIDR blocks (prevents User-Agent / parameter spoofing).
+     * 4. Essential cryptographic signature parameters (token, timestamp, nonce, signature) are present.
+     *
+     * @param string $client_ip
+     * @param string $request_uri
+     * @param array $settings
+     * @return bool
+     */
+    public static function is_verified_jetpack_request(string $client_ip, string $request_uri, array $settings): bool {
+        if (empty($settings['waf_allow_jetpack_xmlrpc'])) {
+            return false;
+        }
+
+        // Must explicitly target xmlrpc.php with for=jetpack
+        $for_param = isset($_GET['for']) ? sanitize_key($_GET['for']) : '';
+        if ($for_param !== 'jetpack' && strpos($request_uri, 'for=jetpack') === false) {
+            return false;
+        }
+
+        // 1. Strict IP Verification against Automattic's CIDRs
+        $ip_matched = false;
+        foreach (self::JETPACK_IP_RANGES as $cidr) {
+            if (self::ip_in_range($client_ip, $cidr)) {
+                $ip_matched = true;
+                break;
+            }
+        }
+
+        if (!$ip_matched) {
+            return false;
+        }
+
+        // 2. Cryptographic signature parameters check (Jetpack signs all outbound syncs)
+        // Requests must carry timestamp and at least signature or token
+        $has_timestamp = isset($_GET['timestamp']) || isset($_POST['timestamp']);
+        $has_signature = isset($_GET['signature']) || isset($_POST['signature']) || isset($_GET['token']) || isset($_POST['token']);
+
+        if (!$has_timestamp && !$has_signature) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

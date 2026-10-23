@@ -82,6 +82,7 @@ class SettingsManager {
             'waf_block_traversal'      => true,
             'waf_block_php_injection'  => true,
             'waf_disable_xmlrpc'       => false,
+            'waf_allow_jetpack_xmlrpc' => true, // Allow verified Automattic Jetpack sync via xmlrpc.php even if XML-RPC is disabled
             'waf_login_rate_limit'     => true,
             'waf_whitelisted_ips'      => '',
             'waf_blocked_ips'          => '',
@@ -507,6 +508,7 @@ class SettingsManager {
         $clean['waf_block_traversal']     = !empty($merged['waf_block_traversal']);
         $clean['waf_block_php_injection'] = !empty($merged['waf_block_php_injection']);
         $clean['waf_disable_xmlrpc']      = !empty($merged['waf_disable_xmlrpc']);
+        $clean['waf_allow_jetpack_xmlrpc'] = !empty($merged['waf_allow_jetpack_xmlrpc']);
         $clean['waf_login_rate_limit']    = !empty($merged['waf_login_rate_limit']);
         $clean['waf_whitelisted_ips']     = sanitize_textarea_field($merged['waf_whitelisted_ips'] ?? '');
         $clean['waf_blocked_ips']         = sanitize_textarea_field($merged['waf_blocked_ips'] ?? '');
