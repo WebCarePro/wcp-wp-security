@@ -462,6 +462,95 @@ class FirewallEngine {
     }
 
     /**
+     * Check whether the current request is from an authenticated user with Content Editor privileges
+     * or an active visual page builder session (Elementor, Divi, Gutenberg, Bricks, Beaver Builder).
+     *
+     * Validates:
+     * 1. Cryptographically valid auth cookie for an active user.
+     * 2. User holds 'edit_posts', 'edit_pages', or 'manage_options' capability.
+     * 3. Request targets page builder AJAX, REST API, or frontend builder preview session with matching nonce.
+     *
+     * @return bool
+     */
+    public static function is_authenticated_editor_or_builder(): bool {
+        static $cached_builder_result = null;
+        if ($cached_builder_result !== null) {
+            return $cached_builder_result;
+        }
+
+        // Fast-path: Verified administrator always has builder privileges
+        if (self::is_authenticated_administrator()) {
+            return ($cached_builder_result = true);
+        }
+
+        $verified_user_id = 0;
+        if (function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('get_current_user_id')) {
+            $verified_user_id = (int) get_current_user_id();
+        }
+
+        if ($verified_user_id <= 0) {
+            if (!function_exists('wp_validate_auth_cookie') && defined('ABSPATH') && file_exists(ABSPATH . 'wp-includes/pluggable.php')) {
+                require_once ABSPATH . 'wp-includes/pluggable.php';
+            }
+            if (function_exists('wp_validate_auth_cookie') && !empty($_COOKIE)) {
+                foreach ($_COOKIE as $c_name => $c_val) {
+                    if (strpos($c_name, 'wordpress_logged_in_') === 0 || strpos($c_name, 'wordpress_sec_') === 0) {
+                        $uid = (int) wp_validate_auth_cookie(sanitize_text_field(wp_unslash($c_val)), 'logged_in')
+                            ?: (int) wp_validate_auth_cookie(sanitize_text_field(wp_unslash($c_val)), 'secure_auth');
+                        if ($uid > 0) {
+                            $verified_user_id = $uid;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($verified_user_id <= 0) {
+            return ($cached_builder_result = false);
+        }
+
+        // Verify Editor / Content Author capabilities
+        if (function_exists('get_userdata')) {
+            $user = get_userdata($verified_user_id);
+            if (!$user || empty($user->ID)) {
+                return ($cached_builder_result = false);
+            }
+
+            $has_editor_cap = $user->has_cap('edit_posts') || $user->has_cap('edit_pages') || $user->has_cap('manage_options');
+            if (!$has_editor_cap) {
+                return ($cached_builder_result = false);
+            }
+        } else {
+            return ($cached_builder_result = false);
+        }
+
+        // Identify builder-specific actions and endpoints
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $ajax_action = sanitize_text_field($_POST['action'] ?? $_GET['action'] ?? '');
+
+        $is_builder_ajax = in_array($ajax_action, [
+            'elementor_ajax',
+            'elementor_save_builder',
+            'et_fb_save_builder',       // Divi Visual Builder
+            'et_fb_ajax_save',
+            'bricks_save_post',         // Bricks Builder
+            'fl_builder_save_layout',   // Beaver Builder
+            'ct_save_oxygen_data',      // Oxygen Builder
+        ], true);
+
+        $is_gutenberg_rest = (strpos($request_uri, '/wp-json/wp/v2/posts') !== false || strpos($request_uri, '/wp-json/wp/v2/pages') !== false || strpos($request_uri, '/wp-json/wp/v2/blocks') !== false);
+        $is_elementor_rest = (strpos($request_uri, '/wp-json/elementor/') !== false);
+        $is_builder_preview = (isset($_GET['elementor-preview']) || isset($_GET['et_fb']) || isset($_GET['fl_builder']) || isset($_GET['bricks']));
+
+        if ($is_builder_ajax || $is_gutenberg_rest || $is_elementor_rest || $is_builder_preview) {
+            return ($cached_builder_result = true);
+        }
+
+        return ($cached_builder_result = false);
+    }
+
+    /**
      * Inspect Incoming Request
      */
     public static function inspect_incoming_request() {
@@ -493,11 +582,20 @@ class FirewallEngine {
             return;
         }
 
-        // Safe Bypass for Verified Authenticated Administrators performing core admin duties
-        // (Prevents false-positive blocks when managing comments, posts, plugins, updates, or bulk operations in wp-admin)
+        // Safe Bypass for Verified Authenticated Administrators and Page Builder Sessions
+        // (Prevents false-positive blocks when managing comments, posts, plugins, or editing pages via Elementor/Divi/Gutenberg)
         if (self::is_authenticated_administrator()) {
             $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/wcp-scanner/') !== false);
             if ($is_admin_path) {
+                return;
+            }
+        }
+
+        $is_builder_session = self::is_authenticated_editor_or_builder();
+        if ($is_builder_session) {
+            // Verified editors in builder context (Elementor AJAX, Gutenberg REST, Divi save) are exempt from early admin area restrictions
+            $is_admin_builder = (strpos($request_uri, 'admin-ajax.php') !== false || strpos($request_uri, '/wp-json/wp/v2/') !== false || strpos($request_uri, '/wp-json/elementor/') !== false);
+            if ($is_admin_builder) {
                 return;
             }
         }
@@ -507,7 +605,7 @@ class FirewallEngine {
             $is_upload_endpoint = (strpos($request_uri, 'async-upload.php') !== false || strpos($request_uri, '/wp-json/wp/v2/media') !== false);
             $is_admin_area = is_admin() || strpos($request_uri, '/wp-admin/') !== false;
             $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($request_uri);
-            $is_exempt_endpoint = $is_upload_endpoint || $is_admin_area || $is_commerce_safe;
+            $is_exempt_endpoint = $is_upload_endpoint || $is_admin_area || $is_commerce_safe || $is_builder_session;
             $uri_length = strlen($request_uri);
             $query_length = strlen($_SERVER['QUERY_STRING'] ?? '');
             $post_count = is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
@@ -579,7 +677,7 @@ class FirewallEngine {
         if (!empty($settings['waf_limit_admin_ajax'])) {
             $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'admin-ajax.php') !== false) {
-                $is_logged_in = is_user_logged_in() || self::is_authenticated_administrator();
+                $is_logged_in = is_user_logged_in() || self::is_authenticated_administrator() || self::is_authenticated_editor_or_builder();
                 if (!$is_logged_in) {
                     $ajax_action = sanitize_text_field($_POST['action'] ?? $_GET['action'] ?? '');
                     // Exclude WooCommerce public customer cart actions if e-commerce smart shield is active
@@ -1052,6 +1150,12 @@ class FirewallEngine {
         $is_admin_backend = is_admin() || strpos($raw_uri, '/wp-admin/') !== false;
         $is_wcp_rest_api  = (strpos($raw_uri, '/wp-json/wcp-scanner/') !== false) || (defined('REST_REQUEST') && REST_REQUEST && strpos($raw_uri, 'wcp-scanner') !== false);
         if (self::is_authenticated_administrator() && ($is_admin_backend || $is_wcp_rest_api)) {
+            return null;
+        }
+
+        // Authenticated Page Builder Smart Pass (Elementor, Divi, Gutenberg, Bricks, Beaver Builder)
+        // Verified users with 'edit_posts' saving layouts via builder AJAX or REST endpoints are exempt from false-positive XSS/SQLi payload drops
+        if (self::is_authenticated_editor_or_builder()) {
             return null;
         }
 
