@@ -1563,6 +1563,8 @@ class FirewallEngine {
 
         // 3. Typical Store, Cart, Checkout, and Customer Portal URI slugs
         $store_slug_patterns = [
+            '/\/shop(\/|$)/i',
+            '/\/product(\/|$)/i',
             '/\/cart(\/|$)/i',
             '/\/checkout(\/|$)/i',
             '/\/my-account(\/|$)/i',
