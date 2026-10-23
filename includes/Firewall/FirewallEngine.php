@@ -1477,13 +1477,20 @@ class FirewallEngine {
         if ($action === 'blocked') {
             $settings = SettingsManager::get_settings();
             if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-                // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
-                $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
-                if (in_array($rule['category'], $critical_categories, true)) {
-                    \WcpScanner\Cloudflare\CloudflareService::block_ip(
-                        $ip,
-                        "WCP WAF Auto-Ban: {$rule['category']} probe"
-                    );
+                // SAFETY SHIELD: Never auto-ban authenticated admins, whitelisted IPs, or current admin IP
+                $is_admin = self::is_authenticated_administrator();
+                $is_whitelisted = self::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
+                $current_client_ip = self::get_client_ip();
+
+                if (!$is_admin && !$is_whitelisted && $ip !== $current_client_ip) {
+                    // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
+                    $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
+                    if (in_array($rule['category'] ?? '', $critical_categories, true)) {
+                        \WcpScanner\Cloudflare\CloudflareService::block_ip(
+                            $ip,
+                            "WCP WAF Auto-Ban: {$rule['category']} probe"
+                        );
+                    }
                 }
             }
         }

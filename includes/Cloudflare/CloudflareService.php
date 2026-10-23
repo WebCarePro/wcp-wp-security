@@ -513,15 +513,26 @@ class CloudflareService {
     }
 
     /**
+     * Option key for storing deployed Cloudflare Edge rule mappings
+     */
+    const DEPLOYED_RULES_OPTION = 'wcpscan_cf_deployed_edge_rules';
+
+    /**
      * Retrieve currently deployed WCP rules from the zone entrypoint ruleset
      *
      * @param string $zone_id
      * @return array
      */
     public static function get_deployed_custom_rules(string $zone_id): array {
+        $cached_db_rules = get_option(self::DEPLOYED_RULES_OPTION, []);
+        if (!is_array($cached_db_rules)) {
+            $cached_db_rules = [];
+        }
+
         $res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
         if (empty($res['success']) || empty($res['result']['rules'])) {
-            return [];
+            // If Cloudflare API is temporarily unreachable or rate-limited, fallback to persisted DB cache
+            return $cached_db_rules;
         }
 
         $deployed = [];
@@ -536,13 +547,18 @@ class CloudflareService {
             foreach ($definitions as $key => $def) {
                 if (strpos($desc, $def['title']) !== false || (isset($def['id']) && strpos($desc, $def['id']) !== false)) {
                     $deployed[$key] = [
-                        'id'      => $r['id'] ?? '',
-                        'enabled' => !empty($r['enabled']),
-                        'action'  => $r['action'] ?? $def['action'],
+                        'id'          => $r['id'] ?? '',
+                        'enabled'     => !empty($r['enabled']),
+                        'action'      => $r['action'] ?? $def['action'],
+                        'description' => $desc,
+                        'last_synced' => current_time('mysql'),
                     ];
                 }
             }
         }
+
+        // Persist the verified deployed rules to WordPress database options for instant retrieval
+        update_option(self::DEPLOYED_RULES_OPTION, $deployed, false);
 
         return $deployed;
     }
@@ -1015,6 +1031,22 @@ class CloudflareService {
 
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+        }
+
+        // ABSOLUTE SAFETY GUARD: Never ban local, current admin, or whitelisted IPs
+        $is_loopback = in_array($ip, ['127.0.0.1', '::1'], true) || !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        if ($is_loopback) {
+            return ['success' => false, 'message' => __('Cannot ban private/loopback IP address.', 'wcp-security-scanner')];
+        }
+
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            $current_client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+            $is_admin = \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator();
+            $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
+
+            if ($ip === $current_client_ip || ($is_admin && $ip === $current_client_ip) || $is_whitelisted) {
+                return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to administrator or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
+            }
         }
 
         $payload = [
