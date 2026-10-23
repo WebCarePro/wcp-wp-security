@@ -1729,6 +1729,7 @@ class FirewallEngine {
                 || strpos($cookie_name, 'edd_items_in_cart') !== false
                 || strpos($cookie_name, 'mp_session_') !== false
                 || strpos($cookie_name, 'surecart_session') !== false
+                || strpos($cookie_name, 'surecart_customer') !== false
                 || strpos($cookie_name, 'give_items_in_cart') !== false
                 || strpos($cookie_name, 'wp_ec_session_') !== false
                 || strpos($cookie_name, 'swpm_session') !== false
@@ -2088,9 +2089,16 @@ class FirewallEngine {
         }
 
         // 2. Cryptographic signature parameters check (Jetpack signs all outbound syncs)
-        // Requests must carry timestamp and at least signature or token
-        $has_timestamp = isset($_GET['timestamp']) || isset($_POST['timestamp']);
-        $has_signature = isset($_GET['signature']) || isset($_POST['signature']) || isset($_GET['token']) || isset($_POST['token']);
+        // Requests must carry timestamp and at least signature or token (inspect both superglobals and request URI)
+        $query_str = parse_url($request_uri, PHP_URL_QUERY);
+        $uri_params = [];
+        if (!empty($query_str)) {
+            parse_str($query_str, $uri_params);
+        }
+
+        $has_timestamp = isset($_GET['timestamp']) || isset($_POST['timestamp']) || isset($uri_params['timestamp']);
+        $has_signature = isset($_GET['signature']) || isset($_POST['signature']) || isset($_GET['token']) || isset($_POST['token'])
+            || isset($uri_params['signature']) || isset($uri_params['token']);
 
         if (!$has_timestamp && !$has_signature) {
             return false;
