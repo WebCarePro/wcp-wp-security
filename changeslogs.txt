@@ -1,4 +1,8 @@
 v:1.23.0 - 2026-10-23
+- Proprietary & Unmanaged Component UI Remediation Accuracy (`FilesystemForensicsCard.tsx`, `App.tsx`):
+  * Suppressed Erroneous "Auto-Cure: Restore Official WP.org" Button: Fixed false-positive UI state where unmanaged, proprietary, or custom plugins (such as `advanced-iframe-custom` and `plugin_checksums_unavailable` findings) were misidentified as "Modified Official Files".
+  * Accurate Semantic Status Badge: Replaced the amber "Modified Official File (Integrity Mismatch)" badge on unmanaged components with a distinct blue informational badge: "Unmanaged / Proprietary Component".
+  * Clear Actionable Guidance: Instructed administrators on custom components to use "Mark Safe / Ignore" rather than attempting an impossible WordPress.org mirror restore.
 - Core Integrity Scanner False-Positive Elimination for Hardened Docs (`CoreIntegrity.php`):
   * Security Hardened Informational Files Exemption: Automatically exempted `readme.html`, `license.txt`, `licencia.txt`, and regional variants from `missing_core_file` alerts. Security plugins (such as Wordfence, Solid Security, Defender) and hardening scripts routinely delete or rename `readme.html` to eliminate WordPress version enumeration. Our scanner now recognizes this hardening practice and does not raise false alarms.
 - Incident ID Search & Forensic Telemetry Tracking (`Migration.php`, `FirewallEngine.php`, `WafLogsPage.tsx`):
