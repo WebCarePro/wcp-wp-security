@@ -280,6 +280,8 @@ class CloudflareService {
             ? substr($zone_id, 0, 4) . '••••••••••••••••••••' . substr($zone_id, -4)
             : '••••••••••••••••';
 
+        $edge_inspection = self::inspect_edge_rules($zone_id);
+
         return [
             'configured'       => true,
             'zone_id'          => $masked_zone,
@@ -289,6 +291,7 @@ class CloudflareService {
             'has_token'        => true,
             'plan'             => $verify['plan'],
             'active_rules'     => $active_rules,
+            'edge_inspection'  => $edge_inspection,
             'rate_limiting'    => $rate_limit,
             'rate_limit_info'  => $rate_limit_info,
             'ip_rules_count'   => $ip_count,
@@ -561,6 +564,143 @@ class CloudflareService {
         update_option(self::DEPLOYED_RULES_OPTION, $deployed, false);
 
         return $deployed;
+    }
+
+    /**
+     * Retrieve complete edge rules analysis: plan quota, user custom rules vs WCP managed rules, and free slots
+     *
+     * @param string $zone_id
+     * @return array
+     */
+    public static function inspect_edge_rules(string $zone_id): array {
+        $settings = SettingsManager::get_settings();
+        $token = $settings['cloudflare_api_token'] ?? '';
+        if (empty($zone_id) || empty($token)) {
+            return [
+                'success' => false,
+                'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner'),
+                'max_slots' => 5,
+                'total_used' => 0,
+                'free_slots' => 5,
+                'user_rules' => [],
+                'wcp_rules' => [],
+            ];
+        }
+
+        // Determine max quota based on verified plan
+        $verify = self::verify_zone($zone_id);
+        $plan_name = strtolower($verify['plan'] ?? 'free');
+        $max_slots = 5;
+        if (strpos($plan_name, 'pro') !== false) {
+            $max_slots = 20;
+        } elseif (strpos($plan_name, 'business') !== false) {
+            $max_slots = 50;
+        } elseif (strpos($plan_name, 'enterprise') !== false) {
+            $max_slots = 125;
+        }
+
+        $res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
+        $user_rules = [];
+        $wcp_rules = [];
+        $definitions = self::get_rule_definitions();
+
+        if (!empty($res['success']) && !empty($res['result']['rules'])) {
+            foreach ($res['result']['rules'] as $rule) {
+                $desc = $rule['description'] ?? '';
+                $is_wcp = (strpos($desc, self::WCP_RULE_TAG) !== false);
+
+                if ($is_wcp) {
+                    $matched_key = '';
+                    foreach ($definitions as $k => $def) {
+                        if (strpos($desc, $def['title']) !== false || (isset($def['id']) && strpos($desc, $def['id']) !== false)) {
+                            $matched_key = $k;
+                            break;
+                        }
+                    }
+                    $wcp_rules[] = [
+                        'id'          => $rule['id'] ?? '',
+                        'key'         => $matched_key,
+                        'description' => $desc,
+                        'action'      => $rule['action'] ?? 'block',
+                        'expression'  => $rule['expression'] ?? '',
+                        'enabled'     => !empty($rule['enabled']),
+                        'last_updated'=> $rule['last_updated'] ?? '',
+                    ];
+                } else {
+                    $user_rules[] = [
+                        'id'          => $rule['id'] ?? '',
+                        'description' => !empty($desc) ? $desc : __('Custom Dashboard Rule', 'wcp-security-scanner'),
+                        'action'      => $rule['action'] ?? 'block',
+                        'expression'  => $rule['expression'] ?? '',
+                        'enabled'     => !empty($rule['enabled']),
+                        'last_updated'=> $rule['last_updated'] ?? '',
+                    ];
+                }
+            }
+        }
+
+        $total_used = count($user_rules) + count($wcp_rules);
+        $free_slots = max(0, $max_slots - $total_used);
+
+        return [
+            'success'     => true,
+            'plan'        => $verify['plan'] ?? 'Free',
+            'max_slots'   => $max_slots,
+            'total_used'  => $total_used,
+            'free_slots'  => $free_slots,
+            'user_rules'  => $user_rules,
+            'wcp_rules'   => $wcp_rules,
+            'user_count'  => count($user_rules),
+            'wcp_count'   => count($wcp_rules),
+        ];
+    }
+
+    /**
+     * Whitelist an IP address at Cloudflare Edge via IP Access Rules (Mode: allow)
+     *
+     * @param string $ip
+     * @param string $notes
+     * @return array
+     */
+    public static function whitelist_ip(string $ip, string $notes = 'Administrator / Developer Whitelist'): array {
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+        }
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+        }
+
+        $payload = [
+            'mode'          => 'allow',
+            'configuration' => [
+                'target' => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip',
+                'value'  => $ip,
+            ],
+            'notes'         => self::WCP_RULE_TAG . ' ' . substr($notes, 0, 70),
+        ];
+
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);
+
+        if (!empty($res['success'])) {
+            return [
+                'success' => true,
+                'message' => sprintf(__('IP %s successfully whitelisted at Cloudflare Edge (Mode: Allow).', 'wcp-security-scanner'), $ip),
+            ];
+        }
+
+        $err = $res['errors'][0]['message'] ?? __('Failed to whitelist IP at Cloudflare Edge.', 'wcp-security-scanner');
+        if (stripos($err, 'already exists') !== false) {
+            return [
+                'success' => true,
+                'message' => sprintf(__('IP %s is already allowed at Cloudflare Edge.', 'wcp-security-scanner'), $ip),
+            ];
+        }
+
+        return ['success' => false, 'message' => $err];
     }
 
     /**

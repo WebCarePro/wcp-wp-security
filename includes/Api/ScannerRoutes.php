@@ -855,6 +855,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/cloudflare/inspect-rules', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'inspect_cloudflare_rules'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/whitelist-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'whitelist_cloudflare_ip'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/cloudflare/disconnect', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'disconnect_cloudflare'],
@@ -6224,6 +6236,28 @@ class ScannerRoutes {
         $files  = !empty($params['files']) && is_array($params['files']) ? array_map('esc_url_raw', $params['files']) : null;
 
         $result = \WcpScanner\Cloudflare\CloudflareService::purge_cache($files);
+        return rest_ensure_response($result);
+    }
+
+    public static function inspect_cloudflare_rules(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $settings = \WcpScanner\Settings\SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+        $result = \WcpScanner\Cloudflare\CloudflareService::inspect_edge_rules($zone_id);
+        return rest_ensure_response($result);
+    }
+
+    public static function whitelist_cloudflare_ip(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params = $request->get_json_params() ?: [];
+        $ip     = sanitize_text_field($params['ip'] ?? '');
+        $notes  = sanitize_text_field($params['notes'] ?? 'Administrator / Developer Whitelist via WCP');
+
+        $result = \WcpScanner\Cloudflare\CloudflareService::whitelist_ip($ip, $notes);
         return rest_ensure_response($result);
     }
 
