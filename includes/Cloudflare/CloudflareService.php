@@ -1387,6 +1387,8 @@ class CloudflareService {
                 datetime
                 action
                 ruleId
+                rulesetId
+                description
                 source
                 clientIP
                 clientRequestHTTPHost
@@ -1448,7 +1450,17 @@ class CloudflareService {
 
         $raw_events = $zones[0]['firewallEventsAdaptive'];
 
-        // Map rule IDs back to human-friendly WCP Rule titles if known
+        // Fetch existing custom rules from zone to map custom rule IDs to names
+        $zone_custom_rules = [];
+        $ruleset_res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
+        if (!empty($ruleset_res['success']) && !empty($ruleset_res['result']['rules'])) {
+            foreach ($ruleset_res['result']['rules'] as $cr) {
+                if (!empty($cr['id'])) {
+                    $zone_custom_rules[$cr['id']] = $cr['description'] ?? '';
+                }
+            }
+        }
+
         $definitions = self::get_compound_rule_definitions();
         $mapped_events = [];
 
@@ -1459,15 +1471,36 @@ class CloudflareService {
             }
 
             $rule_id = $ev['ruleId'] ?? '';
-            $rule_name = $ev['source'] ? ucfirst($ev['source']) : 'Custom Rule';
+            $ruleset_id = $ev['rulesetId'] ?? '';
+            $desc = !empty($ev['description']) ? trim($ev['description']) : '';
 
-            // Check if rule matches known WCP rule definitions
-            foreach ($definitions as $def) {
-                if (!empty($def['title'])) {
-                    // WCP compound titles
-                    $rule_name = $def['title'];
-                    break;
+            // Determine human-friendly rule name
+            $rule_name = '';
+
+            // 1. If description was returned directly in the GraphQL event
+            if (!empty($desc)) {
+                $rule_name = $desc;
+            }
+            // 2. If ruleId matches one of the zone's custom rules
+            elseif (!empty($rule_id) && isset($zone_custom_rules[$rule_id]) && !empty($zone_custom_rules[$rule_id])) {
+                $rule_name = $zone_custom_rules[$rule_id];
+            }
+            // 3. Fallback: check WCP compound definitions if ruleId matches
+            else {
+                foreach ($definitions as $def) {
+                    if (!empty($rule_id) && !empty($def['id']) && $rule_id === $def['id']) {
+                        $rule_name = $def['title'];
+                        break;
+                    }
                 }
+            }
+
+            // Clean WCP tag prefix from rule name for clean display if present
+            if (!empty($rule_name)) {
+                $rule_name = trim(str_replace('[WCP Security]', '', $rule_name));
+            } else {
+                $src = $ev['source'] ?? '';
+                $rule_name = $src ? ucfirst($src) . ' Rule' : 'Edge Security Rule';
             }
 
             $referer = '';
@@ -1483,7 +1516,9 @@ class CloudflareService {
                 'datetime'     => $ev['datetime'] ?? gmdate('Y-m-d H:i:s'),
                 'action'       => $ev['action'] ?? 'block',
                 'rule_id'      => $rule_id,
+                'ruleset_id'   => $ruleset_id,
                 'rule_name'    => $rule_name,
+                'description'  => $desc,
                 'source'       => $ev['source'] ?? 'waf',
                 'client_ip'    => $ev['clientIP'] ?? 'unknown',
                 'host'         => $ev['clientRequestHTTPHost'] ?? '',
