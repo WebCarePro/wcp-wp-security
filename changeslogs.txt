@@ -1,4 +1,8 @@
-v:1.23.0 - 2026-10-23
+- Incident ID Search & Forensic Telemetry Tracking (`Migration.php`, `FirewallEngine.php`, `WafLogsPage.tsx`):
+  * Incident ID Database Storage: Added dedicated `incident_id` (`varchar(32)`) column and index to `wp_wcpscan_firewall_logs` (`Migration.php`).
+  * Unified Incident ID Generation: Updated `FirewallEngine::log_incident()` and `FirewallEngine::render_block_page()` to record and display the exact same incident ID across error pages, webhook alerts, and database logs.
+  * Instant Incident ID Search: Extended `FirewallEngine::get_logs()` search query to include `incident_id LIKE %s`. Administrators can now paste any Incident ID (e.g. `MCP-5BBAC14` or `WCP-...`) into the WAF search box to instantly pull up the exact blocked request.
+  * Forensic Accordion Badge & Copy: Rendered an interactive Incident ID tag chip with 1-click clipboard copy in the WAF logs forensic accordion.
 - Administrator Bulk Operations & WP-Admin DoS Exemption (`FirewallEngine.php`):
   * WordPress Admin Bulk Action Exemption: Completely exempted verified authenticated administrators operating within `/wp-admin/` (such as `edit-comments.php`, `edit.php`, `upload.php`) from oversized request buffer restrictions (`waf_block_oversized_requests`), eliminating false-positive blocks (`Violation Type: DoS & Resource Shield`) when performing bulk deletions or trash operations with 100+ items.
   * Resilient Cryptographic Auth Verification: Ensured `wp-includes/pluggable.php` is defensively loaded if needed during early `plugins_loaded:0` execution so `wp_validate_auth_cookie()` accurately recognizes logged-in administrators on long query string submissions.

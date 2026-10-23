@@ -951,8 +951,9 @@ class FirewallEngine {
             if ($mode === 'learning') {
                 self::log_incident($rule_triggered, 'detected');
             } else {
-                self::log_incident($rule_triggered, 'blocked');
-                self::render_block_page($rule_triggered, $client_ip);
+                $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
+                self::log_incident($rule_triggered, 'blocked', $incident_id);
+                self::render_block_page($rule_triggered, $client_ip, $incident_id);
                 exit;
             }
         }
@@ -1382,8 +1383,9 @@ class FirewallEngine {
             if ($mode === 'learning') {
                 self::log_incident($rule_triggered, 'detected');
             } else {
-                self::log_incident($rule_triggered, 'blocked');
-                self::render_block_page($rule_triggered, $client_ip);
+                $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
+                self::log_incident($rule_triggered, 'blocked', $incident_id);
+                self::render_block_page($rule_triggered, $client_ip, $incident_id);
                 exit;
             }
         } else {
@@ -1717,7 +1719,7 @@ class FirewallEngine {
     /**
      * Log firewall incident to database
      */
-    private static function log_incident(array $rule, string $action) {
+    private static function log_incident(array $rule, string $action, ?string $incident_id = null): ?string {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
@@ -1733,6 +1735,10 @@ class FirewallEngine {
 
         $raw_referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
         $referer = substr($raw_referer, 0, 500);
+
+        if (empty($incident_id)) {
+            $incident_id = 'WCP-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
+        }
 
         // Determine HTTP Status Code
         $status_code = 403;
@@ -1753,12 +1759,13 @@ class FirewallEngine {
         ));
 
         if ($recent) {
-            return;
+            return $incident_id;
         }
 
         $wpdb->insert(
             $table,
             [
+                'incident_id'      => sanitize_text_field($incident_id),
                 'ip_address'       => sanitize_text_field($ip),
                 'request_uri'      => sanitize_text_field($uri),
                 'request_method'   => sanitize_key($method),
@@ -1771,7 +1778,7 @@ class FirewallEngine {
                 'action_taken'     => sanitize_key($action),
                 'created_at'       => current_time('mysql'),
             ],
-            ['%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         // Dispatch DevSecOps Webhook on blocked attack
@@ -1780,6 +1787,7 @@ class FirewallEngine {
                 'category'   => $rule['category'],
                 'name'       => $rule['name'] ?? $rule['category'],
                 'ip_address' => $ip,
+                'incident_id'=> $incident_id,
             ]);
         }
 
@@ -1789,9 +1797,10 @@ class FirewallEngine {
             if ($is_virtual_patch) {
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_virtual_patch_hit', [
                     'severity' => 'critical',
-                    'message'  => sprintf(__('Virtual Patch intercepted an exploit payload from %s targeting "%s".', 'wcp-security-scanner'), $ip, $rule['name'] ?? $rule['category']),
+                    'message'  => sprintf(__('Virtual Patch intercepted an exploit payload from %s targeting "%s" [Incident: %s].', 'wcp-security-scanner'), $ip, $rule['name'] ?? $rule['category'], $incident_id),
                     'details'  => [
                         'attacker_ip' => $ip,
+                        'incident_id' => $incident_id,
                         'rule_name'   => $rule['name'] ?? $rule['category'],
                         'category'    => $rule['category'],
                     ],
@@ -1814,19 +1823,23 @@ class FirewallEngine {
                     if (in_array($rule['category'] ?? '', $critical_categories, true)) {
                         \WcpScanner\Cloudflare\CloudflareService::block_ip(
                             $ip,
-                            "WCP WAF Auto-Ban: {$rule['category']} probe"
+                            "WCP WAF Auto-Ban: {$rule['category']} probe [{$incident_id}]"
                         );
                     }
                 }
             }
         }
+
+        return $incident_id;
     }
 
     /**
      * Render branded 403 Forbidden Error Screen via standard wp_die()
      */
-    private static function render_block_page(array $rule, string $client_ip) {
-        $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . time()), 0, 8));
+    private static function render_block_page(array $rule, string $client_ip, ?string $incident_id = null) {
+        if (empty($incident_id)) {
+            $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
+        }
         $site_name   = get_bloginfo('name');
         $rule_cat    = esc_html($rule['category'] ?? 'Security Shield');
 
@@ -2245,10 +2258,11 @@ class FirewallEngine {
         $where_clauses = ['1=1'];
         $where_params = [];
 
-        // Search IP or URI or Payload or Referer
+        // Search Incident ID or IP or URI or Payload or Referer
         if (!empty($filters['search'])) {
             $like = '%' . $wpdb->esc_like(trim($filters['search'])) . '%';
-            $where_clauses[] = "(ip_address LIKE %s OR request_uri LIKE %s OR rule_description LIKE %s OR payload_sample LIKE %s OR user_agent LIKE %s OR http_referer LIKE %s)";
+            $where_clauses[] = "(incident_id LIKE %s OR ip_address LIKE %s OR request_uri LIKE %s OR rule_description LIKE %s OR payload_sample LIKE %s OR user_agent LIKE %s OR http_referer LIKE %s)";
+            $where_params[] = $like;
             $where_params[] = $like;
             $where_params[] = $like;
             $where_params[] = $like;
@@ -3118,13 +3132,14 @@ class FirewallEngine {
             return;
         }
 
-        self::log_incident($rule, 'blocked');
+        $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
+        self::log_incident($rule, 'blocked', $incident_id);
 
         if ($status_code !== 403) {
             status_header($status_code);
         }
 
-        self::render_block_page($rule, $client_ip);
+        self::render_block_page($rule, $client_ip, $incident_id);
         exit;
     }
 

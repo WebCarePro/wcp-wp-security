@@ -89,6 +89,7 @@ class Migration {
         $firewall_logs_table = $wpdb->prefix . 'wcpscan_firewall_logs';
         $sql5 = "CREATE TABLE $firewall_logs_table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            incident_id varchar(32) DEFAULT NULL,
             ip_address varchar(100) NOT NULL,
             request_uri text NOT NULL,
             request_method varchar(10) NOT NULL DEFAULT 'GET',
@@ -101,6 +102,7 @@ class Migration {
             action_taken varchar(20) NOT NULL DEFAULT 'blocked',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
+            KEY incident_id (incident_id),
             KEY ip_address (ip_address(50)),
             KEY rule_category (rule_category),
             KEY http_status_code (http_status_code),
@@ -133,6 +135,11 @@ class Migration {
         dbDelta($sql6);
 
         // Ensure columns exist on already-created tables in existing databases
+        $col_incident = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'incident_id'");
+        if (!$col_incident) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `incident_id` varchar(32) DEFAULT NULL AFTER `id`, ADD INDEX `incident_id` (`incident_id`)");
+        }
         $col_status = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'http_status_code'");
         if (!$col_status) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -144,6 +151,6 @@ class Migration {
             $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `http_referer` text DEFAULT NULL AFTER `http_status_code`");
         }
 
-        update_option('wcpscan_db_version', '1.9.0');
+        update_option('wcpscan_db_version', '1.10.0');
     }
 }
