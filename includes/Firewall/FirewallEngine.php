@@ -478,6 +478,12 @@ class FirewallEngine {
             return $cached_builder_result;
         }
 
+        // Check if page builder smart pass is enabled in settings
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        if (isset($settings['waf_allow_page_builders']) && empty($settings['waf_allow_page_builders'])) {
+            return ($cached_builder_result = false);
+        }
+
         // Fast-path: Verified administrator always has builder privileges
         if (self::is_authenticated_administrator()) {
             return ($cached_builder_result = true);
@@ -2236,6 +2242,34 @@ class FirewallEngine {
                 'has_rcp'         => class_exists('Restrict_Content_Pro'),
                 'has_learndash'   => class_exists('LearnDash_Settings_Section'),
                 'has_lifterlms'   => class_exists('LifterLMS'),
+            ],
+            'integrations_telemetry' => [
+                'has_builders' => (
+                    defined('ELEMENTOR_VERSION') ||
+                    defined('ET_BUILDER_VERSION') ||
+                    defined('BRICKS_VERSION') ||
+                    defined('FL_BUILDER_VERSION') ||
+                    class_exists('\\WP_Block_Type_Registry')
+                ),
+                'builder_names' => array_values(array_filter([
+                    defined('ELEMENTOR_VERSION') ? 'Elementor' : null,
+                    defined('ET_BUILDER_VERSION') ? 'Divi Builder' : null,
+                    defined('BRICKS_VERSION') ? 'Bricks' : null,
+                    defined('FL_BUILDER_VERSION') ? 'Beaver Builder' : null,
+                    class_exists('\\WP_Block_Type_Registry') ? 'Gutenberg Block Editor' : null,
+                ])),
+                'has_jetpack' => class_exists('Jetpack'),
+                'has_central_management' => (
+                    class_exists('MMB_Core') ||
+                    class_exists('MainWP_Child') ||
+                    class_exists('IWP_MMB_Core') ||
+                    defined('MMB_WORKER_VERSION')
+                ),
+                'management_names' => array_values(array_filter([
+                    (class_exists('MMB_Core') || defined('MMB_WORKER_VERSION')) ? 'ManageWP Worker' : null,
+                    class_exists('MainWP_Child') ? 'MainWP Child' : null,
+                    class_exists('IWP_MMB_Core') ? 'InfiniteWP Client' : null,
+                ])),
             ],
         ];
     }

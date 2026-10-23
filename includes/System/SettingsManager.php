@@ -98,6 +98,7 @@ class SettingsManager {
 
             // Enhanced Perimeter & Identity Protection Rules
             'waf_ecommerce_safe_mode'           => true, // E-Commerce & Membership Smart Shield (zero false-positives for WooCommerce, EDD, MemberPress, carts, checkouts, and payment webhooks)
+            'waf_allow_page_builders'           => true, // Visual Page Builder & Editor Smart Pass (Elementor, Divi, Gutenberg, Bricks, Beaver Builder)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
             'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
             'waf_block_forbidden_usernames'     => true, // Immediately block IP trying to sign in as forbidden honeypot usernames
@@ -523,6 +524,7 @@ class SettingsManager {
         $clean['waf_404_lockout_duration'] = max(1, min(1440, (int) ($merged['waf_404_lockout_duration'] ?? 30)));
         $clean['waf_allow_uptime_monitors']        = !empty($merged['waf_allow_uptime_monitors']);
         $clean['waf_allow_central_management']     = !empty($merged['waf_allow_central_management']);
+        $clean['waf_allow_page_builders']          = !empty($merged['waf_allow_page_builders']);
 
         // Enhanced Perimeter & Identity Protection Rules
         $clean['waf_ecommerce_safe_mode']         = !empty($merged['waf_ecommerce_safe_mode']);
