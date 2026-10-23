@@ -1,4 +1,7 @@
 v:1.23.0 - 2026-10-23
+- Finding Details Expand White Screen Elimination & Error Boundary Hardening (`FilesystemForensicsCard.tsx`, `App.tsx`, `ScanLogsPage.tsx`):
+  * Missing Icon Import Fix: Resolved critical JavaScript `ReferenceError: Info is not defined` inside `FilesystemForensicsCard.tsx` that crashed the React component tree and rendered a white blank screen when expanding finding rows for unmanaged/proprietary plugins.
+  * Resilient Defensive Error Boundaries: Wrapped all expandable finding rows across Scan Results, Targeted Scans, and Scan Logs with `<SafeErrorBoundary>` to prevent any child rendering exception from crashing the main dashboard.
 - Proprietary & Unmanaged Component UI Remediation Accuracy (`FilesystemForensicsCard.tsx`, `App.tsx`):
   * Suppressed Erroneous "Auto-Cure: Restore Official WP.org" Button: Fixed false-positive UI state where unmanaged, proprietary, or custom plugins (such as `advanced-iframe-custom` and `plugin_checksums_unavailable` findings) were misidentified as "Modified Official Files".
   * Accurate Semantic Status Badge: Replaced the amber "Modified Official File (Integrity Mismatch)" badge on unmanaged components with a distinct blue informational badge: "Unmanaged / Proprietary Component".
