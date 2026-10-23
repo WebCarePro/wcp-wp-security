@@ -337,24 +337,108 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_authenticated_administrator(): bool {
-        if (function_exists('is_user_logged_in') && function_exists('current_user_can')) {
-            if (is_user_logged_in() && (current_user_can('manage_options') || current_user_can('activate_plugins'))) {
-                return true;
-            }
+        static $cached_result = null;
+        if ($cached_result !== null) {
+            return $cached_result;
         }
 
-        if (function_exists('wp_validate_auth_cookie')) {
-            $user_id = wp_validate_auth_cookie('', 'logged_in')
-                ?: (wp_validate_auth_cookie('', 'secure_auth') ?: wp_validate_auth_cookie('', 'auth'));
-            if ($user_id && function_exists('get_userdata')) {
-                $user = get_userdata($user_id);
-                if ($user && ($user->has_cap('manage_options') || $user->has_cap('activate_plugins') || in_array('administrator', (array) $user->roles, true))) {
-                    return true;
+        $cached_result = false;
+        $verified_user_id = 0;
+
+        // Layer 1: Check standard WordPress authenticated session if available
+        if (function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('get_current_user_id')) {
+            $verified_user_id = (int) get_current_user_id();
+        }
+
+        // Layer 2: Independent Cryptographic Auth Cookie Validation (essential at plugins_loaded: 0)
+        if ($verified_user_id <= 0 && function_exists('wp_validate_auth_cookie')) {
+            $auth_cookie = '';
+            $cookie_schemes = ['logged_in', 'secure_auth', 'auth'];
+
+            foreach ($cookie_schemes as $scheme) {
+                $cookie_name = ($scheme === 'logged_in')
+                    ? (defined('LOGGED_IN_COOKIE') ? LOGGED_IN_COOKIE : 'wordpress_logged_in_' . COOKIEHASH)
+                    : (defined('SECURE_AUTH_COOKIE') ? SECURE_AUTH_COOKIE : 'wordpress_sec_' . COOKIEHASH);
+
+                if (!empty($_COOKIE[$cookie_name])) {
+                    $auth_cookie = sanitize_text_field(wp_unslash($_COOKIE[$cookie_name]));
+                    $uid = (int) wp_validate_auth_cookie($auth_cookie, $scheme);
+                    if ($uid > 0) {
+                        $verified_user_id = $uid;
+                        break;
+                    }
+                }
+            }
+
+            // Fallback for default cookie names if constants aren't defined yet
+            if ($verified_user_id <= 0) {
+                foreach ($_COOKIE as $c_name => $c_val) {
+                    if (strpos($c_name, 'wordpress_logged_in_') === 0 || strpos($c_name, 'wordpress_sec_') === 0) {
+                        $uid = (int) wp_validate_auth_cookie(sanitize_text_field(wp_unslash($c_val)), 'logged_in')
+                            ?: (int) wp_validate_auth_cookie(sanitize_text_field(wp_unslash($c_val)), 'secure_auth');
+                        if ($uid > 0) {
+                            $verified_user_id = $uid;
+                            break;
+                        }
+                    }
                 }
             }
         }
 
-        return false;
+        if ($verified_user_id <= 0) {
+            return ($cached_result = false);
+        }
+
+        // Layer 3: Role and High-Privilege Capability Verification
+        if (function_exists('get_userdata')) {
+            $user = get_userdata($verified_user_id);
+            if (!$user || empty($user->ID)) {
+                return ($cached_result = false);
+            }
+
+            // Require administrator role or explicit manage_options capability
+            $has_admin_cap = $user->has_cap('manage_options') || $user->has_cap('administrator');
+            $has_admin_role = in_array('administrator', (array) $user->roles, true);
+
+            if (!$has_admin_cap && !$has_admin_role) {
+                return ($cached_result = false);
+            }
+        } else {
+            return ($cached_result = false);
+        }
+
+        // Layer 4: Cryptographic Nonce Verification on REST API & AJAX Mutation Requests
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        $is_rest_call = (strpos($request_uri, '/wp-json/') !== false) || (defined('REST_REQUEST') && REST_REQUEST);
+
+        if ($is_rest_call && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE'])) : '';
+            if (empty($nonce)) {
+                // REST mutation without nonce header is untrusted (protects against CSRF)
+                return ($cached_result = false);
+            }
+
+            if (function_exists('wp_verify_nonce')) {
+                // Switch current user context to verified user for accurate nonce calculation
+                $prev_uid = function_exists('get_current_user_id') ? get_current_user_id() : 0;
+                if ($prev_uid !== $verified_user_id && function_exists('wp_set_current_user')) {
+                    wp_set_current_user($verified_user_id);
+                }
+
+                $nonce_valid = wp_verify_nonce($nonce, 'wp_rest');
+
+                if ($prev_uid !== $verified_user_id && function_exists('wp_set_current_user')) {
+                    wp_set_current_user($prev_uid);
+                }
+
+                if (!$nonce_valid) {
+                    return ($cached_result = false);
+                }
+            }
+        }
+
+        return ($cached_result = true);
     }
 
     /**
@@ -561,7 +645,7 @@ class FirewallEngine {
             if (strpos($clean_path, 'wp-cron.php') !== false) {
                 $server_addr = $_SERVER['SERVER_ADDR'] ?? '';
                 $is_loopback = in_array($client_ip, ['127.0.0.1', '::1', $server_addr], true);
-                $is_admin = is_user_logged_in() && current_user_can('manage_options');
+                $is_admin = self::is_authenticated_administrator();
 
                 if (!$is_loopback && !$is_admin) {
                     $rule_triggered = [
@@ -593,7 +677,7 @@ class FirewallEngine {
             $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'wp-admin/install.php') !== false || strpos($clean_path, 'wp-admin/upgrade.php') !== false) {
                 if (function_exists('is_blog_installed') && is_blog_installed()) {
-                    $is_admin = is_user_logged_in() && current_user_can('manage_options');
+                    $is_admin = self::is_authenticated_administrator();
                     if (!$is_admin) {
                         $rule_triggered = [
                             'id'          => 'WAF-INSTALL-LOCKDOWN',
@@ -750,9 +834,11 @@ class FirewallEngine {
         $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(wp_unslash($_SERVER['QUERY_STRING'])) : '';
         $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
 
-        // Authenticated administrators performing back-end actions in wp-admin or via authenticated REST API are exempt from payload heuristic blocks
-        $is_admin_context = is_admin() || strpos($raw_uri, '/wp-admin/') !== false || strpos($raw_uri, '/wp-json/') !== false || (defined('REST_REQUEST') && REST_REQUEST);
-        if (self::is_authenticated_administrator() && $is_admin_context) {
+        // Authenticated administrators performing back-end actions in wp-admin or via authenticated WCP REST API are exempt from payload heuristic blocks
+        // (Ensures an administrator browsing public frontend pages is STILL fully inspected and protected)
+        $is_admin_backend = is_admin() || strpos($raw_uri, '/wp-admin/') !== false;
+        $is_wcp_rest_api  = (strpos($raw_uri, '/wp-json/wcp-scanner/') !== false) || (defined('REST_REQUEST') && REST_REQUEST && strpos($raw_uri, 'wcp-scanner') !== false);
+        if (self::is_authenticated_administrator() && ($is_admin_backend || $is_wcp_rest_api)) {
             return null;
         }
 

@@ -254,20 +254,13 @@ class VirtualPatchManager {
      * @return bool
      */
     public static function is_authenticated_administrator(): bool {
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            return \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator();
+        }
+
         if (function_exists('is_user_logged_in') && function_exists('current_user_can')) {
             if (is_user_logged_in() && (current_user_can('manage_options') || current_user_can('activate_plugins'))) {
                 return true;
-            }
-        }
-
-        if (function_exists('wp_validate_auth_cookie')) {
-            $user_id = wp_validate_auth_cookie('', 'logged_in')
-                ?: (wp_validate_auth_cookie('', 'secure_auth') ?: wp_validate_auth_cookie('', 'auth'));
-            if ($user_id && function_exists('get_userdata')) {
-                $user = get_userdata($user_id);
-                if ($user && ($user->has_cap('manage_options') || $user->has_cap('activate_plugins') || in_array('administrator', (array) $user->roles, true))) {
-                    return true;
-                }
             }
         }
 
