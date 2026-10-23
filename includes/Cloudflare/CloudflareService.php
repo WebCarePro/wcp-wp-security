@@ -413,10 +413,25 @@ class CloudflareService {
             ? __('Active: Cloudflare Edge is currently dropping perimeter attacks with 0ms server CPU/RAM overhead.', 'wcp-security-scanner')
             : __('Up to 90% reduction in malicious PHP worker invocations on your hosting plan.', 'wcp-security-scanner');
 
+        $settings = SettingsManager::get_settings();
+        $api_configured = !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
+        $zone_name = '';
+        $plan_name = '';
+        if ($api_configured) {
+            $verify = self::verify_zone($settings['cloudflare_zone_id']);
+            if (!empty($verify['success'])) {
+                $zone_name = $verify['zone_name'] ?? '';
+                $plan_name = $verify['plan'] ?? 'Free';
+            }
+        }
+
         return [
             'server_software'   => $server_software,
             'is_shared_hosting' => $is_shared_candidate,
             'has_cloudflare'    => $has_cloudflare,
+            'api_configured'    => $api_configured,
+            'zone_name'         => $zone_name,
+            'plan'              => $plan_name,
             'memory_limit'      => $memory_limit,
             'savings_estimate'  => $savings_estimate,
             'headline'          => __('Shared Hosting & Resource Optimization Advisory', 'wcp-security-scanner'),
