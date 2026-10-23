@@ -407,8 +407,8 @@ class FirewallEngine {
                 'admin-ajax.php',
                 'admin-post.php',
             ];
-            $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false);
-            if ($is_admin_path && in_array($clean_script, $core_admin_pages, true)) {
+            $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/wcp-scanner/') !== false);
+            if ($is_admin_path && (in_array($clean_script, $core_admin_pages, true) || strpos($request_uri, '/wp-json/wcp-scanner/') !== false)) {
                 return;
             }
         }
@@ -750,8 +750,9 @@ class FirewallEngine {
         $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(wp_unslash($_SERVER['QUERY_STRING'])) : '';
         $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
 
-        // Authenticated administrators performing back-end actions in wp-admin are exempt from payload heuristic blocks
-        if (self::is_authenticated_administrator() && (is_admin() || strpos($raw_uri, '/wp-admin/') !== false)) {
+        // Authenticated administrators performing back-end actions in wp-admin or via authenticated REST API are exempt from payload heuristic blocks
+        $is_admin_context = is_admin() || strpos($raw_uri, '/wp-admin/') !== false || strpos($raw_uri, '/wp-json/') !== false || (defined('REST_REQUEST') && REST_REQUEST);
+        if (self::is_authenticated_administrator() && $is_admin_context) {
             return null;
         }
 
