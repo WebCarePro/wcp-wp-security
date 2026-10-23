@@ -535,21 +535,72 @@ class FirewallEngine {
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $ajax_action = sanitize_text_field($_POST['action'] ?? $_GET['action'] ?? '');
 
+        // 20 Popular WordPress Visual Builders & Block Suites:
+        // 1. Elementor, 2. Divi, 3. Beaver, 4. Bricks, 5. Breakdance, 6. Oxygen, 7. SeedProd,
+        // 8. Brizy, 9. Thrive Architect, 10. WPBakery, 11. Visual Composer, 12. Themify,
+        // 13. SiteOrigin, 14. Droip, 15. Live Composer, 16. WP Site Editor / Gutenberg FSE,
+        // 17. GenerateBlocks, 18. Kadence Blocks, 19. Spectra, 20. Avada Fusion Builder
         $is_builder_ajax = in_array($ajax_action, [
-            'elementor_ajax',
-            'elementor_save_builder',
-            'et_fb_save_builder',       // Divi Visual Builder
-            'et_fb_ajax_save',
-            'bricks_save_post',         // Bricks Builder
-            'fl_builder_save_layout',   // Beaver Builder
-            'ct_save_oxygen_data',      // Oxygen Builder
+            // Elementor & Divi
+            'elementor_ajax', 'elementor_save_builder', 'et_fb_save_builder', 'et_fb_ajax_save',
+            // Beaver Builder & Bricks
+            'fl_builder_save_layout', 'bricks_save_post',
+            // Breakdance & Oxygen
+            'breakdance_save_document', 'ct_save_oxygen_data',
+            // SeedProd & Brizy
+            'seedprod_save_page', 'brizy_update_item', 'brizy_create_item',
+            // Thrive Architect & WPBakery
+            'tve_ajax_save_post', 'wpb_save_post', 'vc_save', 'vcv-ajax',
+            // Themify Builder & SiteOrigin
+            'themify_builder_save_data', 'so_panels_save',
+            // Droip & Live Composer
+            'droip_save_page', 'dslc-ajax-save-composer',
+            // Avada Fusion Builder
+            'fusion_app_save_post', 'fusion_save_post',
+            // Block Suites (Kadence, GenerateBlocks, Spectra)
+            'kadence_save_block', 'generateblocks_save', 'uagb_save_block',
         ], true);
 
-        $is_gutenberg_rest = (strpos($request_uri, '/wp-json/wp/v2/posts') !== false || strpos($request_uri, '/wp-json/wp/v2/pages') !== false || strpos($request_uri, '/wp-json/wp/v2/blocks') !== false);
-        $is_elementor_rest = (strpos($request_uri, '/wp-json/elementor/') !== false);
-        $is_builder_preview = (isset($_GET['elementor-preview']) || isset($_GET['et_fb']) || isset($_GET['fl_builder']) || isset($_GET['bricks']));
+        $is_gutenberg_rest = (
+            strpos($request_uri, '/wp-json/wp/v2/posts') !== false ||
+            strpos($request_uri, '/wp-json/wp/v2/pages') !== false ||
+            strpos($request_uri, '/wp-json/wp/v2/blocks') !== false ||
+            strpos($request_uri, '/wp-json/wp/v2/templates') !== false ||
+            strpos($request_uri, '/wp-json/wp/v2/template-parts') !== false
+        );
 
-        if ($is_builder_ajax || $is_gutenberg_rest || $is_elementor_rest || $is_builder_preview) {
+        $is_builder_rest = (
+            strpos($request_uri, '/wp-json/elementor/') !== false ||
+            strpos($request_uri, '/wp-json/breakdance/') !== false ||
+            strpos($request_uri, '/wp-json/brizy/') !== false ||
+            strpos($request_uri, '/wp-json/seedprod/') !== false ||
+            strpos($request_uri, '/wp-json/droip/') !== false ||
+            strpos($request_uri, '/wp-json/generateblocks/') !== false ||
+            strpos($request_uri, '/wp-json/kadence/') !== false ||
+            strpos($request_uri, '/wp-json/uag/') !== false ||
+            strpos($request_uri, '/wp-json/fusion-builder/') !== false
+        );
+
+        $is_builder_preview = (
+            isset($_GET['elementor-preview']) ||
+            isset($_GET['et_fb']) ||
+            isset($_GET['fl_builder']) ||
+            isset($_GET['bricks']) ||
+            isset($_GET['breakdance']) ||
+            isset($_GET['ct_builder']) ||
+            isset($_GET['seedprod_builder']) ||
+            isset($_GET['brizy-edit']) ||
+            isset($_GET['tve']) ||
+            isset($_GET['vc_editable']) ||
+            isset($_GET['vcv-action']) ||
+            isset($_GET['tb_preview']) ||
+            isset($_GET['siteorigin_panels_live_editor']) ||
+            isset($_GET['droip_editor']) ||
+            isset($_GET['dslc']) ||
+            isset($_GET['fb-edit'])
+        );
+
+        if ($is_builder_ajax || $is_gutenberg_rest || $is_builder_rest || $is_builder_preview) {
             return ($cached_builder_result = true);
         }
 
@@ -2247,18 +2298,46 @@ class FirewallEngine {
                 'has_builders' => (
                     defined('ELEMENTOR_VERSION') ||
                     defined('ET_BUILDER_VERSION') ||
-                    defined('BRICKS_VERSION') ||
                     defined('FL_BUILDER_VERSION') ||
-                    defined('WPB_VC_VERSION') ||
-                    defined('OXYGEN_VERSION')
+                    defined('BRICKS_VERSION') ||
+                    defined('BREAKDANCE_VERSION') ||
+                    defined('CT_VERSION') || // Oxygen
+                    defined('SEEDPROD_VERSION') ||
+                    defined('BRIZY_VERSION') ||
+                    defined('TVE_VERSION') || // Thrive Architect
+                    defined('WPB_VC_VERSION') || // WPBakery
+                    defined('VCV_VERSION') || // Visual Composer
+                    defined('THEMIFY_BUILDER_VERSION') ||
+                    defined('SITEORIGIN_PANELS_VERSION') ||
+                    defined('DROIP_VERSION') ||
+                    defined('DSLC_VERSION') || // Live Composer
+                    (function_exists('wp_is_block_theme') && wp_is_block_theme()) || // WP Site Editor FSE
+                    defined('GENERATEBLOCKS_VERSION') ||
+                    defined('KADENCE_BLOCKS_VERSION') ||
+                    defined('UAGB_VER') || // Spectra
+                    defined('FUSION_BUILDER_VERSION') // Avada Fusion Builder
                 ),
                 'builder_names' => array_values(array_filter([
                     defined('ELEMENTOR_VERSION') ? 'Elementor' : null,
                     defined('ET_BUILDER_VERSION') ? 'Divi Builder' : null,
-                    defined('BRICKS_VERSION') ? 'Bricks' : null,
                     defined('FL_BUILDER_VERSION') ? 'Beaver Builder' : null,
+                    defined('BRICKS_VERSION') ? 'Bricks Builder' : null,
+                    defined('BREAKDANCE_VERSION') ? 'Breakdance' : null,
+                    defined('CT_VERSION') ? 'Oxygen Builder' : null,
+                    defined('SEEDPROD_VERSION') ? 'SeedProd' : null,
+                    defined('BRIZY_VERSION') ? 'Brizy' : null,
+                    defined('TVE_VERSION') ? 'Thrive Architect' : null,
                     defined('WPB_VC_VERSION') ? 'WPBakery' : null,
-                    defined('OXYGEN_VERSION') ? 'Oxygen' : null,
+                    defined('VCV_VERSION') ? 'Visual Composer' : null,
+                    defined('THEMIFY_BUILDER_VERSION') ? 'Themify Builder' : null,
+                    defined('SITEORIGIN_PANELS_VERSION') ? 'SiteOrigin Page Builder' : null,
+                    defined('DROIP_VERSION') ? 'Droip' : null,
+                    defined('DSLC_VERSION') ? 'Live Composer' : null,
+                    (function_exists('wp_is_block_theme') && wp_is_block_theme()) ? 'WordPress Site Editor (FSE)' : null,
+                    defined('GENERATEBLOCKS_VERSION') ? 'GenerateBlocks' : null,
+                    defined('KADENCE_BLOCKS_VERSION') ? 'Kadence Blocks' : null,
+                    defined('UAGB_VER') ? 'Spectra' : null,
+                    defined('FUSION_BUILDER_VERSION') ? 'Avada Fusion Builder' : null,
                 ])),
                 'has_jetpack' => class_exists('Jetpack'),
                 'has_central_management' => (
