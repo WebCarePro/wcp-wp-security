@@ -46,6 +46,20 @@ class CoreIntegrity {
                 continue;
             }
 
+            // Optional / Security-Hardened Files:
+            // Security plugins (Wordfence, iThemes/Solid Security, Defender, Sucuri) and security-conscious
+            // administrators frequently delete or rename informational files (like readme.html, license.txt)
+            // to prevent version enumeration and info disclosure. Do NOT flag these as high-severity missing core files.
+            $informational_core_files = [
+                'readme.html',
+                'license.txt',
+                'licencia.txt',
+                'license-es_ES.txt',
+            ];
+            if (in_array(strtolower($file), $informational_core_files, true)) {
+                continue;
+            }
+
             if (!file_exists($absolute_path)) {
                 $findings[] = new Finding([
                     'engine'      => 'integrity-core',

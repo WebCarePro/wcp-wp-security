@@ -1,3 +1,6 @@
+v:1.23.0 - 2026-10-23
+- Core Integrity Scanner False-Positive Elimination for Hardened Docs (`CoreIntegrity.php`):
+  * Security Hardened Informational Files Exemption: Automatically exempted `readme.html`, `license.txt`, `licencia.txt`, and regional variants from `missing_core_file` alerts. Security plugins (such as Wordfence, Solid Security, Defender) and hardening scripts routinely delete or rename `readme.html` to eliminate WordPress version enumeration. Our scanner now recognizes this hardening practice and does not raise false alarms.
 - Incident ID Search & Forensic Telemetry Tracking (`Migration.php`, `FirewallEngine.php`, `WafLogsPage.tsx`):
   * Incident ID Database Storage: Added dedicated `incident_id` (`varchar(32)`) column and index to `wp_wcpscan_firewall_logs` (`Migration.php`).
   * Unified Incident ID Generation: Updated `FirewallEngine::log_incident()` and `FirewallEngine::render_block_page()` to record and display the exact same incident ID across error pages, webhook alerts, and database logs.
