@@ -1,6 +1,6 @@
 {
   "version": "1.23.0",
-  "generated_at": "2026-10-23T04:16:42.948Z",
+  "generated_at": "2026-10-23T04:27:38.353Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -96,8 +96,8 @@
       "size": 43896
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "6573ba7b783d05090ea1e046435d9fac5506c490887689967a482b1e49ca10ef",
-      "size": 73625
+      "sha256": "92610ef1022eadfc7f0e8dfc7fc502ed515a13a3c21e40da694d41aca92aeb72",
+      "size": 74034
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",

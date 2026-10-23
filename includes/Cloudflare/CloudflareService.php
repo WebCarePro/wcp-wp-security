@@ -1394,8 +1394,10 @@ class CloudflareService {
                 clientRequestHTTPProtocol
                 clientRequestPath
                 clientRequestQuery
-                clientRequestUserAgent
-                clientReferer
+                userAgent
+                clientRefererHost
+                clientRefererPath
+                clientRefererQuery
                 clientCountryName
                 clientAsn
                 clientASNDescription
@@ -1468,6 +1470,14 @@ class CloudflareService {
                 }
             }
 
+            $referer = '';
+            if (!empty($ev['clientRefererHost'])) {
+                $referer = 'https://' . $ev['clientRefererHost'] . ($ev['clientRefererPath'] ?? '');
+                if (!empty($ev['clientRefererQuery'])) {
+                    $referer .= '?' . $ev['clientRefererQuery'];
+                }
+            }
+
             $mapped_events[] = [
                 'ray_id'       => $ray_id,
                 'datetime'     => $ev['datetime'] ?? gmdate('Y-m-d H:i:s'),
@@ -1481,8 +1491,8 @@ class CloudflareService {
                 'protocol'     => $ev['clientRequestHTTPProtocol'] ?? 'HTTP/1.1',
                 'path'         => $ev['clientRequestPath'] ?? '/',
                 'query'        => $ev['clientRequestQuery'] ?? '',
-                'user_agent'   => $ev['clientRequestUserAgent'] ?? '',
-                'referer'      => $ev['clientReferer'] ?? '',
+                'user_agent'   => $ev['userAgent'] ?? ($ev['clientRequestUserAgent'] ?? ''),
+                'referer'      => $referer,
                 'country'      => $ev['clientCountryName'] ?? 'Unknown',
                 'asn'          => $ev['clientAsn'] ?? '',
                 'asn_desc'     => $ev['clientASNDescription'] ?? '',
