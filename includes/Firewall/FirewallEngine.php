@@ -365,6 +365,12 @@ class FirewallEngine {
         }
 
         // Layer 2: Independent Cryptographic Auth Cookie Validation (essential at plugins_loaded: 0)
+        if ($verified_user_id <= 0) {
+            if (!function_exists('wp_validate_auth_cookie') && defined('ABSPATH') && file_exists(ABSPATH . 'wp-includes/pluggable.php')) {
+                require_once ABSPATH . 'wp-includes/pluggable.php';
+            }
+        }
+
         if ($verified_user_id <= 0 && function_exists('wp_validate_auth_cookie')) {
             $auth_cookie = '';
             $cookie_schemes = ['logged_in', 'secure_auth', 'auth'];
@@ -488,25 +494,10 @@ class FirewallEngine {
         }
 
         // Safe Bypass for Verified Authenticated Administrators performing core admin duties
-        // (Prevents false-positive blocks when deactivating, activating, updating, or uploading plugins in wp-admin)
+        // (Prevents false-positive blocks when managing comments, posts, plugins, updates, or bulk operations in wp-admin)
         if (self::is_authenticated_administrator()) {
-            $clean_script = basename(parse_url($request_uri, PHP_URL_PATH) ?: '');
-            $core_admin_pages = [
-                'plugins.php',
-                'update.php',
-                'plugin-install.php',
-                'theme-install.php',
-                'theme-editor.php',
-                'plugin-editor.php',
-                'options.php',
-                'options-general.php',
-                'options-permalink.php',
-                'site-health.php',
-                'admin-ajax.php',
-                'admin-post.php',
-            ];
             $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/wcp-scanner/') !== false);
-            if ($is_admin_path && (in_array($clean_script, $core_admin_pages, true) || strpos($request_uri, '/wp-json/wcp-scanner/') !== false)) {
+            if ($is_admin_path) {
                 return;
             }
         }
@@ -514,11 +505,12 @@ class FirewallEngine {
         // Rule #34: Oversized Request Buffer & DoS Guard (Earliest execution check)
         if (!empty($settings['waf_block_oversized_requests'])) {
             $is_upload_endpoint = (strpos($request_uri, 'async-upload.php') !== false || strpos($request_uri, '/wp-json/wp/v2/media') !== false);
+            $is_admin_area = is_admin() || strpos($request_uri, '/wp-admin/') !== false;
             $uri_length = strlen($request_uri);
             $query_length = strlen($_SERVER['QUERY_STRING'] ?? '');
             $post_count = is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
 
-            if ($uri_length > 2048 && !$is_upload_endpoint) {
+            if ($uri_length > 2048 && !$is_upload_endpoint && !$is_admin_area) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-URI',
                     'name'        => 'Oversized URI Buffer Overflow Guard',
@@ -532,7 +524,7 @@ class FirewallEngine {
                 exit;
             }
 
-            if ($query_length > 1024 && !$is_upload_endpoint) {
+            if ($query_length > 1024 && !$is_upload_endpoint && !$is_admin_area) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-QUERY',
                     'name'        => 'Oversized Query String Guard',
@@ -546,7 +538,7 @@ class FirewallEngine {
                 exit;
             }
 
-            if ($post_count > 1000 && !$is_upload_endpoint && !is_admin()) {
+            if ($post_count > 1000 && !$is_upload_endpoint && !$is_admin_area) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-POST-VARS',
                     'name'        => 'Excessive Parameter Count Flood Guard',
