@@ -42,6 +42,11 @@ v:1.24.0 - 2026-10-24
       - Intelligent Post Context Extraction: When a malicious payload or code injection is detected in a WordPress post table (e.g. `{$wpdb->prefix}posts`, custom prefixes like `09x3b_posts`), automatically queries `get_post()` to enrich the finding with the Post ID, Post Title, Post Slug (`post_name`), Post Type, Post Status, Author display name, and Publication/Modified timestamps.
       - Actionable Admin & Live Links: Added direct 1-click links to "View Live Post" (frontend permalink) and "Edit Post in WP Admin" directly in the threat row table cell and within the expanded Database Forensics card header.
       - Deep Post Forensics Profile Card: Embedded an executive WordPress Post Profile panel in the expanded forensics card displaying clean metadata chips (Post Title, ID, Status, Type, Author, and Slug) so administrators can immediately identify which article or landing page contains the infected payload without navigating away.
+    * Orphaned Post Author Intelligence & 1-Click Post Reassignment (`UserScanner.php`, `UserRemediationManager.php`, `ScannerRoutes.php`, `App.tsx`):
+      - Comprehensive Content & Post Metadata Extraction: Upgraded `UserScanner.php` and `ScannerRoutes.php` to extract rich WordPress Post context (sample post ID, title, slug, status, type, and dates) whenever orphaned content referencing deleted author accounts is flagged.
+      - Eliminated Broken "Edit Profile" Actions: Removed confusing "Edit Profile" / "Demote to Subscriber" / "Delete User" buttons for non-existent users. Replaced with direct post navigation: **"Edit Post #{id}"** (direct to WP post editor) and **"View Live"** (frontend permalink).
+      - 1-Click "Reassign All Posts to Admin" Surgical Remediation: Added automated database remediation (`reassign_orphaned_posts`) in `UserRemediationManager.php` allowing administrators to safely reassign all orphaned posts/pages from the missing author ID to the active administrator account in one click.
+      - Dedicated Orphaned Content Forensics Card: Embedded a high-contrast forensic panel in the expanded user forensics card showing the exact post title, slug (`/post-slug/`), post type, status, and clear remediation instructions.
 
 v:1.23.0 - 2026-10-23
 - Plugin Deactivation Resiliency & 3rd-Party Mailer Shield (`wcp-wp-scanner.php`, `NotificationDispatcher.php`):

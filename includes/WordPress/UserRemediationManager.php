@@ -595,4 +595,77 @@ class UserRemediationManager {
             'message'  => sprintf(__('Restored %d user accounts from backup vault.', 'wcp-security-scanner'), count($restored)),
         ];
     }
+
+    /**
+     * Reassign all posts/pages belonging to an orphaned author ID to a valid administrator or target user.
+     *
+     * @param int $orphaned_author_id Non-existent author ID.
+     * @param int|null $target_user_id Target user ID (defaults to current user or first active admin).
+     * @return array
+     */
+    public function reassign_orphaned_posts(int $orphaned_author_id, ?int $target_user_id = null): array {
+        global $wpdb;
+
+        if ($orphaned_author_id <= 0) {
+            return ['success' => false, 'error' => __('Invalid orphaned author ID.', 'wcp-security-scanner')];
+        }
+
+        if (empty($target_user_id)) {
+            $target_user_id = get_current_user_id();
+        }
+        if (empty($target_user_id)) {
+            $admins = get_users(['role' => 'administrator', 'number' => 1]);
+            if (!empty($admins)) {
+                $target_user_id = (int) $admins[0]->ID;
+            }
+        }
+
+        $target_user = get_userdata($target_user_id);
+        if (!$target_user) {
+            return ['success' => false, 'error' => sprintf(__('Target user ID #%d not found.', 'wcp-security-scanner'), $target_user_id)];
+        }
+
+        $posts_table = $wpdb->posts;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(ID) FROM `{$posts_table}` WHERE post_author = %d",
+            $orphaned_author_id
+        ));
+
+        if ($count === 0) {
+            return [
+                'success' => true,
+                'reassigned_count' => 0,
+                'target_user_id' => $target_user_id,
+                'target_user_login' => $target_user->user_login,
+                'message' => __('No posts found matching this orphaned author ID.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE `{$posts_table}` SET post_author = %d WHERE post_author = %d",
+            $target_user_id,
+            $orphaned_author_id
+        ));
+
+        // Clean post caches
+        clean_post_cache($orphaned_author_id);
+
+        return [
+            'success' => true,
+            'action' => 'reassign_orphaned_posts',
+            'orphaned_author_id' => $orphaned_author_id,
+            'target_user_id' => $target_user_id,
+            'target_user_login' => $target_user->user_login,
+            'reassigned_count' => $count,
+            'message' => sprintf(
+                __('Successfully reassigned %d post(s) from missing author #%d to %s (#%d).', 'wcp-security-scanner'),
+                $count,
+                $orphaned_author_id,
+                $target_user->display_name ?: $target_user->user_login,
+                $target_user_id
+            ),
+        ];
+    }
 }

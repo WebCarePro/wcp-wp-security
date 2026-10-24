@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T16:11:02.504Z",
+  "generated_at": "2026-10-24T17:06:35.251Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 478782
     },
     "build/index.asset.php": {
-      "sha256": "eaa5efaac04a2ecbe140c773e3343fb4d57e1183ff1751153b1ff840743a6cbb",
+      "sha256": "e4cbf1f82981ed4745095de94b4c04a3e71424079d5da5df64b8369ffb85a57d",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 478646
     },
     "build/index.js": {
-      "sha256": "bfd478aca98dc55ff70032141c39f34daf0856ceaf15a73d12f311540147f096",
-      "size": 1407510
+      "sha256": "2c95184b9f140832a3db1d9b9c35ac1668ec0e38f10e752846d44b1c14d9e6aa",
+      "size": 1417537
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "cdf9218cd2508d6d47a65bfe1a831786c4e5f08d30905cb531309459de279069",
-      "size": 353575
+      "sha256": "6caf1f433942c21a53d01e14a10e0144b6f2587f3fbd88bf2f5df9d6d95b1a0e",
+      "size": 356838
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "d74c49718eed656ce089f633201e6e415b078922651da50bc59d3f84fbec3436",
@@ -416,12 +416,12 @@
       "size": 44544
     },
     "includes/WordPress/UserRemediationManager.php": {
-      "sha256": "378f358933100eef270f8702a0063cd657eeff0023f75deece9d9ba3a01d4913",
-      "size": 24645
+      "sha256": "78831a767b32d7c141ced4037ea247f1be3a077d7906b78211da692ac7f7e586",
+      "size": 27651
     },
     "includes/WordPress/UserScanner.php": {
-      "sha256": "24e719d6f190d51a2ef72d8a2d0102bcee01fe7a6face1bed808143f05d47d10",
-      "size": 21547
+      "sha256": "bb0288420be7c50018bdfab0c6e4f55e8ed9ccd03d8a3ebb9d3ccf29e7f0b55b",
+      "size": 23190
     },
     "includes/WordPress/WordPressSecurityScanner.php": {
       "sha256": "f2855e2c57ce5db6f91bcf878b80ff119855b389a915294c58340584f83a6178",

@@ -2794,9 +2794,11 @@ class ScannerRoutes {
                 $userId = 0;
                 if (!empty($userMatches[1])) {
                     $userId = (int) $userMatches[1];
-                } elseif (preg_match('/(?:^user:|_users:user_id_|users\.ID\s*=\s*)(\d+)/i', $filePath, $m)) {
+                } elseif (preg_match('/(?:^user:|^author:|_users:user_id_|users\.ID\s*=\s*)(\d+)/i', $filePath, $m)) {
                     $userId = (int) $m[1];
-                } elseif (preg_match('/User ID:\s*(\d+)/i', $item['evidence'] ?? '', $m)) {
+                } elseif (preg_match('/(?:User|Author)\s*ID:\s*(\d+)/i', $item['evidence'] ?? '', $m)) {
+                    $userId = (int) $m[1];
+                } elseif (preg_match('/author\s*user\s*ID\s*\((\d+)\)/i', $item['description'] ?? '', $m)) {
                     $userId = (int) $m[1];
                 }
 
@@ -2835,6 +2837,51 @@ class ScannerRoutes {
                         }
                     }
                     $item['injected_caps'] = $injected_caps;
+                }
+
+                // Specialized handling for Orphaned Post Author
+                if ($type === 'orphaned_post_author' || strpos($filePath, 'author:') === 0) {
+                    $item['is_orphaned_author'] = true;
+                    $item['user_login'] = "Missing User #{$userId}";
+                    $item['user_display_name'] = "Missing User #{$userId}";
+                    $item['user_roles'] = 'MISSING (Deleted Account)';
+                    $item['edit_url'] = ''; // Cannot edit non-existent user profile
+                    $item['profile_url'] = '';
+
+                    // Parse evidence or query sample post details
+                    $sampleId = 0;
+                    $metaJson = null;
+                    if (!empty($item['evidence']) && preg_match('/Meta:\s*(\{.*\})/i', $item['evidence'], $mJson)) {
+                        $metaJson = json_decode($mJson[1], true);
+                    }
+                    if ($metaJson && !empty($metaJson['sample_id'])) {
+                        $sampleId = (int) $metaJson['sample_id'];
+                        $item['orphaned_meta'] = $metaJson;
+                    } elseif (!empty($item['description']) && preg_match('/Sample:\s*Post\s*#(\d+)/i', $item['description'], $sm)) {
+                        $sampleId = (int) $sm[1];
+                    }
+
+                    if ($sampleId > 0) {
+                        $samplePost = get_post($sampleId);
+                        if ($samplePost) {
+                            $item['sample_post_id'] = $sampleId;
+                            $item['sample_post_title'] = !empty($samplePost->post_title) ? $samplePost->post_title : __('(Untitled Post)', 'wcp-security-scanner');
+                            $item['sample_post_slug'] = !empty($samplePost->post_name) ? $samplePost->post_name : '';
+                            $item['sample_post_type'] = $samplePost->post_type;
+                            $item['sample_post_status'] = $samplePost->post_status;
+                            $item['sample_post_date'] = $samplePost->post_date;
+                            $permalink = get_permalink($sampleId);
+                            $item['sample_view_url'] = $permalink ?: '';
+                            $editUrl = get_edit_post_link($sampleId, 'raw');
+                            $item['sample_edit_url'] = $editUrl ?: admin_url("post.php?post={$sampleId}&action=edit");
+                        }
+                    }
+
+                    // Provide current admin info for 1-click reassignment
+                    $currId = function_exists('get_current_user_id') ? get_current_user_id() : 0;
+                    $currUser = $currId > 0 ? get_userdata($currId) : null;
+                    $item['reassign_target_id'] = $currId;
+                    $item['reassign_target_name'] = $currUser ? ($currUser->display_name ?: $currUser->user_login) : 'Administrator';
                 }
             } 
             // 4. Check if finding is a Database Table Row
@@ -5576,6 +5623,8 @@ class ScannerRoutes {
             $result = $mgr->delete_user($user_id, $reassign_to);
         } elseif ($action === 'restore_user') {
             $result = $mgr->restore_user_by_id($user_id);
+        } elseif ($action === 'reassign_orphaned_posts') {
+            $result = $mgr->reassign_orphaned_posts($user_id, $reassign_to);
         } else {
             return new \WP_Error('invalid_action', __('Invalid user remediation action.', 'wcp-security-scanner'), ['status' => 400]);
         }
@@ -5591,13 +5640,14 @@ class ScannerRoutes {
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
 
-        // Also mark open issues for this user account as repaired
+        // Also mark open issues for this user account or author as repaired
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query($wpdb->prepare(
-            "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s OR file_path LIKE %s) AND status = 'open'",
+            "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s OR file_path LIKE %s OR file_path = %s) AND status = 'open'",
             "user:{$user_id}%",
             "%_users:user_id_{$user_id}%",
-            "%users.ID = {$user_id}%"
+            "%users.ID = {$user_id}%",
+            "author:{$user_id}"
         ));
 
         return rest_ensure_response($result);

@@ -356,14 +356,14 @@ class UserScanner {
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $orphaned = $wpdb->get_results(
-            "SELECT p.ID, p.post_title, p.post_type, p.post_author 
+            "SELECT p.ID, p.post_title, p.post_name, p.post_type, p.post_status, p.post_date, p.post_author 
              FROM `{$posts_table}` p 
              LEFT JOIN `{$users_table}` u ON p.post_author = u.ID 
              WHERE u.ID IS NULL 
                AND p.post_author > 0 
                AND p.post_type NOT IN ('{$post_type_placeholders}') 
                AND p.post_status IN ('publish', 'future', 'draft') 
-             LIMIT 200"
+             LIMIT 500"
         );
 
         if (!empty($orphaned)) {
@@ -372,20 +372,45 @@ class UserScanner {
                 $author_id = (int) $post->post_author;
                 if (!isset($grouped_orphans[$author_id])) {
                     $grouped_orphans[$author_id] = [
-                        'count'        => 0,
-                        'types'        => [],
-                        'sample_id'    => $post->ID,
-                        'sample_title' => $post->post_title,
+                        'count'         => 0,
+                        'types'         => [],
+                        'sample_id'     => (int) $post->ID,
+                        'sample_title'  => !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'wcp-security-scanner'),
+                        'sample_slug'   => !empty($post->post_name) ? $post->post_name : '',
+                        'sample_type'   => $post->post_type,
+                        'sample_status' => $post->post_status,
+                        'sample_date'   => $post->post_date,
+                        'posts'         => [],
                     ];
                 }
                 $grouped_orphans[$author_id]['count']++;
                 if (!in_array($post->post_type, $grouped_orphans[$author_id]['types'], true)) {
                     $grouped_orphans[$author_id]['types'][] = $post->post_type;
                 }
+                if (count($grouped_orphans[$author_id]['posts']) < 5) {
+                    $grouped_orphans[$author_id]['posts'][] = [
+                        'id'     => (int) $post->ID,
+                        'title'  => !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'wcp-security-scanner'),
+                        'slug'   => !empty($post->post_name) ? $post->post_name : '',
+                        'type'   => $post->post_type,
+                        'status' => $post->post_status,
+                    ];
+                }
             }
 
             foreach ($grouped_orphans as $author_id => $data) {
                 $types_str = implode(', ', $data['types']);
+                $meta_json = wp_json_encode([
+                    'author_id'     => $author_id,
+                    'count'         => $data['count'],
+                    'types'         => $data['types'],
+                    'sample_id'     => $data['sample_id'],
+                    'sample_title'  => $data['sample_title'],
+                    'sample_slug'   => $data['sample_slug'],
+                    'sample_type'   => $data['sample_type'],
+                    'sample_status' => $data['sample_status'],
+                    'posts'         => $data['posts'],
+                ]);
                 $findings[] = new Finding([
                     'engine'      => 'wordpress-users',
                     'type'        => 'orphaned_post_author',
@@ -393,7 +418,7 @@ class UserScanner {
                     'confidence'  => 95,
                     'file_path'   => "author:{$author_id}",
                     'description' => "{$data['count']} post(s) [type(s): {$types_str}] reference non-existent author user ID ({$author_id}). Sample: Post #{$data['sample_id']} ('{$data['sample_title']}'). May indicate deleted accounts or database integrity issues.",
-                    'evidence'    => "Author ID: {$author_id}, Affected Posts: {$data['count']}, Types: {$types_str}"
+                    'evidence'    => "Author ID: {$author_id}, Affected Posts: {$data['count']}, Types: {$types_str} | Meta: {$meta_json}"
                 ]);
             }
         }
