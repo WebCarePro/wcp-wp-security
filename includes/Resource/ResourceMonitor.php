@@ -22,6 +22,7 @@ class ResourceMonitor {
     private $throttle_delay_us = 0;
     private $last_status_reason = 'Optimal memory headroom';
     private $mode = 'balanced';
+    private $visitor_hits_active = 0;
 
     public function __construct($max_memory_percent = 70, $max_time_seconds = 18, $mode = 'balanced') {
         // Enforce user setting override if present
@@ -45,13 +46,16 @@ class ResourceMonitor {
     }
 
     /**
-     * Evaluate system memory and load to set pacing and batch limits.
+     * Evaluate system memory, CPU load, and real-time visitor traffic to set pacing and batch limits.
      */
     private function evaluate_environment() {
         $mem_percent = $this->get_memory_usage_percent();
         $free_mem_mb = $this->get_free_memory_mb();
 
-        // 1. Check OS available memory if on Linux
+        // 1. Check active real-time visitor traffic (radar)
+        $this->visitor_hits_active = (int) get_transient('wcpscan_active_visitor_traffic_15s');
+
+        // 2. Check OS available memory if on Linux
         $os_low_ram = false;
         if (is_readable('/proc/meminfo')) {
             $meminfo = @file_get_contents('/proc/meminfo');
@@ -63,20 +67,24 @@ class ResourceMonitor {
             }
         }
 
-        // 2. Dynamic Pacing based on Memory Safety Envelope
-        if ($mem_percent >= $this->max_memory_percent || $os_low_ram) {
+        // 3. Dynamic Pacing based on Visitor Traffic and Memory Safety Envelope
+        if ($this->visitor_hits_active > 3) {
+            // Live visitors actively browsing/checking out! Courteously pace the scanner
+            $this->throttle_delay_us = 45000; // 45ms pause per file
+            $this->last_status_reason = "Visitor Radar Active: {$this->visitor_hits_active} live visitor hits in last 15s, courtesy throttling";
+        } elseif ($mem_percent >= $this->max_memory_percent || $os_low_ram) {
             $this->throttle_delay_us = 60000; // 60ms pause per file
             $this->last_status_reason = 'Visitor RAM Protection: Approaching memory safe ceiling (' . round($mem_percent, 1) . '%)';
         } elseif ($mem_percent >= ($this->max_memory_percent - 15)) {
-            $this->throttle_delay_us = 25000; // 25ms pause per file
+            $this->throttle_delay_us = 20000; // 20ms pause per file
             $this->last_status_reason = 'Adaptive Throttle: Pacing batch to preserve visitor headroom (' . round($mem_percent, 1) . '%)';
         } else {
-            // Check CPU load
+            // Check CPU load against available CPU cores
             if (function_exists('sys_getloadavg')) {
                 $load = @sys_getloadavg();
                 $cores = $this->get_cpu_cores();
                 if (is_array($load) && isset($load[0]) && $cores > 0 && ($load[0] / $cores) > 1.2) {
-                    $this->throttle_delay_us = 35000;
+                    $this->throttle_delay_us = 30000;
                     $this->last_status_reason = 'Visitor CPU Shield: High server load detected, pacing execution';
                     return;
                 }
@@ -87,8 +95,42 @@ class ResourceMonitor {
     }
 
     /**
-     * Dynamically recommend an intelligent batch size (e.g. 5 to 150 files)
-     * based on current free memory headroom and server pressure.
+     * Calculate complexity weight of a file so heavy scripts consume more "batch budget"
+     * than lightweight static files.
+     *
+     * @param string $filepath
+     * @return float
+     */
+    public static function get_file_weight(string $filepath): float {
+        $ext = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));
+        $size = @filesize($filepath) ?: 0;
+
+        // Non-PHP static files are extremely lightweight to inspect
+        if (!in_array($ext, ['php', 'phtml', 'phar', 'inc'], true)) {
+            return 0.2;
+        }
+
+        // Lightweight PHP file (< 20KB)
+        if ($size < 20480) {
+            return 0.8;
+        }
+
+        // Standard PHP file (20KB - 100KB)
+        if ($size < 102400) {
+            return 1.2;
+        }
+
+        // Heavy monolithic PHP file (> 250KB) - AST parser takes more cycles
+        if ($size > 256000) {
+            return 3.0;
+        }
+
+        return 1.5;
+    }
+
+    /**
+     * Dynamically recommend an intelligent batch size (e.g. 5 to 180 files)
+     * based on current free memory headroom, server pressure, and active visitor traffic.
      *
      * @param int $default_requested_batch
      * @return int
@@ -98,6 +140,11 @@ class ResourceMonitor {
         $headroom_pct = max(0, $this->max_memory_percent - $mem_percent);
         $free_mem_mb = $this->get_free_memory_mb();
 
+        // If active visitor traffic is currently high, throttle batch size down to keep PHP-FPM workers open
+        if ($this->visitor_hits_active > 3) {
+            return max(15, (int) round($default_requested_batch * 0.40));
+        }
+
         // 1. Critical memory pressure: shrink to minimum safe batch
         if ($headroom_pct <= 8 || $free_mem_mb < 60) {
             return max(5, (int) round($default_requested_batch * 0.25)); // 5-10 files
@@ -105,19 +152,19 @@ class ResourceMonitor {
 
         // 2. Moderate memory pressure: half batch size
         if ($headroom_pct <= 18 || $free_mem_mb < 120) {
-            return max(10, (int) round($default_requested_batch * 0.50)); // 15-25 files
+            return max(15, (int) round($default_requested_batch * 0.50)); // 20-30 files
         }
 
         // 3. Super Turbo: Abundant memory headroom (>500MB free and plenty of % headroom)
         if ($free_mem_mb >= 500 && $headroom_pct >= 35) {
-            // Turbo scale: up to 120 - 150 files per batch
-            return min(150, max($default_requested_batch * 3, 120));
+            // Turbo scale: up to 150 - 180 files per batch
+            return min(180, max($default_requested_batch * 3, 140));
         }
 
         // 4. Turbo: Healthy headroom (>250MB free)
         if ($free_mem_mb >= 250 && $headroom_pct >= 25) {
-            // High scale: up to 80 - 100 files per batch
-            return min(100, max($default_requested_batch * 2, 80));
+            // High scale: up to 90 - 120 files per batch
+            return min(120, max($default_requested_batch * 2, 90));
         }
 
         // 5. Standard baseline
@@ -138,10 +185,13 @@ class ResourceMonitor {
             usleep($this->throttle_delay_us);
         }
 
-        // Proactive garbage collection every 12 files
-        if ($this->files_processed_in_cycle % 12 === 0) {
+        // Proactive garbage collection & opcode memory hygiene every 15 files
+        if ($this->files_processed_in_cycle % 15 === 0) {
             if (function_exists('gc_collect_cycles')) {
                 gc_collect_cycles();
+            }
+            if (function_exists('gc_mem_caches')) {
+                @gc_mem_caches();
             }
         }
 

@@ -1202,11 +1202,25 @@ class ScannerRoutes {
 
         $file_scanner = new FileScanner();
         $processed_count = 0;
+        $accumulated_weight = 0.0;
 
         foreach ($files_to_process as $filepath) {
             // Adaptive breathing and resource headroom check before each file
             if ($governor->throttle_and_check()) {
                 // If nearing limit or OS pressure, push remaining files in this slice back onto queue front
+                $unprocessed = array_slice($files_to_process, $processed_count);
+                if (!empty($unprocessed)) {
+                    $queue = array_merge($unprocessed, $queue);
+                }
+                break;
+            }
+
+            // Factor in file complexity weight
+            $weight = \WcpScanner\Resource\ResourceMonitor::get_file_weight($filepath);
+            $accumulated_weight += $weight;
+
+            // If heavy files filled the batch weight budget early, save remaining and yield
+            if ($accumulated_weight >= ($effective_batch_size * 1.25) && $processed_count > 10) {
                 $unprocessed = array_slice($files_to_process, $processed_count);
                 if (!empty($unprocessed)) {
                     $queue = array_merge($unprocessed, $queue);

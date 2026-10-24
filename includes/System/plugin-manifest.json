@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T15:25:43.248Z",
+  "generated_at": "2026-10-24T15:42:38.172Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "de1720c8abd72928169ae6c2b7be0b94b9b669c9d7e7611bb719c5a51a6dd0b0",
-      "size": 351281
+      "sha256": "8641a8a34f8eba66fe663ae51e274b44a52811f26b26fc1ce8e84e979369c20f",
+      "size": 351933
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "d74c49718eed656ce089f633201e6e415b078922651da50bc59d3f84fbec3436",
@@ -124,8 +124,8 @@
       "size": 11496
     },
     "includes/Database/DatabaseScanner.php": {
-      "sha256": "65747ec4aa88e4763e929274110640b9820e2a430e045768c78ff6c484ce295d",
-      "size": 2579
+      "sha256": "bcee93ae2d89869db67a8cac00cd5f77222a6ab6c517e2f7f054d1862cfb907e",
+      "size": 2679
     },
     "includes/Database/Migration.php": {
       "sha256": "63b03f43f34e257c733e8f8430d7bddb2ca86a5bed2f42fdfcd87c38a7b26d70",
@@ -208,8 +208,8 @@
       "size": 11846
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "fd2bd76829e5c947628254c0c588e60ae1f9b7b1c8061144436fcc8f97cbf536",
-      "size": 181971
+      "sha256": "2dabef0dc00fa586a32969d6ee68ffe8edf3e57c038828999b97be7357fed771",
+      "size": 182355
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "af523af493a07524c58810c6b2e641ba473730aff9364809851651ab9ce016a9",
@@ -276,8 +276,8 @@
       "size": 5321
     },
     "includes/Malware/HeuristicEngine.php": {
-      "sha256": "88498f2d0335fbd43f08c2d5fa737e2575118054787a80edb52a27060a4b82d4",
-      "size": 2902
+      "sha256": "d1cf332febbd4b3f6e681592a8907981e7ff959aa45b80c1f3e145da5cbf05d0",
+      "size": 2976
     },
     "includes/Malware/KnownHashDetector.php": {
       "sha256": "01956706b7db3c8d4c0ef85a48414ca667a1423392c3a66d0cae24273ed9d1a4",
@@ -328,8 +328,8 @@
       "size": 38880
     },
     "includes/Resource/ResourceMonitor.php": {
-      "sha256": "9aab90b3a47a90d17a0bf0f259f046d38ef179d4fd028a1ac8203f3fbe1d1d42",
-      "size": 9954
+      "sha256": "bf9d7b19450cba947ea30765948ea83006761522a128e5259044c511c3fbbf00",
+      "size": 11969
     },
     "includes/Scan/ScanLock.php": {
       "sha256": "b71458fb9d5d16778f12f69c83dd2484508aa4fe4fe60183a0cd78e1dd39424f",

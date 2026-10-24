@@ -619,6 +619,12 @@ class FirewallEngine {
             return;
         }
 
+        // Record real-time visitor traffic pulse (15s rolling transient) for scanner governor
+        if (!is_admin() && strpos($_SERVER['REQUEST_URI'] ?? '', '/wp-json/wcp-scanner/') === false) {
+            $visitor_hits = (int) get_transient('wcpscan_active_visitor_traffic_15s');
+            set_transient('wcpscan_active_visitor_traffic_15s', $visitor_hits + 1, 15);
+        }
+
         $settings = SettingsManager::get_settings();
 
         if (empty($settings['waf_enabled']) || ($settings['waf_mode'] ?? 'enabled') === 'disabled') {

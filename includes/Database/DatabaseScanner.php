@@ -29,7 +29,8 @@ class DatabaseScanner {
      */
     public function scan($scan_id, $batch_size = 100) {
         $findings = [];
-        $monitor = new ResourceMonitor(80, 20);
+        $monitor = new ResourceMonitor(70, 20, 'balanced');
+        $adaptive_row_batch = $monitor->get_adaptive_batch_size($batch_size);
 
         // 1. Audit wp_options first
         $option_findings = $this->option_scanner->scan_options($scan_id);
@@ -54,7 +55,7 @@ class DatabaseScanner {
 
             $cursor = 0;
             while ($cursor !== null) {
-                if ($monitor->is_nearing_limits()) {
+                if ($monitor->throttle_and_check()) {
                     break 2;
                 }
 
@@ -63,7 +64,7 @@ class DatabaseScanner {
                     $meta['columns'],
                     $meta['primary_key'],
                     $cursor,
-                    $batch_size,
+                    $adaptive_row_batch,
                     $scan_id
                 );
 
