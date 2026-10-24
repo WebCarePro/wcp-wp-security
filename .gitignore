@@ -17,6 +17,13 @@ uploads.ini
 tests/
 AGENTS.md
 
+# Test scripts and temporary developer tools
+test_*.php
+test_*.js
+*.test.js
+*.spec.js
+scripts/update-ui.js
+
 # Frontend Source (compiled files in build/ are deployed)
 src/
 package.json

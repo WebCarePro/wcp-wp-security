@@ -54,6 +54,10 @@ v:1.24.0 - 2026-10-24
       - Full Capabilities & Permissions Matrix: Extracted all active user capabilities (`WP_User::allcaps`) and built an interactive "All Capabilities & Permissions Matrix" in `App.tsx`. Includes active capabilities counter badge, real-time live search filter, visual category color coding (Critical/Admin in crimson, Stealth Injected in orange, and Standard in blue), and one-click expand/collapse inspection.
       - Developer & Security Telemetry Strip: Enriched the user audit card with critical developer telemetry: User ID (with direct 1-click WP Admin editor link), Username, Nickname, Display Name, Email (with mailto link), Registration date, WordPress User Level (`wp_user_level` with role tier hint), Published Post Authoring count, safe Password Hash Engine detection (phpass `$P$`, Bcrypt `$2y$`, Argon2, MD5), and Two-Factor Authentication (2FA) status.
       - Enhanced Threat Table Location Cell: Upgraded the user location cell in the main findings table with role pills, active capability counters, email, and display names, giving developers and administrators instant security context directly from the main issues list.
+    * Repository Hygiene & Test File Exclusion (`.gitignore`, `AGENTS.md`):
+      - Clean Production Repository: Purged test scripts and development test suites (`test_live_http_rules.js`, `test_smart_rules_suite.php`, `test_waf_rules.js`) from GitHub tracking.
+      - Strict Git Ignore Rules: Configured `.gitignore` to permanently prevent test files (`test_*.php`, `test_*.js`, `*.test.js`, `*.spec.js`), scratch tools, and non-plugin files from being staged or committed to the GitHub repository.
+      - Codified Rule in AGENTS.md: Codified permanent policy in `AGENTS.md` ensuring only core plugin-related production files are tracked and uploaded to GitHub.
 
 v:1.23.0 - 2026-10-23
 - Plugin Deactivation Resiliency & 3rd-Party Mailer Shield (`wcp-wp-scanner.php`, `NotificationDispatcher.php`):
