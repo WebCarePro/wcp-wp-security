@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T02:32:32.357Z",
+  "generated_at": "2026-10-24T02:58:41.100Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 478782
     },
     "build/index.asset.php": {
-      "sha256": "00bea3b10c56775a2b3851981ee2d696b9a2d530bf0526bc6d125cbff86a2963",
+      "sha256": "78d06d301a0322c3b0b1994111706aa10ea1fd9779f14689677691ebae60ff3a",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 478646
     },
     "build/index.js": {
-      "sha256": "ef17719e9c437a01b68f05924ce5c1512f92b5c89e1029f03e9658c785d235c6",
-      "size": 1397397
+      "sha256": "4b5b628a579fce31a334c7cd73fa8a17b085e47623e0e1b393f4be3100b39c26",
+      "size": 1397529
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -96,8 +96,8 @@
       "size": 43896
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "da1ce4570aa56d7c1f64890c1b38823e6356c2e7b861902d7bc75e5de59cfb99",
-      "size": 75664
+      "sha256": "798c3b124446ca666e01e1fb01ac62ee0cfbfa0267adb86b56f382ea0b3d1a34",
+      "size": 75796
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",
