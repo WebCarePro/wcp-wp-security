@@ -198,7 +198,24 @@ class SecurityHeadersEngine {
             return;
         }
 
-        $uri = isset($_SERVER['REQUEST_URI']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']))) : '';
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
+        if ($raw_uri === '') {
+            return;
+        }
+
+        // Iterative URL decoding to neutralize single or multi-layer URL encoding evasion (e.g. %252eenv or %2eenv)
+        $decoded_uri = $raw_uri;
+        for ($i = 0; $i < 3; $i++) {
+            $prev = $decoded_uri;
+            $decoded_uri = rawurldecode($decoded_uri);
+            if ($decoded_uri === $prev) {
+                break;
+            }
+        }
+
+        // Normalize separators and convert to lowercase for comparison
+        $normalized_uri = strtolower(str_replace('\\', '/', $decoded_uri));
+
         $forbidden_patterns = [
             '/\.env($|\?)/i',
             '/\.git\//i',
@@ -217,7 +234,7 @@ class SecurityHeadersEngine {
         ];
 
         foreach ($forbidden_patterns as $pattern) {
-            if (preg_match($pattern, $uri)) {
+            if (preg_match($pattern, $raw_uri) || preg_match($pattern, $normalized_uri)) {
                 status_header(403);
                 header('Content-Type: text/plain; charset=utf-8');
                 echo 'Access Denied: Sensitive system file inspection blocked by WCP Security Scanner.';

@@ -1,3 +1,8 @@
+v:1.25.0 - 2026-10-25
+- Sensitive System File Probe URL-Decode Hardening (`SecurityHeadersEngine.php`):
+  * Multi-Layer URL Encoding Evasion Defense: Upgraded `protect_sensitive_files_probe()` with iterative URL decoding (`rawurldecode()`) and directory separator normalization (`\\` to `/`). Neutralizes evasive multi-layer or hex-encoded probe payloads (e.g. `/%2eenv`, `/%252eenv`, `/%2e%67%69%74/`) attempting to probe sensitive system files (`.env`, `.git`, `.sql`, `wp-config.php.bak`, `composer.json`, etc.) before pattern inspection.
+  * Dual Matching Evaluation: Evaluates forbidden sensitive file patterns against both the raw incoming request URI and the iteratively decoded/normalized URI string, eliminating bypass vectors while ensuring zero impact on legitimate site requests.
+
 v:1.24.0 - 2026-10-24
 - Automattic Jetpack Smart Pass & Verified Crawler Defense Architecture (`SettingsManager.php`, `FirewallEngine.php`, `BotReconDefense.php`, `FirewallPage.tsx`, `SettingsPage.tsx`):
   * Cryptographic Jetpack Bypass (`is_verified_jetpack_request`): Engineered an intelligent bypass for Automattic Jetpack sync requests hitting `xmlrpc.php` when `waf_disable_xmlrpc` is active. Rejects spoofed User-Agents or forged `?for=jetpack` query flags by strictly verifying incoming client IPs against Automattic's official CIDR blocks (`192.0.64.0/18`, `192.0.80.0/20`, `192.0.96.0/20`, `192.0.112.0/20`, `195.234.108.0/22`, `122.248.245.244/32`, `54.217.201.243/32`, `54.232.116.4/32`) and requiring authentic timestamp and signature parameters.
