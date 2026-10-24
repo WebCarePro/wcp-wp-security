@@ -67,6 +67,8 @@ class FileScanner {
                     // Check if harmless WordPress directory listing prevention placeholder
                     if (($basename === 'index.php' || $basename === 'index.html' || $basename === 'index.htm') && \WcpScanner\System\SettingsManager::is_safe_directory_index($file_path)) {
                         // Harmless directory silence placeholder, ignore
+                    } elseif (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($file_path)) {
+                        // Legitimate verified plugin cache file (e.g. MailPoet Twig template cache) with 0 malware
                     } else {
                         $findings[] = new Finding([
                             'engine'      => 'filesystem',

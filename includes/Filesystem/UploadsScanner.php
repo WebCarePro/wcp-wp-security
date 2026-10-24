@@ -102,6 +102,11 @@ class UploadsScanner {
                         continue;
                     }
 
+                    // Check if legitimate, verified plugin cache (e.g. MailPoet Twig template cache) with 0 malware indicators
+                    if (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($real_path)) {
+                        continue;
+                    }
+
                     $snippet = $this->extract_preview_snippet($real_path);
                     $findings[] = new Finding([
                         'engine'       => 'uploads-scanner',

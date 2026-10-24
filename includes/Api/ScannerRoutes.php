@@ -2999,7 +2999,7 @@ class ScannerRoutes {
                         'is_safe_directory_index' => in_array(strtolower(basename($realPath)), ['index.php', 'index.html', 'index.htm'], true) && \WcpScanner\System\SettingsManager::is_safe_directory_index($realPath),
                     ];
 
-                    // Real-Time Directory Protection Index Reconciliation: If executable_in_uploads finding but file is a benign silence/protection index
+                    // Real-Time Directory Protection Index Reconciliation: If executable_in_uploads finding but file is a benign silence/protection index or legitimate plugin cache file
                     if (($item['type'] ?? '') === 'executable_in_uploads' && ($item['status'] ?? 'open') === 'open') {
                         $file_basename = strtolower(basename($realPath));
                         if (in_array($file_basename, ['index.php', 'index.html', 'index.htm'], true) && \WcpScanner\System\SettingsManager::is_safe_directory_index($realPath)) {
@@ -3007,6 +3007,15 @@ class ScannerRoutes {
                             $item['is_repaired'] = true;
                             $item['auto_reconciled'] = true;
                             $item['reconciliation_reason'] = __('Benign directory listing protection index file (Silence is Golden / Directory Browsing Prevention).', 'wcp-security-scanner');
+                            if (!empty($item['id'])) {
+                                global $wpdb;
+                                $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                            }
+                        } elseif (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($realPath)) {
+                            $item['status'] = 'repaired';
+                            $item['is_repaired'] = true;
+                            $item['auto_reconciled'] = true;
+                            $item['reconciliation_reason'] = __('Benign plugin compiled cache file (e.g. MailPoet Twig template cache) verified free of malware/webshells.', 'wcp-security-scanner');
                             if (!empty($item['id'])) {
                                 global $wpdb;
                                 $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);

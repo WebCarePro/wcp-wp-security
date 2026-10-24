@@ -969,4 +969,74 @@ class SettingsManager {
         // If file contains only comments, docblocks, whitespace, or safe guards, it is completely benign
         return true;
     }
+
+    /**
+     * Checks if a PHP file in the uploads directory is a benign, compiled cache file generated
+     * by recognized legitimate WordPress plugins (such as MailPoet Twig template cache or W3TC cache),
+     * while rigorously verifying it contains zero malware, webshells, or backdoor signatures.
+     *
+     * @param string $file_path
+     * @return bool True if benign plugin cache file with zero malware indicators.
+     */
+    public static function is_legitimate_uploads_cache_file(string $file_path): bool {
+        if (!file_exists($file_path)) {
+            return false;
+        }
+
+        $norm = str_replace('\\', '/', $file_path);
+
+        // 1. Must match a known legitimate plugin cache directory pattern within wp-content/uploads/
+        $is_recognized_cache_dir = (
+            preg_match('#/wp-content/uploads/mailpoet/cache/[a-f0-9]{2}/[a-f0-9]{64}\.php$#i', $norm) ||
+            preg_match('#/wp-content/uploads/w3tc-cache/#i', $norm) ||
+            preg_match('#/wp-content/uploads/wp-optimize-cache/#i', $norm) ||
+            preg_match('#/wp-content/uploads/elementor/css/#i', $norm)
+        );
+
+        if (!$is_recognized_cache_dir) {
+            return false;
+        }
+
+        $size = @filesize($file_path);
+        // Twig template caches can be 10KB - 500KB, but shouldn't exceed 2MB
+        if ($size === false || $size > 2 * 1024 * 1024) {
+            return false;
+        }
+
+        $content = @file_get_contents($file_path);
+        if ($content === false || strlen($content) < 10) {
+            return false;
+        }
+
+        // 2. Strict Zero-Tolerance Malware / Webshell Signature Scan
+        // If it contains ANY dangerous webshell/backdoor patterns, it MUST NOT be ignored!
+        $backdoor_patterns = [
+            '/\b(eval|assert|passthru|shell_exec|exec|system|proc_open|popen|pcntl_exec)\s*\(/i',
+            '/\b(base64_decode|gzinflate|gzuncompress|str_rot13)\s*\(\s*["\']?[a-zA-Z0-9+\/]{40,}/i',
+            '/\b(file_put_contents|fwrite|fputs)\s*\(\s*["\']?[^,\)]+\.(php|phtml|phar)/i',
+            '/\$_(POST|GET|REQUEST|COOKIE)\s*\[[^\]]+\]\s*\(/i', // Dynamic execution: $_POST['x'](...)
+            '/\$\w+\s*\(\s*\$_(POST|GET|REQUEST|COOKIE)/i',       // Dynamic variable execution: $cmd($_POST['a'])
+            '/preg_replace\s*\(\s*["\']\/[^\/]*\/e["\']/i',      // preg_replace /e modifier code execution
+            '/\b(c99shell|r57shell|b374k|wso_version|alfa_team|indosec|loggershell)\b/i',
+            '/\b(chr\s*\(\s*\d+\s*\)\s*\.\s*){5,}/i',           // Obfuscated string concatenation chains
+        ];
+
+        foreach ($backdoor_patterns as $pattern) {
+            if (preg_match($pattern, $content)) {
+                return false; // Real malware detected! Do NOT ignore!
+            }
+        }
+
+        // 3. For MailPoet Twig template cache: verify authentic MailPoet Twig template footprint
+        if (strpos($norm, '/mailpoet/cache/') !== false) {
+            $is_twig = (
+                strpos($content, 'MailPoetVendor\Twig') !== false ||
+                strpos($content, '__TwigTemplate_') !== false ||
+                strpos($content, 'extends \MailPoetVendor\Twig\Template') !== false
+            );
+            return $is_twig;
+        }
+
+        return true;
+    }
 }

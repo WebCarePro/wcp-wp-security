@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T02:58:41.100Z",
+  "generated_at": "2026-10-24T03:44:23.402Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -68,8 +68,8 @@
       "size": 23923
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "89773a494a74d943081ea387da92949a192336c8747d93ac2fa0039b49c59a85",
-      "size": 348945
+      "sha256": "50e617c39a9ca918b47236b48d383062ed57c5ecbfa530d45631e181758ab4e0",
+      "size": 349740
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "d74c49718eed656ce089f633201e6e415b078922651da50bc59d3f84fbec3436",
@@ -160,8 +160,8 @@
       "size": 1065
     },
     "includes/Filesystem/FileScanner.php": {
-      "sha256": "ed9218d41cc6cf2dfd6d0c59b2bc78137e0cb3a967be644e8d34dd0f1317ff40",
-      "size": 3865
+      "sha256": "7e0e27a2b2187c3121b021b9c7bf39705e40377b33aaa0bf1099496a5492d9c4",
+      "size": 4097
     },
     "includes/Filesystem/PathValidator.php": {
       "sha256": "6167ce827aea2ed8a0c2e843aae4873adf9762edf2b79f92919167bb8fca5f13",
@@ -176,8 +176,8 @@
       "size": 763
     },
     "includes/Filesystem/UploadsScanner.php": {
-      "sha256": "4f33f06f3ca3f7782e3806d96c345d7b8489acea5609b7b011c9a4a1228a7970",
-      "size": 22926
+      "sha256": "c45197a5e9c697d698b82a1b65c57cc7ed4cdc53888696cf251d517af4df6060",
+      "size": 23224
     },
     "includes/Findings/CorrelationEngine.php": {
       "sha256": "30f3dee614c2b86043c9a67534904b4cded1be544e965da71a098467de40ce37",
@@ -388,8 +388,8 @@
       "size": 18460
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "bdc64b333d9c741bd4e70af2eaef39d8366ca35ed8a3794ac1add5945129e9a6",
-      "size": 55212
+      "sha256": "e795b81b5e9ed9700af9091f0e6d1cd5de81ef4e03069d29df23ecc40a27b0b8",
+      "size": 58545
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "a9203fb189659c87a2143008a6bcf5e56c54d42c9c675022822276e923a12490",
