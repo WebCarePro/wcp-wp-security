@@ -1191,12 +1191,27 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
+        // Initialize Dynamic Resource Governor
+        $governor = new \WcpScanner\Resource\ResourceMonitor(70, 18, 'balanced');
+        $effective_batch_size = $governor->get_adaptive_batch_size($batch_size);
+
         $total_files = count($queue);
-        $files_to_process = array_splice($queue, 0, $batch_size);
+        $files_to_process = array_splice($queue, 0, $effective_batch_size);
 
         $file_scanner = new FileScanner();
+        $processed_count = 0;
 
         foreach ($files_to_process as $filepath) {
+            // Adaptive breathing and resource headroom check before each file
+            if ($governor->throttle_and_check()) {
+                // If nearing limit or OS pressure, push remaining files in this slice back onto queue front
+                $unprocessed = array_slice($files_to_process, $processed_count);
+                if (!empty($unprocessed)) {
+                    $queue = array_merge($unprocessed, $queue);
+                }
+                break;
+            }
+
             $findings = $file_scanner->scan_file($filepath, (string) $scan_id);
             $rel_path = ltrim(str_replace(wp_normalize_path(ABSPATH), '', wp_normalize_path($filepath)), '/');
             $file_size = @filesize($filepath) ?: 0;
@@ -1209,6 +1224,8 @@ class ScannerRoutes {
                 'status'     => $file_status,
                 'scanned_at' => current_time('mysql'),
             ]);
+
+            $processed_count++;
 
             foreach ($findings as $f) {
                 $item = $f->to_array();
@@ -1277,7 +1294,8 @@ class ScannerRoutes {
             $scanned_so_far,
             $scan_total,
             $current_issues_total,
-            $elapsed_sec
+            $elapsed_sec,
+            $governor
         );
         set_transient("wcpscan_scan_live_telemetry_{$scan_id}", $telemetry, 600);
 
@@ -4230,9 +4248,10 @@ class ScannerRoutes {
      * @param int $total_files
      * @param int $issues_found
      * @param float $elapsed_sec
+     * @param \WcpScanner\Resource\ResourceMonitor|null $governor
      * @return array
      */
-    public static function get_realtime_resource_stats($batch_start_time = null, $batch_ru_start = null, $scanned_files = 0, $total_files = 0, $issues_found = 0, $elapsed_sec = 0.0) {
+    public static function get_realtime_resource_stats($batch_start_time = null, $batch_ru_start = null, $scanned_files = 0, $total_files = 0, $issues_found = 0, $elapsed_sec = 0.0, $governor = null) {
         // 1. Memory Metrics
         $mem_bytes = memory_get_usage(true);
         $mem_peak_bytes = memory_get_peak_usage(true);
@@ -4303,6 +4322,15 @@ class ScannerRoutes {
         $server_os = php_uname('s');
         $max_exec = (int) ini_get('max_execution_time');
 
+        // 5. Dynamic Governor Telemetry & Visitor Protection Diagnostics
+        $governor_info = null;
+        if ($governor instanceof \WcpScanner\Resource\ResourceMonitor) {
+            $governor_info = $governor->get_telemetry_payload();
+        } else {
+            $temp_gov = new \WcpScanner\Resource\ResourceMonitor(70, 18, 'balanced');
+            $governor_info = $temp_gov->get_telemetry_payload();
+        }
+
         return [
             'memory_mb'           => $mem_mb,
             'memory_peak_mb'      => $mem_peak_mb,
@@ -4321,6 +4349,7 @@ class ScannerRoutes {
             'php_version'         => $php_version,
             'server_os'           => $server_os,
             'max_execution_time'  => $max_exec,
+            'governor'            => $governor_info,
         ];
     }
 

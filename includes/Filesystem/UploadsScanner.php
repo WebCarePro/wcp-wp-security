@@ -61,8 +61,14 @@ class UploadsScanner {
             $normalized_uploads = str_replace('\\', '/', rtrim($uploads_path, '/\\') . '/');
             $files_inspected = 0;
             $max_files_limit = 5000; // Safeguard against runaway memory/execution time in enormous media libraries
+            $monitor = new \WcpScanner\Resource\ResourceMonitor(70, 20, 'balanced');
 
             foreach ($iterator as $item) {
+                // Adaptive breathing & memory headroom check before each file
+                if ($monitor->throttle_and_check()) {
+                    break;
+                }
+
                 try {
                     if (!$item->isFile()) {
                         continue;

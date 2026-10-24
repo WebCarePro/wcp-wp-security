@@ -33,7 +33,7 @@ class ScanManager {
     public function run_filesystem_batch($scan_id, $batch_size = 25): array {
         $scan_id_str = (string) $scan_id;
         $state = ScanState::load($scan_id_str);
-        $monitor = new ResourceMonitor(75, 18); // 75% memory ceiling, 18s execution limit
+        $monitor = new ResourceMonitor(70, 18, 'balanced'); // 70% dynamic memory safety ceiling
 
         // Abort requested check before starting chunk
         if ($state->is_abort_requested()) {
@@ -50,7 +50,8 @@ class ScanManager {
         $current_phase = $cursor['phase'] ?? 'plugins';
         $root_dir = $this->phase_root($current_phase);
 
-        $batch = $this->directory_walker->get_batch($root_dir, $cursor, $batch_size);
+        $adaptive_batch_size = $monitor->get_adaptive_batch_size($batch_size);
+        $batch = $this->directory_walker->get_batch($root_dir, $cursor, $adaptive_batch_size);
         $files = $batch['files'] ?? [];
         $new_cursor = $batch['cursor'] ?? $cursor;
         $exhausted = !empty($batch['exhausted']);
@@ -61,8 +62,8 @@ class ScanManager {
         $files_scanned = 0;
 
         foreach ($files as $file) {
-            // Guardrail checks before each file
-            if ($monitor->is_nearing_limits() || $state->is_abort_requested()) {
+            // Guardrail checks & adaptive breathing before each file
+            if ($monitor->throttle_and_check() || $state->is_abort_requested()) {
                 break;
             }
 

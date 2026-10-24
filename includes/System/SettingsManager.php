@@ -41,10 +41,12 @@ class SettingsManager {
             'ai_auto_analyze_critical' => false,
 
             // 4. Scanner Engine Performance & Throttle
-            'scan_batch_size'          => 50, // 25, 50, 100, 200
-            'memory_limit_override'    => '512M',
-            'max_file_size_kb'         => 1024, // Skip files larger than 1MB from heuristic scanning
-            'auto_quarantine_critical' => false, // Safeguard off by default
+            'scan_batch_size'                => 50, // 25, 50, 100, 200
+            'scan_memory_safety_envelope'    => 'balanced', // strict (60%), balanced (70%), performance (80%)
+            'scan_adaptive_throttling'       => true, // Dynamically throttle batch size and pace micro-sleeps for visitors
+            'memory_limit_override'          => '512M',
+            'max_file_size_kb'               => 1024, // Skip files larger than 1MB from heuristic scanning
+            'auto_quarantine_critical'       => false, // Safeguard off by default
 
             // 5. Exclusions & Ignore Rules
             'excluded_paths'           => "wp-content/cache/*\nnode_modules/*\n*.log\n*.tar.gz\n*.zip",
