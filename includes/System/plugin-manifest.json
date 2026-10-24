@@ -1,6 +1,6 @@
 {
   "version": "1.25.0",
-  "generated_at": "2026-10-24T20:38:30.899Z",
+  "generated_at": "2026-10-24T21:50:13.745Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -60,20 +60,20 @@
       "size": 342
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "78fb5e649606623ad5214c3b19e56bcab3dc55b7fea8a03e83985cf867bfc253",
-      "size": 22766
+      "sha256": "5ff9ec82cca55668a3932615795550bfcad53f8215965ea270e0233d29acae16",
+      "size": 22903
     },
     "includes/Api/MCPAgentService.php": {
-      "sha256": "86ca6aa36837ab91a39599b0c08737eab949e338a55e28bc3697e855525759b2",
-      "size": 24431
+      "sha256": "6bce6aa5b87ab4674911a9f32a518341eeef4d45ecf5c2ad016f283bf283ccc0",
+      "size": 24629
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "5aca73991c77c184e4539bff955e59db1bdf2b5876eac094ed76d228fe1a6063",
-      "size": 363300
+      "sha256": "fb37faedd3e103a79fa689c7617247c998176308de35e4517c66a61759f4e88c",
+      "size": 366011
     },
     "includes/Auth/LoginHardening.php": {
-      "sha256": "c9f1bcfb092ae4eea99fe00dcce48b4388096c803c8a8a5b24674aebde45efe1",
-      "size": 11735
+      "sha256": "1b483a410c8f666e1250ebf8ae5da87f6c907db1c8be5309798641cf28053691",
+      "size": 12281
     },
     "includes/Auth/LoginHistoryManager.php": {
       "sha256": "624c5f3e9c75781e0fd0d2294b6a091e1a2fa7e753ebf79bddc9a6c5f2fe72a8",
@@ -88,16 +88,16 @@
       "size": 36594
     },
     "includes/Auth/TwoFactorAuth.php": {
-      "sha256": "c87ee1c1001bbae1ecff2300a67208259fc757465c6d3ac1d28b2ce298cacf54",
-      "size": 44461
+      "sha256": "e9e48533c53665d91d9f883d816b4223b6fe7f83ede067b941aaa7277034fef4",
+      "size": 45653
     },
     "includes/Backup/DatabaseBackup.php": {
-      "sha256": "e03bd16ebca05d48a63c0bdefa2968bc21df30b5199211ca34a1e37a16ce6e66",
-      "size": 44233
+      "sha256": "bc41631ed2ea0d255d1f5c9f40a2ddf1588a6d6d4ec10ded5ee66d90e2833246",
+      "size": 46131
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "ae673599d8e31caf120ab675418f87fc5338db3dd0a8b6a220b41744e5bd1163",
-      "size": 76762
+      "sha256": "c118876261a87eedbfc03560fcd802d262210bb1baac8a9e3be54fea452515f7",
+      "size": 76977
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "6ff2ee0eb78bc32f77869a602735f6c3a615e2ae776a77ad28cdb1191bf0e9e7",
@@ -120,8 +120,8 @@
       "size": 2732
     },
     "includes/Database/DatabaseRemediationManager.php": {
-      "sha256": "667f1447e064230f395ed1778961fbfd7c0d7e6b09a590376e7c7ab0761f2804",
-      "size": 11496
+      "sha256": "ff9dc0d02b2db8e7448069b5cd1bfd4fbb9d9d281fd163985e9ddd4f7d8f1943",
+      "size": 11349
     },
     "includes/Database/DatabaseScanner.php": {
       "sha256": "bcee93ae2d89869db67a8cac00cd5f77222a6ab6c517e2f7f054d1862cfb907e",
@@ -164,8 +164,8 @@
       "size": 4097
     },
     "includes/Filesystem/PathValidator.php": {
-      "sha256": "6167ce827aea2ed8a0c2e843aae4873adf9762edf2b79f92919167bb8fca5f13",
-      "size": 14600
+      "sha256": "6cf05d16542ec7c7be30eaaf539ecd5c98a50b645ec0ed10db389ccc5215c351",
+      "size": 16065
     },
     "includes/Filesystem/PermissionScanner.php": {
       "sha256": "c837aa98de0aed66faa536fa2513b008f4a06176c8a11c7368f41f48c669599d",
@@ -176,8 +176,8 @@
       "size": 763
     },
     "includes/Filesystem/UploadsScanner.php": {
-      "sha256": "ae9156130ef4298cd27f9d78fc295f1e1cfc156f9a620c70bccdf53a7f873d48",
-      "size": 23494
+      "sha256": "7a8b2ba1cc14a4cc9e043ca4dac037831ede1d11e126f7b934148b4c5a6c4ac4",
+      "size": 23391
     },
     "includes/Findings/CorrelationEngine.php": {
       "sha256": "30f3dee614c2b86043c9a67534904b4cded1be544e965da71a098467de40ce37",
@@ -192,8 +192,8 @@
       "size": 2571
     },
     "includes/Findings/FindingsRepository.php": {
-      "sha256": "577886531a472c68a3e710e738b879f3c486522451bcb804c074701ccc0b919b",
-      "size": 6135
+      "sha256": "7e72aab5dfe4adb5561ba13501ad9ede2628ef2c1c3c27ccaef0ef983968cf7a",
+      "size": 6263
     },
     "includes/Findings/RiskScorer.php": {
       "sha256": "08d7050e31d2b7ed173f02619765cdc248ca2cf751d701e8421206e89eec944d",
@@ -208,28 +208,28 @@
       "size": 11846
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "2fdaf7b018b04aa212bc66f39e8458426fafd38a68e1ac1b14d7b6b86b24e824",
-      "size": 183290
+      "sha256": "18828b69ad5c5ffe4e38fa0057f32deb0eccf4caa4040b708e7ee8f76def5565",
+      "size": 183573
     },
     "includes/Firewall/ServerSecurityEngine.php": {
-      "sha256": "af523af493a07524c58810c6b2e641ba473730aff9364809851651ab9ce016a9",
-      "size": 20493
+      "sha256": "0be484c21dfdc47cbbee8bb062e2f3ca34433cb5164766c4c7387826d13b3ba0",
+      "size": 21255
     },
     "includes/Firewall/ThreatIntelService.php": {
-      "sha256": "08cddd675c029807fcfda1ee0cd75f3b41c000ceec297d9a36cce3ada82279a0",
-      "size": 20992
+      "sha256": "e41531764854a4850e31285af3c74f2ef061b68a3e40037f70d05df9099425d4",
+      "size": 21038
     },
     "includes/Firewall/VirtualPatchManager.php": {
-      "sha256": "5f2b3cc1b5244ad38bfa9ec7fcaa7b61140ba14d502a5a7ecc8657ac9fcdc859",
-      "size": 23842
+      "sha256": "784f7bd0a15488677ff4e28650297cbec5de0cd825109e0f45c410896083924d",
+      "size": 24077
     },
     "includes/Forensics/AttackChainEngine.php": {
-      "sha256": "448b99e9c2d00e6932cad6581b52bf6a52ebe4ab2bfb48ef9cb3d8559ddbeffa",
-      "size": 40987
+      "sha256": "5a2ff6fe8028f89c9d08e5779f27a1e1442742393399b424b62282a380cea107",
+      "size": 41284
     },
     "includes/Hardening/PermissionHardeningManager.php": {
-      "sha256": "96368d7e86934d7138d97131124f2bacf2e3837e4aa46a4cb663cff38a6c17af",
-      "size": 27602
+      "sha256": "62d66603a031c946389f2e57103c236526c0c586b20a18d6767c7feaa2cd996c",
+      "size": 29008
     },
     "includes/Hardening/SecurityHeadersEngine.php": {
       "sha256": "6303238bfbea2c57bc4d8a6466a9088734dddc1c45a9f7fd9d8b20f2dddaacd7",
@@ -240,24 +240,24 @@
       "size": 20668
     },
     "includes/Integrity/ChecksumProvider.php": {
-      "sha256": "2bfb30af1f59540d8b613124501214a5e28b6a025980aeca2aafae4d78c9c567",
-      "size": 7310
+      "sha256": "f8af1fa4236f421c7e9b19f747e9dbe784d4ea555f26494c8455e59129acb7a3",
+      "size": 7441
     },
     "includes/Integrity/CoreIntegrity.php": {
       "sha256": "318df95891aa8b2a9b501d29ee04bde5bdf0cef7e457e53ad9a7f0209a150d88",
       "size": 6523
     },
     "includes/Integrity/FileIntegrityMonitor.php": {
-      "sha256": "3c1a845952345da3897334392031107e0cc7e71058ed6c4707748942af42e1fb",
-      "size": 63227
+      "sha256": "1792b91a1c0c799eb8fcef560dbe19e706a920ccc6a838398525c6072076e6cf",
+      "size": 63427
     },
     "includes/Integrity/FimDriftDetector.php": {
       "sha256": "7f2c7965d1ad9bdb3818fee7c47e4327183bb368b8f872b928b7a2484fc8459d",
       "size": 25309
     },
     "includes/Integrity/FimVaultManager.php": {
-      "sha256": "76322685ecb1e16c52c4f6667cb47d9982bef195ef73a97e6f28cfd8664b87be",
-      "size": 11744
+      "sha256": "619b035a022d33a6052bf2c368a83dd6169b86a21bda29ee0fc87f7977617583",
+      "size": 12009
     },
     "includes/Integrity/ImportantFileFIM.php": {
       "sha256": "b60df0c31fd1f5273eaa9975ffe2255220a22af59bda7f64502183810ac89030",
@@ -312,16 +312,16 @@
       "size": 1215
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "4eef7399c066e85eeab1f1dac9c656a1d0056fac71262b7308ad34f75ea38599",
-      "size": 22584
+      "sha256": "6282d8baa772a94a02f0ed9dd0479ce2321580756ab0a5ff7af74ffc7ec6dce2",
+      "size": 23171
     },
     "includes/Remediation/RemediationManager.php": {
-      "sha256": "c75ac873fbb45442269f9b3879e316d2e1fa6db1b82e363b44b969fb22f41d4a",
-      "size": 39919
+      "sha256": "366256b0f01dc05555bfc6a7840797e55d0587e3c11b81952915ffd12e8dfbbb",
+      "size": 41139
     },
     "includes/Remediation/TransactionalRemediation.php": {
-      "sha256": "9b05eaf350ec3dd11abd14adaad575e2c0595b49210c7fb3487c21d3b6ff5e50",
-      "size": 18250
+      "sha256": "f96c7d5a10f1b35df8233af23bae3bd0d98f4b4d079fb78a21eec7dc50993c2c",
+      "size": 19310
     },
     "includes/Reports/IncidentReportEngine.php": {
       "sha256": "4ffd0e6ae6e7c66a4db4d7cca1225c10065d169a6e72311788c0b1e63572a9a7",
@@ -356,8 +356,8 @@
       "size": 4405
     },
     "includes/Security/PluginSelfDefense.php": {
-      "sha256": "219d8b9f26082f9ecd0728f375a8b503026b86c2aa18819a79620ab932bc2100",
-      "size": 25797
+      "sha256": "995835e1025adabc00b2ebcac5a79dc27206a17c6e7f987faef4f9b877256571",
+      "size": 26043
     },
     "includes/Security/SecretVault.php": {
       "sha256": "db225b272b57bbfd92a022c5ef22b4537fd2ec86ed0d259e4df4fa716310c664",
@@ -368,32 +368,32 @@
       "size": 19037
     },
     "includes/System/AIService.php": {
-      "sha256": "d3f17292d38646a3fc093c8411284f0e8bf2851e664671479b566208911c8a1d",
-      "size": 47713
+      "sha256": "f02e45b2567c7123f6550ed00aae6d9ee0e985c32551478504b76a7b83d2a99d",
+      "size": 48307
     },
     "includes/System/AuditLogger.php": {
       "sha256": "54e369288363d19daa3c10a197481586c10c66baf35ecd9a32e2b2ab81f0bbf4",
       "size": 6081
     },
     "includes/System/PluginUpdater.php": {
-      "sha256": "dc8fe377bb33bb77817e88e0f13668548330d64bfc852247d133e179c36b1032",
-      "size": 19375
+      "sha256": "11a07fadcf91d72470f6907b3cab2f5493fa1c94d31825341ea93a1896e7d39b",
+      "size": 20342
     },
     "includes/System/Scheduler.php": {
-      "sha256": "1b952de35b07b2b19823da10db4d944fae303ac2bfc904e54b83c9cf2b0e538e",
-      "size": 33288
+      "sha256": "e06c0442a0ec22c95cdbf99f1a3f52678cc42c94d9b69062f844a74f1701c7ba",
+      "size": 33700
     },
     "includes/System/ServerInfo.php": {
       "sha256": "dac01031d60fde2f3428ef996f8fb5ac2f1aaaeefdb697e70e5f6ad247956d3a",
       "size": 18463
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "e07dc856cbbb670e58a292bb40187defe470a1b69c2712572c757c846ab15e89",
-      "size": 58806
+      "sha256": "6780897c4e9ab6a7a6a82c7ac546f6a355a4061b55a742eeeb4f224ea3bd9b10",
+      "size": 58814
     },
     "includes/System/SystemReadinessChecker.php": {
-      "sha256": "bec3e31e57505055f9aae1e0266a9aabf59d80306b104fd450c6faf64c851f49",
-      "size": 25297
+      "sha256": "37fc6b6ec2d189a725d4c6c375636a0d03d637b4b920e8a3ee4b2bc121f8c205",
+      "size": 25655
     },
     "includes/WordPress/ConfigScanner.php": {
       "sha256": "b083565ec1150fef9f67b4e71b1fb03f14ddc63354f7998b96e4edd65896f813",
@@ -408,20 +408,20 @@
       "size": 11563
     },
     "includes/WordPress/PersistenceScanner.php": {
-      "sha256": "1a53cf31eec9deec2a59905223e90e0f1c72829f1fefaad3d9be626131c4b6b3",
-      "size": 42057
+      "sha256": "f972c9663450a55a316868607b3c551b98e184000dc335b263a5456fe34e774c",
+      "size": 42364
     },
     "includes/WordPress/UpdateScanner.php": {
       "sha256": "ba0578211f4b3a60071e543e952052f7bd0af1db5e37912f9acf4cdc14a3a3d5",
       "size": 44544
     },
     "includes/WordPress/UserRemediationManager.php": {
-      "sha256": "2348e75cb88eba582019964b6d233c02b23aa8d228d49f629fbb0f20eea8b62b",
-      "size": 28337
+      "sha256": "49f9962c5b61687171eabfc273a61300ab94035440c04e5dff7c0dd5ea683153",
+      "size": 28222
     },
     "includes/WordPress/UserScanner.php": {
-      "sha256": "06b3b8ed47360a8ea18683fbf9a54cfa901ed7a2eb5c9e7b3eb9e6c7f86574b3",
-      "size": 23814
+      "sha256": "44af6b9b258b2484b59b0d4be0cf3505906008b761ce90cbe2cf8e0665d05291",
+      "size": 23846
     },
     "includes/WordPress/WordPressSecurityScanner.php": {
       "sha256": "f2855e2c57ce5db6f91bcf878b80ff119855b389a915294c58340584f83a6178",
@@ -440,16 +440,16 @@
       "size": 43448
     },
     "readme.txt": {
-      "sha256": "e14349af0f4a728dd5e567cd0ef6bcae5ef29fed87522df07ac010324b19c1ff",
-      "size": 43093
+      "sha256": "f26515d652d8a58eb7d8e60dbc49b194bb1a7b299810d8761fa66388f7f54e24",
+      "size": 15241
     },
     "uninstall.php": {
-      "sha256": "0c3cc3b6e1e387fa00e3774c4d227bcafccfa7bb4bc6dea87ed444be0b061507",
-      "size": 4654
+      "sha256": "695233229319fa7fbf30482954b990d5b58fe06d218f02822ef80241f9ed3246",
+      "size": 4391
     },
     "wcp-wp-scanner.php": {
-      "sha256": "d784ed9382419ede42eedf7bb7552b944513b011dc9b5c6423a6cfae79b41d72",
-      "size": 3738
+      "sha256": "1f200289328a20e4cc314c5ef410f92133b66f433eaf14af7f0ce8c17fa4b42d",
+      "size": 3865
     }
   }
 }

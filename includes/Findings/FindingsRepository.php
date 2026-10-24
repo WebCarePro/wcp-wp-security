@@ -39,6 +39,7 @@ class FindingsRepository {
             }
 
             $sql = "INSERT INTO {$table} (scan_id, file_path, file_size, status, scanned_at) VALUES " . implode(', ', $placeholders);
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $prepared = $wpdb->prepare($sql, $values);
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
             $res = $wpdb->query($prepared);
@@ -137,6 +138,7 @@ class FindingsRepository {
             }
         }
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $prepared = $wpdb->prepare($sql, $safe_values);
         return str_replace("'{$token}'", 'NULL', $prepared);
     }

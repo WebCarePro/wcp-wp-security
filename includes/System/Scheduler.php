@@ -330,7 +330,14 @@ class Scheduler {
             // 1. Scheduled scan complete event
             \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_scheduled_complete', [
                 'severity' => ($total_issues > 0) ? 'high' : 'info',
-                'message'  => sprintf(__('Scheduled background scan #%d finished for target "%s". %d issue(s) identified (Risk Score: %d/100).', 'wcp-security-scanner'), $scan_id, $target, $total_issues, $risk_score),
+                'message'  => sprintf(
+                    /* translators: 1: scan ID, 2: scan target, 3: count of issues, 4: risk score */
+                    __('Scheduled background scan #%1$d finished for target "%2$s". %3$d issue(s) identified (Risk Score: %4$d/100).', 'wcp-security-scanner'),
+                    $scan_id,
+                    $target,
+                    $total_issues,
+                    $risk_score
+                ),
                 'details'  => [
                     'scan_id'      => $scan_id,
                     'target'       => $target,
@@ -346,7 +353,12 @@ class Scheduler {
             if (!empty($critical_or_high)) {
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
                     'severity' => 'critical',
-                    'message'  => sprintf(__('Critical or high-priority security threats were detected during scan #%d (%d threats).', 'wcp-security-scanner'), $scan_id, count($critical_or_high)),
+                    'message'  => sprintf(
+                        /* translators: 1: scan ID, 2: count of threats */
+                        __('Critical or high-priority security threats were detected during scan #%1$d (%2$d threats).', 'wcp-security-scanner'),
+                        $scan_id,
+                        count($critical_or_high)
+                    ),
                     'details'  => [
                         'scan_id'        => $scan_id,
                         'critical_count' => count($critical_or_high),

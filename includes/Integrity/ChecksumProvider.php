@@ -147,6 +147,7 @@ class ChecksumProvider {
                                 $stream = $zip->getStream($entry_name);
                                 if ($stream) {
                                     $manifest[$rel_name] = md5(stream_get_contents($stream));
+                                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                                     fclose($stream);
                                 } else {
                                     $manifest[$rel_name] = true;
@@ -154,13 +155,13 @@ class ChecksumProvider {
                             }
                         }
                         $zip->close();
-                        @unlink($tmp_file);
+                        wp_delete_file($tmp_file);
                         if (!empty($manifest)) {
                             set_transient($cache_key, $manifest, defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400);
                             return $manifest;
                         }
                     }
-                    @unlink($tmp_file);
+                    wp_delete_file($tmp_file);
                 }
             }
         }

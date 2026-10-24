@@ -81,7 +81,11 @@ register_deactivation_hook(__FILE__, function () {
             $user = wp_get_current_user();
             \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_deactivate_attempt', [
                 'severity' => 'high',
-                'message'  => sprintf(__('WCP Security Scanner was deactivated by user "%s".', 'wcp-security-scanner'), $user->user_login ?: 'system/cron'),
+                'message'  => sprintf(
+                    /* translators: %s: WordPress user login name */
+                    __('WCP Security Scanner was deactivated by user "%s".', 'wcp-security-scanner'),
+                    $user->user_login ?: 'system/cron'
+                ),
                 'details'  => [
                     'user_login' => $user->user_login ?: 'unknown',
                     'user_email' => $user->user_email ?: 'unknown',

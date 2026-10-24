@@ -174,8 +174,8 @@ class CloudflareService {
         if (empty($zones)) {
             return [
                 'success' => false,
-                // translators: %s: candidate domain or site host
                 'message' => sprintf(
+                    /* translators: %s: candidate domain or site host */
                     __('No matching Cloudflare zone found for "%s". Ensure your token has "Zone > Zone: Read" permissions for this domain, or enter your Zone ID manually.', 'wcp-security-scanner'),
                     $candidate_domain ?: $site_host
                 ),
@@ -221,8 +221,8 @@ class CloudflareService {
 
         return [
             'success' => false,
-            // translators: %1$s: candidate domain, %2$s: comma-separated list of available zones
             'message' => sprintf(
+                /* translators: %1$s: candidate domain, %2$s: comma-separated list of available zones */
                 __('Could not auto-match "%1$s". Available zones: %2$s. Please enter your Zone ID manually.', 'wcp-security-scanner'),
                 $candidate_domain,
                 implode(', ', $available_names)
@@ -328,8 +328,8 @@ class CloudflareService {
                     if (in_array(strtoupper($record['type'] ?? ''), ['A', 'AAAA', 'CNAME'], true)) {
                         $is_proxied = !empty($record['proxied']);
                         $detection_method = 'api_dns_record';
-                        // translators: %1$s: DNS record name, %2$s: DNS record type, %3$s: proxy status
                         $details = sprintf(
+                            /* translators: %1$s: DNS record name, %2$s: DNS record type, %3$s: proxy status */
                             __('DNS Record: %1$s (%2$s) → Proxied: %3$s', 'wcp-security-scanner'),
                             $record['name'] ?? $site_host,
                             $record['type'] ?? 'A',
@@ -902,8 +902,8 @@ class CloudflareService {
         if (!empty($update_res['success'])) {
             return [
                 'success' => true,
-                // translators: %d: count of synced rules
                 'message' => sprintf(
+                    /* translators: %d: count of synced rules */
                     __('Successfully synced %d Cloudflare Edge WAF rules.', 'wcp-security-scanner'),
                     count($new_wcp_rules)
                 ),
@@ -1138,8 +1138,8 @@ class CloudflareService {
                         'success' => true,
                         'enabled' => true,
                         'rate_limit_info' => self::get_rate_limiting_info($zone_id),
-                        // translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name
                         'message' => sprintf(
+                            /* translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name */
                             __('Cloudflare Free Rate Limiter active (%1$d req / %2$ds, action: %3$s, penalty: 10s). Adjusted penalty to 10s per Cloudflare Free Plan requirements. For 12h/24h bans, enable Real-time WAF Auto-Ban Sync.', 'wcp-security-scanner'),
                             $requests,
                             $period,
@@ -1156,8 +1156,15 @@ class CloudflareService {
                 'enabled' => $enable,
                 'rate_limit_info' => self::get_rate_limiting_info($zone_id),
                 'message' => $enable
-                    // translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name, %4$d: penalty timeout in seconds, %5$s: target path
-                    ? sprintf(__('Cloudflare Free Rate Limiter deployed (%1$d req / %2$ds, action: %3$s, penalty: %4$ds) for %5$s.', 'wcp-security-scanner'), $requests, $period, strtoupper($action), $timeout, esc_html($saved_path_string))
+                    ? sprintf(
+                        /* translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name, %4$d: penalty timeout in seconds, %5$s: target path */
+                        __('Cloudflare Free Rate Limiter deployed (%1$d req / %2$ds, action: %3$s, penalty: %4$ds) for %5$s.', 'wcp-security-scanner'),
+                        $requests,
+                        $period,
+                        strtoupper($action),
+                        $timeout,
+                        esc_html($saved_path_string)
+                    )
                     : __('Cloudflare Edge Rate Limiter removed.', 'wcp-security-scanner'),
             ];
         }

@@ -106,7 +106,7 @@ class PermissionHardeningManager {
             'owner_uid'   => $owner_uid !== false ? $owner_uid : 0,
             'group_name'  => $group_name,
             'group_gid'   => $group_gid !== false ? $group_gid : 0,
-            'is_writable' => is_writable($path),
+            'is_writable' => wp_is_writable($path),
             'perms_octal' => $perms_octal,
         ];
     }
@@ -223,7 +223,8 @@ class PermissionHardeningManager {
                         if ($has_posix && $server_uid !== 0 && $owner_uid !== $server_uid) {
                             $can_modify = false;
                             $reason = sprintf(
-                                __('Directory is owned by %s (UID %d), but PHP web server runs as %s (UID %d). Non-root PHP cannot modify directory permissions owned by another user.', 'wcp-security-scanner'),
+                                /* translators: 1: directory owner name, 2: directory owner UID, 3: server user name, 4: server UID */
+                                __('Directory is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Non-root PHP cannot modify directory permissions owned by another user.', 'wcp-security-scanner'),
                                 $owner_name,
                                 $owner_uid,
                                 $server_info['user'],
@@ -308,7 +309,8 @@ class PermissionHardeningManager {
                         if ($has_posix && $server_uid !== 0 && $owner_uid !== $server_uid) {
                             $can_modify = false;
                             $reason = sprintf(
-                                __('File is owned by %s (UID %d), but PHP web server runs as %s (UID %d). Non-root PHP cannot modify file permissions owned by another user.', 'wcp-security-scanner'),
+                                /* translators: 1: file owner name, 2: file owner UID, 3: server user name, 4: server UID */
+                                __('File is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Non-root PHP cannot modify file permissions owned by another user.', 'wcp-security-scanner'),
                                 $owner_name,
                                 $owner_uid,
                                 $server_info['user'],
@@ -407,9 +409,15 @@ class PermissionHardeningManager {
 
         // 1. Fix root directory itself if needed.
         // In cPanel and secure setups, 0750 and 0755 are both fully compliant and secure.
+        global $wp_filesystem;
         $root_perm = substr(sprintf('%o', @fileperms($root)), -4);
         if ($root_perm !== '0755' && $root_perm !== '0750') {
-            $changed = @chmod($root, 0755);
+            if ($wp_filesystem) {
+                $changed = $wp_filesystem->chmod($root, 0755);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                $changed = @chmod($root, 0755);
+            }
             clearstatcache(true, $root);
             $new_perm = substr(sprintf('%o', @fileperms($root)), -4);
             if ($new_perm === '0755' || $new_perm === '0750') {
@@ -449,7 +457,12 @@ class PermissionHardeningManager {
                 if ($is_dir) {
                     // Standardize directory to 0755 (allow 0750 as already secure)
                     if ($current_octal !== '0755' && $current_octal !== '0750') {
-                        $changed = @chmod($full_path, 0755);
+                        if ($wp_filesystem) {
+                            $changed = $wp_filesystem->chmod($full_path, 0755);
+                        } else {
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                            $changed = @chmod($full_path, 0755);
+                        }
                         clearstatcache(true, $full_path);
                         $after_octal = substr(sprintf('%o', @fileperms($full_path)), -4);
 
@@ -472,7 +485,12 @@ class PermissionHardeningManager {
 
                     if ($current_octal !== $target_octal) {
                         // For wp-config.php, try 0600, fallback to 0640 or 0644 if 0600 breaks read
-                        $changed = @chmod($full_path, $target_mode);
+                        if ($wp_filesystem) {
+                            $changed = $wp_filesystem->chmod($full_path, $target_mode);
+                        } else {
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                            $changed = @chmod($full_path, $target_mode);
+                        }
                         clearstatcache(true, $full_path);
                         $after_octal = substr(sprintf('%o', @fileperms($full_path)), -4);
 
@@ -508,7 +526,8 @@ class PermissionHardeningManager {
         return [
             'success'                 => true,
             'message'                 => sprintf(
-                __('Hardening complete: %d directories restored to 0755, %d files secured to 0644. %d active scan issues resolved.', 'wcp-security-scanner'),
+                /* translators: 1: count of fixed directories, 2: count of fixed files, 3: count of reconciled scan issues */
+                __('Hardening complete: %1$d directories restored to 0755, %2$d files secured to 0644. %3$d active scan issues resolved.', 'wcp-security-scanner'),
                 $dirs_fixed,
                 $files_fixed,
                 $reconciled_issues_count
@@ -528,7 +547,8 @@ class PermissionHardeningManager {
     private static function build_unfixable_item(string $path, string $type, string $current_octal, string $target_octal, array $server_info): array {
         $ownership = self::get_path_ownership($path);
         $reason = sprintf(
-            __('Path is owned by %s (UID %d), but PHP web server runs as %s (UID %d). Modify ownership via terminal or SSH.', 'wcp-security-scanner'),
+            /* translators: 1: path owner name, 2: path owner UID, 3: server user name, 4: server UID */
+            __('Path is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Modify ownership via terminal or SSH.', 'wcp-security-scanner'),
             $ownership['owner_name'],
             $ownership['owner_uid'],
             $server_info['user'],

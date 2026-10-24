@@ -314,6 +314,7 @@ class MCPAgentService {
                 'content' => [
                     [
                         'type' => 'text',
+                        /* translators: %d: request rate limit count */
                         'text' => sprintf(__('Rate limit exceeded: Maximum %d requests per minute allowed for MCP Agent tools.', 'wcp-security-scanner'), $rate_limit),
                     ],
                 ],
@@ -341,6 +342,7 @@ class MCPAgentService {
                 'content' => [
                     [
                         'type' => 'text',
+                        /* translators: %s: MCP tool name */
                         'text' => sprintf(__('Permission Denied: Tool "%s" modifies site state, but MCP Agent Service is locked in "Read-Only (Observation)" mode. Change to "Full Remediation" mode in WCP Settings to allow autonomous file actions.', 'wcp-security-scanner'), sanitize_text_field($tool)),
                     ],
                 ],
@@ -384,6 +386,7 @@ class MCPAgentService {
                     'content' => [
                         [
                             'type' => 'text',
+                            /* translators: %s: MCP tool name */
                             'text' => sprintf(__('Unknown MCP tool "%s".', 'wcp-security-scanner'), sanitize_text_field($tool)),
                         ],
                     ],

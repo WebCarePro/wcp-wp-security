@@ -21,11 +21,7 @@ class DatabaseRemediationManager {
      */
     private function ensure_backup_directory() {
         if (!is_dir($this->backup_dir)) {
-            if (function_exists('wp_mkdir_p')) {
-                wp_mkdir_p($this->backup_dir);
-            } else {
-                @mkdir($this->backup_dir, 0755, true);
-            }
+            wp_mkdir_p($this->backup_dir);
         }
 
         $htaccess = $this->backup_dir . '/.htaccess';

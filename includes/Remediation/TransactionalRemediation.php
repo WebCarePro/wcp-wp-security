@@ -285,18 +285,39 @@ class TransactionalRemediation {
                         wp_mkdir_p($dir);
                     }
 
-                    if (@copy($backup_file, $target_abs)) {
+                    global $wp_filesystem;
+                    $copied = false;
+                    if ($wp_filesystem) {
+                        $copied = $wp_filesystem->copy($backup_file, $target_abs, true);
+                    } else {
+                        $copied = @copy($backup_file, $target_abs);
+                    }
+
+                    if ($copied) {
                         $restored_files++;
                         // Restore original permissions & timestamps
                         if (!empty($item['original_perms'])) {
-                            @chmod($target_abs, octdec($item['original_perms']));
+                            if ($wp_filesystem) {
+                                $wp_filesystem->chmod($target_abs, octdec($item['original_perms']));
+                            } else {
+                                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                                @chmod($target_abs, octdec($item['original_perms']));
+                            }
                         }
                         if (!empty($item['original_mtime'])) {
-                            @touch($target_abs, (int) $item['original_mtime']);
+                            if ($wp_filesystem) {
+                                $wp_filesystem->touch($target_abs, (int) $item['original_mtime']);
+                            } else {
+                                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_touch
+                                @touch($target_abs, (int) $item['original_mtime']);
+                            }
                         }
                     } else {
-                        /* translators: %s: file name */
-                        $errors[] = sprintf(__('Failed to copy restored file: %s', 'wcp-security-scanner'), basename($target_abs));
+                        $errors[] = sprintf(
+                            /* translators: %s: file name */
+                            __('Failed to copy restored file: %s', 'wcp-security-scanner'),
+                            basename($target_abs)
+                        );
                     }
                 }
 
@@ -390,8 +411,8 @@ class TransactionalRemediation {
             'restored_db'    => $restored_db,
             'restored_users' => $restored_users,
             'errors'         => $errors,
-            /* translators: 1: transaction ID, 2: restored summary details */
             'message'        => sprintf(
+                /* translators: 1: transaction ID, 2: restored summary details */
                 __('Transaction %1$s rolled back successfully: restored %2$s.', 'wcp-security-scanner'),
                 $tx_id,
                 $restored_summary

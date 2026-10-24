@@ -2126,6 +2126,7 @@ class ScannerRoutes {
                 'has_active'     => true,
                 'active_scan_id' => reset($running_ids),
                 'message'        => sprintf(
+                    /* translators: %s: running scan IDs */
                     __('Past scan logs cleared successfully. Actively running scan (#%s) was preserved and continues executing uninterrupted.', 'wcp-security-scanner'),
                     implode(', #', $running_ids)
                 ),
@@ -2227,6 +2228,7 @@ class ScannerRoutes {
         $diagnostics = self::build_scan_diagnostics($scan);
 
         if ($format === 'csv') {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Writing to in-memory temporary stream for REST CSV export
             $output  = fopen('php://temp', 'r+');
             // Sysadmin Telemetry & Environment comments header
             $site_url = get_site_url();
@@ -2244,19 +2246,33 @@ class ScannerRoutes {
             $php_info = 'PHP ' . $diagnostics['php_version'] . ' (' . $diagnostics['php_sapi'] . ') | Max Execution: ' . ($diagnostics['php_max_execution_time'] ?? '30') . 's';
             $db_info = 'MySQL ' . ($diagnostics['database_version'] ?? 'N/A');
 
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# ====================================================================\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# WCP Security Scanner Pro - Audit Findings Report\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Auditor: Mir Alamin (WebCare Pro) - Senior Linux SysAdmin & WordPress Security Engineer\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Target: {$site_name} ({$site_url})\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Peak RAM: {$peak_ram}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Throughput: {$throughput}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# CPU Load: {$cpu_str}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Server Software: {$server_soft}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Platform & OS: {$server_os}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# PHP Environment: {$php_info}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Database: {$db_info}\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Active Engines: " . ($diagnostics['engines_active'] ?? 10) . " Core Security Engines\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Exported: " . current_time('mysql') . "\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# ====================================================================\r\n");
 
             $headers = ['ID', 'Severity', 'Engine', 'Threat Type', 'File / Target', 'Line Number', 'Status', 'Description'];
@@ -2277,6 +2293,7 @@ class ScannerRoutes {
 
             rewind($output);
             $csv_data = stream_get_contents($output);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($output);
 
             return rest_ensure_response([
@@ -2462,6 +2479,7 @@ class ScannerRoutes {
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
         header('Content-Length: ' . filesize($path));
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Streaming raw binary backup file to HTTP client
         readfile($path);
         exit;
     }
@@ -3160,7 +3178,7 @@ class ScannerRoutes {
                         'recommended_perms'     => $recommended_perms,
                         'recommended_symbolic'  => $recommended_symbolic,
                         'is_dir'                => $is_dir,
-                        'is_writable'           => is_writable($realPath),
+                        'is_writable'           => wp_is_writable($realPath),
                         'is_readable'           => is_readable($realPath),
                         'is_executable'         => is_executable($realPath),
                         'owner'                 => $owner_name,
@@ -4026,8 +4044,11 @@ class ScannerRoutes {
                             'is_latest'         => false,
                             'latest_not_found'  => true,
                             'source'            => 'local_installed',
-                            /* translators: %s: installed version label */
-                            'source_label'      => sprintf(__('Currently Installed Version (%s) [Local Disk]', 'wcp-security-scanner'), $installed_label),
+                            'source_label'      => sprintf(
+                                /* translators: %s: installed version label */
+                                __('Currently Installed Version (%s) [Local Disk]', 'wcp-security-scanner'),
+                                $installed_label
+                            ),
                             'filename'          => $changelog['filename'],
                             'file_size'         => (int) filesize($file_path),
                             'last_modified'     => gmdate('Y-m-d H:i:s', filemtime($file_path)) . ' UTC',
@@ -4035,8 +4056,8 @@ class ScannerRoutes {
                             'installed_version' => $installed_ver,
                             'latest_version'    => $latest_ver,
                             'content'           => $content,
-                            /* translators: 1: target version label, 2: installed version label */
                             'notice'            => sprintf(
+                                /* translators: 1: target version label, 2: installed version label */
                                 __('Latest version (%1$s) changelog was not found on remote repositories or plugin update manager. Displaying currently installed version (%2$s) changelog from local disk below.', 'wcp-security-scanner'),
                                 $target_label,
                                 $installed_label
@@ -4056,8 +4077,8 @@ class ScannerRoutes {
             'source'            => 'none',
             'filename'          => '',
             'content'           => '',
-            /* translators: %s: latest version label */
             'message'           => sprintf(
+                /* translators: %s: latest version label */
                 __('Latest version (%s) changelog was not found on WordPress.org, and no local changelog file (changelog.txt, readme.txt, or changelog.md) exists in the installed component folder.', 'wcp-security-scanner'),
                 $latest_ver ? "v{$latest_ver}" : 'upstream'
             ),
@@ -4579,7 +4600,7 @@ class ScannerRoutes {
             'size_bytes'     => $file_size,
             'size_formatted' => size_format($file_size, 2),
             'permissions'    => $perms,
-            'is_writable'    => is_writable($real_path),
+            'is_writable'    => wp_is_writable($real_path),
             'line_count'     => $line_count,
             'content'        => $content,
             'is_truncated'   => $is_truncated,
@@ -5935,6 +5956,7 @@ class ScannerRoutes {
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
                 \WcpScanner\System\AuditLogger::log_event(
                     '2fa_backup_codes_regenerated',
+                    /* translators: %s: username */
                     sprintf(__('Administrator %s regenerated 2FA emergency backup codes.', 'wcp-security-scanner'), $user->user_login)
                 );
             }
@@ -5963,7 +5985,11 @@ class ScannerRoutes {
         \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
         return rest_ensure_response([
             'success' => true,
-            'message' => sprintf(__('IP %s has been unlocked.', 'wcp-security-scanner'), $ip),
+            'message' => sprintf(
+                /* translators: %s: IP address */
+                __('IP %s has been unlocked.', 'wcp-security-scanner'),
+                $ip
+            ),
         ]);
     }
 
@@ -6016,17 +6042,25 @@ class ScannerRoutes {
         \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
 
         if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-            /* translators: 1: admin username, 2: target username, 3: user ID */
             \WcpScanner\System\AuditLogger::log_event(
                 'admin_2fa_disabled',
-                sprintf(__('Administrator %1$s disabled 2FA for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
+                sprintf(
+                    /* translators: 1: admin username, 2: target username, 3: user ID */
+                    __('Administrator %1$s disabled 2FA for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'),
+                    wp_get_current_user()->user_login,
+                    $user->user_login,
+                    $user_id
+                )
             );
         }
 
         return rest_ensure_response([
             'success' => true,
-            /* translators: %s: username */
-            'message' => sprintf(__('2FA has been disabled and unlocked for administrator %s.', 'wcp-security-scanner'), $user->user_login),
+            'message' => sprintf(
+                /* translators: %s: username */
+                __('2FA has been disabled and unlocked for administrator %s.', 'wcp-security-scanner'),
+                $user->user_login
+            ),
             'admins'  => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
         ]);
     }
@@ -6051,17 +6085,25 @@ class ScannerRoutes {
             $setup_pkg = \WcpScanner\Auth\TwoFactorAuth::reset_user_2fa($user_id);
 
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                /* translators: 1: admin username, 2: target username, 3: user ID */
                 \WcpScanner\System\AuditLogger::log_event(
                     'admin_2fa_reset',
-                    sprintf(__('Administrator %1$s regenerated 2FA credentials for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
+                    sprintf(
+                        /* translators: 1: admin username, 2: target username, 3: user ID */
+                        __('Administrator %1$s regenerated 2FA credentials for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'),
+                        wp_get_current_user()->user_login,
+                        $user->user_login,
+                        $user_id
+                    )
                 );
             }
 
             return rest_ensure_response([
                 'success'       => true,
-                /* translators: %s: username */
-                'message'       => sprintf(__('New 2FA credentials generated for %s.', 'wcp-security-scanner'), $user->user_login),
+                'message'       => sprintf(
+                    /* translators: %s: username */
+                    __('New 2FA credentials generated for %s.', 'wcp-security-scanner'),
+                    $user->user_login
+                ),
                 'setup_package' => $setup_pkg,
                 'admins'        => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
             ]);
@@ -6087,25 +6129,40 @@ class ScannerRoutes {
         }
 
         if (!\WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
-            /* translators: %s: username */
-            return new \WP_Error('2fa_not_enabled', sprintf(__('2FA is not enabled for user %s.', 'wcp-security-scanner'), $user->user_login), ['status' => 400]);
+            return new \WP_Error(
+                '2fa_not_enabled',
+                sprintf(
+                    /* translators: %s: username */
+                    __('2FA is not enabled for user %s.', 'wcp-security-scanner'),
+                    $user->user_login
+                ),
+                ['status' => 400]
+            );
         }
 
         try {
             $bundle = \WcpScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
 
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                /* translators: 1: admin username, 2: target username, 3: user ID */
                 \WcpScanner\System\AuditLogger::log_event(
                     'admin_2fa_backup_codes_regenerated',
-                    sprintf(__('Administrator %1$s regenerated backup codes for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'), wp_get_current_user()->user_login, $user->user_login, $user_id)
+                    sprintf(
+                        /* translators: 1: admin username, 2: target username, 3: user ID */
+                        __('Administrator %1$s regenerated backup codes for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'),
+                        wp_get_current_user()->user_login,
+                        $user->user_login,
+                        $user_id
+                    )
                 );
             }
 
             return rest_ensure_response([
                 'success'            => true,
-                /* translators: %s: username */
-                'message'            => sprintf(__('New backup codes generated for administrator %s.', 'wcp-security-scanner'), $user->user_login),
+                'message'            => sprintf(
+                    /* translators: %s: username */
+                    __('New backup codes generated for administrator %s.', 'wcp-security-scanner'),
+                    $user->user_login
+                ),
                 'user_login'         => $user->user_login,
                 'backup_codes'       => $bundle['backup_codes'],
                 'backup_codes_count' => $bundle['count'],
@@ -6136,8 +6193,11 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'success'          => true,
-            /* translators: %s: username */
-            'message'          => sprintf(__('Login lockouts and rate-limiting blocks cleared for user %s.', 'wcp-security-scanner'), $user->user_login),
+            'message'          => sprintf(
+                /* translators: %s: username */
+                __('Login lockouts and rate-limiting blocks cleared for user %s.', 'wcp-security-scanner'),
+                $user->user_login
+            ),
             'unlocked_ips'     => $res['unlocked_ips'],
             'admins'           => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
             'lockouts'         => array_values(\WcpScanner\Auth\LoginHardening::get_locked_ips()),
@@ -6172,10 +6232,10 @@ class ScannerRoutes {
         \WcpScanner\System\SettingsManager::save_settings($settings);
 
         if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-            /* translators: 1: enforce status, 2: policy mode, 3: grace days */
             \WcpScanner\System\AuditLogger::log_event(
                 'auth_policy_updated',
                 sprintf(
+                    /* translators: 1: enforce status, 2: policy mode, 3: grace days */
                     __('Administrator 2FA policy updated: Enforce=%1$s, Mode=%2$s, Grace Days=%3$d.', 'wcp-security-scanner'),
                     $enforce_admins ? 'YES' : 'NO',
                     strtoupper($policy_mode),

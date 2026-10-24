@@ -26,7 +26,11 @@ class AIService {
                 $response = self::call_native_ai_connect('You are an AI diagnostic tester.', $prompt, 0.1, 16, 6);
                 return [
                     'success' => true,
-                    'message' => sprintf(__('WordPress Native AI Connect verified successfully (%s)!', 'wcp-security-scanner'), $status['engine_name']),
+                    'message' => sprintf(
+                        /* translators: %s: AI engine name */
+                        __('WordPress Native AI Connect verified successfully (%s)!', 'wcp-security-scanner'),
+                        $status['engine_name']
+                    ),
                     'provider'=> 'wp_ai_connect',
                     'model'   => $status['engine_slug'],
                     'preview' => trim(substr($response, 0, 100)),
@@ -36,7 +40,11 @@ class AIService {
                 if ($status['is_available']) {
                     return [
                         'success' => true,
-                        'message' => sprintf(__('WordPress AI subsystem detected (%s) and ready for threat forensics.', 'wcp-security-scanner'), $status['engine_name']),
+                        'message' => sprintf(
+                            /* translators: %s: AI engine name */
+                            __('WordPress AI subsystem detected (%s) and ready for threat forensics.', 'wcp-security-scanner'),
+                            $status['engine_name']
+                        ),
                         'provider'=> 'wp_ai_connect',
                         'model'   => $status['engine_slug'],
                         'preview' => $status['details'],
@@ -227,7 +235,11 @@ class AIService {
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => true,
                 'active_connectors'   => $active_connectors,
-                'details'             => sprintf(__('WordPress Native AI Connect is active with %s configured! You can manage or add connectors anytime at Settings → Connectors (options-connectors.php). WCP Security Scanner is 100%% compatible and seamlessly executes code de-obfuscation and threat forensics directly through your WordPress AI infrastructure.', 'wcp-security-scanner'), implode(', ', $active_connectors)),
+                'details'             => sprintf(
+                    /* translators: %s: Comma-separated list of active connectors */
+                    __('WordPress Native AI Connect is active with %s configured! You can manage or add connectors anytime at Settings → Connectors (options-connectors.php). WCP Security Scanner is 100%% compatible and seamlessly executes code de-obfuscation and threat forensics directly through your WordPress AI infrastructure.', 'wcp-security-scanner'),
+                    implode(', ', $active_connectors)
+                ),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -329,7 +341,11 @@ class AIService {
                 'detected_via'        => implode(', ', $env_keys) . ' constant(s) in wp-config.php',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => sprintf(__('Pre-configured AI keys (%s) detected in your WordPress environment constants. WCP Security Scanner can seamlessly leverage these credentials without extra setup.', 'wcp-security-scanner'), implode(', ', $env_keys)),
+                'details'             => sprintf(
+                    /* translators: %s: Comma-separated list of environment constants */
+                    __('Pre-configured AI keys (%s) detected in your WordPress environment constants. WCP Security Scanner can seamlessly leverage these credentials without extra setup.', 'wcp-security-scanner'),
+                    implode(', ', $env_keys)
+                ),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -539,7 +555,7 @@ class AIService {
             return self::call_claude(constant('ANTHROPIC_API_KEY'), 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens);
         }
 
-        throw new \Exception(__('WordPress Native AI Connect is not yet configured or did not return a response. Please ensure your WordPress AI connector plugin is active and has credentials configured.', 'wcp-security-scanner'));
+        throw new \Exception(esc_html__('WordPress Native AI Connect is not yet configured or did not return a response. Please ensure your WordPress AI connector plugin is active and has credentials configured.', 'wcp-security-scanner'));
     }
 
     /**

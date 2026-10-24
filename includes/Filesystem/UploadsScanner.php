@@ -213,13 +213,7 @@ class UploadsScanner {
      * Checks if a media/image file is actually a raw compiled binary executable.
      */
     private function check_binary_magic_bytes($real_path, $basename, $ext, $rel_path) {
-        $handle = @fopen($real_path, 'rb');
-        if (!$handle) {
-            return null;
-        }
-        $header = fread($handle, 16);
-        fclose($handle);
-
+        $header = @file_get_contents($real_path, false, null, 0, 16);
         if ($header === false || strlen($header) < 2) {
             return null;
         }

@@ -117,7 +117,7 @@ class ServerSecurityEngine {
             'storage_dir'          => $dir,
             'nginx_path'           => $nginx_path,
             'nginx_exists'         => file_exists($nginx_path),
-            'nginx_writable'       => is_writable(dirname($nginx_path)),
+            'nginx_writable'       => wp_is_writable(dirname($nginx_path)),
             'nginx_size'           => file_exists($nginx_path) ? filesize($nginx_path) : 0,
             'nginx_updated_at'     => file_exists($nginx_path) ? gmdate('Y-m-d H:i:s', filemtime($nginx_path)) : null,
             'nginx_include_code'   => 'include ' . $nginx_path . ';',
@@ -125,7 +125,7 @@ class ServerSecurityEngine {
             'apache_exists'        => file_exists($apache_path),
             'apache_updated_at'    => file_exists($apache_path) ? gmdate('Y-m-d H:i:s', filemtime($apache_path)) : null,
             'htaccess_root'        => $htaccess_root,
-            'htaccess_writable'    => is_writable($htaccess_root) || (!file_exists($htaccess_root) && is_writable(ABSPATH)),
+            'htaccess_writable'    => wp_is_writable($htaccess_root) || (!file_exists($htaccess_root) && wp_is_writable(ABSPATH)),
         ];
     }
 
@@ -402,6 +402,7 @@ class ServerSecurityEngine {
         $saved_opts = self::save_options($options);
         $file_info = self::get_file_info();
 
+        global $wp_filesystem;
         if ($server_type === 'nginx') {
             $content = self::generate_nginx_config($saved_opts);
             $target_file = $file_info['nginx_path'];
@@ -409,10 +410,19 @@ class ServerSecurityEngine {
             if ($written === false) {
                 return [
                     'success' => false,
-                    'message' => sprintf(__('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'), $target_file),
+                    'message' => sprintf(
+                        /* translators: %s: target file path */
+                        __('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'),
+                        $target_file
+                    ),
                 ];
             }
-            @chmod($target_file, 0644);
+            if ($wp_filesystem) {
+                $wp_filesystem->chmod($target_file, 0644);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($target_file, 0644);
+            }
             return [
                 'success'      => true,
                 'message'      => __('Nginx security configuration file generated and saved successfully.', 'wcp-security-scanner'),
@@ -429,10 +439,19 @@ class ServerSecurityEngine {
             if ($written === false) {
                 return [
                     'success' => false,
-                    'message' => sprintf(__('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'), $target_file),
+                    'message' => sprintf(
+                        /* translators: %s: target file path */
+                        __('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'),
+                        $target_file
+                    ),
                 ];
             }
-            @chmod($target_file, 0644);
+            if ($wp_filesystem) {
+                $wp_filesystem->chmod($target_file, 0644);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($target_file, 0644);
+            }
             return [
                 'success'   => true,
                 'message'   => __('Apache/LiteSpeed security rules saved successfully.', 'wcp-security-scanner'),

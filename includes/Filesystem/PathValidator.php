@@ -211,14 +211,10 @@ class PathValidator {
 
         $dir = dirname($path);
         if (!is_dir($dir)) {
-            if (function_exists('wp_mkdir_p')) {
-                wp_mkdir_p($dir);
-            } else {
-                @mkdir($dir, 0755, true);
-            }
+            wp_mkdir_p($dir);
         }
 
-        if (!is_dir($dir) || !is_writable($dir)) {
+        if (!is_dir($dir) || !wp_is_writable($dir)) {
             return false;
         }
 
@@ -227,6 +223,7 @@ class PathValidator {
         $handle = false;
         for ($i = 0; $i < 5; $i++) {
             $candidate = $dir . '/.wcpscan_tmp_' . bin2hex(random_bytes(8)) . '.tmp';
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Atomic O_CREAT|O_EXCL stream creation required for safe concurrent file creation
             $handle = @fopen($candidate, 'x+b'); // O_CREAT | O_EXCL
             if ($handle !== false) {
                 $tmp_file = $candidate;
@@ -243,10 +240,12 @@ class PathValidator {
         $written_total = 0;
         while ($written_total < $bytes_to_write) {
             $chunk = substr($content, $written_total);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Low-level incremental chunk writing for atomic stream
             $bytes = @fwrite($handle, $chunk);
             if ($bytes === false || $bytes <= 0) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                 @fclose($handle);
-                @unlink($tmp_file);
+                wp_delete_file($tmp_file);
                 return false;
             }
             $written_total += $bytes;
@@ -258,22 +257,34 @@ class PathValidator {
         if (function_exists('fsync')) {
             $synced = @fsync($handle);
         }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
         $closed = @fclose($handle);
 
         if (!$flushed || !$synced || !$closed) {
-            @unlink($tmp_file);
+            wp_delete_file($tmp_file);
             return false;
         }
 
-        @chmod($tmp_file, $perms);
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+            $wp_filesystem->chmod($tmp_file, $perms);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($tmp_file, $perms);
+        }
 
         // Security: If destination is an existing symlink, unlink the symlink node itself
         // so rename() cannot follow or replace a symlink pointer
         if (is_link($path)) {
-            @unlink($path);
+            wp_delete_file($path);
         }
 
         // Attempt direct atomic replace via rename
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Direct filesystem rename required for POSIX atomic replacement
         $renamed = @rename($tmp_file, $path);
         if ($renamed) {
             self::sync_directory($dir);
@@ -283,23 +294,26 @@ class PathValidator {
         // Failure-aware fallback for platforms where destination locking prevents direct rename (e.g. Windows)
         if (file_exists($path)) {
             $dest_backup = $dir . '/.wcpscan_bak_' . bin2hex(random_bytes(8)) . '.tmp';
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
             $displaced = @rename($path, $dest_backup);
 
             if ($displaced) {
                 // Ensure displacement of original file is synchronized to directory table
                 self::sync_directory($dir);
 
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
                 $renamed = @rename($tmp_file, $path);
                 if ($renamed) {
                     // Verify directory synchronization before removing recoverable backup
                     $synced = self::sync_directory($dir);
                     if ($synced) {
-                        @unlink($dest_backup);
+                        wp_delete_file($dest_backup);
                     }
                     return true;
                 }
 
                 // Replacement failed: attempt to rollback original file from backup
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
                 $rolled_back = @rename($dest_backup, $path);
                 if ($rolled_back) {
                     self::sync_directory($dir);
@@ -317,7 +331,7 @@ class PathValidator {
             }
         }
 
-        @unlink($tmp_file);
+        wp_delete_file($tmp_file);
         return false;
     }
 
@@ -333,12 +347,14 @@ class PathValidator {
             return true;
         }
 
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Directory handle required for POSIX fsync durability
         $handle = @fopen($dir, 'r');
         if ($handle === false) {
             return false;
         }
 
         $synced = @fsync($handle);
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
         $closed = @fclose($handle);
 
         return ($synced && $closed);

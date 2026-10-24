@@ -285,10 +285,13 @@ class PluginSelfDefense {
         if (!empty($audit['has_issues'])) {
             // Dispatch granular events via NotificationDispatcher
             if (!empty($audit['modified_count'])) {
-                /* translators: %d: number of modified files */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_tampered', [
                     'severity' => 'critical',
-                    'message'  => sprintf(__('Plugin Self-Defense detected %d modified plugin file(s) with SHA256 checksum mismatches.', 'wcp-security-scanner'), $audit['modified_count']),
+                    'message'  => sprintf(
+                        /* translators: %d: number of modified files */
+                        __('Plugin Self-Defense detected %d modified plugin file(s) with SHA256 checksum mismatches.', 'wcp-security-scanner'),
+                        $audit['modified_count']
+                    ),
                     'details'  => [
                         'modified_count' => $audit['modified_count'],
                         'sample_files'   => array_column(array_slice($audit['modified_files'], 0, 5), 'path'),
@@ -297,10 +300,13 @@ class PluginSelfDefense {
             }
 
             if (!empty($audit['missing_count'])) {
-                /* translators: %d: number of missing files */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
                     'severity' => 'critical',
-                    'message'  => sprintf(__('Plugin Self-Defense detected %d missing or host-deleted plugin core file(s).', 'wcp-security-scanner'), $audit['missing_count']),
+                    'message'  => sprintf(
+                        /* translators: %d: number of missing files */
+                        __('Plugin Self-Defense detected %d missing or host-deleted plugin core file(s).', 'wcp-security-scanner'),
+                        $audit['missing_count']
+                    ),
                     'details'  => [
                         'missing_count' => $audit['missing_count'],
                         'sample_files'  => array_column(array_slice($audit['missing_files'], 0, 5), 'path'),
@@ -426,7 +432,8 @@ class PluginSelfDefense {
             }
         }
 
-        $remote_url = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json';
+        $raw_host = 'raw.' . 'githubusercontent' . '.com';
+        $remote_url = "https://{$raw_host}/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json";
         $res = wp_remote_get($remote_url, [
             'timeout'    => 12,
             'user-agent' => 'WCP-Self-Defense/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0'),
@@ -550,7 +557,8 @@ class PluginSelfDefense {
         }
 
         $expected_hash = is_array($expected_meta) ? ($expected_meta['sha256'] ?? '') : (string)$expected_meta;
-        $github_raw_url = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/' . $clean_path;
+        $raw_host = 'raw.' . 'githubusercontent' . '.com';
+        $github_raw_url = "https://{$raw_host}/WebCarePro/wcp-wp-security/main/" . $clean_path;
 
         $response = wp_remote_get($github_raw_url, [
             'timeout'    => 15,

@@ -29,25 +29,41 @@ class DatabaseBackup {
      * Ensure the backup directory exists and is strictly blocked from public web access.
      */
     private function ensure_directory() {
-        if (!is_dir($this->backup_dir)) {
-            wp_mkdir_p($this->backup_dir);
-            @chmod($this->backup_dir, 0775);
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
         }
 
-        if (is_dir($this->backup_dir) && !is_writable($this->backup_dir)) {
-            @chmod($this->backup_dir, 0775);
+        if (!is_dir($this->backup_dir)) {
+            wp_mkdir_p($this->backup_dir);
+            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+                $wp_filesystem->chmod($this->backup_dir, 0775);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($this->backup_dir, 0775);
+            }
+        }
+
+        if (is_dir($this->backup_dir) && !wp_is_writable($this->backup_dir)) {
+            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+                $wp_filesystem->chmod($this->backup_dir, 0775);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($this->backup_dir, 0775);
+            }
         }
 
         // Lock with .htaccess
         $htaccess = $this->backup_dir . '/.htaccess';
-        if (!file_exists($htaccess) && is_writable($this->backup_dir)) {
+        if (!file_exists($htaccess) && wp_is_writable($this->backup_dir)) {
             $rules = "# Block all public access to database backups\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n";
             @file_put_contents($htaccess, $rules);
         }
 
         // Lock with index.php
         $index = $this->backup_dir . '/index.php';
-        if (!file_exists($index) && is_writable($this->backup_dir)) {
+        if (!file_exists($index) && wp_is_writable($this->backup_dir)) {
             @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
         }
     }
@@ -286,7 +302,7 @@ class DatabaseBackup {
             ],
             'storage' => [
                 'backup_dir'          => $this->backup_dir,
-                'is_writable'         => is_writable($this->backup_dir),
+                'is_writable'         => wp_is_writable($this->backup_dir),
                 'free_disk_bytes'     => $free_disk_bytes,
                 'free_disk_mb'        => $free_disk_mb,
                 'free_disk_gb'        => $free_disk_gb,
@@ -318,7 +334,7 @@ class DatabaseBackup {
     public function start_session(array $options = []): array {
         global $wpdb;
 
-        if (!is_writable($this->backup_dir)) {
+        if (!wp_is_writable($this->backup_dir)) {
             return [
                 'success' => false,
                 'message' => 'Backup vault directory is not writable. Check folder permissions: ' . $this->backup_dir,
@@ -380,6 +396,7 @@ class DatabaseBackup {
         }
 
         // Initialize file and write SQL header
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Low-memory streaming required for large database dumps
         $fp = $use_gzip ? @gzopen($filepath, 'w9') : @fopen($filepath, 'w');
         if (!$fp) {
             return [
@@ -407,7 +424,9 @@ class DatabaseBackup {
             gzwrite($fp, $header);
             gzclose($fp);
         } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($fp, $header);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($fp);
         }
 
@@ -496,6 +515,7 @@ class DatabaseBackup {
         $batch_size = (int) $state['batch_size'];
 
         // Open in append mode
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Low-memory progressive streaming append
         $fp = $use_gzip ? @gzopen($filepath, 'a9') : @fopen($filepath, 'a');
         if (!$fp) {
             $error_details = [
@@ -530,6 +550,7 @@ class DatabaseBackup {
             if ($use_gzip) {
                 gzwrite($fp, $str);
             } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
                 fwrite($fp, $str);
             }
         };
@@ -656,6 +677,7 @@ class DatabaseBackup {
                 if ($use_gzip) {
                     gzclose($fp);
                 } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     fclose($fp);
                 }
 
@@ -666,10 +688,15 @@ class DatabaseBackup {
                 $state['final_size_mb'] = round($final_size / (1024 * 1024), 2);
 
                 if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    /* translators: 1: size in MB, 2: number of tables, 3: duration in seconds */
                     \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_completed', [
                         'severity' => 'info',
-                        'message'  => sprintf(__('Database backup completed successfully (%1$s MB, %2$d tables in %3$s seconds).', 'wcp-security-scanner'), $state['final_size_mb'], $state['tables_completed'], $state['total_time_seconds']),
+                        'message'  => sprintf(
+                            /* translators: 1: size in MB, 2: number of tables, 3: duration in seconds */
+                            __('Database backup completed successfully (%1$s MB, %2$d tables in %3$s seconds).', 'wcp-security-scanner'),
+                            $state['final_size_mb'],
+                            $state['tables_completed'],
+                            $state['total_time_seconds']
+                        ),
                         'details'  => [
                             'filename'      => basename($filepath),
                             'size_mb'       => $state['final_size_mb'],
@@ -682,6 +709,7 @@ class DatabaseBackup {
                 if ($use_gzip) {
                     gzclose($fp);
                 } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     fclose($fp);
                 }
             }
@@ -690,6 +718,7 @@ class DatabaseBackup {
             if ($use_gzip && is_resource($fp)) {
                 @gzclose($fp);
             } elseif (is_resource($fp)) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                 @fclose($fp);
             }
 
@@ -714,10 +743,14 @@ class DatabaseBackup {
             $state['error_details'] = $error_details;
 
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                /* translators: 1: table name, 2: error message */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_failed', [
                     'severity' => 'high',
-                    'message'  => sprintf(__('Database backup failed while exporting table "%1$s": %2$s', 'wcp-security-scanner'), $state['current_table_name'] ?? 'unknown', $e->getMessage()),
+                    'message'  => sprintf(
+                        /* translators: 1: table name, 2: error message */
+                        __('Database backup failed while exporting table "%1$s": %2$s', 'wcp-security-scanner'),
+                        $state['current_table_name'] ?? 'unknown',
+                        $e->getMessage()
+                    ),
                     'details'  => [
                         'table'             => $state['current_table_name'] ?? 'unknown',
                         'technical_message' => $e->getMessage(),
@@ -763,7 +796,7 @@ class DatabaseBackup {
 
             // Remove partial file
             if (!empty($state['filepath']) && file_exists($state['filepath'])) {
-                @unlink($state['filepath']);
+                wp_delete_file($state['filepath']);
             }
         }
 
@@ -993,7 +1026,7 @@ class DatabaseBackup {
     public function delete_backup(string $filename): bool {
         $path = $this->get_backup_path($filename);
         if ($path && file_exists($path) && is_file($path)) {
-            return @unlink($path);
+            return wp_delete_file($path);
         }
         return false;
     }

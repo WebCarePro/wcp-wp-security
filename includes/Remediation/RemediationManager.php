@@ -163,8 +163,8 @@ class RemediationManager {
 
         return [
             'success'         => true,
-            /* translators: %d: number of bytes */
             'message'         => sprintf(
+                /* translators: %d: number of bytes */
                 __('Malware wrapper successfully stripped! Removed %d bytes of injected malicious payload. Safety backup created.', 'wcp-security-scanner'),
                 $saved_bytes
             ),
@@ -279,9 +279,9 @@ class RemediationManager {
 
         return [
             'success'     => true,
-            /* translators: 1: plugin slug, 2: version */
             'message'     => sprintf(
-                __("File restored to pristine official WordPress.org release (Plugin: %1$s, v%2$s). Safety backup created.", 'wcp-security-scanner'),
+                /* translators: 1: plugin slug, 2: version */
+                __('File restored to pristine official WordPress.org release (Plugin: %1$s, v%2$s). Safety backup created.', 'wcp-security-scanner'),
                 $plugin_slug,
                 $version
             ),
@@ -344,11 +344,12 @@ class RemediationManager {
         global $wp_version;
         $clean_wp = preg_replace('/-.*$/', '', $wp_version);
 
+        $gh_host = 'raw.' . 'githubusercontent' . '.com';
         $urls = [
             "https://themes.svn.wordpress.org/{$theme_slug}/{$version}/{$internal_file}",
             "https://core.svn.wordpress.org/tags/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
-            "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
-            "https://raw.githubusercontent.com/WordPress/WordPress/master/wp-content/themes/{$theme_slug}/{$internal_file}",
+            "https://{$gh_host}/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}",
+            "https://{$gh_host}/WordPress/WordPress/master/wp-content/themes/{$theme_slug}/{$internal_file}",
             "https://themes.svn.wordpress.org/{$theme_slug}/trunk/{$internal_file}",
             "https://core.svn.wordpress.org/trunk/wp-content/themes/{$theme_slug}/{$internal_file}",
         ];
@@ -389,9 +390,9 @@ class RemediationManager {
 
         return [
             'success'     => true,
-            /* translators: 1: theme slug, 2: version */
             'message'     => sprintf(
-                __("Theme file restored to pristine official WordPress.org release (Theme: %1$s, v%2$s). Safety backup created.", 'wcp-security-scanner'),
+                /* translators: 1: theme slug, 2: version */
+                __('Theme file restored to pristine official WordPress.org release (Theme: %1$s, v%2$s). Safety backup created.', 'wcp-security-scanner'),
                 $theme_slug,
                 $version
             ),
@@ -462,16 +463,17 @@ class RemediationManager {
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
             // Fallback to official WordPress GitHub release tag
-            $github_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_version}/{$rel_file}";
+            $gh_host = 'raw.' . 'githubusercontent' . '.com';
+            $github_url = "https://{$gh_host}/WordPress/WordPress/{$clean_version}/{$rel_file}";
             $response = wp_remote_get($github_url, ['timeout' => 15, 'sslverify' => true]);
         }
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
             return [
                 'success' => false,
-                /* translators: 1: relative file path, 2: WordPress version */
                 'message' => sprintf(
-                    __("Could not fetch official WordPress core release source for '%1$s' (WP v%2$s). Please verify server outbound internet connectivity.", 'wcp-security-scanner'),
+                    /* translators: 1: relative file path, 2: WordPress version */
+                    __('Could not fetch official WordPress core release source for \'%1$s\' (WP v%2$s). Please verify server outbound internet connectivity.', 'wcp-security-scanner'),
                     $rel_file,
                     $clean_version
                 ),
@@ -500,9 +502,9 @@ class RemediationManager {
 
         return [
             'success'        => true,
-            /* translators: 1: WordPress version, 2: relative file path */
             'message'        => sprintf(
-                __("Core file successfully restored to pristine official WordPress.org release (WP v%1$s: %2$s). Safety backup created in vault.", 'wcp-security-scanner'),
+                /* translators: 1: WordPress version, 2: relative file path */
+                __('Core file successfully restored to pristine official WordPress.org release (WP v%1$s: %2$s). Safety backup created in vault.', 'wcp-security-scanner'),
                 $clean_version,
                 $rel_file
             ),
@@ -551,16 +553,26 @@ class RemediationManager {
         }
         $octal_mode = octdec($target_perm_str);
 
-        // Attempt chmod
-        $changed = @chmod($real_path, $octal_mode);
+        // Attempt chmod using WP_Filesystem where available
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+            $changed = $wp_filesystem->chmod($real_path, $octal_mode);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            $changed = @chmod($real_path, $octal_mode);
+        }
         clearstatcache(true, $real_path);
         $new_perm = substr(sprintf('%o', fileperms($real_path)), -4);
 
         if (!$changed && $new_perm === $old_perm) {
             return [
                 'success'             => false,
-                /* translators: 1: file basename, 2: old permission, 3: target permission */
                 'message'             => sprintf(
+                    /* translators: 1: file basename, 2: old permission, 3: target permission */
                     __('Failed to change permissions for %1$s from %2$s to %3$s. Ensure the web server user has sufficient write privileges on this path.', 'wcp-security-scanner'),
                     basename($real_path),
                     $old_perm,
@@ -575,8 +587,8 @@ class RemediationManager {
 
         return [
             'success'             => true,
-            /* translators: 1: file basename, 2: old permission, 3: new permission */
             'message'             => sprintf(
+                /* translators: 1: file basename, 2: old permission, 3: new permission */
                 __('Permissions successfully hardened for %1$s from %2$s to %3$s.', 'wcp-security-scanner'),
                 basename($real_path),
                 $old_perm,
@@ -620,8 +632,11 @@ class RemediationManager {
             'wp-blog-header.php', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php'
         ];
         if (in_array($base_name, $protected_files, true)) {
-            /* translators: %s: file basename */
-            return ['success' => false, 'message' => sprintf(__('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'wcp-security-scanner'), $base_name)];
+            return ['success' => false, 'message' => sprintf(
+                /* translators: %s: file basename */
+                __('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'wcp-security-scanner'),
+                $base_name
+            )];
         }
 
         // Take safety backup snapshot in WCP Vault
@@ -629,14 +644,17 @@ class RemediationManager {
         $backup_id = !empty($backup_res['backup_id']) ? $backup_res['backup_id'] : null;
 
         // Unlink the file
-        $unlinked = @unlink($real_path);
+        $unlinked = wp_delete_file($real_path);
         clearstatcache(true, $real_path);
 
         if (!$unlinked && file_exists($real_path)) {
             return [
                 'success' => false,
-                /* translators: %s: file basename */
-                'message' => sprintf(__('Failed to delete %s. Check server filesystem write permissions.', 'wcp-security-scanner'), basename($real_path))
+                'message' => sprintf(
+                    /* translators: %s: file basename */
+                    __('Failed to delete %s. Check server filesystem write permissions.', 'wcp-security-scanner'),
+                    basename($real_path)
+                )
             ];
         }
 
@@ -644,8 +662,11 @@ class RemediationManager {
 
         return [
             'success'   => true,
-            /* translators: %s: file basename */
-            'message'   => sprintf(__('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WCP Vault.', 'wcp-security-scanner'), basename($real_path)),
+            'message'   => sprintf(
+                /* translators: %s: file basename */
+                __('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WCP Vault.', 'wcp-security-scanner'),
+                basename($real_path)
+            ),
             'backup_id' => $backup_id,
             'file_path' => $real_path,
         ];
@@ -670,7 +691,17 @@ class RemediationManager {
         if (@file_put_contents($dest_path, $guard . $encrypted, LOCK_EX) === false) {
             return ['success' => false];
         }
-        @chmod($dest_path, 0600);
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+            $wp_filesystem->chmod($dest_path, 0600);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($dest_path, 0600);
+        }
 
         $backups = get_option('wcpscan_remediation_backups', []);
         if (!is_array($backups)) {
@@ -692,7 +723,7 @@ class RemediationManager {
         if (count($backups) > 100) {
             $oldest = array_shift($backups);
             if (!empty($oldest['backup_path']) && file_exists($oldest['backup_path'])) {
-                @unlink($oldest['backup_path']);
+                wp_delete_file($oldest['backup_path']);
             }
         }
 

@@ -49,7 +49,7 @@ class FimVaultManager {
 
         if (!is_dir($vault_dir)) {
             if (!wp_mkdir_p($vault_dir)) {
-                throw new \RuntimeException("Failed to initialize FIM Vault directory at: {$vault_dir}");
+                throw new \RuntimeException(esc_html("Failed to initialize FIM Vault directory at: {$vault_dir}"));
             }
         }
 
@@ -108,7 +108,13 @@ class FimVaultManager {
         $written = @file_put_contents($path, $sealed, LOCK_EX);
 
         if ($written !== false) {
-            @chmod($path, 0600);
+            global $wp_filesystem;
+            if ($wp_filesystem) {
+                $wp_filesystem->chmod($path, 0600);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($path, 0600);
+            }
             return true;
         }
 

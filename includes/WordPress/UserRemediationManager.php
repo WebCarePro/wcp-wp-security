@@ -34,11 +34,7 @@ class UserRemediationManager {
      */
     private function ensure_backup_directory() {
         if (!is_dir($this->backup_dir)) {
-            if (function_exists('wp_mkdir_p')) {
-                wp_mkdir_p($this->backup_dir);
-            } else {
-                @mkdir($this->backup_dir, 0755, true);
-            }
+            wp_mkdir_p($this->backup_dir);
         }
 
         $htaccess = $this->backup_dir . '/.htaccess';
@@ -150,9 +146,9 @@ class UserRemediationManager {
             'user_login'  => $user->user_login,
             'new_role'    => $target_role,
             'backup_file' => $backup_file,
-            /* translators: 1: username, 2: user ID, 3: new role */
             'message'     => sprintf(
-                __("User '%1$s' (ID #%2$d) assigned role '%3$s' successfully.", 'wcp-security-scanner'),
+                /* translators: 1: username, 2: user ID, 3: new role */
+                __('User \'%1$s\' (ID #%2$d) assigned role \'%3$s\' successfully.', 'wcp-security-scanner'),
                 $user->user_login,
                 $user_id,
                 $target_role
@@ -216,9 +212,9 @@ class UserRemediationManager {
             'role'          => $primary_role,
             'stripped_caps' => $stripped_caps,
             'backup_file'   => $backup_file,
-            /* translators: 1: number of capabilities, 2: username, 3: role */
             'message'       => sprintf(
-                __("Stripped %1$d unauthorized capability entries from user '%2$s'. Role preserved as '%3$s'.", 'wcp-security-scanner'),
+                /* translators: 1: number of capabilities, 2: username, 3: role */
+                __('Stripped %1$d unauthorized capability entries from user \'%2$s\'. Role preserved as \'%3$s\'.', 'wcp-security-scanner'),
                 count($stripped_caps),
                 $user->user_login,
                 $primary_role
@@ -275,9 +271,9 @@ class UserRemediationManager {
             'user_id'     => $user_id,
             'user_login'  => $user->user_login,
             'backup_file' => $backup_file,
-            /* translators: 1: username, 2: user ID, 3: backup file name */
             'message'     => sprintf(
-                __("User '%1$s' (ID #%2$d) deleted successfully. Auto-backup snapshot saved as %3$s.", 'wcp-security-scanner'),
+                /* translators: 1: username, 2: user ID, 3: backup file name */
+                __('User \'%1$s\' (ID #%2$d) deleted successfully. Auto-backup snapshot saved as %3$s.', 'wcp-security-scanner'),
                 $user->user_login,
                 $user_id,
                 $backup_file
@@ -417,9 +413,9 @@ class UserRemediationManager {
             'user_id'     => $user_id,
             'user_login'  => $user_row['user_login'],
             'user_email'  => $user_row['user_email'],
-            /* translators: 1: username, 2: user ID */
             'message'     => sprintf(
-                __("User account '%1$s' (ID #%2$d) restored successfully with full administrator capabilities and credentials.", 'wcp-security-scanner'),
+                /* translators: 1: username, 2: user ID */
+                __('User account \'%1$s\' (ID #%2$d) restored successfully with full administrator capabilities and credentials.', 'wcp-security-scanner'),
                 $user_row['user_login'],
                 $user_id
             ),
@@ -668,8 +664,8 @@ class UserRemediationManager {
             'target_user_id' => $target_user_id,
             'target_user_login' => $target_user->user_login,
             'reassigned_count' => $count,
-            /* translators: 1: number of posts, 2: author ID, 3: target user display name, 4: target user ID */
             'message' => sprintf(
+                /* translators: 1: number of posts, 2: author ID, 3: target user display name, 4: target user ID */
                 __('Successfully reassigned %1$d post(s) from missing author #%2$d to %3$s (#%4$d).', 'wcp-security-scanner'),
                 $count,
                 $orphaned_author_id,

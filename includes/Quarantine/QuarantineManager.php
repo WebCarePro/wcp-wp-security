@@ -153,10 +153,16 @@ class QuarantineManager {
         }
 
         // Lock down permissions on vault file
-        @chmod($dest_path, 0600);
+        global $wp_filesystem;
+        if ($wp_filesystem) {
+            $wp_filesystem->chmod($dest_path, 0600);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($dest_path, 0600);
+        }
 
         // Unlink original infected/suspicious file
-        @unlink($real_path);
+        wp_delete_file($real_path);
 
         // Record in database - ensure single authoritative record per original_path
         $table = $wpdb->prefix . 'wcpscan_quarantine';
@@ -173,7 +179,7 @@ class QuarantineManager {
                 if (!empty($old_rec['quarantine_filename'])) {
                     $old_file = $this->quarantine_dir . '/' . $old_rec['quarantine_filename'];
                     if (file_exists($old_file)) {
-                        @unlink($old_file);
+                        wp_delete_file($old_file);
                     }
                 }
             }
@@ -305,7 +311,7 @@ class QuarantineManager {
         }
 
         // Unlink vault storage file
-        @unlink($source_path);
+        wp_delete_file($source_path);
 
         // Update database record
         $wpdb->update($table, [
@@ -325,7 +331,11 @@ class QuarantineManager {
         if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
             \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_restored', [
                 'severity' => 'warning',
-                'message'  => sprintf(__('A file in security quarantine was restored back to the active filesystem: "%s".', 'wcp-security-scanner'), $dest_path),
+                'message'  => sprintf(
+                    /* translators: %s: file path */
+                    __('A file in security quarantine was restored back to the active filesystem: "%s".', 'wcp-security-scanner'),
+                    $dest_path
+                ),
                 'details'  => [
                     'original_path' => $dest_path,
                     'restored_by'   => wp_get_current_user()->user_login ?: 'admin',
@@ -368,7 +378,7 @@ class QuarantineManager {
                 if (!empty($r['quarantine_filename'])) {
                     $cand = $this->quarantine_dir . '/' . $r['quarantine_filename'];
                     if (file_exists($cand)) {
-                        @unlink($cand);
+                        wp_delete_file($cand);
                     }
                 }
             }
@@ -409,7 +419,7 @@ class QuarantineManager {
                 if (!empty($r['quarantine_filename'])) {
                     $cand = $this->quarantine_dir . '/' . $r['quarantine_filename'];
                     if (file_exists($cand)) {
-                        @unlink($cand);
+                        wp_delete_file($cand);
                     }
                 }
             }
@@ -417,7 +427,11 @@ class QuarantineManager {
             $wpdb->query("DELETE FROM `{$table}` WHERE status = 'restored'");
             return [
                 'success' => true,
-                'message' => sprintf(__('Cleared %d restored history log entries. (Live website files remain untouched).', 'wcp-security-scanner'), count($restored))
+                'message' => sprintf(
+                    /* translators: %d: count of cleared log entries */
+                    __('Cleared %d restored history log entries. (Live website files remain untouched).', 'wcp-security-scanner'),
+                    count($restored)
+                )
             ];
         }
         return [
@@ -455,7 +469,7 @@ class QuarantineManager {
 
         foreach ($candidates as $cand) {
             if (file_exists($cand)) {
-                @unlink($cand);
+                wp_delete_file($cand);
             }
         }
 
@@ -474,6 +488,7 @@ class QuarantineManager {
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_deleted', [
                     'severity' => 'info',
+                    /* translators: %s: file path */
                     'message'  => sprintf(__('Quarantined file was permanently purged from vault storage: "%s".', 'wcp-security-scanner'), $record['original_path'] ?? 'unknown'),
                     'details'  => [
                         'file_path'     => $record['original_path'] ?? 'unknown',

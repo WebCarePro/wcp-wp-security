@@ -326,15 +326,20 @@ class SystemReadinessChecker {
         if (!empty($upload_dir['error'])) {
             return [
                 'ok'      => false,
+                /* translators: %s: error message */
                 'message' => sprintf(__('wp_upload_dir error: %s', 'wcp-security-scanner'), $upload_dir['error']),
             ];
         }
 
         $base = untrailingslashit($upload_dir['basedir']);
-        if (!is_dir($base) || !is_writable($base)) {
+        if (!is_dir($base) || !wp_is_writable($base)) {
             return [
                 'ok'      => false,
-                'message' => sprintf(__('Directory %s is not writable.', 'wcp-security-scanner'), $base),
+                'message' => sprintf(
+                    /* translators: %s: directory path */
+                    __('Directory %s is not writable.', 'wcp-security-scanner'),
+                    $base
+                ),
             ];
         }
 
@@ -343,6 +348,7 @@ class SystemReadinessChecker {
             if (!wp_mkdir_p($vault_dir)) {
                 return [
                     'ok'      => false,
+                    /* translators: %s: directory path */
                     'message' => sprintf(__('Unable to create vault directory: %s', 'wcp-security-scanner'), $vault_dir),
                 ];
             }
@@ -358,7 +364,9 @@ class SystemReadinessChecker {
             ];
         }
 
-        @unlink($canary_file);
+        if (file_exists($canary_file)) {
+            wp_delete_file($canary_file);
+        }
 
         return [
             'ok'      => true,
@@ -386,6 +394,7 @@ class SystemReadinessChecker {
         if ($created === false) {
             return [
                 'ok'      => false,
+                /* translators: %s: database error description */
                 'message' => sprintf(__('Database user lacks CREATE TABLE privilege: %s', 'wcp-security-scanner'), $wpdb->last_error),
             ];
         }

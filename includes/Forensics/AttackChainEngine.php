@@ -717,10 +717,17 @@ class AttackChainEngine {
                 $backup = $remediation_mgr->create_file_backup($file_path, 'attack_chain_eradication');
                 if ($backup['success']) {
                     $vault_backups[] = $backup['backup_id'];
-                    $quarantined_name = $file_path . '.wcp-chain-quarantine-' . time();
-                    if (@rename($file_path, $quarantined_name) || wp_delete_file($file_path)) {
-                        /* translators: %s: file basename */
-                        $actions_taken[] = sprintf(__('Quarantined file: %s', 'wcp-security-scanner'), basename($file_path));
+                    global $wp_filesystem;
+                    $moved = false;
+                    if ($wp_filesystem) {
+                        $moved = $wp_filesystem->move($file_path, $quarantined_name);
+                    }
+                    if ($moved || wp_delete_file($file_path)) {
+                        $actions_taken[] = sprintf(
+                            /* translators: %s: file basename */
+                            __('Quarantined file: %s', 'wcp-security-scanner'),
+                            basename($file_path)
+                        );
                     } else {
                         $errors[] = "Could not delete/rename file: {$file_path}";
                     }
@@ -818,10 +825,15 @@ class AttackChainEngine {
         // 7. Commit Transaction & Record Audit Log Entry
         \WcpScanner\Remediation\TransactionalRemediation::commit_transaction($tx_id);
 
-        /* translators: 1: chain ID, 2: number of actions, 3: transaction ID */
         AuditLogger::log_event(
             'attack_chain_eradicated',
-            sprintf(__('Eradicated attack chain "%1$s": %2$d actions executed under transaction %3$s.', 'wcp-security-scanner'), $chain_id, count($actions_taken), $tx_id)
+            sprintf(
+                /* translators: 1: chain ID, 2: number of actions, 3: transaction ID */
+                __('Eradicated attack chain "%1$s": %2$d actions executed under transaction %3$s.', 'wcp-security-scanner'),
+                $chain_id,
+                count($actions_taken),
+                $tx_id
+            )
         );
 
         return [
@@ -831,8 +843,8 @@ class AttackChainEngine {
             'actions_taken' => $actions_taken,
             'vault_backups' => $vault_backups,
             'errors'        => $errors,
-            /* translators: 1: number of actions, 2: transaction ID */
             'message'       => sprintf(
+                /* translators: 1: number of actions, 2: transaction ID */
                 __('Attack Chain Eradication Complete: %1$d actions executed successfully across files, database, and firewall. Transaction snapshot "%2$s" saved for safe rollback.', 'wcp-security-scanner'),
                 count($actions_taken),
                 $tx_id

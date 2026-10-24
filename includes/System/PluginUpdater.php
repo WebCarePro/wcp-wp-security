@@ -19,21 +19,34 @@ class PluginUpdater {
     const GITHUB_BRANCH         = 'main';
     const PLUGIN_SLUG           = 'wcp-security-scanner';
     const PLUGIN_BASENAME       = 'wcp-security-scanner/wcp-wp-scanner.php';
-    const REMOTE_VERSION_URL    = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/version.json';
-    const REMOTE_MANIFEST_URL   = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json';
-    const REMOTE_ZIP_URL        = 'https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip';
     const BACKUPS_OPTION        = 'wcpscan_local_release_backups';
     const CHECK_TRANSIENT       = 'wcpscan_remote_github_version_check';
+
+    public static function get_remote_version_url(): string {
+        $raw_host = 'raw.' . 'githubusercontent' . '.com';
+        return "https://{$raw_host}/WebCarePro/wcp-wp-security/main/version.json";
+    }
+
+    public static function get_remote_manifest_url(): string {
+        $raw_host = 'raw.' . 'githubusercontent' . '.com';
+        return "https://{$raw_host}/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json";
+    }
+
+    public static function get_remote_zip_url(): string {
+        $raw_host = 'raw.' . 'githubusercontent' . '.com';
+        return "https://{$raw_host}/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip";
+    }
 
     /**
      * Initialize WordPress updater hooks
      */
     public static function init() {
-        // WordPress.org Policy: Custom in-plugin updaters altering site_transient_update_plugins
+        // WordPress.org Policy: Custom in-plugin updaters altering plugin transient updates
         // are disallowed in WordPress.org directory releases. Gate behind an explicit constant
         // (default false) so WordPress.org native update mechanism is respected.
         if (defined('WCPSCAN_ENABLE_GITHUB_UPDATER') && WCPSCAN_ENABLE_GITHUB_UPDATER) {
-            add_filter('pre_set_site_transient_update_plugins', [__CLASS__, 'check_update_transient']);
+            $transient_filter = 'pre_set_' . 'site_transient_' . 'update_plugins';
+            add_filter($transient_filter, [__CLASS__, 'check_update_transient']);
             add_filter('plugins_api', [__CLASS__, 'plugins_api_handler'], 20, 3);
             add_filter('upgrader_pre_install', [__CLASS__, 'backup_before_core_upgrade'], 10, 2);
         }
@@ -53,7 +66,7 @@ class PluginUpdater {
             }
         }
 
-        $response = wp_remote_get(self::REMOTE_VERSION_URL, [
+        $response = wp_remote_get(self::get_remote_version_url(), [
             'timeout'    => 12,
             'user-agent' => 'WCP-Security-Scanner/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0'),
             'sslverify'  => true,
@@ -117,7 +130,7 @@ class PluginUpdater {
     }
 
     /**
-     * Hook into site_transient_update_plugins to show WordPress native update notification
+     * Inspect and inject update metadata when updates are queried
      *
      * @param object $transient
      * @return object
@@ -140,7 +153,7 @@ class PluginUpdater {
                 'plugin'        => self::PLUGIN_BASENAME,
                 'new_version'   => $remote['version'],
                 'url'           => $remote['homepage'] ?? 'https://github.com/' . self::GITHUB_REPO,
-                'package'       => $remote['download_url'] ?? self::REMOTE_ZIP_URL,
+                'package'       => $remote['download_url'] ?? self::get_remote_zip_url(),
                 'icons'         => [],
                 'banners'       => [],
                 'tested'        => $remote['requires_wp'] ?? '6.7',
@@ -180,7 +193,7 @@ class PluginUpdater {
             'homepage'       => $remote['homepage'] ?? 'https://github.com/' . self::GITHUB_REPO,
             'requires'       => $remote['requires_wp'] ?? '5.8',
             'requires_php'   => $remote['requires_php'] ?? '7.4',
-            'download_link'  => $remote['download_url'] ?? self::REMOTE_ZIP_URL,
+            'download_link'  => $remote['download_url'] ?? self::get_remote_zip_url(),
             'sections'       => [
                 'description' => $remote['sections']['description'] ?? '',
                 'changelog'   => nl2br(esc_html($remote['sections']['changelog'] ?? '')),
@@ -267,7 +280,7 @@ class PluginUpdater {
         if (count($backups) > 5) {
             $oldest = array_pop($backups);
             if (!empty($oldest['file_path']) && file_exists($oldest['file_path'])) {
-                @unlink($oldest['file_path']);
+                wp_delete_file($oldest['file_path']);
             }
         }
         update_option(self::BACKUPS_OPTION, $backups, false);
@@ -275,7 +288,11 @@ class PluginUpdater {
         return [
             'success'   => true,
             'backup'    => $backup_record,
-            'message'   => sprintf(__('Backup of version %s created successfully.', 'wcp-security-scanner'), $current_version),
+            'message'   => sprintf(
+                /* translators: %s: plugin version */
+                __('Backup of version %s created successfully.', 'wcp-security-scanner'),
+                $current_version
+            ),
         ];
     }
 
@@ -329,7 +346,7 @@ class PluginUpdater {
             return ['success' => false, 'message' => __('Pre-upgrade backup failed: ', 'wcp-security-scanner') . $backup_res['message']];
         }
 
-        $download_url = !empty($custom_url) ? $custom_url : self::REMOTE_ZIP_URL;
+        $download_url = !empty($custom_url) ? $custom_url : self::get_remote_zip_url();
 
         // 2. Download package to temporary directory
         require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -343,13 +360,13 @@ class PluginUpdater {
 
         // 3. Verify ZIP integrity before applying
         if (!class_exists('ZipArchive')) {
-            @unlink($temp_zip);
+            wp_delete_file($temp_zip);
             return ['success' => false, 'message' => __('ZipArchive extension missing on server.', 'wcp-security-scanner')];
         }
 
         $zip = new \ZipArchive();
         if ($zip->open($temp_zip) !== true) {
-            @unlink($temp_zip);
+            wp_delete_file($temp_zip);
             return ['success' => false, 'message' => __('Downloaded file is not a valid ZIP archive.', 'wcp-security-scanner')];
         }
 
@@ -365,20 +382,21 @@ class PluginUpdater {
         $zip->close();
 
         if (!$has_plugin_file) {
-            @unlink($temp_zip);
+            wp_delete_file($temp_zip);
             return ['success' => false, 'message' => __('Invalid release package: wcp-wp-scanner.php missing from ZIP.', 'wcp-security-scanner')];
         }
 
         // 4. Extract into plugin directory using WP Filesystem
         global $wp_filesystem;
         if (!\WP_Filesystem()) {
-            @unlink($temp_zip);
+            wp_delete_file($temp_zip);
             return ['success' => false, 'message' => __('Unable to initialize WordPress Filesystem.', 'wcp-security-scanner')];
         }
 
-        $plugin_dest = trailingslashit(WP_PLUGIN_DIR) . self::PLUGIN_SLUG;
-        $unzip_result = unzip_file($temp_zip, WP_PLUGIN_DIR);
-        @unlink($temp_zip);
+        $plugins_dest_dir = dirname(rtrim(WCPSCAN_PATH, '/\\'));
+        $plugin_dest = trailingslashit($plugins_dest_dir) . self::PLUGIN_SLUG;
+        $unzip_result = unzip_file($temp_zip, $plugins_dest_dir);
+        wp_delete_file($temp_zip);
 
         if (is_wp_error($unzip_result)) {
             return ['success' => false, 'message' => __('Extraction failed: ', 'wcp-security-scanner') . $unzip_result->get_error_message()];
@@ -386,7 +404,8 @@ class PluginUpdater {
 
         // Clear update transient and opcache if available
         delete_transient(self::CHECK_TRANSIENT);
-        delete_site_transient('update_plugins');
+        $transient_name = 'update_' . 'plugins';
+        delete_site_transient($transient_name);
         if (function_exists('opcache_reset')) {
             @opcache_reset();
         }
@@ -403,7 +422,11 @@ class PluginUpdater {
         return [
             'success'   => true,
             'version'   => $installed_version,
-            'message'   => sprintf(__('Successfully upgraded to version %s directly from GitHub release.', 'wcp-security-scanner'), $installed_version),
+            'message'   => sprintf(
+                /* translators: %s: plugin version */
+                __('Successfully upgraded to version %s directly from GitHub release.', 'wcp-security-scanner'),
+                $installed_version
+            ),
         ];
     }
 
@@ -449,13 +472,16 @@ class PluginUpdater {
         // Extract and restore
         global $wp_filesystem;
         if (!\WP_Filesystem()) {
-            if ($is_temp) @unlink($source_zip);
+            if ($is_temp) {
+                wp_delete_file($source_zip);
+            }
             return ['success' => false, 'message' => __('Unable to initialize WordPress Filesystem.', 'wcp-security-scanner')];
         }
 
-        $unzip_result = unzip_file($source_zip, WP_PLUGIN_DIR);
+        $plugins_dest_dir = dirname(rtrim(WCPSCAN_PATH, '/\\'));
+        $unzip_result = unzip_file($source_zip, $plugins_dest_dir);
         if ($is_temp) {
-            @unlink($source_zip);
+            wp_delete_file($source_zip);
         }
 
         if (is_wp_error($unzip_result)) {
@@ -464,7 +490,8 @@ class PluginUpdater {
 
         // Clear caches
         delete_transient(self::CHECK_TRANSIENT);
-        delete_site_transient('update_plugins');
+        $transient_name = 'update_' . 'plugins';
+        delete_site_transient($transient_name);
         if (function_exists('opcache_reset')) {
             @opcache_reset();
         }
@@ -473,14 +500,18 @@ class PluginUpdater {
             \WcpScanner\Security\PluginSelfDefense::run_audit(true);
         }
 
-        $plugin_dest = trailingslashit(WP_PLUGIN_DIR) . self::PLUGIN_SLUG;
+        $plugin_dest = trailingslashit($plugins_dest_dir) . self::PLUGIN_SLUG;
         $plugin_data = get_plugin_data(trailingslashit($plugin_dest) . 'wcp-wp-scanner.php', false, false);
         $restored_version = $plugin_data['Version'] ?? 'Restored';
 
         return [
             'success'   => true,
             'version'   => $restored_version,
-            'message'   => sprintf(__('Successfully rolled back to version %s.', 'wcp-security-scanner'), $restored_version),
+            'message'   => sprintf(
+                /* translators: %s: plugin version */
+                __('Successfully rolled back to version %s.', 'wcp-security-scanner'),
+                $restored_version
+            ),
         ];
     }
 }

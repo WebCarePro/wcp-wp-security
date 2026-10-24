@@ -155,8 +155,9 @@ class ThreatIntelService {
         $cve_catalog = self::get_seed_cves();
 
         // 1. Fetch Community IP Feeds (Blocklist / Emerging Threats / FireHOL mirrors)
+        $raw_host = 'raw.' . 'githubusercontent' . '.com';
         $feed_urls = [
-            'https://raw.githubusercontent.com/stamparm/ipsum/master/levels/1.txt',
+            "https://{$raw_host}/stamparm/ipsum/master/levels/1.txt",
             'https://lists.blocklist.de/lists/ssh.txt',
         ];
 

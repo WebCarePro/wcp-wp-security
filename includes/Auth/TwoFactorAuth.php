@@ -156,7 +156,11 @@ class TwoFactorAuth {
         if ($mode === 'remind_login') {
             return [
                 'status'         => 'remind_login',
-                'label'          => sprintf(__('Remind on Login (%dd grace left)', 'wcp-security-scanner'), $days_left),
+                'label'          => sprintf(
+                    /* translators: %d: count of remaining grace period days */
+                    __('Remind on Login (%dd grace left)', 'wcp-security-scanner'),
+                    $days_left
+                ),
                 'is_compliant'   => false,
                 'grace_remaining'=> $seconds_left,
                 'days_left'      => $days_left,
@@ -168,7 +172,11 @@ class TwoFactorAuth {
         // 4. Standard Grace Period
         return [
             'status'         => 'grace_period',
-            'label'          => sprintf(__('Grace Period: %d day(s) left', 'wcp-security-scanner'), $days_left),
+            'label'          => sprintf(
+                /* translators: %d: count of remaining grace period days */
+                __('Grace Period: %d day(s) left', 'wcp-security-scanner'),
+                $days_left
+            ),
             'is_compliant'   => false,
             'grace_remaining'=> $seconds_left,
             'days_left'      => $days_left,
@@ -230,7 +238,10 @@ class TwoFactorAuth {
             <div class="notice notice-info is-dismissible" style="border-left-color: #0284c7; padding: 12px 16px;">
                 <p style="margin: 0; font-size: 13.5px; font-weight: 500; color: #1e293b;">
                     <strong style="color: #0284c7;">🔔 <?php esc_html_e('Security Reminder: Configure Administrator 2FA', 'wcp-security-scanner'); ?></strong> —
-                    <?php printf(esc_html__('Two-factor authentication is recommended for your account. You have %d day(s) before enforcement is finalized.', 'wcp-security-scanner'), (int) $days_left); ?>
+                    <?php
+                    /* translators: %d: count of remaining days */
+                    printf(esc_html__('Two-factor authentication is recommended for your account. You have %d day(s) before enforcement is finalized.', 'wcp-security-scanner'), (int) $days_left);
+                    ?>
                     <a href="<?php echo esc_url($setup_url); ?>" class="button button-primary" style="margin-left: 10px; background: #0284c7; border-color: #0284c7; font-weight: 600;">
                         <?php esc_html_e('Configure 2FA', 'wcp-security-scanner'); ?> &rarr;
                     </a>
@@ -244,7 +255,10 @@ class TwoFactorAuth {
             <div class="notice notice-warning is-dismissible" style="border-left-color: #f59e0b; padding: 12px 16px;">
                 <p style="margin: 0; font-size: 13.5px; font-weight: 500; color: #1e293b;">
                     <strong style="color: #b45309;">⚠️ <?php esc_html_e('Action Required: Administrator 2FA Policy Enforced', 'wcp-security-scanner'); ?></strong> —
-                    <?php printf(esc_html__('Two-factor authentication is mandatory for all administrator accounts. You have %d day(s) remaining before your account is restricted.', 'wcp-security-scanner'), (int) $days_left); ?>
+                    <?php
+                    /* translators: %d: count of remaining days */
+                    printf(esc_html__('Two-factor authentication is mandatory for all administrator accounts. You have %d day(s) remaining before your account is restricted.', 'wcp-security-scanner'), (int) $days_left);
+                    ?>
                     <a href="<?php echo esc_url($setup_url); ?>" class="button button-secondary" style="margin-left: 10px; font-weight: 600;">
                         <?php esc_html_e('Setup 2FA Now', 'wcp-security-scanner'); ?> &rarr;
                     </a>
@@ -444,7 +458,7 @@ class TwoFactorAuth {
      */
     public static function regenerate_backup_codes(int $user_id, int $count = 8): array {
         if (!self::is_user_enabled($user_id)) {
-            throw new \Exception(__('Two-factor authentication is not enabled for this account.', 'wcp-security-scanner'));
+            throw new \Exception(esc_html__('Two-factor authentication is not enabled for this account.', 'wcp-security-scanner'));
         }
 
         $bundle = self::generate_backup_codes($count);
@@ -470,7 +484,11 @@ class TwoFactorAuth {
             $user = get_userdata($user_id);
             \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_enabled', [
                 'severity' => 'info',
-                'message'  => sprintf(__('Two-Factor Authentication (2FA) was activated for user "%s".', 'wcp-security-scanner'), $user ? $user->user_login : 'user #' . $user_id),
+                'message'  => sprintf(
+                    /* translators: %s: username or user identifier */
+                    __('Two-Factor Authentication (2FA) was activated for user "%s".', 'wcp-security-scanner'),
+                    $user ? $user->user_login : 'user #' . $user_id
+                ),
                 'details'  => [
                     'user_id'    => $user_id,
                     'user_login' => $user ? $user->user_login : 'unknown',
@@ -497,7 +515,11 @@ class TwoFactorAuth {
             $user = get_userdata($user_id);
             \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_disabled', [
                 'severity' => 'high',
-                'message'  => sprintf(__('Two-Factor Authentication (2FA) was deactivated for user "%s".', 'wcp-security-scanner'), $user ? $user->user_login : 'user #' . $user_id),
+                'message'  => sprintf(
+                    /* translators: %s: username or user identifier */
+                    __('Two-Factor Authentication (2FA) was deactivated for user "%s".', 'wcp-security-scanner'),
+                    $user ? $user->user_login : 'user #' . $user_id
+                ),
                 'details'  => [
                     'user_id'    => $user_id,
                     'user_login' => $user ? $user->user_login : 'unknown',
@@ -516,7 +538,7 @@ class TwoFactorAuth {
         self::disable_user($user_id);
         $user = get_user_by('id', $user_id);
         if (!$user) {
-            throw new \Exception(__('User not found.', 'wcp-security-scanner'));
+            throw new \Exception(esc_html__('User not found.', 'wcp-security-scanner'));
         }
 
         $secret           = self::generate_secret(16);
@@ -622,7 +644,12 @@ class TwoFactorAuth {
                 $is_admin = in_array('administrator', (array) $user->roles, true);
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
                     'severity' => $is_admin ? 'high' : 'info',
-                    'message'  => sprintf(__('Password was reset for user "%s"%s.', 'wcp-security-scanner'), $user->user_login, $is_admin ? ' (Administrator account)' : ''),
+                    'message'  => sprintf(
+                        /* translators: 1: username, 2: role description or empty */
+                        __('Password was reset for user "%1$s"%2$s.', 'wcp-security-scanner'),
+                        $user->user_login,
+                        $is_admin ? ' (Administrator account)' : ''
+                    ),
                     'details'  => [
                         'user_id'    => $user->ID,
                         'user_login' => $user->user_login,
@@ -1015,7 +1042,10 @@ class TwoFactorAuth {
                 <?php esc_html_e('Two-Factor Verification', 'wcp-security-scanner'); ?>
             </h2>
             <p style="font-size: 13px; color: #64748b; margin: 0;">
-                <?php printf(esc_html__('Logged in as %s. Enter the 6-digit code from your authenticator app to complete sign-in.', 'wcp-security-scanner'), '<strong>' . esc_html($user->user_login) . '</strong>'); ?>
+                <?php
+                /* translators: %s: username wrapped in strong tags */
+                printf(esc_html__('Logged in as %s. Enter the 6-digit code from your authenticator app to complete sign-in.', 'wcp-security-scanner'), '<strong>' . esc_html($user->user_login) . '</strong>');
+                ?>
             </p>
         </div>
 
@@ -1038,7 +1068,10 @@ class TwoFactorAuth {
                 <p style="margin: 14px 0 6px 0; display: flex; align-items: center; gap: 8px;">
                     <label for="wcpscan_2fa_remember_device" style="font-size: 13px; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
                         <input type="checkbox" name="wcpscan_2fa_remember_device" id="wcpscan_2fa_remember_device" value="1" checked style="accent-color: #0284c7; width: 16px; height: 16px; margin: 0;" />
-                        <span><?php printf(esc_html__('Remember this device for %d days', 'wcp-security-scanner'), (int) $remember_days); ?></span>
+                        <span><?php
+                        /* translators: %d: count of remember device days */
+                        printf(esc_html__('Remember this device for %d days', 'wcp-security-scanner'), (int) $remember_days);
+                        ?></span>
                     </label>
                 </p>
             <?php endif; ?>

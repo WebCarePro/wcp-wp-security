@@ -400,7 +400,7 @@ class AdminMenu {
             }
         ";
 
-        wp_register_style('wcpscan-admin-brand', false);
+        wp_register_style('wcpscan-admin-brand', false, [], defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0.0');
         wp_enqueue_style('wcpscan-admin-brand');
         wp_add_inline_style('wcpscan-admin-brand', $custom_css);
     }
@@ -420,6 +420,7 @@ class AdminMenu {
             echo '<div class="notice notice-success is-dismissible" style="padding: 12px 18px; border-left: 4px solid #16a34a; background: #f0fdf4;">';
             echo '<p style="margin: 0; font-size: 13px; color: #14532d;">';
             echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
+            /* translators: %d: count of restored administrator accounts */
             echo esc_html(sprintf(__('Successfully restored %d administrator account(s) to the WordPress database with full original capabilities and passwords.', 'wcp-security-scanner'), $count));
             echo '</p></div>';
             return;

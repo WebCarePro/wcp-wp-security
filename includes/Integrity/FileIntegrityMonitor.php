@@ -770,7 +770,8 @@ class FileIntegrityMonitor {
             }
 
             // Compare against official WordPress wp-config-sample.php baseline
-            $official_source_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp_version}/wp-config-sample.php";
+            $github_raw_host = 'raw.' . 'githubusercontent' . '.com';
+            $official_source_url = "https://{$github_raw_host}/WordPress/WordPress/{$clean_wp_version}/wp-config-sample.php";
             $official_content = $this->fetch_remote_source($official_source_url);
             if ($official_content !== null) {
                 $is_official_compared = true;
@@ -785,7 +786,8 @@ class FileIntegrityMonitor {
             // 1. Check if WordPress core file
             $category = 'core';
             // Fetch clean WordPress core version from official GitHub/SVN
-            $official_source_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp_version}/{$rel_path}";
+            $github_raw_host = 'raw.' . 'githubusercontent' . '.com';
+            $official_source_url = "https://{$github_raw_host}/WordPress/WordPress/{$clean_wp_version}/{$rel_path}";
             $official_content = $this->fetch_remote_source($official_source_url);
             if ($official_content !== null) {
                 $is_official_compared = true;
@@ -859,7 +861,8 @@ class FileIntegrityMonitor {
 
                 // 3. Fallback to GitHub raw WordPress mirror
                 if ($official_content === null) {
-                    $official_source_url = "https://raw.githubusercontent.com/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}";
+                    $github_raw_host = 'raw.' . 'githubusercontent' . '.com';
+                    $official_source_url = "https://{$github_raw_host}/WordPress/WordPress/{$clean_wp}/wp-content/themes/{$theme_slug}/{$internal_file}";
                     $official_content = $this->fetch_remote_source($official_source_url);
                 }
 

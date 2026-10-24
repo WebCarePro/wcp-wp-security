@@ -213,9 +213,9 @@ class UserScanner {
                         'severity'    => 'critical',
                         'confidence'  => 98,
                         'file_path'   => "user:{$user->ID} ({$user->user_login})",
-                        /* translators: 1: username, 2: display role, 3: count of admin capabilities, 4: list of capability names, 5: display role */
                         'description' => sprintf(
-                            __("CRITICAL: User '%1$s' has display role '%2$s' but holds %3$d administrative capability(ies): [%4$s]. In the WordPress Users list this account appears as an ordinary %5$s, but secretly possesses administrative powers.", 'wcp-security-scanner'),
+                            /* translators: 1: username, 2: display role, 3: count of admin capabilities, 4: list of capability names, 5: display role */
+                            __('CRITICAL: User \'%1$s\' has display role \'%2$s\' but holds %3$d administrative capability(ies): [%4$s]. In the WordPress Users list this account appears as an ordinary %5$s, but secretly possesses administrative powers.', 'wcp-security-scanner'),
                             $user->user_login,
                             $display_role,
                             count($found_admin_caps),
@@ -255,9 +255,9 @@ class UserScanner {
                         'severity'    => $has_upload ? 'critical' : 'high',
                         'confidence'  => 95,
                         'file_path'   => "user:{$user->ID} ({$user->user_login})",
-                        /* translators: 1: username, 2: role, 3: list of capabilities, 4: permission name */
                         'description' => sprintf(
-                            __("HIGH RISK: User '%1$s' has role '%2$s' but possesses elevated privileges: [%3$s]. Subscribers and Customers should NEVER have '%4$s' permission.", 'wcp-security-scanner'),
+                            /* translators: 1: username, 2: role, 3: list of capabilities, 4: permission name */
+                            __('HIGH RISK: User \'%1$s\' has role \'%2$s\' but possesses elevated privileges: [%3$s]. Subscribers and Customers should NEVER have \'%4$s\' permission.', 'wcp-security-scanner'),
                             $user->user_login,
                             $display_role,
                             $cap_names,
@@ -295,9 +295,9 @@ class UserScanner {
                         'severity'    => 'medium',
                         'confidence'  => 90,
                         'file_path'   => "user:{$user->ID} ({$user->user_login})",
-                        /* translators: 1: username, 2: role, 3: count of capabilities, 4: list of custom capabilities */
                         'description' => sprintf(
-                            __("User '%1$s' (role: %2$s) has %3$d custom capability entry(ies) explicitly assigned: [%4$s]. May indicate role editor customization or stealth capability injection.", 'wcp-security-scanner'),
+                            /* translators: 1: username, 2: role, 3: count of capabilities, 4: list of custom capabilities */
+                            __('User \'%1$s\' (role: %2$s) has %3$d custom capability entry(ies) explicitly assigned: [%4$s]. May indicate role editor customization or stealth capability injection.', 'wcp-security-scanner'),
                             $user->user_login,
                             $primary_role,
                             count($extra_caps),
@@ -337,9 +337,9 @@ class UserScanner {
                             'severity'    => 'critical',
                             'confidence'  => 99,
                             'file_path'   => "wp_options:{$wpdb->prefix}user_roles [Role: {$r_name}]",
-                            /* translators: 1: role name, 2: list of capabilities, 3: role name */
                             'description' => sprintf(
-                                __("CRITICAL: Global role definition for '%1$s' in wp_user_roles has been compromised to grant dangerous capability(ies): [%2$s]. Every single user with role '%3$s' automatically receives this permission.", 'wcp-security-scanner'),
+                                /* translators: 1: role name, 2: list of capabilities, 3: role name */
+                                __('CRITICAL: Global role definition for \'%1$s\' in wp_user_roles has been compromised to grant dangerous capability(ies): [%2$s]. Every single user with role \'%3$s\' automatically receives this permission.', 'wcp-security-scanner'),
                                 $r_name,
                                 $p_list,
                                 $r_name

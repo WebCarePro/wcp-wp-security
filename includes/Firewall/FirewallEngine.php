@@ -2242,7 +2242,13 @@ class FirewallEngine {
             if ($is_virtual_patch) {
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_virtual_patch_hit', [
                     'severity' => 'critical',
-                    'message'  => sprintf(__('Virtual Patch intercepted an exploit payload from %s targeting "%s" [Incident: %s].', 'wcp-security-scanner'), $ip, $rule['name'] ?? $rule['category'], $incident_id),
+                    'message'  => sprintf(
+                        /* translators: 1: attacker IP address, 2: rule name or category, 3: incident ID */
+                        __('Virtual Patch intercepted an exploit payload from %1$s targeting "%2$s" [Incident: %3$s].', 'wcp-security-scanner'),
+                        $ip,
+                        $rule['name'] ?? $rule['category'],
+                        $incident_id
+                    ),
                     'details'  => [
                         'attacker_ip' => $ip,
                         'incident_id' => $incident_id,
@@ -2302,6 +2308,7 @@ class FirewallEngine {
             '</div>',
             esc_html__('Access Denied by Security Shield', 'wcp-security-scanner'),
             sprintf(
+                /* translators: %s: site name */
                 esc_html__('Your request was blocked because it triggered an automated threat defense rule on %s.', 'wcp-security-scanner'),
                 '<strong>' . esc_html($site_name) . '</strong>'
             ),
@@ -2849,6 +2856,7 @@ class FirewallEngine {
         // Count total matching
         $count_sql = "SELECT COUNT(*) FROM `{$table}` WHERE {$where_sql}";
         if (!empty($where_params)) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $count_sql = $wpdb->prepare($count_sql, ...$where_params);
         }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
@@ -3092,12 +3100,9 @@ class FirewallEngine {
 
         // 3. Inspect binary magic bytes if temp file exists
         if (file_exists($tmp_path) && is_readable($tmp_path)) {
-            $handle = @fopen($tmp_path, 'rb');
-            if ($handle) {
-                $header = fread($handle, 16);
-                fclose($handle);
-
-                if ($header !== false && strlen($header) >= 2) {
+            $header = @file_get_contents($tmp_path, false, null, 0, 16);
+            if ($header !== false) {
+                if (strlen($header) >= 2) {
                     // Windows PE (MZ)
                     if (substr($header, 0, 2) === 'MZ') {
                         $file['error'] = __('Security Firewall: Spoofed Windows executable binary detected in upload.', 'wcp-security-scanner');
@@ -3473,7 +3478,7 @@ class FirewallEngine {
                     'ip'         => $client_ip,
                     'attempts'   => 999,
                     'username'   => $username,
-                    'blocked_at' => date('Y-m-d H:i:s', $now),
+                    'blocked_at' => gmdate('Y-m-d H:i:s', $now),
                     'expires_at' => $now + (365 * 86400),
                     'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
                 ];

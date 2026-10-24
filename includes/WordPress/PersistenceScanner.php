@@ -85,8 +85,8 @@ class PersistenceScanner {
                     'severity'    => 'critical',
                     'confidence'  => 95,
                     'file_path'   => $mu['path'],
-                    /* translators: 1: filename, 2: threat summary */
                     'description' => sprintf(
+                        /* translators: 1: filename, 2: threat summary */
                         __('Malicious Must-Use (MU) plugin detected: %1$s. %2$s', 'wcp-security-scanner'),
                         $mu['filename'],
                         $mu['threat_summary']
@@ -101,8 +101,8 @@ class PersistenceScanner {
                     'severity'    => 'medium',
                     'confidence'  => 85,
                     'file_path'   => $mu['path'],
-                    /* translators: %s: filename */
                     'description' => sprintf(
+                        /* translators: %s: filename */
                         __('Must-Use plugin "%s" contains suspicious code or hidden includes.', 'wcp-security-scanner'),
                         $mu['filename']
                     ),
@@ -120,8 +120,8 @@ class PersistenceScanner {
                     'severity'    => 'high',
                     'confidence'  => 90,
                     'file_path'   => $drop['path'],
-                    /* translators: %s: filename */
                     'description' => sprintf(
+                        /* translators: %s: filename */
                         __('Unexpected PHP file directly in wp-content/ root: "%s". Common webshell or malware drop location.', 'wcp-security-scanner'),
                         $drop['filename']
                     ),
@@ -134,8 +134,8 @@ class PersistenceScanner {
                     'severity'    => 'critical',
                     'confidence'  => 95,
                     'file_path'   => $drop['path'],
-                    /* translators: 1: filename, 2: threat summary */
                     'description' => sprintf(
+                        /* translators: 1: filename, 2: threat summary */
                         __('Malicious PHP drop-in detected: %1$s. %2$s', 'wcp-security-scanner'),
                         $drop['filename'],
                         $drop['threat_summary']
@@ -150,8 +150,8 @@ class PersistenceScanner {
                     'severity'    => 'medium',
                     'confidence'  => 85,
                     'file_path'   => $drop['path'],
-                    /* translators: %s: filename */
                     'description' => sprintf(
+                        /* translators: %s: filename */
                         __('Drop-in file "%s" is active, but no matching caching/database plugin was detected in active plugins.', 'wcp-security-scanner'),
                         $drop['filename']
                     ),
@@ -168,8 +168,8 @@ class PersistenceScanner {
                 'severity'    => $opt['severity'] ?? 'critical',
                 'confidence'  => 95,
                 'file_path'   => 'wp_options:' . $opt['option_name'],
-                /* translators: 1: option name, 2: reason */
                 'description' => sprintf(
+                    /* translators: 1: option name, 2: reason */
                     __('Database persistence anchor in autoloaded option "%1$s": %2$s', 'wcp-security-scanner'),
                     $opt['option_name'],
                     $opt['reason']
@@ -188,8 +188,8 @@ class PersistenceScanner {
                     'severity'    => $cron['severity'],
                     'confidence'  => 90,
                     'file_path'   => 'cron:hook:' . $cron['hook'],
-                    /* translators: 1: cron hook name, 2: reason */
                     'description' => sprintf(
+                        /* translators: 1: cron hook name, 2: reason */
                         __('Suspicious scheduled cron task "%1$s": %2$s', 'wcp-security-scanner'),
                         $cron['hook'],
                         $cron['reason']
@@ -207,8 +207,8 @@ class PersistenceScanner {
                 'severity'    => 'critical',
                 'confidence'  => 99,
                 'file_path'   => $res['file_path'],
-                /* translators: 1: original action, 2: timeline */
                 'description' => sprintf(
+                    /* translators: 1: original action, 2: timeline */
                     __('Self-Healing Malware Loop Detected! File was previously neutralized via WCP (%1$s), but was resurrected/re-injected %2$s.', 'wcp-security-scanner'),
                     $res['original_action'],
                     $res['timeline_human']
@@ -800,11 +800,19 @@ class PersistenceScanner {
 
                 // Delete or rename file
                 $quarantined_name = $file . '.wcp-quarantined-' . time();
-                if (@rename($file, $quarantined_name) || wp_delete_file($file)) {
+                global $wp_filesystem;
+                $moved = false;
+                if ($wp_filesystem) {
+                    $moved = $wp_filesystem->move($file, $quarantined_name);
+                }
+                if ($moved || wp_delete_file($file)) {
                     return [
                         'success'   => true,
-                        /* translators: %s: file basename */
-                        'message'   => sprintf(__('Persistence anchor "%s" neutralized. Encrypted safety backup created.', 'wcp-security-scanner'), basename($file)),
+                        'message'   => sprintf(
+                            /* translators: %s: file basename */
+                            __('Persistence anchor "%s" neutralized. Encrypted safety backup created.', 'wcp-security-scanner'),
+                            basename($file)
+                        ),
                         'backup_id' => $backup['backup_id'],
                     ];
                 }
@@ -927,8 +935,8 @@ class PersistenceScanner {
 
         return [
             'success'        => true,
-            /* translators: 1: number of cleaned anchors, 2: number of failed anchors */
             'message'        => sprintf(
+                /* translators: 1: number of cleaned anchors, 2: number of failed anchors */
                 __('Persistence Neutralization Complete: Cleaned %1$d anchors, %2$d failed. Safety snapshots saved to vault.', 'wcp-security-scanner'),
                 $cleaned,
                 $failed

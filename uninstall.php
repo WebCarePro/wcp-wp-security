@@ -93,18 +93,14 @@ if ($wcpscan_delete_data) {
     if (!empty($wcpscan_upload_dir['basedir'])) {
         $wcpscan_storage_dir = untrailingslashit($wcpscan_upload_dir['basedir']) . '/wcp-security-scanner';
         if (is_dir($wcpscan_storage_dir)) {
-            $wcpscan_items = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($wcpscan_storage_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST
-            );
-            foreach ($wcpscan_items as $wcpscan_item) {
-                if ($wcpscan_item->isDir()) {
-                    @rmdir($wcpscan_item->getRealPath());
-                } else {
-                    @unlink($wcpscan_item->getRealPath());
-                }
+            global $wp_filesystem;
+            if (!$wp_filesystem) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
             }
-            @rmdir($wcpscan_storage_dir);
+            if ($wp_filesystem) {
+                $wp_filesystem->delete($wcpscan_storage_dir, true);
+            }
         }
     }
 }
