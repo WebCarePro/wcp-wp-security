@@ -2879,6 +2879,28 @@ class ScannerRoutes {
                             $item['code_snippet'] = (string) $dbRow[$columnName];
                         }
                     }
+
+                    // Check if table is WordPress Posts table
+                    if (preg_match('/(?:^|_)posts$/i', $tableName)) {
+                        $post = get_post($rowId);
+                        if ($post) {
+                            $item['is_post'] = true;
+                            $item['post_id'] = (int) $rowId;
+                            $item['post_title'] = !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'wcp-security-scanner');
+                            $item['post_slug'] = !empty($post->post_name) ? $post->post_name : '';
+                            $item['post_status'] = !empty($post->post_status) ? $post->post_status : 'publish';
+                            $item['post_type'] = !empty($post->post_type) ? $post->post_type : 'post';
+                            $item['post_date'] = !empty($post->post_date) ? $post->post_date : '';
+                            $item['post_modified'] = !empty($post->post_modified) ? $post->post_modified : '';
+                            $item['post_author'] = (int) $post->post_author;
+                            $authorData = get_userdata($post->post_author);
+                            $item['post_author_name'] = $authorData ? $authorData->display_name : '';
+                            $permalink = get_permalink($rowId);
+                            $item['post_url'] = $permalink ? $permalink : '';
+                            $editUrl = get_edit_post_link($rowId, 'raw');
+                            $item['edit_url'] = $editUrl ? $editUrl : admin_url("post.php?post={$rowId}&action=edit");
+                        }
+                    }
                 }
             }
             // 4b. Check if finding is a Server/Network Configuration entity (e.g. reverse proxy, IP detection, network headers)

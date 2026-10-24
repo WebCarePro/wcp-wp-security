@@ -38,8 +38,10 @@ v:1.24.0 - 2026-10-24
       - Early Yield & Queue Integrity: When the safe memory ceiling is approached, the scanner gracefully yields execution, pushes remaining batch items back to the queue front, and performs proactive garbage collection (`gc_collect_cycles()`) before resuming.
     * Transparent Live Progress Bar Pacing & Telemetry Status Strip (`App.tsx`, `SettingsPage.tsx`, `SettingsManager.php`):
       - Real-Time Governor Status Bar: Integrated an adaptive intelligence status badge directly below the scan progress bar in `App.tsx` (`Turbo Headroom`, `Adaptive Visitor Throttle`, `Critical Visitor Protection`). Transparently displays the exact reasoning behind scan pacing (e.g. "Spacious memory & CPU headroom: Running at full speed" vs "Adaptive Throttle: Pacing batch to preserve visitor headroom").
-      - Developer & Admin Visibility: Displays live max safe ceiling, free memory headroom, and injected visitor pause duration, giving administrators and developers complete transparency into why a scan is moving at turbo speed or pacing safely to protect visitors.
-      - Scanner Engine Performance Controls: Added `scan_memory_safety_envelope` (Strict 60%, Balanced 70%, Performance 80%) and `scan_adaptive_throttling` reactive options in `SettingsPage.tsx` and `SettingsManager.php`.
+    * Database Finding WordPress Post/Page Forensics & Direct Links (`ScannerRoutes.php`, `App.tsx`):
+      - Intelligent Post Context Extraction: When a malicious payload or code injection is detected in a WordPress post table (e.g. `{$wpdb->prefix}posts`, custom prefixes like `09x3b_posts`), automatically queries `get_post()` to enrich the finding with the Post ID, Post Title, Post Slug (`post_name`), Post Type, Post Status, Author display name, and Publication/Modified timestamps.
+      - Actionable Admin & Live Links: Added direct 1-click links to "View Live Post" (frontend permalink) and "Edit Post in WP Admin" directly in the threat row table cell and within the expanded Database Forensics card header.
+      - Deep Post Forensics Profile Card: Embedded an executive WordPress Post Profile panel in the expanded forensics card displaying clean metadata chips (Post Title, ID, Status, Type, Author, and Slug) so administrators can immediately identify which article or landing page contains the infected payload without navigating away.
 
 v:1.23.0 - 2026-10-23
 - Plugin Deactivation Resiliency & 3rd-Party Mailer Shield (`wcp-wp-scanner.php`, `NotificationDispatcher.php`):
