@@ -44,6 +44,7 @@ class FirewallEngine {
 
         // Disallow phpMyAdmin & File Manager Plugin Installations (Admin-ajax, REST API, & WP Upgrader)
         add_filter('upgrader_pre_install', [__CLASS__, 'prevent_prohibited_plugin_install'], 10, 2);
+        add_filter('upgrader_source_selection', [__CLASS__, 'inspect_unpacked_plugin_source'], 1, 4);
         add_filter('plugins_api_result', [__CLASS__, 'filter_prohibited_plugin_api'], 10, 3);
 
         // Generic Login Error Masking (prevent revealing valid usernames)
@@ -956,7 +957,15 @@ class FirewallEngine {
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
                 $req_slug = strtolower(sanitize_text_field(wp_unslash($_POST['data']['slug'])));
             }
-            $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager', 'database-management'];
+            if (empty($req_slug) && preg_match('/(?:[?&]|%26)(?:slug|plugin)=([a-z0-9_-]+)/i', $request_uri, $slug_match)) {
+                $req_slug = strtolower($slug_match[1]);
+            }
+            $pma_signatures = [
+                'phpmyadmin', 'database-browser', 'sql-buddy', 'sqlbuddy', 'adminer',
+                'wp-phpmyadmin', 'wp-database-manager', 'database-management',
+                'dbmanager', 'db-manager', 'database-manager', 'mysql-manager',
+                'ari-adminer', 'portable-phpmyadmin'
+            ];
             $is_pma_install = false;
             foreach ($pma_signatures as $sig) {
                 if (strpos($req_slug, $sig) !== false) {
@@ -982,7 +991,7 @@ class FirewallEngine {
                     self::log_incident($rule_triggered, 'blocked');
                     if (wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
                         status_header(403);
-                        wp_send_json_error(['message' => 'Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer) is disallowed by WCP Security Firewall.']);
+                        wp_send_json_error(['message' => 'Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is disallowed by WCP Security Firewall.']);
                     } else {
                         self::render_block_page($rule_triggered, $client_ip);
                     }
@@ -1000,7 +1009,14 @@ class FirewallEngine {
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
                 $req_slug = strtolower(sanitize_text_field(wp_unslash($_POST['data']['slug'])));
             }
-            $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager', 'wp-filemanager'];
+            if (empty($req_slug) && preg_match('/(?:[?&]|%26)(?:slug|plugin)=([a-z0-9_-]+)/i', $request_uri, $slug_match)) {
+                $req_slug = strtolower($slug_match[1]);
+            }
+            $fm_signatures = [
+                'file-manager', 'filemanager', 'fileorganizer', 'filester',
+                'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager',
+                'wp-filemanager', 'file-explorer', 'file-commander', 'file-browser'
+            ];
             $is_fm_install = false;
             foreach ($fm_signatures as $sig) {
                 if (strpos($req_slug, $sig) !== false) {
@@ -3240,11 +3256,26 @@ class FirewallEngine {
                 if (!$is_pma_file && $ext === 'zip' && class_exists('ZipArchive')) {
                     $zip = new \ZipArchive();
                     if ($zip->open($tmp_path) === true) {
-                        for ($i = 0; $i < min(200, $zip->numFiles); $i++) {
+                        for ($i = 0; $i < min(300, $zip->numFiles); $i++) {
                             $entry_name = strtolower($zip->getNameIndex($i));
-                            if (preg_match('/(phpmyadmin|adminer|sqlbuddy|db-manager)/i', $entry_name)) {
+                            if (preg_match('/(phpmyadmin|adminer|sqlbuddy|db-?manager|database-?manager|mysql-?manager)/i', $entry_name)) {
                                 $is_pma_file = true;
                                 break;
+                            }
+                            if (preg_match('/\.php$/i', $entry_name)) {
+                                $stream = $zip->getStream($zip->getNameIndex($i));
+                                if ($stream) {
+                                    $chunk = fread($stream, 4096);
+                                    fclose($stream);
+                                    if ($chunk && (
+                                        preg_match('/Plugin Name:\s*.*(?:phpmyadmin|adminer|database\s*browser|db-?manager|database\s*manager|sql\s*buddy)/i', $chunk) ||
+                                        stripos($chunk, 'PMA_sendHeaderLocation') !== false ||
+                                        stripos($chunk, 'Adminer - Compact database') !== false
+                                    )) {
+                                        $is_pma_file = true;
+                                        break;
+                                    }
+                                }
                             }
                         }
                         $zip->close();
@@ -3254,7 +3285,7 @@ class FirewallEngine {
                 if ($is_pma_file) {
                     self::log_incident([
                         'category'    => 'Prohibited Script Upload',
-                        'description' => sprintf('Upload of phpMyAdmin / Adminer database management script "%s" was blocked by policy.', esc_html($filename)),
+                        'description' => sprintf('Upload of phpMyAdmin / Adminer / DBManager database management script or plugin archive "%s" was blocked by policy.', esc_html($filename)),
                         'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
                     ], 'blocked');
 
@@ -3268,7 +3299,8 @@ class FirewallEngine {
                 $fm_name_patterns = [
                     '/tinyfilemanager/i', '/filemanager/i', '/file_manager/i', '/fileorganizer/i',
                     '/filester/i', '/elfinder/i', '/responsivefilemanager/i', '/alfa[_-]?shell/i',
-                    '/c99/i', '/r57/i', '/wso[_-]?shell/i', '/b374k/i', '/webadmin/i'
+                    '/c99/i', '/r57/i', '/wso[_-]?shell/i', '/b374k/i', '/webadmin/i',
+                    '/file[_-]?explorer/i', '/file[_-]?commander/i', '/file[_-]?browser/i'
                 ];
                 $is_fm_file = false;
                 foreach ($fm_name_patterns as $fm_pat) {
@@ -3296,11 +3328,26 @@ class FirewallEngine {
                 if (!$is_fm_file && $ext === 'zip' && class_exists('ZipArchive')) {
                     $zip = new \ZipArchive();
                     if ($zip->open($tmp_path) === true) {
-                        for ($i = 0; $i < min(200, $zip->numFiles); $i++) {
+                        for ($i = 0; $i < min(300, $zip->numFiles); $i++) {
                             $entry_name = strtolower($zip->getNameIndex($i));
-                            if (preg_match('/(tinyfilemanager|filemanager|fileorganizer|elfinder|responsivefilemanager|filester)/i', $entry_name)) {
+                            if (preg_match('/(tinyfilemanager|filemanager|fileorganizer|elfinder|responsivefilemanager|filester|file-explorer|file-commander)/i', $entry_name)) {
                                 $is_fm_file = true;
                                 break;
+                            }
+                            if (preg_match('/\.php$/i', $entry_name)) {
+                                $stream = $zip->getStream($zip->getNameIndex($i));
+                                if ($stream) {
+                                    $chunk = fread($stream, 4096);
+                                    fclose($stream);
+                                    if ($chunk && (
+                                        preg_match('/Plugin Name:\s*.*(?:file\s*manager|fileorganizer|filester|elfinder|tinyfilemanager|file\s*explorer)/i', $chunk) ||
+                                        stripos($chunk, 'TinyFileManager') !== false ||
+                                        stripos($chunk, 'elFinder') !== false
+                                    )) {
+                                        $is_fm_file = true;
+                                        break;
+                                    }
+                                }
                             }
                         }
                         $zip->close();
@@ -3310,7 +3357,7 @@ class FirewallEngine {
                 if ($is_fm_file) {
                     self::log_incident([
                         'category'    => 'Prohibited Script Upload',
-                        'description' => sprintf('Upload of standalone File Manager / Web Shell script "%s" was blocked by policy.', esc_html($filename)),
+                        'description' => sprintf('Upload of standalone File Manager / Web Shell script or plugin archive "%s" was blocked by policy.', esc_html($filename)),
                         'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
                     ], 'blocked');
 
@@ -3348,7 +3395,12 @@ class FirewallEngine {
 
         // Check phpMyAdmin restriction
         if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
-            $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager', 'database-management'];
+            $pma_signatures = [
+                'phpmyadmin', 'database-browser', 'sql-buddy', 'sqlbuddy', 'adminer',
+                'wp-phpmyadmin', 'wp-database-manager', 'database-management',
+                'dbmanager', 'db-manager', 'database-manager', 'mysql-manager',
+                'ari-adminer', 'portable-phpmyadmin'
+            ];
             foreach ($pma_signatures as $sig) {
                 if (strpos($slug, $sig) !== false) {
                     self::log_incident([
@@ -3359,7 +3411,7 @@ class FirewallEngine {
 
                     return new \WP_Error(
                         'wcp_prohibited_plugin_pma',
-                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer) is disallowed by WCP Security Firewall.', 'wcp-security-scanner')
+                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is disallowed by WCP Security Firewall.', 'wcp-security-scanner')
                     );
                 }
             }
@@ -3367,7 +3419,11 @@ class FirewallEngine {
 
         // Check File Manager restriction
         if (!empty($settings['waf_disallow_filemanager_plugins'])) {
-            $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager', 'wp-filemanager'];
+            $fm_signatures = [
+                'file-manager', 'filemanager', 'fileorganizer', 'filester',
+                'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager',
+                'wp-filemanager', 'file-explorer', 'file-commander', 'file-browser'
+            ];
             foreach ($fm_signatures as $sig) {
                 if (strpos($slug, $sig) !== false) {
                     self::log_incident([
@@ -3388,6 +3444,130 @@ class FirewallEngine {
     }
 
     /**
+     * Inspect unpacked plugin folder before moving to wp-content/plugins/ (catches direct ZIP upload & WP-CLI)
+     *
+     * @param string|\WP_Error $source Source directory of extracted plugin files.
+     * @param string           $remote_source Remote source directory.
+     * @param object           $upgrader Upgrader instance.
+     * @param array            $hook_extra Hook extra context arguments.
+     * @return string|\WP_Error
+     */
+    public static function inspect_unpacked_plugin_source($source, $remote_source, $upgrader, array $hook_extra = []) {
+        if (is_wp_error($source)) {
+            return $source;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled'])) {
+            return $source;
+        }
+
+        $folder_name = strtolower(basename(untrailingslashit($source)));
+
+        // Check if database manager plugins disallowed
+        if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
+            $pma_signatures = [
+                'phpmyadmin', 'database-browser', 'sql-buddy', 'sqlbuddy', 'adminer',
+                'wp-phpmyadmin', 'wp-database-manager', 'database-management',
+                'dbmanager', 'db-manager', 'database-manager', 'mysql-manager',
+                'ari-adminer', 'portable-phpmyadmin'
+            ];
+            foreach ($pma_signatures as $sig) {
+                if (strpos($folder_name, $sig) !== false) {
+                    self::log_incident([
+                        'category'    => 'Security Policy Enforcement',
+                        'description' => sprintf('Source verification blocked installation of database manager plugin directory ("%s").', esc_html($folder_name)),
+                        'payload'     => "Folder: {$folder_name} Source: {$source}",
+                    ], 'blocked');
+
+                    return new \WP_Error(
+                        'wcp_prohibited_plugin_source_pma',
+                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is prohibited by WCP Security Firewall.', 'wcp-security-scanner')
+                    );
+                }
+            }
+        }
+
+        // Check if file manager plugins disallowed
+        if (!empty($settings['waf_disallow_filemanager_plugins'])) {
+            $fm_signatures = [
+                'file-manager', 'filemanager', 'fileorganizer', 'filester',
+                'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager',
+                'wp-filemanager', 'file-explorer', 'file-commander', 'file-browser'
+            ];
+            foreach ($fm_signatures as $sig) {
+                if (strpos($folder_name, $sig) !== false) {
+                    self::log_incident([
+                        'category'    => 'Security Policy Enforcement',
+                        'description' => sprintf('Source verification blocked installation of File Manager plugin directory ("%s").', esc_html($folder_name)),
+                        'payload'     => "Folder: {$folder_name} Source: {$source}",
+                    ], 'blocked');
+
+                    return new \WP_Error(
+                        'wcp_prohibited_plugin_source_fm',
+                        __('Security Policy Violation: Installation of File Manager plugins is prohibited by WCP Security Firewall.', 'wcp-security-scanner')
+                    );
+                }
+            }
+        }
+
+        // Deep inspect candidate PHP plugin headers inside the unpacked folder
+        if (!empty($settings['waf_disallow_phpmyadmin_plugins']) || !empty($settings['waf_disallow_filemanager_plugins'])) {
+            $php_files = @glob(trailingslashit($source) . '*.php');
+            if (!empty($php_files)) {
+                foreach (array_slice($php_files, 0, 10) as $php_file) {
+                    $header_content = @file_get_contents($php_file, false, null, 0, 8192);
+                    if (empty($header_content)) {
+                        continue;
+                    }
+
+                    // Check for database manager signatures in plugin header
+                    if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
+                        if (
+                            preg_match('/Plugin Name:\s*.*(?:phpmyadmin|adminer|database\s*browser|db-?manager|database\s*manager|sql\s*buddy)/i', $header_content) ||
+                            stripos($header_content, 'PMA_sendHeaderLocation') !== false ||
+                            stripos($header_content, 'Adminer - Compact database') !== false
+                        ) {
+                            self::log_incident([
+                                'category'    => 'Security Policy Enforcement',
+                                'description' => sprintf('Deep inspection blocked database manager plugin header in "%s".', esc_html(basename($php_file))),
+                                'payload'     => "File: " . basename($php_file),
+                            ], 'blocked');
+
+                            return new \WP_Error(
+                                'wcp_prohibited_plugin_header_pma',
+                                __('Security Policy Violation: Plugin header identifies as a prohibited database manager (phpMyAdmin/Adminer).', 'wcp-security-scanner')
+                            );
+                        }
+                    }
+
+                    // Check for file manager signatures in plugin header
+                    if (!empty($settings['waf_disallow_filemanager_plugins'])) {
+                        if (
+                            preg_match('/Plugin Name:\s*.*(?:file\s*manager|fileorganizer|filester|elfinder|tinyfilemanager|file\s*explorer)/i', $header_content) ||
+                            stripos($header_content, 'TinyFileManager') !== false ||
+                            stripos($header_content, 'elFinder') !== false
+                        ) {
+                            self::log_incident([
+                                'category'    => 'Security Policy Enforcement',
+                                'description' => sprintf('Deep inspection blocked file manager plugin header in "%s".', esc_html(basename($php_file))),
+                                'payload'     => "File: " . basename($php_file),
+                            ], 'blocked');
+
+                            return new \WP_Error(
+                                'wcp_prohibited_plugin_header_fm',
+                                __('Security Policy Violation: Plugin header identifies as a prohibited File Manager plugin.', 'wcp-security-scanner')
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        return $source;
+    }
+
+    /**
      * Filter WordPress.org Plugins API results to prevent 1-click install/queries of prohibited plugins
      */
     public static function filter_prohibited_plugin_api($res, $action, $args) {
@@ -3400,7 +3580,12 @@ class FirewallEngine {
             $slug = strtolower($args->slug);
 
             if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
-                $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager'];
+                $pma_signatures = [
+                    'phpmyadmin', 'database-browser', 'sql-buddy', 'sqlbuddy', 'adminer',
+                    'wp-phpmyadmin', 'wp-database-manager', 'database-management',
+                    'dbmanager', 'db-manager', 'database-manager', 'mysql-manager',
+                    'ari-adminer', 'portable-phpmyadmin'
+                ];
                 foreach ($pma_signatures as $sig) {
                     if (strpos($slug, $sig) !== false) {
                         return new \WP_Error(
@@ -3412,7 +3597,11 @@ class FirewallEngine {
             }
 
             if (!empty($settings['waf_disallow_filemanager_plugins'])) {
-                $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager'];
+                $fm_signatures = [
+                    'file-manager', 'filemanager', 'fileorganizer', 'filester',
+                    'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager',
+                    'wp-filemanager', 'file-explorer', 'file-commander', 'file-browser'
+                ];
                 foreach ($fm_signatures as $sig) {
                     if (strpos($slug, $sig) !== false) {
                         return new \WP_Error(
