@@ -2812,9 +2812,18 @@ class ScannerRoutes {
                 $item['user_email'] = $user ? $user->user_email : (preg_match('/Email:\s*([^,\s]+)/i', $item['evidence'] ?? '', $m) ? $m[1] : '');
                 $item['user_registered'] = $user ? $user->user_registered : (preg_match('/Registered:\s*([^,\n]+)/i', $item['evidence'] ?? '', $m) ? trim($m[1]) : '');
                 $item['user_display_name'] = $user ? $user->display_name : $item['user_login'];
+                $item['user_nicename'] = $user ? $user->user_nicename : '';
+                $item['first_name'] = $user ? $user->first_name : '';
+                $item['last_name'] = $user ? $user->last_name : '';
+                
+                // User Roles extraction
+                $user_roles = $user && !empty($user->roles) ? array_values((array) $user->roles) : [];
+                $item['user_roles_list'] = $user_roles;
+                $item['user_roles'] = !empty($user_roles) ? implode(', ', $user_roles) : ($item['user_roles'] ?? 'none');
+
                 $current_user_id = function_exists('get_current_user_id') ? get_current_user_id() : 0;
                 $is_current_user = ($userId > 0 && $userId === $current_user_id);
-                $is_admin = ($user && in_array('administrator', (array) $user->roles, true));
+                $is_admin = ($user && in_array('administrator', $user_roles, true));
 
                 $item['is_current_user'] = $is_current_user;
                 $item['is_admin'] = $is_admin;
@@ -2822,7 +2831,7 @@ class ScannerRoutes {
                 $item['password_url'] = $is_current_user ? admin_url('profile.php#password') : ($userId > 0 ? admin_url("user-edit.php?user_id={$userId}#password") : admin_url('users.php'));
                 $item['edit_url'] = $userId > 0 ? admin_url("user-edit.php?user_id={$userId}") : admin_url("users.php");
 
-                // Injected custom capabilities inspection
+                // Injected custom capabilities & complete capabilities matrix
                 if ($userId > 0) {
                     global $wpdb;
                     $cap_key = $wpdb->prefix . 'capabilities';
@@ -2837,6 +2846,50 @@ class ScannerRoutes {
                         }
                     }
                     $item['injected_caps'] = $injected_caps;
+
+                    // Comprehensive Developer & Permissions Forensics
+                    if ($user) {
+                        $allcaps = !empty($user->allcaps) && is_array($user->allcaps) ? $user->allcaps : [];
+                        $active_caps = array_keys(array_filter($allcaps));
+                        sort($active_caps);
+                        $item['all_capabilities'] = $active_caps;
+                        $item['capabilities_count'] = count($active_caps);
+
+                        // User Level
+                        $user_level = get_user_meta($userId, $wpdb->prefix . 'user_level', true);
+                        $item['user_level'] = $user_level !== '' ? (int) $user_level : 0;
+
+                        // Authored Posts Count across published, drafts, pending
+                        if (function_exists('count_user_posts')) {
+                            $item['authored_posts_count'] = (int) count_user_posts($userId, 'post', true);
+                        }
+
+                        // Password hash algorithm preview (safe hint without disclosing hash)
+                        if (!empty($user->user_pass)) {
+                            $pass_str = (string) $user->user_pass;
+                            if (strpos($pass_str, '$P$') === 0) {
+                                $item['hash_type'] = 'WordPress phpass ($P$)';
+                            } elseif (strpos($pass_str, '$2y$') === 0 || strpos($pass_str, '$2a$') === 0) {
+                                $item['hash_type'] = 'Bcrypt ($2y$)';
+                            } elseif (strpos($pass_str, '$argon2i$') === 0 || strpos($pass_str, '$argon2id$') === 0) {
+                                $item['hash_type'] = 'Argon2';
+                            } elseif (strlen($pass_str) === 32 && ctype_xdigit($pass_str)) {
+                                $item['hash_type'] = 'Insecure Legacy MD5 (32-char hex)';
+                            } else {
+                                $item['hash_type'] = 'Standard Hash';
+                            }
+                        }
+
+                        // Two Factor & Application Passwords detection
+                        $app_passwords = get_user_meta($userId, '_application_passwords', true);
+                        $item['has_application_passwords'] = is_array($app_passwords) && !empty($app_passwords);
+                        $item['application_passwords_count'] = is_array($app_passwords) ? count($app_passwords) : 0;
+
+                        $has_two_factor = get_user_meta($userId, '_two_factor_enabled', true) 
+                            || get_user_meta($userId, 'two_factor_provider', true)
+                            || get_user_meta($userId, 'wfls-2fa-enabled', true);
+                        $item['two_factor_enabled'] = (bool) $has_two_factor;
+                    }
                 }
 
                 // Specialized handling for Orphaned Post Author
