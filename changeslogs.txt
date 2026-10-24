@@ -23,7 +23,7 @@ v:1.24.0 - 2026-10-24
      - Forensic Deep-Metadata Capture: Vault baseline captures full forensic parameters for every file: file/folder owner (`uid:gid`), owner names, octal permissions (`0644`), inode change time (`ctime`), last modified time (`mtime`), symlink detection & destination target, and full SHA-256 cryptographic hashes.
      - 1,000,000+ Files Scale Resiliency: Scoped shard manifests and streaming compression allow large WordPress sites to store 1M+ file footprints in under 15MB peak RAM, reducing megabytes of JSON down to compact gzipped chunks (e.g. 3,300+ core files compressed to ~170KB).
      - Sub-Second 2-Stage Drift Audit: Re-check audits execute in under 0.20 seconds by performing lightning-fast Stage 1 stat comparisons (`size + mtime + perms + owner + symlink`) and only computing SHA-256 hashing when filesystem metadata changes. Detects modified, added, deleted, permission-altered, owner-altered, and symlink injection attacks.
-     - Interactive Attestation Dashboard: Added live Vault Baseline verification card, live baseline timestamp, verified files count, one-click "Re-Check Files (Drift Audit)" button, and "Calibrate Known-Good Baseline" action in `FileIntegrityPage.tsx`.
+     - Interactive Attestation Dashboard: Added live Vault Baseline verification card, live baseline timestamp with relative time calculation (`X minutes ago` / `Xm ago`), verified files count, one-click "Re-Check Files (Drift Audit)" button, and "Calibrate Known-Good Baseline" action in `FileIntegrityPage.tsx`.
 
 
 v:1.23.0 - 2026-10-23
