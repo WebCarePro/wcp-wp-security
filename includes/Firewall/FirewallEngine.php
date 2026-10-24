@@ -2316,6 +2316,7 @@ class FirewallEngine {
             esc_html__('If you believe this is a false positive, please contact the site administrator and provide the Incident ID above.', 'wcp-security-scanner')
         );
 
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         wp_die($message, esc_html__('403 Forbidden - Security Shield Block', 'wcp-security-scanner'), [
             'response'  => 403,
             'code'      => 'wcpscan_access_denied',
@@ -2850,11 +2851,13 @@ class FirewallEngine {
         if (!empty($where_params)) {
             $count_sql = $wpdb->prepare($count_sql, ...$where_params);
         }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
         $total = (int) $wpdb->get_var($count_sql);
 
         // Fetch paginated results
         $data_sql = "SELECT * FROM `{$table}` WHERE {$where_sql} ORDER BY id DESC LIMIT %d OFFSET %d";
         $data_params = array_merge($where_params, [$limit, $offset]);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
         $rows = $wpdb->get_results($wpdb->prepare($data_sql, ...$data_params), ARRAY_A) ?: [];
 
         $page = (int) floor($offset / $limit) + 1;

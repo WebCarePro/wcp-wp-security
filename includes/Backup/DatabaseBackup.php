@@ -588,6 +588,7 @@ class DatabaseBackup {
                     );
                 }
 
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
                 $rows = $wpdb->get_results($query, ARRAY_A);
 
                 if (!empty($rows)) {

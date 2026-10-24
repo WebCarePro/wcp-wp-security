@@ -281,13 +281,17 @@ class MCPAgentService {
     public static function execute_tool(string $tool, array $args = []): array {
         $start_time = microtime(true);
 
-        $client_ip = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $raw_cf_ip  = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? (string) wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']) : '';
+        $raw_xf_ip  = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? (string) wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']) : '';
+        $raw_rem_ip = isset($_SERVER['REMOTE_ADDR']) ? (string) wp_unslash($_SERVER['REMOTE_ADDR']) : '127.0.0.1';
+        $client_ip  = $raw_cf_ip !== '' ? $raw_cf_ip : ($raw_xf_ip !== '' ? $raw_xf_ip : $raw_rem_ip);
+
         if (strpos($client_ip, ',') !== false) {
             $parts = explode(',', $client_ip);
             $client_ip = trim($parts[0]);
         }
-        $client_ip = sanitize_text_field($client_ip);
-        $user_agent = !empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(substr($_SERVER['HTTP_USER_AGENT'], 0, 120)) : 'Unknown AI Agent';
+        $client_ip  = sanitize_text_field($client_ip);
+        $user_agent = !empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(substr((string) wp_unslash($_SERVER['HTTP_USER_AGENT']), 0, 120)) : 'Unknown AI Agent';
 
         // 1. Sliding-window rate limit check
         $rate_limit = (int) SettingsManager::get('mcp_rate_limit_per_min', 60);
@@ -472,6 +476,7 @@ class MCPAgentService {
         $query = "SELECT id, scan_id, engine, type, severity, confidence, file_path, line_number, description, status, created_at FROM `{$table_issues}` WHERE " . implode(' AND ', $where) . " ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC LIMIT %d";
         $params[] = $limit;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
         $results = $wpdb->get_results($wpdb->prepare($query, ...$params), ARRAY_A);
 
         return [

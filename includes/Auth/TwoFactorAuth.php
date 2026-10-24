@@ -951,8 +951,8 @@ class TwoFactorAuth {
 
         if (!$session || empty($session['user_id'])) {
             wp_die(
-                __('Your two-factor verification session has expired. Please log in again.', 'wcp-security-scanner'),
-                __('Session Expired', 'wcp-security-scanner'),
+                esc_html__('Your two-factor verification session has expired. Please log in again.', 'wcp-security-scanner'),
+                esc_html__('Session Expired', 'wcp-security-scanner'),
                 ['response' => 403, 'back_link' => true]
             );
         }
@@ -960,7 +960,7 @@ class TwoFactorAuth {
         $user_id = (int) $session['user_id'];
         $user    = get_user_by('id', $user_id);
         if (!$user) {
-            wp_die(__('Invalid user session.', 'wcp-security-scanner'));
+            wp_die(esc_html__('Invalid user session.', 'wcp-security-scanner'));
         }
 
         $remember_device_allowed = self::is_remember_device_enabled();

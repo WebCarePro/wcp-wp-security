@@ -1834,11 +1834,11 @@ class ScannerRoutes {
         }
 
         $requested_scan_id = (int) $request->get_param('scan_id');
-        if (!$requested_scan_id && isset($_GET['scan_id'])) {
-            $requested_scan_id = (int) $_GET['scan_id'];
-        }
-        if (!$requested_scan_id && !empty($_SERVER['REQUEST_URI']) && preg_match('/[?&]scan_id=(\d+)/', $_SERVER['REQUEST_URI'], $m)) {
-            $requested_scan_id = (int) $m[1];
+        if (!$requested_scan_id && !empty($_SERVER['REQUEST_URI'])) {
+            $raw_req_uri = sanitize_text_field((string) wp_unslash($_SERVER['REQUEST_URI']));
+            if (preg_match('/[?&]scan_id=(\d+)/', $raw_req_uri, $m)) {
+                $requested_scan_id = (int) $m[1];
+            }
         }
         $target_filter = sanitize_text_field($request->get_param('target'));
 
@@ -2101,19 +2101,19 @@ class ScannerRoutes {
             // Preserve the active running scan(s) and their issues/files. Delete only historical records.
             $placeholders = implode(',', array_fill(0, count($running_ids), '%d'));
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
             $wpdb->query($wpdb->prepare(
                 "DELETE FROM `{$table_issues}` WHERE scan_id NOT IN ($placeholders)",
                 ...$running_ids
             ));
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
             $wpdb->query($wpdb->prepare(
                 "DELETE FROM `{$table_files}` WHERE scan_id NOT IN ($placeholders)",
                 ...$running_ids
             ));
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
             $wpdb->query($wpdb->prepare(
                 "DELETE FROM `{$table_scans}` WHERE id NOT IN ($placeholders)",
                 ...$running_ids
@@ -3702,7 +3702,7 @@ class ScannerRoutes {
         $s = preg_replace('/<code[^>]*>(.*?)<\/code>/is', '`$1`', $s);
         $s = preg_replace('/<\/p>/is', "\n\n", $s);
         $s = preg_replace('/<br\s*\/?>/is', "\n", $s);
-        $s = strip_tags($s);
+        $s = wp_strip_all_tags($s);
         $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $s = preg_replace("/\n{3,}/", "\n\n", $s);
 
@@ -5422,6 +5422,7 @@ class ScannerRoutes {
         if ($format === 'html') {
             $html = IncidentReportEngine::render_html($report);
             header('Content-Type: text/html; charset=UTF-8');
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             echo $html;
             exit;
         }
@@ -6975,13 +6976,13 @@ class ScannerRoutes {
             return [];
         }
 
-        $remote_addr = $_SERVER['REMOTE_ADDR'] ?? '';
+        $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field((string) wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
         if (empty($remote_addr)) {
             return [];
         }
 
         // 3. Loopback Request Check (Server connecting to itself via HTTP loopback during background audit)
-        $server_addr = $_SERVER['SERVER_ADDR'] ?? '';
+        $server_addr = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field((string) wp_unslash($_SERVER['SERVER_ADDR'])) : '';
         if ($remote_addr === '127.0.0.1' || $remote_addr === '::1' || ($server_addr && $remote_addr === $server_addr)) {
             return [];
         }
@@ -7008,7 +7009,7 @@ class ScannerRoutes {
 
         foreach ($proxy_headers as $hdr) {
             if (!empty($_SERVER[$hdr])) {
-                $raw_val = (string) $_SERVER[$hdr];
+                $raw_val = sanitize_text_field((string) wp_unslash($_SERVER[$hdr]));
                 // RFC 7239 Forwarded: for=198.51.100.1
                 if ($hdr === 'HTTP_FORWARDED' && preg_match('/for="?([^";,\s]+)"?/i', $raw_val, $fm)) {
                     $raw_val = $fm[1];
@@ -7220,7 +7221,8 @@ class ScannerRoutes {
         // 3. Check if website IP is generating spam (Spamcop, Barracuda, Spamhaus ZEN)
         if (!empty($opts['check_spam_ip'])) {
             $test_ip = apply_filters('wcpscan_test_reputation_ip', $opts['test_ip'] ?? null);
-            $server_ip = !empty($test_ip) ? $test_ip : ($_SERVER['SERVER_ADDR'] ?? gethostbyname($host ?: 'localhost'));
+            $raw_srv_ip = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field((string) wp_unslash($_SERVER['SERVER_ADDR'])) : '';
+            $server_ip = !empty($test_ip) ? $test_ip : ($raw_srv_ip ?: gethostbyname($host ?: 'localhost'));
 
             if (filter_var($server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) || !empty($test_ip)) {
                 $rev_ip = implode('.', array_reverse(explode('.', $server_ip)));

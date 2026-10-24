@@ -445,11 +445,14 @@ class AdminMenu {
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">';
         echo '<div style="font-size: 13px; color: #14532d;">';
         echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
-        echo sprintf(
-            /* translators: %1$d: count, %2$s: usernames */
-            esc_html__('Found %1$d quarantined administrator account(s) (%2$s) available in safety backups.', 'wcp-security-scanner'),
-            count($missing_users),
-            $names_str
+        echo wp_kses(
+            sprintf(
+                /* translators: %1$d: count, %2$s: usernames */
+                esc_html__('Found %1$d quarantined administrator account(s) (%2$s) available in safety backups.', 'wcp-security-scanner'),
+                count($missing_users),
+                $names_str
+            ),
+            ['code' => ['style' => []]]
         );
         echo '</div>';
         echo '<a href="' . esc_url($restore_url) . '" class="button button-primary" style="background: #16a34a; border-color: #15803d; font-weight: 700; padding: 2px 14px; box-shadow: 0 2px 4px rgba(22,163,74,0.2);">';

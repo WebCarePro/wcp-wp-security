@@ -36,12 +36,16 @@ class RogueAdminAnomalyDetector {
 
         // 1. Audit wp_users vs wp_usermeta: Detect hidden users or orphaned capability records
         // Find users in wp_users that have NO record in wp_usermeta for capabilities (Zombie/Hidden users)
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $hidden_users = $wpdb->get_results(
-            "SELECT u.ID, u.user_login, u.user_email, u.user_registered 
-             FROM `{$users_table}` u 
-             LEFT JOIN `{$usermeta_table}` m ON (u.ID = m.user_id AND m.meta_key = '{$cap_key}')
-             WHERE m.meta_value IS NULL 
-             LIMIT 50"
+            $wpdb->prepare(
+                "SELECT u.ID, u.user_login, u.user_email, u.user_registered 
+                 FROM `{$wpdb->users}` u 
+                 LEFT JOIN `{$wpdb->usermeta}` m ON (u.ID = m.user_id AND m.meta_key = %s)
+                 WHERE m.meta_value IS NULL 
+                 LIMIT 50",
+                $cap_key
+            )
         );
 
         if (!empty($hidden_users)) {
@@ -59,12 +63,16 @@ class RogueAdminAnomalyDetector {
         }
 
         // 2. Detect orphaned usermeta records where meta_key = capabilities but user ID does NOT exist in wp_users
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $orphaned_caps = $wpdb->get_results(
-            "SELECT m.umeta_id, m.user_id, m.meta_key, m.meta_value 
-             FROM `{$usermeta_table}` m 
-             LEFT JOIN `{$users_table}` u ON m.user_id = u.ID 
-             WHERE m.meta_key = '{$cap_key}' AND u.ID IS NULL 
-             LIMIT 50"
+            $wpdb->prepare(
+                "SELECT m.umeta_id, m.user_id, m.meta_key, m.meta_value 
+                 FROM `{$wpdb->usermeta}` m 
+                 LEFT JOIN `{$wpdb->users}` u ON m.user_id = u.ID 
+                 WHERE m.meta_key = %s AND u.ID IS NULL 
+                 LIMIT 50",
+                $cap_key
+            )
         );
 
         if (!empty($orphaned_caps)) {
@@ -82,11 +90,12 @@ class RogueAdminAnomalyDetector {
         }
 
         // 3. Detect users with direct administrator capability injections or elevated user_level
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $admin_meta = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT m.user_id, m.meta_value, u.user_login, u.user_email 
-                 FROM `{$usermeta_table}` m 
-                 JOIN `{$users_table}` u ON m.user_id = u.ID 
+                 FROM `{$wpdb->usermeta}` m 
+                 JOIN `{$wpdb->users}` u ON m.user_id = u.ID 
                  WHERE m.meta_key = %s AND (m.meta_value LIKE %s OR m.meta_value LIKE %s)",
                 $cap_key,
                 '%administrator%',
@@ -125,9 +134,10 @@ class RogueAdminAnomalyDetector {
         }
 
         // 4. Scan wp_options for stealth backdoor transients and obfuscated base64 payload options
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $suspicious_options = $wpdb->get_results(
             "SELECT option_name, LENGTH(option_value) AS val_len, SUBSTRING(option_value, 1, 250) AS sample 
-             FROM `{$options_table}` 
+             FROM `{$wpdb->options}` 
              WHERE (option_name LIKE '%wp_check%' 
                  OR option_name LIKE '%wph_%' 
                  OR option_name LIKE '%upd_%' 
@@ -167,7 +177,8 @@ class RogueAdminAnomalyDetector {
         $usermeta_table = $wpdb->prefix . 'usermeta';
         $cap_key        = $wpdb->prefix . 'capabilities';
 
-        $total_users = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$users_table}`");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $total_users = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$wpdb->users}`");
 
         // Admins with administrator role
         $admin_users = get_users(['role' => 'administrator']);
@@ -190,17 +201,25 @@ class RogueAdminAnomalyDetector {
         }
 
         // Count orphaned capabilities
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $orphaned_count = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM `{$usermeta_table}` m 
-             LEFT JOIN `{$users_table}` u ON m.user_id = u.ID 
-             WHERE m.meta_key = '{$cap_key}' AND u.ID IS NULL"
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM `{$wpdb->usermeta}` m 
+                 LEFT JOIN `{$wpdb->users}` u ON m.user_id = u.ID 
+                 WHERE m.meta_key = %s AND u.ID IS NULL",
+                $cap_key
+            )
         );
 
         // Count users missing capabilities
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $missing_cap_count = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM `{$users_table}` u 
-             LEFT JOIN `{$usermeta_table}` m ON (u.ID = m.user_id AND m.meta_key = '{$cap_key}') 
-             WHERE m.meta_value IS NULL"
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM `{$wpdb->users}` u 
+                 LEFT JOIN `{$wpdb->usermeta}` m ON (u.ID = m.user_id AND m.meta_key = %s) 
+                 WHERE m.meta_value IS NULL",
+                $cap_key
+            )
         );
 
         return [

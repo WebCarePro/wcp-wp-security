@@ -110,7 +110,8 @@ class AIService {
                 $provider = 'wp_ai_connect';
                 $model = $ai_status['engine_slug'];
             } else {
-                throw new \Exception(__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect WordPress Native AI Connect.', 'wcp-security-scanner'));
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+                throw new \Exception(esc_html__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect WordPress Native AI Connect.', 'wcp-security-scanner'));
             }
         }
 
@@ -120,7 +121,8 @@ class AIService {
         $flagged_line = $data['line_number'] ?? null;
 
         if (empty($code)) {
-            throw new \Exception(__('No code snippet provided for AI forensic analysis.', 'wcp-security-scanner'));
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception(esc_html__('No code snippet provided for AI forensic analysis.', 'wcp-security-scanner'));
         }
 
         // Limit code sent to avoid excessive token costs
@@ -593,7 +595,8 @@ class AIService {
         ]);
 
         if (is_wp_error($response)) {
-            throw new \Exception('OpenAI Request Failed: ' . $response->get_error_message());
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('OpenAI Request Failed: ' . esc_html($response->get_error_message()));
         }
 
         $code = wp_remote_retrieve_response_code($response);
@@ -602,7 +605,8 @@ class AIService {
 
         if ($code !== 200) {
             $err = $data['error']['message'] ?? "HTTP error {$code}";
-            throw new \Exception('OpenAI Error: ' . $err);
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('OpenAI Error: ' . esc_html($err));
         }
 
         return $data['choices'][0]['message']['content'] ?? '';
@@ -643,7 +647,8 @@ class AIService {
         ]);
 
         if (is_wp_error($response)) {
-            throw new \Exception('Gemini Request Failed: ' . $response->get_error_message());
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('Gemini Request Failed: ' . esc_html($response->get_error_message()));
         }
 
         $code = wp_remote_retrieve_response_code($response);
@@ -658,7 +663,8 @@ class AIService {
                 return self::call_gemini($api_key, 'gemini-3.5-flash-lite', $system, $user, $temp, $max_tokens, $timeout);
             }
 
-            throw new \Exception('Google Gemini Error: ' . $err);
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('Google Gemini Error: ' . esc_html($err));
         }
 
         return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
@@ -693,7 +699,8 @@ class AIService {
         ]);
 
         if (is_wp_error($response)) {
-            throw new \Exception('Claude Request Failed: ' . $response->get_error_message());
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('Claude Request Failed: ' . esc_html($response->get_error_message()));
         }
 
         $code = wp_remote_retrieve_response_code($response);
@@ -702,7 +709,8 @@ class AIService {
 
         if ($code !== 200) {
             $err = $data['error']['message'] ?? "HTTP error {$code}";
-            throw new \Exception('Anthropic Claude Error: ' . $err);
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('Anthropic Claude Error: ' . esc_html($err));
         }
 
         return $data['content'][0]['text'] ?? '';

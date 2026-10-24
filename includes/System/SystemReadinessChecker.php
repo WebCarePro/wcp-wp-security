@@ -453,7 +453,8 @@ class SystemReadinessChecker {
             </div>
         </div>';
 
-        wp_die($html, __('WCP Security Scanner — Compatibility Requirement Unmet', 'wcp-security-scanner'), [
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        wp_die($html, esc_html__('WCP Security Scanner — Compatibility Requirement Unmet', 'wcp-security-scanner'), [
             'response'  => 500,
             'back_link' => true,
         ]);

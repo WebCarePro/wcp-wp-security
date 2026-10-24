@@ -8,6 +8,12 @@ v:1.25.0 - 2026-10-25
   * Readme Description Optimization: Restructured `readme.txt` to keep the initial `== Description ==` overview section under 1,500 characters, moving the extensive 30-facility breakdown cleanly under `== Features ==` to eliminate the 2500-character description truncation warning.
   * Global Variable Prefixing (`uninstall.php`): Prefixed all variables in `uninstall.php` with `wcpscan_` (`$wcpscan_settings`, `$wcpscan_delete_data`, `$wcpscan_tables`, `$wcpscan_plugin_options`, `$wcpscan_upload_dir`, etc.) complying strictly with `WordPress.NamingConventions.PrefixAllGlobals`.
   * WordPress.org In-Plugin Updater Policy Gating (`PluginUpdater.php`): Gated custom GitHub `pre_set_site_transient_update_plugins` and `plugins_api` hook overrides behind the `WCPSCAN_ENABLE_GITHUB_UPDATER` constant check so that standard WordPress.org hosted installs conform with WordPress.org update guidelines.
+- WordPress.org Submission Compliance Phase 2 (`RogueAdminAnomalyDetector.php`, `FindingsRepository.php`, `TableScanner.php`, `DatabaseBackup.php`, `MCPAgentService.php`, `ScannerRoutes.php`, `AdminMenu.php`):
+  * Prepared SQL Hardening: Converted all direct interpolated queries in `RogueAdminAnomalyDetector.php` (`$hidden_users`, `$orphaned_caps`, `$total_users`, `$orphaned_count`, `$missing_cap_count`) to use `$wpdb->prepare` with explicit `%s` placeholders and `$wpdb` table properties (`$wpdb->users`, `$wpdb->usermeta`, `$wpdb->options`).
+  * Query Analysis Annotations: Annotated safe batch-constructed and keyset queries in `FindingsRepository.php`, `TableScanner.php`, `DatabaseBackup.php`, `MCPAgentService.php`, `FirewallEngine.php`, and `RemediationManager.php` with `phpcs:ignore` tags, clearing unescaped query warnings.
+  * Superglobal Unslashing & Sanitization: Hardened `MCPAgentService.php` and `ScannerRoutes.php` by applying `wp_unslash()` and `sanitize_text_field()` across superglobals (`HTTP_CF_CONNECTING_IP`, `HTTP_X_FORWARDED_FOR`, `REMOTE_ADDR`, `SERVER_ADDR`, `HTTP_USER_AGENT`, `REQUEST_URI`).
+  * Output Escaping & Modern Replacement: Replaced deprecated `strip_tags()` with `wp_strip_all_tags()` in `ScannerRoutes.php` and added `wp_kses()` to administrative notice tags in `AdminMenu.php`.
+
 
 
 v:1.24.0 - 2026-10-24

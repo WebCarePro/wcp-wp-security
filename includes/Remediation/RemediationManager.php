@@ -792,10 +792,10 @@ class RemediationManager {
 
         if (!empty($file_path)) {
             $normalized = wp_normalize_path($file_path);
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $wpdb->query(
                 $wpdb->prepare(
-                    "UPDATE {$table_issues} SET status = 'repaired' WHERE (file_path = %s OR file_path = %s) AND status != 'repaired'",
+                    "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path = %s OR file_path = %s) AND status != 'repaired'",
                     $file_path,
                     $normalized
                 )

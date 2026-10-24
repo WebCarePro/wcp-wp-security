@@ -143,6 +143,7 @@ class TableScanner {
             );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
         $rows = $wpdb->get_results($sql, ARRAY_A);
         if (empty($rows)) {
             return ['findings' => [], 'rows_scanned' => 0, 'next_cursor' => null];
