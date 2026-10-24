@@ -465,8 +465,8 @@ class FileIntegrityMonitor {
                 $integrity_status = $item['is_suspicious'] ? 'suspicious_executable' : 'unverified';
             }
 
-            // Can auto-cure? (Only modified official plugins or core)
-            $can_auto_cure = ($cat === 'plugins' && ($integrity_status === 'modified' || $integrity_status === 'rogue_file')) || ($cat === 'core' && $integrity_status === 'modified');
+            // Can auto-cure? Only modified official files with a known official repository baseline (never rogue/unknown files)
+            $can_auto_cure = ($cat === 'plugins' && $integrity_status === 'modified') || ($cat === 'core' && $integrity_status === 'modified');
             $can_diff = true;
 
             $item['component_name']       = $component_name;
