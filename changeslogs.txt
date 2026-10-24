@@ -58,6 +58,12 @@ v:1.24.0 - 2026-10-24
       - Clean Production Repository: Purged test scripts and development test suites (`test_live_http_rules.js`, `test_smart_rules_suite.php`, `test_waf_rules.js`) from GitHub tracking.
       - Strict Git Ignore Rules: Configured `.gitignore` to permanently prevent test files (`test_*.php`, `test_*.js`, `*.test.js`, `*.spec.js`), scratch tools, and non-plugin files from being staged or committed to the GitHub repository.
       - Codified Rule in AGENTS.md: Codified permanent policy in `AGENTS.md` ensuring only core plugin-related production files are tracked and uploaded to GitHub.
+    * User Forensics & Capabilities Dark Mode Contrast & Layout Formatting Overhaul (`App.tsx`, `index.css`):
+      - High-Contrast Capabilities Badges: Eliminated harsh washed-out light backgrounds on capability count badges in the main threat table rows by implementing `.wcp-user-caps-pill`, adapting dynamically between subtle slate in Light Mode and glowing indigo (`rgba(99, 102, 241, 0.16)`) in Dark Mode.
+      - Dark Mode Password Advisory Banners: Replaced glaring white/pink inline background blocks with `.wcp-user-weak-pass-card` and `.wcp-user-admin-advisory-card`, featuring rich dark obsidian backgrounds with soft amber and crimson accents that maintain high readability.
+      - All Capabilities Matrix Dark Theming: Restyled the capability inspection card (`.wcp-caps-matrix-card`), real-time search input (`.wcp-caps-search-input`), scrollable list container (`.wcp-caps-list-box`), and individual capability tags (`.wcp-cap-badge` with `.is-standard`, `.is-injected`, and `.is-dangerous` variants) to seamlessly adapt to Dark Mode without blinding white boxes.
+      - Full-Width Orphaned Post Forensics Layout: Resolved narrow vertical layout crunch by un-nesting `.wcp-orphaned-deep-card` from `.wcp-user-meta-grid`, allowing orphaned post metadata and admin reassignment controls to expand full width as an executive forensic card below user attributes.
+      - Theme-Adaptive Security Analysis Panel: Themed the expanded Security Analysis & Forensic Impact container (`.wcp-threat-expanded-analysis`) with obsidian surface tokens (`#090d16` in dark mode) and high-contrast typography.
 
 v:1.23.0 - 2026-10-23
 - Plugin Deactivation Resiliency & 3rd-Party Mailer Shield (`wcp-wp-scanner.php`, `NotificationDispatcher.php`):
