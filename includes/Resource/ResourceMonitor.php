@@ -87,27 +87,40 @@ class ResourceMonitor {
     }
 
     /**
-     * Dynamically recommend an intelligent batch size (e.g. 5 to 50 files)
+     * Dynamically recommend an intelligent batch size (e.g. 5 to 150 files)
      * based on current free memory headroom and server pressure.
      *
      * @param int $default_requested_batch
      * @return int
      */
-    public function get_adaptive_batch_size(int $default_requested_batch = 30): int {
+    public function get_adaptive_batch_size(int $default_requested_batch = 50): int {
         $mem_percent = $this->get_memory_usage_percent();
-        $headroom = max(0, $this->max_memory_percent - $mem_percent);
+        $headroom_pct = max(0, $this->max_memory_percent - $mem_percent);
+        $free_mem_mb = $this->get_free_memory_mb();
 
-        // If memory is tight (within 10% of safe limit), shrink batch size dramatically
-        if ($headroom <= 8) {
-            return max(5, (int) round($default_requested_batch * 0.25)); // e.g. 7-8 files
+        // 1. Critical memory pressure: shrink to minimum safe batch
+        if ($headroom_pct <= 8 || $free_mem_mb < 60) {
+            return max(5, (int) round($default_requested_batch * 0.25)); // 5-10 files
         }
 
-        // If headroom is moderate (within 18% of limit), use half batch size
-        if ($headroom <= 18) {
-            return max(10, (int) round($default_requested_batch * 0.50)); // e.g. 15 files
+        // 2. Moderate memory pressure: half batch size
+        if ($headroom_pct <= 18 || $free_mem_mb < 120) {
+            return max(10, (int) round($default_requested_batch * 0.50)); // 15-25 files
         }
 
-        // If ample headroom (>30% free), allow full batch size
+        // 3. Super Turbo: Abundant memory headroom (>500MB free and plenty of % headroom)
+        if ($free_mem_mb >= 500 && $headroom_pct >= 35) {
+            // Turbo scale: up to 120 - 150 files per batch
+            return min(150, max($default_requested_batch * 3, 120));
+        }
+
+        // 4. Turbo: Healthy headroom (>250MB free)
+        if ($free_mem_mb >= 250 && $headroom_pct >= 25) {
+            // High scale: up to 80 - 100 files per batch
+            return min(100, max($default_requested_batch * 2, 80));
+        }
+
+        // 5. Standard baseline
         return $default_requested_batch;
     }
 

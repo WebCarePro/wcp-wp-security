@@ -1164,7 +1164,9 @@ class ScannerRoutes {
         global $wpdb;
 
         $scan_id = (int) $request->get_param('scan_id');
-        $batch_size = (int) ($request->get_param('batch_size') ?: 25);
+        $configured_batch = (int) \WcpScanner\System\SettingsManager::get('scan_batch_size', 50);
+        $param_batch = (int) $request->get_param('batch_size');
+        $batch_size = $param_batch > 0 ? max($param_batch, $configured_batch) : $configured_batch;
         $batch_start = microtime(true);
         $batch_ru_start = function_exists('getrusage') ? @getrusage() : null;
 
