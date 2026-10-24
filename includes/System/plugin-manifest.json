@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T01:45:09.260Z",
+  "generated_at": "2026-10-24T01:59:33.950Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 478481
     },
     "build/index.asset.php": {
-      "sha256": "f043a45781662ada9c1f10e4537a0cf4de17af677f78c8450a3fe3ef7e6d52df",
+      "sha256": "0342164bfa0d81795ac914296d8293be6a552f3f52424eb3f11b0852ac2800ab",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 478347
     },
     "build/index.js": {
-      "sha256": "dfa528aa70025566c1e6449b71d1780b185d9facb56d9800531cd4e33457dc37",
-      "size": 1385649
+      "sha256": "9fa73e3c6e797f2d349774077b4d25de7d6e11e6573d957f898533dc4e7b507c",
+      "size": 1393420
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -248,16 +248,16 @@
       "size": 6523
     },
     "includes/Integrity/FileIntegrityMonitor.php": {
-      "sha256": "6629a88357887d097cffc61cbc0fe01eebd4e0605753b1229620df9e01204873",
-      "size": 57838
+      "sha256": "c0ca522efad0233bccc0296e0b5955accc20be9c2ea631bcec3a60cab446c176",
+      "size": 63209
     },
     "includes/Integrity/FimDriftDetector.php": {
       "sha256": "bd900a9f93b6503d2238e0e4fed34b4375e8f279d41839f962432d4c86141bc8",
       "size": 22484
     },
     "includes/Integrity/FimVaultManager.php": {
-      "sha256": "ba0ff76a742bc3db70acb88012ee6d0f7649b5e6c31f0b71e3f7b9cb166aa6d4",
-      "size": 10061
+      "sha256": "6c3b43522ef9bd973a1e2deccef8d7391b5b38f83cb2606b22e01877c52934e5",
+      "size": 11281
     },
     "includes/Integrity/ImportantFileFIM.php": {
       "sha256": "b60df0c31fd1f5273eaa9975ffe2255220a22af59bda7f64502183810ac89030",

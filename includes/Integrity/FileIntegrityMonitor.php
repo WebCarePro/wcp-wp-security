@@ -652,6 +652,100 @@ class FileIntegrityMonitor {
             ];
         }
 
+        // --- Collect Detailed Forensic Filesystem Metadata ---
+        $stat = @stat($real_path) ?: [];
+        $live_mtime = !empty($stat['mtime']) ? (int) $stat['mtime'] : (file_exists($real_path) ? filemtime($real_path) : 0);
+        $live_ctime = !empty($stat['ctime']) ? (int) $stat['ctime'] : (file_exists($real_path) ? filectime($real_path) : 0);
+        $live_atime = !empty($stat['atime']) ? (int) $stat['atime'] : (file_exists($real_path) ? fileatime($real_path) : 0);
+        $live_perms_octal = file_exists($real_path) ? substr(sprintf('%o', fileperms($real_path)), -4) : '0644';
+        $live_size = !empty($stat['size']) ? (int) $stat['size'] : (file_exists($real_path) ? filesize($real_path) : 0);
+        $live_uid = $stat['uid'] ?? (function_exists('fileowner') ? @fileowner($real_path) : 0);
+        $live_gid = $stat['gid'] ?? (function_exists('filegroup') ? @filegroup($real_path) : 0);
+
+        $live_user_name = 'unknown';
+        $live_group_name = 'unknown';
+        if (function_exists('posix_getpwuid') && $live_uid) {
+            $user_info = @posix_getpwuid($live_uid);
+            if ($user_info && !empty($user_info['name'])) {
+                $live_user_name = $user_info['name'];
+            }
+        }
+        if (function_exists('posix_getgrgid') && $live_gid) {
+            $group_info = @posix_getgrgid($live_gid);
+            if ($group_info && !empty($group_info['name'])) {
+                $live_group_name = $group_info['name'];
+            }
+        }
+        $live_owner_str = ($live_user_name !== 'unknown') ? "{$live_user_name}:{$live_group_name}" : "{$live_uid}:{$live_gid}";
+
+        $is_symlink = is_link($real_path);
+        $symlink_target = $is_symlink ? @readlink($real_path) : null;
+        $live_sha256 = @hash_file('sha256', $real_path) ?: '';
+
+        // Check if baseline record exists in Vault
+        $baseline_meta = null;
+        if (class_exists('\\WcpScanner\\Integrity\\FimVaultManager')) {
+            $baseline_meta = \WcpScanner\Integrity\FimVaultManager::get_file_baseline_record($rel_path);
+        }
+
+        // Determine specific change types
+        $change_types = [];
+        if ($baseline_meta) {
+            if (!empty($baseline_meta['hash']) && !empty($live_sha256) && $baseline_meta['hash'] !== $live_sha256) {
+                $change_types[] = 'code_modified';
+            }
+            if (!empty($baseline_meta['perms']) && $baseline_meta['perms'] !== $live_perms_octal) {
+                $change_types[] = 'permissions_drift';
+            }
+            if (!empty($baseline_meta['owner']) && $baseline_meta['owner'] !== $live_owner_str) {
+                $change_types[] = 'owner_drift';
+            }
+            if ($is_symlink && empty($baseline_meta['is_symlink'])) {
+                $change_types[] = 'symlink_created';
+            }
+            if (!empty($baseline_meta['mtime']) && $baseline_meta['mtime'] !== $live_mtime) {
+                $change_types[] = 'mtime_changed';
+            }
+            if (!empty($baseline_meta['ctime']) && $baseline_meta['ctime'] !== $live_ctime) {
+                $change_types[] = 'ctime_changed';
+            }
+        }
+
+        $forensic_meta = [
+            'live' => [
+                'size'           => $live_size,
+                'size_formatted' => size_format($live_size, 2),
+                'perms'          => $live_perms_octal,
+                'owner'          => $live_owner_str,
+                'uid'            => $live_uid,
+                'gid'            => $live_gid,
+                'mtime'          => $live_mtime,
+                'mtime_human'    => $live_mtime ? date_i18n('Y-m-d H:i:s', $live_mtime) : 'N/A',
+                'ctime'          => $live_ctime,
+                'ctime_human'    => $live_ctime ? date_i18n('Y-m-d H:i:s', $live_ctime) : 'N/A',
+                'atime'          => $live_atime,
+                'atime_human'    => $live_atime ? date_i18n('Y-m-d H:i:s', $live_atime) : 'N/A',
+                'sha256'         => $live_sha256,
+                'is_symlink'     => $is_symlink,
+                'symlink_target' => $symlink_target,
+            ],
+            'baseline' => $baseline_meta ? [
+                'calibrated'     => true,
+                'size'           => $baseline_meta['size'] ?? 0,
+                'size_formatted' => isset($baseline_meta['size']) ? size_format($baseline_meta['size'], 2) : 'N/A',
+                'perms'          => $baseline_meta['perms'] ?? '0644',
+                'owner'          => $baseline_meta['owner'] ?? 'unknown',
+                'mtime'          => $baseline_meta['mtime'] ?? 0,
+                'mtime_human'    => !empty($baseline_meta['mtime']) ? date_i18n('Y-m-d H:i:s', $baseline_meta['mtime']) : 'N/A',
+                'ctime'          => $baseline_meta['ctime'] ?? 0,
+                'ctime_human'    => !empty($baseline_meta['ctime']) ? date_i18n('Y-m-d H:i:s', $baseline_meta['ctime']) : 'N/A',
+                'sha256'         => $baseline_meta['hash'] ?? '',
+                'is_symlink'     => !empty($baseline_meta['is_symlink']),
+                'symlink_target' => $baseline_meta['symlink_target'] ?? null,
+            ] : null,
+            'change_types' => $change_types,
+        ];
+
         // Determine context: Core, Plugin, Theme, Config
         $category = 'custom';
         $official_content = null;
@@ -817,6 +911,7 @@ class FileIntegrityMonitor {
                 'local_lines'   => count(explode("\n", $local_content)),
             ],
             'diff_lines'           => $diff_result['lines'],
+            'forensic_meta'        => $forensic_meta,
         ];
     }
 

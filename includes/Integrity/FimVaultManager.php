@@ -283,12 +283,43 @@ class FimVaultManager {
     }
 
     /**
-     * Update metadata file with calibration details.
+     * Look up baseline forensic metadata for a specific relative file path across shards.
+     *
+     * @param string $relative_path File path relative to ABSPATH (e.g. 'wp-config.php' or 'wp-content/plugins/...')
+     * @return array|null Returns baseline record or null if not found
      */
-    public static function save_meta(array $meta_data): bool {
-        $dir = self::get_vault_dir();
-        $meta_file = rtrim($dir, '/\\') . '/' . self::META_FILE;
-        $encoded = wp_json_encode($meta_data, JSON_PRETTY_PRINT);
-        return @file_put_contents($meta_file, $encoded, LOCK_EX) !== false;
+    public static function get_file_baseline_record(string $relative_path): ?array {
+        $relative_path = ltrim(wp_normalize_path($relative_path), '/');
+
+        // Determine scope
+        $scope = 'core';
+        if (strpos($relative_path, 'wp-content/plugins/') === 0) {
+            $scope = 'plugins';
+        } elseif (strpos($relative_path, 'wp-content/themes/') === 0) {
+            $scope = 'themes';
+        } elseif (strpos($relative_path, 'wp-content/uploads/') === 0) {
+            $scope = 'uploads';
+        } elseif (strpos($relative_path, '/') === false) {
+            $scope = 'core_root';
+        }
+
+        $res = self::read_shard($scope);
+        if (!empty($res['valid']) && isset($res['data'][$relative_path])) {
+            $record = $res['data'][$relative_path];
+            $record['scope'] = $scope;
+            return $record;
+        }
+
+        // Fallback: check core_root or core if not found
+        if ($scope !== 'core_root') {
+            $root_res = self::read_shard('core_root');
+            if (!empty($root_res['valid']) && isset($root_res['data'][$relative_path])) {
+                $record = $root_res['data'][$relative_path];
+                $record['scope'] = 'core_root';
+                return $record;
+            }
+        }
+
+        return null;
     }
 }
