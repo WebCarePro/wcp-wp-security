@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T02:06:40.951Z",
+  "generated_at": "2026-10-24T02:12:52.519Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -252,12 +252,12 @@
       "size": 63209
     },
     "includes/Integrity/FimDriftDetector.php": {
-      "sha256": "e29bc5adfcf48014d5171f888d6d8d7c54c6f5bea6815a9c02c4f30c6f7f3c0a",
-      "size": 22943
+      "sha256": "7f2c7965d1ad9bdb3818fee7c47e4327183bb368b8f872b928b7a2484fc8459d",
+      "size": 25309
     },
     "includes/Integrity/FimVaultManager.php": {
-      "sha256": "6c3b43522ef9bd973a1e2deccef8d7391b5b38f83cb2606b22e01877c52934e5",
-      "size": 11281
+      "sha256": "76322685ecb1e16c52c4f6667cb47d9982bef195ef73a97e6f28cfd8664b87be",
+      "size": 11744
     },
     "includes/Integrity/ImportantFileFIM.php": {
       "sha256": "b60df0c31fd1f5273eaa9975ffe2255220a22af59bda7f64502183810ac89030",

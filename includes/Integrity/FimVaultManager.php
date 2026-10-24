@@ -322,4 +322,17 @@ class FimVaultManager {
 
         return null;
     }
+
+    /**
+     * Update metadata file with calibration details.
+     *
+     * @param array $meta_data Metadata dictionary
+     * @return bool
+     */
+    public static function save_meta(array $meta_data): bool {
+        $dir = self::get_vault_dir();
+        $meta_file = rtrim($dir, '/\\') . '/' . self::META_FILE;
+        $encoded = wp_json_encode($meta_data, JSON_PRETTY_PRINT);
+        return @file_put_contents($meta_file, $encoded, LOCK_EX) !== false;
+    }
 }

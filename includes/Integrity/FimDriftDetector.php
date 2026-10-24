@@ -57,12 +57,20 @@ class FimDriftDetector {
         FimVaultManager::write_shard('core', $core_files);
         $results['scopes']['core'] = count($core_files);
         $results['total_files'] += count($core_files);
+        unset($core_files);
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+        }
 
         // 2. Core Root Scope: ABSPATH root files (.htaccess, wp-config.php, index.php, etc.)
         $root_files = self::scan_root_directory(ABSPATH, $normalized_abs);
         FimVaultManager::write_shard('core_root', $root_files);
         $results['scopes']['core_root'] = count($root_files);
         $results['total_files'] += count($root_files);
+        unset($root_files);
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+        }
 
         // 3. Plugins Scope: WP_PLUGIN_DIR and WPMU_PLUGIN_DIR
         $plugin_dirs = [WP_PLUGIN_DIR];
@@ -73,6 +81,10 @@ class FimDriftDetector {
         FimVaultManager::write_shard('plugins', $plugins_files);
         $results['scopes']['plugins'] = count($plugins_files);
         $results['total_files'] += count($plugins_files);
+        unset($plugins_files);
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+        }
 
         // 4. Themes Scope: WP_CONTENT_DIR/themes
         $theme_root = function_exists('get_theme_root') ? get_theme_root() : WP_CONTENT_DIR . '/themes';
@@ -80,6 +92,10 @@ class FimDriftDetector {
         FimVaultManager::write_shard('themes', $theme_files);
         $results['scopes']['themes'] = count($theme_files);
         $results['total_files'] += count($theme_files);
+        unset($theme_files);
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+        }
 
         // 5. Uploads Code Scope: scripts & executables in uploads
         $upload_dir = wp_upload_dir();
@@ -88,6 +104,10 @@ class FimDriftDetector {
         FimVaultManager::write_shard('uploads', $uploads_code_files);
         $results['scopes']['uploads'] = count($uploads_code_files);
         $results['total_files'] += count($uploads_code_files);
+        unset($uploads_code_files);
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+        }
 
         // Update Meta
         $user = wp_get_current_user();
@@ -344,6 +364,7 @@ class FimDriftDetector {
                         \RecursiveIteratorIterator::SELF_FIRST
                     );
 
+                    $count = 0;
                     foreach ($iterator as $item) {
                         if (!$item->isFile()) {
                             continue;
@@ -355,6 +376,16 @@ class FimDriftDetector {
 
                         $rel = ltrim(str_replace($normalized_abs, '', $path), '/');
                         $files[$rel] = self::extract_file_metadata($path, $item);
+                        $count++;
+
+                        // Prevent memory exhaustion: check every 1,000 files if memory usage exceeds 65% of limit
+                        if ($count % 1000 === 0) {
+                            if (self::is_memory_limit_approaching()) {
+                                if (function_exists('gc_collect_cycles')) {
+                                    gc_collect_cycles();
+                                }
+                            }
+                        }
                     }
                 } catch (\Throwable $e) {
                     continue;
@@ -532,5 +563,47 @@ class FimDriftDetector {
      */
     private static function is_ignored_path(string $path): bool {
         return (bool) preg_match('#/(node_modules|\.git|cache|wcp-security-scanner|updraft|backups|wfcache|wcp-vault|ai1wm-backups|et-cache|wp-optimize-cache|autoptimize|litespeed|elementor/css)/#i', $path);
+    }
+
+    /**
+     * Determine if current memory consumption has reached 60-65% of max allocated limit.
+     *
+     * @return bool
+     */
+    public static function is_memory_limit_approaching(): bool {
+        $limit = ini_get('memory_limit');
+        if (!$limit || $limit === '-1') {
+            return false;
+        }
+
+        $limit_bytes = self::parse_byte_size($limit);
+        if ($limit_bytes <= 0) {
+            return false;
+        }
+
+        $current_bytes = memory_get_usage(true);
+        // Alert when above 60% of total memory ceiling
+        return ($current_bytes / $limit_bytes) >= 0.60;
+    }
+
+    /**
+     * Parse human readable byte notation (e.g. 512M, 1G) to integer bytes.
+     */
+    private static function parse_byte_size(string $size_str): int {
+        $size_str = trim($size_str);
+        $last = strtolower($size_str[strlen($size_str) - 1]);
+        $val = (int) $size_str;
+        switch ($last) {
+            case 'g':
+                $val *= 1024 * 1024 * 1024;
+                break;
+            case 'm':
+                $val *= 1024 * 1024;
+                break;
+            case 'k':
+                $val *= 1024;
+                break;
+        }
+        return $val;
     }
 }
