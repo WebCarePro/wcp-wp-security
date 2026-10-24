@@ -349,7 +349,7 @@ class SettingsManager {
         $defaults = self::get_defaults();
         $merged = array_merge($defaults, $saved);
 
-        // Transparently decrypt sensitive credentials at runtime & auto-migrate plaintext in DB if needed
+        // Transparently decrypt sensitive credentials if encrypted
         $sensitive_keys = [
             'cloudflare_api_token',
             'cloudflare_zone_id',
@@ -362,24 +362,14 @@ class SettingsManager {
             'asana_webhook_url',
             'generic_webhook_url',
         ];
-        $needs_db_migration = false;
-        $updated_saved = $saved;
 
         foreach ($sensitive_keys as $k) {
             if (!empty($merged[$k])) {
                 $raw_val = (string) $merged[$k];
-                if (!\WcpScanner\Security\SecretVault::is_encrypted($raw_val)) {
-                    // Plaintext credential found in DB - encrypt it immediately for storage
-                    $updated_saved[$k] = \WcpScanner\Security\SecretVault::encrypt($raw_val);
-                    $needs_db_migration = true;
-                } else {
+                if (\WcpScanner\Security\SecretVault::is_encrypted($raw_val)) {
                     $merged[$k] = \WcpScanner\Security\SecretVault::decrypt($raw_val);
                 }
             }
-        }
-
-        if ($needs_db_migration && !empty($saved)) {
-            update_option(self::OPTION_KEY, $updated_saved);
         }
 
         // Mask API keys and credentials for security in UI output

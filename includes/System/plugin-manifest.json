@@ -1,6 +1,6 @@
 {
   "version": "1.24.0",
-  "generated_at": "2026-10-24T00:02:38.690Z",
+  "generated_at": "2026-10-24T00:40:41.736Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -88,8 +88,8 @@
       "size": 36594
     },
     "includes/Auth/TwoFactorAuth.php": {
-      "sha256": "075014d4af0989c88d6c3f394cb573e95229a1d5895790c038bb70808cc3198c",
-      "size": 44655
+      "sha256": "227b18a5384bb22e1cec65bd3783e41f9bc9593995ac7b7ace3e2986ec8d7fbf",
+      "size": 44437
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "cfe8cca5431cda38784c3237119dcf77d8caf4c4b72ecf470448677b0550a9d8",
@@ -128,8 +128,8 @@
       "size": 2579
     },
     "includes/Database/Migration.php": {
-      "sha256": "720440c2cf43213f7bb415a5982d7873402d9130acaf8f0e72358f27c063e952",
-      "size": 7401
+      "sha256": "63b03f43f34e257c733e8f8430d7bddb2ca86a5bed2f42fdfcd87c38a7b26d70",
+      "size": 5917
     },
     "includes/Database/OptionScanner.php": {
       "sha256": "f57b1f83ad9b32dd49922bb5a79661a4232041eea5fb590b3c313e88c473dd0e",
@@ -304,8 +304,8 @@
       "size": 1215
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "1f1ec0ccd45d24a1c7f6c40d2a30f59c0596192d73e25d5c8741adaf059db331",
-      "size": 22676
+      "sha256": "4eef7399c066e85eeab1f1dac9c656a1d0056fac71262b7308ad34f75ea38599",
+      "size": 22584
     },
     "includes/Remediation/RemediationManager.php": {
       "sha256": "538a2d486a2e98fdc432bb5570af8d7eac2d2c65beddfd8295de13fec9f006c2",
@@ -380,8 +380,8 @@
       "size": 18460
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "6ac482d19e1c6a1f23e289028359db04228573c79f50fe663f26992d1fd0a3a2",
-      "size": 55717
+      "sha256": "bdc64b333d9c741bd4e70af2eaef39d8366ca35ed8a3794ac1add5945129e9a6",
+      "size": 55212
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "a9203fb189659c87a2143008a6bcf5e56c54d42c9c675022822276e923a12490",

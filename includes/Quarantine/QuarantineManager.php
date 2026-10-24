@@ -22,7 +22,6 @@ class QuarantineManager {
 
     /**
      * Ensure the quarantine directory exists and is heavily locked down against public web execution.
-     * Migrates legacy unencrypted quarantine files to the encrypted dot-vault if present.
      */
     private function ensure_quarantine_directory() {
         if (!is_dir($this->quarantine_dir)) {

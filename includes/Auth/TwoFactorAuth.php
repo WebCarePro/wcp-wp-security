@@ -278,7 +278,7 @@ class TwoFactorAuth {
     }
 
     /**
-     * Get user secret key (automatically decrypts encrypted secret and migrates plaintext)
+     * Get user secret key (automatically decrypts encrypted secret)
      */
     public static function get_user_secret(int $user_id): ?string {
         $stored = get_user_meta($user_id, self::META_SECRET, true);
@@ -287,15 +287,12 @@ class TwoFactorAuth {
         }
 
         $raw = (string) $stored;
-        if (!SecretVault::is_encrypted($raw)) {
-            // Auto-migrate plaintext secret to encrypted format in DB
-            $encrypted = SecretVault::encrypt($raw);
-            update_user_meta($user_id, self::META_SECRET, $encrypted);
-            return $raw;
+        if (SecretVault::is_encrypted($raw)) {
+            $decrypted = SecretVault::decrypt($raw);
+            return !empty($decrypted) ? $decrypted : null;
         }
 
-        $decrypted = SecretVault::decrypt($raw);
-        return !empty($decrypted) ? $decrypted : null;
+        return $raw;
     }
 
     /**

@@ -134,23 +134,6 @@ class Migration {
         dbDelta($sql5);
         dbDelta($sql6);
 
-        // Ensure columns exist on already-created tables in existing databases
-        $col_incident = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'incident_id'");
-        if (!$col_incident) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `incident_id` varchar(32) DEFAULT NULL AFTER `id`, ADD INDEX `incident_id` (`incident_id`)");
-        }
-        $col_status = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'http_status_code'");
-        if (!$col_status) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `http_status_code` int(5) NOT NULL DEFAULT 403 AFTER `request_method`");
-        }
-        $col_referer = $wpdb->get_var("SHOW COLUMNS FROM `{$firewall_logs_table}` LIKE 'http_referer'");
-        if (!$col_referer) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $wpdb->query("ALTER TABLE `{$firewall_logs_table}` ADD COLUMN `http_referer` text DEFAULT NULL AFTER `http_status_code`");
-        }
-
         update_option('wcpscan_db_version', '1.10.0');
     }
 }
