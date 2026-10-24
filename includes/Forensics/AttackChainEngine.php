@@ -237,6 +237,7 @@ class AttackChainEngine {
                 'type'      => 'resurrection',
                 'severity'  => 'critical',
                 'timestamp' => $r['mtime'],
+                /* translators: %s: remediated date */
                 'evidence'  => sprintf(__('File was remediated on %s but re-appeared on disk.', 'wcp-security-scanner'), $r['remediated_date']),
             ];
         }
@@ -656,7 +657,9 @@ class AttackChainEngine {
             // Only flag users with genuine forensic anomaly indicators
             if ($is_ghost_admin || $is_disposable_email || $has_injected_caps || $has_invalid_registered) {
                 $reasons = [];
+                /* translators: %d: count of usermeta keys */
                 if ($is_ghost_admin) $reasons[] = sprintf(__('Ghost admin created via raw SQL (only %d usermeta keys found, missing core WP metadata)', 'wcp-security-scanner'), $meta_count);
+                /* translators: %s: email domain */
                 if ($is_disposable_email) $reasons[] = sprintf(__('Disposable attacker email domain: %s', 'wcp-security-scanner'), $domain);
                 if ($has_injected_caps) $reasons[] = __('Trojan executable code injected in capabilities metadata', 'wcp-security-scanner');
                 if ($has_invalid_registered) $reasons[] = __('Corrupted or missing user registration date', 'wcp-security-scanner');
@@ -687,9 +690,13 @@ class AttackChainEngine {
         $vault_backups = [];
 
         // Begin atomic remediation transaction with 1-click safe rollback capability
+        /* translators: %s: chain ID */
+        $tx_title = sprintf(__('Attack Chain Eradication: %s', 'wcp-security-scanner'), $chain_id);
+        /* translators: %s: chain ID */
+        $tx_desc = sprintf(__('Autonomous multi-threat remediation for chain %s', 'wcp-security-scanner'), $chain_id);
         $tx_id = \WcpScanner\Remediation\TransactionalRemediation::start_transaction(
-            sprintf(__('Attack Chain Eradication: %s', 'wcp-security-scanner'), $chain_id),
-            sprintf(__('Autonomous multi-threat remediation for chain %s', 'wcp-security-scanner'), $chain_id),
+            $tx_title,
+            $tx_desc,
             ['chain_id' => $chain_id]
         );
 
@@ -711,7 +718,8 @@ class AttackChainEngine {
                 if ($backup['success']) {
                     $vault_backups[] = $backup['backup_id'];
                     $quarantined_name = $file_path . '.wcp-chain-quarantine-' . time();
-                    if (@rename($file_path, $quarantined_name) || @unlink($file_path)) {
+                    if (@rename($file_path, $quarantined_name) || wp_delete_file($file_path)) {
+                        /* translators: %s: file basename */
                         $actions_taken[] = sprintf(__('Quarantined file: %s', 'wcp-security-scanner'), basename($file_path));
                     } else {
                         $errors[] = "Could not delete/rename file: {$file_path}";
@@ -727,6 +735,7 @@ class AttackChainEngine {
             foreach ($plan['delete_options'] as $opt_name) {
                 $res = $persistence_scanner->neutralize_item('autoload_option', $opt_name);
                 if ($res['success']) {
+                    /* translators: %s: option name */
                     $actions_taken[] = sprintf(__('Deleted malicious DB option: %s', 'wcp-security-scanner'), $opt_name);
                     if (!empty($res['backup_id'])) {
                         $vault_backups[] = $res['backup_id'];
@@ -746,6 +755,7 @@ class AttackChainEngine {
                 }
                 $res = $user_mgr->delete_user($uid);
                 if ($res['success']) {
+                    /* translators: %d: user ID */
                     $actions_taken[] = sprintf(__('Deleted rogue user #%d', 'wcp-security-scanner'), $uid);
                     if (!empty($res['backup_file'])) {
                         \WcpScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $res['backup_file'], 'delete');
@@ -754,6 +764,7 @@ class AttackChainEngine {
                     // Try demoting to subscriber instead
                     $demote_res = $user_mgr->assign_role($uid, 'subscriber');
                     if ($demote_res['success']) {
+                        /* translators: %d: user ID */
                         $actions_taken[] = sprintf(__('Demoted user #%d to subscriber', 'wcp-security-scanner'), $uid);
                         if (!empty($demote_res['backup_file'])) {
                             \WcpScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $demote_res['backup_file'], 'demote');
@@ -769,6 +780,7 @@ class AttackChainEngine {
         if (!empty($plan['clear_crons']) && is_array($plan['clear_crons'])) {
             foreach ($plan['clear_crons'] as $hook) {
                 wp_clear_scheduled_hook($hook);
+                /* translators: %s: cron hook name */
                 $actions_taken[] = sprintf(__('Cleared cron hook: %s', 'wcp-security-scanner'), $hook);
             }
         }
@@ -780,6 +792,7 @@ class AttackChainEngine {
             foreach ($plan['block_ips'] as $ip) {
                 if (filter_var($ip, FILTER_VALIDATE_IP) && !in_array($ip, $blocked_lines, true)) {
                     $blocked_lines[] = $ip;
+                    /* translators: %s: IP address */
                     $actions_taken[] = sprintf(__('Blocked threat IP in WAF: %s', 'wcp-security-scanner'), $ip);
                 }
             }
@@ -805,9 +818,10 @@ class AttackChainEngine {
         // 7. Commit Transaction & Record Audit Log Entry
         \WcpScanner\Remediation\TransactionalRemediation::commit_transaction($tx_id);
 
+        /* translators: 1: chain ID, 2: number of actions, 3: transaction ID */
         AuditLogger::log_event(
             'attack_chain_eradicated',
-            sprintf(__('Eradicated attack chain "%s": %d actions executed under transaction %s.', 'wcp-security-scanner'), $chain_id, count($actions_taken), $tx_id)
+            sprintf(__('Eradicated attack chain "%1$s": %2$d actions executed under transaction %3$s.', 'wcp-security-scanner'), $chain_id, count($actions_taken), $tx_id)
         );
 
         return [
@@ -817,8 +831,9 @@ class AttackChainEngine {
             'actions_taken' => $actions_taken,
             'vault_backups' => $vault_backups,
             'errors'        => $errors,
+            /* translators: 1: number of actions, 2: transaction ID */
             'message'       => sprintf(
-                __('Attack Chain Eradication Complete: %d actions executed successfully across files, database, and firewall. Transaction snapshot "%s" saved for safe rollback.', 'wcp-security-scanner'),
+                __('Attack Chain Eradication Complete: %1$d actions executed successfully across files, database, and firewall. Transaction snapshot "%2$s" saved for safe rollback.', 'wcp-security-scanner'),
                 count($actions_taken),
                 $tx_id
             ),

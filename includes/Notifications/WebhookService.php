@@ -639,7 +639,8 @@ class WebhookService {
             return [
                 'success' => false,
                 'code'    => 500,
-                'message' => sprintf(__('%s delivery error: %s', 'wcp-security-scanner'), $platform_name, $response->get_error_message()),
+                /* translators: 1: platform name, 2: error message */
+                'message' => sprintf(__('%1$s delivery error: %2$s', 'wcp-security-scanner'), $platform_name, $response->get_error_message()),
             ];
         }
 
@@ -648,7 +649,8 @@ class WebhookService {
             return [
                 'success' => true,
                 'code'    => $code,
-                'message' => sprintf(__('%s alert delivered successfully (HTTP %d).', 'wcp-security-scanner'), $platform_name, $code),
+                /* translators: 1: platform name, 2: HTTP status code */
+                'message' => sprintf(__('%1$s alert delivered successfully (HTTP %2$d).', 'wcp-security-scanner'), $platform_name, $code),
             ];
         }
 
@@ -656,7 +658,8 @@ class WebhookService {
         return [
             'success' => false,
             'code'    => $code,
-            'message' => sprintf(__('%s returned HTTP %d: %s', 'wcp-security-scanner'), $platform_name, $code, substr($body, 0, 120)),
+            /* translators: 1: platform name, 2: HTTP status code, 3: response body snippet */
+            'message' => sprintf(__('%1$s returned HTTP %2$d: %3$s', 'wcp-security-scanner'), $platform_name, $code, substr($body, 0, 120)),
         ];
     }
 }

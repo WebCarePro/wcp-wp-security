@@ -168,6 +168,7 @@ class VirtualPatchManager {
         }
 
         if (!$patch) {
+            /* translators: %s: patch ID */
             return ['success' => false, 'message' => sprintf(__('Unknown patch template: %s', 'wcp-security-scanner'), $patch_id)];
         }
 
@@ -202,14 +203,16 @@ class VirtualPatchManager {
         update_option(self::OPTION_PATCHES, $active, false);
 
         // Record Audit Log
+        /* translators: 1: patch title, 2: patch ID, 3: deployment message */
         AuditLogger::log_event(
             'virtual_patch_applied',
-            sprintf(__('Applied Virtual Patch "%s" (%s)%s', 'wcp-security-scanner'), $patch['title'], $patch_id, $cf_msg)
+            sprintf(__('Applied Virtual Patch "%1$s" (%2$s)%3$s', 'wcp-security-scanner'), $patch['title'], $patch_id, $cf_msg)
         );
 
         return [
             'success'                => true,
-            'message'                => sprintf(__('Virtual Patch "%s" applied successfully!%s', 'wcp-security-scanner'), $patch['title'], $cf_msg),
+            /* translators: 1: patch title, 2: deployment message */
+            'message'                => sprintf(__('Virtual Patch "%1$s" applied successfully!%2$s', 'wcp-security-scanner'), $patch['title'], $cf_msg),
             'patch'                  => $patch,
             'deployed_to_cloudflare' => $cf_deployed,
         ];
@@ -237,13 +240,15 @@ class VirtualPatchManager {
         unset($active[$patch_id]);
         update_option(self::OPTION_PATCHES, $active, false);
 
+        /* translators: 1: patch title, 2: patch ID */
         AuditLogger::log_event(
             'virtual_patch_removed',
-            sprintf(__('Removed Virtual Patch "%s" (%s)', 'wcp-security-scanner'), $patch['title'], $patch_id)
+            sprintf(__('Removed Virtual Patch "%1$s" (%2$s)', 'wcp-security-scanner'), $patch['title'], $patch_id)
         );
 
         return [
             'success' => true,
+            /* translators: %s: patch title */
             'message' => sprintf(__('Virtual Patch "%s" has been deactivated.', 'wcp-security-scanner'), $patch['title']),
         ];
     }

@@ -63,8 +63,9 @@ class LoginHardening {
 
                 return new \WP_Error(
                     'wcpscan_ip_locked',
+                    /* translators: 1: IP address, 2: remaining minutes */
                     sprintf(
-                        __('<strong>Access Blocked:</strong> Too many failed login attempts from your IP (%s). You are temporarily locked out for security. Please try again in %d minute(s).', 'wcp-security-scanner'),
+                        __('<strong>Access Blocked:</strong> Too many failed login attempts from your IP (%1$s). You are temporarily locked out for security. Please try again in %2$d minute(s).', 'wcp-security-scanner'),
                         esc_html($ip),
                         $remaining_mins
                     )
@@ -114,7 +115,7 @@ class LoginHardening {
                 'ip'          => $ip,
                 'attempts'    => $attempts,
                 'username'    => sanitize_user($username),
-                'blocked_at'  => date('Y-m-d H:i:s', $now),
+                'blocked_at'  => gmdate('Y-m-d H:i:s', $now),
                 'expires_at'  => $now + $lockout_seconds,
                 'user_agent'  => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
             ];
@@ -124,17 +125,19 @@ class LoginHardening {
 
             // Trigger audit log if available
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+                /* translators: 1: IP address, 2: attempt count, 3: username */
                 \WcpScanner\System\AuditLogger::log_event(
                     'login_lockout',
-                    sprintf(__('IP %s temporarily locked out after %d failed login attempts for user "%s".', 'wcp-security-scanner'), $ip, $attempts, $username)
+                    sprintf(__('IP %1$s temporarily locked out after %2$d failed login attempts for user "%3$s".', 'wcp-security-scanner'), $ip, $attempts, $username)
                 );
             }
 
             // Trigger granular notification via NotificationDispatcher
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                /* translators: 1: attacker IP, 2: attempt count, 3: username */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_bruteforce_lockout', [
                     'severity' => 'high',
-                    'message'  => sprintf(__('Brute-force defense locked out IP "%s" after %d consecutive login failures targeting username "%s".', 'wcp-security-scanner'), $ip, $attempts, $username),
+                    'message'  => sprintf(__('Brute-force defense locked out IP "%1$s" after %2$d consecutive login failures targeting username "%3$s".', 'wcp-security-scanner'), $ip, $attempts, $username),
                     'details'  => [
                         'attacker_ip'      => $ip,
                         'target_username'  => $username,
@@ -152,6 +155,7 @@ class LoginHardening {
                 );
 
                 if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    /* translators: %s: banned IP address */
                     \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_cf_edge_ban_synced', [
                         'severity' => 'info',
                         'message'  => sprintf(__('Attacker IP "%s" was escalated and synchronized to Cloudflare Edge IP Access Rules.', 'wcp-security-scanner'), $ip),
@@ -245,9 +249,10 @@ class LoginHardening {
         $user = get_userdata($user_id);
         if ($user && in_array('administrator', (array) $user->roles, true)) {
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                /* translators: 1: username, 2: email */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
                     'severity' => 'critical',
-                    'message'  => sprintf(__('A new user account with Administrator privileges was registered: "%s" (%s).', 'wcp-security-scanner'), $user->user_login, $user->user_email),
+                    'message'  => sprintf(__('A new user account with Administrator privileges was registered: "%1$s" (%2$s).', 'wcp-security-scanner'), $user->user_login, $user->user_email),
                     'details'  => [
                         'user_id'    => $user_id,
                         'user_login' => $user->user_login,
@@ -267,6 +272,7 @@ class LoginHardening {
         if ($role === 'administrator' && !in_array('administrator', (array) $old_roles, true)) {
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
                 $user = get_userdata($user_id);
+                /* translators: %s: username */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
                     'severity' => 'critical',
                     'message'  => sprintf(__('Existing user "%s" was promoted to Administrator role.', 'wcp-security-scanner'), $user ? $user->user_login : 'user #' . $user_id),

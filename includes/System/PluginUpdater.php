@@ -209,7 +209,7 @@ class PluginUpdater {
             @file_put_contents($htaccess, "Order deny,allow\nDeny from all\n");
         }
 
-        $zip_name = 'wcp-security-scanner-v' . sanitize_file_name($current_version) . '-' . date('Ymd-His') . '.zip';
+        $zip_name = 'wcp-security-scanner-v' . sanitize_file_name($current_version) . '-' . gmdate('Ymd-His') . '.zip';
         $zip_path = $backup_dir . $zip_name;
 
         if (!class_exists('ZipArchive')) {

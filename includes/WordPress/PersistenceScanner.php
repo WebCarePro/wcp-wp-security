@@ -85,8 +85,9 @@ class PersistenceScanner {
                     'severity'    => 'critical',
                     'confidence'  => 95,
                     'file_path'   => $mu['path'],
+                    /* translators: 1: filename, 2: threat summary */
                     'description' => sprintf(
-                        __('Malicious Must-Use (MU) plugin detected: %s. %s', 'wcp-security-scanner'),
+                        __('Malicious Must-Use (MU) plugin detected: %1$s. %2$s', 'wcp-security-scanner'),
                         $mu['filename'],
                         $mu['threat_summary']
                     ),
@@ -100,6 +101,7 @@ class PersistenceScanner {
                     'severity'    => 'medium',
                     'confidence'  => 85,
                     'file_path'   => $mu['path'],
+                    /* translators: %s: filename */
                     'description' => sprintf(
                         __('Must-Use plugin "%s" contains suspicious code or hidden includes.', 'wcp-security-scanner'),
                         $mu['filename']
@@ -118,6 +120,7 @@ class PersistenceScanner {
                     'severity'    => 'high',
                     'confidence'  => 90,
                     'file_path'   => $drop['path'],
+                    /* translators: %s: filename */
                     'description' => sprintf(
                         __('Unexpected PHP file directly in wp-content/ root: "%s". Common webshell or malware drop location.', 'wcp-security-scanner'),
                         $drop['filename']
@@ -131,8 +134,9 @@ class PersistenceScanner {
                     'severity'    => 'critical',
                     'confidence'  => 95,
                     'file_path'   => $drop['path'],
+                    /* translators: 1: filename, 2: threat summary */
                     'description' => sprintf(
-                        __('Malicious PHP drop-in detected: %s. %s', 'wcp-security-scanner'),
+                        __('Malicious PHP drop-in detected: %1$s. %2$s', 'wcp-security-scanner'),
                         $drop['filename'],
                         $drop['threat_summary']
                     ),
@@ -146,6 +150,7 @@ class PersistenceScanner {
                     'severity'    => 'medium',
                     'confidence'  => 85,
                     'file_path'   => $drop['path'],
+                    /* translators: %s: filename */
                     'description' => sprintf(
                         __('Drop-in file "%s" is active, but no matching caching/database plugin was detected in active plugins.', 'wcp-security-scanner'),
                         $drop['filename']
@@ -163,8 +168,9 @@ class PersistenceScanner {
                 'severity'    => $opt['severity'] ?? 'critical',
                 'confidence'  => 95,
                 'file_path'   => 'wp_options:' . $opt['option_name'],
+                /* translators: 1: option name, 2: reason */
                 'description' => sprintf(
-                    __('Database persistence anchor in autoloaded option "%s": %s', 'wcp-security-scanner'),
+                    __('Database persistence anchor in autoloaded option "%1$s": %2$s', 'wcp-security-scanner'),
                     $opt['option_name'],
                     $opt['reason']
                 ),
@@ -182,8 +188,9 @@ class PersistenceScanner {
                     'severity'    => $cron['severity'],
                     'confidence'  => 90,
                     'file_path'   => 'cron:hook:' . $cron['hook'],
+                    /* translators: 1: cron hook name, 2: reason */
                     'description' => sprintf(
-                        __('Suspicious scheduled cron task "%s": %s', 'wcp-security-scanner'),
+                        __('Suspicious scheduled cron task "%1$s": %2$s', 'wcp-security-scanner'),
                         $cron['hook'],
                         $cron['reason']
                     ),
@@ -200,8 +207,9 @@ class PersistenceScanner {
                 'severity'    => 'critical',
                 'confidence'  => 99,
                 'file_path'   => $res['file_path'],
+                /* translators: 1: original action, 2: timeline */
                 'description' => sprintf(
-                    __('Self-Healing Malware Loop Detected! File was previously neutralized via WCP (%s), but was resurrected/re-injected %s.', 'wcp-security-scanner'),
+                    __('Self-Healing Malware Loop Detected! File was previously neutralized via WCP (%1$s), but was resurrected/re-injected %2$s.', 'wcp-security-scanner'),
                     $res['original_action'],
                     $res['timeline_human']
                 ),
@@ -498,6 +506,7 @@ class PersistenceScanner {
                     if ($entropy > 5.3) {
                         $decoded = @base64_decode($matches[0], true);
                         if ($decoded && (strpos($decoded, '<?php') !== false || strpos($decoded, 'eval') !== false || strpos($decoded, 'curl') !== false)) {
+                            /* translators: %.2f: entropy score */
                             $reason = sprintf(__('High-entropy base64 blob (Entropy: %.2f) decoding to executable PHP/C2 instructions.', 'wcp-security-scanner'), $entropy);
                             $snippet = substr($matches[0], 0, 120) . '...';
                         }
@@ -581,6 +590,7 @@ class PersistenceScanner {
                                     $file = wp_normalize_path($ref->getFileName() ?: '');
                                     if (strpos($file, '/wp-content/uploads/') !== false || strpos($file, '/tmp/') !== false) {
                                         $severity = 'critical';
+                                        /* translators: %s: file basename */
                                         $reason = sprintf(__('Cron hook executes an anonymous Closure defined inside uploads or temp directory: %s', 'wcp-security-scanner'), basename($file));
                                     }
                                 } catch (\Throwable $e) {
@@ -712,6 +722,7 @@ class PersistenceScanner {
 
                     if (preg_match('/(base64_decode|gzinflate|gzuncompress|\$_POST|\$_GET|\$_REQUEST|\$GLOBALS)/i', $next_code)) {
                         $result['is_malicious'] = true;
+                        /* translators: %s: function name */
                         $result['reason'] = sprintf(__('Critical Backdoor: %s executing dynamic encoded payload.', 'wcp-security-scanner'), strtoupper($str));
                         $result['snippet'] = substr($tok[1] . $next_code, 0, 140);
                         $result['evidence'] = "Construct: {$tok[1]}";
@@ -719,6 +730,7 @@ class PersistenceScanner {
                     }
 
                     $result['is_suspicious'] = true;
+                    /* translators: %s: function name */
                     $result['reason'] = sprintf(__('Suspicious dynamic function call: %s()', 'wcp-security-scanner'), $tok[1]);
                     $result['snippet'] = substr($tok[1] . $next_code, 0, 100);
                 }
@@ -788,9 +800,10 @@ class PersistenceScanner {
 
                 // Delete or rename file
                 $quarantined_name = $file . '.wcp-quarantined-' . time();
-                if (@rename($file, $quarantined_name) || @unlink($file)) {
+                if (@rename($file, $quarantined_name) || wp_delete_file($file)) {
                     return [
                         'success'   => true,
+                        /* translators: %s: file basename */
                         'message'   => sprintf(__('Persistence anchor "%s" neutralized. Encrypted safety backup created.', 'wcp-security-scanner'), basename($file)),
                         'backup_id' => $backup['backup_id'],
                     ];
@@ -820,6 +833,7 @@ class PersistenceScanner {
 
                 return [
                     'success'   => true,
+                    /* translators: %s: option name */
                     'message'   => sprintf(__('Malicious autoload option "%s" deleted from database. Snapshot saved to vault.', 'wcp-security-scanner'), $opt_name),
                     'backup_id' => $b_id,
                 ];
@@ -829,6 +843,7 @@ class PersistenceScanner {
                 $cleared = wp_clear_scheduled_hook($hook);
                 return [
                     'success' => true,
+                    /* translators: %s: cron hook name */
                     'message' => sprintf(__('Scheduled cron hook "%s" cleared from WordPress crontab.', 'wcp-security-scanner'), $hook),
                     'cleared' => $cleared,
                 ];
@@ -912,8 +927,9 @@ class PersistenceScanner {
 
         return [
             'success'        => true,
+            /* translators: 1: number of cleaned anchors, 2: number of failed anchors */
             'message'        => sprintf(
-                __('Persistence Neutralization Complete: Cleaned %d anchors, %d failed. Safety snapshots saved to vault.', 'wcp-security-scanner'),
+                __('Persistence Neutralization Complete: Cleaned %1$d anchors, %2$d failed. Safety snapshots saved to vault.', 'wcp-security-scanner'),
                 $cleaned,
                 $failed
             ),

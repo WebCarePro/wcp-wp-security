@@ -666,9 +666,10 @@ class DatabaseBackup {
                 $state['final_size_mb'] = round($final_size / (1024 * 1024), 2);
 
                 if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    /* translators: 1: size in MB, 2: number of tables, 3: duration in seconds */
                     \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_completed', [
                         'severity' => 'info',
-                        'message'  => sprintf(__('Database backup completed successfully (%s MB, %d tables in %s seconds).', 'wcp-security-scanner'), $state['final_size_mb'], $state['tables_completed'], $state['total_time_seconds']),
+                        'message'  => sprintf(__('Database backup completed successfully (%1$s MB, %2$d tables in %3$s seconds).', 'wcp-security-scanner'), $state['final_size_mb'], $state['tables_completed'], $state['total_time_seconds']),
                         'details'  => [
                             'filename'      => basename($filepath),
                             'size_mb'       => $state['final_size_mb'],
@@ -713,9 +714,10 @@ class DatabaseBackup {
             $state['error_details'] = $error_details;
 
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                /* translators: 1: table name, 2: error message */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_failed', [
                     'severity' => 'high',
-                    'message'  => sprintf(__('Database backup failed while exporting table "%s": %s', 'wcp-security-scanner'), $state['current_table_name'] ?? 'unknown', $e->getMessage()),
+                    'message'  => sprintf(__('Database backup failed while exporting table "%1$s": %2$s', 'wcp-security-scanner'), $state['current_table_name'] ?? 'unknown', $e->getMessage()),
                     'details'  => [
                         'table'             => $state['current_table_name'] ?? 'unknown',
                         'technical_message' => $e->getMessage(),

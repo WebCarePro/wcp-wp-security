@@ -69,6 +69,7 @@ class CloudflareService {
         if (!is_array($data)) {
             return [
                 'success' => false,
+                // translators: %d: HTTP status code
                 'errors'  => [['message' => sprintf(__('Invalid response from Cloudflare API (HTTP %d).', 'wcp-security-scanner'), $code)]],
             ];
         }
@@ -173,6 +174,7 @@ class CloudflareService {
         if (empty($zones)) {
             return [
                 'success' => false,
+                // translators: %s: candidate domain or site host
                 'message' => sprintf(
                     __('No matching Cloudflare zone found for "%s". Ensure your token has "Zone > Zone: Read" permissions for this domain, or enter your Zone ID manually.', 'wcp-security-scanner'),
                     $candidate_domain ?: $site_host
@@ -219,8 +221,9 @@ class CloudflareService {
 
         return [
             'success' => false,
+            // translators: %1$s: candidate domain, %2$s: comma-separated list of available zones
             'message' => sprintf(
-                __('Could not auto-match "%s". Available zones: %s. Please enter your Zone ID manually.', 'wcp-security-scanner'),
+                __('Could not auto-match "%1$s". Available zones: %2$s. Please enter your Zone ID manually.', 'wcp-security-scanner'),
                 $candidate_domain,
                 implode(', ', $available_names)
             ),
@@ -325,8 +328,9 @@ class CloudflareService {
                     if (in_array(strtoupper($record['type'] ?? ''), ['A', 'AAAA', 'CNAME'], true)) {
                         $is_proxied = !empty($record['proxied']);
                         $detection_method = 'api_dns_record';
+                        // translators: %1$s: DNS record name, %2$s: DNS record type, %3$s: proxy status
                         $details = sprintf(
-                            __('DNS Record: %s (%s) → Proxied: %s', 'wcp-security-scanner'),
+                            __('DNS Record: %1$s (%2$s) → Proxied: %3$s', 'wcp-security-scanner'),
                             $record['name'] ?? $site_host,
                             $record['type'] ?? 'A',
                             $is_proxied ? 'Orange Cloud (Active)' : 'Grey Cloud (DNS Only)'
@@ -703,6 +707,7 @@ class CloudflareService {
         if (!empty($res['success'])) {
             return [
                 'success' => true,
+                // translators: %s: IP address
                 'message' => sprintf(__('IP %s successfully whitelisted at Cloudflare Edge (Mode: Allow).', 'wcp-security-scanner'), $ip),
             ];
         }
@@ -711,6 +716,7 @@ class CloudflareService {
         if (stripos($err, 'already exists') !== false) {
             return [
                 'success' => true,
+                // translators: %s: IP address
                 'message' => sprintf(__('IP %s is already allowed at Cloudflare Edge.', 'wcp-security-scanner'), $ip),
             ];
         }
@@ -797,7 +803,9 @@ class CloudflareService {
             return [
                 'success' => true,
                 'message' => $enable
+                    // translators: %s: rule title
                     ? sprintf(__('Successfully pushed rule "%s" to Cloudflare Edge.', 'wcp-security-scanner'), $target_title)
+                    // translators: %s: rule title
                     : sprintf(__('Successfully removed rule "%s" from Cloudflare Edge.', 'wcp-security-scanner'), $target_title),
                 'active_rules' => self::get_deployed_custom_rules($zone_id),
                 'rule_key'     => $rule_key,
@@ -894,6 +902,7 @@ class CloudflareService {
         if (!empty($update_res['success'])) {
             return [
                 'success' => true,
+                // translators: %d: count of synced rules
                 'message' => sprintf(
                     __('Successfully synced %d Cloudflare Edge WAF rules.', 'wcp-security-scanner'),
                     count($new_wcp_rules)
@@ -1129,8 +1138,9 @@ class CloudflareService {
                         'success' => true,
                         'enabled' => true,
                         'rate_limit_info' => self::get_rate_limiting_info($zone_id),
+                        // translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name
                         'message' => sprintf(
-                            __('Cloudflare Free Rate Limiter active (%d req / %ds, action: %s, penalty: 10s). Adjusted penalty to 10s per Cloudflare Free Plan requirements. For 12h/24h bans, enable Real-time WAF Auto-Ban Sync.', 'wcp-security-scanner'),
+                            __('Cloudflare Free Rate Limiter active (%1$d req / %2$ds, action: %3$s, penalty: 10s). Adjusted penalty to 10s per Cloudflare Free Plan requirements. For 12h/24h bans, enable Real-time WAF Auto-Ban Sync.', 'wcp-security-scanner'),
                             $requests,
                             $period,
                             strtoupper($action)
@@ -1146,7 +1156,8 @@ class CloudflareService {
                 'enabled' => $enable,
                 'rate_limit_info' => self::get_rate_limiting_info($zone_id),
                 'message' => $enable
-                    ? sprintf(__('Cloudflare Free Rate Limiter deployed (%d req / %ds, action: %s, penalty: %ds) for %s.', 'wcp-security-scanner'), $requests, $period, strtoupper($action), $timeout, esc_html($saved_path_string))
+                    // translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name, %4$d: penalty timeout in seconds, %5$s: target path
+                    ? sprintf(__('Cloudflare Free Rate Limiter deployed (%1$d req / %2$ds, action: %3$s, penalty: %4$ds) for %5$s.', 'wcp-security-scanner'), $requests, $period, strtoupper($action), $timeout, esc_html($saved_path_string))
                     : __('Cloudflare Edge Rate Limiter removed.', 'wcp-security-scanner'),
             ];
         }
@@ -1200,6 +1211,7 @@ class CloudflareService {
             $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
 
             if ($ip === $current_client_ip || ($is_admin && $ip === $current_client_ip) || $is_whitelisted) {
+                // translators: %s: IP address
                 return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to administrator or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
             }
         }
@@ -1218,6 +1230,7 @@ class CloudflareService {
         if (!empty($res['success'])) {
             return [
                 'success' => true,
+                // translators: %s: IP address
                 'message' => sprintf(__('IP %s successfully blocked at Cloudflare Edge.', 'wcp-security-scanner'), $ip),
             ];
         }

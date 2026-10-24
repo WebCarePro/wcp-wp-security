@@ -230,7 +230,8 @@ class TransactionalRemediation {
             'success'     => true,
             'tx_id'       => $tx_id,
             'items_count' => $manifest['total_items'],
-            'message'     => sprintf(__('Remediation transaction %s committed with %d items snapshotted.', 'wcp-security-scanner'), $tx_id, $manifest['total_items']),
+            /* translators: 1: transaction ID, 2: number of items */
+            'message'     => sprintf(__('Remediation transaction %1$s committed with %2$d items snapshotted.', 'wcp-security-scanner'), $tx_id, $manifest['total_items']),
         ];
     }
 
@@ -294,6 +295,7 @@ class TransactionalRemediation {
                             @touch($target_abs, (int) $item['original_mtime']);
                         }
                     } else {
+                        /* translators: %s: file name */
                         $errors[] = sprintf(__('Failed to copy restored file: %s', 'wcp-security-scanner'), basename($target_abs));
                     }
                 }
@@ -332,7 +334,8 @@ class TransactionalRemediation {
                             $restored_uids[] = (int) $u_res['user_id'];
                         }
                     } else {
-                        $errors[] = sprintf(__('Failed to restore user #%d: %s', 'wcp-security-scanner'), (int) ($item['user_id'] ?? 0), $u_res['error'] ?? '');
+                        /* translators: 1: user ID, 2: error message */
+                        $errors[] = sprintf(__('Failed to restore user #%1$d: %2$s', 'wcp-security-scanner'), (int) ($item['user_id'] ?? 0), $u_res['error'] ?? '');
                     }
                 }
             }
@@ -371,8 +374,11 @@ class TransactionalRemediation {
         file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
 
         $msg_parts = [];
+        /* translators: %d: number of files */
         if ($restored_files > 0) $msg_parts[] = sprintf(__('%d file(s)', 'wcp-security-scanner'), $restored_files);
+        /* translators: %d: number of database records */
         if ($restored_db > 0)    $msg_parts[] = sprintf(__('%d database record(s)', 'wcp-security-scanner'), $restored_db);
+        /* translators: %d: number of user accounts */
         if ($restored_users > 0) $msg_parts[] = sprintf(__('%d user account(s)', 'wcp-security-scanner'), $restored_users);
 
         $restored_summary = !empty($msg_parts) ? implode(', ', $msg_parts) : __('0 items', 'wcp-security-scanner');
@@ -384,8 +390,9 @@ class TransactionalRemediation {
             'restored_db'    => $restored_db,
             'restored_users' => $restored_users,
             'errors'         => $errors,
+            /* translators: 1: transaction ID, 2: restored summary details */
             'message'        => sprintf(
-                __('Transaction %s rolled back successfully: restored %s.', 'wcp-security-scanner'),
+                __('Transaction %1$s rolled back successfully: restored %2$s.', 'wcp-security-scanner'),
                 $tx_id,
                 $restored_summary
             ),

@@ -201,7 +201,7 @@ class ServerInfo {
         if (!empty($_SERVER['HTTP_HOST'])) {
             $host_candidates[] = preg_replace('/:[0-9]+$/', '', sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])));
         }
-        $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+        $site_host = wp_parse_url(get_site_url(), PHP_URL_HOST);
         if (!empty($site_host)) {
             $host_candidates[] = $site_host;
         }

@@ -404,7 +404,7 @@ class Scheduler {
         $admin_url = admin_url('admin.php?page=wcp-security-scanner');
 
         $status_label = ($critical_count > 0 || $high_count > 0) ? '🔴 SECURITY ALERT' : '🛡️ Security Scan Report';
-        $host = parse_url($site_url, PHP_URL_HOST) ?: $site_url;
+        $host = wp_parse_url($site_url, PHP_URL_HOST) ?: $site_url;
         $subject = "[$status_label] {$site_name} - Scan #{$scan_id} Completed for {$host} ({$total_issues} findings)";
 
         $headers = ['Content-Type: text/html; charset=UTF-8'];

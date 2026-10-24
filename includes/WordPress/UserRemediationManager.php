@@ -150,8 +150,9 @@ class UserRemediationManager {
             'user_login'  => $user->user_login,
             'new_role'    => $target_role,
             'backup_file' => $backup_file,
+            /* translators: 1: username, 2: user ID, 3: new role */
             'message'     => sprintf(
-                __("User '%s' (ID #%d) assigned role '%s' successfully.", 'wcp-security-scanner'),
+                __("User '%1$s' (ID #%2$d) assigned role '%3$s' successfully.", 'wcp-security-scanner'),
                 $user->user_login,
                 $user_id,
                 $target_role
@@ -215,8 +216,9 @@ class UserRemediationManager {
             'role'          => $primary_role,
             'stripped_caps' => $stripped_caps,
             'backup_file'   => $backup_file,
+            /* translators: 1: number of capabilities, 2: username, 3: role */
             'message'       => sprintf(
-                __("Stripped %d unauthorized capability entries from user '%s'. Role preserved as '%s'.", 'wcp-security-scanner'),
+                __("Stripped %1$d unauthorized capability entries from user '%2$s'. Role preserved as '%3$s'.", 'wcp-security-scanner'),
                 count($stripped_caps),
                 $user->user_login,
                 $primary_role
@@ -273,8 +275,9 @@ class UserRemediationManager {
             'user_id'     => $user_id,
             'user_login'  => $user->user_login,
             'backup_file' => $backup_file,
+            /* translators: 1: username, 2: user ID, 3: backup file name */
             'message'     => sprintf(
-                __("User '%s' (ID #%d) deleted successfully. Auto-backup snapshot saved as %s.", 'wcp-security-scanner'),
+                __("User '%1$s' (ID #%2$d) deleted successfully. Auto-backup snapshot saved as %3$s.", 'wcp-security-scanner'),
                 $user->user_login,
                 $user_id,
                 $backup_file
@@ -312,6 +315,7 @@ class UserRemediationManager {
         }
 
         if (!file_exists($filepath)) {
+            /* translators: %s: backup file name */
             return ['success' => false, 'error' => sprintf(__('User backup file not found: %s', 'wcp-security-scanner'), basename($backup_file))];
         }
 
@@ -413,8 +417,9 @@ class UserRemediationManager {
             'user_id'     => $user_id,
             'user_login'  => $user_row['user_login'],
             'user_email'  => $user_row['user_email'],
+            /* translators: 1: username, 2: user ID */
             'message'     => sprintf(
-                __("User account '%s' (ID #%d) restored successfully with full administrator capabilities and credentials.", 'wcp-security-scanner'),
+                __("User account '%1$s' (ID #%2$d) restored successfully with full administrator capabilities and credentials.", 'wcp-security-scanner'),
                 $user_row['user_login'],
                 $user_id
             ),
@@ -528,7 +533,7 @@ class UserRemediationManager {
             'user_email'     => $user['user_email'] ?? '',
             'display_name'   => $user['display_name'] ?? '',
             'roles'          => !empty($roles) ? $roles : ['administrator'],
-            'created_at'     => $data['created_at'] ?? date('Y-m-d H:i:s', filemtime($filepath)),
+            'created_at'     => $data['created_at'] ?? gmdate('Y-m-d H:i:s', filemtime($filepath)),
             'timestamp'      => filemtime($filepath),
             'action_context' => $data['action_context'] ?? 'remediation',
             'is_in_db'       => $is_in_db,
@@ -558,6 +563,7 @@ class UserRemediationManager {
                 return $this->restore_user($b['filepath'] ?? $b['backup_file']);
             }
         }
+        /* translators: %d: user ID */
         return ['success' => false, 'error' => sprintf(__('No backup snapshot found for user ID #%d.', 'wcp-security-scanner'), $user_id)];
     }
 
@@ -584,7 +590,8 @@ class UserRemediationManager {
             if ($res['success']) {
                 $restored[] = $b['user_login'];
             } else {
-                $errors[] = sprintf(__('Failed to restore %s: %s', 'wcp-security-scanner'), $b['user_login'], $res['error'] ?? '');
+                /* translators: 1: username, 2: error message */
+                $errors[] = sprintf(__('Failed to restore %1$s: %2$s', 'wcp-security-scanner'), $b['user_login'], $res['error'] ?? '');
             }
         }
 
@@ -592,6 +599,7 @@ class UserRemediationManager {
             'success'  => !empty($restored) || empty($errors),
             'restored' => $restored,
             'errors'   => $errors,
+            /* translators: %d: number of users */
             'message'  => sprintf(__('Restored %d user accounts from backup vault.', 'wcp-security-scanner'), count($restored)),
         ];
     }
@@ -622,6 +630,7 @@ class UserRemediationManager {
 
         $target_user = get_userdata($target_user_id);
         if (!$target_user) {
+            /* translators: %d: user ID */
             return ['success' => false, 'error' => sprintf(__('Target user ID #%d not found.', 'wcp-security-scanner'), $target_user_id)];
         }
 
@@ -659,8 +668,9 @@ class UserRemediationManager {
             'target_user_id' => $target_user_id,
             'target_user_login' => $target_user->user_login,
             'reassigned_count' => $count,
+            /* translators: 1: number of posts, 2: author ID, 3: target user display name, 4: target user ID */
             'message' => sprintf(
-                __('Successfully reassigned %d post(s) from missing author #%d to %s (#%d).', 'wcp-security-scanner'),
+                __('Successfully reassigned %1$d post(s) from missing author #%2$d to %3$s (#%4$d).', 'wcp-security-scanner'),
                 $count,
                 $orphaned_author_id,
                 $target_user->display_name ?: $target_user->user_login,

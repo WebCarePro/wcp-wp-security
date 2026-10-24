@@ -750,7 +750,7 @@ class FirewallEngine {
 
         // Rule #33: admin-ajax.php Unauthenticated Request Burst Rate-Limiter
         if (!empty($settings['waf_limit_admin_ajax'])) {
-            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'admin-ajax.php') !== false) {
                 $is_logged_in = is_user_logged_in() || self::is_authenticated_administrator() || self::is_authenticated_editor_or_builder();
                 if (!$is_logged_in) {
@@ -886,7 +886,7 @@ class FirewallEngine {
 
         // Rule 18: Instant Sensitive File & Backup Probes Shield
         if (!empty($settings['waf_block_sensitive_file_probes'])) {
-            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             $sensitive_patterns = [
                 '/\.(env|git|svn|htaccess|user\.ini)(\/|$)/i',
                 '/\.(sql|sql\.gz|tar\.gz|bak)$/i',
@@ -919,7 +919,7 @@ class FirewallEngine {
 
         // Rule 19: Direct Execution Deny for wp-content/uploads/ PHP Scripts
         if (!empty($settings['waf_block_uploads_php_exec'])) {
-            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (preg_match('/\/wp-content\/uploads\/.*\.php([0-9]|s|tml)?(\/|\?|$)/i', $clean_path) || preg_match('/\/wp-content\/uploads\/.*\.php([0-9]|s|tml)?/i', $request_uri)) {
                 $rule_triggered = [
                     'id'          => 'WAF-UPLOADS-PHP-DENY',
@@ -1026,7 +1026,7 @@ class FirewallEngine {
 
         // Rule 20: External wp-cron.php Abuse & Flooding Blocker
         if (!empty($settings['waf_block_external_cron'])) {
-            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'wp-cron.php') !== false) {
                 $server_addr = $_SERVER['SERVER_ADDR'] ?? '';
                 $is_loopback = in_array($client_ip, ['127.0.0.1', '::1', $server_addr], true);
@@ -1059,7 +1059,7 @@ class FirewallEngine {
 
         // Rule 23: Lockdown install.php & upgrade.php on Already Installed Sites
         if (!empty($settings['waf_block_install_php'])) {
-            $clean_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'wp-admin/install.php') !== false || strpos($clean_path, 'wp-admin/upgrade.php') !== false) {
                 if (function_exists('is_blog_installed') && is_blog_installed()) {
                     $is_admin = self::is_authenticated_administrator();
@@ -1370,13 +1370,13 @@ class FirewallEngine {
         if (!empty($settings['waf_block_open_redirects'])) {
             $redirect_keys = ['redirect_to', 'redirect', 'url', 'return_to', 'next', 'target'];
             $all_params = array_merge($_GET, $_POST);
-            $home_host = strtolower(parse_url(home_url(), PHP_URL_HOST) ?: '');
+            $home_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?: '');
 
             foreach ($redirect_keys as $key) {
                 if (!empty($all_params[$key]) && is_string($all_params[$key])) {
                     $val = trim(urldecode($all_params[$key]));
                     if (preg_match('#^https?://#i', $val) || strpos($val, '//') === 0) {
-                        $parsed_host = strtolower(parse_url($val, PHP_URL_HOST) ?: '');
+                        $parsed_host = strtolower(wp_parse_url($val, PHP_URL_HOST) ?: '');
                         // If host is specified and does not match the home host or localhost
                         if (!empty($parsed_host) && $parsed_host !== $home_host && $parsed_host !== 'localhost' && $parsed_host !== '127.0.0.1') {
                             // E-Commerce & Membership Intelligence: Exempt legitimate payment processor redirects
@@ -1597,7 +1597,7 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_static_asset(string $uri): bool {
-        $path = parse_url($uri, PHP_URL_PATH);
+        $path = wp_parse_url($uri, PHP_URL_PATH);
         if (!$path) {
             return false;
         }
@@ -1647,7 +1647,7 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_high_risk_recon_probe(string $uri): bool {
-        $path = strtolower(parse_url($uri, PHP_URL_PATH) ?: $uri);
+        $path = strtolower(wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
 
         $high_risk_patterns = [
             '/\.env($|\.)/i',
@@ -1762,7 +1762,7 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_commerce_or_membership_request(string $uri): bool {
-        $parsed_path = strtolower(parse_url($uri, PHP_URL_PATH) ?: $uri);
+        $parsed_path = strtolower(wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
         $query_string = isset($_SERVER['QUERY_STRING']) ? strtolower((string) $_SERVER['QUERY_STRING']) : '';
 
         // 1. Direct E-Commerce AJAX & API parameters
@@ -2102,7 +2102,7 @@ class FirewallEngine {
 
         // 2. Cryptographic signature parameters check (Jetpack signs all outbound syncs)
         // Requests must carry timestamp and at least signature or token (inspect both superglobals and request URI)
-        $query_str = parse_url($request_uri, PHP_URL_QUERY);
+        $query_str = wp_parse_url($request_uri, PHP_URL_QUERY);
         $uri_params = [];
         if (!empty($query_str)) {
             parse_str($query_str, $uri_params);
@@ -2619,7 +2619,7 @@ class FirewallEngine {
         }
 
         // Domain Host resolution for Edge IP verification
-        $site_host = parse_url(get_site_url(), PHP_URL_HOST);
+        $site_host = wp_parse_url(get_site_url(), PHP_URL_HOST);
         $is_local_host = empty($site_host) || in_array($site_host, ['localhost', '127.0.0.1', '::1', 'local.test'], true) || preg_match('/\.local$/i', $site_host) || preg_match('/\.test$/i', $site_host);
 
         // If CDN was detected via headers, but CDN IP could not be derived from connecting peer (e.g. mod_remoteip restored client IP)
@@ -3021,14 +3021,14 @@ class FirewallEngine {
         }
 
         $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $whitelist_text))));
-        $path  = (string) parse_url($uri, PHP_URL_PATH);
+        $path  = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         foreach ($lines as $allowed) {
             if ($allowed === '') {
                 continue;
             }
             // Strip any query or hash from whitelist line for comparison
-            $allowed_clean = (string) parse_url($allowed, PHP_URL_PATH);
+            $allowed_clean = (string) wp_parse_url($allowed, PHP_URL_PATH);
             if (empty($allowed_clean)) {
                 $allowed_clean = $allowed;
             }
@@ -3703,12 +3703,12 @@ class FirewallEngine {
         // Build list of valid hosts from site_url, home_url, and optional aliases
         $allowed = [];
 
-        $site_host = parse_url(site_url(), PHP_URL_HOST);
+        $site_host = wp_parse_url(site_url(), PHP_URL_HOST);
         if ($site_host) {
             $allowed[] = strtolower($site_host);
         }
 
-        $home_host = parse_url(home_url(), PHP_URL_HOST);
+        $home_host = wp_parse_url(home_url(), PHP_URL_HOST);
         if ($home_host) {
             $allowed[] = strtolower($home_host);
         }

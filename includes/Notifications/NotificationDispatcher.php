@@ -503,7 +503,7 @@ class NotificationDispatcher {
         $notif_url = !empty($payload['notifications_url']) ? $payload['notifications_url'] : admin_url('admin.php?page=wcp-scanner-notifications');
 
         // High-density factual subject line for AI parsing
-        $host = parse_url($site_url, PHP_URL_HOST) ?: $site_url;
+        $host = wp_parse_url($site_url, PHP_URL_HOST) ?: $site_url;
         $subject = sprintf('[%s Alert: %s] %s for %s', $site_name, $severity, $title, $host);
 
         $severity_color = '#0284c7';

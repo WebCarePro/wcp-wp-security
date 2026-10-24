@@ -285,6 +285,7 @@ class PluginSelfDefense {
         if (!empty($audit['has_issues'])) {
             // Dispatch granular events via NotificationDispatcher
             if (!empty($audit['modified_count'])) {
+                /* translators: %d: number of modified files */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_tampered', [
                     'severity' => 'critical',
                     'message'  => sprintf(__('Plugin Self-Defense detected %d modified plugin file(s) with SHA256 checksum mismatches.', 'wcp-security-scanner'), $audit['modified_count']),
@@ -296,6 +297,7 @@ class PluginSelfDefense {
             }
 
             if (!empty($audit['missing_count'])) {
+                /* translators: %d: number of missing files */
                 \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
                     'severity' => 'critical',
                     'message'  => sprintf(__('Plugin Self-Defense detected %d missing or host-deleted plugin core file(s).', 'wcp-security-scanner'), $audit['missing_count']),
@@ -325,6 +327,7 @@ class PluginSelfDefense {
         }
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+        /* translators: %s: site name */
         $subject = sprintf(__('[%s Security Alert] WCP Security Scanner File Integrity Anomaly Detected', 'wcp-security-scanner'), $site_name);
 
         $body  = "Hello Administrator,\n\n";
@@ -387,10 +390,13 @@ class PluginSelfDefense {
         echo '<strong><span class="dashicons dashicons-shield" style="font-size: 18px; margin-right: 4px; vertical-align: -2px;"></span> ' . esc_html__('WCP Security Scanner Self-Defense Alert:', 'wcp-security-scanner') . '</strong> ';
 
         if ($missing_count > 0 && $modified_count > 0) {
+            /* translators: 1: number of missing files, 2: number of modified files */
             echo esc_html(sprintf(__('Detected %1$d missing file(s) and %2$d modified file(s) in this plugin installation. A host scanner or upload error may have deleted critical security modules.', 'wcp-security-scanner'), $missing_count, $modified_count));
         } elseif ($missing_count > 0) {
+            /* translators: %d: number of missing files */
             echo esc_html(sprintf(__('Detected %1$d missing core file(s) in this plugin installation (e.g. deleted by host security or incomplete zip upload).', 'wcp-security-scanner'), $missing_count));
         } else {
+            /* translators: %d: number of modified files */
             echo esc_html(sprintf(__('Detected %1$d modified/tampered file(s) in the security scanner directory.', 'wcp-security-scanner'), $modified_count));
         }
         echo '</div>';
@@ -586,6 +592,7 @@ class PluginSelfDefense {
         return [
             'success' => true,
             'path'    => $clean_path,
+            /* translators: %s: file path */
             'message' => sprintf(__('Successfully restored %s from official GitHub release with verified SHA256 integrity.', 'wcp-security-scanner'), $clean_path),
         ];
     }
