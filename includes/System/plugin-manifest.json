@@ -1,6 +1,6 @@
 {
   "version": "1.25.0",
-  "generated_at": "2026-10-24T19:48:55.318Z",
+  "generated_at": "2026-10-24T19:52:40.466Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -448,8 +448,8 @@
       "size": 4471
     },
     "wcp-wp-scanner.php": {
-      "sha256": "6874b17aa9eac9bbc60ddd74dda5f5c195a29c409c0c30e36b725ca81ffa6b2e",
-      "size": 3779
+      "sha256": "d784ed9382419ede42eedf7bb7552b944513b011dc9b5c6423a6cfae79b41d72",
+      "size": 3738
     }
   }
 }

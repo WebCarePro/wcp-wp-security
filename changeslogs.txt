@@ -2,6 +2,9 @@ v:1.25.0 - 2026-10-25
 - Sensitive System File Probe URL-Decode Hardening (`SecurityHeadersEngine.php`):
   * Multi-Layer URL Encoding Evasion Defense: Upgraded `protect_sensitive_files_probe()` with iterative URL decoding (`rawurldecode()`) and directory separator normalization (`\\` to `/`). Neutralizes evasive multi-layer or hex-encoded probe payloads (e.g. `/%2eenv`, `/%252eenv`, `/%2e%67%69%74/`) attempting to probe sensitive system files (`.env`, `.git`, `.sql`, `wp-config.php.bak`, `composer.json`, etc.) before pattern inspection.
   * Dual Matching Evaluation: Evaluates forbidden sensitive file patterns against both the raw incoming request URI and the iteratively decoded/normalized URI string, eliminating bypass vectors while ensuring zero impact on legitimate site requests.
+- Main Plugin Cleanliness & Constant Streamlining (`wcp-wp-scanner.php`, `AGENTS.md`):
+  * Eliminated redundant duplicate `WCP_SCANNER_VERSION` constant definition in `wcp-wp-scanner.php`, preserving only the single canonical `WCPSCAN_VERSION` used throughout the plugin architecture.
+
 
 v:1.24.0 - 2026-10-24
 - Automattic Jetpack Smart Pass & Verified Crawler Defense Architecture (`SettingsManager.php`, `FirewallEngine.php`, `BotReconDefense.php`, `FirewallPage.tsx`, `SettingsPage.tsx`):
