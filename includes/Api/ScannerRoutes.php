@@ -4933,16 +4933,46 @@ class ScannerRoutes {
     }
 
     public static function calibrate_integrity_vault(\WP_REST_Request $request) {
-        $result = \WcpScanner\Integrity\FimDriftDetector::calibrate_all();
-        return rest_ensure_response($result);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
+        }
+        try {
+            $result = \WcpScanner\Integrity\FimDriftDetector::calibrate_all();
+            return rest_ensure_response($result);
+        } catch (\Throwable $e) {
+            error_log('[WCP-FIM] Calibration Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return new \WP_Error(
+                'fim_calibration_failed',
+                'FIM Vault Calibration Failed: ' . $e->getMessage(),
+                ['status' => 500]
+            );
+        }
     }
 
     public static function recheck_integrity_drift(\WP_REST_Request $request) {
-        $category = sanitize_key($request->get_param('category') ?: 'all');
-        $limit = (int) ($request->get_param('limit') ?: 250);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(180);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
+        }
+        try {
+            $category = sanitize_key($request->get_param('category') ?: 'all');
+            $limit = (int) ($request->get_param('limit') ?: 250);
 
-        $result = \WcpScanner\Integrity\FimDriftDetector::audit_drift($category, $limit);
-        return rest_ensure_response($result);
+            $result = \WcpScanner\Integrity\FimDriftDetector::audit_drift($category, $limit);
+            return rest_ensure_response($result);
+        } catch (\Throwable $e) {
+            error_log('[WCP-FIM] Drift Audit Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return new \WP_Error(
+                'fim_drift_audit_failed',
+                'FIM Drift Audit Failed: ' . $e->getMessage(),
+                ['status' => 500]
+            );
+        }
     }
 
     public static function get_integrity_file_diff(\WP_REST_Request $request) {

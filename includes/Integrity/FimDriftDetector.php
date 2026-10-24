@@ -31,6 +31,12 @@ class FimDriftDetector {
      * @return array
      */
     public static function calibrate_all(): array {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
+        }
         $start_time = microtime(true);
         $normalized_abs = wp_normalize_path(ABSPATH);
 
@@ -109,6 +115,12 @@ class FimDriftDetector {
      * @return array
      */
     public static function audit_drift(string $category = 'all', int $limit = 250): array {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(180);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
+        }
         $start_time = microtime(true);
         $vault_status = FimVaultManager::get_vault_status();
 
@@ -519,6 +531,6 @@ class FimDriftDetector {
      * Check if a path should be skipped from FIM tracking.
      */
     private static function is_ignored_path(string $path): bool {
-        return (bool) preg_match('#/(node_modules|\.git|cache|wcp-security-scanner|updraft|backups|wfcache|wcp-vault)/#i', $path);
+        return (bool) preg_match('#/(node_modules|\.git|cache|wcp-security-scanner|updraft|backups|wfcache|wcp-vault|ai1wm-backups|et-cache|wp-optimize-cache|autoptimize|litespeed|elementor/css)/#i', $path);
     }
 }
