@@ -74,6 +74,12 @@ WCP Security Scanner gives you enterprise-grade malware detection, core integrit
 = 10. Web Application Firewall (WAF Lite) & Virtual Patching =
 * **Real-Time Request Filtering**: Inspects incoming HTTP payloads at plugins_loaded (priority 0) with sub-millisecond evaluation before core WordPress queries execute.
 * **Attack Vector Shields**: Blocks SQL Injections (UNION SELECT, information_schema, benchmark), Cross-Site Scripting (XSS scripts/handlers), Path Traversal & LFI (/etc/passwd, php://filter), PHP code tag injections (<?php, eval, base64_decode, system), and XML-RPC exploitation.
+* **Smart Shields & Verified Integrations Control Center**: Dedicated reactive controls for 5 intelligent false-positive bypasses with individual on/off toggles, automatic plugin detection, and 1-click recommendation banners:
+  1. *E-Commerce & Membership Smart Shield:* Protects 34 top shopping, membership, donation, and community plugins (WooCommerce, EDD, SureCart, MemberPress, GiveWP, PMPro, Restrict Content Pro, ARMember, BuddyBoss, Youzify) with cryptographic webhook signature authentication (Stripe, PayPal, Square, Mollie, Razorpay) and active shopper cart session immunity against 404 lockouts.
+  2. *Visual Page Builder & Editor Smart Pass:* Safeguards authenticated editors using 20 leading page builders and block design suites (Elementor, Divi, Beaver, Bricks, Breakdance, Oxygen, SeedProd, Brizy, Thrive Architect, WPBakery, Visual Composer, Themify, SiteOrigin, Droip, Live Composer, WP Site Editor FSE, GenerateBlocks, Kadence Blocks, Spectra, Avada Fusion Builder) against false-positive XSS/SQLi payload drops and buffer limits.
+  3. *Automattic Jetpack Sync Shield:* Enables verified Jetpack syncs hitting xmlrpc.php while strictly validating incoming requests against Automattic's official CIDR blocks (192.0.64.0/18, etc.) and cryptographic signatures.
+  4. *Uptime Monitors & Health Check Immunity:* Protects legitimate uptime monitors (UptimeRobot, Pingdom, StatusCake, BetterUptime, GTmetrix) with 24-hour cached reverse DNS (PTR) + forward DNS (A) verification against 404 scanner lockouts.
+  5. *Central WordPress Management Worker Pass:* Authenticates remote maintenance sweeps from ManageWP, MainWP, and InfiniteWP when official on-site worker plugins are active.
 * **Smart Cloudflare & Coexistence**: Decodes visitor Real-IP from HTTP_CF_CONNECTING_IP with Cloudflare proxy range validation. Auto-negotiates with Wordfence, Sucuri, and Solid Security into Complementary Virtual Patching mode without hook conflicts.
 * **Live Incidents Stream & Controls**: Real-time blocked attack table, 1-click IP whitelisting, Learning Mode toggle (audit-only logging), and individual rule toggles. Custom dark-themed 403 Forbidden screen with incident reference IDs.
 
@@ -328,6 +334,19 @@ To compile the React admin application from source:
 4. Run `npm run package` to compile and package the release zip.
 
 == Changelog ==
+
+= 1.24.0 =
+* Smart Shields & Verified Integrations Control Center: Granular reactive on/off switches for 5 intelligent false-positive bypasses with automatic environment detection and 1-click recommendation banners.
+* 34-Plugin E-Commerce & Membership Smart Shield: Expansive support for WooCommerce, EDD, SureCart, GiveWP, MemberPress, PMPro, Restrict Content Pro, SureMembers, ARMember, BuddyBoss, Youzify, and 23 others with cryptographic webhook signature authentication and active shopper session immunity.
+* 20-Visual Builder & Block Design Smart Pass: Verified session protection for Elementor, Divi, Beaver, Bricks, Breakdance, Oxygen, SeedProd, Brizy, Thrive Architect, WPBakery, Visual Composer, Themify, SiteOrigin, Droip, Live Composer, WP Site Editor FSE, GenerateBlocks, Kadence, Spectra, and Avada Fusion Builder.
+* Automattic Jetpack & Uptime Monitors Defense: Strict CIDR validation for Jetpack syncs and 24-hour cached reverse DNS (PTR) verification for UptimeRobot, Pingdom, StatusCake, and BetterUptime.
+* Central Management Worker Pass: Verified worker authentication for ManageWP, MainWP, and InfiniteWP.
+* Automated Test Suites & Live WAF Verification: Built and executed automated unit and live HTTP test suites (`test_smart_rules_suite.php`, `test_live_http_rules.js`) against Docker environment, auto-provisioning `incident_id` in `wp_wcpscan_firewall_logs` via database schema version 1.10.0.
+
+= 1.23.0 =
+* UI Design System Theme Hardening: Codified dual-mode design tokens across Firewall controls, WAF Logs, and Filesystem Forensics in both Dark Obsidian and High-Contrast White Mode.
+* Unmanaged & Proprietary Component UX: Eliminated false-positive "Auto-Cure" triggers on custom/proprietary plugins, transitioning them to distinct informational badges.
+* Defensive Deactivation Trigger: Protected deactivation hooks with defensive exception wrappers preventing third-party mailer plugin fatal errors from interrupting deactivation.
 
 = 1.22.0 =
 * Targeted Scan Auto-Scroll: UI smoothly auto-scrolls down to findings on targeted audit completion.
