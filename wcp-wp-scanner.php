@@ -89,11 +89,12 @@ register_deactivation_hook(__FILE__, function () {
                 'details'  => [
                     'user_login' => $user->user_login ?: 'unknown',
                     'user_email' => $user->user_email ?: 'unknown',
-                    'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+                    'ip_address' => !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1',
                 ],
             ]);
         } catch (\Throwable $e) {
             // Silently swallow or log to error_log to ensure plugin deactivation is NEVER blocked
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('WCP Scanner deactivation notice failed: ' . $e->getMessage());
         }
     }

@@ -42,15 +42,11 @@ class AttackChainEngine {
         // 1. Gather Open Scan Findings from Database
         $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
         $open_issues = [];
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $open_issues = $wpdb->get_results(
-                "SELECT id, engine, type, severity, confidence, file_path, line_number, evidence, description, created_at 
-                 FROM {$issues_table} 
-                 WHERE status = 'open' 
-                 ORDER BY id DESC LIMIT 200",
-                ARRAY_A
-            ) ?: [];
+            $issues_query = "SELECT id, engine, type, severity, confidence, file_path, line_number, evidence, description, created_at FROM {$issues_table} WHERE status = 'open' ORDER BY id DESC LIMIT 200";
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            $open_issues = $wpdb->get_results($issues_query, ARRAY_A) ?: [];
         }
 
         // 2. Gather Persistence Findings via PersistenceScanner
@@ -60,15 +56,11 @@ class AttackChainEngine {
         // 3. Gather Recent Firewall Exploit Probes from wp_wcp_firewall_logs (Past 14 Days)
         $firewall_table = $wpdb->prefix . 'wcpscan_firewall_logs';
         $firewall_probes = [];
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $firewall_table)) === $firewall_table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $firewall_probes = $wpdb->get_results(
-                "SELECT id, ip_address, request_uri, request_method, rule_category, rule_description, created_at 
-                 FROM {$firewall_table} 
-                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
-                 ORDER BY id DESC LIMIT 150",
-                ARRAY_A
-            ) ?: [];
+            $firewall_query = "SELECT id, ip_address, request_uri, request_method, rule_category, rule_description, created_at FROM {$firewall_table} WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) ORDER BY id DESC LIMIT 150";
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            $firewall_probes = $wpdb->get_results($firewall_query, ARRAY_A) ?: [];
         }
 
         // 4. Gather Users Created in Past 14 Days (or with Administrator role)
@@ -572,7 +564,7 @@ class AttackChainEngine {
 
         // Query users created in past 14 days with administrator capabilities
         $cap_key = $wpdb->prefix . 'capabilities';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $users = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT u.ID, u.user_login, u.user_email, u.user_registered 
@@ -625,7 +617,7 @@ class AttackChainEngine {
             // Legitimate WordPress dashboard user creation always generates at least 6 standard metadata entries:
             // nickname, first_name, last_name, description, rich_editing, syntax_highlighting, comment_shortcuts, admin_color, use_ssl, show_admin_bar_front, wp_capabilities, wp_user_level.
             // Raw SQL injected ghost admins or stealth backdoor created users typically only have wp_capabilities and wp_user_level (count < 4).
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $meta_count = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d",
                 $uid
@@ -636,7 +628,7 @@ class AttackChainEngine {
             $is_disposable_email = in_array($domain, $suspicious_email_domains, true);
 
             // Check if capabilities contain suspicious PHP or raw function injection
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $raw_caps = (string) $wpdb->get_var($wpdb->prepare(
                 "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s",
                 $uid,
@@ -809,9 +801,10 @@ class AttackChainEngine {
         // 6. Auto-reconcile open scan issues associated with these quarantined files
         global $wpdb;
         $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if (!empty($plan['quarantine_files']) && $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
             foreach ($plan['quarantine_files'] as $fp) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update(
                     $issues_table,
                     ['status' => 'repaired'],

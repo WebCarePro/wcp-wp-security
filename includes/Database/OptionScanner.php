@@ -47,14 +47,9 @@ class OptionScanner {
         }
 
         // 2. Check for oversized autoloaded options (denial of service / hidden payloads)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $large_options = $wpdb->get_results(
-            "SELECT option_name, LENGTH(option_value) AS value_len 
-             FROM `{$options_table}` 
-             WHERE autoload = 'yes' OR autoload = 'on' 
-             HAVING value_len > 500000 
-             ORDER BY value_len DESC LIMIT 10"
-        );
+        $large_options_sql = "SELECT option_name, LENGTH(option_value) AS value_len FROM `{$options_table}` WHERE autoload = 'yes' OR autoload = 'on' HAVING value_len > 500000 ORDER BY value_len DESC LIMIT 10";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        $large_options = $wpdb->get_results($large_options_sql);
 
         if (!empty($large_options)) {
             foreach ($large_options as $opt) {

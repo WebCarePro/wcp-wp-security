@@ -209,8 +209,11 @@ class TwoFactorAuth {
         $compliance = self::get_user_compliance_status($user_id);
         if ($compliance['status'] === 'enforcement_required') {
             // Allow access ONLY to the 2FA configuration page
-            $current_page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
-            if ($current_page !== 'wcp-security-scanner' || (isset($_GET['tab']) && $_GET['tab'] !== 'auth')) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $current_tab  = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : '';
+            if ($current_page !== 'wcp-security-scanner' || $current_tab !== 'auth') {
                 wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner&tab=auth&forced=1'));
                 exit;
             }
@@ -654,7 +657,7 @@ class TwoFactorAuth {
                         'user_id'    => $user->ID,
                         'user_login' => $user->user_login,
                         'user_roles' => implode(', ', $user->roles),
-                        'ip_address' => class_exists('\\WcpScanner\\Firewall\\FirewallEngine') ? \WcpScanner\Firewall\FirewallEngine::get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+                        'ip_address' => class_exists('\\WcpScanner\\Firewall\\FirewallEngine') ? \WcpScanner\Firewall\FirewallEngine::get_client_ip() : (!empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown'),
                     ],
                 ]);
             }
@@ -923,6 +926,7 @@ class TwoFactorAuth {
         }
 
         // Check if 2FA code was submitted
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- WordPress core login form does not carry custom plugin nonce
         $auth_code = isset($_POST['wcpscan_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code'])) : '';
         $secret    = self::get_user_secret($user->ID);
 
@@ -936,6 +940,7 @@ class TwoFactorAuth {
             }
 
             if ($code_valid) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
                 if (!empty($_POST['wcpscan_2fa_remember_device'])) {
                     self::set_trusted_device($user->ID, self::get_remember_device_days());
                 }
@@ -951,13 +956,16 @@ class TwoFactorAuth {
 
         // If no 2FA code was provided on initial login submission, create a pending session and redirect to challenge screen
         $pending_key = wp_generate_password(32, false);
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $remember_val = !empty($_POST['rememberme']);
         set_transient(self::SESSION_TRANSIENT . $pending_key, [
             'user_id'    => $user->ID,
             'user_login' => $user->user_login,
-            'remember'   => !empty($_POST['rememberme']),
+            'remember'   => $remember_val,
         ], 300); // 5 minutes window
 
-        $redirect_to = !empty($_REQUEST['redirect_to']) ? esc_url_raw($_REQUEST['redirect_to']) : admin_url();
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $redirect_to = !empty($_REQUEST['redirect_to']) ? esc_url_raw(wp_unslash($_REQUEST['redirect_to'])) : admin_url();
         $challenge_url = add_query_arg([
             'action'      => 'wcpscan_2fa',
             'pending_key' => $pending_key,
@@ -972,7 +980,9 @@ class TwoFactorAuth {
      * Render the 2FA Challenge Screen on wp-login.php
      */
     public static function render_2fa_challenge_screen() {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $pending_key = isset($_GET['pending_key']) ? sanitize_text_field(wp_unslash($_GET['pending_key'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $redirect_to = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : admin_url();
         $session     = get_transient(self::SESSION_TRANSIENT . $pending_key);
 
@@ -995,7 +1005,8 @@ class TwoFactorAuth {
         $error_msg               = '';
 
         // Handle Form Submission
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wcpscan_2fa_code'])) {
+        $request_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
+        if ($request_method === 'POST' && isset($_POST['wcpscan_2fa_code'])) {
             check_admin_referer('wcpscan_2fa_verify_' . $pending_key);
 
             $code   = sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code']));
@@ -1019,6 +1030,7 @@ class TwoFactorAuth {
 
                 // Complete authentication
                 wp_set_auth_cookie($user_id, !empty($session['remember']));
+                // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Standard WordPress core login hook invocation
                 do_action('wp_login', $user->user_login, $user);
 
                 wp_safe_redirect($redirect_to);

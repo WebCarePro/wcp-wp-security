@@ -41,10 +41,11 @@ class FindingsRepository {
             $sql = "INSERT INTO {$table} (scan_id, file_path, file_size, status, scanned_at) VALUES " . implode(', ', $placeholders);
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $prepared = $wpdb->prepare($sql, $values);
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $res = $wpdb->query($prepared);
 
             if ($res === false && !empty($wpdb->last_error)) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log(sprintf('[WCP Security] Error bulk-inserting files into %s: %s', $table, $wpdb->last_error));
             }
         }
@@ -101,10 +102,11 @@ class FindingsRepository {
 
             $sql = "INSERT INTO {$table} (scan_id, engine, type, severity, confidence, file_path, line_number, code_snippet, evidence, description, status, created_at) VALUES " . implode(', ', $placeholders);
             $prepared = $this->prepare_with_nulls($sql, $values);
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $res = $wpdb->query($prepared);
 
             if ($res === false && !empty($wpdb->last_error)) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log(sprintf('[WCP Security] Error bulk-inserting issues into %s: %s', $table, $wpdb->last_error));
             }
         }

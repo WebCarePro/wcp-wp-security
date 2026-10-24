@@ -324,7 +324,7 @@ class NotificationDispatcher {
      * Detect client browser device type (Desktop, Mobile, Tablet)
      */
     public static function detect_device_type(): string {
-        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? strtolower((string)$_SERVER['HTTP_USER_AGENT']) : '';
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT']))) : '';
         if (empty($ua)) {
             return 'Unknown Device';
         }
@@ -349,14 +349,15 @@ class NotificationDispatcher {
         ];
         foreach ($headers as $h) {
             if (!empty($_SERVER[$h])) {
-                $ips = explode(',', (string)$_SERVER[$h]);
+                $raw_val = sanitize_text_field(wp_unslash($_SERVER[$h]));
+                $ips = explode(',', $raw_val);
                 $ip = trim($ips[0]);
                 if (filter_var($ip, FILTER_VALIDATE_IP)) {
                     return $ip;
                 }
             }
         }
-        return !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field($_SERVER['REMOTE_ADDR']) : '127.0.0.1';
+        return !empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1';
     }
 
     /**
@@ -662,6 +663,7 @@ class NotificationDispatcher {
         try {
             return (bool) wp_mail($to, $subject, $html, $headers);
         } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('WCP Scanner: wp_mail failed due to mailer engine error: ' . $e->getMessage());
             return false;
         }

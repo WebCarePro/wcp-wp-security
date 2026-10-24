@@ -56,6 +56,7 @@ class TableScanner {
      */
     public function get_tables() {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $tables = $wpdb->get_col("SHOW TABLES");
         return is_array($tables) ? $tables : [];
     }
@@ -76,6 +77,7 @@ class TableScanner {
             return ['columns' => [], 'primary_key' => null];
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $cols_info = $wpdb->get_results("SHOW COLUMNS FROM `{$table}`");
         if (empty($cols_info)) {
             return ['columns' => [], 'primary_key' => null];
@@ -130,20 +132,16 @@ class TableScanner {
 
         // Keyset pagination when primary key exists, otherwise standard LIMIT/OFFSET
         if ($primary_key) {
-            $sql = $wpdb->prepare(
-                "SELECT {$col_sql} FROM `{$table}` WHERE `{$primary_key}` > %d ORDER BY `{$primary_key}` ASC LIMIT %d",
-                $last_id,
-                $batch_size
-            );
+            $raw_query = "SELECT {$col_sql} FROM `{$table}` WHERE `{$primary_key}` > %d ORDER BY `{$primary_key}` ASC LIMIT %d";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $sql = $wpdb->prepare($raw_query, $last_id, $batch_size);
         } else {
-            $sql = $wpdb->prepare(
-                "SELECT {$col_sql} FROM `{$table}` LIMIT %d OFFSET %d",
-                $batch_size,
-                $last_id
-            );
+            $raw_query = "SELECT {$col_sql} FROM `{$table}` LIMIT %d OFFSET %d";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $sql = $wpdb->prepare($raw_query, $batch_size, $last_id);
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $rows = $wpdb->get_results($sql, ARRAY_A);
         if (empty($rows)) {
             return ['findings' => [], 'rows_scanned' => 0, 'next_cursor' => null];

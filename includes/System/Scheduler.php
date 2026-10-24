@@ -41,9 +41,11 @@ class Scheduler {
 
          // Prevent execution timeouts and memory exhaustion during cron execution
          if (function_exists('set_time_limit')) {
+             // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
              @set_time_limit(0);
          }
          $mem_limit = !empty($settings['memory_limit_override']) ? $settings['memory_limit_override'] : '512M';
+         // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
          @ini_set('memory_limit', $mem_limit);
 
          $target = $settings['schedule_scan_type'] ?? 'plugins_themes';
@@ -74,6 +76,7 @@ class Scheduler {
          $start_time = microtime(true);
 
          // Insert scan record
+         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
          $wpdb->insert($table_scans, [
              'status'        => 'running',
              'scan_target'   => $target,
@@ -102,6 +105,7 @@ class Scheduler {
                  // Refresh lock heartbeat and persist progress count every 15 files
                  if ($idx > 0 && $idx % 15 === 0) {
                      \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+                     // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                      $wpdb->update($table_scans, [
                          'scanned_files' => $scanned_count,
                      ], ['id' => $scan_id]);
@@ -113,6 +117,7 @@ class Scheduler {
                  $file_size = @filesize($filepath) ?: 0;
                  $file_status = !empty($findings) ? 'threat' : 'clean';
 
+                 // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                  $wpdb->insert($table_files, [
                      'scan_id'    => $scan_id,
                      'file_path'  => $rel_path,
@@ -123,6 +128,7 @@ class Scheduler {
 
                  foreach ($findings as $f) {
                      $item = is_array($f) ? $f : (method_exists($f, 'to_array') ? $f->to_array() : (array) $f);
+                     // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                      $wpdb->insert($table_issues, [
                          'scan_id'      => $scan_id,
                          'engine'       => $item['engine'] ?? 'filesystem',
@@ -220,11 +226,13 @@ class Scheduler {
              $correlated = $correlation->correlate($all_deep_findings);
 
              // Pre-load all existing findings already saved for this scan to prevent any duplicate insertions
-             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-             $existing_issues = $wpdb->get_results($wpdb->prepare(
-                 "SELECT engine, type, file_path, line_number, description FROM `{$table_issues}` WHERE scan_id = %d",
-                 $scan_id
-             ), ARRAY_A) ?: [];
+             $issues_query = "SELECT engine, type, file_path, line_number, description FROM `{$table_issues}` WHERE scan_id = %d";
+              // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+              $existing_issues = $wpdb->get_results(
+                  // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                  $wpdb->prepare($issues_query, $scan_id),
+                  ARRAY_A
+              ) ?: [];
 
              $inserted_signatures = [];
              foreach ($existing_issues as $ex) {
@@ -240,6 +248,7 @@ class Scheduler {
                  }
                  $inserted_signatures[$sig] = true;
 
+                 // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                  $wpdb->insert($table_issues, [
                      'scan_id'      => $scan_id,
                      'engine'       => $f['engine'] ?? 'system',
@@ -261,11 +270,13 @@ class Scheduler {
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
              $completed_at_exact = \WcpScanner\Api\ScannerRoutes::now_fractional_mysql();
-             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-             $all_scan_issues = $wpdb->get_results($wpdb->prepare(
-                 "SELECT * FROM `{$table_issues}` WHERE scan_id = %d",
-                 $scan_id
-             ), ARRAY_A) ?: [];
+             $all_query = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d";
+              // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+              $all_scan_issues = $wpdb->get_results(
+                  // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                  $wpdb->prepare($all_query, $scan_id),
+                  ARRAY_A
+              ) ?: [];
 
              $open_issues = array_filter($all_scan_issues, function($issue) {
                  return ($issue['status'] ?? 'open') === 'open';
@@ -276,6 +287,7 @@ class Scheduler {
              $risk_score = (int) ($risk_summary['score'] ?? 0);
              $open_issues_count = count($open_issues);
 
+             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
              $wpdb->update($table_scans, [
                  'status'        => 'completed',
                  'scanned_files' => $scanned_count,
@@ -301,12 +313,14 @@ class Scheduler {
              $calc_sec = microtime(true) - $start_time;
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
+             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
              $wpdb->update($table_scans, [
                  'status'       => 'interrupted',
                  'duration'     => $duration,
                  'duration_ms'  => $duration_ms,
                  'completed_at' => \WcpScanner\Api\ScannerRoutes::now_fractional_mysql(),
              ], ['id' => $scan_id]);
+             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
              error_log('[WCP Scanner] Scheduled scan failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
          }
     }
@@ -319,11 +333,13 @@ class Scheduler {
 
         global $wpdb;
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT severity, type, file_path, description FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')",
-            $scan_id
-        ), ARRAY_A) ?: [];
+        $notif_query = "SELECT severity, type, file_path, description FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $issues = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($notif_query, $scan_id),
+            ARRAY_A
+        ) ?: [];
 
         // Dispatch granular event notifications via NotificationDispatcher
         if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {

@@ -281,8 +281,11 @@ class MCPAgentService {
     public static function execute_tool(string $tool, array $args = []): array {
         $start_time = microtime(true);
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Processed through conditional fallback and sanitized via sanitize_text_field below
         $raw_cf_ip  = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? (string) wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Processed through conditional fallback and sanitized via sanitize_text_field below
         $raw_xf_ip  = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? (string) wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Processed through conditional fallback and sanitized via sanitize_text_field below
         $raw_rem_ip = isset($_SERVER['REMOTE_ADDR']) ? (string) wp_unslash($_SERVER['REMOTE_ADDR']) : '127.0.0.1';
         $client_ip  = $raw_cf_ip !== '' ? $raw_cf_ip : ($raw_xf_ip !== '' ? $raw_xf_ip : $raw_rem_ip);
 
@@ -291,7 +294,9 @@ class MCPAgentService {
             $client_ip = trim($parts[0]);
         }
         $client_ip  = sanitize_text_field($client_ip);
-        $user_agent = !empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(substr((string) wp_unslash($_SERVER['HTTP_USER_AGENT']), 0, 120)) : 'Unknown AI Agent';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized via sanitize_text_field directly below
+        $raw_ua     = isset($_SERVER['HTTP_USER_AGENT']) ? (string) wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
+        $user_agent = $raw_ua !== '' ? sanitize_text_field(substr($raw_ua, 0, 120)) : 'Unknown AI Agent';
 
         // 1. Sliding-window rate limit check
         $rate_limit = (int) SettingsManager::get('mcp_rate_limit_per_min', 60);
@@ -419,10 +424,21 @@ class MCPAgentService {
         $table_scans  = $wpdb->prefix . 'wcpscan_scans';
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
 
-        $latest_scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
-        $open_issues = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table_issues}` WHERE status = 'open'");
-        $critical    = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table_issues}` WHERE status = 'open' AND severity = 'critical'");
-        $high        = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table_issues}` WHERE status = 'open' AND severity = 'high'");
+        $scan_query = "SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $latest_scan = $wpdb->get_row($scan_query, ARRAY_A);
+
+        $open_query = "SELECT COUNT(*) FROM `{$table_issues}` WHERE status = 'open'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $open_issues = (int) $wpdb->get_var($open_query);
+
+        $crit_query = "SELECT COUNT(*) FROM `{$table_issues}` WHERE status = 'open' AND severity = 'critical'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $critical    = (int) $wpdb->get_var($crit_query);
+
+        $high_query = "SELECT COUNT(*) FROM `{$table_issues}` WHERE status = 'open' AND severity = 'high'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $high        = (int) $wpdb->get_var($high_query);
 
         $baseline_data = BehavioralBaselineEngine::get_baseline();
         $baseline_aud  = $baseline_data ? BehavioralBaselineEngine::audit_baseline() : null;
@@ -479,7 +495,7 @@ class MCPAgentService {
         $query = "SELECT id, scan_id, engine, type, severity, confidence, file_path, line_number, description, status, created_at FROM `{$table_issues}` WHERE " . implode(' AND ', $where) . " ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC LIMIT %d";
         $params[] = $limit;
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $results = $wpdb->get_results($wpdb->prepare($query, ...$params), ARRAY_A);
 
         return [

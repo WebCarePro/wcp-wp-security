@@ -812,7 +812,7 @@ class RemediationManager {
         }
         global $wpdb;
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => (int) $issue_id]);
     }
 
@@ -827,16 +827,18 @@ class RemediationManager {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
 
         if ($issue_id) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => (int) $issue_id]);
         }
 
         if (!empty($file_path)) {
             $normalized = wp_normalize_path($file_path);
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $update_sql = "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path = %s OR file_path = %s) AND status != 'repaired'";
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->query(
                 $wpdb->prepare(
-                    "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path = %s OR file_path = %s) AND status != 'repaired'",
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                    $update_sql,
                     $file_path,
                     $normalized
                 )

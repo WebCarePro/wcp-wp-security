@@ -72,7 +72,7 @@ class SessionSentinel {
         }
 
         $ip = FirewallEngine::get_client_ip();
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
 
         // Dual-Device Concurrency Control: Allow at most 2 devices (strictly 1 Desktop + 1 Mobile)
         if (!empty($settings['session_block_concurrent']) && $user->has_cap('administrator')) {
@@ -82,6 +82,7 @@ class SessionSentinel {
                 $sessions_meta = get_user_meta($user->ID, 'wcpscan_session_meta', true) ?: [];
 
                 // Determine current incoming device category ('mobile' vs 'desktop')
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
                 $screen_raw = isset($_POST['wcpscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_screen_res'])) : '';
                 $current_parsed = \WcpScanner\Auth\LoginHistoryManager::parse_device_details($ua, $screen_raw);
                 $current_cat = in_array($current_parsed['device_type'], ['Mobile', 'Tablet'], true) ? 'mobile' : 'desktop';
@@ -357,7 +358,7 @@ class SessionSentinel {
             'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
                 'login_ip'   => $ip,
                 'alt_ip'     => $existing_decoded['alt_ip'] ?? '',
-                'user_agent' => substr(sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? ($existing_decoded['user_agent'] ?? 'Unknown')), 0, 255),
+                'user_agent' => substr(!empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : ($existing_decoded['user_agent'] ?? 'Unknown'), 0, 255),
             ])),
         ];
 
@@ -468,6 +469,7 @@ class SessionSentinel {
 
             return true;
         } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('[WCP Security] Error terminating session: ' . $e->getMessage());
             return false;
         }
@@ -528,6 +530,7 @@ class SessionSentinel {
 
             return true;
         } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('[WCP Security] Error terminating other sessions: ' . $e->getMessage());
             return false;
         }

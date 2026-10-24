@@ -38,17 +38,9 @@ class CommentScanner {
                 break;
             }
 
-            // Fetch approved or pending comments (ignore trash/spam)
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $comments = $wpdb->get_results($wpdb->prepare(
-                "SELECT comment_ID, comment_post_ID, comment_author, comment_author_email, comment_author_url, comment_author_IP, comment_date, comment_content, user_id 
-                 FROM `{$comments_table}` 
-                 WHERE comment_ID > %d AND comment_approved IN ('0', '1')
-                 ORDER BY comment_ID ASC 
-                 LIMIT %d",
-                $last_id,
-                $batch_size
-            ), ARRAY_A);
+            $sql = "SELECT comment_ID, comment_post_ID, comment_author, comment_author_email, comment_author_url, comment_author_IP, comment_date, comment_content, user_id FROM `{$comments_table}` WHERE comment_ID > %d AND comment_approved IN ('0', '1') ORDER BY comment_ID ASC LIMIT %d";
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            $comments = $wpdb->get_results($wpdb->prepare($sql, $last_id, $batch_size), ARRAY_A);
 
             if (empty($comments)) {
                 break;

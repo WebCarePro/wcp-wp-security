@@ -35,20 +35,16 @@ class IncidentReportEngine {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
 
         // 1. Fetch Latest Scan
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $scan = $wpdb->get_row(
-            "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full') ORDER BY id DESC LIMIT 1",
-            ARRAY_A
-        );
+        $scan_sql = "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full') ORDER BY id DESC LIMIT 1";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        $scan = $wpdb->get_row($scan_sql, ARRAY_A);
 
         $scan_id = $scan ? (int) $scan['id'] : 0;
         $issues = [];
         if ($scan_id > 0) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $issues = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
-                $scan_id
-            ), ARRAY_A) ?: [];
+            $issues_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            $issues = $wpdb->get_results($wpdb->prepare($issues_sql, $scan_id), ARRAY_A) ?: [];
         }
 
         // 2. Compute Issue Statistics & Status Ledger

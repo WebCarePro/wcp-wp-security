@@ -321,6 +321,7 @@ class PathValidator {
                     // Critical failure: both replacement and rollback failed.
                     // Preserve $dest_backup so the file remains recoverable by the administrator.
                     if (function_exists('error_log')) {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                         error_log(sprintf(
                             '[WCP Security Scanner CRITICAL] Atomic write rollback failure for "%s". Original file preserved in backup "%s".',
                             $path,

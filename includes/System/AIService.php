@@ -526,6 +526,7 @@ class AIService {
         }
 
         // 5. Generic WordPress AI prompt filter (used by various plugins)
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
         $prompt_filtered = apply_filters('wp_ai_prompt', null, $user, $system);
         if (!empty($prompt_filtered) && is_string($prompt_filtered)) {
             return $prompt_filtered;
@@ -599,6 +600,7 @@ class AIService {
             ],
         ];
 
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
         @set_time_limit(max(60, $timeout + 30));
 
         $response = wp_remote_post($url, [
@@ -651,6 +653,7 @@ class AIService {
             ]
         ];
 
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
         @set_time_limit(max(60, $timeout + 30));
 
         $response = wp_remote_post($url, [
@@ -702,6 +705,7 @@ class AIService {
             ],
         ];
 
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
         @set_time_limit(max(60, $timeout + 30));
 
         $response = wp_remote_post($url, [

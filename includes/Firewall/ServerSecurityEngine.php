@@ -491,6 +491,7 @@ class ServerSecurityEngine {
             $updated = trim($wrapped) . "\n\n" . $current;
         }
 
+        // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Direct writing of server rules to root .htaccess
         $written = @file_put_contents($htaccess_path, $updated);
         if ($written === false) {
             return [

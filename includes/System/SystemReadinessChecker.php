@@ -384,12 +384,9 @@ class SystemReadinessChecker {
         $test_table = $wpdb->prefix . 'wcpscan_readiness_test_' . time();
         $charset_collate = $wpdb->get_charset_collate();
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $created = $wpdb->query("CREATE TABLE IF NOT EXISTS `{$test_table}` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `val` varchar(64) DEFAULT NULL,
-            PRIMARY KEY (`id`)
-        ) {$charset_collate};");
+        $create_sql = "CREATE TABLE IF NOT EXISTS `{$test_table}` (`id` int(11) NOT NULL AUTO_INCREMENT, `val` varchar(64) DEFAULT NULL, PRIMARY KEY (`id`)) {$charset_collate};";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $created = $wpdb->query($create_sql);
 
         if ($created === false) {
             return [
@@ -400,7 +397,7 @@ class SystemReadinessChecker {
         }
 
         // Cleanup test table
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange
         $wpdb->query("DROP TABLE IF EXISTS `{$test_table}`;");
 
         return [

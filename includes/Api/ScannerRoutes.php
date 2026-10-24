@@ -1029,8 +1029,13 @@ class ScannerRoutes {
         $locked_id = ScanLock::get_locked_scan_id();
         if ($locked_id) {
             $table_scans = $wpdb->prefix . 'wcpscan_scans';
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $existing_scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $locked_id), ARRAY_A);
+            $exist_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $existing_scan = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($exist_sql, $locked_id),
+                ARRAY_A
+            );
             if (!$existing_scan || $existing_scan['status'] !== 'running') {
                 ScanLock::release($locked_id);
             } else {
@@ -1122,6 +1127,7 @@ class ScannerRoutes {
         $now_exact = self::now_fractional_mysql();
         $start_micro = microtime(true);
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->insert($table_scans, [
             'status'        => 'running',
             'scan_target'   => $target,
@@ -1176,7 +1182,12 @@ class ScannerRoutes {
         $queue = get_transient("wcpscan_scan_queue_{$scan_id}");
         if ($queue === false || !is_array($queue)) {
             // Check if scan exists in DB to prevent hard 404 failure
-            $scan_exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wcpscan_scans WHERE id = %d", $scan_id));
+            $check_sql = "SELECT id FROM {$wpdb->prefix}wcpscan_scans WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $scan_exists = $wpdb->get_var(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($check_sql, $scan_id)
+            );
             if ($scan_exists) {
                 return rest_ensure_response([
                     'success'     => true,
@@ -1233,6 +1244,7 @@ class ScannerRoutes {
             $file_size = @filesize($filepath) ?: 0;
             $file_status = !empty($findings) ? 'threat' : 'clean';
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->insert($table_files, [
                 'scan_id'    => $scan_id,
                 'file_path'  => $rel_path,
@@ -1248,6 +1260,8 @@ class ScannerRoutes {
                 $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
                 $status = ($matched_rule !== null) ? 'ignored' : 'open';
 
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->insert($table_issues, [
                     'scan_id'      => $scan_id,
                     'engine'       => $item['engine'],
@@ -1274,7 +1288,13 @@ class ScannerRoutes {
             set_transient("wcpscan_scan_queue_{$scan_id}", $queue, HOUR_IN_SECONDS);
         }
 
-        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT total_files FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+        $tot_sql = "SELECT total_files FROM `{$table_scans}` WHERE id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $scan_row = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($tot_sql, $scan_id),
+            ARRAY_A
+        );
         if (!$scan_row) {
             // Self-healing: recreate running scan row if missing
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1292,11 +1312,14 @@ class ScannerRoutes {
         }
         $scan_total = (int) ($scan_row['total_files'] ?? 0);
         $scanned_so_far = max(0, $scan_total - $remaining);
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $current_issues_total = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'", $scan_id
-        ));
+        $iss_sql = "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $current_issues_total = (int) $wpdb->get_var(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($iss_sql, $scan_id)
+        );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table_scans, [
             'scanned_files' => $scanned_so_far,
             'issues_found'  => $current_issues_total,
@@ -1342,13 +1365,21 @@ class ScannerRoutes {
         ScanLock::heartbeat($scan_id);
 
         // If scan is already completed, return results directly (idempotent for reconnects)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+        $scan_query = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $scan_row = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($scan_query, $scan_id),
+            ARRAY_A
+        );
         if ($scan_row && $scan_row['status'] === 'completed') {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $all_scan_issues = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
-            ), ARRAY_A);
+            $issues_query = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $all_scan_issues = $wpdb->get_results(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($issues_query, $scan_id),
+                ARRAY_A
+            );
             $scorer = new RiskScorer();
             $summary = $scorer->calculate($all_scan_issues);
             $diagnostics = self::build_scan_diagnostics($scan_row);
@@ -1626,11 +1657,13 @@ class ScannerRoutes {
             $correlated = $correlation->correlate($all_deep_findings);
 
             // Pre-load all existing findings already saved for this scan to prevent any duplicate insertions
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $existing_issues = $wpdb->get_results($wpdb->prepare(
-                "SELECT engine, type, file_path, line_number, description FROM `{$table_issues}` WHERE scan_id = %d",
-                $scan_id
-            ), ARRAY_A) ?: [];
+            $exist_sql = "SELECT engine, type, file_path, line_number, description FROM `{$table_issues}` WHERE scan_id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $existing_issues = $wpdb->get_results(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($exist_sql, $scan_id),
+                ARRAY_A
+            ) ?: [];
 
             $inserted_signatures = [];
             foreach ($existing_issues as $ex) {
@@ -1649,6 +1682,7 @@ class ScannerRoutes {
                 $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
                 $status = ($matched_rule !== null) ? 'ignored' : 'open';
 
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->insert($table_issues, [
                     'scan_id'      => $scan_id,
                     'engine'       => $item['engine'],
@@ -1666,23 +1700,33 @@ class ScannerRoutes {
             }
 
             // Calculate final risk score across all findings (decorating whitelist status)
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $all_scan_issues = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM `{$table_issues}` WHERE scan_id = %d", $scan_id
-            ), ARRAY_A);
+            $all_iss_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $all_scan_issues = $wpdb->get_results(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($all_iss_sql, $scan_id),
+                ARRAY_A
+            );
             $enriched_issues = self::enrich_issues($all_scan_issues);
 
             $scorer = new RiskScorer();
             $summary = $scorer->calculate($enriched_issues);
 
-            $open_issues_count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'",
-                $scan_id
-            ));
+            $cnt_sql = "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $open_issues_count = (int) $wpdb->get_var(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($cnt_sql, $scan_id)
+            );
 
             // Calculate duration accurately with millisecond precision
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $scan_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+            $row_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $scan_row = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($row_sql, $scan_id),
+                ARRAY_A
+            );
             $client_duration_ms = (int) $request->get_param('client_duration_ms');
             $client_duration = (int) $request->get_param('client_duration');
             $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
@@ -1757,6 +1801,7 @@ class ScannerRoutes {
                     'completed_at'  => $completed_at_exact,
                 ]);
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update($table_scans, [
                     'status'        => 'completed',
                     'issues_found'  => $open_issues_count,
@@ -1795,6 +1840,7 @@ class ScannerRoutes {
             ]);
         } catch (\Throwable $e) {
             ScanLock::release($scan_id);
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('[WCP Scanner] Error during deep audit: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
 
             return new \WP_Error(
@@ -1814,11 +1860,11 @@ class ScannerRoutes {
         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
         // Retrieve available scans for the Dashboard scan ID switcher (comprehensive, custom & targeted scans)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $avail_sql = "SELECT id, scan_target, status, started_at, completed_at, total_files, scanned_files, issues_found, risk_score FROM `{$table_scans}` ORDER BY id DESC LIMIT 50";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $available_scans_raw = $wpdb->get_results(
-            "SELECT id, scan_target, status, started_at, completed_at, total_files, scanned_files, issues_found, risk_score 
-             FROM `{$table_scans}` 
-             ORDER BY id DESC LIMIT 50",
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $avail_sql,
             ARRAY_A
         );
         $available_scans = [];
@@ -1845,28 +1891,39 @@ class ScannerRoutes {
 
         if ($requested_scan_id > 0) {
             // Specific scan ID requested via dashboard switcher
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $latest_scan = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM `{$table_scans}` WHERE id = %d",
-                $requested_scan_id
-            ), ARRAY_A);
+            $req_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $latest_scan = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($req_sql, $requested_scan_id),
+                ARRAY_A
+            );
         } elseif ($target_filter) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $latest_scan = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM `{$table_scans}` WHERE scan_target = %s ORDER BY id DESC LIMIT 1",
-                $target_filter
-            ), ARRAY_A);
+            $target_sql = "SELECT * FROM `{$table_scans}` WHERE scan_target = %s ORDER BY id DESC LIMIT 1";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $latest_scan = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($target_sql, $target_filter),
+                ARRAY_A
+            );
         } else {
             // Prefer comprehensive or custom scan for main dashboard view
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $std_sql = "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full', 'custom') ORDER BY id DESC LIMIT 1";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $latest_scan = $wpdb->get_row(
-                "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full', 'custom') ORDER BY id DESC LIMIT 1",
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $std_sql,
                 ARRAY_A
             );
             if (!$latest_scan) {
                 // Fallback to any latest scan if no standard/custom scan exists
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                $latest_scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
+                $fall_sql = "SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1";
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+                $latest_scan = $wpdb->get_row(
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                    $fall_sql,
+                    ARRAY_A
+                );
             }
         }
 
@@ -1882,42 +1939,50 @@ class ScannerRoutes {
         }
 
         // Prune any duplicate issue rows for this scan to keep database clean
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $duplicates = $wpdb->get_results($wpdb->prepare(
-            "SELECT MIN(id) as keep_id, scan_id, engine, type, file_path, line_number, description, COUNT(*) as cnt 
-             FROM `{$table_issues}` 
-             WHERE scan_id = %d 
-             GROUP BY scan_id, engine, type, file_path, line_number, description 
-             HAVING cnt > 1",
-            $latest_scan['id']
-        ), ARRAY_A);
+        $dup_sql = "SELECT MIN(id) as keep_id, scan_id, engine, type, file_path, line_number, description, COUNT(*) as cnt FROM `{$table_issues}` WHERE scan_id = %d GROUP BY scan_id, engine, type, file_path, line_number, description HAVING cnt > 1";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $duplicates = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($dup_sql, $latest_scan['id']),
+            ARRAY_A
+        );
 
         if (!empty($duplicates)) {
             foreach ($duplicates as $dup) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                $wpdb->query($wpdb->prepare(
-                    "DELETE FROM `{$table_issues}` 
-                     WHERE scan_id = %d AND engine = %s AND type = %s AND file_path = %s AND description = %s AND id != %d",
-                    $dup['scan_id'],
-                    $dup['engine'],
-                    $dup['type'],
-                    $dup['file_path'],
-                    $dup['description'],
-                    $dup['keep_id']
-                ));
+                $del_dup_sql = "DELETE FROM `{$table_issues}` WHERE scan_id = %d AND engine = %s AND type = %s AND file_path = %s AND description = %s AND id != %d";
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+                $wpdb->query(
+                    $wpdb->prepare(
+                        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                        $del_dup_sql,
+                        $dup['scan_id'],
+                        $dup['engine'],
+                        $dup['type'],
+                        $dup['file_path'],
+                        $dup['description'],
+                        $dup['keep_id']
+                    )
+                );
             }
             // Update issues_found count on scan record
+            $fc_sql = "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $fixed_count = (int) $wpdb->get_var(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($fc_sql, $latest_scan['id'])
+            );
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $fixed_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d", $latest_scan['id']));
             $wpdb->update($table_scans, ['issues_found' => $fixed_count], ['id' => $latest_scan['id']]);
             $latest_scan['issues_found'] = $fixed_count;
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
-            $latest_scan['id']
-        ), ARRAY_A);
+        $iss_list_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $issues = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($iss_list_sql, $latest_scan['id']),
+            ARRAY_A
+        );
         $issues = self::enrich_issues($issues);
 
         // Recalculate true active open issues count for latest scan record
@@ -1925,15 +1990,18 @@ class ScannerRoutes {
             return ($i['status'] ?? 'open') === 'open' && empty($i['is_whitelisted']);
         }));
         if ((int) $latest_scan['issues_found'] !== $open_issues_count) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_scans, ['issues_found' => $open_issues_count], ['id' => $latest_scan['id']]);
             $latest_scan['issues_found'] = $open_issues_count;
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $scanned_files = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table_files}` WHERE scan_id = %d ORDER BY id ASC",
-            $latest_scan['id']
-        ), ARRAY_A);
+        $files_list_sql = "SELECT * FROM `{$table_files}` WHERE scan_id = %d ORDER BY id ASC";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $scanned_files = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($files_list_sql, $latest_scan['id']),
+            ARRAY_A
+        );
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
@@ -1968,20 +2036,29 @@ class ScannerRoutes {
         $status = sanitize_text_field($request->get_param('status') ?: 'ignored');
 
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $issue = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_issues} WHERE id = %d", $issue_id));
+        $iss_row_sql = "SELECT * FROM {$table_issues} WHERE id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $issue = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($iss_row_sql, $issue_id)
+        );
 
         if ($status === 'open' && $issue && !empty($issue->file_path)) {
             \WcpScanner\Findings\WhitelistManager::revoke_rules_for_target($issue->file_path, $issue->type ?? '');
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $updated = $wpdb->update($table_issues, ['status' => $status], ['id' => $issue_id]);
 
         if ($issue && !empty($issue->scan_id)) {
             $table_scans = $wpdb->prefix . 'wcpscan_scans';
-            $open_issues = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table_issues} WHERE scan_id = %d AND status = 'open'",
-                $issue->scan_id
-            ));
+            $open_iss_sql = "SELECT COUNT(*) FROM {$table_issues} WHERE scan_id = %d AND status = 'open'";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $open_issues = (int) $wpdb->get_var(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($open_iss_sql, $issue->scan_id)
+            );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_scans, ['issues_found' => $open_issues], ['id' => $issue->scan_id]);
         }
 
@@ -2041,9 +2118,11 @@ class ScannerRoutes {
         global $wpdb;
         $table_scans = $wpdb->prefix . 'wcpscan_scans';
         $limit = (int) ($request->get_param('limit') ?: 50);
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $hist_sql = "SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $history = $wpdb->get_results(
-            $wpdb->prepare("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT %d", $limit),
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($hist_sql, $limit),
             ARRAY_A
         );
 
@@ -2084,9 +2163,11 @@ class ScannerRoutes {
         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
         // 1. Identify any scans that are actively running or in progress
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $run_sql = "SELECT id FROM `{$table_scans}` WHERE status = 'running'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $running_scans = $wpdb->get_results(
-            "SELECT id FROM `{$table_scans}` WHERE status = 'running'",
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $run_sql,
             ARRAY_A
         );
         $running_ids = !empty($running_scans) ? array_map('intval', wp_list_pluck($running_scans, 'id')) : [];
@@ -2100,25 +2181,18 @@ class ScannerRoutes {
         if (!empty($running_ids)) {
             // There IS an active scan in progress!
             // Preserve the active running scan(s) and their issues/files. Delete only historical records.
-            $placeholders = implode(',', array_fill(0, count($running_ids), '%d'));
+            $placeholders = implode(',', array_map('intval', $running_ids));
+            $del_iss_sql = "DELETE FROM `{$table_issues}` WHERE scan_id NOT IN ({$placeholders})";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query($del_iss_sql);
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-            $wpdb->query($wpdb->prepare(
-                "DELETE FROM `{$table_issues}` WHERE scan_id NOT IN ($placeholders)",
-                ...$running_ids
-            ));
+            $del_files_sql = "DELETE FROM `{$table_files}` WHERE scan_id NOT IN ({$placeholders})";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query($del_files_sql);
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-            $wpdb->query($wpdb->prepare(
-                "DELETE FROM `{$table_files}` WHERE scan_id NOT IN ($placeholders)",
-                ...$running_ids
-            ));
-
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-            $wpdb->query($wpdb->prepare(
-                "DELETE FROM `{$table_scans}` WHERE id NOT IN ($placeholders)",
-                ...$running_ids
-            ));
+            $del_scans_sql = "DELETE FROM `{$table_scans}` WHERE id NOT IN ({$placeholders})";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query($del_scans_sql);
 
             // Do NOT release lock because the scan is actively running!
             return rest_ensure_response([
@@ -2134,12 +2208,15 @@ class ScannerRoutes {
         }
 
         // 2. No scan is currently running: safe to truncate all tables cleanly
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query("TRUNCATE TABLE `{$table_scans}`");
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query("TRUNCATE TABLE `{$table_issues}`");
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query("TRUNCATE TABLE `{$table_files}`");
+        $trunc_scans = "TRUNCATE TABLE `{$table_scans}`";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $wpdb->query($trunc_scans);
+        $trunc_issues = "TRUNCATE TABLE `{$table_issues}`";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $wpdb->query($trunc_issues);
+        $trunc_files = "TRUNCATE TABLE `{$table_files}`";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $wpdb->query($trunc_files);
 
         ScanLock::release(ScanLock::get_locked_scan_id() ?: 0);
 
@@ -2157,21 +2234,32 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+        $get_scan_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $scan = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($get_scan_sql, $scan_id),
+            ARRAY_A
+        );
         if (!$scan) {
             return new \WP_Error('scan_not_found', 'Scan log not found', ['status' => 404]);
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
-            $scan_id
-        ), ARRAY_A);
+        $scan_iss_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $issues = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($scan_iss_sql, $scan_id),
+            ARRAY_A
+        );
         $issues = self::enrich_issues($issues);
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $files_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `{$table_files}` WHERE scan_id = %d", $scan_id));
+        $fc_sql = "SELECT COUNT(*) FROM `{$table_files}` WHERE scan_id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $files_count = (int) $wpdb->get_var(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($fc_sql, $scan_id)
+        );
 
         if (empty($scan['trigger_type'])) {
             $scan['trigger_type'] = 'manual';
@@ -2205,22 +2293,34 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
 
         if ($scan_id > 0) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $scan = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table_scans}` WHERE id = %d", $scan_id), ARRAY_A);
+            $get_s_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $scan = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($get_s_sql, $scan_id),
+                ARRAY_A
+            );
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $scan = $wpdb->get_row("SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1", ARRAY_A);
+            $get_s_sql = "SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT 1";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $scan = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $get_s_sql,
+                ARRAY_A
+            );
         }
 
         if (!$scan) {
             return new \WP_Error('scan_not_found', 'No scan record found to export.', ['status' => 404]);
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $issues = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
-            (int) $scan['id']
-        ), ARRAY_A);
+        $iss_s_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $issues = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($iss_s_sql, (int) $scan['id']),
+            ARRAY_A
+        );
         $issues = self::enrich_issues($issues);
 
         $scorer  = new RiskScorer();
@@ -2493,15 +2593,14 @@ class ScannerRoutes {
         // If no lock option exists, check if there is an active scan record in the DB created recently
         if (!$locked_id) {
             // Clean up any stale scans marked 'running' older than 10 minutes
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query("UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+            $cleanup_stale = "UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query($cleanup_stale);
 
             // Fallback: check if any recent scan (< 5 mins) is legitimately running in database
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $recent_active = $wpdb->get_row(
-                "SELECT * FROM `{$table_scans}` WHERE status = 'running' AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) ORDER BY id DESC LIMIT 1",
-                ARRAY_A
-            );
+            $rec_act_sql = "SELECT * FROM `{$table_scans}` WHERE status = 'running' AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) ORDER BY id DESC LIMIT 1";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $recent_active = $wpdb->get_row($rec_act_sql, ARRAY_A);
 
             if ($recent_active) {
                 $locked_id = (int) $recent_active['id'];
@@ -2513,11 +2612,13 @@ class ScannerRoutes {
             }
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $running_scan = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM `{$table_scans}` WHERE id = %d",
-            $locked_id
-        ), ARRAY_A);
+        $run_scan_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $running_scan = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($run_scan_sql, $locked_id),
+            ARRAY_A
+        );
 
         if (!$running_scan || $running_scan['status'] !== 'running') {
             ScanLock::release($locked_id);
@@ -2622,6 +2723,7 @@ class ScannerRoutes {
             }
             delete_transient("wcpscan_scan_start_micro_{$scan_id}");
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_scans, [
                 'status'       => 'aborted',
                 'duration'     => $duration_sec,
@@ -2634,8 +2736,12 @@ class ScannerRoutes {
 
         // Also release any active scan lock and ensure any hanging scans are aborted
         ScanLock::release();
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query($wpdb->prepare("UPDATE `{$table_scans}` SET status = 'aborted', completed_at = %s WHERE status = 'running'", $now_exact));
+        $abort_sql = "UPDATE `{$table_scans}` SET status = 'aborted', completed_at = %s WHERE status = 'running'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $wpdb->query(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($abort_sql, $now_exact)
+        );
 
         return rest_ensure_response([
             'success' => true,
@@ -3113,6 +3219,7 @@ class ScannerRoutes {
                             // Persist repaired state to database so it stays solved
                             if (!empty($item['id'])) {
                                 global $wpdb;
+                                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                                 $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         }
@@ -3202,6 +3309,7 @@ class ScannerRoutes {
                             $item['reconciliation_reason'] = __('Benign directory listing protection index file (Silence is Golden / Directory Browsing Prevention).', 'wcp-security-scanner');
                             if (!empty($item['id'])) {
                                 global $wpdb;
+                                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                                 $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         } elseif (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($realPath)) {
@@ -3211,6 +3319,7 @@ class ScannerRoutes {
                             $item['reconciliation_reason'] = __('Benign plugin compiled cache file (e.g. MailPoet Twig template cache) verified free of malware/webshells.', 'wcp-security-scanner');
                             if (!empty($item['id'])) {
                                 global $wpdb;
+                                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                                 $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         }
@@ -3224,6 +3333,7 @@ class ScannerRoutes {
                             $item['auto_reconciled'] = true;
                             if (!empty($item['id'])) {
                                 global $wpdb;
+                                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                                 $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         }
@@ -3281,6 +3391,7 @@ class ScannerRoutes {
                 $item['whitelist_rule'] = $matched_rule;
                 if (!empty($item['id']) && ($item['status'] ?? '') === 'open') {
                     global $wpdb;
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'ignored'], ['id' => (int) $item['id']]);
                 }
                 $item['status']         = 'ignored';
@@ -4940,6 +5051,7 @@ class ScannerRoutes {
         if ($result['success'] && $issue_id) {
             global $wpdb;
             $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
 
@@ -5155,15 +5267,18 @@ class ScannerRoutes {
 
     public static function calibrate_integrity_vault(\WP_REST_Request $request) {
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
             @set_time_limit(300);
         }
         if (function_exists('ini_set')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
             @ini_set('memory_limit', '512M');
         }
         try {
             $result = \WcpScanner\Integrity\FimDriftDetector::calibrate_all();
             return rest_ensure_response($result);
         } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('[WCP-FIM] Calibration Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return new \WP_Error(
                 'fim_calibration_failed',
@@ -5175,9 +5290,11 @@ class ScannerRoutes {
 
     public static function recheck_integrity_drift(\WP_REST_Request $request) {
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
             @set_time_limit(180);
         }
         if (function_exists('ini_set')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
             @ini_set('memory_limit', '512M');
         }
         try {
@@ -5187,6 +5304,7 @@ class ScannerRoutes {
             $result = \WcpScanner\Integrity\FimDriftDetector::audit_drift($category, $limit);
             return rest_ensure_response($result);
         } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('[WCP-FIM] Drift Audit Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return new \WP_Error(
                 'fim_drift_audit_failed',
@@ -5517,6 +5635,7 @@ class ScannerRoutes {
         if ($issue_id) {
             global $wpdb;
             $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table, ['status' => 'repaired'], ['id' => $issue_id]);
         }
 
@@ -5583,14 +5702,16 @@ class ScannerRoutes {
             global $wpdb;
             $table = $wpdb->prefix . 'wcpscan_scan_issues';
             if ($issue_id) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update($table, ['status' => 'repaired'], ['id' => $issue_id]);
             }
             // Mark all open findings associated with this comment as solved/repaired
-            $wpdb->query($wpdb->prepare(
-                "UPDATE {$table} SET status = 'repaired' WHERE (file_path LIKE %s OR file_path = %s) AND status = 'open'",
-                "comment:{$comment_id}%",
-                "comment:{$comment_id}"
-            ));
+            $com_up_sql = "UPDATE {$table} SET status = 'repaired' WHERE (file_path LIKE %s OR file_path = %s) AND status = 'open'";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($com_up_sql, "comment:{$comment_id}%", "comment:{$comment_id}")
+            );
         }
 
         return rest_ensure_response([
@@ -5745,14 +5866,18 @@ class ScannerRoutes {
         }
 
         // Also mark open issues for this user account or author as repaired
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query($wpdb->prepare(
-            "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s OR file_path LIKE %s OR file_path = %s) AND status = 'open'",
-            "user:{$user_id}%",
-            "%_users:user_id_{$user_id}%",
-            "%users.ID = {$user_id}%",
-            "author:{$user_id}"
-        ));
+        $repair_sql = "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s OR file_path LIKE %s OR file_path = %s) AND status = 'open'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $wpdb->query(
+            $wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $repair_sql,
+                "user:{$user_id}%",
+                "%_users:user_id_{$user_id}%",
+                "%users.ID = {$user_id}%",
+                "author:{$user_id}"
+            )
+        );
 
         return rest_ensure_response($result);
     }

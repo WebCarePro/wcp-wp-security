@@ -177,6 +177,7 @@ class SecretVault {
 
                 global $wpdb;
                 if ($wpdb && isset($wpdb->options)) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $recent_backups = $wpdb->get_col("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'wcpscan_vault_backup_%' ORDER BY option_id DESC LIMIT 10");
                     if (!empty($recent_backups) && is_array($recent_backups)) {
                         $backup_ids = array_unique(array_merge($backup_ids, $recent_backups));

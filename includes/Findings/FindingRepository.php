@@ -25,6 +25,7 @@ class FindingRepository {
         foreach ($processed_findings as $finding) {
             $f = is_array($finding) ? $finding : $finding->to_array();
 
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->insert($table, [
                 'scan_id'      => $scan_id,
                 'engine'       => sanitize_text_field($f['engine'] ?? 'general'),
@@ -55,11 +56,13 @@ class FindingRepository {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_scan_issues';
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC",
-            $scan_id
-        ), ARRAY_A);
+        $sql = "SELECT * FROM `{$table}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $results = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($sql, $scan_id),
+            ARRAY_A
+        );
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($results);

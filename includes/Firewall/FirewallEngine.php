@@ -106,7 +106,7 @@ class FirewallEngine {
             return self::$real_ip;
         }
 
-        $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? trim($_SERVER['REMOTE_ADDR']) : '';
+        $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? trim(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))) : '';
         if (!filter_var($remote_addr, FILTER_VALIDATE_IP)) {
             $remote_addr = '127.0.0.1';
         }
@@ -295,7 +295,7 @@ class FirewallEngine {
         }
 
         // 2. From environment variable WCP_TRUSTED_PROXIES
-        $env_proxies = getenv('WCP_TRUSTED_PROXIES') ?: ($_ENV['WCP_TRUSTED_PROXIES'] ?? '');
+        $env_proxies = getenv('WCP_TRUSTED_PROXIES') ?: (isset($_ENV['WCP_TRUSTED_PROXIES']) ? sanitize_text_field(wp_unslash($_ENV['WCP_TRUSTED_PROXIES'])) : '');
         if (!empty($env_proxies) && is_string($env_proxies)) {
             $parts = preg_split('/[\s,;]+/', $env_proxies);
             foreach ($parts as $p) {
@@ -429,7 +429,7 @@ class FirewallEngine {
 
         // Layer 4: Cryptographic Nonce Verification on REST API & AJAX Mutation Requests
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        $method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET');
         $is_rest_call = (strpos($request_uri, '/wp-json/') !== false) || (defined('REST_REQUEST') && REST_REQUEST);
 
         if ($is_rest_call && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
@@ -533,7 +533,8 @@ class FirewallEngine {
 
         // Identify builder-specific actions and endpoints
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        $ajax_action = sanitize_text_field($_POST['action'] ?? $_GET['action'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early runtime WAF builder detection
+        $ajax_action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
 
         // 20 Popular WordPress Visual Builders & Block Suites:
         // 1. Elementor, 2. Divi, 3. Beaver, 4. Bricks, 5. Breakdance, 6. Oxygen, 7. SeedProd,
@@ -581,6 +582,7 @@ class FirewallEngine {
             strpos($request_uri, '/wp-json/fusion-builder/') !== false
         );
 
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Page builder preview detection at early runtime
         $is_builder_preview = (
             isset($_GET['elementor-preview']) ||
             isset($_GET['et_fb']) ||
@@ -599,7 +601,7 @@ class FirewallEngine {
             isset($_GET['dslc']) ||
             isset($_GET['fb-edit'])
         );
-
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
         if ($is_builder_ajax || $is_gutenberg_rest || $is_builder_rest || $is_builder_preview) {
             return ($cached_builder_result = true);
         }
@@ -621,7 +623,7 @@ class FirewallEngine {
 
         // Record real-time visitor traffic pulse (15s rolling transient) for scanner governor
         // Only count actual public frontend visitor hits (exclude admin-ajax, REST API, admin panel, CLI, and static assets)
-        $req_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $is_rest = (defined('REST_REQUEST') && REST_REQUEST) || strpos($req_uri, '/wp-json/') !== false || strpos($req_uri, '?rest_route=') !== false;
         $is_ajax = (defined('DOING_AJAX') && DOING_AJAX) || strpos($req_uri, 'admin-ajax.php') !== false;
         $is_admin_area = is_admin() || strpos($req_uri, '/wp-admin/') !== false;
@@ -637,6 +639,7 @@ class FirewallEngine {
             return;
         }
 
+        $raw_req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $client_ip = self::get_client_ip();
 
         // Check user IP whitelist
@@ -682,8 +685,9 @@ class FirewallEngine {
             $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($request_uri);
             $is_exempt_endpoint = $is_upload_endpoint || $is_admin_area || $is_commerce_safe || $is_builder_session;
             $uri_length = strlen($request_uri);
-            $query_length = strlen($_SERVER['QUERY_STRING'] ?? '');
-            $post_count = is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
+            $query_length = strlen(isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '');
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early WAF payload size check executes before nonce lifecycle
+            $post_count = !empty($_POST) && is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
 
             if ($uri_length > 2048 && !$is_exempt_endpoint) {
                 $rule_triggered = [
@@ -732,8 +736,8 @@ class FirewallEngine {
         if (!empty($settings['waf_enforce_host_allowlist'])) {
             $is_valid_host = self::validate_host_headers($settings);
             if (!$is_valid_host) {
-                $presented_host = sanitize_text_field($_SERVER['HTTP_HOST'] ?? 'unknown');
-                $forwarded_host = sanitize_text_field($_SERVER['HTTP_X_FORWARDED_HOST'] ?? '');
+                $presented_host = isset($_SERVER['HTTP_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])) : 'unknown';
+                $forwarded_host = isset($_SERVER['HTTP_X_FORWARDED_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_HOST'])) : '';
                 $rule_triggered = [
                     'id'          => 'WAF-HOST-HEADER-POISON',
                     'name'        => 'Host Header Poisoning & Cache Spoof Defense',
@@ -754,7 +758,8 @@ class FirewallEngine {
             if (strpos($clean_path, 'admin-ajax.php') !== false) {
                 $is_logged_in = is_user_logged_in() || self::is_authenticated_administrator() || self::is_authenticated_editor_or_builder();
                 if (!$is_logged_in) {
-                    $ajax_action = sanitize_text_field($_POST['action'] ?? $_GET['action'] ?? '');
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early admin-ajax rate limiter inspection
+                    $ajax_action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
                     // Exclude WooCommerce public customer cart actions if e-commerce smart shield is active
                     $is_woo_public = !empty($settings['waf_ecommerce_safe_mode']) && in_array($ajax_action, [
                         'woocommerce_get_refreshed_fragments',
@@ -795,7 +800,7 @@ class FirewallEngine {
         }
 
         // Check XML-RPC Disabled Guard early at plugins_loaded:0
-        if (!empty($settings['waf_disable_xmlrpc']) && (strpos($request_uri, 'xmlrpc.php') !== false || (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'xmlrpc.php') !== false))) {
+        if (!empty($settings['waf_disable_xmlrpc']) && (strpos($request_uri, 'xmlrpc.php') !== false || (isset($_SERVER['SCRIPT_NAME']) && strpos(sanitize_text_field(wp_unslash($_SERVER['SCRIPT_NAME'])), 'xmlrpc.php') !== false))) {
             // Smart Pass: Exclude verified Automattic Jetpack sync requests
             if (self::is_verified_jetpack_request($client_ip, $request_uri, $settings)) {
                 // Legitimate Jetpack request from official Automattic CIDR with valid tokens: permit execution
@@ -826,7 +831,7 @@ class FirewallEngine {
 
         // Check HTTP Request Method Whitelist / Block Unsafe Methods (TRACE, TRACK, CONNECT, DEBUG)
         if (!empty($settings['waf_block_unsafe_http_methods'])) {
-            $http_method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+            $http_method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET');
             $unsafe_methods = ['TRACE', 'TRACK', 'CONNECT', 'DEBUG'];
             if (in_array($http_method, $unsafe_methods, true)) {
                 $rule_triggered = [
@@ -852,14 +857,14 @@ class FirewallEngine {
 
         // Block IPs who send POST requests with blank User-Agent and Referer
         if (!empty($settings['waf_block_empty_post_ua_referer'])) {
-            $is_post = (isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) === 'POST');
+            $is_post = (isset($_SERVER['REQUEST_METHOD']) && strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) === 'POST');
             if ($is_post) {
                 // E-Commerce & Membership Safe Mode: Server-to-server payment gateway webhooks
                 // (Stripe, PayPal IPN, Mollie, Square) frequently POST without browser Referer or standard UA.
                 $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($request_uri);
                 if (!$is_commerce_safe) {
-                    $has_ua  = !empty(trim($_SERVER['HTTP_USER_AGENT'] ?? ''));
-                    $has_ref = !empty(trim($_SERVER['HTTP_REFERER'] ?? ''));
+                    $has_ua  = !empty(trim(isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : ''));
+                    $has_ref = !empty(trim(isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_REFERER'])) : ''));
                     if (!$has_ua && !$has_ref) {
                         $rule_triggered = [
                             'id'          => 'WAF-EMPTY-POST-UA-REFERER',
@@ -944,9 +949,12 @@ class FirewallEngine {
 
         // Specialized Rule: Disallow phpMyAdmin & Database Manager Plugin Installations (AJAX/REST/Query inspection)
         if (!empty($settings['waf_disallow_phpmyadmin_plugins'])) {
-            $req_slug = strtolower($_POST['slug'] ?? $_GET['slug'] ?? $_POST['plugin'] ?? $_GET['plugin'] ?? '');
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early WAF request inspection
+            $req_slug = strtolower(isset($_POST['slug']) ? sanitize_text_field(wp_unslash($_POST['slug'])) : (isset($_GET['slug']) ? sanitize_text_field(wp_unslash($_GET['slug'])) : (isset($_POST['plugin']) ? sanitize_text_field(wp_unslash($_POST['plugin'])) : (isset($_GET['plugin']) ? sanitize_text_field(wp_unslash($_GET['plugin'])) : ''))));
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
             if (empty($req_slug) && !empty($_POST['data']['slug'])) {
-                $req_slug = strtolower(sanitize_text_field($_POST['data']['slug']));
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                $req_slug = strtolower(sanitize_text_field(wp_unslash($_POST['data']['slug'])));
             }
             $pma_signatures = ['phpmyadmin', 'database-browser', 'sql-buddy', 'adminer', 'wp-phpmyadmin', 'wp-database-manager', 'database-management'];
             $is_pma_install = false;
@@ -985,9 +993,12 @@ class FirewallEngine {
 
         // Specialized Rule: Disallow File Manager Plugin Installations (AJAX/REST/Query inspection)
         if (!empty($settings['waf_disallow_filemanager_plugins'])) {
-            $req_slug = strtolower($_POST['slug'] ?? $_GET['slug'] ?? $_POST['plugin'] ?? $_GET['plugin'] ?? '');
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early WAF request inspection
+            $req_slug = strtolower(isset($_POST['slug']) ? sanitize_text_field(wp_unslash($_POST['slug'])) : (isset($_GET['slug']) ? sanitize_text_field(wp_unslash($_GET['slug'])) : (isset($_POST['plugin']) ? sanitize_text_field(wp_unslash($_POST['plugin'])) : (isset($_GET['plugin']) ? sanitize_text_field(wp_unslash($_GET['plugin'])) : ''))));
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
             if (empty($req_slug) && !empty($_POST['data']['slug'])) {
-                $req_slug = strtolower(sanitize_text_field($_POST['data']['slug']));
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                $req_slug = strtolower(sanitize_text_field(wp_unslash($_POST['data']['slug'])));
             }
             $fm_signatures = ['file-manager', 'filemanager', 'fileorganizer', 'filester', 'advanced-file-manager', 'elfinder', 'tinyfilemanager', 'wp-file-manager', 'wp-filemanager'];
             $is_fm_install = false;
@@ -1028,7 +1039,7 @@ class FirewallEngine {
         if (!empty($settings['waf_block_external_cron'])) {
             $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'wp-cron.php') !== false) {
-                $server_addr = $_SERVER['SERVER_ADDR'] ?? '';
+                $server_addr = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '';
                 $is_loopback = in_array($client_ip, ['127.0.0.1', '::1', $server_addr], true);
                 $is_admin = self::is_authenticated_administrator();
 
@@ -1215,10 +1226,10 @@ class FirewallEngine {
      * Evaluate protection rules across GET, POST, and URI
      */
     private static function evaluate_rules(array $settings, bool $is_complementary): ?array {
-        $raw_uri      = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '';
+        $raw_uri      = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $uri          = urldecode($raw_uri);
-        $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(wp_unslash($_SERVER['QUERY_STRING'])) : '';
-        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
+        $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']))) : '';
+        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
 
         // Authenticated administrators performing back-end actions in wp-admin or via authenticated WCP REST API are exempt from payload heuristic blocks
         // (Ensures an administrator browsing public frontend pages is STILL fully inspected and protected)
@@ -1243,13 +1254,16 @@ class FirewallEngine {
             $params_to_check[] = $query_string;
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Early inspection of GET parameters before route execution
         if (!empty($_GET) && is_array($_GET)) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $params_to_check[] = urldecode(http_build_query(wp_unslash($_GET)));
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early inspection of raw POST payload before WordPress nonce check
         if (!empty($_POST) && is_array($_POST)) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
-            // E-Commerce & Membership Intelligence: Benign customer address inputs
             // (e.g. "Apt. #4", "O'Reilly", "Suite / Flat 2B", "Deliver c/o neighbor")
             // must not be concatenated directly into generic path traversal or SQL heuristics.
             if ($is_commerce_safe) {
@@ -1369,6 +1383,7 @@ class FirewallEngine {
         // Rule 21: Open Redirect Phishing Guard
         if (!empty($settings['waf_block_open_redirects'])) {
             $redirect_keys = ['redirect_to', 'redirect', 'url', 'return_to', 'next', 'target'];
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Inspection of redirect params
             $all_params = array_merge($_GET, $_POST);
             $home_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?: '');
 
@@ -1763,7 +1778,7 @@ class FirewallEngine {
      */
     public static function is_commerce_or_membership_request(string $uri): bool {
         $parsed_path = strtolower(wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
-        $query_string = isset($_SERVER['QUERY_STRING']) ? strtolower((string) $_SERVER['QUERY_STRING']) : '';
+        $query_string = isset($_SERVER['QUERY_STRING']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']))) : '';
 
         // 1. Direct E-Commerce AJAX & API parameters
         if (strpos($uri, 'wc-ajax=') !== false || strpos($query_string, 'wc-ajax=') !== false) {
@@ -2082,7 +2097,8 @@ class FirewallEngine {
         }
 
         // Must explicitly target xmlrpc.php with for=jetpack
-        $for_param = isset($_GET['for']) ? sanitize_key($_GET['for']) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Jetpack pingback incoming verification
+        $for_param = isset($_GET['for']) ? sanitize_key(wp_unslash($_GET['for'])) : '';
         if ($for_param !== 'jetpack' && strpos($request_uri, 'for=jetpack') === false) {
             return false;
         }
@@ -2108,7 +2124,9 @@ class FirewallEngine {
             parse_str($query_str, $uri_params);
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Jetpack HMAC signature inspection
         $has_timestamp = isset($_GET['timestamp']) || isset($_POST['timestamp']) || isset($uri_params['timestamp']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Jetpack token verification
         $has_signature = isset($_GET['signature']) || isset($_POST['signature']) || isset($_GET['token']) || isset($_POST['token'])
             || isset($uri_params['signature']) || isset($uri_params['token']);
 
@@ -2147,12 +2165,14 @@ class FirewallEngine {
         }
 
         // MainWP Child validation
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- MainWP worker signature check
         $has_mainwp_sig = !empty($_SERVER['HTTP_X_MAINWP_SIGNATURE']) || isset($_POST['mainwp_signature']);
         if ($has_mainwp_sig && (class_exists('MainWP_Child') || defined('MAINWP_CHILD_PLUGIN_DIR'))) {
             return true;
         }
 
         // InfiniteWP Client validation
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- InfiniteWP worker action check
         $has_iwp_action = !empty($_SERVER['HTTP_IWP_ACTION']) || isset($_POST['iwp_action']);
         if ($has_iwp_action && (class_exists('IWP_MMB_Core') || defined('IWP_MMB_USER_AGENT'))) {
             return true;
@@ -2197,16 +2217,22 @@ class FirewallEngine {
         $category = sanitize_key($rule['category'] ?? 'general_defense');
 
         // Deduplication safeguard: don't log the same IP/rule more than once per minute
-        $recent = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) LIMIT 1",
-            $ip,
-            $category
-        ));
+        $recent_sql = "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) LIMIT 1";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $recent = $wpdb->get_var(
+            $wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $recent_sql,
+                $ip,
+                $category
+            )
+        );
 
         if ($recent) {
             return $incident_id;
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $wpdb->insert(
             $table,
             [
@@ -2346,14 +2372,21 @@ class FirewallEngine {
         $top_rules = [];
 
         // Check if table exists
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if ($table_exists) {
-            $total_blocks = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked'");
-            $blocks_24h   = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+            $total_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked'";
+            $blocks_24h_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)";
+            $top_rules_sql = "SELECT rule_category, COUNT(*) as count FROM `{$table}` WHERE action_taken = 'blocked' GROUP BY rule_category ORDER BY count DESC LIMIT 5";
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
+            $total_blocks = (int) $wpdb->get_var($total_sql);
+            $blocks_24h   = (int) $wpdb->get_var($blocks_24h_sql);
             $top_rules    = $wpdb->get_results(
-                "SELECT rule_category, COUNT(*) as count FROM `{$table}` WHERE action_taken = 'blocked' GROUP BY rule_category ORDER BY count DESC LIMIT 5",
+                $top_rules_sql,
                 ARRAY_A
             ) ?: [];
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
         }
 
         $active_mode = 'disabled';
@@ -2709,7 +2742,8 @@ class FirewallEngine {
         // Shared hosting detection via server root path (without probing /proc or system directories)
         $is_shared_hosting = false;
         $hosting_env_label = 'Standard Web Hosting';
-        if (isset($_SERVER['DOCUMENT_ROOT']) && (strpos($_SERVER['DOCUMENT_ROOT'], '/home/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/home2/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], '/vhosts/') !== false || strpos($_SERVER['DOCUMENT_ROOT'], 'public_html') !== false)) {
+        $doc_root = isset($_SERVER['DOCUMENT_ROOT']) ? sanitize_text_field(wp_unslash($_SERVER['DOCUMENT_ROOT'])) : '';
+        if (!empty($doc_root) && (strpos($doc_root, '/home/') !== false || strpos($doc_root, '/home2/') !== false || strpos($doc_root, '/vhosts/') !== false || strpos($doc_root, 'public_html') !== false)) {
             $is_shared_hosting = true;
             $hosting_env_label = 'cPanel Shared Hosting';
         }
@@ -2788,6 +2822,7 @@ class FirewallEngine {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if (!$table_exists) {
             return [
@@ -2860,13 +2895,18 @@ class FirewallEngine {
             $count_sql = $wpdb->prepare($count_sql, ...$where_params);
         }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $total = (int) $wpdb->get_var($count_sql);
 
         // Fetch paginated results
         $data_sql = "SELECT * FROM `{$table}` WHERE {$where_sql} ORDER BY id DESC LIMIT %d OFFSET %d";
         $data_params = array_merge($where_params, [$limit, $offset]);
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
-        $rows = $wpdb->get_results($wpdb->prepare($data_sql, ...$data_params), ARRAY_A) ?: [];
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $rows = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($data_sql, ...$data_params),
+            ARRAY_A
+        ) ?: [];
 
         $page = (int) floor($offset / $limit) + 1;
         $total_pages = max(1, (int) ceil($total / $limit));
@@ -2888,6 +2928,7 @@ class FirewallEngine {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if (!$table_exists) {
             return [
@@ -2903,45 +2944,56 @@ class FirewallEngine {
             ];
         }
 
-        $total_intercepted = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}`");
-        $blocked_24h       = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
-        $detected_learning = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'detected'");
-        $unique_attack_ips = (int) $wpdb->get_var("SELECT COUNT(DISTINCT ip_address) FROM `{$table}`");
+        $total_int_sql = "SELECT COUNT(*) FROM `{$table}`";
+        $blocked_24h_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)";
+        $det_learn_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'detected'";
+        $uniq_ips_sql = "SELECT COUNT(DISTINCT ip_address) FROM `{$table}`";
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
+        $total_intercepted = (int) $wpdb->get_var($total_int_sql);
+        $blocked_24h       = (int) $wpdb->get_var($blocked_24h_sql);
+        $detected_learning = (int) $wpdb->get_var($det_learn_sql);
+        $unique_attack_ips = (int) $wpdb->get_var($uniq_ips_sql);
 
         // Top Attack Categories
+        $top_cat_sql = "SELECT rule_category, COUNT(*) as count FROM `{$table}` GROUP BY rule_category ORDER BY count DESC LIMIT 8";
         $top_categories = $wpdb->get_results(
-            "SELECT rule_category, COUNT(*) as count FROM `{$table}` GROUP BY rule_category ORDER BY count DESC LIMIT 8",
+            $top_cat_sql,
             ARRAY_A
         ) ?: [];
 
         // Top Offending IPs
+        $top_ips_sql = "SELECT ip_address, COUNT(*) as count, MAX(created_at) as last_seen, rule_category as primary_reason FROM `{$table}` GROUP BY ip_address ORDER BY count DESC LIMIT 10";
         $top_ips = $wpdb->get_results(
-            "SELECT ip_address, COUNT(*) as count, MAX(created_at) as last_seen, rule_category as primary_reason FROM `{$table}` GROUP BY ip_address ORDER BY count DESC LIMIT 10",
+            $top_ips_sql,
             ARRAY_A
         ) ?: [];
 
         // Top Targeted Endpoints
+        $top_targets_sql = "SELECT request_uri, COUNT(*) as count FROM `{$table}` GROUP BY request_uri ORDER BY count DESC LIMIT 8";
         $top_targets = $wpdb->get_results(
-            "SELECT request_uri, COUNT(*) as count FROM `{$table}` GROUP BY request_uri ORDER BY count DESC LIMIT 8",
+            $top_targets_sql,
             ARRAY_A
         ) ?: [];
 
         // HTTP Methods Breakdown
+        $methods_sql = "SELECT request_method, COUNT(*) as count FROM `{$table}` GROUP BY request_method ORDER BY count DESC";
         $methods_breakdown = $wpdb->get_results(
-            "SELECT request_method, COUNT(*) as count FROM `{$table}` GROUP BY request_method ORDER BY count DESC",
+            $methods_sql,
             ARRAY_A
         ) ?: [];
 
         // 24-hour volume trend by hour
-        $hourly_trend = $wpdb->get_results(
-            "SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_slot, COUNT(*) as count 
+        $trend_sql = "SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_slot, COUNT(*) as count 
              FROM `{$table}` 
              WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) 
              GROUP BY hour_slot 
-             ORDER BY hour_slot ASC",
+             ORDER BY hour_slot ASC";
+        $hourly_trend = $wpdb->get_results(
+            $trend_sql,
             ARRAY_A
         ) ?: [];
-
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
         return [
             'total_intercepted' => $total_intercepted,
             'blocked_24h'       => $blocked_24h,
@@ -2961,6 +3013,7 @@ class FirewallEngine {
     public static function delete_log(int $id): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         return (bool) $wpdb->delete($table, ['id' => $id], ['%d']);
     }
 
@@ -2970,7 +3023,9 @@ class FirewallEngine {
     public static function clear_logs(): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
-        return (bool) $wpdb->query("TRUNCATE TABLE `{$table}`");
+        $truncate_sql = "TRUNCATE TABLE `{$table}`";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
+        return (bool) $wpdb->query($truncate_sql);
     }
 
     /**
@@ -3285,8 +3340,10 @@ class FirewallEngine {
         if (!empty($hook_extra['plugin'])) {
             $slug = strtolower(dirname($hook_extra['plugin']));
         }
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
         if (empty($slug) && !empty($_POST['slug'])) {
-            $slug = strtolower(sanitize_text_field($_POST['slug']));
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            $slug = strtolower(sanitize_text_field(wp_unslash($_POST['slug'])));
         }
 
         // Check phpMyAdmin restriction
@@ -3499,7 +3556,9 @@ class FirewallEngine {
      * Enforce Strong Passwords & Check Pwned Passwords on Profile Update (Rules 6 & 7)
      */
     public static function validate_user_password_policy(\WP_Error $errors, bool $update, \stdClass $user): void {
-        $pass1 = isset($_POST['pass1']) ? (string) $_POST['pass1'] : '';
+        // phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $pass1 = isset($_POST['pass1']) ? (string) wp_unslash($_POST['pass1']) : '';
+        // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         if (empty($pass1)) {
             return;
         }
@@ -3558,7 +3617,9 @@ class FirewallEngine {
      * Enforce Strong Passwords & Check Pwned Passwords on Reset Password (Rules 6 & 7)
      */
     public static function validate_reset_password_policy(\WP_Error $errors, $user): void {
-        $pass1 = isset($_POST['pass1']) ? (string) $_POST['pass1'] : '';
+        // phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $pass1 = isset($_POST['pass1']) ? (string) wp_unslash($_POST['pass1']) : '';
+        // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         if (empty($pass1) || !is_object($user)) {
             return;
         }
@@ -3697,7 +3758,7 @@ class FirewallEngine {
      * @return bool
      */
     public static function validate_host_headers(array $settings): bool {
-        $raw_host = $_SERVER['HTTP_HOST'] ?? '';
+        $raw_host = isset($_SERVER['HTTP_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])) : '';
         if (empty($raw_host)) {
             return false;
         }
@@ -3752,7 +3813,7 @@ class FirewallEngine {
 
         // 2. If HTTP_X_FORWARDED_HOST is present, it MUST also strictly match the allowed list
         if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
-            $fwd_raw = explode(',', $_SERVER['HTTP_X_FORWARDED_HOST']);
+            $fwd_raw = explode(',', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_HOST'])));
             $fwd_host = strtolower(trim(preg_replace('/:\d+$/', '', $fwd_raw[0])));
             if (!in_array($fwd_host, $allowed, true)) {
                 return false;
@@ -3846,8 +3907,9 @@ class FirewallEngine {
             return $access;
         }
 
-        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
-        $rest_route  = $_GET['rest_route'] ?? '';
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public REST query check
+        $rest_route  = isset($_GET['rest_route']) ? sanitize_text_field(wp_unslash($_GET['rest_route'])) : '';
         $clean_uri   = strtolower(urldecode($request_uri));
         $clean_route = strtolower(urldecode($rest_route));
 
@@ -3909,6 +3971,7 @@ class FirewallEngine {
      * @return void
      */
     public static function check_author_scan_suppression(): void {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Author enumeration scan inspection
         if (!isset($_GET['author'])) {
             return;
         }
@@ -3927,7 +3990,8 @@ class FirewallEngine {
             return;
         }
 
-        $author_param = (string) $_GET['author'];
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $author_param = isset($_GET['author']) ? sanitize_text_field(wp_unslash($_GET['author'])) : '';
         if (!preg_match('/^[0-9]+$/', trim($author_param))) {
             return;
         }
@@ -3944,7 +4008,7 @@ class FirewallEngine {
             'description' => sprintf('Author ID enumeration query (?author=%s) blocked from harvesting usernames.', esc_html($author_param)),
             'match_type'  => 'Author Query Probe',
             'match_value' => '?author=' . $author_param,
-            'payload'     => "URI: {$_SERVER['REQUEST_URI']} IP: {$client_ip}",
+            'payload'     => "URI: {$raw_req_uri} IP: {$client_ip}",
         ];
 
         $mode = $settings['waf_mode'] ?? 'enabled';
@@ -4039,7 +4103,8 @@ class FirewallEngine {
         }
 
         // 2. User/Login identifier-based limit: max 3 reset submissions per target login/email per 15 minutes
-        $user_login = sanitize_text_field($_POST['user_login'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Lost password POST form submission rate limiting
+        $user_login = isset($_POST['user_login']) ? sanitize_text_field(wp_unslash($_POST['user_login'])) : '';
         if (!empty($user_login)) {
             $user_key = 'lostpw_post_user:' . md5(strtolower(trim($user_login)));
             $user_check = self::check_rate_limit($user_key, 3, 900);

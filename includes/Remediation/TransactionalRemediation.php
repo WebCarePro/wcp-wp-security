@@ -324,6 +324,7 @@ class TransactionalRemediation {
                 // Re-open scan issue
                 if (!empty($item['issue_id'])) {
                     $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
                 }
             } elseif ($type === 'database') {
@@ -333,6 +334,7 @@ class TransactionalRemediation {
                 $data  = $item['original_data'] ?? [];
 
                 if ($table && $rid !== null && !empty($data)) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $updated = $wpdb->update($table, $data, [$pkey => $rid]);
                     if ($updated !== false) {
                         $restored_db++;
@@ -342,6 +344,7 @@ class TransactionalRemediation {
                 // Re-open scan issue
                 if (!empty($item['issue_id'])) {
                     $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
                 }
             } elseif ($type === 'user') {

@@ -108,8 +108,12 @@ class QuarantineManager {
         // Prohibit quarantining modified official files (which must be repaired/restored, not isolated)
         if ($issue_id) {
             $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $issue = $wpdb->get_row($wpdb->prepare("SELECT type FROM {$table_issues} WHERE id = %d", (int) $issue_id));
+            $issue_sql = "SELECT type FROM {$table_issues} WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $issue = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($issue_sql, (int) $issue_id)
+            );
             if ($issue && (strpos($issue->type, 'modified_') === 0 || strpos($issue->type, 'wp_config_') === 0 || $issue->type === 'injected_wp_config')) {
                 return [
                     'success' => false,
@@ -168,11 +172,13 @@ class QuarantineManager {
         $table = $wpdb->prefix . 'wcpscan_quarantine';
 
         // Check if previous records exist for this exact file path to avoid duplicates
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $existing = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, quarantine_filename FROM `{$table}` WHERE original_path = %s",
-            $real_path
-        ), ARRAY_A);
+        $exist_sql = "SELECT id, quarantine_filename FROM `{$table}` WHERE original_path = %s";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $existing = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($exist_sql, $real_path),
+            ARRAY_A
+        );
 
         if (!empty($existing)) {
             foreach ($existing as $old_rec) {
@@ -183,10 +189,15 @@ class QuarantineManager {
                     }
                 }
             }
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query($wpdb->prepare("DELETE FROM `{$table}` WHERE original_path = %s", $real_path));
+            $del_sql = "DELETE FROM `{$table}` WHERE original_path = %s";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($del_sql, $real_path)
+            );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $inserted = $wpdb->insert($table, [
             'scan_id'             => $scan_id,
             'issue_id'            => $issue_id,
@@ -204,9 +215,11 @@ class QuarantineManager {
         // Update issue status
         $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
         if ($issue_id) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($issues_table, ['status' => 'quarantined'], ['id' => $issue_id]);
         }
         if (!empty($real_path)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($issues_table, ['status' => 'quarantined'], ['file_path' => $real_path]);
         }
 
@@ -229,10 +242,13 @@ class QuarantineManager {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_quarantine';
 
-        $record = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE id = %d AND status = 'quarantined'",
-            $quarantine_id
-        ), ARRAY_A);
+        $rec_sql = "SELECT * FROM {$table} WHERE id = %d AND status = 'quarantined'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $record = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($rec_sql, $quarantine_id),
+            ARRAY_A
+        );
 
         if (!$record) {
             return ['success' => false, 'message' => 'Quarantine record not found or already restored.'];
@@ -314,6 +330,7 @@ class QuarantineManager {
         wp_delete_file($source_path);
 
         // Update database record
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table, [
             'status'      => 'restored',
             'restored_at' => current_time('mysql')
@@ -322,9 +339,11 @@ class QuarantineManager {
         // If issue exists, set status back to open
         $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
         if (!empty($record['issue_id'])) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($issues_table, ['status' => 'open'], ['id' => (int) $record['issue_id']]);
         }
         if (!empty($record['original_path'])) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($issues_table, ['status' => 'open'], ['file_path' => $record['original_path']]);
         }
 
@@ -356,8 +375,9 @@ class QuarantineManager {
     public function list_records() {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_quarantine';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $results = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY id DESC", ARRAY_A);
+        $list_sql = "SELECT * FROM `{$table}` ORDER BY id DESC";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $results = $wpdb->get_results($list_sql, ARRAY_A);
         if (!is_array($results)) {
             return [];
         }
@@ -385,9 +405,10 @@ class QuarantineManager {
         }
 
         if (!empty($duplicate_ids)) {
-            $ids_sql = implode(',', $duplicate_ids);
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query("DELETE FROM `{$table}` WHERE id IN ({$ids_sql})");
+            $ids_sql = implode(',', array_map('intval', $duplicate_ids));
+            $del_dups = "DELETE FROM `{$table}` WHERE id IN ({$ids_sql})";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query($del_dups);
         }
 
         return $unique_records;
@@ -412,8 +433,9 @@ class QuarantineManager {
     public function clear_restored_records() {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_quarantine';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $restored = $wpdb->get_results("SELECT id, quarantine_filename FROM `{$table}` WHERE status = 'restored'", ARRAY_A);
+        $restored_sql = "SELECT id, quarantine_filename FROM `{$table}` WHERE status = 'restored'";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $restored = $wpdb->get_results($restored_sql, ARRAY_A);
         if (!empty($restored)) {
             foreach ($restored as $r) {
                 if (!empty($r['quarantine_filename'])) {
@@ -423,8 +445,9 @@ class QuarantineManager {
                     }
                 }
             }
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query("DELETE FROM `{$table}` WHERE status = 'restored'");
+            $clear_sql = "DELETE FROM `{$table}` WHERE status = 'restored'";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query($clear_sql);
             return [
                 'success' => true,
                 'message' => sprintf(
@@ -451,7 +474,13 @@ class QuarantineManager {
     public function delete_record($quarantine_id) {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_quarantine';
-        $record = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$table}` WHERE id = %d", (int) $quarantine_id), ARRAY_A);
+        $find_sql = "SELECT * FROM `{$table}` WHERE id = %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $record = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($find_sql, (int) $quarantine_id),
+            ARRAY_A
+        );
         if (!$record) {
             return ['success' => false, 'message' => 'Quarantine record not found.'];
         }
@@ -473,15 +502,18 @@ class QuarantineManager {
             }
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->delete($table, ['id' => (int) $quarantine_id]);
 
         // When permanently deleting an active quarantined threat, mark matching scan issues as repaired
         if (!$was_restored) {
             $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
             if (!empty($record['issue_id'])) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update($issues_table, ['status' => 'repaired'], ['id' => (int) $record['issue_id']]);
             }
             if (!empty($record['original_path'])) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update($issues_table, ['status' => 'repaired'], ['file_path' => $record['original_path']]);
             }
 

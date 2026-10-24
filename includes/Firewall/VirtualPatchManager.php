@@ -313,7 +313,7 @@ class VirtualPatchManager {
         }
 
         $method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
-        $query_string = isset($_SERVER['QUERY_STRING']) ? wp_unslash($_SERVER['QUERY_STRING']) : '';
+        $query_string = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
         $raw_body = '';
 
         if ($method === 'POST') {
@@ -378,7 +378,9 @@ class VirtualPatchManager {
                     $matched_evidence = $matches[0];
                 } elseif (!empty($raw_body) && preg_match($rule['regex'], $raw_body, $matches)) {
                     $matched_evidence = substr($matches[0], 0, 100);
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early runtime virtual patch evaluation executes before nonces
                 } elseif (!empty($_POST)) {
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early runtime virtual patch evaluation executes before nonces
                     $clean_post = is_array($_POST) ? map_deep(wp_unslash($_POST), 'sanitize_text_field') : [];
                     $flat_post = (string) wp_json_encode($clean_post);
                     if (preg_match($rule['regex'], $flat_post, $matches)) {

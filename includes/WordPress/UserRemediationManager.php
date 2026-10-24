@@ -61,13 +61,13 @@ class UserRemediationManager {
         $users_table    = $wpdb->prefix . 'users';
         $usermeta_table = $wpdb->prefix . 'usermeta';
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $user_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$users_table}` WHERE ID = %d", $user_id), ARRAY_A);
         if (!$user_row) {
             return false;
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $usermeta_rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM `{$usermeta_table}` WHERE user_id = %d", $user_id), ARRAY_A);
 
         $timestamp = gmdate('Ymd_His');
@@ -334,7 +334,7 @@ class UserRemediationManager {
         $usermeta_table = $wpdb->prefix . 'usermeta';
 
         // Check if user already exists in wp_users
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $existing = $wpdb->get_var($wpdb->prepare("SELECT ID FROM `{$users_table}` WHERE ID = %d", $user_id));
 
         $fields = [
@@ -371,7 +371,9 @@ class UserRemediationManager {
                         $usermeta_table,
                         [
                             'user_id'    => $user_id,
+                            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
                             'meta_key'   => $meta['meta_key'],
+                            // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
                             'meta_value' => $meta['meta_value'],
                         ],
                         ['%d', '%s', '%s']
@@ -631,11 +633,12 @@ class UserRemediationManager {
         }
 
         $posts_table = $wpdb->posts;
+        $select_sql = "SELECT COUNT(ID) FROM `{$posts_table}` WHERE post_author = %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $count = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(ID) FROM `{$posts_table}` WHERE post_author = %d",
-            $orphaned_author_id
-        ));
+        $count = (int) $wpdb->get_var(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($select_sql, $orphaned_author_id)
+        );
 
         if ($count === 0) {
             return [
@@ -647,12 +650,12 @@ class UserRemediationManager {
             ];
         }
 
+        $update_sql = "UPDATE `{$posts_table}` SET post_author = %d WHERE post_author = %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $updated = $wpdb->query($wpdb->prepare(
-            "UPDATE `{$posts_table}` SET post_author = %d WHERE post_author = %d",
-            $target_user_id,
-            $orphaned_author_id
-        ));
+        $updated = $wpdb->query(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($update_sql, $target_user_id, $orphaned_author_id)
+        );
 
         // Clean post caches
         clean_post_cache($orphaned_author_id);

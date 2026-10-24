@@ -95,12 +95,15 @@ class LoginHistoryManager {
         $token_hash    = $session_token ? substr(hash('sha256', $session_token), 0, 64) : '';
         $ip            = FirewallEngine::get_client_ip();
         $ua            = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
         $screen_raw    = isset($_POST['wcpscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_screen_res'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
         $tz_raw        = isset($_POST['wcpscan_client_tz']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_client_tz'])) : '';
 
         $parsed = self::parse_device_details($ua, $screen_raw);
 
         $auth_method = 'Username & Password';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
         if (!empty($_POST['wcpscan_2fa_code'])) {
             $auth_method = 'Password + 2FA TOTP Verified';
         } elseif (defined('XMLRPC_REQUEST') && XMLRPC_REQUEST) {
@@ -157,18 +160,19 @@ class LoginHistoryManager {
 
         if (empty($token_hash)) {
             // Find newest open session for this user
+            $query = "SELECT * FROM `{$table}` WHERE user_id = %d AND logout_time IS NULL ORDER BY id DESC LIMIT 1";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $row = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM `{$table}` WHERE user_id = %d AND logout_time IS NULL ORDER BY id DESC LIMIT 1",
-                $user_id
-            ));
+            $row = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($query, $user_id)
+            );
         } else {
+            $query = "SELECT * FROM `{$table}` WHERE user_id = %d AND session_token = %s ORDER BY id DESC LIMIT 1";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $row = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM `{$table}` WHERE user_id = %d AND session_token = %s ORDER BY id DESC LIMIT 1",
-                $user_id,
-                $token_hash
-            ));
+            $row = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($query, $user_id, $token_hash)
+            );
         }
 
         if (!$row) {
@@ -191,7 +195,7 @@ class LoginHistoryManager {
         $re_encrypted = SecretVault::encrypt((string) wp_json_encode($payload));
         $now = current_time('mysql');
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         return $wpdb->update(
             $table,
             [
@@ -221,20 +225,19 @@ class LoginHistoryManager {
         $now   = current_time('mysql');
 
         if ($token_hash) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $wpdb->query($wpdb->prepare(
-                "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND session_token = %s AND logout_time IS NULL",
-                $now,
-                $user_id,
-                $token_hash
-            ));
+            $query = "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND session_token = %s AND logout_time IS NULL";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($query, $now, $user_id, $token_hash)
+            );
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $wpdb->query($wpdb->prepare(
-                "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND logout_time IS NULL ORDER BY id DESC LIMIT 1",
-                $now,
-                $user_id
-            ));
+            $query = "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND logout_time IS NULL ORDER BY id DESC LIMIT 1";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($query, $now, $user_id)
+            );
         }
     }
 
@@ -256,14 +259,12 @@ class LoginHistoryManager {
 
             $raw_hash = substr(hash('sha256', $session_token), 0, 64);
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $wpdb->query($wpdb->prepare(
-                "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND (session_token = %s OR session_token = %s) AND logout_time IS NULL",
-                $now,
-                $user_id,
-                $session_token,
-                $raw_hash
-            ));
+            $query = "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND (session_token = %s OR session_token = %s) AND logout_time IS NULL";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($query, $now, $user_id, $session_token, $raw_hash)
+            );
         } catch (\Throwable $e) {
             // Silently suppress if table does not exist yet or DB query fails
         }
@@ -294,12 +295,12 @@ class LoginHistoryManager {
         // Calculate query limit: 0 or values >= 1000 retrieve full history
         $sql_limit = ($limit <= 0 || $limit >= 1000) ? 1000 : max(1, min(500, $limit));
 
+        $query = "SELECT * FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT %d",
-            $user_id,
-            $sql_limit
-        ));
+        $rows = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($query, $user_id, $sql_limit)
+        );
 
         // Get currently active sessions from WP core session tokens
         $manager = \WP_Session_Tokens::get_instance($user_id);
@@ -373,7 +374,7 @@ class LoginHistoryManager {
         // If no rows were logged yet in custom table (e.g. initial install), generate fallback from active sessions
         if (empty($history) && !empty($wp_sessions)) {
             $client_ip = FirewallEngine::get_client_ip();
-            $client_ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+            $client_ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
             $parsed    = self::parse_device_details($client_ua, '');
 
             foreach ($wp_sessions as $token => $sdata) {
@@ -542,19 +543,20 @@ class LoginHistoryManager {
         global $wpdb;
         $table = $wpdb->prefix . self::TABLE_NAME;
 
+        $query = "SELECT id FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT 1 OFFSET 500";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $cutoff_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM `{$table}` WHERE user_id = %d ORDER BY id DESC LIMIT 1 OFFSET 500",
-            $user_id
-        ));
+        $cutoff_id = $wpdb->get_var(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($query, $user_id)
+        );
 
         if ($cutoff_id) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $wpdb->query($wpdb->prepare(
-                "DELETE FROM `{$table}` WHERE user_id = %d AND id < %d",
-                $user_id,
-                $cutoff_id
-            ));
+            $del_query = "DELETE FROM `{$table}` WHERE user_id = %d AND id < %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($del_query, $user_id, $cutoff_id)
+            );
         }
     }
 }

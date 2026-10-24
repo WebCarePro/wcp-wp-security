@@ -119,6 +119,7 @@ class PermissionHardeningManager {
      * @return array
      */
     public function audit(?string $scope_dir = null, int $limit = 500): array {
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
         @set_time_limit(180);
 
         $root = $scope_dir ? wp_normalize_path(untrailingslashit($scope_dir)) : wp_normalize_path(untrailingslashit(ABSPATH));
@@ -354,6 +355,7 @@ class PermissionHardeningManager {
                 }
             }
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('WCP Permission Hardening Audit Error: ' . $e->getMessage());
         }
 
@@ -386,6 +388,7 @@ class PermissionHardeningManager {
      * @return array Result metadata
      */
     public function fix_all(?string $scope_dir = null): array {
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
         @set_time_limit(300);
 
         $root = $scope_dir ? wp_normalize_path(untrailingslashit($scope_dir)) : wp_normalize_path(untrailingslashit(ABSPATH));
@@ -504,6 +507,7 @@ class PermissionHardeningManager {
                 }
             }
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log('WCP Permission Hardening Fix Error: ' . $e->getMessage());
         }
 
@@ -583,13 +587,15 @@ class PermissionHardeningManager {
             return 0;
         }
         $table = $wpdb->prefix . 'wcpscan_scan_issues';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
+        $check_sql = "SHOW TABLES LIKE '{$table}'";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        if ($wpdb->get_var($check_sql) !== $table) {
             return 0;
         }
 
-        $open_issues = $wpdb->get_results(
-            "SELECT id, file_path, type FROM {$table} WHERE (type = 'unsafe_permissions' OR engine = 'filesystem') AND status = 'open'"
-        );
+        $open_sql = "SELECT id, file_path, type FROM {$table} WHERE (type = 'unsafe_permissions' OR engine = 'filesystem') AND status = 'open'";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        $open_issues = $wpdb->get_results($open_sql);
 
         if (empty($open_issues)) {
             return 0;
@@ -608,6 +614,7 @@ class PermissionHardeningManager {
                 $current_octal = substr(sprintf('%o', @fileperms($real_path)), -4);
                 $is_safe = is_dir($real_path) ? in_array($current_octal, ['0755', '0750'], true) : in_array($current_octal, ['0644', '0640', '0600'], true);
                 if ($is_safe) {
+                    // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->update($table, ['status' => 'repaired'], ['id' => $iss->id]);
                     $reconciled++;
                 }

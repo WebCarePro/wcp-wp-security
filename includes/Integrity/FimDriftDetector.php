@@ -32,9 +32,11 @@ class FimDriftDetector {
      */
     public static function calibrate_all(): array {
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- Extended timeout needed to compute hashes across entire WordPress filesystem
             @set_time_limit(300);
         }
         if (function_exists('ini_set')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- Baseline hashing memory allowance
             @ini_set('memory_limit', '512M');
         }
         $start_time = microtime(true);
@@ -136,9 +138,11 @@ class FimDriftDetector {
      */
     public static function audit_drift(string $category = 'all', int $limit = 250): array {
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- Deep filesystem drift audit requires timeout extension
             @set_time_limit(180);
         }
         if (function_exists('ini_set')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- Deep filesystem drift audit memory allowance
             @ini_set('memory_limit', '512M');
         }
         $start_time = microtime(true);

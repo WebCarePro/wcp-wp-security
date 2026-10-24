@@ -253,6 +253,7 @@ class AdminMenu {
         }
 
         $active_tab = 'dashboard';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $tab_param = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
         if ($current_page === 'wcp-scanner-scan' || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan')) $active_tab = 'scan';
         elseif ($current_page === 'wcp-scanner-vault' || ($current_page === 'wcp-security-scanner' && in_array($tab_param, ['vault', 'quarantine'], true))) $active_tab = 'vault';
@@ -415,8 +416,10 @@ class AdminMenu {
         }
 
         // Show confirmation notice if redirected after restoration
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if (!empty($_GET['wcpscan_restored'])) {
-            $count = (int) $_GET['wcpscan_restored'];
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $count = (int) sanitize_text_field(wp_unslash($_GET['wcpscan_restored']));
             echo '<div class="notice notice-success is-dismissible" style="padding: 12px 18px; border-left: 4px solid #16a34a; background: #f0fdf4;">';
             echo '<p style="margin: 0; font-size: 13px; color: #14532d;">';
             echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';

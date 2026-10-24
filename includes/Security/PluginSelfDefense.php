@@ -179,6 +179,7 @@ class PluginSelfDefense {
 
         // Authoritative security rule: Shipped plugin-manifest.json is required.
         // Never dynamically baseline from a live potentially compromised disk in runtime.
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
         error_log('[WCP Security] CRITICAL: Authoritative plugin-manifest.json is missing or corrupted.');
         return [];
     }

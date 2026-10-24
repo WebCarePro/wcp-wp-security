@@ -44,6 +44,7 @@ class SecurityHeadersEngine {
         $settings = SettingsManager::get_settings();
         if (!empty($settings['disable_file_editing'])) {
             if (!defined('DISALLOW_FILE_EDIT')) {
+                // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Standard WordPress core hardening constant
                 define('DISALLOW_FILE_EDIT', true);
             }
         }
@@ -128,6 +129,7 @@ class SecurityHeadersEngine {
         }
 
         // Check query string for author=1, author=admin, etc.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Author enumeration detection on guest GET requests
         if (isset($_REQUEST['author']) && (is_numeric($_REQUEST['author']) || is_string($_REQUEST['author']))) {
             wp_safe_redirect(home_url('/'), 301);
             exit;
@@ -198,7 +200,7 @@ class SecurityHeadersEngine {
             return;
         }
 
-        $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         if ($raw_uri === '') {
             return;
         }

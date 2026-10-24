@@ -36,6 +36,7 @@ class ServerInfo {
             $db_size_mb = 0.0;
             if (!empty($db_name)) {
                 try {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $db_size_bytes = (int) $wpdb->get_var(
                         $wpdb->prepare("SELECT SUM(data_length + index_length) FROM information_schema.TABLES WHERE table_schema = %s", $db_name)
                     );
@@ -239,38 +240,39 @@ class ServerInfo {
             return true;
         }
 
-        if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') {
+        if (!empty($_SERVER['HTTPS']) && strtolower(sanitize_text_field(wp_unslash($_SERVER['HTTPS']))) !== 'off') {
             return true;
         }
 
-        if (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) {
+        if (isset($_SERVER['SERVER_PORT']) && ('443' == sanitize_text_field(wp_unslash($_SERVER['SERVER_PORT'])))) {
             return true;
         }
 
         // Reverse proxy headers (Cloudflare, LiteSpeed, Nginx, AWS ALB/ELB)
-        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower(sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_PROTO']))) === 'https') {
             return true;
         }
 
-        if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') {
+        if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower(sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_SSL']))) === 'on') {
             return true;
         }
 
         if (!empty($_SERVER['HTTP_CF_VISITOR'])) {
-            $visitor = json_decode((string) $_SERVER['HTTP_CF_VISITOR'], true);
+            $cf_visitor = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_VISITOR']));
+            $visitor = json_decode($cf_visitor, true);
             if (is_array($visitor) && isset($visitor['scheme']) && $visitor['scheme'] === 'https') {
                 return true;
             }
-            if (strpos((string) $_SERVER['HTTP_CF_VISITOR'], 'https') !== false) {
+            if (strpos($cf_visitor, 'https') !== false) {
                 return true;
             }
         }
 
-        if (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && ('443' == $_SERVER['HTTP_X_FORWARDED_PORT'])) {
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && ('443' == sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_PORT'])))) {
             return true;
         }
 
-        if (!empty($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower((string) $_SERVER['HTTP_FRONT_END_HTTPS']) !== 'off') {
+        if (!empty($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower(sanitize_text_field(wp_unslash($_SERVER['HTTP_FRONT_END_HTTPS']))) !== 'off') {
             return true;
         }
 

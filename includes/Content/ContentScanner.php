@@ -61,18 +61,9 @@ class ContentScanner {
             ];
             $placeholders = implode("', '", array_map('esc_sql', $excluded_post_types));
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $posts = $wpdb->get_results($wpdb->prepare(
-                "SELECT ID, post_title, post_content, post_type, post_status 
-                 FROM `{$posts_table}` 
-                 WHERE ID > %d 
-                   AND post_status IN ('publish', 'future', 'draft', 'private')
-                   AND post_type NOT IN ('{$placeholders}')
-                 ORDER BY ID ASC 
-                 LIMIT %d",
-                $last_id,
-                $batch_size
-            ), ARRAY_A);
+            $sql = "SELECT ID, post_title, post_content, post_type, post_status FROM `{$posts_table}` WHERE ID > %d AND post_status IN ('publish', 'future', 'draft', 'private') AND post_type NOT IN ('{$placeholders}') ORDER BY ID ASC LIMIT %d";
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+            $posts = $wpdb->get_results($wpdb->prepare($sql, $last_id, $batch_size), ARRAY_A);
 
             if (empty($posts)) {
                 break;

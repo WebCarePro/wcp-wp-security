@@ -36,7 +36,7 @@ if ($wcpscan_delete_data) {
     ];
 
     foreach ($wcpscan_tables as $wcpscan_table) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("DROP TABLE IF EXISTS `{$wcpscan_table}`");
     }
 
@@ -71,15 +71,19 @@ if ($wcpscan_delete_data) {
     }
 
     // Comprehensive cleanup for dynamic/wildcard options (e.g. wcpscan_vault_backup_*, wcpscan_vault_ephem_*, wcpscan_*)
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'wcpscan_%' OR option_name LIKE 'wcp_%'");
     if (is_multisite()) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query("DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE 'wcpscan_%' OR meta_key LIKE 'wcp_%'");
     }
 
     // 3. Purge all plugin transients and temporary caches
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_wcpscan_%' OR option_name LIKE '_transient_timeout_wcpscan_%' OR option_name LIKE '_transient_wcp_%' OR option_name LIKE '_transient_timeout_wcp_%'");
 
     // 4. Purge plugin user meta (2FA tokens, backup codes, trusted devices, session meta)
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $wpdb->query("DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE '_wcpscan_%' OR meta_key LIKE 'wcpscan_%'");
 
     // 5. Clear scheduled cron jobs

@@ -27,6 +27,7 @@ class Plugin {
         $core_table = $wpdb->prefix . 'wcpscan_scans';
         $history_table = $wpdb->prefix . 'wcpscan_login_history';
         $firewall_table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $has_tables = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $core_table)) === $core_table)
             && ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $history_table)) === $history_table)
             && ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $firewall_table)) === $firewall_table);

@@ -166,6 +166,7 @@ class WhitelistManager {
         if (!empty($data['issue_id'])) {
             global $wpdb;
             $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update(
                 $table,
                 ['status' => 'ignored'],
