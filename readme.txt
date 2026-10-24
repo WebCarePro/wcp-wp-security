@@ -15,6 +15,16 @@ Enterprise-grade WordPress security, malware detection, web application firewall
 
 WCP Security Scanner gives you enterprise-grade malware detection, core integrity auditing, web application firewalling (WAF), session sentinel, rogue admin detection, and threat forensics inside an intuitive, modern React 18 single-page dashboard. Engineered by Mir Alamin (WebCare Pro) for high-performance WordPress sites, it provides deep visibility across your file system, WordPress core files, plugins, themes, database tables, cron jobs, active sessions, runtime hooks, and server configurations—without the performance bloat of traditional security tools.
 
+Key highlights:
+* **Deep Malware & Heuristic Scanner**: Scans PHP files, uploads, and database for webshells, backdoors, obfuscated injections, and rogue admin accounts.
+* **WordPress Core & Plugin Integrity**: Cryptographic validation against official WordPress.org checksums with 1-click Auto-Cure.
+* **Proactive Web Application Firewall (WAF)**: Zero-overhead request filtering, virtual patching, 404 rate-limiting, and Cloudflare Edge synchronization.
+* **Zero Bloat & Memory-Safe Architecture**: Hierarchical cursors and adaptive resource governor preserve visitor headroom.
+* **Pure AES-256-GCM Cryptographic Vault**: Encrypts sensitive secrets and TOTP 2FA keys at rest.
+* **100% On-Premise & Privacy First**: Zero third-party telemetry, zero external tracking, and zero data collection.
+
+== Features ==
+
 = 1. Next-Gen Cyber Command Center & Threat Dashboard =
 * **High-Precision SVG Security Health Meter**: Circular dynamic vector meter displaying site security score (0–100%) with reactive color accents (emerald #10b981, sky blue #38bdf8, amber #f59e0b, rose #ef4444) and live letter grades (A+, A, B, C, D, F).
 * **Interactive Threat Metric Cubes**: High-contrast summary widgets grouping active threats into 3 primary vectors: Critical Exploits & Backdoors, File Integrity & Code Drift, and Software Vulnerabilities & CVE Advisories, with instant 1-click category filtering.

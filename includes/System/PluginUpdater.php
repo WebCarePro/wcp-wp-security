@@ -29,10 +29,14 @@ class PluginUpdater {
      * Initialize WordPress updater hooks
      */
     public static function init() {
-        // Integrate with WordPress native update checks
-        add_filter('pre_set_site_transient_update_plugins', [__CLASS__, 'check_update_transient']);
-        add_filter('plugins_api', [__CLASS__, 'plugins_api_handler'], 20, 3);
-        add_filter('upgrader_pre_install', [__CLASS__, 'backup_before_core_upgrade'], 10, 2);
+        // WordPress.org Policy: Custom in-plugin updaters altering site_transient_update_plugins
+        // are disallowed in WordPress.org directory releases. Gate behind an explicit constant
+        // (default false) so WordPress.org native update mechanism is respected.
+        if (defined('WCPSCAN_ENABLE_GITHUB_UPDATER') && WCPSCAN_ENABLE_GITHUB_UPDATER) {
+            add_filter('pre_set_site_transient_update_plugins', [__CLASS__, 'check_update_transient']);
+            add_filter('plugins_api', [__CLASS__, 'plugins_api_handler'], 20, 3);
+            add_filter('upgrader_pre_install', [__CLASS__, 'backup_before_core_upgrade'], 10, 2);
+        }
     }
 
     /**

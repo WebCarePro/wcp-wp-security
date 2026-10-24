@@ -1,6 +1,6 @@
 {
   "version": "1.25.0",
-  "generated_at": "2026-10-24T19:52:40.466Z",
+  "generated_at": "2026-10-24T20:04:06.519Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -376,8 +376,8 @@
       "size": 6081
     },
     "includes/System/PluginUpdater.php": {
-      "sha256": "ab924f0537eb4dfda372c3b11db4e5878bdd46eb4fb9eb9ffc6391b5c4778391",
-      "size": 19043
+      "sha256": "b60be4605a29f2182280a581ccd857192778a2521215f2558fb129d03389d429",
+      "size": 19373
     },
     "includes/System/Scheduler.php": {
       "sha256": "d77c53f714af8a61560dc79180fbc8b148a32bd010e8d652a6a4907657318dd8",
@@ -440,12 +440,12 @@
       "size": 43448
     },
     "readme.txt": {
-      "sha256": "b3543036c0e6caaca3ac54bf1747e6223d92a1740d0421e3180a5c8f476b7f3c",
-      "size": 42281
+      "sha256": "e14349af0f4a728dd5e567cd0ef6bcae5ef29fed87522df07ac010324b19c1ff",
+      "size": 43093
     },
     "uninstall.php": {
-      "sha256": "f345d17452c527e9c1518ec9346586665e7e49d47f6904cdd53d16115035f797",
-      "size": 4471
+      "sha256": "0c3cc3b6e1e387fa00e3774c4d227bcafccfa7bb4bc6dea87ed444be0b061507",
+      "size": 4654
     },
     "wcp-wp-scanner.php": {
       "sha256": "d784ed9382419ede42eedf7bb7552b944513b011dc9b5c6423a6cfae79b41d72",

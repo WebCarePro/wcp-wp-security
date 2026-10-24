@@ -4,6 +4,10 @@ v:1.25.0 - 2026-10-25
   * Dual Matching Evaluation: Evaluates forbidden sensitive file patterns against both the raw incoming request URI and the iteratively decoded/normalized URI string, eliminating bypass vectors while ensuring zero impact on legitimate site requests.
 - Main Plugin Cleanliness & Constant Streamlining (`wcp-wp-scanner.php`, `AGENTS.md`):
   * Eliminated redundant duplicate `WCP_SCANNER_VERSION` constant definition in `wcp-wp-scanner.php`, preserving only the single canonical `WCPSCAN_VERSION` used throughout the plugin architecture.
+- WordPress.org Submission Compliance Phase 1 (`readme.txt`, `uninstall.php`, `PluginUpdater.php`):
+  * Readme Description Optimization: Restructured `readme.txt` to keep the initial `== Description ==` overview section under 1,500 characters, moving the extensive 30-facility breakdown cleanly under `== Features ==` to eliminate the 2500-character description truncation warning.
+  * Global Variable Prefixing (`uninstall.php`): Prefixed all variables in `uninstall.php` with `wcpscan_` (`$wcpscan_settings`, `$wcpscan_delete_data`, `$wcpscan_tables`, `$wcpscan_plugin_options`, `$wcpscan_upload_dir`, etc.) complying strictly with `WordPress.NamingConventions.PrefixAllGlobals`.
+  * WordPress.org In-Plugin Updater Policy Gating (`PluginUpdater.php`): Gated custom GitHub `pre_set_site_transient_update_plugins` and `plugins_api` hook overrides behind the `WCPSCAN_ENABLE_GITHUB_UPDATER` constant check so that standard WordPress.org hosted installs conform with WordPress.org update guidelines.
 
 
 v:1.24.0 - 2026-10-24

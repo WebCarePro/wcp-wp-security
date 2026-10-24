@@ -9,18 +9,18 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
-$settings = get_option('wcpscan_settings', []);
-$delete_data = true; // Enabled by default
+$wcpscan_settings = get_option('wcpscan_settings', []);
+$wcpscan_delete_data = true; // Enabled by default
 
-if (is_array($settings) && array_key_exists('delete_data_on_uninstall', $settings)) {
-    $delete_data = (bool) $settings['delete_data_on_uninstall'];
+if (is_array($wcpscan_settings) && array_key_exists('delete_data_on_uninstall', $wcpscan_settings)) {
+    $wcpscan_delete_data = (bool) $wcpscan_settings['delete_data_on_uninstall'];
 }
 
-if ($delete_data) {
+if ($wcpscan_delete_data) {
     global $wpdb;
 
-    // 1. Drop all custom plugin tables (current wcpscan_ prefix and legacy wcp_ tables)
-    $tables = [
+    // 1. Drop all custom plugin tables
+    $wcpscan_tables = [
         $wpdb->prefix . 'wcpscan_scans',
         $wpdb->prefix . 'wcpscan_scan_issues',
         $wpdb->prefix . 'wcpscan_scan_files',
@@ -35,13 +35,13 @@ if ($delete_data) {
         $wpdb->prefix . 'wcp_login_history',
     ];
 
-    foreach ($tables as $table) {
+    foreach ($wcpscan_tables as $wcpscan_table) {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-        $wpdb->query("DROP TABLE IF EXISTS `{$table}`");
+        $wpdb->query("DROP TABLE IF EXISTS `{$wcpscan_table}`");
     }
 
     // 2. Delete all plugin options (both exact keys and wildcard prefixes)
-    $plugin_options = [
+    $wcpscan_plugin_options = [
         'wcpscan_settings',
         'wcpscan_db_version',
         'wcpscan_welcome_dismissed',
@@ -65,9 +65,9 @@ if ($delete_data) {
         'wcpscan_scan_lock',
         'wcpscan_cloudflare_rate_limit_config',
     ];
-    foreach ($plugin_options as $opt) {
-        delete_option($opt);
-        delete_site_option($opt);
+    foreach ($wcpscan_plugin_options as $wcpscan_opt) {
+        delete_option($wcpscan_opt);
+        delete_site_option($wcpscan_opt);
     }
 
     // Comprehensive cleanup for dynamic/wildcard options (e.g. wcpscan_vault_backup_*, wcpscan_vault_ephem_*, wcpscan_*)
@@ -88,23 +88,23 @@ if ($delete_data) {
     wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
     wp_clear_scheduled_hook('wcpscan_self_defense_watchdog_event');
 
-    // 4. Remove all plugin-created files in uploads (logs, quarantine, backups)
-    $upload_dir = wp_upload_dir();
-    if (!empty($upload_dir['basedir'])) {
-        $storage_dir = untrailingslashit($upload_dir['basedir']) . '/wcp-security-scanner';
-        if (is_dir($storage_dir)) {
-            $items = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($storage_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+    // 6. Remove all plugin-created files in uploads (logs, quarantine, backups)
+    $wcpscan_upload_dir = wp_upload_dir();
+    if (!empty($wcpscan_upload_dir['basedir'])) {
+        $wcpscan_storage_dir = untrailingslashit($wcpscan_upload_dir['basedir']) . '/wcp-security-scanner';
+        if (is_dir($wcpscan_storage_dir)) {
+            $wcpscan_items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($wcpscan_storage_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
                 \RecursiveIteratorIterator::CHILD_FIRST
             );
-            foreach ($items as $item) {
-                if ($item->isDir()) {
-                    @rmdir($item->getRealPath());
+            foreach ($wcpscan_items as $wcpscan_item) {
+                if ($wcpscan_item->isDir()) {
+                    @rmdir($wcpscan_item->getRealPath());
                 } else {
-                    @unlink($item->getRealPath());
+                    @unlink($wcpscan_item->getRealPath());
                 }
             }
-            @rmdir($storage_dir);
+            @rmdir($wcpscan_storage_dir);
         }
     }
 }
