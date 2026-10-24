@@ -2930,11 +2930,29 @@ class ScannerRoutes {
                         }
                     }
 
-                    // Provide current admin info for 1-click reassignment
+                    // Provide current admin info and all active administrator choices for reassignment
                     $currId = function_exists('get_current_user_id') ? get_current_user_id() : 0;
                     $currUser = $currId > 0 ? get_userdata($currId) : null;
                     $item['reassign_target_id'] = $currId;
                     $item['reassign_target_name'] = $currUser ? ($currUser->display_name ?: $currUser->user_login) : 'Administrator';
+
+                    $admin_users_raw = get_users([
+                        'role'    => 'administrator',
+                        'orderby' => 'display_name',
+                        'order'   => 'ASC',
+                        'fields'  => ['ID', 'user_login', 'display_name', 'user_email'],
+                    ]);
+                    $admin_options = [];
+                    foreach ($admin_users_raw as $adm) {
+                        $admin_options[] = [
+                            'id'           => (int) $adm->ID,
+                            'user_login'   => $adm->user_login,
+                            'display_name' => $adm->display_name ?: $adm->user_login,
+                            'user_email'   => $adm->user_email,
+                            'is_current'   => ((int) $adm->ID === $currId),
+                        ];
+                    }
+                    $item['admin_options'] = $admin_options;
                 }
             } 
             // 4. Check if finding is a Database Table Row
