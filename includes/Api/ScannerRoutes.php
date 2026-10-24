@@ -417,6 +417,24 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/integrity/vault-status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_integrity_vault_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/integrity/calibrate-vault', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'calibrate_integrity_vault'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/integrity/recheck-drift', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'recheck_integrity_drift'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/integrity/diff', [
             'methods'             => ['GET', 'POST'],
             'callback'            => [__CLASS__, 'get_integrity_file_diff'],
@@ -4907,6 +4925,24 @@ class ScannerRoutes {
         $data = $fim->get_recent_changes($hours, $category, $limit);
 
         return rest_ensure_response($data);
+    }
+
+    public static function get_integrity_vault_status(\WP_REST_Request $request) {
+        $status = \WcpScanner\Integrity\FimVaultManager::get_vault_status();
+        return rest_ensure_response($status);
+    }
+
+    public static function calibrate_integrity_vault(\WP_REST_Request $request) {
+        $result = \WcpScanner\Integrity\FimDriftDetector::calibrate_all();
+        return rest_ensure_response($result);
+    }
+
+    public static function recheck_integrity_drift(\WP_REST_Request $request) {
+        $category = sanitize_key($request->get_param('category') ?: 'all');
+        $limit = (int) ($request->get_param('limit') ?: 250);
+
+        $result = \WcpScanner\Integrity\FimDriftDetector::audit_drift($category, $limit);
+        return rest_ensure_response($result);
     }
 
     public static function get_integrity_file_diff(\WP_REST_Request $request) {
