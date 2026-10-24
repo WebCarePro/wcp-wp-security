@@ -620,7 +620,13 @@ class FirewallEngine {
         }
 
         // Record real-time visitor traffic pulse (15s rolling transient) for scanner governor
-        if (!is_admin() && strpos($_SERVER['REQUEST_URI'] ?? '', '/wp-json/wcp-scanner/') === false) {
+        // Only count actual public frontend visitor hits (exclude admin-ajax, REST API, admin panel, CLI, and static assets)
+        $req_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $is_rest = (defined('REST_REQUEST') && REST_REQUEST) || strpos($req_uri, '/wp-json/') !== false || strpos($req_uri, '?rest_route=') !== false;
+        $is_ajax = (defined('DOING_AJAX') && DOING_AJAX) || strpos($req_uri, 'admin-ajax.php') !== false;
+        $is_admin_area = is_admin() || strpos($req_uri, '/wp-admin/') !== false;
+
+        if (!$is_admin_area && !$is_rest && !$is_ajax && !self::is_authenticated_administrator()) {
             $visitor_hits = (int) get_transient('wcpscan_active_visitor_traffic_15s');
             set_transient('wcpscan_active_visitor_traffic_15s', $visitor_hits + 1, 15);
         }

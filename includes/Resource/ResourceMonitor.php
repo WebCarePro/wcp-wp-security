@@ -68,9 +68,9 @@ class ResourceMonitor {
         }
 
         // 3. Dynamic Pacing based on Visitor Traffic and Memory Safety Envelope
-        if ($this->visitor_hits_active > 3) {
+        if ($this->visitor_hits_active >= 12) {
             // Live visitors actively browsing/checking out! Courteously pace the scanner
-            $this->throttle_delay_us = 45000; // 45ms pause per file
+            $this->throttle_delay_us = 35000; // 35ms pause per file
             $this->last_status_reason = "Visitor Radar Active: {$this->visitor_hits_active} live visitor hits in last 15s, courtesy throttling";
         } elseif ($mem_percent >= $this->max_memory_percent || $os_low_ram) {
             $this->throttle_delay_us = 60000; // 60ms pause per file
