@@ -11,6 +11,13 @@ v:1.26.0 - 2026-10-26
   * Eliminated hardcoded dark backgrounds (`#090d16`, `#1e1b4b`, `#312e81`, `#0f172a`, `rgba(255, 255, 255, 0.04)`) across the Virtual Patching & 0-Day Studio hero section, KPI metric tiles, PHP WAF rule preview boxes, and support assistance banners.
   * Introduced dedicated theme-adaptive CSS classes (`.wcp-vp-hero-card`, `.wcp-vp-hero-icon-box`, `.wcp-vp-hero-title`, `.wcp-vp-hero-desc`, `.wcp-vp-hero-badge`, `.wcp-vp-kpi-grid`, `.wcp-vp-kpi-tile`, `.wcp-vp-kpi-label`, `.wcp-vp-kpi-value`, `.wcp-vp-kpi-sub`, `.wcp-vp-rule-code-box`, `.wcp-vp-expert-banner`, `.wcp-vp-expert-icon-box`, `.wcp-vp-expert-title`, `.wcp-vp-expert-desc`) that render cleanly in Light/White Mode on `#ffffff` and `#f8fafc` cards with `#e2e8f0` borders and `#0f172a` primary text, while seamlessly maintaining rich cyber midnight gradients in Dark Mode.
   * Replaced hardcoded status button inline styles with standardized `.wcp-btn-danger-soft` and `.wcp-action-btn-clean` classes for consistent high contrast across both Light and Dark themes.
+- Real-Time CVE Intelligence & Local Site Inventory Correlator Engine (`includes/Firewall/CVEIntelligenceService.php`, `ScannerRoutes.php`, `VirtualPatchCard.tsx`, `index.css`):
+  * Upstream CVE Intelligence API: Added live integration with the official National Vulnerability Database (NVD 2.0 API) with 7-day transient caching (`wcpscan_cve_intel_`), resolving CVSS scores, vector types (RCE, SQLi, Auth Bypass, Arbitrary File Upload), vulnerability descriptions, and affected semver ranges for any query (e.g. `CVE-2024-5932`, `CVE-2024-28000`).
+  * Live Site Inventory Correlator: Inspects local site plugins (`get_plugins()`), themes (`wp_get_theme()`), and WordPress Core (`$wp_version`) against the queried CVE to determine exact risk:
+    - Clean / Not Installed: If the vulnerable component (e.g. GiveWP) does not exist on the website, displays a clean status reassuring operators that no patch is needed and zero performance overhead should be incurred.
+    - Safe / Already Patched: Informs operators if the component is installed but already updated to a patched, non-vulnerable release.
+    - Critical Match: If an active plugin matches the vulnerable semver range, displays an immediate high-priority alert with 1-Click "Deploy Instant Virtual Patch" and 1-Click "Deactivate Plugin Now" remediation actions.
+  * Interactive Studio UI: Added live search input with quick-check presets (`CVE-2024-5932`, `CVE-2024-28000`, `CVE-2024-31210`) and theme-adaptive correlation result cards supporting both Light (White) and Dark modes.
 
 v:1.25.0 - 2026-10-25
 - WordPress Plugin Check (PCP) Clean Verification & Hardening (`FirewallEngine.php`):

@@ -1263,6 +1263,18 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'delete_synthesized_virtual_patch'],
             'permission_callback' => $permission,
         ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/cve-lookup', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'virtual_patch_cve_lookup'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/deactivate-component', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'virtual_patch_deactivate_component'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -8465,6 +8477,38 @@ class ScannerRoutes {
         }
 
         $result = VirtualPatchSynthesizer::delete_synthesized_patch($patch_id);
+        return rest_ensure_response($result);
+    }
+
+    public static function virtual_patch_cve_lookup(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $cve_id = sanitize_text_field(wp_unslash($params['cve_id'] ?? ''));
+
+        if (empty($cve_id)) {
+            return new \WP_Error('missing_cve_id', __('CVE ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WcpScanner\Firewall\CVEIntelligenceService::lookup_and_correlate($cve_id);
+        if (!$result['success']) {
+            return new \WP_Error('cve_lookup_failed', $result['message'], ['status' => 404]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    public static function virtual_patch_deactivate_component(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $plugin_file = sanitize_text_field(wp_unslash($params['plugin_file'] ?? ''));
+
+        if (empty($plugin_file)) {
+            return new \WP_Error('missing_plugin_file', __('Target plugin file is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WcpScanner\Firewall\CVEIntelligenceService::deactivate_vulnerable_plugin($plugin_file);
+        if (!$result['success']) {
+            return new \WP_Error('deactivation_failed', $result['message'], ['status' => 400]);
+        }
+
         return rest_ensure_response($result);
     }
 }
