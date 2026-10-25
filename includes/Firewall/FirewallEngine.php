@@ -3584,7 +3584,7 @@ class FirewallEngine {
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO `{$table}` (incident_id, ip_address, request_uri, request_method, http_status_code, http_referer, rule_category, rule_description, payload_sample, user_agent, action_taken, created_at)
-                 VALUES (%s, %s, %s, %s, %d, %s, %s, %s, %s, %s, %s, NOW())",
+                 VALUES (%s, %s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s)",
                 $incident_id,
                 sanitize_text_field($ip),
                 sanitize_text_field(substr($uri, 0, 500)),
@@ -3595,7 +3595,8 @@ class FirewallEngine {
                 sprintf('Granted safe WAF bypass via rule "%1$s" for User-Agent: %2$s', $rule_name, substr($user_agent, 0, 80)),
                 sanitize_text_field($payload_json),
                 sanitize_text_field(substr($user_agent, 0, 300)),
-                'allowed'
+                'allowed',
+                current_time('mysql')
             )
         );
     }
