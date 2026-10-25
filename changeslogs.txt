@@ -8,6 +8,9 @@ v:1.25.0 - 2026-10-25
 - Dark Mode High-Contrast Preset & Detected Badge Styling (`src/index.css`, `TargetedAllowlistManagerCard.tsx`):
   * Hardened theme contrast for Detected preset badges and quick preset buttons (`.wcp-preset-btn-detected` and `.wcp-preset-badge-detected`).
   * In Dark Mode (`.wcp-theme-dark` / `[data-theme="dark"]`), buttons now feature elevated deep-emerald styling (`rgba(16, 185, 129, 0.16)` bg, `#34d399` text, `rgba(16, 185, 129, 0.45)` border) and solid `#059669` "Detected" pills with high-contrast `#ffffff` text, completely eliminating washed-out or low-contrast borders.
+- Architectural Ecosystem Comparison & Honest Limitations (`README.MD`, blog post #66):
+  * Added balanced architectural comparison matrix contrasting WCP Security Scanner against Wordfence, Sucuri, and Patchstack.
+  * Documented honest operational trade-offs: on-server resource consumption, no 24/7 corporate threat SOC, and zero cloud DDoS scrubbing, positioning WCP accurately for SysAdmins and operators demanding local privacy and streaming memory efficiency.
 - PHP 8.4 Compatibility & Admin Screen Title Normalization (`includes/Admin/AdminMenu.php`):
   * Resolved PHP 8.4 deprecation notice (`Deprecated: strip_tags(): Passing null to parameter #1 ($string) of type string is deprecated in wp-admin/admin-header.php on line 41`).
   * WordPress core calls `get_admin_page_title()` and runs `$title = strip_tags($title);`. For companion subpages registered without an admin sidebar parent (`add_submenu_page(null, ...)`), core does not find the slug in `$menu`, leaving `$title = null`.
