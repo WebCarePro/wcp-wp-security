@@ -1020,6 +1020,57 @@ class ScannerRoutes {
                 return current_user_can('manage_options');
             },
         ]);
+
+        // MCP Staged Actions Approval Gate & Governance Matrix
+        register_rest_route(self::NAMESPACE, '/mcp/staged-actions', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_mcp_staged_actions'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/staged-actions/approve', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'approve_mcp_staged_action'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/staged-actions/reject', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reject_mcp_staged_action'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/matrix', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'handle_mcp_matrix'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Red Team Attack Simulation Drill
+        register_rest_route(self::NAMESPACE, '/security/run-drill', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'run_security_drill'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/security/drill-results', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_security_drill_results'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Emergency Incident Containment Protocol
+        register_rest_route(self::NAMESPACE, '/containment/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_containment_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/containment/toggle', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_containment'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -6902,6 +6953,103 @@ class ScannerRoutes {
             'success' => true,
             'message' => __('MCP agent audit trail cleared.', 'wcp-security-scanner'),
         ]);
+    }
+
+    public static function get_mcp_staged_actions(\WP_REST_Request $request) {
+        $status = sanitize_text_field($request->get_param('status') ?? 'all');
+        return rest_ensure_response([
+            'success' => true,
+            'actions' => \WcpScanner\Api\MCPAgentService::get_staged_actions($status),
+        ]);
+    }
+
+    public static function approve_mcp_staged_action(\WP_REST_Request $request) {
+        $staged_id = sanitize_text_field($request->get_param('staged_id') ?? '');
+        if (empty($staged_id)) {
+            return new \WP_Error('missing_param', __('Staged action ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Api\MCPAgentService::approve_staged_action($staged_id, get_current_user_id());
+        return rest_ensure_response($res);
+    }
+
+    public static function reject_mcp_staged_action(\WP_REST_Request $request) {
+        $staged_id = sanitize_text_field($request->get_param('staged_id') ?? '');
+        if (empty($staged_id)) {
+            return new \WP_Error('missing_param', __('Staged action ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Api\MCPAgentService::reject_staged_action($staged_id, get_current_user_id());
+        return rest_ensure_response($res);
+    }
+
+    public static function handle_mcp_matrix(\WP_REST_Request $request) {
+        if ($request->get_method() === 'POST') {
+            $params = $request->get_json_params() ?: [];
+            $matrix = is_array($params['matrix'] ?? null) ? $params['matrix'] : [];
+            $clean_matrix = \WcpScanner\System\SettingsManager::sanitize_mcp_tool_matrix($matrix);
+            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            $settings['mcp_tool_matrix'] = $clean_matrix;
+            \WcpScanner\System\SettingsManager::save_settings($settings);
+
+            return rest_ensure_response([
+                'success' => true,
+                'matrix'  => $clean_matrix,
+                'message' => __('MCP tool policy governance matrix saved.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $matrix = \WcpScanner\System\SettingsManager::get('mcp_tool_matrix', \WcpScanner\System\SettingsManager::get_default_mcp_tool_matrix());
+        return rest_ensure_response([
+            'success' => true,
+            'matrix'  => $matrix,
+        ]);
+    }
+
+    public static function run_security_drill(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $vectors = is_array($params['vectors'] ?? null) ? $params['vectors'] : [];
+        $report = \WcpScanner\Security\AttackSimulationEngine::run_simulation($vectors);
+
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $report,
+        ]);
+    }
+
+    public static function get_security_drill_results(\WP_REST_Request $request) {
+        $report = \WcpScanner\Security\AttackSimulationEngine::get_latest_results();
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $report,
+        ]);
+    }
+
+    public static function get_containment_status(\WP_REST_Request $request) {
+        return rest_ensure_response([
+            'success' => true,
+            'status'  => \WcpScanner\Security\EmergencyContainmentManager::get_status(),
+        ]);
+    }
+
+    public static function toggle_containment(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $action = sanitize_text_field($params['action'] ?? '');
+        $reason = sanitize_text_field($params['reason'] ?? 'Administrator Security Incident Action');
+        $maintenance = !empty($params['maintenance_enabled']);
+
+        if ($action === 'activate') {
+            $res = \WcpScanner\Security\EmergencyContainmentManager::activate([
+                'reason'              => $reason,
+                'maintenance_enabled' => $maintenance,
+            ]);
+        } elseif ($action === 'deactivate') {
+            $res = \WcpScanner\Security\EmergencyContainmentManager::deactivate(get_current_user_id());
+        } else {
+            return new \WP_Error('invalid_action', __('Invalid containment action. Must be "activate" or "deactivate".', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        return rest_ensure_response($res);
     }
 
     // ==========================================

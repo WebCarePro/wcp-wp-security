@@ -47,6 +47,10 @@ class Plugin {
             \WcpScanner\Firewall\FirewallEngine::init();
         }
 
+        if (class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager')) {
+            \WcpScanner\Security\EmergencyContainmentManager::init();
+        }
+
         if (class_exists('\\WcpScanner\\Hardening\\SecurityHeadersEngine')) {
             \WcpScanner\Hardening\SecurityHeadersEngine::init();
         }

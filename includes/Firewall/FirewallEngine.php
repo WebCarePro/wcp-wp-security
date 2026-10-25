@@ -655,12 +655,54 @@ class FirewallEngine {
             return;
         }
 
+        $is_drill_request = !empty($_GET['wcp_drill_token']) || !empty($_POST['wcp_drill_token']) || !empty($_SERVER['HTTP_X_WCP_DRILL_TOKEN']);
+
         // Safe Bypass for Verified Authenticated Administrators and Page Builder Sessions
         // (Prevents false-positive blocks when managing comments, posts, plugins, or editing pages via Elementor/Divi/Gutenberg)
-        if (self::is_authenticated_administrator()) {
+        // Red Team Drill Exception: Never bypass when drill token is present
+        if (!$is_drill_request && self::is_authenticated_administrator()) {
             $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/wcp-scanner/') !== false);
             if ($is_admin_path) {
                 return;
+            }
+        }
+
+        // Emergency Containment Mode Enforcement
+        if (class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager') && \WcpScanner\Security\EmergencyContainmentManager::is_active()) {
+            if (!self::is_authenticated_administrator()) {
+                if (\WcpScanner\Security\EmergencyContainmentManager::is_maintenance_enabled()) {
+                    \WcpScanner\Security\EmergencyContainmentManager::render_containment_screen();
+                    exit;
+                }
+
+                $req_method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET');
+                if (in_array($req_method, ['POST', 'PUT', 'DELETE', 'PATCH'], true)) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-CONTAINMENT-LOCKDOWN',
+                        'name'        => 'Emergency Containment Write Lockdown',
+                        'category'    => 'Incident Containment',
+                        'description' => 'Write operations are strictly prohibited while site is in Emergency Containment Mode.',
+                        'match_type'  => 'Containment Policy',
+                        'match_value' => $req_method,
+                        'payload'     => "Method: {$req_method} URI: {$request_uri} IP: {$client_ip}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    exit;
+                }
+
+                if (strpos($request_uri, 'xmlrpc.php') !== false || strpos($request_uri, '/wp/v2/users') !== false) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-CONTAINMENT-SURFACE-LOCK',
+                        'name'        => 'Emergency Containment Attack Surface Lock',
+                        'category'    => 'Incident Containment',
+                        'description' => 'Endpoint locked down by Emergency Containment Mode.',
+                        'match_type'  => 'Containment Policy',
+                        'match_value' => $request_uri,
+                        'payload'     => "URI: {$request_uri} IP: {$client_ip}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    exit;
+                }
             }
         }
 
@@ -1393,6 +1435,29 @@ class FirewallEngine {
                     'description' => 'Null byte string termination attack (%00) detected in URI or request payload.',
                     'payload'     => substr($combined_payload, 0, 200),
                 ];
+            }
+        }
+
+        // 6. AI Prompt Injection & Agent Poisoning Shield (Rule #35)
+        if (!empty($settings['waf_block_ai_prompt_injection'])) {
+            $prompt_patterns = [
+                '/\b(ignore\s+(all\s+)?(previous|prior|above)\s+instructions)\b/i',
+                '/\b(system\s*prompt\s*:|\[\s*system\s*\]|\bDAN\s+mode\b|developer\s+mode\s+active)\b/i',
+                '/\b(you\s+are\s+now\s+(an\s+unfiltered|unrestricted|in\s+developer|in\s+jailbreak))\b/i',
+                '/\b(bypass\s+(safety|content)\s+guidelines|reveal\s+(your|the)\s+(system\s+)?instructions)\b/i',
+                '/(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[\/INST\])/i',
+                '/\b(dump|output|exfiltrate)\s+(the\s+)?(contents\s+of\s+)?(wp-config\.php|passwd|database\s+credentials)\b/i',
+            ];
+            foreach ($prompt_patterns as $pattern) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                    return [
+                        'id'          => 'WAF-AI-PROMPT-INJECTION',
+                        'name'        => 'AI Prompt Injection & Agent Poisoning Shield (Rule #35)',
+                        'category'    => 'AI & Agent Defense',
+                        'description' => 'Hostile LLM prompt-injection / tool-poisoning syntax detected in request payload.',
+                        'payload'     => substr($combined_payload, 0, 200),
+                    ];
+                }
             }
         }
 
@@ -2330,6 +2395,25 @@ class FirewallEngine {
      * Render branded 403 Forbidden Error Screen via standard wp_die()
      */
     private static function render_block_page(array $rule, string $client_ip, ?string $incident_id = null) {
+        // Red Team Drill Intercept Handler
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
+        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
+            \WcpScanner\Security\AttackSimulationEngine::record_intercept($drill_token, $rule, 403);
+            header('X-WCP-Drill-Intercepted: 1');
+            header('X-WCP-Drill-Rule-ID: ' . rawurlencode($rule['id'] ?? 'WAF-INTERCEPT'));
+            header('X-WCP-Drill-Category: ' . rawurlencode($rule['category'] ?? 'WAF'));
+            status_header(403);
+            echo wp_json_encode([
+                'success'     => false,
+                'drill'       => true,
+                'intercepted' => true,
+                'rule_id'     => $rule['id'] ?? 'WAF-INTERCEPT',
+                'category'    => $rule['category'] ?? 'WAF',
+            ]);
+            exit;
+        }
+
         if (empty($incident_id)) {
             $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
         }
@@ -3924,6 +4008,26 @@ class FirewallEngine {
      * @return void
      */
     public static function handle_rule_violation(array $rule, array $settings, string $client_ip, int $status_code = 403): void {
+        // Red Team Drill Intercept Handler
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
+        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
+            \WcpScanner\Security\AttackSimulationEngine::record_intercept($drill_token, $rule, $status_code);
+            header('X-WCP-Drill-Intercepted: 1');
+            header('X-WCP-Drill-Rule-ID: ' . rawurlencode($rule['id'] ?? 'WAF-INTERCEPT'));
+            header('X-WCP-Drill-Category: ' . rawurlencode($rule['category'] ?? 'WAF'));
+            status_header($status_code);
+            echo wp_json_encode([
+                'success'     => false,
+                'drill'       => true,
+                'intercepted' => true,
+                'rule_id'     => $rule['id'] ?? 'WAF-INTERCEPT',
+                'category'    => $rule['category'] ?? 'WAF',
+                'status_code' => $status_code,
+            ]);
+            exit;
+        }
+
         $mode = $settings['waf_mode'] ?? 'enabled';
         if ($mode === 'learning') {
             self::log_incident($rule, 'detected');

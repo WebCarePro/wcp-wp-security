@@ -135,6 +135,7 @@ class SettingsManager {
             'waf_limit_admin_ajax'              => true, // Rule #33: admin-ajax.php unauthenticated request burst rate limiter
             'waf_admin_ajax_limit_per_min'      => 60,   // Max unauthenticated admin-ajax requests per minute per IP
             'waf_block_oversized_requests'      => true, // Rule #34: Oversized request URI, query string, & parameter count guard
+            'waf_block_ai_prompt_injection'     => true, // Rule #35: AI Prompt Injection & Agent Poisoning Shield
 
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
@@ -188,6 +189,7 @@ class SettingsManager {
             'mcp_token'                          => '',
             'mcp_permission_scope'               => 'read_write',
             'mcp_rate_limit_per_min'             => 60,
+            'mcp_tool_matrix'                    => self::get_default_mcp_tool_matrix(),
 
             // 15. Custom Scan Engine Options (Wordfence-style scan customization)
             'custom_scan_options'                => self::get_default_custom_scan_options(),
@@ -323,6 +325,40 @@ class SettingsManager {
                 'email'   => isset($incoming['email']) ? !empty($incoming['email']) : ($default_channels['email'] ?? false),
                 'webhook' => isset($incoming['webhook']) ? !empty($incoming['webhook']) : ($default_channels['webhook'] ?? false),
             ];
+        }
+        return $clean;
+    }
+
+    /**
+     * Default governance policy matrix for all MCP agent tools.
+     */
+    public static function get_default_mcp_tool_matrix(): array {
+        return [
+            'wcpscan_get_security_posture'      => 'allowed',
+            'wcpscan_list_findings'             => 'allowed',
+            'wcpscan_audit_behavioral_baseline' => 'allowed',
+            'wcpscan_get_containment_status'    => 'allowed',
+            'wcpscan_list_staged_actions'       => 'allowed',
+            'wcpscan_whitelist_finding'         => 'allowed',
+            'wcpscan_rollback_remediation'      => 'confirmation_required',
+            'wcpscan_deploy_virtual_patch'      => 'confirmation_required',
+            'wcpscan_quarantine_file'           => 'confirmation_required',
+            'wcpscan_run_security_drill'        => 'allowed',
+            'wcpscan_set_containment_mode'      => 'confirmation_required',
+            'wcpscan_approve_staged_action'     => 'confirmation_required',
+        ];
+    }
+
+    /**
+     * Sanitize MCP tool policy governance matrix.
+     */
+    public static function sanitize_mcp_tool_matrix(array $matrix): array {
+        $valid_policies = ['allowed', 'confirmation_required', 'blocked'];
+        $defaults = self::get_default_mcp_tool_matrix();
+        $clean = [];
+        foreach ($defaults as $tool => $def_policy) {
+            $incoming = $matrix[$tool] ?? $def_policy;
+            $clean[$tool] = in_array($incoming, $valid_policies, true) ? $incoming : $def_policy;
         }
         return $clean;
     }
@@ -554,6 +590,7 @@ class SettingsManager {
         $clean['waf_limit_admin_ajax']         = !empty($merged['waf_limit_admin_ajax']);
         $clean['waf_admin_ajax_limit_per_min'] = max(10, min(300, (int) ($merged['waf_admin_ajax_limit_per_min'] ?? 60)));
         $clean['waf_block_oversized_requests'] = !empty($merged['waf_block_oversized_requests']);
+        $clean['waf_block_ai_prompt_injection'] = !empty($merged['waf_block_ai_prompt_injection']);
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = !empty($merged['threat_intel_enabled']);
@@ -671,6 +708,14 @@ class SettingsManager {
             : ($current['mcp_permission_scope'] ?? 'read_write');
 
         $clean['mcp_rate_limit_per_min'] = max(10, min(600, intval($merged['mcp_rate_limit_per_min'] ?? ($current['mcp_rate_limit_per_min'] ?? 60))));
+
+        if (isset($input['mcp_tool_matrix']) && is_array($input['mcp_tool_matrix'])) {
+            $clean['mcp_tool_matrix'] = self::sanitize_mcp_tool_matrix($input['mcp_tool_matrix']);
+        } elseif (isset($current['mcp_tool_matrix']) && is_array($current['mcp_tool_matrix'])) {
+            $clean['mcp_tool_matrix'] = self::sanitize_mcp_tool_matrix($current['mcp_tool_matrix']);
+        } else {
+            $clean['mcp_tool_matrix'] = self::get_default_mcp_tool_matrix();
+        }
 
         // 15. Custom Scan Engine Options
         if (isset($input['custom_scan_options']) && is_array($input['custom_scan_options'])) {
