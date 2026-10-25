@@ -329,6 +329,8 @@ class AdminMenu {
                 'serverInfo'      => $server_info,
                 'timezoneString'  => wp_timezone_string(),
                 'timezoneOffset'  => $wp_tz_offset, // in seconds from UTC
+                'gmtOffset'       => (float) get_option('gmt_offset', 0),
+                'siteTime'        => current_time('mysql'),
                 'assetsUrl'       => esc_url_raw(WCPSCAN_URL . 'assets/'),
                 'logo3dUrl'       => esc_url_raw(WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
                 'emblem3dUrl'     => esc_url_raw(WCPSCAN_URL . 'assets/webcare-3d-emblem.png'),

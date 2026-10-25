@@ -1,4 +1,12 @@
 v:1.25.0 - 2026-10-25
+- Multi-Region Timezone Architecture & Date/Timestamp Hardening (`src/timeUtils.ts`, `src/ScanLogsPage.tsx`, `includes/Admin/AdminMenu.php`, `includes/Api/ScannerRoutes.php`):
+  * Stringified TimezoneOffset Coercion Fix (`timeUtils.ts`):
+    - Resolved `typeof tzOffsetSec === 'number'` false-negative caused by WordPress `wp_localize_script()` casting all scalar data to strings. Implemented `Number(rawOffset)` coercion, eliminating 6-hour negative clock skew that previously forced past scans to erroneously render as "Just now".
+  * Dual-Layer Multi-Region Timezone Resolution (`formatDateTimeComprehensive`):
+    - Added structured dual-layer timestamp formatting presenting relative time ("11m ago", "24m ago"), exact site time according to WordPress General Settings (`Asia/Dhaka`), local device browser time for operators across different continents, and unambiguous UTC ISO 8601 strings.
+    - Integrated multi-region forensic hover tooltips on scan records displaying: `Site Time (Asia/Dhaka) • Your Device (Browser Local) • UTC`.
+  * Unambiguous ISO 8601 UTC REST API Enrichment (`ScannerRoutes.php`):
+    - Added `enrich_scan_row_timestamps()` converting local database MySQL datetimes into pure ISO 8601 UTC strings (`created_at_gmt`, `started_at_gmt`, `completed_at_gmt`) via native `get_gmt_from_date()`, ensuring historical audits remain 100% time-consistent even if the site timezone is modified in WordPress settings.
 - Next-Gen Pillar 5: Continuous Threat Intel Network & Automated Virtual Patching Ecosystem (`includes/Firewall/`, `ThreatIntelCockpitCard.tsx`, `VirtualPatchCard.tsx`, `ScannerRoutes.php`, `MCPAgentService.php`):
   * Multi-Feed Community Threat Intelligence Network (`ThreatIntelNetwork.php`):
     - Multi-Feed Aggregation: Aggregates threat intelligence from 4 community blocklists (Ipsum Level 1/2, Blocklist.de, and Tor Exit Nodes) with robust bitwise CIDR subnet matching (`ip_in_range`).

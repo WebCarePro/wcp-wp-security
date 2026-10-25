@@ -2388,6 +2388,7 @@ class ScannerRoutes {
                 $row['issues_found'] = (int) ($row['issues_found'] ?? 0);
                 $row['risk_score'] = (int) ($row['risk_score'] ?? 0);
                 $row['duration'] = is_numeric($row['duration'] ?? null) ? (float) $row['duration'] : 0.0;
+                $row = self::enrich_scan_row_timestamps($row);
                 $scans[] = $row;
             }
         }
@@ -2512,6 +2513,7 @@ class ScannerRoutes {
         $scan['scan_target_name'] = $detail_target_meta['name'];
         $scan['scan_target_short'] = $detail_target_meta['short_name'];
         $scan['scan_target_category'] = $detail_target_meta['category'];
+        $scan = self::enrich_scan_row_timestamps($scan);
 
         $scorer = new RiskScorer();
         $summary = $scorer->calculate($issues);
@@ -4646,6 +4648,34 @@ class ScannerRoutes {
         }
 
         return $res;
+    }
+
+    /**
+     * Enriches scan row with unambiguous ISO 8601 UTC / GMT timestamps
+     * using official WordPress get_gmt_from_date() conversion.
+     *
+     * @param array $row
+     * @return array
+     */
+    public static function enrich_scan_row_timestamps(array $row): array {
+        $tz_string = wp_timezone_string();
+        $row['site_timezone'] = $tz_string;
+        if (!empty($row['created_at'])) {
+            $row['created_at_gmt'] = get_gmt_from_date($row['created_at'], 'Y-m-d\TH:i:s\Z');
+        }
+        if (!empty($row['started_at'])) {
+            $base_s = substr($row['started_at'], 0, 19);
+            $sub_s  = substr($row['started_at'], 19);
+            $gmt_s  = get_gmt_from_date($base_s, 'Y-m-d\TH:i:s');
+            $row['started_at_gmt'] = $gmt_s ? ($gmt_s . ($sub_s ?: '') . 'Z') : null;
+        }
+        if (!empty($row['completed_at'])) {
+            $base_c = substr($row['completed_at'], 0, 19);
+            $sub_c  = substr($row['completed_at'], 19);
+            $gmt_c  = get_gmt_from_date($base_c, 'Y-m-d\TH:i:s');
+            $row['completed_at_gmt'] = $gmt_c ? ($gmt_c . ($sub_c ?: '') . 'Z') : null;
+        }
+        return $row;
     }
 
     /**
