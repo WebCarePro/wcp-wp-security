@@ -9,8 +9,11 @@ v:1.25.0 - 2026-10-25
     - Transitioned the top-level Emergency Containment modal bar out of the global layout into a dedicated first-class tab under "Incident Response & Lockdown" in Settings.
     - Added real-time containment telemetry card featuring instant status indicators, 4 active guard rail meters (Filesystem Freeze, Session Liquidation, Capability Demotion, Public Maintenance 503), and confirmation security modals.
     - Added an animated header containment status indicator badge (`wcpContainmentFlash`) that dynamically alerts administrators whenever emergency containment is active.
-  * WordPress Admin Sidebar Consolidation (`AdminMenu.php`):
-    - Consolidated WordPress admin sidebar down to 7 clean visible parent/sub-menu items matching the primary command pillars, while registering companion secondary views with `parent_slug = null` for zero sidebar clutter while preserving 100% deep-linking compatibility.
+  * Clean Separation of WAF & Host Infrastructure Telemetry (`ServerTelemetryPage.tsx`, `FirewallPage.tsx`, `App.tsx`, `AdminMenu.php`):
+    - Extracted dedicated Server & Host Infrastructure Telemetry view (`src/ServerTelemetryPage.tsx`) accessible via `wcp-scanner-server` and sub-navigation links.
+    - Relocated the bulky host infrastructure cockpit (Linux OS, Web Server, PHP RAM meter, Real Server IP, CDN IP, Dev Diagnostics) from the top of the Firewall (WAF) page into the dedicated Server Telemetry view.
+    - Streamlined the Firewall & WAF page so operational firewall telemetry (Firewall Status, Blocked Attacks, 24h Blocks, IP Safety) and defense tabs render immediately without vertical obstruction.
+    - Integrated bidirectional quick-jump navigation between Firewall rules and Server Host Telemetry.
 - WordPress.org Plugin Guidelines & Plugin Check (PCP) Compliance Hardening:
   * Internationalization (I18n) & Placeholders:
     - Added comprehensive `/* translators: ... */` annotations clarifying placeholder parameters across `UpdateGatekeeperEngine.php`, `MCPAgentService.php`, `EphemeralAdminEngine.php`, and `HIBPBreachAuditor.php`.

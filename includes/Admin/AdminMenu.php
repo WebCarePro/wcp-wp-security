@@ -177,11 +177,11 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Sub-Page: Server & PHP Environment Info
+        // Sub-Page: Server & Host Infrastructure Telemetry
         add_submenu_page(
             null,
-            __('Server & PHP Environment Info', 'wcp-security-scanner'),
-            __('Server Info', 'wcp-security-scanner'),
+            __('Server & Host Infrastructure Telemetry', 'wcp-security-scanner'),
+            __('Host Telemetry', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-server',
             [__CLASS__, 'render_app_container']
