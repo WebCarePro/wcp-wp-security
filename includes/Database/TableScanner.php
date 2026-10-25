@@ -227,8 +227,16 @@ class TableScanner {
                                 }
                             }
 
-                            // Whitelist check: Legitimate tracking scripts and popular CDNs (GTM, GA, Cloudflare, etc.)
+                            // Whitelist check: Legitimate tracking scripts, popular CDNs, and non-executable data islands (Schema.org JSON-LD / JSON data)
                             if ($rule_key === 'script_tag_injection') {
+                                // Benign data script tags (e.g. Schema.org JSON-LD, structured data, state islands)
+                                if (preg_match('/<script[^>]*type\s*=\s*["\']application\/(ld\+json|json)["\']/i', $matches[0])) {
+                                    // Ensure it does not contain inline execution escapes or javascript URI droppers
+                                    if (!preg_match('/(eval\s*\(|base64_decode\s*\(|document\.write|window\[|\bjavascript:)/i', $matches[0])) {
+                                        continue; // Legitimate structured data / JSON-LD metadata
+                                    }
+                                }
+
                                 if (preg_match('/(googletagmanager\.com|google-analytics\.com|clarity\.ms|connect\.facebook\.net|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|code\.jquery\.com|stripe\.com|recaptcha\.net|google\.com\/recaptcha)/i', $matches[0])) {
                                     continue; // Legitimate analytics/marketing/library script
                                 }

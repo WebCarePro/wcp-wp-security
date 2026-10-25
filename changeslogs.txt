@@ -11,6 +11,9 @@ v:1.25.0 - 2026-10-25
 - False-Positive Immunity for Hostname & TLD Validators (`includes/Malware/SuspiciousStringDetector.php`):
   * Resolved false-positive detection on legitimate network/SMTP libraries (such as Post SMTP / Zend Framework `Hostname.php`).
   * Expanded `$is_dict_or_validator` exclusion to include `hostname` and `validate` path tokens. Benign TLD dictionaries containing top-level domains like `.casino` and `.poker` are no longer flagged as malicious SEO spam.
+- False-Positive Immunity for Schema.org JSON-LD & Structured Data Islands (`includes/Database/TableScanner.php`):
+  * Eliminated false-positive XSS injection alerts (`script_tag_injection`) on database tables storing email or audit logs (such as Post SMTP `wp_post_smtp_logs.original_message`).
+  * Updated `TableScanner` to recognize benign, non-executable data script islands (`type="application/ld+json"` and `type="application/json"`), ensuring legitimate Schema.org structured data (e.g. `SecurityIncident` notification envelopes) is ignored while true executable scripts and disguised payloads with evaluation escapes (`eval`, `base64_decode`, `document.write`, `javascript:`) remain strictly detected.
 - Architectural Ecosystem Comparison & Honest Limitations (`README.MD`, blog post #66):
   * Added balanced architectural comparison matrix contrasting WCP Security Scanner against Wordfence, Sucuri, and Patchstack.
   * Documented honest operational trade-offs: on-server resource consumption, no 24/7 corporate threat SOC, and zero cloud DDoS scrubbing, positioning WCP accurately for SysAdmins and operators demanding local privacy and streaming memory efficiency.
