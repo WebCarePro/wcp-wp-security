@@ -356,6 +356,11 @@ class SettingsManager {
             'wcpscan_revoke_user_session'            => 'confirmation_required',
             'wcpscan_grant_ephemeral_elevation'      => 'confirmation_required',
             'wcpscan_revoke_ephemeral_elevation'     => 'confirmation_required',
+            'wcpscan_get_threat_intel_network'       => 'allowed',
+            'wcpscan_sync_threat_intel'              => 'allowed',
+            'wcpscan_synthesize_virtual_patch'       => 'confirmation_required',
+            'wcpscan_test_virtual_patch'             => 'allowed',
+            'wcpscan_deploy_synthesized_patch'       => 'confirmation_required',
         ];
     }
 

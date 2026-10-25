@@ -6,6 +6,8 @@ use WcpScanner\Integrity\BehavioralBaselineEngine;
 use WcpScanner\Remediation\TransactionalRemediation;
 use WcpScanner\Quarantine\QuarantineManager;
 use WcpScanner\Firewall\VirtualPatchManager;
+use WcpScanner\Firewall\ThreatIntelNetwork;
+use WcpScanner\Firewall\VirtualPatchSynthesizer;
 use WcpScanner\System\SettingsManager;
 use WcpScanner\Findings\RiskScorer;
 use WcpScanner\Security\AttackSimulationEngine;
@@ -37,6 +39,8 @@ class MCPAgentService {
         'wcpscan_get_gatekeeper_history',
         'wcpscan_get_behavioral_waf_status',
         'wcpscan_get_identity_forensics',
+        'wcpscan_get_threat_intel_network',
+        'wcpscan_test_virtual_patch',
     ];
 
     const MUTATING_TOOLS = [
@@ -53,6 +57,9 @@ class MCPAgentService {
         'wcpscan_revoke_user_session',
         'wcpscan_grant_ephemeral_elevation',
         'wcpscan_revoke_ephemeral_elevation',
+        'wcpscan_sync_threat_intel',
+        'wcpscan_synthesize_virtual_patch',
+        'wcpscan_deploy_synthesized_patch',
     ];
 
     const AUDIT_OPTION_KEY  = 'wcpscan_mcp_audit_log';
@@ -491,6 +498,123 @@ class MCPAgentService {
                     'required' => ['user_id'],
                 ],
             ],
+            [
+                'name'        => 'wcpscan_get_threat_intel_network',
+                'description' => 'Retrieve live multi-feed threat intelligence telemetry, active botnet blacklist counts, Tor exit relays, attack consensus hash ring, and top attacking subnets.',
+                'category'    => 'read',
+                'isMutating'  => false,
+                'policy'      => self::get_tool_policy('wcpscan_get_threat_intel_network'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_sync_threat_intel',
+                'description' => 'Trigger real-time synchronization and aggregation of all 4 external threat intelligence community feeds (Ipsum L1/L2, Blocklist.de, Tor Exits).',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_sync_threat_intel'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_synthesize_virtual_patch',
+                'description' => 'Synthesize a custom two-tier virtual hotpatch rule (PHP WAF regex + Cloudflare Free Edge expression) with immediate in-memory synthetic payload dry-run benchmark.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_synthesize_virtual_patch'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'cve_id'      => [
+                            'type'        => 'string',
+                            'description' => 'CVE or vulnerability identifier (e.g. CVE-2024-99999 or HOTPATCH-CUSTOM)',
+                        ],
+                        'component'   => [
+                            'type'        => 'string',
+                            'description' => 'Target plugin or theme component slug (e.g. elementor, give, custom-plugin)',
+                        ],
+                        'vector_type' => [
+                            'type'        => 'string',
+                            'enum'        => ['sqli', 'rce', 'file_upload', 'auth_bypass', 'path_traversal', 'ssrf', 'custom'],
+                            'description' => 'Vulnerability exploit vector',
+                        ],
+                        'target_uris' => [
+                            'type'        => 'string',
+                            'description' => 'Comma-separated target URI paths (e.g. /wp-admin/admin-ajax.php, /wp-json/)',
+                        ],
+                        'parameters'  => [
+                            'type'        => 'string',
+                            'description' => 'Comma-separated vulnerable parameter names (e.g. id, action, file)',
+                        ],
+                        'custom_regex'=> [
+                            'type'        => 'string',
+                            'description' => 'Optional explicit regular expression override',
+                        ],
+                        'severity'    => [
+                            'type'        => 'string',
+                            'enum'        => ['critical', 'high', 'medium'],
+                            'default'     => 'high',
+                        ],
+                    ],
+                    'required' => ['vector_type'],
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_test_virtual_patch',
+                'description' => 'Execute an in-memory synthetic simulation against candidate virtual patch rules, testing 3 calibrated exploits and 3 benign queries to benchmark match rate and latency.',
+                'category'    => 'read',
+                'isMutating'  => false,
+                'policy'      => self::get_tool_policy('wcpscan_test_virtual_patch'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'patch' => [
+                            'type'        => 'object',
+                            'description' => 'Virtual patch object containing php_rule with regex',
+                        ],
+                    ],
+                    'required' => ['patch'],
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_deploy_synthesized_patch',
+                'description' => 'Deploy, activate, toggle, or delete a synthesized virtual hotpatch with optional Cloudflare Global Edge synchronization.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_deploy_synthesized_patch'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'action'                => [
+                            'type'        => 'string',
+                            'enum'        => ['deploy', 'toggle', 'delete'],
+                            'description' => 'Action to perform',
+                        ],
+                        'patch_id'              => [
+                            'type'        => 'string',
+                            'description' => 'Synthesized patch identifier',
+                        ],
+                        'patch'                 => [
+                            'type'        => 'object',
+                            'description' => 'Synthesized patch definition (required for deploy)',
+                        ],
+                        'enable'                => [
+                            'type'        => 'boolean',
+                            'description' => 'Enable or disable state (for toggle action)',
+                        ],
+                        'deploy_to_cloudflare'  => [
+                            'type'        => 'boolean',
+                            'description' => 'Push rule to Cloudflare Global Edge WAF (if configured)',
+                            'default'     => false,
+                        ],
+                    ],
+                    'required' => ['action'],
+                ],
+            ],
         ];
 
         return [
@@ -759,6 +883,26 @@ class MCPAgentService {
 
             case 'wcpscan_revoke_ephemeral_elevation':
                 $response = self::tool_revoke_ephemeral_elevation($args);
+                break;
+
+            case 'wcpscan_get_threat_intel_network':
+                $response = self::tool_get_threat_intel_network();
+                break;
+
+            case 'wcpscan_sync_threat_intel':
+                $response = self::tool_sync_threat_intel();
+                break;
+
+            case 'wcpscan_synthesize_virtual_patch':
+                $response = self::tool_synthesize_virtual_patch($args);
+                break;
+
+            case 'wcpscan_test_virtual_patch':
+                $response = self::tool_test_virtual_patch($args);
+                break;
+
+            case 'wcpscan_deploy_synthesized_patch':
+                $response = self::tool_deploy_synthesized_patch($args);
                 break;
 
             default:
@@ -1503,6 +1647,128 @@ class MCPAgentService {
         }
 
         $res = \WcpScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_get_threat_intel_network(): array {
+        $telemetry = ThreatIntelNetwork::get_network_telemetry();
+        return [
+            'isError' => false,
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($telemetry, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $telemetry,
+        ];
+    }
+
+    private static function tool_sync_threat_intel(): array {
+        $sync_res = ThreatIntelNetwork::sync_all_feeds();
+        $telemetry = ThreatIntelNetwork::get_network_telemetry();
+        $payload = [
+            'sync'      => $sync_res,
+            'telemetry' => $telemetry,
+        ];
+
+        return [
+            'isError' => empty($sync_res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($payload, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $payload,
+        ];
+    }
+
+    private static function tool_synthesize_virtual_patch(array $args): array {
+        $res = VirtualPatchSynthesizer::synthesize_patch($args);
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_test_virtual_patch(array $args): array {
+        $patch = $args['patch'] ?? [];
+        if (empty($patch) || empty($patch['php_rule']['regex'])) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Missing parameter: patch object with valid regex is required.']],
+            ];
+        }
+
+        $custom_payloads = $args['custom_payloads'] ?? null;
+        $sim_res = VirtualPatchSynthesizer::run_dryrun_simulation($patch, $custom_payloads);
+
+        return [
+            'isError' => ($sim_res['status'] === 'failed'),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($sim_res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $sim_res,
+        ];
+    }
+
+    private static function tool_deploy_synthesized_patch(array $args): array {
+        $action = sanitize_key($args['action'] ?? 'deploy');
+        $patch_id = sanitize_text_field($args['patch_id'] ?? '');
+
+        if ($action === 'deploy') {
+            $patch = $args['patch'] ?? [];
+            if (empty($patch['patch_id'])) {
+                return [
+                    'isError' => true,
+                    'content' => [['type' => 'text', 'text' => 'Missing parameter: patch object is required for deploy.']],
+                ];
+            }
+            $deploy_cf = !empty($args['deploy_to_cloudflare']);
+            $res = VirtualPatchSynthesizer::save_synthesized_patch($patch, $deploy_cf);
+        } elseif ($action === 'toggle') {
+            if (empty($patch_id)) {
+                return [
+                    'isError' => true,
+                    'content' => [['type' => 'text', 'text' => 'Missing parameter: patch_id is required for toggle.']],
+                ];
+            }
+            $enable = !empty($args['enable']);
+            $res = VirtualPatchSynthesizer::toggle_synthesized_patch($patch_id, $enable);
+        } elseif ($action === 'delete') {
+            if (empty($patch_id)) {
+                return [
+                    'isError' => true,
+                    'content' => [['type' => 'text', 'text' => 'Missing parameter: patch_id is required for delete.']],
+                ];
+            }
+            $res = VirtualPatchSynthesizer::delete_synthesized_patch($patch_id);
+        } else {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Invalid action: must be deploy, toggle, or delete.']],
+            ];
+        }
+
         return [
             'isError' => empty($res['success']),
             'content' => [

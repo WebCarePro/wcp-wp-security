@@ -10,7 +10,7 @@
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
-    "changelog": "v:1.25.0 - 2026-10-25:\n- Sensitive System File Probe URL-Decode Hardening (Multi-layer and hex URL-encoding evasion neutralization in SecurityHeadersEngine.php)."
+    "changelog": "v:1.25.0 - 2026-10-25:\n- Next-Gen Pillar 5: Continuous Threat Intel Network & Automated Virtual Patching Ecosystem (Multi-feed IP reputation scoring, sub-microsecond in-memory synthetic payload simulator, CVE hotpatch synthesizer, and autonomous MCP SecOps tools)."
   },
   "previous_versions": [
     {

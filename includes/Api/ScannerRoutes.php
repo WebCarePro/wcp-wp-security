@@ -24,6 +24,8 @@ use WcpScanner\WordPress\CronScanner;
 use WcpScanner\WordPress\PersistenceScanner;
 use WcpScanner\Forensics\AttackChainEngine;
 use WcpScanner\Firewall\VirtualPatchManager;
+use WcpScanner\Firewall\ThreatIntelNetwork;
+use WcpScanner\Firewall\VirtualPatchSynthesizer;
 use WcpScanner\Filesystem\PathValidator;
 use WcpScanner\Reports\IncidentReportEngine;
 
@@ -1204,6 +1206,61 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/identity/dismiss-travel-alert', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'dismiss_impossible_travel_alert'],
+            'permission_callback' => $permission,
+        ]);
+
+        // 20. Continuous Threat Intel Network & Automated Virtual Patching Ecosystem (Pillar 5)
+        register_rest_route(self::NAMESPACE, '/threat-intel/network', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_threat_intel_network'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/threat-intel/sync', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'sync_threat_intel_network'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/threat-intel/reputation-check', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'check_threat_intel_reputation'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/synthesized', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_synthesized_virtual_patches'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/synthesize', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'synthesize_virtual_patch'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/test-simulation', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'test_virtual_patch_simulation'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/deploy-synthesized', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'deploy_synthesized_virtual_patch'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/toggle-synthesized', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_synthesized_virtual_patch'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/virtual-patch/delete-synthesized', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'delete_synthesized_virtual_patch'],
             'permission_callback' => $permission,
         ]);
     }
@@ -8260,6 +8317,125 @@ class ScannerRoutes {
 
         $res = \WcpScanner\System\PluginUpdater::execute_rollback($backup_id, $download_url);
         return rest_ensure_response($res);
+    }
+
+    // =========================================================================
+    // Pillar 5: Continuous Threat Intel Network & Automated Virtual Patching Ecosystem
+    // =========================================================================
+
+    public static function get_threat_intel_network(\WP_REST_Request $request) {
+        $telemetry = ThreatIntelNetwork::get_network_telemetry();
+        return rest_ensure_response([
+            'success'   => true,
+            'telemetry' => $telemetry,
+        ]);
+    }
+
+    public static function sync_threat_intel_network(\WP_REST_Request $request) {
+        $res = ThreatIntelNetwork::sync_all_feeds();
+        $telemetry = ThreatIntelNetwork::get_network_telemetry();
+        return rest_ensure_response([
+            'success'   => true,
+            'sync'      => $res,
+            'telemetry' => $telemetry,
+            'message'   => sprintf(
+                /* translators: 1: total active threat IPs, 2: total Tor nodes */
+                __('Threat intelligence feeds synchronized! Active pool: %1$d botnet IPs, %2$d Tor exit nodes.', 'wcp-security-scanner'),
+                $res['total_active_ips'] ?? 0,
+                $res['tor_exit_nodes_count'] ?? 0
+            ),
+        ]);
+    }
+
+    public static function check_threat_intel_reputation(\WP_REST_Request $request) {
+        $ip = sanitize_text_field($request->get_param('ip') ?: '');
+        if (empty($ip)) {
+            $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1';
+        }
+
+        $assessment = ThreatIntelNetwork::calculate_reputation_score($ip);
+        return rest_ensure_response([
+            'success'    => true,
+            'assessment' => $assessment,
+        ]);
+    }
+
+    public static function get_synthesized_virtual_patches(\WP_REST_Request $request) {
+        $patches = VirtualPatchSynthesizer::get_synthesized_patches();
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $cf_ready = !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
+
+        return rest_ensure_response([
+            'success'          => true,
+            'patches'          => array_values($patches),
+            'total'            => count($patches),
+            'cloudflare_ready' => $cf_ready,
+        ]);
+    }
+
+    public static function synthesize_virtual_patch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $result = VirtualPatchSynthesizer::synthesize_patch($params);
+
+        if (!$result['success']) {
+            return new \WP_Error('synthesis_failed', $result['message'], ['status' => 400]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    public static function test_virtual_patch_simulation(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $patch = $params['patch'] ?? [];
+        $custom_payloads = $params['custom_payloads'] ?? null;
+
+        if (empty($patch) || empty($patch['php_rule']['regex'])) {
+            return new \WP_Error('missing_patch_rule', __('Virtual patch definition and regex pattern are required for simulation.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $simulation = VirtualPatchSynthesizer::run_dryrun_simulation($patch, $custom_payloads);
+        return rest_ensure_response([
+            'success'    => true,
+            'simulation' => $simulation,
+        ]);
+    }
+
+    public static function deploy_synthesized_virtual_patch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $patch = $params['patch'] ?? [];
+        $deploy_cf = !empty($params['deploy_to_cloudflare']);
+
+        if (empty($patch['patch_id'])) {
+            return new \WP_Error('missing_patch_id', __('Valid patch definition with patch_id is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = VirtualPatchSynthesizer::save_synthesized_patch($patch, $deploy_cf);
+        return rest_ensure_response($result);
+    }
+
+    public static function toggle_synthesized_virtual_patch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $patch_id = sanitize_text_field($params['patch_id'] ?? '');
+        $enable = !empty($params['enable']);
+
+        if (empty($patch_id)) {
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = VirtualPatchSynthesizer::toggle_synthesized_patch($patch_id, $enable);
+        return rest_ensure_response($result);
+    }
+
+    public static function delete_synthesized_virtual_patch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $patch_id = sanitize_text_field($params['patch_id'] ?? '');
+
+        if (empty($patch_id)) {
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = VirtualPatchSynthesizer::delete_synthesized_patch($patch_id);
+        return rest_ensure_response($result);
     }
 }
 

@@ -138,8 +138,19 @@ class VirtualPatchManager {
     public static function get_active_patches(): array {
         $patches = get_option(self::OPTION_PATCHES, []);
         if (!is_array($patches)) {
-            return [];
+            $patches = [];
         }
+
+        // Merge active synthesized virtual hotpatches
+        $synthesized = get_option(VirtualPatchSynthesizer::OPTION_SYNTHESIZED_PATCHES, []);
+        if (is_array($synthesized) && !empty($synthesized)) {
+            foreach ($synthesized as $s_id => $s_patch) {
+                if (!empty($s_patch['enabled'])) {
+                    $patches[$s_id] = $s_patch;
+                }
+            }
+        }
+
         return $patches;
     }
 
