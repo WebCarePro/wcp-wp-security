@@ -10,6 +10,7 @@ v:1.25.0 - 2026-10-25
     - Added "Targeted Allowlist Bypasses" and "Allowed (Targeted Bypass)" quick filter options and high-contrast emerald status badges in `WafLogsPage.tsx`.
   * Interactive UI Rule Manager & 31 Quick Integration Presets:
     - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals, active/disabled toggles, method selectors with vivid emerald active states, and 31 categorized presets across E-Commerce, Payments, Shipping, Marketing & CRM, Membership & LMS, and Automation.
+    - Replaced disruptive native browser `confirm()` popup dialog with an elegant inline deletion confirmation popover directly positioned beneath the delete action button with "Cancel" and "Confirm Delete" actions.
   * Smart Plugin Integration Auto-Detection:
     - Automatically discovers active plugins installed on the site (via `FirewallEngine::get_active_plugin_slugs()` and `active_plugin_slugs` telemetry).
     - Features a smart recommendation banner that detects installed plugins (e.g. WooCommerce, Stripe, Klaviyo, MemberPress, LearnDash, etc.) with unconfigured bypass rules.
