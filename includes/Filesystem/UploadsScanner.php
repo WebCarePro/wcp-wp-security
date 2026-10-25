@@ -86,7 +86,7 @@ class UploadsScanner {
                 $normalized_path = str_replace('\\', '/', $real_path);
 
                 // Exclude plugin's internal secure storage (quarantine, logs, backups) and common cache directories
-                if (preg_match('#/(wcp-security-scanner|node_modules|\.git|updraft|wfcache)/#i', $normalized_path)) {
+                if (preg_match('#/(wcp-security-scanner|wcp-scanner-quarantine|node_modules|\.git|updraft|wfcache)/#i', $normalized_path)) {
                     continue;
                 }
 

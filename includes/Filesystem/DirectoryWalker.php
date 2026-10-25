@@ -20,6 +20,7 @@ class DirectoryWalker {
         'updraft',
         'wcp-security-scanner',
         'wcp-wp-scanner',
+        'wcp-scanner-quarantine',
         '.vault',
         '.backups',
         '.logs',
@@ -27,6 +28,7 @@ class DirectoryWalker {
         'wp-content/cache',
         'wp-content/upgrade',
         'wp-content/uploads/wcp-security-scanner',
+        'wp-content/uploads/wcp-scanner-quarantine',
     ];
 
     /** Safe media/document extensions we skip early during deep code inspection */

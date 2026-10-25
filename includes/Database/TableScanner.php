@@ -58,7 +58,14 @@ class TableScanner {
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $tables = $wpdb->get_col("SHOW TABLES");
-        return is_array($tables) ? $tables : [];
+        if (!is_array($tables)) {
+            return [];
+        }
+
+        // Whitelist / exclude our own security scanner internal tables (e.g. firewall logs, audit logs, scan issues)
+        return array_values(array_filter($tables, function($t) {
+            return stripos($t, 'wcpscan_') === false;
+        }));
     }
 
     /**
@@ -169,7 +176,7 @@ class TableScanner {
                 }
             }
 
-            // Skip cached transients in options tables (e.g. RSS feeds from wordpress.org dashboard widgets)
+            // Skip cached transients and internal security scanner options in options tables
             $is_options_table = (strpos($table, 'options') !== false);
             if ($is_options_table && isset($row['option_name'])) {
                 $opt_name = strtolower($row['option_name']);
@@ -177,8 +184,10 @@ class TableScanner {
                     strpos($opt_name, '_site_transient_') === 0 ||
                     strpos($opt_name, 'rss_') === 0 ||
                     strpos($opt_name, 'feed_') === 0 ||
-                    strpos($opt_name, 'cache_') === 0) {
-                    continue; // Skip transient/cache entries
+                    strpos($opt_name, 'cache_') === 0 ||
+                    strpos($opt_name, 'wcpscan_') === 0 ||
+                    strpos($opt_name, 'wcp_') === 0) {
+                    continue; // Skip transient/cache entries and plugin's own internal security telemetry options
                 }
             }
 
