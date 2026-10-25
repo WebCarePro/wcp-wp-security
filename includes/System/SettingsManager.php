@@ -103,6 +103,7 @@ class SettingsManager {
             'waf_allow_page_builders'           => false, // Visual Page Builder & Editor Smart Pass (off by default, recommended when Elementor/Divi active)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
             'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
+            'waf_targeted_allowlist_rules'      => '[]', // Granular User-Agent, Endpoint & IP allowlist rules (JSON string)
             'waf_block_forbidden_usernames'     => true, // Immediately block IP trying to sign in as forbidden honeypot usernames
             'waf_forbidden_usernames_list'      => "admin\nadministrator\nroot", // Forbidden/honeypot username list
             'waf_prevent_admin_registration'    => true, // Prevent users from registering 'admin' username
@@ -573,6 +574,44 @@ class SettingsManager {
         $clean['waf_ecommerce_safe_mode']         = !empty($merged['waf_ecommerce_safe_mode']);
         $clean['waf_block_empty_post_ua_referer'] = !empty($merged['waf_block_empty_post_ua_referer']);
         $clean['waf_whitelisted_urls']            = sanitize_textarea_field($merged['waf_whitelisted_urls'] ?? '');
+
+        // Targeted User-Agent, Endpoint & IP Allowlist Rules
+        $raw_targeted = $merged['waf_targeted_allowlist_rules'] ?? '[]';
+        if (is_array($raw_targeted)) {
+            $parsed_targeted = $raw_targeted;
+        } else {
+            $parsed_targeted = json_decode((string) $raw_targeted, true);
+        }
+        $clean_targeted = [];
+        if (is_array($parsed_targeted)) {
+            foreach ($parsed_targeted as $rule) {
+                if (!is_array($rule)) {
+                    continue;
+                }
+                $rule_id = !empty($rule['id']) ? sanitize_key($rule['id']) : 'rule_' . substr(md5(uniqid((string) wp_rand(), true)), 0, 8);
+                $clean_targeted[] = [
+                    'id'           => $rule_id,
+                    'name'         => sanitize_text_field($rule['name'] ?? 'Custom Allowlist Rule'),
+                    'enabled'      => isset($rule['enabled']) ? (bool) $rule['enabled'] : true,
+                    'user_agents'  => is_array($rule['user_agents'] ?? null) 
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['user_agents'])))
+                        : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['user_agents'] ?? '')))))),
+                    'endpoints'    => is_array($rule['endpoints'] ?? null)
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['endpoints'])))
+                        : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['endpoints'] ?? '')))))),
+                    'ip_addresses' => is_array($rule['ip_addresses'] ?? null)
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['ip_addresses'])))
+                        : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['ip_addresses'] ?? '')))))),
+                    'methods'      => is_array($rule['methods'] ?? null)
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['methods'])))
+                        : ['ALL'],
+                    'log_payload'  => isset($rule['log_payload']) ? (bool) $rule['log_payload'] : true,
+                    'description'  => sanitize_text_field($rule['description'] ?? ''),
+                ];
+            }
+        }
+        $clean['waf_targeted_allowlist_rules']    = wp_json_encode($clean_targeted);
+
         $clean['waf_block_forbidden_usernames']   = !empty($merged['waf_block_forbidden_usernames']);
         $clean['waf_forbidden_usernames_list']    = sanitize_textarea_field($merged['waf_forbidden_usernames_list'] ?? "admin\nadministrator\nroot");
         $clean['waf_prevent_admin_registration']  = !empty($merged['waf_prevent_admin_registration']);

@@ -1,4 +1,15 @@
 v:1.25.0 - 2026-10-25
+- Targeted User-Agent, Endpoint & IP Granular Firewall Allowlist Rules (`FirewallEngine.php`, `SettingsManager.php`, `TargetedAllowlistManagerCard.tsx`, `FirewallPage.tsx`, `WafLogsPage.tsx`):
+  * Granular Zero-Trust Firewall Bypass Engine:
+    - Added high-performance rule engine allowing administrators to define targeted bypass rules combining Client User-Agent patterns (with wildcards `*`), Target API / URI paths (with wildcards `*`), HTTP Methods (`ALL`, `GET`, `POST`, `PUT`, `DELETE`), and optional client IP / CIDR subnets (`192.168.1.0/24`).
+    - If IP field is left blank, any IP matching the User-Agent and target endpoint is granted safe bypass (ideal for third-party cloud services like Klaviyo, Zapier, Stripe, or WooCommerce mobile app).
+    - If IP or CIDR subnets are specified, both the IP and the User-Agent/endpoint must match simultaneously, preventing User-Agent header spoofing attacks.
+  * Deep Forensic WAF Logging for Allowed API Traffic:
+    - Bypassed requests under targeted allowlist rules are logged with `action_taken = 'allowed'` and `http_status_code = 200` into `wcpscan_firewall_logs`.
+    - Captures complete inbound query parameters, HTTP method, client IP, User-Agent, and raw request payload / body telemetry (`php://input` / `$_POST`) for thorough auditability.
+    - Added "Targeted Allowlist Bypasses" and "Allowed (Targeted Bypass)" quick filter options and high-contrast emerald status badges in `WafLogsPage.tsx`.
+  * Interactive UI Rule Manager & Quick Presets:
+    - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals, active/disabled toggles, method selectors, and one-click quick presets for Klaviyo, WooCommerce Mobile App, Stripe, and Zapier/Make.
 - Navigation Architecture Modernization & Two-Tier Command Hub (`src/App.tsx`, `src/components/`, `src/SettingsPage.tsx`, `includes/Admin/AdminMenu.php`):
   * Unified Two-Tier Command Navigation:
     - Tier-1 Master Header: Streamlined global header down to 6 core functional pillars: Dashboard, Scanner, Firewall, Identity, Vault & Tools, and Settings.

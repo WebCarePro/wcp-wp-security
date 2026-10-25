@@ -660,6 +660,20 @@ class FirewallEngine {
             return;
         }
 
+        // Check Targeted User-Agent, Endpoint & IP Allowlist Rules (Zero-Trust granular bypass)
+        $targeted_rules_raw = $settings['waf_targeted_allowlist_rules'] ?? '[]';
+        $targeted_rules = is_array($targeted_rules_raw) ? $targeted_rules_raw : json_decode((string) $targeted_rules_raw, true);
+        if (!empty($targeted_rules) && is_array($targeted_rules)) {
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+            $http_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+            $matched_rule = self::match_targeted_allowlist_rule($request_uri, $user_agent, $client_ip, $http_method, $targeted_rules);
+            if ($matched_rule !== null) {
+                // Log granular forensic telemetry to WAF logs
+                self::log_targeted_allowlist_hit($matched_rule, $client_ip, $request_uri, $user_agent, $http_method);
+                return; // Granted safe bypass
+            }
+        }
+
         // Adaptive Rate Limiter & Token-Bucket Throttling
         if (class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')) {
             \WcpScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
@@ -3232,6 +3246,199 @@ class FirewallEngine {
         return false;
     }
 
+    /**
+     * Check if an incoming request matches any Targeted Allowlist Rules (User-Agent, Endpoint, and optional IP)
+     * If matched, returns the matching rule definition array, or null if no match.
+     */
+    public static function match_targeted_allowlist_rule(string $uri, string $user_agent, string $ip, string $method, array $rules): ?array {
+        if (empty($rules)) {
+            return null;
+        }
+
+        $path = (string) wp_parse_url($uri, PHP_URL_PATH);
+        if (empty($path)) {
+            $path = '/';
+        }
+        $upper_method = strtoupper($method);
+
+        foreach ($rules as $rule) {
+            if (empty($rule['enabled'])) {
+                continue;
+            }
+
+            // 1. Method Check
+            $allowed_methods = !empty($rule['methods']) && is_array($rule['methods']) ? array_map('strtoupper', $rule['methods']) : ['ALL'];
+            if (!in_array('ALL', $allowed_methods, true) && !in_array($upper_method, $allowed_methods, true)) {
+                continue;
+            }
+
+            // 2. IP / Subnet Check (If empty, any IP is allowed)
+            $rule_ips = !empty($rule['ip_addresses']) && is_array($rule['ip_addresses']) ? $rule['ip_addresses'] : [];
+            if (!empty($rule_ips)) {
+                $ip_matched = false;
+                foreach ($rule_ips as $target_ip) {
+                    $target_ip = trim($target_ip);
+                    if ($target_ip === '') {
+                        continue;
+                    }
+                    if ($target_ip === $ip || (strpos($target_ip, '/') !== false && self::ip_in_range($ip, $target_ip))) {
+                        $ip_matched = true;
+                        break;
+                    }
+                }
+                if (!$ip_matched) {
+                    continue; // IP condition specified but didn't match
+                }
+            }
+
+            // 3. Endpoint / URL Check (If empty, any endpoint passes)
+            $rule_endpoints = !empty($rule['endpoints']) && is_array($rule['endpoints']) ? $rule['endpoints'] : [];
+            if (!empty($rule_endpoints)) {
+                $endpoint_matched = false;
+                foreach ($rule_endpoints as $endpoint_pattern) {
+                    $endpoint_pattern = trim($endpoint_pattern);
+                    if ($endpoint_pattern === '') {
+                        continue;
+                    }
+                    // Strip host/query for matching
+                    $clean_pattern = (string) wp_parse_url($endpoint_pattern, PHP_URL_PATH);
+                    if (empty($clean_pattern)) {
+                        $clean_pattern = $endpoint_pattern;
+                    }
+
+                    // Check exact, wildcard, or prefix
+                    if (strpos($clean_pattern, '*') !== false) {
+                        $regex = '#^' . str_replace('\*', '.*', preg_quote($clean_pattern, '#')) . '$#i';
+                        if (preg_match($regex, $uri) || preg_match($regex, $path)) {
+                            $endpoint_matched = true;
+                            break;
+                        }
+                    } else {
+                        // Exact match or prefix match
+                        if ($uri === $clean_pattern || $path === $clean_pattern || strpos($path, rtrim($clean_pattern, '/')) === 0) {
+                            $endpoint_matched = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$endpoint_matched) {
+                    continue; // Endpoint condition specified but didn't match
+                }
+            }
+
+            // 4. User-Agent Check (If empty, any User-Agent passes)
+            $rule_uas = !empty($rule['user_agents']) && is_array($rule['user_agents']) ? $rule['user_agents'] : [];
+            if (!empty($rule_uas)) {
+                $ua_matched = false;
+                foreach ($rule_uas as $ua_pattern) {
+                    $ua_pattern = trim($ua_pattern);
+                    if ($ua_pattern === '') {
+                        continue;
+                    }
+                    if (strpos($ua_pattern, '*') !== false) {
+                        $regex = '#^' . str_replace('\*', '.*', preg_quote($ua_pattern, '#')) . '$#i';
+                        if (preg_match($regex, $user_agent)) {
+                            $ua_matched = true;
+                            break;
+                        }
+                    } else {
+                        if (stripos($user_agent, $ua_pattern) !== false) {
+                            $ua_matched = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$ua_matched) {
+                    continue; // User-Agent condition specified but didn't match
+                }
+            }
+
+            // If we reached here, all specified conditions matched!
+            return $rule;
+        }
+
+        return null;
+    }
+
+    /**
+     * Log targeted allowlist bypass to WAF database with deep forensic telemetry
+     */
+    public static function log_targeted_allowlist_hit(array $rule, string $ip, string $uri, string $user_agent, string $method): void {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+
+        // Check if table exists
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $table_check = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+        if ($table_check !== $table) {
+            return;
+        }
+
+        $incident_id = 'WCP-ALLOW-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
+        $rule_name = sanitize_text_field($rule['name'] ?? 'Targeted Allowlist');
+
+        // Capture in-depth request payload & query details
+        $raw_body = '';
+        if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            // Read raw body stream or $_POST
+            $raw_input = file_get_contents('php://input');
+            if (!empty($raw_input)) {
+                $raw_body = substr($raw_input, 0, 4000);
+            } elseif (!empty($_POST)) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                $raw_body = wp_json_encode($_POST);
+            }
+        }
+
+        // Capture Query string or $_GET
+        $query_str = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
+
+        $forensic_summary = [
+            'rule_id'     => $rule['id'] ?? 'unknown',
+            'rule_name'   => $rule_name,
+            'query_data'  => !empty($query_str) ? $query_str : null,
+            'body_sample' => !empty($raw_body) ? (strlen($raw_body) > 3000 ? substr($raw_body, 0, 3000) . '... [truncated]' : $raw_body) : null,
+            'client_ip'   => $ip,
+            'user_agent'  => $user_agent,
+        ];
+
+        $payload_json = wp_json_encode($forensic_summary);
+        $referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : null;
+
+        // Rate limit logging for the same IP & rule to once every 10 seconds to avoid DB flooding on heavy sync batches
+        $recent_sql = "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = 'targeted_allowlist' AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) LIMIT 1";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $recent = $wpdb->get_var($wpdb->prepare($recent_sql, $ip));
+        if ($recent) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $wpdb->insert(
+            $table,
+            [
+                'incident_id'      => $incident_id,
+                'ip_address'       => sanitize_text_field($ip),
+                'request_uri'      => sanitize_text_field(substr($uri, 0, 500)),
+                'request_method'   => sanitize_key(substr($method, 0, 10)),
+                'http_status_code' => 200,
+                'http_referer'     => !empty($referer) ? sanitize_text_field(substr($referer, 0, 500)) : null,
+                'rule_category'    => 'targeted_allowlist',
+                'rule_description' => sprintf(
+                    /* translators: 1: Rule name, 2: User Agent */
+                    __('Granted safe WAF bypass via rule "%1$s" for User-Agent: %2$s', 'wcp-security-scanner'),
+                    $rule_name,
+                    substr($user_agent, 0, 80)
+                ),
+                'payload_sample'   => sanitize_text_field($payload_json),
+                'user_agent'       => sanitize_text_field(substr($user_agent, 0, 300)),
+                'action_taken'     => 'allowed',
+                'created_at'       => current_time('mysql'),
+            ],
+            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+        );
+    }
+    
     /**
      * Intercept and audit uploaded files in real-time (Rule 8)
      */
