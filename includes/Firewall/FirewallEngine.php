@@ -3406,36 +3406,30 @@ class FirewallEngine {
         $referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : null;
 
         // Rate limit logging for the same IP & rule to once every 10 seconds to avoid DB flooding on heavy sync batches
-        $recent_sql = "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = 'targeted_allowlist' AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) LIMIT 1";
+        $recent_sql = "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = 'targeted_allowlist' AND rule_description LIKE %s AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) LIMIT 1";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $recent = $wpdb->get_var($wpdb->prepare($recent_sql, $ip));
+        $recent = $wpdb->get_var($wpdb->prepare($recent_sql, $ip, '%' . $wpdb->esc_like($rule_name) . '%'));
         if ($recent) {
             return;
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-        $wpdb->insert(
-            $table,
-            [
-                'incident_id'      => $incident_id,
-                'ip_address'       => sanitize_text_field($ip),
-                'request_uri'      => sanitize_text_field(substr($uri, 0, 500)),
-                'request_method'   => sanitize_key(substr($method, 0, 10)),
-                'http_status_code' => 200,
-                'http_referer'     => !empty($referer) ? sanitize_text_field(substr($referer, 0, 500)) : null,
-                'rule_category'    => 'targeted_allowlist',
-                'rule_description' => sprintf(
-                    /* translators: 1: Rule name, 2: User Agent */
-                    __('Granted safe WAF bypass via rule "%1$s" for User-Agent: %2$s', 'wcp-security-scanner'),
-                    $rule_name,
-                    substr($user_agent, 0, 80)
-                ),
-                'payload_sample'   => sanitize_text_field($payload_json),
-                'user_agent'       => sanitize_text_field(substr($user_agent, 0, 300)),
-                'action_taken'     => 'allowed',
-                'created_at'       => current_time('mysql'),
-            ],
-            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO `{$table}` (incident_id, ip_address, request_uri, request_method, http_status_code, http_referer, rule_category, rule_description, payload_sample, user_agent, action_taken, created_at)
+                 VALUES (%s, %s, %s, %s, %d, %s, %s, %s, %s, %s, %s, NOW())",
+                $incident_id,
+                sanitize_text_field($ip),
+                sanitize_text_field(substr($uri, 0, 500)),
+                sanitize_key(substr($method, 0, 10)),
+                200,
+                !empty($referer) ? sanitize_text_field(substr($referer, 0, 500)) : null,
+                'targeted_allowlist',
+                sprintf('Granted safe WAF bypass via rule "%1$s" for User-Agent: %2$s', $rule_name, substr($user_agent, 0, 80)),
+                sanitize_text_field($payload_json),
+                sanitize_text_field(substr($user_agent, 0, 300)),
+                'allowed'
+            )
         );
     }
     
