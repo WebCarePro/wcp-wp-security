@@ -166,6 +166,12 @@ To compile the React admin application from source:
 
 == Changelog ==
 
+= 1.25.0 =
+* Intelligent Prohibited Installation Armor: Added multi-stage WP Upgrader pipeline inspection (`upgrader_source_selection`) and deep archive stream sampling (`stream_get_contents`) to prevent upload or installation of phpMyAdmin, Adminer, and standalone File Manager web shells.
+* Full Dark Mode & High-Contrast Design Hardening: Synchronized all elevated surface and semantic status tokens (`--wcp-bg-surface-elevated`) across the settings hub, GitHub continuous updates, rollback vault tables, and Cloudflare telemetry.
+* WordPress.org Plugin Check Standards Remediation: Resolved all direct database query and file operation warnings across subsystems down to 0 actionable errors.
+* Sensitive File Probe Hardening: Upgraded `SecurityHeadersEngine` with multi-layer URL decoding to neutralize hex-encoded directory traversal and system probe evasion.
+
 = 1.24.0 =
 * Smart Shields & Verified Integrations Control Center: Granular reactive on/off switches for 5 intelligent false-positive bypasses with automatic environment detection and 1-click recommendation banners.
 * 34-Plugin E-Commerce & Membership Smart Shield: Expansive support for WooCommerce, EDD, SureCart, GiveWP, MemberPress, PMPro, Restrict Content Pro, SureMembers, ARMember, BuddyBoss, Youzify, and 23 others with cryptographic webhook signature authentication and active shopper session immunity.
