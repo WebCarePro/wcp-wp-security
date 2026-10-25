@@ -30,6 +30,11 @@ class FirewallEngine {
         // Initialize Bot Recon Defense & AI Scraper Shield
         BotReconDefense::init();
 
+        // Initialize Anti-Automation Honey-Token Traps & Phantom Decoy Grid
+        if (class_exists('\\WcpScanner\\Firewall\\HoneyTokenEngine')) {
+            HoneyTokenEngine::init();
+        }
+
         // Run early at plugins_loaded priority 0
         add_action('plugins_loaded', [__CLASS__, 'inspect_incoming_request'], 0);
 
@@ -655,6 +660,11 @@ class FirewallEngine {
             return;
         }
 
+        // Adaptive Rate Limiter & Token-Bucket Throttling
+        if (class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')) {
+            \WcpScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
+        }
+
         $is_drill_request = !empty($_GET['wcp_drill_token']) || !empty($_POST['wcp_drill_token']) || !empty($_SERVER['HTTP_X_WCP_DRILL_TOKEN']);
 
         // Safe Bypass for Verified Authenticated Administrators and Page Builder Sessions
@@ -1269,13 +1279,28 @@ class FirewallEngine {
             $mode = $settings['waf_mode'] ?? 'enabled';
 
             if ($mode === 'learning') {
-                // Log only, do not block
-                self::log_incident($rule_triggered, 'detected');
+                if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine') && \WcpScanner\Firewall\LearningModeEngine::is_route_graduated()) {
+                    // Graduated route: actively enforce blocking even in learning mode
+                    self::log_incident($rule_triggered, 'blocked');
+                    self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                } else {
+                    if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
+                        \WcpScanner\Firewall\LearningModeEngine::record_threat_encountered(\WcpScanner\Firewall\LearningModeEngine::get_current_route_key());
+                    }
+                    // Log only, do not block
+                    self::log_incident($rule_triggered, 'detected');
+                }
             } else {
                 // Enforce block
                 self::log_incident($rule_triggered, 'blocked');
                 self::render_block_page($rule_triggered, $client_ip);
                 exit;
+            }
+        } else {
+            // Clean request passed all firewall filters: profile route parameters
+            if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
+                \WcpScanner\Firewall\LearningModeEngine::profile_benign_request();
             }
         }
     }
@@ -4030,8 +4055,26 @@ class FirewallEngine {
 
         $mode = $settings['waf_mode'] ?? 'enabled';
         if ($mode === 'learning') {
-            self::log_incident($rule, 'detected');
-            return;
+            if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine') && \WcpScanner\Firewall\LearningModeEngine::is_route_graduated()) {
+                // Route has graduated: enforce blocking even during global learning mode!
+            } else {
+                if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
+                    \WcpScanner\Firewall\LearningModeEngine::record_threat_encountered(\WcpScanner\Firewall\LearningModeEngine::get_current_route_key());
+                }
+                self::log_incident($rule, 'detected');
+                return;
+            }
+        } elseif ($mode === 'enabled') {
+            // Check if specific route was explicitly forced into learning mode by admin
+            if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
+                $route_key = \WcpScanner\Firewall\LearningModeEngine::get_current_route_key();
+                $profiles = get_option(\WcpScanner\Firewall\LearningModeEngine::OPTION_PROFILES, []);
+                if (isset($profiles[$route_key]['forced_status']) && $profiles[$route_key]['forced_status'] === 'learning') {
+                    \WcpScanner\Firewall\LearningModeEngine::record_threat_encountered($route_key);
+                    self::log_incident($rule, 'detected');
+                    return;
+                }
+            }
         }
 
         $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));

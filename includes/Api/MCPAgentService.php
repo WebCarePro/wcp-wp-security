@@ -35,6 +35,7 @@ class MCPAgentService {
         'wcpscan_list_staged_actions',
         'wcpscan_get_supply_chain_sbom',
         'wcpscan_get_gatekeeper_history',
+        'wcpscan_get_behavioral_waf_status',
     ];
 
     const MUTATING_TOOLS = [
@@ -47,6 +48,7 @@ class MCPAgentService {
         'wcpscan_approve_staged_action',
         'wcpscan_recalibrate_sbom_baseline',
         'wcpscan_quarantine_supply_chain_anchor',
+        'wcpscan_set_route_learning_status',
     ];
 
     const AUDIT_OPTION_KEY  = 'wcpscan_mcp_audit_log';
@@ -372,6 +374,39 @@ class MCPAgentService {
                     'required' => ['item_id'],
                 ],
             ],
+            [
+                'name'        => 'wcpscan_get_behavioral_waf_status',
+                'description' => 'Retrieve Behavioral WAF telemetry: Learning Mode 2.0 route profiles, confidence scores, Honey-Token bot traps, and Adaptive Rate Limiter stats.',
+                'category'    => 'read',
+                'isMutating'  => false,
+                'policy'      => self::get_tool_policy('wcpscan_get_behavioral_waf_status'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_set_route_learning_status',
+                'description' => 'Manually change the behavioral learning status of a specific route ("graduate", "enforce", "learn", or "reset").',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_set_route_learning_status'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'route_key' => [
+                            'type'        => 'string',
+                            'description' => 'Route identifier (e.g. "rest:/wp/v2/posts", "ajax:action_name", "admin:options.php", "frontend:public")',
+                        ],
+                        'action'    => [
+                            'type'        => 'string',
+                            'enum'        => ['graduate', 'enforce', 'learn', 'reset'],
+                            'description' => 'Action to perform on the route profile',
+                        ],
+                    ],
+                    'required' => ['route_key', 'action'],
+                ],
+            ],
         ];
 
         return [
@@ -616,6 +651,14 @@ class MCPAgentService {
 
             case 'wcpscan_quarantine_supply_chain_anchor':
                 $response = self::tool_quarantine_supply_chain_anchor($args);
+                break;
+
+            case 'wcpscan_get_behavioral_waf_status':
+                $response = self::tool_get_behavioral_waf_status();
+                break;
+
+            case 'wcpscan_set_route_learning_status':
+                $response = self::tool_set_route_learning_status($args);
                 break;
 
             default:
@@ -1190,6 +1233,57 @@ class MCPAgentService {
         }
 
         $res = \WcpScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_get_behavioral_waf_status(): array {
+        $data = [
+            'learning_stats' => class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_summary_stats() : [],
+            'route_profiles' => class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_route_profiles() : [],
+            'honeytoken'     => class_exists('\WcpScanner\Firewall\HoneyTokenEngine') ? \WcpScanner\Firewall\HoneyTokenEngine::get_summary() : [],
+            'rate_limiter'   => class_exists('\WcpScanner\Firewall\AdaptiveRateLimiter') ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry() : [],
+        ];
+
+        return [
+            'isError' => false,
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($data, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $data,
+        ];
+    }
+
+    private static function tool_set_route_learning_status(array $args): array {
+        $route_key = sanitize_text_field($args['route_key'] ?? '');
+        $action    = sanitize_key($args['action'] ?? '');
+
+        if (empty($route_key) || empty($action)) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Missing parameter: route_key and action are required.']],
+            ];
+        }
+
+        if (!class_exists('\WcpScanner\Firewall\LearningModeEngine')) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'LearningModeEngine not available.']],
+            ];
+        }
+
+        $res = \WcpScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
         return [
             'isError' => empty($res['success']),
             'content' => [

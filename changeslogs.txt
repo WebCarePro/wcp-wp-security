@@ -1,4 +1,20 @@
 v:1.25.0 - 2026-10-25
+- Next-Gen Pillar 3: Behavioral WAF & Anti-Automated Abuse (`includes/Firewall/`, `ScannerRoutes.php`, `MCPAgentService.php`, `FirewallPage.tsx`, `BehavioralWafCard.tsx`):
+  * Adaptive Route-Aware Learning Mode 2.0 (`LearningModeEngine.php`):
+    - Granular Per-Route Behavioral Profiling: Dynamic tracking per boundary (`frontend:public`, `admin:*`, `ajax:*`, `rest:*`, and `auth:*`). Profiles legitimate parameter schemas without overhead or false positives on custom themes and plugins.
+    - Automated Route Graduation: Tracks benign request thresholds (default: 25 requests) and calculates confidence scores (0-100%). Automatically graduates mature routes into active firewall blocking while newly discovered or rare custom plugin settings pages remain in learning mode, ending Wordfence's blunt 7-day all-or-nothing cliff.
+    - Administrator Override Controls: Supports 1-click manual state overrides (`enforce`, `learn`, `graduate`, `reset`) for granular route tuning.
+  * Zero-Friction Phantom Bot Traps & Honeypot Decoys (`HoneyTokenEngine.php`):
+    - Invisible Form Field Traps: Server-rendered invisible honeypot form inputs (`wcp_security_verify`, `wcp_hp_active`) appended to login, registration, lost-password, and comment submission forms.
+    - Phantom Decoy Endpoint Grid: Monitors alluring decoy URLs (`/.well-known/wcp-security-decoy`, `/wp-json/wcp-honeytoken/v1/auth`, `/xmlrpc_backup.php`, `/wp-content/debug_dump.sql`) to catch headless scrapers and vulnerability scanners.
+    - Zero False-Positive Instant IP Quarantine: Instantly writes offending bot IPs to the active firewall blocklist before expensive password hashing (bcrypt/Argon2) runs, preventing CPU exhaustion from credential-stuffing botnets.
+  * Sliding-Window Token-Bucket Adaptive Rate Limiter & Smart Throttler (`AdaptiveRateLimiter.php`):
+    - Boundary-Specific Rate Buckets: Protects critical boundaries (`auth`: 12 req/min, `ajax`: 60 req/min, `rest`: 120 req/min, `global`: 240 req/min) via high-performance sliding window counters in transient memory.
+    - Tier 1 HTTP 429 Graceful Backoff: Returns RFC-compliant HTTP 429 Too Many Requests with standard `Retry-After` headers and telemetry before harsh firewall bans, preventing false positives on shared NAT and office network IPs.
+    - Tier 2 Escalation Ban: Automatically escalates aggressive volumetric flooders (> 2.5x threshold) to full firewall quarantine.
+  * Dedicated Behavioral WAF Dashboard & Autonomous MCP SecOps Tools (`BehavioralWafCard.tsx`, `ScannerRoutes.php`, `MCPAgentService.php`):
+    - High-Contrast Modern Dashboard: Interactive Route Profiling Ledger with live confidence meters, Honey-Token trapped bots table with 1-click IP unban, and rate limiting threshold sliders.
+    - 2 New Autonomous MCP Tools: Registered `wcpscan_get_behavioral_waf_status` (read) and `wcpscan_set_route_learning_status` (mutating, governed by Staged Gate).
 - Next-Gen Pillar 2: Supply-Chain Defense & Update Gatekeeper (`includes/SupplyChain/`, `ScannerRoutes.php`, `MCPAgentService.php`, `FirewallPage.tsx`, `SbomSupplyChainCard.tsx`):
   * Software Bill of Materials (SBOM) Sentinel & Drop-In Monitor (`SbomSentinelEngine.php`):
     - Cryptographic Runtime Anchor Tracking: Audits all standard WordPress drop-ins (`db.php`, `object-cache.php`, `advanced-cache.php`, etc.), rogue PHP files in `wp-content/`, must-use plugins (`wp-content/mu-plugins/`), global composer autoloaders (`vendor/autoload.php`), and PHP interpreter directives (`auto_prepend_file`, `auto_append_file` in runtime INI, `.user.ini`, `php.ini`, and `.htaccess`).

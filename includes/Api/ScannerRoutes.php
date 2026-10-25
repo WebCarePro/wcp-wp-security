@@ -1114,6 +1114,43 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'analyze_supply_chain_plugin'],
             'permission_callback' => $permission,
         ]);
+
+        // 18. Behavioral WAF & Anti-Automated Abuse (Pillar 3)
+        register_rest_route(self::NAMESPACE, '/behavioral/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_behavioral_waf_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/behavioral/route-status', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'set_behavioral_route_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/behavioral/learning-settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_behavioral_learning_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/behavioral/honeytoken/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_honeytoken_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/behavioral/honeytoken/unban', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'unban_honeytoken_ip'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/behavioral/rate-limiter/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_rate_limiter_settings'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -7167,6 +7204,96 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success'  => true,
             'analysis' => $analysis,
+        ]);
+    }
+
+    // ==========================================
+    // 17.5. Behavioral WAF, Bot Traps & Rate Limiting (Pillar 3)
+    // ==========================================
+
+    public static function get_behavioral_waf_status(\WP_REST_Request $request) {
+        $learning_stats    = class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_summary_stats() : [];
+        $route_profiles    = class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_route_profiles() : [];
+        $learning_settings = class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_settings() : [];
+        $honeytoken        = class_exists('\WcpScanner\Firewall\HoneyTokenEngine') ? \WcpScanner\Firewall\HoneyTokenEngine::get_summary() : [];
+        $rate_limiter      = class_exists('\WcpScanner\Firewall\AdaptiveRateLimiter') ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry() : [];
+
+        return rest_ensure_response([
+            'success'           => true,
+            'learning_stats'    => $learning_stats,
+            'route_profiles'    => $route_profiles,
+            'learning_settings' => $learning_settings,
+            'honeytoken'        => $honeytoken,
+            'rate_limiter'      => $rate_limiter,
+        ]);
+    }
+
+    public static function set_behavioral_route_status(\WP_REST_Request $request) {
+        $params    = $request->get_json_params() ?: [];
+        $route_key = sanitize_text_field($params['route_key'] ?? '');
+        $action    = sanitize_key($params['action'] ?? '');
+
+        if (empty($route_key) || empty($action)) {
+            return new \WP_Error('missing_params', __('Route key and action are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Firewall\LearningModeEngine')) {
+            return new \WP_Error('missing_engine', __('LearningModeEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $result = \WcpScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
+        return rest_ensure_response($result);
+    }
+
+    public static function update_behavioral_learning_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        if (!class_exists('\WcpScanner\Firewall\LearningModeEngine')) {
+            return new \WP_Error('missing_engine', __('LearningModeEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $updated = \WcpScanner\Firewall\LearningModeEngine::update_settings($params);
+        return rest_ensure_response([
+            'success'  => true,
+            'settings' => $updated,
+            'message'  => __('Learning Mode 2.0 settings updated successfully.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function update_honeytoken_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        if (!class_exists('\WcpScanner\Firewall\HoneyTokenEngine')) {
+            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $updated = \WcpScanner\Firewall\HoneyTokenEngine::update_settings($params);
+        return rest_ensure_response([
+            'success'  => true,
+            'settings' => $updated,
+            'message'  => __('Honey-Token Bot Trap settings updated successfully.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function unban_honeytoken_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field($params['ip'] ?? '');
+        if (empty($ip)) {
+            return new \WP_Error('missing_ip', __('IP address is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+        if (!class_exists('\WcpScanner\Firewall\HoneyTokenEngine')) {
+            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $result = \WcpScanner\Firewall\HoneyTokenEngine::unban_bot_ip($ip);
+        return rest_ensure_response($result);
+    }
+
+    public static function update_rate_limiter_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        if (!class_exists('\WcpScanner\Firewall\AdaptiveRateLimiter')) {
+            return new \WP_Error('missing_engine', __('AdaptiveRateLimiter not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $updated = \WcpScanner\Firewall\AdaptiveRateLimiter::update_settings($params);
+        return rest_ensure_response([
+            'success'  => true,
+            'settings' => $updated,
+            'message'  => __('Adaptive Rate Limiter thresholds updated successfully.', 'wcp-security-scanner'),
         ]);
     }
 

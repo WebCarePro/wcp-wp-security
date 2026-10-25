@@ -350,6 +350,8 @@ class SettingsManager {
             'wcpscan_get_gatekeeper_history'         => 'allowed',
             'wcpscan_recalibrate_sbom_baseline'      => 'confirmation_required',
             'wcpscan_quarantine_supply_chain_anchor' => 'confirmation_required',
+            'wcpscan_get_behavioral_waf_status'      => 'allowed',
+            'wcpscan_set_route_learning_status'       => 'confirmation_required',
         ];
     }
 
