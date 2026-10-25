@@ -13,6 +13,11 @@ v:1.26.0 - 2026-10-26
   * Replaced hardcoded status button inline styles with standardized `.wcp-btn-danger-soft` and `.wcp-action-btn-clean` classes for consistent high contrast across both Light and Dark themes.
 - Real-Time CVE Intelligence & Local Site Inventory Correlator Engine (`includes/Firewall/CVEIntelligenceService.php`, `ScannerRoutes.php`, `VirtualPatchCard.tsx`, `index.css`):
   * Upstream CVE Intelligence API: Added live integration with the official National Vulnerability Database (NVD 2.0 API) with 7-day transient caching (`wcpscan_cve_intel_`), resolving CVSS scores, vector types (RCE, SQLi, Auth Bypass, Arbitrary File Upload), vulnerability descriptions, and affected semver ranges for any query (e.g. `CVE-2024-5932`, `CVE-2024-28000`).
+  * Structured Vulnerability Details & Plugin/Theme Metadata Presentation (`VirtualPatchCard.tsx`, `index.css`):
+    - Upgraded CVE intelligence result presentation from simple plain-text paragraphs to structured intelligence cards modeled after professional vulnerability registries.
+    - Two-Column Intelligence Grid: Renders CVE ID (with NVD link), CVSS score & severity rating, Publicly Published date, Last Updated date, Researcher/Reporter attribution, Weakness (CWE), and clickable References links list.
+    - Component Vulnerability Details Table: Automatically parses and displays Software Type (Plugin / Theme / WordPress Core), Software Slug (with direct link to WordPress.org), Patched status (✓ Yes / ✗ No), Remediation guidance, Affected Version range (e.g. `<= 6.89.1`), and Patched Version (e.g. `6.90`).
+    - WordPress.org Official Version Verification: Queries `api.wordpress.org/plugins/info/1.2/` to automatically verify latest repository releases and patch availability.
   * Live Site Inventory Correlator: Inspects local site plugins (`get_plugins()`), themes (`wp_get_theme()`), and WordPress Core (`$wp_version`) against the queried CVE to determine exact risk:
     - Clean / Not Installed: If the vulnerable component (e.g. GiveWP) does not exist on the website, displays a clean status reassuring operators that no patch is needed and zero performance overhead should be incurred.
     - Safe / Already Patched: Informs operators if the component is installed but already updated to a patched, non-vulnerable release.
