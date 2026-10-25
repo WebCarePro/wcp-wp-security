@@ -13,6 +13,7 @@ class AdminMenu {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_brand_styles']);
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
+        add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
     }
 
     public static function add_menu_page() {
@@ -206,6 +207,43 @@ class AdminMenu {
             'wcp-scanner-notifications',
             [__CLASS__, 'render_app_container']
         );
+    }
+
+    /**
+     * Ensure global $title is a valid string for all WCP admin screens before WordPress core admin-header.php runs.
+     * Prevents PHP 8.4 deprecation: strip_tags(): Passing null to parameter #1 ($string) is deprecated.
+     */
+    public static function ensure_admin_screen_title(): void {
+        global $title;
+        if (empty($title)) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+            $title_map = [
+                'wcp-security-scanner'       => __('WCP Security Scanner', 'wcp-security-scanner'),
+                'wcp-scanner-scan'           => __('Security Scan & Findings', 'wcp-security-scanner'),
+                'wcp-scanner-firewall'       => __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
+                'wcp-scanner-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'wcp-security-scanner'),
+                'wcp-scanner-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
+                'wcp-scanner-vault'          => __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
+                'wcp-scanner-settings'       => __('Scanner Settings & AI Configuration', 'wcp-security-scanner'),
+                'wcp-scanner-about'          => __('About WebCare Pro & Services', 'wcp-security-scanner'),
+                'wcp-scanner-tools'          => __('Targeted Security Audits', 'wcp-security-scanner'),
+                'wcp-scanner-logs'           => __('Scan Logs & Audit History', 'wcp-security-scanner'),
+                'wcp-scanner-forensics'      => __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
+                'wcp-scanner-fim'            => __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
+                'wcp-scanner-vulnerabilities'=> __('Vulnerabilities & Updates', 'wcp-security-scanner'),
+                'wcp-scanner-backup'         => __('Database Backup Vault', 'wcp-security-scanner'),
+                'wcp-scanner-server'         => __('Server & Host Infrastructure Telemetry', 'wcp-security-scanner'),
+                'wcp-scanner-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
+                'wcp-scanner-notifications'  => __('Notifications & Security Alerts', 'wcp-security-scanner'),
+            ];
+
+            if (isset($title_map[$page])) {
+                $title = $title_map[$page];
+            } elseif (strpos($page, 'wcp-') !== false) {
+                $title = __('WCP Security Scanner', 'wcp-security-scanner');
+            }
+        }
     }
 
     public static function render_app_container() {

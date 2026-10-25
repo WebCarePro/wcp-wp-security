@@ -1,4 +1,8 @@
 v:1.25.0 - 2026-10-25
+- PHP 8.4 Compatibility & Admin Screen Title Normalization (`includes/Admin/AdminMenu.php`):
+  * Resolved PHP 8.4 deprecation notice (`Deprecated: strip_tags(): Passing null to parameter #1 ($string) of type string is deprecated in wp-admin/admin-header.php on line 41`).
+  * WordPress core calls `get_admin_page_title()` and runs `$title = strip_tags($title);`. For companion subpages registered without an admin sidebar parent (`add_submenu_page(null, ...)`), core does not find the slug in `$menu`, leaving `$title = null`.
+  * Implemented `AdminMenu::ensure_admin_screen_title()` hooked into `admin_header` at priority `0` to dynamically initialize `$title` with human-readable localized screen titles across all companion routes (`wcp-scanner-waf-logs`, `wcp-scanner-tools`, `wcp-scanner-logs`, `wcp-scanner-forensics`, `wcp-scanner-fim`, `wcp-scanner-vulnerabilities`, `wcp-scanner-backup`, `wcp-scanner-server`, `wcp-scanner-notifications`), completely eliminating the deprecation notice while preserving clean left sidebar architecture.
 - Targeted User-Agent, Endpoint & IP Granular Firewall Allowlist Rules (`FirewallEngine.php`, `SettingsManager.php`, `TargetedAllowlistManagerCard.tsx`, `FirewallPage.tsx`, `WafLogsPage.tsx`):
   * Granular Zero-Trust Firewall Bypass Engine:
     - Added high-performance rule engine allowing administrators to define targeted bypass rules combining Client User-Agent patterns (with wildcards `*`), Target API / URI paths (with wildcards `*`), HTTP Methods (`ALL`, `GET`, `POST`, `PUT`, `DELETE`), and optional client IP / CIDR subnets (`192.168.1.0/24`).
