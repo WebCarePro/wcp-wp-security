@@ -18,6 +18,10 @@ v:1.26.0 - 2026-10-26
     - Safe / Already Patched: Informs operators if the component is installed but already updated to a patched, non-vulnerable release.
     - Critical Match: If an active plugin matches the vulnerable semver range, displays an immediate high-priority alert with 1-Click "Deploy Instant Virtual Patch" and 1-Click "Deactivate Plugin Now" remediation actions.
   * Interactive Studio UI: Added live search input with quick-check presets (`CVE-2024-5932`, `CVE-2024-28000`, `CVE-2024-31210`) and theme-adaptive correlation result cards supporting both Light (White) and Dark modes.
+- Behavioral WAF & Bot Traps Settings Persistence & UI Synchronization Fix (`HoneyTokenEngine.php`, `AdaptiveRateLimiter.php`, `LearningModeEngine.php`, `BehavioralWafCard.tsx`):
+  * Resolved an issue where "Save Bot Trap Settings" appeared not to work due to a naming mismatch between frontend state keys (`enable_form_traps`, `enable_phantom_endpoints`) and backend settings keys (`trap_login_forms`, `trap_phantom_endpoints`), which caused `update_settings` to overwrite and reset checkbox flags to false on reload.
+  * Harmonized bidirectional settings persistence across all 3 Behavioral WAF engines (`HoneyTokenEngine`, `AdaptiveRateLimiter`, and `LearningModeEngine`), safely supporting both canonical database keys and frontend aliases while preserving the master `enabled` toggle.
+  * Added instant inline "Saved!" confirmation indicators directly adjacent to the "Save Bot Trap Settings", "Save Learning Settings", and "Save Rate Limiting Thresholds" action buttons to give administrators immediate visual feedback at their cursor point.
 
 v:1.25.0 - 2026-10-25
 - WordPress Plugin Check (PCP) Clean Verification & Hardening (`FirewallEngine.php`):

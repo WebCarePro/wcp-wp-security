@@ -31,12 +31,18 @@ class LearningModeEngine {
     public static function get_settings(): array {
         $defaults = [
             'adaptive_learning_enabled' => true,
-            'graduation_threshold'       => self::DEFAULT_GRADUATION_THRESHOLD,
+            'graduation_threshold'      => self::DEFAULT_GRADUATION_THRESHOLD,
             'auto_graduate_mature'      => true,
+            'auto_graduate'             => true,
             'auto_tune_admin_benign'    => true,
+            'graduation_confidence'     => 85,
         ];
         $stored = get_option(self::OPTION_SETTINGS, []);
-        return array_merge($defaults, is_array($stored) ? $stored : []);
+        $merged = array_merge($defaults, is_array($stored) ? $stored : []);
+        $auto_grad = isset($merged['auto_graduate']) ? !empty($merged['auto_graduate']) : !empty($merged['auto_graduate_mature']);
+        $merged['auto_graduate'] = $auto_grad;
+        $merged['auto_graduate_mature'] = $auto_grad;
+        return $merged;
     }
 
     /**
@@ -47,11 +53,17 @@ class LearningModeEngine {
      */
     public static function update_settings(array $new_settings): array {
         $current = self::get_settings();
+        $auto_grad = isset($new_settings['auto_graduate'])
+            ? !empty($new_settings['auto_graduate'])
+            : (isset($new_settings['auto_graduate_mature']) ? !empty($new_settings['auto_graduate_mature']) : !empty($current['auto_graduate']));
+
         $updated = [
-            'adaptive_learning_enabled' => !empty($new_settings['adaptive_learning_enabled']),
-            'graduation_threshold'       => max(5, min(500, intval($new_settings['graduation_threshold'] ?? self::DEFAULT_GRADUATION_THRESHOLD))),
-            'auto_graduate_mature'      => !empty($new_settings['auto_graduate_mature']),
-            'auto_tune_admin_benign'    => !empty($new_settings['auto_tune_admin_benign']),
+            'adaptive_learning_enabled' => isset($new_settings['adaptive_learning_enabled']) ? !empty($new_settings['adaptive_learning_enabled']) : !empty($current['adaptive_learning_enabled']),
+            'graduation_threshold'      => max(5, min(500, intval($new_settings['graduation_threshold'] ?? self::DEFAULT_GRADUATION_THRESHOLD))),
+            'auto_graduate_mature'      => $auto_grad,
+            'auto_graduate'             => $auto_grad,
+            'auto_tune_admin_benign'    => isset($new_settings['auto_tune_admin_benign']) ? !empty($new_settings['auto_tune_admin_benign']) : !empty($current['auto_tune_admin_benign']),
+            'graduation_confidence'     => max(50, min(99, intval($new_settings['graduation_confidence'] ?? 85))),
         ];
         update_option(self::OPTION_SETTINGS, $updated);
         return $updated;

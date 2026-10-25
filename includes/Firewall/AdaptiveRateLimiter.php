@@ -28,16 +28,40 @@ class AdaptiveRateLimiter {
      */
     public static function get_settings(): array {
         $defaults = [
-            'enabled'             => true,
-            'limit_auth'          => 20,   // Max login/xmlrpc hits per 60s
-            'limit_ajax'          => 80,   // Max admin-ajax hits per 60s
-            'limit_rest'          => 150,  // Max REST API hits per 60s
-            'limit_global'        => 300,  // Max total HTTP hits per 60s
-            'retry_after_seconds' => 30,
-            'escalate_to_ban'     => true, // Ban IP if request exceeds 2.5x threshold
+            'enabled'                => true,
+            'limit_auth'             => 20,   // Max login/xmlrpc hits per 60s
+            'limit_ajax'             => 80,   // Max admin-ajax hits per 60s
+            'limit_rest'             => 150,  // Max REST API hits per 60s
+            'limit_global'           => 300,  // Max total HTTP hits per 60s
+            'retry_after_seconds'    => 30,
+            'escalate_to_ban'        => true, // Ban IP if request exceeds 2.5x threshold
+            'auth_limit_per_min'     => 20,
+            'ajax_limit_per_min'     => 80,
+            'rest_limit_per_min'     => 150,
+            'global_limit_per_min'   => 300,
+            'enable_auto_escalation' => true,
         ];
         $stored = get_option(self::OPTION_SETTINGS, []);
-        return array_merge($defaults, is_array($stored) ? $stored : []);
+        $merged = array_merge($defaults, is_array($stored) ? $stored : []);
+
+        $auth = intval($merged['limit_auth'] ?? ($merged['auth_limit_per_min'] ?? 20));
+        $ajax = intval($merged['limit_ajax'] ?? ($merged['ajax_limit_per_min'] ?? 80));
+        $rest = intval($merged['limit_rest'] ?? ($merged['rest_limit_per_min'] ?? 150));
+        $global = intval($merged['limit_global'] ?? ($merged['global_limit_per_min'] ?? 300));
+        $escalate = isset($merged['enable_auto_escalation']) ? !empty($merged['enable_auto_escalation']) : !empty($merged['escalate_to_ban']);
+
+        $merged['limit_auth']             = $auth;
+        $merged['limit_ajax']             = $ajax;
+        $merged['limit_rest']             = $rest;
+        $merged['limit_global']           = $global;
+        $merged['escalate_to_ban']        = $escalate;
+        $merged['auth_limit_per_min']     = $auth;
+        $merged['ajax_limit_per_min']     = $ajax;
+        $merged['rest_limit_per_min']     = $rest;
+        $merged['global_limit_per_min']   = $global;
+        $merged['enable_auto_escalation'] = $escalate;
+
+        return $merged;
     }
 
     /**
@@ -48,14 +72,53 @@ class AdaptiveRateLimiter {
      */
     public static function update_settings(array $new_settings): array {
         $current = self::get_settings();
+
+        $auth = isset($new_settings['auth_limit_per_min'])
+            ? intval($new_settings['auth_limit_per_min'])
+            : intval($new_settings['limit_auth'] ?? $current['limit_auth']);
+
+        $ajax = isset($new_settings['ajax_limit_per_min'])
+            ? intval($new_settings['ajax_limit_per_min'])
+            : intval($new_settings['limit_ajax'] ?? $current['limit_ajax']);
+
+        $rest = isset($new_settings['rest_limit_per_min'])
+            ? intval($new_settings['rest_limit_per_min'])
+            : intval($new_settings['limit_rest'] ?? $current['limit_rest']);
+
+        $global = isset($new_settings['global_limit_per_min'])
+            ? intval($new_settings['global_limit_per_min'])
+            : intval($new_settings['limit_global'] ?? $current['limit_global']);
+
+        $escalate = isset($new_settings['enable_auto_escalation'])
+            ? !empty($new_settings['enable_auto_escalation'])
+            : (isset($new_settings['escalate_to_ban']) ? !empty($new_settings['escalate_to_ban']) : !empty($current['escalate_to_ban']));
+
+        $enabled = isset($new_settings['enabled'])
+            ? !empty($new_settings['enabled'])
+            : !empty($current['enabled']);
+
+        $retry_after = isset($new_settings['retry_after_seconds'])
+            ? max(5, min(300, intval($new_settings['retry_after_seconds'])))
+            : intval($current['retry_after_seconds'] ?? 30);
+
+        $auth_val   = max(5, min(120, $auth));
+        $ajax_val   = max(10, min(500, $ajax));
+        $rest_val   = max(20, min(1000, $rest));
+        $global_val = max(50, min(2000, $global));
+
         $updated = [
-            'enabled'             => !empty($new_settings['enabled']),
-            'limit_auth'          => max(5, min(120, intval($new_settings['limit_auth'] ?? 20))),
-            'limit_ajax'          => max(10, min(500, intval($new_settings['limit_ajax'] ?? 80))),
-            'limit_rest'          => max(20, min(1000, intval($new_settings['limit_rest'] ?? 150))),
-            'limit_global'        => max(50, min(2000, intval($new_settings['limit_global'] ?? 300))),
-            'retry_after_seconds' => max(5, min(300, intval($new_settings['retry_after_seconds'] ?? 30))),
-            'escalate_to_ban'     => !empty($new_settings['escalate_to_ban']),
+            'enabled'                => $enabled,
+            'limit_auth'             => $auth_val,
+            'limit_ajax'             => $ajax_val,
+            'limit_rest'             => $rest_val,
+            'limit_global'           => $global_val,
+            'retry_after_seconds'    => $retry_after,
+            'escalate_to_ban'        => $escalate,
+            'auth_limit_per_min'     => $auth_val,
+            'ajax_limit_per_min'     => $ajax_val,
+            'rest_limit_per_min'     => $rest_val,
+            'global_limit_per_min'   => $global_val,
+            'enable_auto_escalation' => $escalate,
         ];
         update_option(self::OPTION_SETTINGS, $updated);
         return $updated;

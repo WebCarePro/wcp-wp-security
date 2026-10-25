@@ -60,15 +60,28 @@ class HoneyTokenEngine {
      */
     public static function get_settings(): array {
         $defaults = [
-            'enabled'                => true,
-            'trap_login_forms'       => true,
-            'trap_comment_forms'     => true,
-            'trap_phantom_endpoints' => true,
-            'auto_ban_bot_ip'        => true,
-            'ban_duration_hours'     => 24,
+            'enabled'                  => true,
+            'trap_login_forms'         => true,
+            'trap_comment_forms'       => true,
+            'trap_phantom_endpoints'   => true,
+            'auto_ban_bot_ip'          => true,
+            'ban_duration_hours'       => 24,
+            'enable_form_traps'        => true,
+            'enable_phantom_endpoints' => true,
         ];
         $stored = get_option(self::OPTION_SETTINGS, []);
-        return array_merge($defaults, is_array($stored) ? $stored : []);
+        $merged = array_merge($defaults, is_array($stored) ? $stored : []);
+
+        $form_traps = !empty($merged['trap_login_forms']) || !empty($merged['enable_form_traps']);
+        $phantom_traps = !empty($merged['trap_phantom_endpoints']) || !empty($merged['enable_phantom_endpoints']);
+
+        $merged['trap_login_forms']         = $form_traps;
+        $merged['trap_comment_forms']       = $form_traps;
+        $merged['enable_form_traps']        = $form_traps;
+        $merged['trap_phantom_endpoints']   = $phantom_traps;
+        $merged['enable_phantom_endpoints'] = $phantom_traps;
+
+        return $merged;
     }
 
     /**
@@ -79,13 +92,36 @@ class HoneyTokenEngine {
      */
     public static function update_settings(array $new_settings): array {
         $current = self::get_settings();
+
+        $form_traps = isset($new_settings['enable_form_traps'])
+            ? !empty($new_settings['enable_form_traps'])
+            : (!empty($new_settings['trap_login_forms']) || !empty($new_settings['trap_comment_forms']));
+
+        $phantom_traps = isset($new_settings['enable_phantom_endpoints'])
+            ? !empty($new_settings['enable_phantom_endpoints'])
+            : !empty($new_settings['trap_phantom_endpoints']);
+
+        $auto_ban = isset($new_settings['auto_ban_bot_ip'])
+            ? !empty($new_settings['auto_ban_bot_ip'])
+            : !empty($current['auto_ban_bot_ip']);
+
+        $enabled = isset($new_settings['enabled'])
+            ? !empty($new_settings['enabled'])
+            : ($form_traps || $phantom_traps || !empty($current['enabled']));
+
+        $ban_duration = isset($new_settings['ban_duration_hours'])
+            ? max(1, min(720, intval($new_settings['ban_duration_hours'])))
+            : intval($current['ban_duration_hours'] ?? 24);
+
         $updated = [
-            'enabled'                => !empty($new_settings['enabled']),
-            'trap_login_forms'       => !empty($new_settings['trap_login_forms']),
-            'trap_comment_forms'     => !empty($new_settings['trap_comment_forms']),
-            'trap_phantom_endpoints' => !empty($new_settings['trap_phantom_endpoints']),
-            'auto_ban_bot_ip'        => !empty($new_settings['auto_ban_bot_ip']),
-            'ban_duration_hours'     => max(1, min(720, intval($new_settings['ban_duration_hours'] ?? 24))),
+            'enabled'                  => $enabled,
+            'trap_login_forms'         => $form_traps,
+            'trap_comment_forms'       => $form_traps,
+            'trap_phantom_endpoints'   => $phantom_traps,
+            'auto_ban_bot_ip'          => $auto_ban,
+            'ban_duration_hours'       => $ban_duration,
+            'enable_form_traps'        => $form_traps,
+            'enable_phantom_endpoints' => $phantom_traps,
         ];
         update_option(self::OPTION_SETTINGS, $updated);
         return $updated;

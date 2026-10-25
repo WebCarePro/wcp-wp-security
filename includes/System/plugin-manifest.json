@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-25T23:38:03.941Z",
+  "generated_at": "2026-10-25T23:47:36.598Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 510392
     },
     "build/index.asset.php": {
-      "sha256": "d8daae828d5f127f3c87dc13793180ae7d6c4ecb4977c36a96bb215ce5b32a6c",
+      "sha256": "d7d420b8fff56e10b9e637c0f3194b79ac07c7bffcc695e649156feb6afe0ed7",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 510253
     },
     "build/index.js": {
-      "sha256": "6d78267e44a331797c13b7447bcb689a4b210f33172f58bec68eddc868a27c52",
-      "size": 1645395
+      "sha256": "4abb64a944b37b4436b968f8c294a4c2a9834d6cb022b91b16743e7d2191c44a",
+      "size": 1649406
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -204,8 +204,8 @@
       "size": 14703
     },
     "includes/Firewall/AdaptiveRateLimiter.php": {
-      "sha256": "ac6ccd29c5d7afbb965bd990fa900054442459ed6cdbcc7b9b2f9ba640322728",
-      "size": 7554
+      "sha256": "03b857eba315e35f12bc130a248eecb40f7dab2ff77dcc8d43bef3329f1e7aa2",
+      "size": 10417
     },
     "includes/Firewall/BotReconDefense.php": {
       "sha256": "2f79ccaeecbb5588be17476bd3f5f8f18d62c890a6a2a4b5145bddc397e6f10b",
@@ -220,12 +220,12 @@
       "size": 230468
     },
     "includes/Firewall/HoneyTokenEngine.php": {
-      "sha256": "fc54c0b6574e06936303c6b2dff1e9c9287631ac31704b7e36136cb9dd9b01cf",
-      "size": 14764
+      "sha256": "3103cb2de5084e6a46809994f307cd2b20f7c4154c3eecbc0b8d282ab26e64a1",
+      "size": 16317
     },
     "includes/Firewall/LearningModeEngine.php": {
-      "sha256": "e714e7560b5cb92b8a4c382c67dbcab8048b76b564c37703f1b0dc5b999d0b9f",
-      "size": 13674
+      "sha256": "02626bbace8ff49c20b0c3d31f3d6b033b7dc4bfece430d8a1dca5af08d70d4f",
+      "size": 14615
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "ba6641cd2a1d0329d63fee1ac52dbf523d3a5377607424656d12d71be7db7659",
