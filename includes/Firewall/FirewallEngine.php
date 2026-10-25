@@ -3265,7 +3265,8 @@ class FirewallEngine {
                             if (preg_match('/\.php$/i', $entry_name)) {
                                 $stream = $zip->getStream($zip->getNameIndex($i));
                                 if ($stream) {
-                                    $chunk = fread($stream, 4096);
+                                    $chunk = stream_get_contents($stream, 4096);
+                                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- ZipArchive stream resource cleanup
                                     fclose($stream);
                                     if ($chunk && (
                                         preg_match('/Plugin Name:\s*.*(?:phpmyadmin|adminer|database\s*browser|db-?manager|database\s*manager|sql\s*buddy)/i', $chunk) ||
@@ -3337,7 +3338,8 @@ class FirewallEngine {
                             if (preg_match('/\.php$/i', $entry_name)) {
                                 $stream = $zip->getStream($zip->getNameIndex($i));
                                 if ($stream) {
-                                    $chunk = fread($stream, 4096);
+                                    $chunk = stream_get_contents($stream, 4096);
+                                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- ZipArchive stream resource cleanup
                                     fclose($stream);
                                     if ($chunk && (
                                         preg_match('/Plugin Name:\s*.*(?:file\s*manager|fileorganizer|filester|elfinder|tinyfilemanager|file\s*explorer)/i', $chunk) ||
