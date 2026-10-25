@@ -1,6 +1,6 @@
 {
   "version": "1.25.0",
-  "generated_at": "2026-10-25T20:14:30.789Z",
+  "generated_at": "2026-10-25T20:53:32.146Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -320,8 +320,8 @@
       "size": 6528
     },
     "includes/Malware/SuspiciousStringDetector.php": {
-      "sha256": "e9bfac3d562b8e4539aed0047c13a15eede93058bad97158e5f3c43957fae452",
-      "size": 3841
+      "sha256": "c930f25891650cdb07e0561ce0e0e90fa3c54ed28e8bcdf5e96ed8254e7e3cab",
+      "size": 3859
     },
     "includes/Malware/WebshellDetector.php": {
       "sha256": "0e5f7dd1c809e2e308af3d95ef635d3746377a08b6fa8b1c7880b3d0f1218059",
