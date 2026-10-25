@@ -2659,7 +2659,25 @@ class FirewallEngine {
                     class_exists('IWP_MMB_Core') ? 'InfiniteWP Client' : null,
                 ])),
             ],
+            'active_plugin_slugs' => self::get_active_plugin_slugs(),
         ];
+    }
+
+    /**
+     * Get active plugin directory slugs on this site
+     */
+    public static function get_active_plugin_slugs(): array {
+        $active_plugins = (array) get_option('active_plugins', []);
+        if (is_multisite()) {
+            $network_active = (array) get_site_option('active_sitewide_plugins', []);
+            $active_plugins = array_merge($active_plugins, array_keys($network_active));
+        }
+        $slugs = [];
+        foreach ($active_plugins as $plugin_path) {
+            $parts = explode('/', (string) $plugin_path);
+            $slugs[] = sanitize_key($parts[0]);
+        }
+        return array_values(array_unique(array_filter($slugs)));
     }
 
     /**

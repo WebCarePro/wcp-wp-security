@@ -8,8 +8,16 @@ v:1.25.0 - 2026-10-25
     - Bypassed requests under targeted allowlist rules are logged with `action_taken = 'allowed'` and `http_status_code = 200` into `wcpscan_firewall_logs`.
     - Captures complete inbound query parameters, HTTP method, client IP, User-Agent, and raw request payload / body telemetry (`php://input` / `$_POST`) for thorough auditability.
     - Added "Targeted Allowlist Bypasses" and "Allowed (Targeted Bypass)" quick filter options and high-contrast emerald status badges in `WafLogsPage.tsx`.
-  * Interactive UI Rule Manager & Quick Presets:
-    - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals, active/disabled toggles, method selectors, and one-click quick presets for Klaviyo, WooCommerce Mobile App, Stripe, and Zapier/Make.
+  * Interactive UI Rule Manager & 31 Quick Integration Presets:
+    - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals, active/disabled toggles, method selectors with vivid emerald active states, and 31 categorized presets across E-Commerce, Payments, Shipping, Marketing & CRM, Membership & LMS, and Automation.
+  * Smart Plugin Integration Auto-Detection:
+    - Automatically discovers active plugins installed on the site (via `FirewallEngine::get_active_plugin_slugs()` and `active_plugin_slugs` telemetry).
+    - Features a smart recommendation banner that detects installed plugins (e.g. WooCommerce, Stripe, Klaviyo, MemberPress, LearnDash, etc.) with unconfigured bypass rules.
+    - Provides instant 1-click single preset activation or "Enable All Detected" batch rule creation with zero manual typing required.
+    - Badges matching preset templates with an emerald "Detected" tag in the quick preset selector bar.
+  * Official Verified Gateway & Webhook IP Subnets:
+    - Sourced and embedded official, live verified IP addresses and CIDR subnets for key payment and API providers (Stripe official webhook IPs `3.18.12.63`, `54.187.216.72`, etc.; PayPal official server CIDR blocks `64.4.240.0/21`, `173.0.80.0/20`, etc.; Mollie egress IPs `35.241.221.32`, etc.).
+    - Documented cryptographic HMAC header verification requirements for providers that utilize dynamic cloud infrastructure (Shopify `X-Shopify-Hmac-Sha256`, Klaviyo HMAC, Authorize.Net signature).
 - Navigation Architecture Modernization & Two-Tier Command Hub (`src/App.tsx`, `src/components/`, `src/SettingsPage.tsx`, `includes/Admin/AdminMenu.php`):
   * Unified Two-Tier Command Navigation:
     - Tier-1 Master Header: Streamlined global header down to 6 core functional pillars: Dashboard, Scanner, Firewall, Identity, Vault & Tools, and Settings.
