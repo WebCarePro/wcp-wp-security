@@ -30,10 +30,10 @@ class AdminMenu {
         );
 
         // =========================================================================
-        // 1. SCANNER & AUDIT LOGS
+        // PRIMARY VISIBLE MENU PILLARS (Clean SOC Organization)
         // =========================================================================
 
-        // Submenu: Dashboard
+        // 1. Submenu: Dashboard
         add_submenu_page(
             'wcp-security-scanner',
             __('Scanner Dashboard', 'wcp-security-scanner'),
@@ -43,19 +43,73 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: Scan (Dedicated Security Scan Page)
+        // 2. Submenu: Scanner & Findings
         add_submenu_page(
             'wcp-security-scanner',
             __('Security Scan & Findings', 'wcp-security-scanner'),
-            __('Scan', 'wcp-security-scanner'),
+            __('Security Scanner', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-scan',
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: Targeted Scans
+        // 3. Submenu: Firewall & WAF
         add_submenu_page(
             'wcp-security-scanner',
+            __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
+            __('Firewall & WAF', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-firewall',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 4. Submenu: Login Security & 2FA
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
+            __('Identity & 2FA', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-auth',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 5. Submenu: WCP Vault & Diagnostics
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
+            __('Vault & Tools', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-vault',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 6. Submenu: Settings & AI
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Scanner Settings & AI Configuration', 'wcp-security-scanner'),
+            __('Settings & AI', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-settings',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 7. Submenu: About & Services
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('About WebCare Pro & Services', 'wcp-security-scanner'),
+            __('About & Support', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-about',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // =========================================================================
+        // COMPANION SUB-PAGES (Accessible via Top Header & Contextual Sub-Nav Hub)
+        // =========================================================================
+
+        // Sub-Page: Targeted Scans
+        add_submenu_page(
+            null,
             __('Targeted Security Audits', 'wcp-security-scanner'),
             __('Targeted Scans', 'wcp-security-scanner'),
             'manage_options',
@@ -63,9 +117,9 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: Scan Logs & History
+        // Sub-Page: Scan Logs & History
         add_submenu_page(
-            'wcp-security-scanner',
+            null,
             __('Scan Logs & Audit History', 'wcp-security-scanner'),
             __('Scan Logs', 'wcp-security-scanner'),
             'manage_options',
@@ -73,9 +127,9 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: System Forensics & Deep Diagnostics
+        // Sub-Page: System Forensics & Deep Diagnostics
         add_submenu_page(
-            'wcp-security-scanner',
+            null,
             __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
             __('System Forensics', 'wcp-security-scanner'),
             'manage_options',
@@ -83,31 +137,47 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: WCP Vault (Unified Vault Suite)
+        // Sub-Page: File Integrity Monitoring (FIM) & Code Diff
         add_submenu_page(
-            'wcp-security-scanner',
-            __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
-            __('WCP Vault', 'wcp-security-scanner'),
+            null,
+            __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
+            __('File Integrity (FIM)', 'wcp-security-scanner'),
             'manage_options',
-            'wcp-scanner-vault',
+            'wcp-scanner-fim',
             [__CLASS__, 'render_app_container']
         );
 
-        // =========================================================================
-        // 2. ACTIVE DEFENSES & PROTECTION
-        // =========================================================================
-
-        // Submenu: Firewall (WAF Lite)
+        // Sub-Page: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
-            __('Firewall (WAF)', 'wcp-security-scanner'),
+            null,
+            __('Vulnerabilities & Updates', 'wcp-security-scanner'),
+            __('Vulnerabilities', 'wcp-security-scanner'),
             'manage_options',
-            'wcp-scanner-firewall',
+            'wcp-scanner-vulnerabilities',
             [__CLASS__, 'render_app_container']
         );
 
-        // Page: WAF Incident Logs & Telemetry (Hidden from side menu, accessible via direct link / WAF page)
+        // Sub-Page: Database Backup Vault
+        add_submenu_page(
+            null,
+            __('Database Backup Vault', 'wcp-security-scanner'),
+            __('Database Backup', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-backup',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Sub-Page: Server & PHP Environment Info
+        add_submenu_page(
+            null,
+            __('Server & PHP Environment Info', 'wcp-security-scanner'),
+            __('Server Info', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-server',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Sub-Page: WAF Incident Logs & Telemetry
         add_submenu_page(
             null,
             __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
@@ -117,87 +187,13 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // Submenu: Login Security & 2FA
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
-            __('Login Security & 2FA', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-auth',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: File Integrity Monitoring (FIM) & Code Diff
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
-            __('File Integrity (FIM)', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-fim',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Vulnerabilities & Updates', 'wcp-security-scanner'),
-            __('Vulnerabilities', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-vulnerabilities',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // =========================================================================
-        // 3. TOOLS & SYSTEM ADMINISTRATION
-        // =========================================================================
-
-        // Submenu: Database Backup
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Database Backup Vault', 'wcp-security-scanner'),
-            __('Database Backup', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-backup',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: Server Info
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Server & PHP Environment Info', 'wcp-security-scanner'),
-            __('Server Info', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-server',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Page: Notifications & Alerts (Hidden from side menu, accessible via direct link / Settings page)
+        // Sub-Page: Notifications & Alerts
         add_submenu_page(
             null,
             __('Notifications & Security Alerts', 'wcp-security-scanner'),
             __('Notifications', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-notifications',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: Settings
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Scanner Settings & AI Configuration', 'wcp-security-scanner'),
-            __('Settings', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-settings',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Submenu: About & Services
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('About WebCare Pro & Services', 'wcp-security-scanner'),
-            __('About & Services', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-about',
             [__CLASS__, 'render_app_container']
         );
     }

@@ -1,4 +1,16 @@
 v:1.25.0 - 2026-10-25
+- Navigation Architecture Modernization & Two-Tier Command Hub (`src/App.tsx`, `src/components/`, `src/SettingsPage.tsx`, `includes/Admin/AdminMenu.php`):
+  * Unified Two-Tier Command Navigation:
+    - Tier-1 Master Header: Streamlined global header down to 6 core functional pillars: Dashboard, Scanner, Firewall, Identity, Vault & Tools, and Settings.
+    - Tier-2 Contextual Sub-Nav (`ContextualSubNav.tsx`): Integrated dedicated contextual sub-navigation bars on every page featuring active module indicators, scrollable pill tabs, active counters, and cross-module companion jump links.
+  * Animated Cyber-Sentinel SVG Logo (`WcpAnimatedLogo.tsx`):
+    - Replaced static brand asset with a handcrafted SVG emblem featuring continuous 360-degree radar sweep animations (`wcpRadarSpin`), an emerald pulse sentinel core (`wcpSentinelPulse`), and high-contrast dark/light responsive cyber-shield contours.
+  * Emergency Incident Containment Migration (`EmergencyContainmentCard.tsx`, `SettingsPage.tsx`):
+    - Transitioned the top-level Emergency Containment modal bar out of the global layout into a dedicated first-class tab under "Incident Response & Lockdown" in Settings.
+    - Added real-time containment telemetry card featuring instant status indicators, 4 active guard rail meters (Filesystem Freeze, Session Liquidation, Capability Demotion, Public Maintenance 503), and confirmation security modals.
+    - Added an animated header containment status indicator badge (`wcpContainmentFlash`) that dynamically alerts administrators whenever emergency containment is active.
+  * WordPress Admin Sidebar Consolidation (`AdminMenu.php`):
+    - Consolidated WordPress admin sidebar down to 7 clean visible parent/sub-menu items matching the primary command pillars, while registering companion secondary views with `parent_slug = null` for zero sidebar clutter while preserving 100% deep-linking compatibility.
 - WordPress.org Plugin Guidelines & Plugin Check (PCP) Compliance Hardening:
   * Internationalization (I18n) & Placeholders:
     - Added comprehensive `/* translators: ... */` annotations clarifying placeholder parameters across `UpdateGatekeeperEngine.php`, `MCPAgentService.php`, `EphemeralAdminEngine.php`, and `HIBPBreachAuditor.php`.
