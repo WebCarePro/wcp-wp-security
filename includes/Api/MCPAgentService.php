@@ -33,6 +33,8 @@ class MCPAgentService {
         'wcpscan_audit_behavioral_baseline',
         'wcpscan_get_containment_status',
         'wcpscan_list_staged_actions',
+        'wcpscan_get_supply_chain_sbom',
+        'wcpscan_get_gatekeeper_history',
     ];
 
     const MUTATING_TOOLS = [
@@ -43,6 +45,8 @@ class MCPAgentService {
         'wcpscan_run_security_drill',
         'wcpscan_set_containment_mode',
         'wcpscan_approve_staged_action',
+        'wcpscan_recalibrate_sbom_baseline',
+        'wcpscan_quarantine_supply_chain_anchor',
     ];
 
     const AUDIT_OPTION_KEY  = 'wcpscan_mcp_audit_log';
@@ -318,6 +322,55 @@ class MCPAgentService {
                     ],
                     'required' => ['staged_id'],
                 ],
+            [
+                'name'        => 'wcpscan_get_supply_chain_sbom',
+                'description' => 'Retrieve Software Bill of Materials (SBOM) tracking standard/custom drop-ins, mu-plugins, autoloaders, and PHP INI directives with drift detection.',
+                'category'    => 'read',
+                'isMutating'  => false,
+                'policy'      => self::get_tool_policy('wcpscan_get_supply_chain_sbom'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_get_gatekeeper_history',
+                'description' => 'Retrieve history of plugin update differential integrity audits, blocked updates, and available pre-update rollback snapshots.',
+                'category'    => 'read',
+                'isMutating'  => false,
+                'policy'      => self::get_tool_policy('wcpscan_get_gatekeeper_history'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_recalibrate_sbom_baseline',
+                'description' => 'Calibrate a new clean cryptographic SHA-256 baseline of all active drop-ins and runtime anchors.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_recalibrate_sbom_baseline'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_quarantine_supply_chain_anchor',
+                'description' => 'Quarantine an unauthorized, rogue, or modified drop-in or must-use plugin to the WCP Vault.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_quarantine_supply_chain_anchor'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'item_id' => [
+                            'type'        => 'string',
+                            'description' => 'Item ID to quarantine (e.g. "dropin:db.php" or "mu:loader.php")',
+                        ],
+                    ],
+                    'required' => ['item_id'],
+                ],
             ],
         ];
 
@@ -547,6 +600,22 @@ class MCPAgentService {
 
             case 'wcpscan_approve_staged_action':
                 $response = self::tool_approve_staged_action($args);
+                break;
+
+            case 'wcpscan_get_supply_chain_sbom':
+                $response = self::tool_get_supply_chain_sbom();
+                break;
+
+            case 'wcpscan_get_gatekeeper_history':
+                $response = self::tool_get_gatekeeper_history();
+                break;
+
+            case 'wcpscan_recalibrate_sbom_baseline':
+                $response = self::tool_recalibrate_sbom_baseline();
+                break;
+
+            case 'wcpscan_quarantine_supply_chain_anchor':
+                $response = self::tool_quarantine_supply_chain_anchor($args);
                 break;
 
             default:
@@ -1053,6 +1122,74 @@ class MCPAgentService {
         }
 
         $res = self::approve_staged_action($staged_id, get_current_user_id());
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_get_supply_chain_sbom(): array {
+        $report = \WcpScanner\SupplyChain\SbomSentinelEngine::check_drift();
+        return [
+            'isError' => false,
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($report, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $report,
+        ];
+    }
+
+    private static function tool_get_gatekeeper_history(): array {
+        $data = [
+            'logs'      => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_logs(30),
+            'snapshots' => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_snapshots(),
+            'settings'  => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_settings(),
+        ];
+        return [
+            'isError' => false,
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($data, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $data,
+        ];
+    }
+
+    private static function tool_recalibrate_sbom_baseline(): array {
+        $res = \WcpScanner\SupplyChain\SbomSentinelEngine::calibrate_baseline();
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_quarantine_supply_chain_anchor(array $args): array {
+        $item_id = sanitize_text_field($args['item_id'] ?? '');
+        if (empty($item_id)) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Missing parameter: item_id']],
+            ];
+        }
+
+        $res = \WcpScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
         return [
             'isError' => empty($res['success']),
             'content' => [

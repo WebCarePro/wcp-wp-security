@@ -1071,6 +1071,49 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'toggle_containment'],
             'permission_callback' => $permission,
         ]);
+
+        // 17. Supply-Chain Defense & SBOM Sentinel
+        register_rest_route(self::NAMESPACE, '/supply-chain/sbom', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_supply_chain_sbom'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/sbom/calibrate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'calibrate_supply_chain_sbom'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/sbom/isolate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'isolate_supply_chain_anchor'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/gatekeeper', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_supply_chain_gatekeeper'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/gatekeeper/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_supply_chain_gatekeeper_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/gatekeeper/rollback', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rollback_supply_chain_gatekeeper'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/analyze-plugin', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'analyze_supply_chain_plugin'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -7053,7 +7096,82 @@ class ScannerRoutes {
     }
 
     // ==========================================
-    // 17. Unified WCP Vault Status & Rotator
+    // 17. Supply-Chain Defense & SBOM Sentinel Handlers
+    // ==========================================
+
+    public static function get_supply_chain_sbom(\WP_REST_Request $request) {
+        $report = \WcpScanner\SupplyChain\SbomSentinelEngine::check_drift();
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $report,
+        ]);
+    }
+
+    public static function calibrate_supply_chain_sbom(\WP_REST_Request $request) {
+        $result = \WcpScanner\SupplyChain\SbomSentinelEngine::calibrate_baseline();
+        return rest_ensure_response($result);
+    }
+
+    public static function isolate_supply_chain_anchor(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $item_id = sanitize_text_field($params['item_id'] ?? '');
+
+        if (empty($item_id)) {
+            return new \WP_Error('missing_item_id', __('Item ID is required for isolation.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WcpScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
+        return rest_ensure_response($result);
+    }
+
+    public static function get_supply_chain_gatekeeper(\WP_REST_Request $request) {
+        return rest_ensure_response([
+            'success'   => true,
+            'logs'      => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_logs(30),
+            'snapshots' => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_snapshots(),
+            'settings'  => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_settings(),
+        ]);
+    }
+
+    public static function update_supply_chain_gatekeeper_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $updated = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::update_settings($params);
+        return rest_ensure_response([
+            'success'  => true,
+            'settings' => $updated,
+            'message'  => __('Gatekeeper settings saved successfully.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function rollback_supply_chain_gatekeeper(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $snapshot_id = sanitize_text_field($params['snapshot_id'] ?? '');
+
+        if (empty($snapshot_id)) {
+            return new \WP_Error('missing_snapshot_id', __('Snapshot ID is required for rollback.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $result = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::rollback_snapshot($snapshot_id);
+        return rest_ensure_response($result);
+    }
+
+    public static function analyze_supply_chain_plugin(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $slug = sanitize_text_field($params['slug'] ?? '');
+
+        if (empty($slug)) {
+            return new \WP_Error('missing_slug', __('Plugin slug is required for risk analysis.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $analysis = \WcpScanner\SupplyChain\InstallRiskAdvisor::analyze_installed_plugin($slug);
+        return rest_ensure_response([
+            'success'  => true,
+            'analysis' => $analysis,
+        ]);
+    }
+
+    // ==========================================
+    // 18. Unified WCP Vault Status & Rotator
     // ==========================================
 
     public static function get_vault_status(\WP_REST_Request $request) {

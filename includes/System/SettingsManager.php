@@ -344,8 +344,12 @@ class SettingsManager {
             'wcpscan_deploy_virtual_patch'      => 'confirmation_required',
             'wcpscan_quarantine_file'           => 'confirmation_required',
             'wcpscan_run_security_drill'        => 'allowed',
-            'wcpscan_set_containment_mode'      => 'confirmation_required',
-            'wcpscan_approve_staged_action'     => 'confirmation_required',
+            'wcpscan_set_containment_mode'           => 'confirmation_required',
+            'wcpscan_approve_staged_action'          => 'confirmation_required',
+            'wcpscan_get_supply_chain_sbom'          => 'allowed',
+            'wcpscan_get_gatekeeper_history'         => 'allowed',
+            'wcpscan_recalibrate_sbom_baseline'      => 'confirmation_required',
+            'wcpscan_quarantine_supply_chain_anchor' => 'confirmation_required',
         ];
     }
 

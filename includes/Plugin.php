@@ -69,6 +69,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Security\\PluginSelfDefense')) {
             \WcpScanner\Security\PluginSelfDefense::init();
         }
+        if (class_exists('\\WcpScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
+            \WcpScanner\SupplyChain\UpdateGatekeeperEngine::init();
+        }
         if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
             \WcpScanner\System\PluginUpdater::init();
         }

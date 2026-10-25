@@ -1,4 +1,18 @@
 v:1.25.0 - 2026-10-25
+- Next-Gen Pillar 2: Supply-Chain Defense & Update Gatekeeper (`includes/SupplyChain/`, `ScannerRoutes.php`, `MCPAgentService.php`, `FirewallPage.tsx`, `SbomSupplyChainCard.tsx`):
+  * Software Bill of Materials (SBOM) Sentinel & Drop-In Monitor (`SbomSentinelEngine.php`):
+    - Cryptographic Runtime Anchor Tracking: Audits all standard WordPress drop-ins (`db.php`, `object-cache.php`, `advanced-cache.php`, etc.), rogue PHP files in `wp-content/`, must-use plugins (`wp-content/mu-plugins/`), global composer autoloaders (`vendor/autoload.php`), and PHP interpreter directives (`auto_prepend_file`, `auto_append_file` in runtime INI, `.user.ini`, `php.ini`, and `.htaccess`).
+    - Baseline Drift Detection: Cryptographic baseline calibration recording SHA-256 hashes, file sizes, and permissions. Compares runtime state to immediately detect unauthorized drop-in injections or file tampering.
+    - 1-Click Vault Isolation: Safely quarantines rogue drop-ins or compromised mu-plugins directly into encrypted WCP Vault without site downtime.
+  * Off-.org & Premium Plugin Pre-Install Update Gatekeeper (`UpdateGatekeeperEngine.php`):
+    - Multi-Stage Upgrader Delta Analysis (`upgrader_source_selection`): Intercepts unpacked plugin updates in temporary quarantine storage before production code is overwritten. Calculates differential delta of newly added, modified, and removed files.
+    - Automated Pre-Update Rollback Snapshots: Automatically captures bit-for-bit pre-update snapshots of existing plugin directories into protected WCP Vault storage prior to update execution, enabling instant 1-click disaster rollback.
+    - Anomaly Intercept & Supply-Chain Shield: Evaluates incoming files for malicious obfuscation (`eval(base64_decode)`, `gzinflate`, ASCII chr chains), raw IP outbound sockets, OS command execution primitives, and rogue administrative user creation. Automatically blocks contaminated releases with descriptive `\WP_Error`.
+  * Shift-Left Static Risk Advisor (`InstallRiskAdvisor.php`):
+    - Pre-activation static security scorer auditing extensions across command execution, remote infiltration, persistence injection, and privilege escalation, outputting transparent 0-100 risk scores and itemized code telemetry.
+  * Dedicated Supply-Chain Cockpit & MCP Tool Suite (`SbomSupplyChainCard.tsx`, `MCPAgentService.php`, `FirewallPage.tsx`):
+    - High-Contrast Modern Dashboard: Interactive Ledger table for drop-ins and runtime anchors, Gatekeeper audit history with 1-click rollback, and on-demand Shift-Left plugin analyzer.
+    - 4 New Autonomous MCP SecOps Tools: Added `wcpscan_get_supply_chain_sbom`, `wcpscan_get_gatekeeper_history`, `wcpscan_recalibrate_sbom_baseline`, and `wcpscan_quarantine_supply_chain_anchor` with governance policy integration.
 - Next-Gen Pillar 1: AI-Era Defense, Attack Simulation & Autonomous Incident Containment:
   * MCP / AI Agent Security Control Plane & Staged Confirmation Gate (`MCPAgentService.php`, `MCPAgentServiceCard.tsx`, `ScannerRoutes.php`):
     - Full 12-Tool Catalog: Expanded autonomous MCP agent tool suite to 12 production-grade security operations (adding `wcpscan_run_security_drill`, `wcpscan_get_containment_status`, `wcpscan_set_containment_mode`, `wcpscan_list_staged_actions`, and `wcpscan_approve_staged_action`).
