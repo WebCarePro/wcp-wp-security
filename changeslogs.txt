@@ -13,7 +13,12 @@ v:1.25.0 - 2026-10-25
     - Reverse DNS Anti-Spoofing: Implemented `verify_rdns_domain()` performing two-way verification (forward DNS lookup verifying that the resolved hostname points back to the client IP) with 24-hour transient caching to protect against DNS PTR spoofing.
     - ASN Resolution: Integrated `get_client_asn()` checking Cloudflare ASN headers (`HTTP_CF_CONNECTING_ASN`), transient cache, and fallback Team Cymru DNS mapping (`origin.asn.cymru.com`).
     - Enhanced All 31 Presets: Configured verified subnets, hostnames, ASNs, and signature header requirements for Stripe, PayPal, Square, Shopify, TikTok Shop, Google Shopping, Meta/Facebook, Pinterest, Adyen, Mollie, Authorize.Net, Make, Zapier, Klaviyo, and Mailchimp.
-    - Interactive UI Rule Manager & 31 Quick Integration Presets:
+  * Security Trust Tiers & Sensitive Payload Privacy Redaction:
+    - Dynamic Security Trust Scoring: Integrated `getRuleTrustTier()` calculating trust levels: High Trust (Emerald - backed by HMAC headers, IP subnets, or rDNS), Medium Trust (Amber - backed by ASN network), and Low Trust (Red/Orange - User-Agent only without network verification).
+    - Rule Card & Modal Posture Indicators: Added visual Trust Badges across all rule cards and an interactive real-time Security Posture monitor inside the rule creation modal warning operators if a rule is susceptible to User-Agent header spoofing.
+    - Privacy Data Redaction: Hardened `log_targeted_allowlist_hit()` with automated pattern masking for sensitive credentials (`password`, `token`, `secret`, `api_key`, `authorization`, `card`, `cvv`) and truncated body payloads to 2KB to prevent sensitive data leakage and database bloat.
+    - Dataset Verification Attribution: Badged the 31 quick integration templates with "Verified: Oct 2026" attribution clarifying dataset review cadence.
+  * Interactive UI Rule Manager & 31 Quick Integration Presets:
     - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals including Hostname, ASN, and Security Header fields, active/disabled toggles, method selectors with vivid emerald active states, and 31 categorized presets across E-Commerce, Payments, Shipping, Marketing & CRM, Membership & LMS, and Automation.
     - Replaced disruptive native browser `confirm()` popup dialog with an elegant inline deletion confirmation popover directly positioned beneath the delete action button with "Cancel" and "Confirm Delete" actions.
   * Smart Plugin Integration Auto-Detection:

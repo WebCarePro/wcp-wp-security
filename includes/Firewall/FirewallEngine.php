@@ -3530,16 +3530,27 @@ class FirewallEngine {
         $incident_id = 'WCP-ALLOW-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
         $rule_name = sanitize_text_field($rule['name'] ?? 'Targeted Allowlist');
 
-        // Capture in-depth request payload & query details
+        // Capture in-depth request payload & query details with sensitive data redaction
         $raw_body = '';
         if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             // Read raw body stream or $_POST
             $raw_input = file_get_contents('php://input');
             if (!empty($raw_input)) {
-                $raw_body = substr($raw_input, 0, 4000);
+                $raw_body = substr($raw_input, 0, 2500);
             } elseif (!empty($_POST)) {
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
                 $raw_body = wp_json_encode($_POST);
+            }
+        }
+
+        // Privacy Redaction: Mask sensitive keys (passwords, tokens, api keys, secrets, authorization headers, credit cards)
+        if (!empty($raw_body)) {
+            $sensitive_patterns = [
+                '/(["\']?(?:password|passwd|pass|secret|token|api[_-]?key|access[_-]?token|auth|authorization|card|cvv|cvc|pan)["\']?\s*[:=]\s*["\']?)([^"\'&,\s]{3,})/i',
+                '/(Bearer\s+)[A-Za-z0-9_\-\.]{10,}/i'
+            ];
+            foreach ($sensitive_patterns as $pattern) {
+                $raw_body = preg_replace($pattern, '$1[REDACTED]', $raw_body);
             }
         }
 
@@ -3550,11 +3561,12 @@ class FirewallEngine {
             'rule_id'     => $rule['id'] ?? 'unknown',
             'rule_name'   => $rule_name,
             'query_data'  => !empty($query_str) ? $query_str : null,
-            'body_sample' => !empty($raw_body) ? (strlen($raw_body) > 3000 ? substr($raw_body, 0, 3000) . '... [truncated]' : $raw_body) : null,
+            'body_sample' => !empty($raw_body) ? (strlen($raw_body) > 2000 ? substr($raw_body, 0, 2000) . '... [truncated]' : $raw_body) : null,
             'client_ip'   => $ip,
             'user_agent'  => $user_agent,
             'hostname'    => (!empty($hostname) && $hostname !== $ip) ? $hostname : null,
             'asn'         => !empty($client_asn) ? $client_asn : null,
+            'matched_at'  => gmdate('Y-m-d H:i:s'),
         ];
 
         $payload_json = wp_json_encode($forensic_summary);
