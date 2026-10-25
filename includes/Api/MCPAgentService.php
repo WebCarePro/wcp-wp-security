@@ -36,6 +36,7 @@ class MCPAgentService {
         'wcpscan_get_supply_chain_sbom',
         'wcpscan_get_gatekeeper_history',
         'wcpscan_get_behavioral_waf_status',
+        'wcpscan_get_identity_forensics',
     ];
 
     const MUTATING_TOOLS = [
@@ -49,6 +50,9 @@ class MCPAgentService {
         'wcpscan_recalibrate_sbom_baseline',
         'wcpscan_quarantine_supply_chain_anchor',
         'wcpscan_set_route_learning_status',
+        'wcpscan_revoke_user_session',
+        'wcpscan_grant_ephemeral_elevation',
+        'wcpscan_revoke_ephemeral_elevation',
     ];
 
     const AUDIT_OPTION_KEY  = 'wcpscan_mcp_audit_log';
@@ -324,6 +328,7 @@ class MCPAgentService {
                     ],
                     'required' => ['staged_id'],
                 ],
+            ],
             [
                 'name'        => 'wcpscan_get_supply_chain_sbom',
                 'description' => 'Retrieve Software Bill of Materials (SBOM) tracking standard/custom drop-ins, mu-plugins, autoloaders, and PHP INI directives with drift detection.',
@@ -405,6 +410,85 @@ class MCPAgentService {
                         ],
                     ],
                     'required' => ['route_key', 'action'],
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_get_identity_forensics',
+                'description' => 'Retrieve Zero-Trust Identity forensics: active privileged sessions with 0-100% risk scores, Impossible Travel alerts, JIT Ephemeral Admin elevations, and HIBP breach status.',
+                'category'    => 'read',
+                'isMutating'  => false,
+                'policy'      => self::get_tool_policy('wcpscan_get_identity_forensics'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => new \stdClass(),
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_revoke_user_session',
+                'description' => 'Revoke a specific authenticated session token or all sessions for a compromised user account.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_revoke_user_session'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'user_id'  => [
+                            'type'        => 'integer',
+                            'description' => 'User ID whose session is to be revoked',
+                        ],
+                        'verifier' => [
+                            'type'        => 'string',
+                            'description' => 'Session verifier hash or "all" to terminate all sessions for the user',
+                        ],
+                    ],
+                    'required' => ['user_id', 'verifier'],
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_grant_ephemeral_elevation',
+                'description' => 'Temporarily elevate a user (e.g. editor or contractor) to administrator for a defined time window with auto-expiry via WP-Cron.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_grant_ephemeral_elevation'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'user_id'          => [
+                            'type'        => 'integer',
+                            'description' => 'User ID to elevate',
+                        ],
+                        'duration_minutes' => [
+                            'type'        => 'integer',
+                            'description' => 'Duration in minutes (e.g. 60, 240, 1440)',
+                            'default'     => 60,
+                        ],
+                        'reason'           => [
+                            'type'        => 'string',
+                            'description' => 'Justification for elevation (e.g. "Emergency bugfix")',
+                        ],
+                    ],
+                    'required' => ['user_id', 'duration_minutes'],
+                ],
+            ],
+            [
+                'name'        => 'wcpscan_revoke_ephemeral_elevation',
+                'description' => 'Immediately revoke temporary JIT administrator elevation and revert user to their baseline role.',
+                'category'    => 'mutating',
+                'isMutating'  => true,
+                'policy'      => self::get_tool_policy('wcpscan_revoke_ephemeral_elevation'),
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'user_id' => [
+                            'type'        => 'integer',
+                            'description' => 'User ID whose elevation is to be revoked',
+                        ],
+                        'reason'  => [
+                            'type'        => 'string',
+                            'description' => 'Revocation reason',
+                        ],
+                    ],
+                    'required' => ['user_id'],
                 ],
             ],
         ];
@@ -659,6 +743,22 @@ class MCPAgentService {
 
             case 'wcpscan_set_route_learning_status':
                 $response = self::tool_set_route_learning_status($args);
+                break;
+
+            case 'wcpscan_get_identity_forensics':
+                $response = self::tool_get_identity_forensics();
+                break;
+
+            case 'wcpscan_revoke_user_session':
+                $response = self::tool_revoke_user_session($args);
+                break;
+
+            case 'wcpscan_grant_ephemeral_elevation':
+                $response = self::tool_grant_ephemeral_elevation($args);
+                break;
+
+            case 'wcpscan_revoke_ephemeral_elevation':
+                $response = self::tool_revoke_ephemeral_elevation($args);
                 break;
 
             default:
@@ -1284,6 +1384,125 @@ class MCPAgentService {
         }
 
         $res = \WcpScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_get_identity_forensics(): array {
+        $data = [
+            'sessions_report'   => class_exists('\WcpScanner\Identity\SessionForensicsEngine') ? \WcpScanner\Identity\SessionForensicsEngine::get_active_sessions_report() : [],
+            'active_elevations' => class_exists('\WcpScanner\Identity\EphemeralAdminEngine') ? \WcpScanner\Identity\EphemeralAdminEngine::get_active_elevations() : [],
+            'elevation_history' => class_exists('\WcpScanner\Identity\EphemeralAdminEngine') ? \WcpScanner\Identity\EphemeralAdminEngine::get_elevation_history(20) : [],
+            'hibp_summary'      => class_exists('\WcpScanner\Identity\HIBPBreachAuditor') ? \WcpScanner\Identity\HIBPBreachAuditor::get_summary() : [],
+        ];
+
+        return [
+            'isError' => false,
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($data, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $data,
+        ];
+    }
+
+    private static function tool_revoke_user_session(array $args): array {
+        $user_id  = intval($args['user_id'] ?? 0);
+        $verifier = sanitize_text_field($args['verifier'] ?? '');
+
+        if (!$user_id || empty($verifier)) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Missing parameter: user_id and verifier are required.']],
+            ];
+        }
+
+        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'SessionForensicsEngine not available.']],
+            ];
+        }
+
+        if ($verifier === 'all') {
+            $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_all_sessions($user_id);
+        } else {
+            $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_session($user_id, $verifier);
+        }
+
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_grant_ephemeral_elevation(array $args): array {
+        $user_id  = intval($args['user_id'] ?? 0);
+        $duration = intval($args['duration_minutes'] ?? 60);
+        $reason   = sanitize_text_field($args['reason'] ?? '');
+
+        if (!$user_id) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Missing parameter: user_id is required.']],
+            ];
+        }
+
+        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'EphemeralAdminEngine not available.']],
+            ];
+        }
+
+        $res = \WcpScanner\Identity\EphemeralAdminEngine::grant_elevation($user_id, $duration, $reason);
+        return [
+            'isError' => empty($res['success']),
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
+                ],
+            ],
+            'result'  => $res,
+        ];
+    }
+
+    private static function tool_revoke_ephemeral_elevation(array $args): array {
+        $user_id = intval($args['user_id'] ?? 0);
+        $reason  = sanitize_text_field($args['reason'] ?? 'Revoked via MCP agent command');
+
+        if (!$user_id) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Missing parameter: user_id is required.']],
+            ];
+        }
+
+        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'EphemeralAdminEngine not available.']],
+            ];
+        }
+
+        $res = \WcpScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
         return [
             'isError' => empty($res['success']),
             'content' => [

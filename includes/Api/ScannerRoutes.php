@@ -1151,6 +1151,61 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'update_rate_limiter_settings'],
             'permission_callback' => $permission,
         ]);
+
+        // 19. Zero-Trust Identity, Session Forensics & Ephemeral Elevation (Pillar 4)
+        register_rest_route(self::NAMESPACE, '/identity/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_identity_forensics_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/revoke-session', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_identity_session'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/revoke-all-sessions', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_all_identity_sessions'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/jit-elevate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'grant_identity_jit_elevation'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/jit-revoke', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_identity_jit_elevation'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/audit-users', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'audit_identity_privileged_users'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/force-reset', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'force_identity_password_reset'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_identity_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/dismiss-travel-alert', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'dismiss_impossible_travel_alert'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -7295,6 +7350,159 @@ class ScannerRoutes {
             'settings' => $updated,
             'message'  => __('Adaptive Rate Limiter thresholds updated successfully.', 'wcp-security-scanner'),
         ]);
+    }
+
+    // ==========================================
+    // 17.6. Zero-Trust Identity, Session Forensics & JIT Elevation (Pillar 4)
+    // ==========================================
+
+    public static function get_identity_forensics_status(\WP_REST_Request $request) {
+        $sessions_report = class_exists('\WcpScanner\Identity\SessionForensicsEngine')
+            ? \WcpScanner\Identity\SessionForensicsEngine::get_active_sessions_report()
+            : [];
+        $active_elevations = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
+            ? \WcpScanner\Identity\EphemeralAdminEngine::get_active_elevations()
+            : [];
+        $elevation_history = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
+            ? \WcpScanner\Identity\EphemeralAdminEngine::get_elevation_history(20)
+            : [];
+        $hibp_summary = class_exists('\WcpScanner\Identity\HIBPBreachAuditor')
+            ? \WcpScanner\Identity\HIBPBreachAuditor::get_summary()
+            : [];
+
+        return rest_ensure_response([
+            'success'           => true,
+            'sessions_report'   => $sessions_report,
+            'active_elevations' => $active_elevations,
+            'elevation_history' => $elevation_history,
+            'hibp_summary'      => $hibp_summary,
+        ]);
+    }
+
+    public static function revoke_identity_session(\WP_REST_Request $request) {
+        $params   = $request->get_json_params() ?: [];
+        $user_id  = intval($params['user_id'] ?? 0);
+        $verifier = sanitize_text_field($params['verifier'] ?? '');
+
+        if (!$user_id || empty($verifier)) {
+            return new \WP_Error('missing_params', __('User ID and session verifier are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_session($user_id, $verifier);
+        return rest_ensure_response($res);
+    }
+
+    public static function revoke_all_identity_sessions(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = intval($params['user_id'] ?? 0);
+
+        if (!$user_id) {
+            return new \WP_Error('missing_user_id', __('User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_all_sessions($user_id);
+        return rest_ensure_response($res);
+    }
+
+    public static function grant_identity_jit_elevation(\WP_REST_Request $request) {
+        $params   = $request->get_json_params() ?: [];
+        $user_id  = intval($params['user_id'] ?? 0);
+        $duration = intval($params['duration_minutes'] ?? 60);
+        $reason   = sanitize_text_field($params['reason'] ?? '');
+
+        if (!$user_id) {
+            return new \WP_Error('missing_user_id', __('User ID is required for elevation.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
+            return new \WP_Error('missing_engine', __('EphemeralAdminEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Identity\EphemeralAdminEngine::grant_elevation($user_id, $duration, $reason);
+        return rest_ensure_response($res);
+    }
+
+    public static function revoke_identity_jit_elevation(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = intval($params['user_id'] ?? 0);
+        $reason  = sanitize_text_field($params['reason'] ?? 'Manual revocation by administrator');
+
+        if (!$user_id) {
+            return new \WP_Error('missing_user_id', __('User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
+            return new \WP_Error('missing_engine', __('EphemeralAdminEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
+        return rest_ensure_response($res);
+    }
+
+    public static function audit_identity_privileged_users(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Identity\HIBPBreachAuditor')) {
+            return new \WP_Error('missing_engine', __('HIBPBreachAuditor not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $report = \WcpScanner\Identity\HIBPBreachAuditor::audit_privileged_users();
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $report,
+        ]);
+    }
+
+    public static function force_identity_password_reset(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $user_id = intval($params['user_id'] ?? 0);
+
+        if (!$user_id) {
+            return new \WP_Error('missing_user_id', __('User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Identity\HIBPBreachAuditor')) {
+            return new \WP_Error('missing_engine', __('HIBPBreachAuditor not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Identity\HIBPBreachAuditor::force_password_reset($user_id);
+        return rest_ensure_response($res);
+    }
+
+    public static function update_identity_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $updated = \WcpScanner\Identity\SessionForensicsEngine::update_settings($params);
+        return rest_ensure_response([
+            'success'  => true,
+            'settings' => $updated,
+            'message'  => __('Identity forensics settings updated successfully.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function dismiss_impossible_travel_alert(\WP_REST_Request $request) {
+        $params   = $request->get_json_params() ?: [];
+        $alert_id = sanitize_text_field($params['alert_id'] ?? '');
+
+        if (empty($alert_id)) {
+            return new \WP_Error('missing_alert_id', __('Alert ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Identity\SessionForensicsEngine::dismiss_travel_alert($alert_id);
+        return rest_ensure_response($res);
     }
 
     // ==========================================

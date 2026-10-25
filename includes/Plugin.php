@@ -72,6 +72,12 @@ class Plugin {
         if (class_exists('\\WcpScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
             \WcpScanner\SupplyChain\UpdateGatekeeperEngine::init();
         }
+        if (class_exists('\\WcpScanner\\Identity\\SessionForensicsEngine')) {
+            \WcpScanner\Identity\SessionForensicsEngine::init();
+        }
+        if (class_exists('\\WcpScanner\\Identity\\EphemeralAdminEngine')) {
+            \WcpScanner\Identity\EphemeralAdminEngine::init();
+        }
         if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
             \WcpScanner\System\PluginUpdater::init();
         }

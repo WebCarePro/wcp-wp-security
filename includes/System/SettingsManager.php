@@ -352,6 +352,10 @@ class SettingsManager {
             'wcpscan_quarantine_supply_chain_anchor' => 'confirmation_required',
             'wcpscan_get_behavioral_waf_status'      => 'allowed',
             'wcpscan_set_route_learning_status'       => 'confirmation_required',
+            'wcpscan_get_identity_forensics'         => 'allowed',
+            'wcpscan_revoke_user_session'            => 'confirmation_required',
+            'wcpscan_grant_ephemeral_elevation'      => 'confirmation_required',
+            'wcpscan_revoke_ephemeral_elevation'     => 'confirmation_required',
         ];
     }
 

@@ -1,4 +1,23 @@
 v:1.25.0 - 2026-10-25
+- Next-Gen Pillar 4: Zero-Trust Identity, Session Forensics & Credential Leak Armor (`includes/Identity/`, `AuthSecurityPage.tsx`, `IdentityForensicsCard.tsx`, `ScannerRoutes.php`, `MCPAgentService.php`):
+  * Real-Time Impossible Travel & Anti-Session Hijacking (`SessionForensicsEngine.php`):
+    - Concurrent Session Fingerprinting: Inspects active WordPress authentication cookies in real time via `WP_Session_Tokens`, tracking client IP geolocation (country, city, latitude/longitude), ISP subnet, and browser User-Agent fingerprints.
+    - Impossible Travel Detection Ledger: Calculates geographic physical velocity delta between successive logins across disparate countries/subnets. Immediately flags impossible travel anomalies into an audit ledger with 1-click administrative dismissal or auto-revocation.
+    - User-Agent Cookie Theft & Replay Shield: Detects real-time browser header divergence on active sessions, stopping stolen session cookie replay attacks.
+    - Granular 0-100% Session Risk Scoring: Transparent mathematical risk engine factoring idle session decay (>7 days), ancient sessions (>30 days), and multi-country concurrency with 1-click single session or global revocation.
+  * Ephemeral Just-In-Time (JIT) Admin Elevation (`EphemeralAdminEngine.php`):
+    - Anti-Privilege Creep Protocol: Allows administrators to grant temporary administrative rights to non-admin users (editors, contractors, external developers) for strict time windows (30m, 1h, 4h, 8h, 24h, 72h) with audit justification logging.
+    - Automatic Role Reversion & WP-Cron Expiration: Schedules single-event WP-Cron jobs (`wcpscan_ephemeral_admin_expire`) backed by `admin_init` safety checks to automatically demote elevated users back to their exact baseline role (e.g. subscriber, editor).
+    - Live Admin Bar Countdown Telemetry: Renders a high-contrast orange countdown badge in the WordPress top admin bar (`⚡ JIT Admin: 45m left`) with direct modal link and live remaining duration.
+    - Comprehensive Audit Trail: Full persistent history of granted, active, expired, and revoked elevations with operator notes.
+  * HaveIBeenPwned Real-Time Leak Shield & Account Hygiene (`HIBPBreachAuditor.php`):
+    - Zero-Plaintext Cryptographic K-Anonymity SHA-1 Prefix Intercept: Queries official HIBP API using strictly the first 5 characters of the SHA-1 hash with local 24-hour transient caching. Plaintext passwords and full hashes are never exposed or transmitted.
+    - User Registration & Profile Update Guard: Proactively intercepts compromised or pwned passwords during profile updates and registration, preventing compromised credential reuse.
+    - Privileged Account Hygiene Auditor: Evaluates administrator accounts for default username targets ('admin', 'administrator'), display-name username enumeration risks, 2FA enrollment status, and stale inactive accounts (>60 days).
+    - 1-Click Forced Password Rotation: Automatically invalidates all active sessions for targeted compromised accounts and triggers secure native WordPress password reset links.
+  * Dedicated Zero-Trust Identity Cockpit & Autonomous MCP SecOps Tools (`IdentityForensicsCard.tsx`, `ScannerRoutes.php`, `MCPAgentService.php`):
+    - Rich Theme-Adaptive Dashboard: 4 real-time KPI metrics cards, Interactive Active Sessions & Impossible Travel table with risk badges, JIT Elevation manager with countdowns, and HIBP privileged user auditor.
+    - 4 New Autonomous MCP Tools: Registered `wcpscan_get_identity_forensics` (read), `wcpscan_revoke_user_session` (mutating), `wcpscan_grant_ephemeral_elevation` (mutating), and `wcpscan_revoke_ephemeral_elevation` (mutating) with Staged Confirmation Gate governance policies.
 - Next-Gen Pillar 3: Behavioral WAF & Anti-Automated Abuse (`includes/Firewall/`, `ScannerRoutes.php`, `MCPAgentService.php`, `FirewallPage.tsx`, `BehavioralWafCard.tsx`):
   * Adaptive Route-Aware Learning Mode 2.0 (`LearningModeEngine.php`):
     - Granular Per-Route Behavioral Profiling: Dynamic tracking per boundary (`frontend:public`, `admin:*`, `ajax:*`, `rest:*`, and `auth:*`). Profiles legitimate parameter schemas without overhead or false positives on custom themes and plugins.
