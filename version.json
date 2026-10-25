@@ -4,7 +4,7 @@
   "requires_php": "7.4",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip",
   "manifest_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json",
-  "released_at": "2026-10-24",
+  "released_at": "2026-10-25",
   "author": "Mir Alamin (WebCare Pro)",
   "author_homepage": "https://profiles.wordpress.org/webcarepro/",
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",
