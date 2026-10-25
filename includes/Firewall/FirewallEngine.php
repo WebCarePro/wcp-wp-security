@@ -3554,7 +3554,12 @@ class FirewallEngine {
             }
         }
 
-        $hostname = @gethostbyaddr($ip);
+        $host_transient = 'wcp_ptr_' . md5($ip);
+        $hostname = get_transient($host_transient);
+        if ($hostname === false) {
+            $hostname = @gethostbyaddr($ip);
+            set_transient($host_transient, $hostname ?: $ip, DAY_IN_SECONDS);
+        }
         $client_asn = self::get_client_asn($ip);
 
         $forensic_summary = [
