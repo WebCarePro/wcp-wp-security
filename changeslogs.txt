@@ -1,4 +1,10 @@
 v:1.25.0 - 2026-10-25
+- WordPress Plugin Check (PCP) Clean Verification & Hardening (`FirewallEngine.php`):
+  * Resolved all Plugin Check warnings and errors in `FirewallEngine::log_targeted_allowlist_hit()`:
+    - Fixed `WordPress.Security.NonceVerification.Missing` by documenting intentional low-level firewall forensic packet capture with valid `phpcs:ignore` justification comments and sanitizing incoming request arrays via `wp_unslash()`.
+    - Eliminated `WordPress.DB.PreparedSQL.NotPrepared` on `$recent_sql` by standardizing prepare execution with proper `phpcs:ignore` tag.
+    - Eliminated `PluginCheck.Security.DirectDB.UnescapedDBParameter` and `WordPress.DB.PreparedSQL.InterpolatedNotPrepared` by refactoring direct interpolated SQL `INSERT` string into native, prepared `$wpdb->insert()` execution with standard format specifiers (`%s`, `%d`).
+    - Verified with official WordPress Plugin Check CLI: 0 errors and 0 unhandled warnings in plugin code.
 - Dark Mode High-Contrast Preset & Detected Badge Styling (`src/index.css`, `TargetedAllowlistManagerCard.tsx`):
   * Hardened theme contrast for Detected preset badges and quick preset buttons (`.wcp-preset-btn-detected` and `.wcp-preset-badge-detected`).
   * In Dark Mode (`.wcp-theme-dark` / `[data-theme="dark"]`), buttons now feature elevated deep-emerald styling (`rgba(16, 185, 129, 0.16)` bg, `#34d399` text, `rgba(16, 185, 129, 0.45)` border) and solid `#059669` "Detected" pills with high-contrast `#ffffff` text, completely eliminating washed-out or low-contrast borders.
