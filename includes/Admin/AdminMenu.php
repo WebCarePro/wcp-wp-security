@@ -63,6 +63,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // 3b. Submenu: Virtual Patching & 0-Day Defense Studio
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Virtual Patching & 0-Day Exploit Studio', 'wcp-security-scanner'),
+            __('Virtual Patching', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-vpatch',
+            [__CLASS__, 'render_app_container']
+        );
+
         // 4. Submenu: Login Security & 2FA
         add_submenu_page(
             'wcp-security-scanner',
@@ -215,6 +225,7 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-server',
             'wcp-security-scanner_page_wcp-scanner-vulnerabilities',
             'wcp-security-scanner_page_wcp-scanner-firewall',
+            'wcp-security-scanner_page_wcp-scanner-vpatch',
             'wcp-security-scanner_page_wcp-scanner-waf-logs',
             'wcp-security-scanner_page_wcp-scanner-fim',
             'wcp-security-scanner_page_wcp-scanner-auth',
@@ -231,6 +242,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-server',
             'security-scanner_page_wcp-scanner-vulnerabilities',
             'security-scanner_page_wcp-scanner-firewall',
+            'security-scanner_page_wcp-scanner-vpatch',
             'security-scanner_page_wcp-scanner-waf-logs',
             'security-scanner_page_wcp-scanner-fim',
             'security-scanner_page_wcp-scanner-auth',
@@ -261,6 +273,7 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-server' || ($current_page === 'wcp-security-scanner' && $tab_param === 'server')) $active_tab = 'server';
         elseif ($current_page === 'wcp-scanner-vulnerabilities' || ($current_page === 'wcp-security-scanner' && $tab_param === 'vulnerabilities')) $active_tab = 'vulnerabilities';
         elseif ($current_page === 'wcp-scanner-firewall' || ($current_page === 'wcp-security-scanner' && $tab_param === 'firewall')) $active_tab = 'firewall';
+        elseif ($current_page === 'wcp-scanner-vpatch' || ($current_page === 'wcp-security-scanner' && $tab_param === 'vpatch') || ($current_page === 'wcp-scanner-firewall' && $tab_param === 'vpatch')) $active_tab = 'vpatch';
         elseif ($current_page === 'wcp-scanner-waf-logs' || ($current_page === 'wcp-security-scanner' && $tab_param === 'waf_logs')) $active_tab = 'waf_logs';
         elseif ($current_page === 'wcp-scanner-fim' || ($current_page === 'wcp-security-scanner' && $tab_param === 'fim')) $active_tab = 'fim';
         elseif ($current_page === 'wcp-scanner-auth' || ($current_page === 'wcp-security-scanner' && $tab_param === 'auth')) $active_tab = 'auth';
