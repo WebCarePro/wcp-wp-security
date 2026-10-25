@@ -3371,11 +3371,146 @@ class FirewallEngine {
                 }
             }
 
+            // 5. Hostname / Reverse DNS (rDNS) Verification (If specified, verify IP resolves to allowed domain/hostname)
+            $rule_hostnames = !empty($rule['hostnames']) && is_array($rule['hostnames']) ? $rule['hostnames'] : [];
+            if (!empty($rule_hostnames)) {
+                $host_matched = false;
+                foreach ($rule_hostnames as $allowed_host) {
+                    $allowed_host = trim($allowed_host);
+                    if ($allowed_host === '') {
+                        continue;
+                    }
+                    if (self::verify_rdns_domain($ip, $allowed_host)) {
+                        $host_matched = true;
+                        break;
+                    }
+                }
+                if (!$host_matched) {
+                    continue; // Hostname/rDNS condition specified but didn't match
+                }
+            }
+
+            // 6. Autonomous System Number (ASN) Check (If specified, verify client ASN)
+            $rule_asns = !empty($rule['asns']) && is_array($rule['asns']) ? $rule['asns'] : [];
+            if (!empty($rule_asns)) {
+                $client_asn = self::get_client_asn($ip);
+                if (empty($client_asn)) {
+                    continue; // ASN specified but could not be determined
+                }
+                $asn_matched = false;
+                foreach ($rule_asns as $target_asn) {
+                    $clean_target = strtoupper(trim($target_asn));
+                    if ($clean_target === '') {
+                        continue;
+                    }
+                    if ($clean_target === $client_asn || $clean_target === ('AS' . $client_asn) || ('AS' . $clean_target) === $client_asn) {
+                        $asn_matched = true;
+                        break;
+                    }
+                }
+                if (!$asn_matched) {
+                    continue; // ASN condition specified but didn't match
+                }
+            }
+
+            // 7. Required HTTP Headers (e.g. X-Shopify-Hmac-Sha256, Stripe-Signature, X-Square-Hmacsha256-Signature)
+            $rule_headers = !empty($rule['required_headers']) && is_array($rule['required_headers']) ? $rule['required_headers'] : [];
+            if (!empty($rule_headers)) {
+                $headers_matched = true;
+                foreach ($rule_headers as $req_header) {
+                    $req_header = trim($req_header);
+                    if ($req_header === '') {
+                        continue;
+                    }
+                    // Normalize to HTTP_ format
+                    $server_key = 'HTTP_' . strtoupper(str_replace('-', '_', $req_header));
+                    if (!isset($_SERVER[$server_key]) && !isset($_SERVER[strtoupper(str_replace('-', '_', $req_header))])) {
+                        $headers_matched = false;
+                        break;
+                    }
+                }
+                if (!$headers_matched) {
+                    continue; // Required header missing
+                }
+            }
+
             // If we reached here, all specified conditions matched!
             return $rule;
         }
 
         return null;
+    }
+
+    /**
+     * Cryptographically verify IP reverse DNS (PTR) with forward DNS (A) resolution.
+     * Caches verdict in WordPress transient for 24 hours to prevent DNS resolution latency.
+     */
+    public static function verify_rdns_domain(string $ip, string $target_domain): bool {
+        $clean_target = strtolower(trim(ltrim($target_domain, '*.')));
+        if ($clean_target === '') {
+            return false;
+        }
+
+        $transient_key = 'wcp_rdns_' . md5($ip . '_' . $clean_target);
+        $cached = get_transient($transient_key);
+        if ($cached !== false) {
+            return ($cached === 'valid');
+        }
+
+        $is_valid = false;
+        $hostname = @gethostbyaddr($ip);
+        if (!empty($hostname) && $hostname !== $ip) {
+            $hostname_lower = strtolower($hostname);
+            if ($hostname_lower === $clean_target || str_ends_with($hostname_lower, '.' . $clean_target)) {
+                // Forward DNS check to prevent PTR spoofing
+                $resolved_ip = @gethostbyname($hostname);
+                if ($resolved_ip === $ip) {
+                    $is_valid = true;
+                }
+            }
+        }
+
+        // Cache 24 hours if valid, 2 hours if failed
+        set_transient($transient_key, $is_valid ? 'valid' : 'invalid', $is_valid ? DAY_IN_SECONDS : 7200);
+        return $is_valid;
+    }
+
+    /**
+     * Resolve Client Autonomous System Number (ASN).
+     * Checks Cloudflare CF-Connecting-ASN header, proxy headers, or Team Cymru DNS lookup.
+     */
+    public static function get_client_asn(string $ip): string {
+        // 1. Direct Cloudflare Edge ASN Header
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_ASN'])) {
+            return strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_ASN'])));
+        }
+
+        // 2. Check transient cache
+        $transient_key = 'wcp_asn_' . md5($ip);
+        $cached = get_transient($transient_key);
+        if ($cached !== false) {
+            return (string) $cached;
+        }
+
+        // 3. Reverse DNS check against Team Cymru ASN mapping DNS service (origin.asn.cymru.com)
+        $asn = '';
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $octets = explode('.', $ip);
+            $rev_ip = implode('.', array_reverse($octets));
+            $query_host = $rev_ip . '.origin.asn.cymru.com';
+            $txt_records = @dns_get_record($query_host, DNS_TXT);
+            if (!empty($txt_records[0]['txt'])) {
+                // Format: "15169 | 8.8.8.0/24 | US | arin | 1992-12-01"
+                $parts = explode('|', $txt_records[0]['txt']);
+                $raw_asn = trim($parts[0] ?? '');
+                if (!empty($raw_asn) && is_numeric($raw_asn)) {
+                    $asn = 'AS' . $raw_asn;
+                }
+            }
+        }
+
+        set_transient($transient_key, $asn, !empty($asn) ? WEEK_IN_SECONDS : DAY_IN_SECONDS);
+        return $asn;
     }
 
     /**
@@ -3408,8 +3543,8 @@ class FirewallEngine {
             }
         }
 
-        // Capture Query string or $_GET
-        $query_str = isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '';
+        $hostname = @gethostbyaddr($ip);
+        $client_asn = self::get_client_asn($ip);
 
         $forensic_summary = [
             'rule_id'     => $rule['id'] ?? 'unknown',
@@ -3418,6 +3553,8 @@ class FirewallEngine {
             'body_sample' => !empty($raw_body) ? (strlen($raw_body) > 3000 ? substr($raw_body, 0, 3000) . '... [truncated]' : $raw_body) : null,
             'client_ip'   => $ip,
             'user_agent'  => $user_agent,
+            'hostname'    => (!empty($hostname) && $hostname !== $ip) ? $hostname : null,
+            'asn'         => !empty($client_asn) ? $client_asn : null,
         ];
 
         $payload_json = wp_json_encode($forensic_summary);

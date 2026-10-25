@@ -8,8 +8,13 @@ v:1.25.0 - 2026-10-25
     - Bypassed requests under targeted allowlist rules are logged with `action_taken = 'allowed'` and `http_status_code = 200` into `wcpscan_firewall_logs`.
     - Captures complete inbound query parameters, HTTP method, client IP, User-Agent, and raw request payload / body telemetry (`php://input` / `$_POST`) for thorough auditability.
     - Added "Targeted Allowlist Bypasses" and "Allowed (Targeted Bypass)" quick filter options and high-contrast emerald status badges in `WafLogsPage.tsx`.
-  * Interactive UI Rule Manager & 31 Quick Integration Presets:
-    - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals, active/disabled toggles, method selectors with vivid emerald active states, and 31 categorized presets across E-Commerce, Payments, Shipping, Marketing & CRM, Membership & LMS, and Automation.
+  * Multi-Layer Network Verification Engine (Hostnames/rDNS, ASN, Security Headers):
+    - Multi-Layer Matching: Added deep network verification checks supporting client IP/CIDR subnets, Reverse DNS / Hostnames (rDNS), Autonomous System Numbers (ASN), and Required Security / Webhook Signature Headers (e.g. `X-Shopify-Hmac-Sha256`, `Stripe-Signature`, `X-Square-Hmacsha256-Signature`).
+    - Reverse DNS Anti-Spoofing: Implemented `verify_rdns_domain()` performing two-way verification (forward DNS lookup verifying that the resolved hostname points back to the client IP) with 24-hour transient caching to protect against DNS PTR spoofing.
+    - ASN Resolution: Integrated `get_client_asn()` checking Cloudflare ASN headers (`HTTP_CF_CONNECTING_ASN`), transient cache, and fallback Team Cymru DNS mapping (`origin.asn.cymru.com`).
+    - Enhanced All 31 Presets: Configured verified subnets, hostnames, ASNs, and signature header requirements for Stripe, PayPal, Square, Shopify, TikTok Shop, Google Shopping, Meta/Facebook, Pinterest, Adyen, Mollie, Authorize.Net, Make, Zapier, Klaviyo, and Mailchimp.
+    - Interactive UI Rule Manager & 31 Quick Integration Presets:
+    - Added `TargetedAllowlistManagerCard.tsx` with rule creation/editing modals including Hostname, ASN, and Security Header fields, active/disabled toggles, method selectors with vivid emerald active states, and 31 categorized presets across E-Commerce, Payments, Shipping, Marketing & CRM, Membership & LMS, and Automation.
     - Replaced disruptive native browser `confirm()` popup dialog with an elegant inline deletion confirmation popover directly positioned beneath the delete action button with "Cancel" and "Confirm Delete" actions.
   * Smart Plugin Integration Auto-Detection:
     - Automatically discovers active plugins installed on the site (via `FirewallEngine::get_active_plugin_slugs()` and `active_plugin_slugs` telemetry).

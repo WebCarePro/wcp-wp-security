@@ -599,14 +599,23 @@ class SettingsManager {
                     'endpoints'    => is_array($rule['endpoints'] ?? null)
                         ? array_values(array_filter(array_map('sanitize_text_field', $rule['endpoints'])))
                         : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['endpoints'] ?? '')))))),
-                    'ip_addresses' => is_array($rule['ip_addresses'] ?? null)
+                    'ip_addresses'     => is_array($rule['ip_addresses'] ?? null)
                         ? array_values(array_filter(array_map('sanitize_text_field', $rule['ip_addresses'])))
                         : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['ip_addresses'] ?? '')))))),
-                    'methods'      => is_array($rule['methods'] ?? null)
+                    'hostnames'        => is_array($rule['hostnames'] ?? null)
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['hostnames'])))
+                        : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['hostnames'] ?? '')))))),
+                    'asns'             => is_array($rule['asns'] ?? null)
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['asns'])))
+                        : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['asns'] ?? '')))))),
+                    'required_headers' => is_array($rule['required_headers'] ?? null)
+                        ? array_values(array_filter(array_map('sanitize_text_field', $rule['required_headers'])))
+                        : array_values(array_filter(array_map('sanitize_text_field', explode("\n", str_replace("\r", "", (string) ($rule['required_headers'] ?? '')))))),
+                    'methods'          => is_array($rule['methods'] ?? null)
                         ? array_values(array_filter(array_map('sanitize_text_field', $rule['methods'])))
                         : ['ALL'],
-                    'log_payload'  => isset($rule['log_payload']) ? (bool) $rule['log_payload'] : true,
-                    'description'  => sanitize_text_field($rule['description'] ?? ''),
+                    'log_payload'      => isset($rule['log_payload']) ? (bool) $rule['log_payload'] : true,
+                    'description'      => sanitize_text_field($rule['description'] ?? ''),
                 ];
             }
         }
