@@ -1063,6 +1063,7 @@ class MCPAgentService {
         }
 
         if ($target_action['status'] !== 'pending_approval') {
+            /* translators: %s: status of the action */
             return ['success' => false, 'message' => sprintf(__('Action is already %s.', 'wcp-security-scanner'), $target_action['status'])];
         }
 
@@ -1198,7 +1199,7 @@ class MCPAgentService {
         $sql = "SELECT id, engine, type, severity, confidence, file_path, line_number, description, status, created_at FROM {$table} WHERE " . implode(' AND ', $where) . " ORDER BY id DESC LIMIT %d";
         $params[] = $limit;
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A) ?: [];
 
         return [

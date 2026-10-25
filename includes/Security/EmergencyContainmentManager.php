@@ -35,11 +35,12 @@ class EmergencyContainmentManager {
             return;
         }
 
-        // 1. Enforce Runtime Filesystem Locks
         if (!defined('DISALLOW_FILE_EDIT')) {
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Standard WordPress core constants for emergency lockdown
             define('DISALLOW_FILE_EDIT', true);
         }
         if (!defined('DISALLOW_FILE_MODS')) {
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Standard WordPress core constants for emergency lockdown
             define('DISALLOW_FILE_MODS', true);
         }
 
@@ -258,7 +259,7 @@ class EmergencyContainmentManager {
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Emergency Security Containment — <?php echo $site_name; ?></title>
+            <title>Emergency Security Containment — <?php echo esc_html($site_name); ?></title>
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body {
@@ -365,7 +366,7 @@ class EmergencyContainmentManager {
                 <div class="status-badge">Emergency Containment Active</div>
                 <h1>Security Maintenance in Progress</h1>
                 <p>
-                    <strong><?php echo $site_name; ?></strong> is currently operating under an automated emergency security lockdown to protect system integrity and visitor data.
+                    <strong><?php echo esc_html($site_name); ?></strong> is currently operating under an automated emergency security lockdown to protect system integrity and visitor data.
                 </p>
                 <div class="protocol-box">
                     <div class="protocol-item"><div class="dot"></div> Filesystem mutation channels locked</div>
@@ -396,7 +397,7 @@ class EmergencyContainmentManager {
                     <div>
                         <strong style="color: #b91c1c; font-size: 14px;">WCP EMERGENCY CONTAINMENT IS ACTIVE</strong>
                         <div style="color: #7f1d1d; font-size: 12px; margin-top: 2px;">
-                            Blast radius frozen by <strong><?php echo $activated_by; ?></strong>. Reason: <em><?php echo $reason; ?></em>. Filesystem editing, plugin installs, and public write operations are locked.
+                            Blast radius frozen by <strong><?php echo esc_html($activated_by); ?></strong>. Reason: <em><?php echo esc_html($reason); ?></em>. Filesystem editing, plugin installs, and public write operations are locked.
                         </div>
                     </div>
                 </div>

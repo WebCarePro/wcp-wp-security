@@ -665,6 +665,7 @@ class FirewallEngine {
             \WcpScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
         $is_drill_request = !empty($_GET['wcp_drill_token']) || !empty($_POST['wcp_drill_token']) || !empty($_SERVER['HTTP_X_WCP_DRILL_TOKEN']);
 
         // Safe Bypass for Verified Authenticated Administrators and Page Builder Sessions

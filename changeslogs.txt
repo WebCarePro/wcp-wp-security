@@ -1,4 +1,22 @@
 v:1.25.0 - 2026-10-25
+- WordPress.org Plugin Guidelines & Plugin Check (PCP) Compliance Hardening:
+  * Internationalization (I18n) & Placeholders:
+    - Added comprehensive `/* translators: ... */` annotations clarifying placeholder parameters across `UpdateGatekeeperEngine.php`, `MCPAgentService.php`, `EphemeralAdminEngine.php`, and `HIBPBreachAuditor.php`.
+    - Converted all multi-placeholder translation strings to ordered format (`%1$s, %2$s`, `%1$s, %2$d`) in `UpdateGatekeeperEngine.php`, `EphemeralAdminEngine.php`, and `HIBPBreachAuditor.php` to satisfy `WordPress.WP.I18n.UnorderedPlaceholdersText`.
+  * Native WordPress Filesystem & API Modernization:
+    - Replaced direct PHP `mkdir()` with native `wp_mkdir_p()`, and direct `unlink()` with `wp_delete_file()` in `UpdateGatekeeperEngine.php`.
+    - Properly positioned `phpcs:ignore` annotations for standard WordPress core lockdown constants (`DISALLOW_FILE_EDIT`, `DISALLOW_FILE_MODS`) in `EmergencyContainmentManager.php`.
+    - Added `PluginCheck.Security.DirectDB.UnescapedDBParameter` phpcs annotation on safe static database query construction in `MCPAgentService.php`.
+  * Output Escaping & Input Sanitization/Unslashing:
+    - Escaped output variables (`$site_name`, `$activated_by`, `$reason`) via `esc_html()` in `EmergencyContainmentManager.php`.
+    - Escaped HTTP 429 response body with `esc_html()` and sanitized `$_SERVER['HTTP_ACCEPT']` via `sanitize_text_field(wp_unslash(...))` in `AdaptiveRateLimiter.php`.
+    - Sanitized `$_GET['rest_route']` via `sanitize_text_field(wp_unslash(...))` in `LearningModeEngine.php`.
+    - Documented low-level honeypot and red-team benchmark packet inspection in `HoneyTokenEngine.php`, `LearningModeEngine.php`, and `FirewallEngine.php` with `WordPress.Security.NonceVerification` justifications.
+    - Added `PluginCheck.CodeAnalysis.Offloading.OffloadedContent` justifications for public threat intel blocklist raw text feeds in `ThreatIntelNetwork.php`.
+  * Lifecycle Optimization & WordPress 6.7 Textdomain Hardening:
+    - Deferred `wp_schedule_event()` calls in `PluginSelfDefense.php` and `ThreatIntelService.php` to the `init` action hook, eliminating premature textdomain evaluation notices (`_load_textdomain_just_in_time`).
+  * Architecture & Standards Documentation:
+    - Formally established the `WordPress.org Plugin Guidelines & Plugin Check Compliance` rules and explicit exceptions in `AGENTS.md`.
 - Multi-Region Timezone Architecture & Date/Timestamp Hardening (`src/timeUtils.ts`, `src/ScanLogsPage.tsx`, `includes/Admin/AdminMenu.php`, `includes/Api/ScannerRoutes.php`):
   * Stringified TimezoneOffset Coercion Fix (`timeUtils.ts`):
     - Resolved `typeof tzOffsetSec === 'number'` false-negative caused by WordPress `wp_localize_script()` casting all scalar data to strings. Implemented `Number(rawOffset)` coercion, eliminating 6-hour negative clock skew that previously forced past scans to erroneously render as "Just now".

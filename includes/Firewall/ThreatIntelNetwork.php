@@ -48,6 +48,7 @@ class ThreatIntelNetwork {
                 'id'          => 'ipsum_l1',
                 'name'        => 'Stamparm Ipsum (Level 1)',
                 'provider'    => 'Ipsum Project (stamparm)',
+                // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Threat intelligence plain-text IP feed, not offloaded script or asset
                 'url'         => 'https://raw.githubusercontent.com/stamparm/ipsum/master/levels/1.txt',
                 'description' => 'Aggregated threat lists scoring 1+ hits across 30+ global security feeds.',
                 'type'        => 'malicious_ip',
@@ -58,6 +59,7 @@ class ThreatIntelNetwork {
                 'id'          => 'ipsum_l2',
                 'name'        => 'Stamparm Ipsum (Level 2 High-Confidence)',
                 'provider'    => 'Ipsum Project (stamparm)',
+                // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Threat intelligence plain-text IP feed, not offloaded script or asset
                 'url'         => 'https://raw.githubusercontent.com/stamparm/ipsum/master/levels/2.txt',
                 'description' => 'High-confidence recurring botnets verified across 2+ independent blacklists.',
                 'type'        => 'malicious_ip',

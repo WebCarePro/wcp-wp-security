@@ -28,10 +28,12 @@ class PluginSelfDefense {
         add_action('admin_notices', [__CLASS__, 'render_tamper_warning_notice']);
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_watchdog']);
 
-        // Schedule event if not already registered
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + 300, 'twicedaily', self::CRON_HOOK);
-        }
+        // Schedule event if not already registered (deferred to init to prevent early textdomain loading)
+        add_action('init', function () {
+            if (!wp_next_scheduled(self::CRON_HOOK)) {
+                wp_schedule_event(time() + 300, 'twicedaily', self::CRON_HOOK);
+            }
+        });
     }
 
     /**

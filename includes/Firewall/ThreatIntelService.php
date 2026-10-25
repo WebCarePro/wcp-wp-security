@@ -22,9 +22,12 @@ class ThreatIntelService {
     public static function init() {
         add_action(self::CRON_HOOK, [__CLASS__, 'sync_threat_intelligence']);
 
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + HOUR_IN_SECONDS, 'twicedaily', self::CRON_HOOK);
-        }
+        // Defer cron scheduling to init to prevent premature textdomain evaluation
+        add_action('init', function () {
+            if (!wp_next_scheduled(self::CRON_HOOK)) {
+                wp_schedule_event(time() + HOUR_IN_SECONDS, 'twicedaily', self::CRON_HOOK);
+            }
+        });
     }
 
     /**

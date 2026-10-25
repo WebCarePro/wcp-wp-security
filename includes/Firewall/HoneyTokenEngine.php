@@ -111,7 +111,7 @@ class HoneyTokenEngine {
      * @return mixed
      */
     public static function inspect_auth_honeytoken($user, $username, $password) {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Honeypot trap must inspect raw form data before auth to catch headless bots
         if (isset($_POST[self::FIELD_FLAG]) && !empty($_POST[self::FIELD_NAME])) {
             self::trigger_trap('login_autofill', [
                 'target'   => 'Login Portal Form',
@@ -119,6 +119,7 @@ class HoneyTokenEngine {
                 'payload'  => sanitize_text_field(wp_unslash($_POST[self::FIELD_NAME])),
             ]);
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
         return $user;
     }
 
@@ -126,7 +127,7 @@ class HoneyTokenEngine {
      * Intercept user registration submissions.
      */
     public static function inspect_registration_honeytoken($errors, $sanitized_user_login, $user_email) {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Honeypot trap must inspect raw form data before registration to catch headless bots
         if (isset($_POST[self::FIELD_FLAG]) && !empty($_POST[self::FIELD_NAME])) {
             self::trigger_trap('registration_autofill', [
                 'target'   => 'Registration Form',
@@ -135,6 +136,7 @@ class HoneyTokenEngine {
                 'payload'  => sanitize_text_field(wp_unslash($_POST[self::FIELD_NAME])),
             ]);
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
         return $errors;
     }
 
@@ -142,13 +144,14 @@ class HoneyTokenEngine {
      * Intercept comment submissions.
      */
     public static function inspect_comment_honeytoken($commentdata) {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Honeypot trap must inspect raw form data before comment processing to catch spambots
         if (isset($_POST[self::FIELD_FLAG]) && !empty($_POST[self::FIELD_NAME])) {
             self::trigger_trap('comment_autofill', [
                 'target'  => 'Comment Form',
                 'payload' => sanitize_text_field(wp_unslash($_POST[self::FIELD_NAME])),
             ]);
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
         return $commentdata;
     }
 

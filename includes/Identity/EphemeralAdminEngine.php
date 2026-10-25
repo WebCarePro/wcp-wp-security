@@ -114,9 +114,11 @@ class EphemeralAdminEngine {
             )
         );
 
+        /* translators: 1: user login, 2: duration in minutes */
+        $msg = sprintf(__('JIT Admin elevation granted to %1$s for %2$d minutes.', 'wcp-security-scanner'), $user->user_login, $duration_minutes);
         return [
             'success'   => true,
-            'message'   => sprintf(__('JIT Admin elevation granted to %s for %d minutes.', 'wcp-security-scanner'), $user->user_login, $duration_minutes),
+            'message'   => $msg,
             'elevation' => $entry,
         ];
     }
@@ -164,9 +166,11 @@ class EphemeralAdminEngine {
             sprintf('JIT Ephemeral Elevation revoked for user "%s". Restored to baseline role "%s".', $entry['user_login'] ?? "ID {$user_id}", $baseline_role)
         );
 
+        /* translators: 1: user login, 2: restored baseline role name */
+        $msg = sprintf(__('Elevation revoked. User %1$s reverted to %2$s.', 'wcp-security-scanner'), $entry['user_login'], $baseline_role);
         return [
             'success' => true,
-            'message' => sprintf(__('Elevation revoked. User %s reverted to %s.', 'wcp-security-scanner'), $entry['user_login'], $baseline_role),
+            'message' => $msg,
         ];
     }
 

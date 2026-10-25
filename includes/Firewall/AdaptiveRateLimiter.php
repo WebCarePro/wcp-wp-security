@@ -135,7 +135,8 @@ class AdaptiveRateLimiter {
         header('X-WCP-Rate-Limit-Limit: ' . intval($limit));
         header('X-WCP-Rate-Limit-Current: ' . intval($count));
 
-        if (wp_is_json_request() || strpos($uri, '/wp-json/') !== false || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+        $http_accept = isset($_SERVER['HTTP_ACCEPT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_ACCEPT'])) : '';
+        if (wp_is_json_request() || strpos($uri, '/wp-json/') !== false || strpos($http_accept, 'application/json') !== false) {
             header('Content-Type: application/json; charset=utf-8');
             echo wp_json_encode([
                 'success'     => false,
@@ -147,7 +148,7 @@ class AdaptiveRateLimiter {
             ]);
         } else {
             header('Content-Type: text/plain; charset=utf-8');
-            echo "HTTP 429 Too Many Requests: Rate limit exceeded for {$bucket} boundary. Please wait {$retry_after} seconds before retrying.";
+            echo esc_html("HTTP 429 Too Many Requests: Rate limit exceeded for {$bucket} boundary. Please wait {$retry_after} seconds before retrying.");
         }
         exit;
     }

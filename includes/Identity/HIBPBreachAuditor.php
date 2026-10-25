@@ -192,9 +192,11 @@ class HIBPBreachAuditor {
         $reset_url = network_site_url("wp-login.php?action=rp&key={$key}&login=" . rawurlencode($user->user_login), 'login');
 
         // 4. Send email
+        /* translators: %s: site name */
         $subject = sprintf(__('[%s] Security Notification: Password Reset Required', 'wcp-security-scanner'), get_bloginfo('name'));
+        /* translators: 1: user display name, 2: password reset URL */
         $message = sprintf(
-            __("Hello %s,\n\nA security administrator has initiated an immediate password reset for your account to protect against unauthorized credential reuse.\n\nAll existing active sessions have been terminated.\n\nPlease reset your password using the following link:\n%s\n\nIf you did not expect this, please reach out to your security administrator immediately.", 'wcp-security-scanner'),
+            __("Hello %1\$s,\n\nA security administrator has initiated an immediate password reset for your account to protect against unauthorized credential reuse.\n\nAll existing active sessions have been terminated.\n\nPlease reset your password using the following link:\n%2\$s\n\nIf you did not expect this, please reach out to your security administrator immediately.", 'wcp-security-scanner'),
             $user->display_name,
             $reset_url
         );
@@ -206,9 +208,11 @@ class HIBPBreachAuditor {
             sprintf('Administrator forced password reset for user "%s". All active sessions terminated.', $user->user_login)
         );
 
+        /* translators: %s: user email address */
+        $success_msg = sprintf(__('All active sessions terminated and password reset email dispatched to %s.', 'wcp-security-scanner'), $user->user_email);
         return [
             'success'   => true,
-            'message'   => sprintf(__('All active sessions terminated and password reset email dispatched to %s.', 'wcp-security-scanner'), $user->user_email),
+            'message'   => $success_msg,
             'reset_url' => $reset_url,
         ];
     }

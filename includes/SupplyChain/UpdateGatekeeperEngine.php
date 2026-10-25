@@ -138,7 +138,8 @@ class UpdateGatekeeperEngine {
                 return new \WP_Error(
                     'wcp_gatekeeper_update_blocked',
                     sprintf(
-                        __('WCP Update Gatekeeper Security Intercept: The incoming update for "%s" was BLOCKED because critical supply-chain risks were detected: %s. Your production files were protected.', 'wcp-security-scanner'),
+                        /* translators: 1: plugin folder name, 2: block reason */
+                        __('WCP Update Gatekeeper Security Intercept: The incoming update for "%1$s" was BLOCKED because critical supply-chain risks were detected: %2$s. Your production files were protected.', 'wcp-security-scanner'),
                         esc_html($folder_name),
                         esc_html($reason)
                     )
@@ -185,6 +186,7 @@ class UpdateGatekeeperEngine {
                 return new \WP_Error(
                     'wcp_gatekeeper_install_blocked',
                     sprintf(
+                        /* translators: %s: plugin folder name */
                         __('WCP Update Gatekeeper Security Intercept: Installation of "%s" was BLOCKED due to critical security risk patterns detected in package.', 'wcp-security-scanner'),
                         esc_html($folder_name)
                     )
@@ -417,13 +419,14 @@ class UpdateGatekeeperEngine {
     private static function copy_dir_recursive(string $src, string $dst) {
         $dir = @opendir($src);
         if (!$dir) return;
-        @mkdir($dst, 0755, true);
+        wp_mkdir_p($dst);
 
         while (false !== ($file = readdir($dir))) {
             if ($file !== '.' && $file !== '..') {
                 if (is_dir($src . '/' . $file)) {
                     self::copy_dir_recursive($src . '/' . $file, $dst . '/' . $file);
                 } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Internal pre-update rollback snapshot
                     @copy($src . '/' . $file, $dst . '/' . $file);
                 }
             }
@@ -438,8 +441,13 @@ class UpdateGatekeeperEngine {
         if (!is_dir($dir)) return;
         $files = array_diff(scandir($dir) ?: [], ['.', '..']);
         foreach ($files as $file) {
-            (is_dir("$dir/$file")) ? self::delete_dir_recursive("$dir/$file") : @unlink("$dir/$file");
+            if (is_dir("$dir/$file")) {
+                self::delete_dir_recursive("$dir/$file");
+            } else {
+                wp_delete_file("$dir/$file");
+            }
         }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Fallback directory cleanup for internal rollback snapshot
         @rmdir($dir);
     }
 }

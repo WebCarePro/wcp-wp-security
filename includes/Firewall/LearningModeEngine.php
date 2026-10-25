@@ -75,25 +75,29 @@ class LearningModeEngine {
 
         // 2. Admin AJAX routes
         if (strpos($uri, 'admin-ajax.php') !== false) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive route inspection for WAF learning profiling
             $action = isset($_GET['action']) ? sanitize_key(wp_unslash($_GET['action'])) : (isset($_POST['action']) ? sanitize_key(wp_unslash($_POST['action'])) : 'unknown');
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing
             return 'ajax:' . ($action ?: 'unknown');
         }
 
         // 3. REST API routes
-        if (strpos($uri, '/wp-json/') !== false || (isset($_GET['rest_route']) && strpos($_GET['rest_route'], '/') === 0)) {
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive route inspection for WAF learning profiling
+        $raw_rest_route = isset($_GET['rest_route']) ? sanitize_text_field(wp_unslash($_GET['rest_route'])) : '';
+        if (strpos($uri, '/wp-json/') !== false || strpos($raw_rest_route, '/') === 0) {
             $rest_path = '';
             if (strpos($uri, '/wp-json/') !== false) {
                 $rest_path = substr($uri, strpos($uri, '/wp-json/') + 9);
-            } elseif (isset($_GET['rest_route'])) {
-                // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-                $rest_path = ltrim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
+            } elseif (!empty($raw_rest_route)) {
+                $rest_path = ltrim($raw_rest_route, '/');
             }
             $rest_path = strtok($rest_path, '?');
             $parts = explode('/', trim($rest_path, '/'));
             $prefix = implode('/', array_slice($parts, 0, 2));
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing
             return 'rest:' . ($prefix ?: 'root');
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing
 
         // 4. WP-Admin screen routes
         if (is_admin() || strpos($uri, '/wp-admin/') !== false) {
