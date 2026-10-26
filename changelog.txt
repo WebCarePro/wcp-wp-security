@@ -7,6 +7,10 @@ v:1.27.0 - 2026-10-27
   * Multi-Window Time Range Filtering: Added quick-toggle time filters in the WAF Logs UI for "Today", "Select Specific Day" (with daily JSON dropdown picker), "Last 7 Days", "Last 1 Month", "Last 6 Months", and "All Retained Logs".
   * Interactive Click-to-Sort Columns: Enabled full interactive column sorting (Timestamp, HTTP Status, Client IP, WP User, Attack Category, Target URI, Method, Action Taken) with visual asc/desc indicators (`▲` / `▼`).
   * Dedicated Log Retention Policy in Settings: Moved Log Retention configuration to the Settings page (`SettingsPage.tsx` under Data & Cleanup) with a safe, optimized default of 60 days (`waf_log_retention_days`), supported by an automated daily WP-Cron optimizer (`wcpscan_waf_log_retention_prune`) and on-demand manual pruning.
+- Granular Developer Freedom for Uninstallation Cleanup (`uninstall.php`, `SettingsManager.php`, `SettingsPage.tsx`):
+  * Granular Purge Checkboxes: Converted static deletion bullet items on the Data Removal card into interactive, configurable checkboxes (`uninstall_drop_tables`, `uninstall_delete_options`, `uninstall_delete_crons`, and `uninstall_delete_uploads`), granting developers full flexibility to select exactly what is wiped or retained when the plugin is deleted.
+  * Quick Batch Toggles: Provided instantaneous "Select All" and "Deselect All" micro-action buttons in the UI for effortless configuration.
+  * Resilient Fallback Lifecycle: Updated `uninstall.php` to independently respect each granular toggle while strictly following WordPress.org global variable prefixing conventions.
 
 v:1.26.0 - 2026-10-26
 - Cloudflare Edge WAF Credentials Banner Visual Highlighting (`FirewallPage.tsx`):

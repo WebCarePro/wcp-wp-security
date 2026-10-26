@@ -73,7 +73,11 @@ class SettingsManager {
             'header_csp_custom'                => '',
 
             // 7. Cleanup & Data Privacy on Plugin Uninstall (Disabled by default to protect quarantine vault and configuration)
-            'delete_data_on_uninstall' => false,
+            'delete_data_on_uninstall'          => false,
+            'uninstall_drop_tables'             => true,
+            'uninstall_delete_options'          => true,
+            'uninstall_delete_crons'            => true,
+            'uninstall_delete_uploads'          => true,
 
             // 8. Web Application Firewall (WAF) Lite
             'waf_enabled'              => true,
@@ -545,6 +549,10 @@ class SettingsManager {
 
         // 7. Cleanup & Data Privacy on Plugin Uninstall
         $clean['delete_data_on_uninstall'] = !empty($merged['delete_data_on_uninstall']);
+        $clean['uninstall_drop_tables']    = isset($merged['uninstall_drop_tables']) ? !empty($merged['uninstall_drop_tables']) : true;
+        $clean['uninstall_delete_options'] = isset($merged['uninstall_delete_options']) ? !empty($merged['uninstall_delete_options']) : true;
+        $clean['uninstall_delete_crons']   = isset($merged['uninstall_delete_crons']) ? !empty($merged['uninstall_delete_crons']) : true;
+        $clean['uninstall_delete_uploads'] = isset($merged['uninstall_delete_uploads']) ? !empty($merged['uninstall_delete_uploads']) : true;
 
         // 8. Web Application Firewall (WAF) Lite
         $clean['waf_enabled']             = !empty($merged['waf_enabled']);
