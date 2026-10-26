@@ -101,6 +101,32 @@ register_deactivation_hook(__FILE__, function () {
 
     wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');
     wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
+
+    // Emergency fail-safe: Instantly revoke any active JIT elevations so no user is left with permanent administrator privileges
+    $ephem_admins = get_option('wcpscan_ephemeral_admins', []);
+    if (is_array($ephem_admins) && !empty($ephem_admins)) {
+        $history = get_option('wcpscan_ephemeral_admin_history', []);
+        if (!is_array($history)) {
+            $history = [];
+        }
+        foreach ($ephem_admins as $uid => $entry) {
+            $baseline_role = !empty($entry['baseline_role']) ? $entry['baseline_role'] : 'subscriber';
+            $u = get_userdata((int) $uid);
+            if ($u) {
+                $u->set_role($baseline_role);
+            }
+            wp_clear_scheduled_hook('wcpscan_ephemeral_admin_expire', [(int) $uid]);
+            $entry['status'] = 'revoked';
+            $entry['revoked_at'] = time();
+            $entry['revoke_reason'] = 'Plugin deactivation triggered';
+            array_unshift($history, $entry);
+        }
+        if (count($history) > 100) {
+            $history = array_slice($history, 0, 100);
+        }
+        update_option('wcpscan_ephemeral_admin_history', $history);
+        delete_option('wcpscan_ephemeral_admins');
+    }
 });
 
 // Initialize the plugin early so WAF inspection hooks into plugins_loaded priority 0

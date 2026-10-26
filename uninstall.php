@@ -91,8 +91,16 @@ if ($wcpscan_delete_data) {
     wp_clear_scheduled_hook('wcpscan_scheduled_scan_event');
     wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
     wp_clear_scheduled_hook('wcpscan_self_defense_watchdog_event');
+    wp_clear_scheduled_hook('wcpscan_ephemeral_admin_expire');
 
-    // 6. Remove all plugin-created files in uploads (logs, quarantine, backups)
+    // 6. Remove Must-Use (MU) plugin watchdog if present
+    $wcpscan_mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
+    $wcpscan_mu_file = $wcpscan_mu_dir . '/wcp-jit-guardian.php';
+    if (file_exists($wcpscan_mu_file)) {
+        @unlink($wcpscan_mu_file);
+    }
+
+    // 7. Remove all plugin-created files in uploads (logs, quarantine, backups)
     $wcpscan_upload_dir = wp_upload_dir();
     if (!empty($wcpscan_upload_dir['basedir'])) {
         $wcpscan_storage_dir = untrailingslashit($wcpscan_upload_dir['basedir']) . '/wcp-security-scanner';

@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T01:33:55.067Z",
+  "generated_at": "2026-10-26T01:47:26.485Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -260,8 +260,8 @@
       "size": 13976
     },
     "includes/Identity/EphemeralAdminEngine.php": {
-      "sha256": "be48b4fe4b6e532376a805d29a1be233019387f4171db0564367960623a75092",
-      "size": 12818
+      "sha256": "bce66bba5bdfed9f97d178e95a8d97155b79751d0edaff31b64023e41e1f0f2c",
+      "size": 18177
     },
     "includes/Identity/HIBPBreachAuditor.php": {
       "sha256": "7ad0f60894908a6f0abe2aec26170a86e22001ecc4343d403c2999e999852b92",
@@ -270,6 +270,10 @@
     "includes/Identity/SessionForensicsEngine.php": {
       "sha256": "2ca0b94b88beb4a9aec4aa296cc9ffb79daee992aa63338d2556f348ebba9368",
       "size": 20506
+    },
+    "includes/Identity/WcpJitMuGuardian.php": {
+      "sha256": "2831865b1c1b6ba33ae8c550e4fd14209e03d8d559716a61475f2fb0e1b0e6b6",
+      "size": 11034
     },
     "includes/Integrity/BehavioralBaselineEngine.php": {
       "sha256": "f1275b972738da93a4140fc191b110358619a539f29665a83ba0b162045ea5a6",
@@ -500,12 +504,12 @@
       "size": 16107
     },
     "uninstall.php": {
-      "sha256": "fae27fb0daba7c376d03d96f49566caa9340f4ecf4402f67ec8bdf85a85d63ea",
-      "size": 4952
+      "sha256": "5330366b287b16468deda6e81f4d328c0e7eae9209f9e4def897cefb528aad93",
+      "size": 5331
     },
     "wcp-wp-scanner.php": {
-      "sha256": "f3920e7869c52e289a29856e0fa689b04d2464ae98a52c71a35ce9d6319e73b0",
-      "size": 4014
+      "sha256": "5e7c6bd48ebee35e513b1552fb8ba0289051c604efc08616669892b1519a652c",
+      "size": 5213
     }
   }
 }

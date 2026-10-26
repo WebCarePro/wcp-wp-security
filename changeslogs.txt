@@ -1,4 +1,19 @@
 v:1.26.0 - 2026-10-26
+- Just-In-Time (JIT) Ephemeral Privilege Elevation Hardening & Anti-Tamper Shield (`EphemeralAdminEngine.php`, `WcpJitMuGuardian.php`, `wcp-wp-scanner.php`, `uninstall.php`):
+  * Identified & Neutralized Privilege Creep Bypass: Addressed an escape vector where a user temporarily elevated to administrator could visit `wp-admin/plugins.php` and deactivate WCP Security Scanner, killing the WP-Cron expiration hook and leaving them with permanent administrator privileges forever.
+  * Layer 1: Infallible Must-Use (MU) Plugin Watchdog (`WcpJitMuGuardian.php` -> `wp-content/mu-plugins/wcp-jit-guardian.php`):
+    - Automatically deploys and synchronizes a standalone, zero-trust Must-Use plugin watchdog into WordPress's `mu-plugins/` directory.
+    - Because MU-plugins execute on EVERY request before standard plugins load and cannot be deactivated via the WordPress admin UI, expiration checks (`wcp_jit_mu_check_expirations`) run unconditionally regardless of main plugin state.
+    - If the main WCP Security Scanner plugin is ever deactivated, the MU watchdog catches the deactivation event (`deactivated_plugin`) and immediately revokes all active JIT elevations, reverting elevated users to their baseline roles.
+  * Layer 2: Deactivation & Deletion Tamper Lock (`EphemeralAdminEngine.php`, `AdminMenu.php`):
+    - Stripped and replaced the "Deactivate" action link on `wp-admin/plugins.php` with a disabled `Deactivation Locked (JIT)` badge for all currently elevated JIT users.
+    - Added early request interceptors (`intercept_unauthorized_plugin_actions`) on `admin_init` and `muplugins_loaded` that unconditionally abort any direct HTTP GET/POST queries attempting to deactivate or delete WCP Security Scanner (`action=deactivate`, `delete-selected`, `deactivate-selected`).
+  * Layer 3: Capability Granular Restriction (`map_meta_cap`):
+    - Dynamically denies `deactivate_plugin` and `deactivate_plugins` specifically for WCP Security Scanner when invoked by an active JIT elevated user, while allowing normal management of other plugins.
+    - Protects permanent site administrators by denying JIT elevated users the capability to delete (`delete_user`), demote, or edit (`edit_user`) permanent administrator accounts.
+  * Layer 4: Emergency Deactivation Reversion (`wcp-wp-scanner.php`):
+    - Hardened `register_deactivation_hook` to proactively iterate through `wcpscan_ephemeral_admins` and restore all active elevations back to their original baseline roles (subscriber, customer, editor, etc.) and clear crons before the plugin completes deactivation.
+  * Uninstallation Lifecycle (`uninstall.php`): Added cleanup routines to remove `wp-content/mu-plugins/wcp-jit-guardian.php` and clear JIT crons upon complete plugin uninstallation.
 - Just-In-Time (JIT) Ephemeral Elevation Candidate User Population Fix (`EphemeralAdminEngine.php`, `ScannerRoutes.php`, `IdentityForensicsCard.tsx`):
   * Fixed an issue where the "User to Elevate (Non-Admin Users)" dropdown inside the "Grant Temporary JIT Administrative Elevation" form was not displaying usernames.
   * Implemented `EphemeralAdminEngine::get_candidate_users()` to discover non-admin accounts (e.g. subscribers, editors, contributors) eligible for temporary JIT elevation, while automatically filtering out permanent administrators.

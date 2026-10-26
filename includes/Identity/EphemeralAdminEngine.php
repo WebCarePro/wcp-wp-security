@@ -26,6 +26,11 @@ class EphemeralAdminEngine {
      * Bootstrap Ephemeral Admin engine.
      */
     public static function init() {
+        // Auto-install / sync the Must-Use (MU) plugin watchdog
+        if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
+            WcpJitMuGuardian::ensure_installed();
+        }
+
         // Cron expiration handler
         add_action(self::CRON_HOOK, [__CLASS__, 'on_cron_expire_elevation'], 10, 1);
 
@@ -34,6 +39,111 @@ class EphemeralAdminEngine {
 
         // Admin bar badge notification for elevated user
         add_action('admin_bar_menu', [__CLASS__, 'render_admin_bar_badge'], 99);
+
+        // Protect WCP Security Scanner from deactivation & deletion by elevated users
+        add_filter('plugin_action_links_' . plugin_basename(WCPSCAN_FILE), [__CLASS__, 'filter_plugin_action_links'], 20);
+        add_action('admin_init', [__CLASS__, 'intercept_unauthorized_plugin_actions'], 1);
+        add_filter('map_meta_cap', [__CLASS__, 'restrict_elevated_admin_capabilities'], 10, 4);
+    }
+
+    /**
+     * Filter plugin action links on plugins.php: Replace "Deactivate" with a protected badge if current user is JIT elevated.
+     *
+     * @param array $actions
+     * @return array
+     */
+    public static function filter_plugin_action_links(array $actions): array {
+        $user_id = get_current_user_id();
+        if ($user_id && self::is_user_elevated($user_id)) {
+            if (isset($actions['deactivate'])) {
+                $actions['deactivate'] = '<span style="color:#94a3b8;font-weight:600;cursor:not-allowed;" title="' . esc_attr__('Deactivation is strictly disabled while your account has temporary Just-In-Time (JIT) elevation.', 'wcp-security-scanner') . '">' . esc_html__('Deactivation Locked (JIT)', 'wcp-security-scanner') . '</span>';
+            }
+        }
+        return $actions;
+    }
+
+    /**
+     * Intercept direct HTTP GET/POST deactivation and deletion attempts by JIT elevated users.
+     */
+    public static function intercept_unauthorized_plugin_actions() {
+        $user_id = get_current_user_id();
+        if (!$user_id || !self::is_user_elevated($user_id)) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $plugin = isset($_REQUEST['plugin']) ? sanitize_text_field(wp_unslash($_REQUEST['plugin'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
+
+        $is_targeting_wcp = false;
+        if ($plugin && (strpos($plugin, 'wcp-wp-scanner') !== false || strpos($plugin, 'wcp-security-scanner') !== false)) {
+            $is_targeting_wcp = true;
+        }
+
+        if (!empty($checked)) {
+            foreach ($checked as $p) {
+                if (strpos($p, 'wcp-wp-scanner') !== false || strpos($p, 'wcp-security-scanner') !== false) {
+                    $is_targeting_wcp = true;
+                    break;
+                }
+            }
+        }
+
+        if ($is_targeting_wcp && in_array($action, ['deactivate', 'delete-selected', 'deactivate-selected'], true)) {
+            AuditLogger::log(
+                'jit_tamper_attempt_blocked',
+                sprintf('Security alert: JIT elevated user (ID %d) attempted to deactivate or delete WCP Security Scanner. Action was blocked.', $user_id)
+            );
+
+            wp_die(
+                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                '<p>' . esc_html__('Users with temporary Just-In-Time (JIT) Administrative elevation are strictly prohibited from deactivating or deleting WCP Security Scanner.', 'wcp-security-scanner') . '</p>' .
+                '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'wcp-security-scanner') . '</a></p>',
+                esc_html__('Security Access Denied', 'wcp-security-scanner'),
+                ['response' => 403]
+            );
+        }
+    }
+
+    /**
+     * Map meta capabilities to forbid JIT elevated admins from deactivating WCP or modifying permanent admins.
+     *
+     * @param array $caps
+     * @param string $cap
+     * @param int $user_id
+     * @param array $args
+     * @return array
+     */
+    public static function restrict_elevated_admin_capabilities(array $caps, string $cap, int $user_id, array $args): array {
+        if (!$user_id || !self::is_user_elevated($user_id)) {
+            return $caps;
+        }
+
+        // Prevent deactivating WCP Security Scanner
+        if ($cap === 'deactivate_plugin' || $cap === 'deactivate_plugins') {
+            $target_plugin = !empty($args[0]) ? $args[0] : '';
+            if (empty($target_plugin) || strpos($target_plugin, 'wcp-wp-scanner') !== false || strpos($target_plugin, 'wcp-security-scanner') !== false) {
+                return ['do_not_allow'];
+            }
+        }
+
+        // Prevent modifying, demoting, or deleting permanent administrator accounts
+        if (in_array($cap, ['delete_user', 'edit_user', 'remove_user'], true)) {
+            $target_uid = !empty($args[0]) ? (int) $args[0] : 0;
+            if ($target_uid && $target_uid !== $user_id) {
+                $target_user = get_userdata($target_uid);
+                if ($target_user && in_array('administrator', (array) $target_user->roles, true)) {
+                    if (!self::is_user_elevated($target_uid)) {
+                        return ['do_not_allow'];
+                    }
+                }
+            }
+        }
+
+        return $caps;
     }
 
     /**
