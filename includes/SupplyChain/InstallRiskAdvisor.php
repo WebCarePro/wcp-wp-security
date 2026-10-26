@@ -272,16 +272,15 @@ class InstallRiskAdvisor {
                 }
                 $capabilities['has_network'] = true;
                 $capabilities['contacted_ips'][] = $ip;
-                    $findings[] = [
-                        'category'    => 'Network Telemetry',
-                        'severity'    => 'high',
-                        'weight'      => 20,
-                        'file'        => $rel_path,
-                        'title'       => 'Hardcoded Public IP Network Request',
-                        'description' => sprintf('Plugin establishes outbound HTTP connection directly to raw IP address "%s" instead of a verified domain name.', $ip),
-                        'snippet'     => "IP: {$ip}",
-                    ];
-                }
+                $findings[] = [
+                    'category'    => 'Network Telemetry',
+                    'severity'    => 'high',
+                    'weight'      => 20,
+                    'file'        => $rel_path,
+                    'title'       => 'Hardcoded Public IP Network Request',
+                    'description' => sprintf('Plugin establishes outbound HTTP connection directly to raw IP address "%s" instead of a verified domain name.', $ip),
+                    'snippet'     => "IP: {$ip}",
+                ];
             }
         }
 

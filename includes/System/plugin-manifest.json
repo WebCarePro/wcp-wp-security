@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T01:53:58.789Z",
+  "generated_at": "2026-10-26T01:59:11.004Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -416,8 +416,8 @@
       "size": 19037
     },
     "includes/SupplyChain/InstallRiskAdvisor.php": {
-      "sha256": "e093cc73a31e7349ab9ed793dbda5e1751a9d17a34dd2146b1ba2c1d0567c83d",
-      "size": 13882
+      "sha256": "d72894f534fbcd49592a8e03da0c412eca386812de29dc749b0ac26a81099a89",
+      "size": 13828
     },
     "includes/SupplyChain/SbomSentinelEngine.php": {
       "sha256": "59da7b7c04c97c79e092d6dd9c573c6c3af60d2786954f88318cc7940c601ac9",

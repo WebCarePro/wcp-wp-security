@@ -1,4 +1,7 @@
 v:1.26.0 - 2026-10-26
+- Supply-Chain Install Risk Advisor Syntax Fix (`InstallRiskAdvisor.php`):
+  * Resolved a PHP parse error (`syntax error, unexpected token "if", expecting "function"`) caused by a misplaced closing brace in `InstallRiskAdvisor::scan_file()`, which caused plugin installation hooks (`upgrader_pre_install` / `upgrader_post_install`) to fail with a critical error when installing or updating plugins.
+  * Verified across the codebase with full recursive linting (`php -l`) and confirmed smooth WordPress plugin installation in Docker.
 - Just-In-Time (JIT) Ephemeral Privilege Elevation Hardening & Anti-Tamper Shield (`EphemeralAdminEngine.php`, `WcpJitMuGuardian.php`, `wcp-wp-scanner.php`, `uninstall.php`):
   * Identified & Neutralized Privilege Creep Bypass: Addressed an escape vector where a user temporarily elevated to administrator could visit `wp-admin/plugins.php` and deactivate WCP Security Scanner, killing the WP-Cron expiration hook and leaving them with permanent administrator privileges forever.
   * Layer 1: Infallible Must-Use (MU) Plugin Watchdog (`WcpJitMuGuardian.php` -> `wp-content/mu-plugins/wcp-jit-guardian.php`):
