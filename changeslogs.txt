@@ -1,4 +1,9 @@
 v:1.26.0 - 2026-10-26
+- Just-In-Time (JIT) Ephemeral Elevation Candidate User Population Fix (`EphemeralAdminEngine.php`, `ScannerRoutes.php`, `IdentityForensicsCard.tsx`):
+  * Fixed an issue where the "User to Elevate (Non-Admin Users)" dropdown inside the "Grant Temporary JIT Administrative Elevation" form was not displaying usernames.
+  * Implemented `EphemeralAdminEngine::get_candidate_users()` to discover non-admin accounts (e.g. subscribers, editors, contributors) eligible for temporary JIT elevation, while automatically filtering out permanent administrators.
+  * Added REST API endpoint `/wcp-scanner/v1/users/candidates` and embedded `candidate_users` directly into `/wcp-scanner/v1/identity/status` for instant population without extra network roundtrips.
+  * Enhanced `IdentityForensicsCard.tsx` to display formatted usernames with display names and roles (`username (Display Name) — [role]`), with descriptive empty state messaging when only administrators exist on the WordPress site.
 - Unified Single Storage Directory Architecture under `wp-content/uploads/wcp-security-scanner/` (`Plugin.php`, `FimVaultManager.php`, `ServerSecurityEngine.php`, `UpdateGatekeeperEngine.php`, `TransactionalRemediation.php`, `PluginUpdater.php`, `UserRemediationManager.php`, `UploadsScanner.php`, `FileScanner.php`, `DirectoryWalker.php`, `Engine.php`, `PermissionHardeningManager.php`, `FimDriftDetector.php`):
   * Eliminated scattered root directories in `wp-content/uploads/` (`wcp-quarantine/`, `wcp-scanner-quarantine/`, `wcp-vault/`, and `wcp-waf/`), consolidating all plugin data into a single, organized directory structure:
     - `wp-content/uploads/wcp-security-scanner/`:

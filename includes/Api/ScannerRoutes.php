@@ -1191,6 +1191,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/users/candidates', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_candidate_users_route'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/identity/audit-users', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'audit_identity_privileged_users'],
@@ -7483,12 +7489,17 @@ class ScannerRoutes {
             ? \WcpScanner\Identity\HIBPBreachAuditor::get_summary()
             : [];
 
+        $candidate_users = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
+            ? \WcpScanner\Identity\EphemeralAdminEngine::get_candidate_users(200)
+            : [];
+
         return rest_ensure_response([
             'success'           => true,
             'sessions_report'   => $sessions_report,
             'active_elevations' => $active_elevations,
             'elevation_history' => $elevation_history,
             'hibp_summary'      => $hibp_summary,
+            'candidate_users'   => $candidate_users,
         ]);
     }
 
@@ -7558,6 +7569,17 @@ class ScannerRoutes {
 
         $res = \WcpScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
         return rest_ensure_response($res);
+    }
+
+    public static function get_candidate_users_route(\WP_REST_Request $request) {
+        $users = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
+            ? \WcpScanner\Identity\EphemeralAdminEngine::get_candidate_users(200)
+            : [];
+
+        return rest_ensure_response([
+            'success' => true,
+            'users'   => $users,
+        ]);
     }
 
     public static function audit_identity_privileged_users(\WP_REST_Request $request) {

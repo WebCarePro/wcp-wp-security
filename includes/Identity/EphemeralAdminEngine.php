@@ -319,4 +319,46 @@ class EphemeralAdminEngine {
         }
         update_option('wcpscan_ephemeral_admin_history', $history);
     }
+
+    /**
+     * Get candidate non-admin users available for temporary JIT elevation.
+     *
+     * @param int $limit
+     * @return array
+     */
+    public static function get_candidate_users(int $limit = 200): array {
+        $users = get_users([
+            'number'  => $limit,
+            'orderby' => 'display_name',
+            'order'   => 'ASC',
+        ]);
+
+        $candidates = [];
+        $active_elevations = get_option(self::OPTION_EPHEMERAL_ADMINS, []);
+        if (!is_array($active_elevations)) {
+            $active_elevations = [];
+        }
+
+        foreach ($users as $user) {
+            $roles = (array) $user->roles;
+            $primary_role = reset($roles) ?: 'subscriber';
+
+            // Filter out permanent administrators unless currently elevated via JIT
+            $is_elevated = isset($active_elevations[$user->ID]);
+            if (in_array('administrator', $roles, true) && !$is_elevated) {
+                continue; // Permanent administrator, cannot elevate
+            }
+
+            $candidates[] = [
+                'id'           => (int) $user->ID,
+                'user_login'   => $user->user_login,
+                'display_name' => !empty($user->display_name) ? $user->display_name : $user->user_login,
+                'user_email'   => $user->user_email,
+                'role'         => $is_elevated ? ($active_elevations[$user->ID]['baseline_role'] ?? $primary_role) : $primary_role,
+                'is_elevated'  => $is_elevated,
+            ];
+        }
+
+        return $candidates;
+    }
 }
