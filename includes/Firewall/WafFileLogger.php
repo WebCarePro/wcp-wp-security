@@ -16,7 +16,7 @@ class WafFileLogger {
 
     const SUBDIR = 'wcp-security-scanner/waf-logs';
     const RETENTION_OPTION = 'wcpscan_waf_log_retention_days';
-    const DEFAULT_RETENTION_DAYS = 30;
+    const DEFAULT_RETENTION_DAYS = 60;
     const CRON_HOOK = 'wcpscan_waf_log_retention_prune';
 
     /**
@@ -678,6 +678,10 @@ class WafFileLogger {
      * @return int
      */
     public static function get_retention_days(): int {
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        if (isset($settings['waf_log_retention_days'])) {
+            return (int) $settings['waf_log_retention_days'];
+        }
         return (int) get_option(self::RETENTION_OPTION, self::DEFAULT_RETENTION_DAYS);
     }
 
@@ -692,7 +696,11 @@ class WafFileLogger {
         if (!in_array($days, $valid_options, true)) {
             $days = self::DEFAULT_RETENTION_DAYS;
         }
-        return update_option(self::RETENTION_OPTION, $days);
+        $updated = update_option(self::RETENTION_OPTION, $days);
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings['waf_log_retention_days'] = $days;
+        \WcpScanner\System\SettingsManager::save_settings($settings);
+        return $updated || true;
     }
 
     /**

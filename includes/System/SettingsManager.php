@@ -137,6 +137,7 @@ class SettingsManager {
             'waf_admin_ajax_limit_per_min'      => 60,   // Max unauthenticated admin-ajax requests per minute per IP
             'waf_block_oversized_requests'      => true, // Rule #34: Oversized request URI, query string, & parameter count guard
             'waf_block_ai_prompt_injection'     => true, // Rule #35: AI Prompt Injection & Agent Poisoning Shield
+            'waf_log_retention_days'            => 60,   // WAF incident JSON log retention on filesystem in days (default 60 days)
 
             // 9. Cloud Threat Intelligence & Community Blacklists
             'threat_intel_enabled'               => true,
@@ -654,6 +655,10 @@ class SettingsManager {
         $clean['waf_admin_ajax_limit_per_min'] = max(10, min(300, (int) ($merged['waf_admin_ajax_limit_per_min'] ?? 60)));
         $clean['waf_block_oversized_requests'] = !empty($merged['waf_block_oversized_requests']);
         $clean['waf_block_ai_prompt_injection'] = !empty($merged['waf_block_ai_prompt_injection']);
+        $valid_retention = [7, 14, 30, 60, 90, 180, 365, 0];
+        $retention_val = (int) ($merged['waf_log_retention_days'] ?? 60);
+        $clean['waf_log_retention_days'] = in_array($retention_val, $valid_retention, true) ? $retention_val : 60;
+        update_option(\WcpScanner\Firewall\WafFileLogger::RETENTION_OPTION, $clean['waf_log_retention_days']);
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = !empty($merged['threat_intel_enabled']);
