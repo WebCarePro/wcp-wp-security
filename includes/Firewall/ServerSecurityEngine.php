@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 class ServerSecurityEngine {
 
     const OPTION_KEY = 'wcpscan_server_security_options';
-    const WAF_FOLDER = 'wcp-waf';
+    const WAF_FOLDER = 'wcp-security-scanner/waf';
     const NGINX_FILENAME = 'nginx-wcp-security.conf';
     const APACHE_FILENAME = 'apache-wcp-security.conf';
 
@@ -101,6 +101,26 @@ class ServerSecurityEngine {
             @file_put_contents($base . '/index.php', '<?php // Silence is golden.');
             @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
         }
+
+        // Migrate legacy wcp-waf if exists
+        $legacy_waf = wp_normalize_path(rtrim($upload_dir['basedir'], '/\\') . '/wcp-waf');
+        if (is_dir($legacy_waf) && $legacy_waf !== wp_normalize_path($base)) {
+            $legacy_files = @scandir($legacy_waf) ?: [];
+            foreach ($legacy_files as $f) {
+                if ($f === '.' || $f === '..') {
+                    continue;
+                }
+                $src = $legacy_waf . '/' . $f;
+                $dst = $base . '/' . $f;
+                if (!file_exists($dst)) {
+                    @rename($src, $dst);
+                } else {
+                    @unlink($src);
+                }
+            }
+            @rmdir($legacy_waf);
+        }
+
         return untrailingslashit($base);
     }
 

@@ -141,7 +141,11 @@ class PermissionHardeningManager {
             'wfcache',
             '.backups',
             'wcp-backups',
+            'wcp-security-scanner',
             'wcp-quarantine',
+            'wcp-scanner-quarantine',
+            'wcp-vault',
+            'wcp-waf',
         ];
 
         // Evaluate root directory itself.
@@ -407,7 +411,11 @@ class PermissionHardeningManager {
             'wfcache',
             '.backups',
             'wcp-backups',
+            'wcp-security-scanner',
             'wcp-quarantine',
+            'wcp-scanner-quarantine',
+            'wcp-vault',
+            'wcp-waf',
         ];
 
         // 1. Fix root directory itself if needed.

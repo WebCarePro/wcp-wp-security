@@ -89,7 +89,7 @@ class Engine {
             $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) {
                 if ($current->isDir()) {
                     $name = $current->getFilename();
-                    if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-quarantine'], true)) {
+                    if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf'], true)) {
                         return false;
                     }
                 }

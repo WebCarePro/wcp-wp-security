@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
  */
 class FimVaultManager {
 
-    const VAULT_FOLDER = 'wcp-vault';
+    const VAULT_FOLDER = 'wcp-security-scanner/fim-vault';
     const MANIFEST_EXT = '.manifest.gz';
     const META_FILE    = 'fim_meta.json';
     const OPTION_STATUS = 'wcpscan_fim_vault_status';
@@ -51,6 +51,25 @@ class FimVaultManager {
             if (!wp_mkdir_p($vault_dir)) {
                 throw new \RuntimeException(esc_html("Failed to initialize FIM Vault directory at: {$vault_dir}"));
             }
+        }
+
+        // Migrate legacy wcp-vault if exists
+        $legacy_vault = wp_normalize_path(rtrim($base, '/\\') . '/wcp-vault');
+        if (is_dir($legacy_vault) && $legacy_vault !== $vault_dir) {
+            $legacy_files = @scandir($legacy_vault) ?: [];
+            foreach ($legacy_files as $f) {
+                if ($f === '.' || $f === '..') {
+                    continue;
+                }
+                $src = $legacy_vault . '/' . $f;
+                $dst = $vault_dir . '/' . $f;
+                if (!file_exists($dst)) {
+                    @rename($src, $dst);
+                } else {
+                    @unlink($src);
+                }
+            }
+            @rmdir($legacy_vault);
         }
 
         // Enforce webserver access lockdown (.htaccess for Apache/LiteSpeed, index.php for all)

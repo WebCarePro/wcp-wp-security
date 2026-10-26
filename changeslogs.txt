@@ -1,4 +1,17 @@
 v:1.26.0 - 2026-10-26
+- Unified Single Storage Directory Architecture under `wp-content/uploads/wcp-security-scanner/` (`Plugin.php`, `FimVaultManager.php`, `ServerSecurityEngine.php`, `UpdateGatekeeperEngine.php`, `TransactionalRemediation.php`, `PluginUpdater.php`, `UserRemediationManager.php`, `UploadsScanner.php`, `FileScanner.php`, `DirectoryWalker.php`, `Engine.php`, `PermissionHardeningManager.php`, `FimDriftDetector.php`):
+  * Eliminated scattered root directories in `wp-content/uploads/` (`wcp-quarantine/`, `wcp-scanner-quarantine/`, `wcp-vault/`, and `wcp-waf/`), consolidating all plugin data into a single, organized directory structure:
+    - `wp-content/uploads/wcp-security-scanner/`:
+      * `.vault/`: Quarantined and isolated suspicious files and malware blobs.
+      * `.logs/`: Internal audit trail and scanner debug logs.
+      * `.backups/`: User remediation and database restore snapshots.
+      * `backups/`: SQL database dumps and pre-update plugin safety ZIP backups (`plugin-updates/`).
+      * `fim-vault/`: File Integrity Monitoring gzip-compressed baseline manifests (`fim_*.manifest.gz`) and forensic metadata.
+      * `waf/`: Generated Nginx (`nginx-wcp-security.conf`) and Apache (`apache-wcp-security.conf`) server configuration rules.
+      * `gatekeeper/`: Pre-update plugin supply-chain rollback snapshots (`snap_*`).
+      * `transactions/`: Atomic remediation transaction manifests and rollback snapshots (`tx_*`).
+  * Automated Zero-Downtime Migration (`Plugin::consolidate_uploads_storage()`): Automatically detects historical directories on plugin load, moves all manifests, snapshots, and configuration files into the structured subfolders of `wcp-security-scanner/`, and removes the empty legacy directories.
+  * Comprehensive Scanner Immunity & Exclusion: Updated filesystem directory walkers and scanner regex filters across `UploadsScanner`, `FileScanner`, `DirectoryWalker`, `Engine.php`, `PermissionHardeningManager`, and `FimDriftDetector` to ensure the consolidated storage directory and subfolders are properly isolated and protected from false-positive scans.
 - False-Positive Immunity for Schema.org JSON-LD & Structured Data Islands (`includes/Database/TableScanner.php`):
   * Eliminated false-positive XSS injection alerts (`script_tag_injection`) on database tables storing email or audit logs (such as Post SMTP `wp_post_smtp_logs.original_message`).
   * Updated `TableScanner` to recognize benign, non-executable data script islands (`type="application/ld+json"` and `type="application/json"`), ensuring legitimate Schema.org structured data (e.g. `SecurityIncident` notification envelopes) is ignored while true executable scripts and disguised payloads with evaluation escapes (`eval`, `base64_decode`, `document.write`, `javascript:`) remain strictly detected.

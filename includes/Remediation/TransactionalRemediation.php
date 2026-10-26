@@ -23,13 +23,38 @@ class TransactionalRemediation {
      */
     public static function get_transactions_dir(): string {
         $upload_dir = wp_upload_dir();
-        $base = wp_normalize_path($upload_dir['basedir'] . '/wcp-scanner-quarantine/transactions');
+        $base = wp_normalize_path($upload_dir['basedir'] . '/wcp-security-scanner/transactions');
 
         if (!is_dir($base)) {
             wp_mkdir_p($base);
             // Harden transaction storage against public web access
             @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
             @file_put_contents($base . '/index.php', "<?php\n// Silence is golden.\nexit;\n");
+        }
+
+        // Migrate legacy wcp-scanner-quarantine/transactions if exists
+        $legacy_base = wp_normalize_path($upload_dir['basedir'] . '/wcp-scanner-quarantine/transactions');
+        if (is_dir($legacy_base) && $legacy_base !== $base) {
+            $legacy_items = @scandir($legacy_base) ?: [];
+            foreach ($legacy_items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+                $src = $legacy_base . '/' . $item;
+                $dst = $base . '/' . $item;
+                if (!file_exists($dst)) {
+                    @rename($src, $dst);
+                }
+            }
+            @rmdir($legacy_base);
+            // Also clean up parent wcp-scanner-quarantine if it is now empty
+            $parent_legacy = wp_normalize_path($upload_dir['basedir'] . '/wcp-scanner-quarantine');
+            if (is_dir($parent_legacy)) {
+                $rem = array_diff(@scandir($parent_legacy) ?: [], ['.', '..']);
+                if (empty($rem)) {
+                    @rmdir($parent_legacy);
+                }
+            }
         }
 
         return $base;

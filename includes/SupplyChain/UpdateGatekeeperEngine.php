@@ -280,12 +280,43 @@ class UpdateGatekeeperEngine {
      */
     public static function create_rollback_snapshot(string $slug, string $source_dir): ?string {
         $uploads = wp_upload_dir();
-        $base_snapshots = wp_normalize_path($uploads['basedir'] . '/wcp-scanner-quarantine/gatekeeper_snapshots');
+        $base_snapshots = wp_normalize_path($uploads['basedir'] . '/wcp-security-scanner/gatekeeper');
 
         if (!is_dir($base_snapshots)) {
             wp_mkdir_p($base_snapshots);
             @file_put_contents($base_snapshots . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
             @file_put_contents($base_snapshots . '/index.php', "<?php\nexit;\n");
+        }
+
+        // Migrate legacy wcp-scanner-quarantine/gatekeeper_snapshots if exists
+        $legacy_base = wp_normalize_path($uploads['basedir'] . '/wcp-scanner-quarantine/gatekeeper_snapshots');
+        if (is_dir($legacy_base) && $legacy_base !== $base_snapshots) {
+            $legacy_items = @scandir($legacy_base) ?: [];
+            foreach ($legacy_items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+                $src = $legacy_base . '/' . $item;
+                $dst = $base_snapshots . '/' . $item;
+                if (!file_exists($dst)) {
+                    @rename($src, $dst);
+                }
+            }
+            @rmdir($legacy_base);
+            // Update any paths stored in option
+            $snapshots = get_option(self::OPTION_SNAPSHOTS, []);
+            if (is_array($snapshots)) {
+                $changed = false;
+                foreach ($snapshots as &$s) {
+                    if (!empty($s['path']) && strpos($s['path'], 'wcp-scanner-quarantine/gatekeeper_snapshots') !== false) {
+                        $s['path'] = str_replace('wcp-scanner-quarantine/gatekeeper_snapshots', 'wcp-security-scanner/gatekeeper', $s['path']);
+                        $changed = true;
+                    }
+                }
+                if ($changed) {
+                    update_option(self::OPTION_SNAPSHOTS, $snapshots);
+                }
+            }
         }
 
         $snapshot_id = 'snap_' . $slug . '_' . gmdate('Ymd_His') . '_' . bin2hex(random_bytes(3));
@@ -348,6 +379,15 @@ class UpdateGatekeeperEngine {
         $snap_path = $snap['path'] ?? '';
         $slug = $snap['slug'] ?? '';
         $destination = WP_PLUGIN_DIR . '/' . $slug;
+
+        if (!is_dir($snap_path)) {
+            // Check migrated location
+            $uploads = wp_upload_dir();
+            $migrated = wp_normalize_path($uploads['basedir'] . '/wcp-security-scanner/gatekeeper/' . basename($snap_path));
+            if (is_dir($migrated)) {
+                $snap_path = $migrated;
+            }
+        }
 
         if (!is_dir($snap_path)) {
             return [
