@@ -1,4 +1,8 @@
 v:1.26.0 - 2026-10-26
+- Scan Audit Trail Immutable UTC/GMT Timestamps (`Migration.php`, `Plugin.php`, `ScannerRoutes.php`, `Scheduler.php`):
+  * Added `created_at_gmt` column to `wcpscan_scans` table and bumped database version to `1.11.0`.
+  * Saved immutable `gmdate('Y-m-d H:i:s')` upon scan creation across manual scans, batch self-healing, and scheduled runs.
+  * Preserves existing historical database records without modification, while ensuring any newly created scans remain 100% time-consistent and immune to future WordPress timezone changes.
 - Image Asset Interactive Viewer & Binary Malware Forensic Validation (`ScannerRoutes.php`, `App.tsx`):
   * Binary Magic Header Verification: Inspects raw leading bytes of image files (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`, `.bmp`) to verify genuine file types against spoofed extensions.
   * Disguised Executable Detection: Detects compiled Windows PE executables (`MZ`), Linux ELF binaries (`\x7fELF`), Mach-O binaries (`\xca\xfe\xba\xbe`), shell shebang scripts (`#!/bin/...`), and pure PHP scripts masquerading as harmless image files.

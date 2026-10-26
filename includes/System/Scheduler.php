@@ -88,6 +88,7 @@ class Scheduler {
              'duration'      => 0,
              'duration_ms'   => 0,
              'created_at'    => current_time('mysql'),
+             'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
              'started_at'    => $now_exact,
          ]);
          $scan_id = (int) $wpdb->insert_id;

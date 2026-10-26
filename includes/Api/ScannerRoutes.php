@@ -1418,6 +1418,7 @@ class ScannerRoutes {
             'duration'      => 0,
             'duration_ms'   => 0,
             'created_at'    => current_time('mysql'),
+            'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
             'started_at'    => $now_exact,
         ]);
         $scan_id = (int) $wpdb->insert_id;
@@ -1586,6 +1587,7 @@ class ScannerRoutes {
                 'issues_found'  => 0,
                 'risk_score'    => 0,
                 'created_at'    => current_time('mysql'),
+                'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
             ]);
             $scan_row = ['total_files' => max(1, $remaining)];
         }
@@ -2076,6 +2078,7 @@ class ScannerRoutes {
                     'duration'      => $duration_sec,
                     'duration_ms'   => $duration_ms,
                     'created_at'    => current_time('mysql'),
+                    'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
                     'started_at'    => $started_at_db,
                     'completed_at'  => $completed_at_exact,
                 ]);
@@ -4696,7 +4699,9 @@ class ScannerRoutes {
     public static function enrich_scan_row_timestamps(array $row): array {
         $tz_string = wp_timezone_string();
         $row['site_timezone'] = $tz_string;
-        if (!empty($row['created_at'])) {
+        if (!empty($row['created_at_gmt'])) {
+            $row['created_at_gmt'] = gmdate('Y-m-d\TH:i:s\Z', strtotime($row['created_at_gmt']));
+        } elseif (!empty($row['created_at'])) {
             $row['created_at_gmt'] = get_gmt_from_date($row['created_at'], 'Y-m-d\TH:i:s\Z');
         }
         if (!empty($row['started_at'])) {

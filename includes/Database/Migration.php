@@ -28,6 +28,7 @@ class Migration {
             duration int(11) NOT NULL DEFAULT 0,
             duration_ms int(11) NOT NULL DEFAULT 0,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at_gmt datetime NULL,
             started_at datetime(3) NULL,
             completed_at datetime(3) NULL,
             PRIMARY KEY  (id)
@@ -134,6 +135,6 @@ class Migration {
         dbDelta($sql5);
         dbDelta($sql6);
 
-        update_option('wcpscan_db_version', '1.10.0');
+        update_option('wcpscan_db_version', '1.11.0');
     }
 }
