@@ -124,7 +124,8 @@ class Scheduler {
                      'file_path'  => $rel_path,
                      'file_size'  => $file_size,
                      'status'     => $file_status,
-                     'scanned_at' => current_time('mysql'),
+                     'scanned_at'     => current_time('mysql'),
+                     'scanned_at_gmt' => gmdate('Y-m-d H:i:s'),
                  ]);
 
                  foreach ($findings as $f) {
@@ -141,8 +142,9 @@ class Scheduler {
                          'code_snippet' => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
                          'evidence'     => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
                          'description'  => $item['description'] ?? '',
-                         'status'       => 'open',
-                         'created_at'   => current_time('mysql'),
+                         'status'         => 'open',
+                         'created_at'     => current_time('mysql'),
+                         'created_at_gmt' => gmdate('Y-m-d H:i:s'),
                      ]);
                  }
 
@@ -263,6 +265,7 @@ class Scheduler {
                      'description'  => $f['description'] ?? '',
                      'status'       => (class_exists('\\WcpScanner\\Findings\\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::match_finding($f) !== null) ? 'ignored' : 'open',
                      'created_at'   => current_time('mysql'),
+                     'created_at_gmt' => gmdate('Y-m-d H:i:s'),
                  ]);
              }
 

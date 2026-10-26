@@ -39,6 +39,7 @@ class FindingRepository {
                 'description'  => sanitize_textarea_field($f['description'] ?? ''),
                 'status'       => 'open',
                 'created_at'   => current_time('mysql'),
+                'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
             ]);
             $saved++;
         }

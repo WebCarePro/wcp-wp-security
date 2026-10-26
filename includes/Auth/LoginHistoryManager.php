@@ -129,6 +129,7 @@ class LoginHistoryManager {
         $encrypted_data = SecretVault::encrypt((string) wp_json_encode($telemetry));
 
         $now = current_time('mysql');
+        $now_gmt = gmdate('Y-m-d H:i:s');
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $wpdb->insert(
@@ -137,11 +138,14 @@ class LoginHistoryManager {
                 'user_id'        => $user->ID,
                 'session_token'  => $token_hash,
                 'login_time'     => $now,
+                'login_time_gmt' => $now_gmt,
                 'last_seen'      => $now,
+                'last_seen_gmt'  => $now_gmt,
                 'encrypted_data' => $encrypted_data,
                 'created_at'     => $now,
+                'created_at_gmt' => $now_gmt,
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         // Keep last 25 logins per user to maintain high performance
@@ -194,16 +198,18 @@ class LoginHistoryManager {
 
         $re_encrypted = SecretVault::encrypt((string) wp_json_encode($payload));
         $now = current_time('mysql');
+        $now_gmt = gmdate('Y-m-d H:i:s');
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         return $wpdb->update(
             $table,
             [
                 'last_seen'      => $now,
+                'last_seen_gmt'  => $now_gmt,
                 'encrypted_data' => $re_encrypted,
             ],
             ['id' => $row->id],
-            ['%s', '%s'],
+            ['%s', '%s', '%s'],
             ['%d']
         );
     }
@@ -221,22 +227,23 @@ class LoginHistoryManager {
         $token_hash    = $session_token ? substr(hash('sha256', $session_token), 0, 64) : '';
 
         global $wpdb;
-        $table = $wpdb->prefix . self::TABLE_NAME;
-        $now   = current_time('mysql');
+        $table   = $wpdb->prefix . self::TABLE_NAME;
+        $now     = current_time('mysql');
+        $now_gmt = gmdate('Y-m-d H:i:s');
 
         if ($token_hash) {
-            $query = "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND session_token = %s AND logout_time IS NULL";
+            $query = "UPDATE `{$table}` SET logout_time = %s, logout_time_gmt = %s WHERE user_id = %d AND session_token = %s AND logout_time IS NULL";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->query(
                 // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                $wpdb->prepare($query, $now, $user_id, $token_hash)
+                $wpdb->prepare($query, $now, $now_gmt, $user_id, $token_hash)
             );
         } else {
-            $query = "UPDATE `{$table}` SET logout_time = %s WHERE user_id = %d AND logout_time IS NULL ORDER BY id DESC LIMIT 1";
+            $query = "UPDATE `{$table}` SET logout_time = %s, logout_time_gmt = %s WHERE user_id = %d AND logout_time IS NULL ORDER BY id DESC LIMIT 1";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->query(
                 // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                $wpdb->prepare($query, $now, $user_id)
+                $wpdb->prepare($query, $now, $now_gmt, $user_id)
             );
         }
     }

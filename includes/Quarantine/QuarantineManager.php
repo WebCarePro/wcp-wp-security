@@ -208,6 +208,7 @@ class QuarantineManager {
             'file_perms'          => $file_perms,
             'status'              => 'quarantined',
             'quarantined_at'      => current_time('mysql'),
+            'quarantined_at_gmt'  => gmdate('Y-m-d H:i:s'),
         ]);
 
         $quarantine_id = $wpdb->insert_id;
@@ -332,8 +333,9 @@ class QuarantineManager {
         // Update database record
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table, [
-            'status'      => 'restored',
-            'restored_at' => current_time('mysql')
+            'status'          => 'restored',
+            'restored_at'     => current_time('mysql'),
+            'restored_at_gmt' => gmdate('Y-m-d H:i:s'),
         ], ['id' => $quarantine_id]);
 
         // If issue exists, set status back to open
@@ -410,6 +412,20 @@ class QuarantineManager {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $wpdb->query($del_dups);
         }
+
+        foreach ($unique_records as &$ur) {
+            if (!empty($ur['quarantined_at_gmt'])) {
+                $ur['quarantined_at_gmt'] = gmdate('Y-m-d\TH:i:s\Z', strtotime($ur['quarantined_at_gmt']));
+            } elseif (!empty($ur['quarantined_at'])) {
+                $ur['quarantined_at_gmt'] = get_gmt_from_date($ur['quarantined_at'], 'Y-m-d\TH:i:s\Z');
+            }
+            if (!empty($ur['restored_at_gmt'])) {
+                $ur['restored_at_gmt'] = gmdate('Y-m-d\TH:i:s\Z', strtotime($ur['restored_at_gmt']));
+            } elseif (!empty($ur['restored_at'])) {
+                $ur['restored_at_gmt'] = get_gmt_from_date($ur['restored_at'], 'Y-m-d\TH:i:s\Z');
+            }
+        }
+        unset($ur);
 
         return $unique_records;
     }

@@ -2383,8 +2383,9 @@ class FirewallEngine {
                 'user_agent'       => sanitize_text_field($user_agent),
                 'action_taken'     => sanitize_key($action),
                 'created_at'       => current_time('mysql'),
+                'created_at_gmt'   => gmdate('Y-m-d H:i:s'),
             ],
-            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         // Dispatch DevSecOps Webhook on blocked attack
@@ -3079,6 +3080,15 @@ class FirewallEngine {
             $wpdb->prepare($data_sql, ...$data_params),
             ARRAY_A
         ) ?: [];
+
+        foreach ($rows as &$r) {
+            if (!empty($r['created_at_gmt'])) {
+                $r['created_at_gmt'] = gmdate('Y-m-d\TH:i:s\Z', strtotime($r['created_at_gmt']));
+            } elseif (!empty($r['created_at'])) {
+                $r['created_at_gmt'] = get_gmt_from_date($r['created_at'], 'Y-m-d\TH:i:s\Z');
+            }
+        }
+        unset($r);
 
         $page = (int) floor($offset / $limit) + 1;
         $total_pages = max(1, (int) ceil($total / $limit));

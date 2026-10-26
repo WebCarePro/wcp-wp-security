@@ -1529,8 +1529,9 @@ class ScannerRoutes {
                 'scan_id'    => $scan_id,
                 'file_path'  => $rel_path,
                 'file_size'  => $file_size,
-                'status'     => $file_status,
-                'scanned_at' => current_time('mysql'),
+                'status'         => $file_status,
+                'scanned_at'     => current_time('mysql'),
+                'scanned_at_gmt' => gmdate('Y-m-d H:i:s'),
             ]);
 
             $processed_count++;
@@ -1555,6 +1556,7 @@ class ScannerRoutes {
                     'description'  => $item['description'],
                     'status'       => $status,
                     'created_at'   => current_time('mysql'),
+                    'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
                 ]);
             }
         }
@@ -1977,6 +1979,7 @@ class ScannerRoutes {
                     'description'  => $item['description'],
                     'status'       => $status,
                     'created_at'   => current_time('mysql'),
+                    'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
                 ]);
             }
 
@@ -3681,6 +3684,12 @@ class ScannerRoutes {
                 $item['status']         = 'ignored';
             } else {
                 $item['is_whitelisted'] = false;
+            }
+
+            if (!empty($item['created_at_gmt'])) {
+                $item['created_at_gmt'] = gmdate('Y-m-d\TH:i:s\Z', strtotime($item['created_at_gmt']));
+            } elseif (!empty($item['created_at'])) {
+                $item['created_at_gmt'] = get_gmt_from_date($item['created_at'], 'Y-m-d\TH:i:s\Z');
             }
         }
         unset($item);

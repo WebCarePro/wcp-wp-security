@@ -49,6 +49,7 @@ class Migration {
             description text NOT NULL,
             status varchar(30) NOT NULL DEFAULT 'open',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at_gmt datetime NULL,
             PRIMARY KEY  (id),
             KEY scan_id (scan_id),
             KEY severity (severity),
@@ -63,6 +64,7 @@ class Migration {
             file_size int(11) NOT NULL DEFAULT 0,
             status varchar(20) NOT NULL DEFAULT 'clean',
             scanned_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            scanned_at_gmt datetime NULL,
             PRIMARY KEY  (id),
             KEY scan_id (scan_id),
             KEY status (status)
@@ -80,7 +82,9 @@ class Migration {
             file_perms varchar(10) DEFAULT NULL,
             status varchar(30) NOT NULL DEFAULT 'quarantined',
             quarantined_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            quarantined_at_gmt datetime NULL,
             restored_at datetime DEFAULT NULL,
+            restored_at_gmt datetime NULL,
             PRIMARY KEY  (id),
             KEY scan_id (scan_id),
             KEY status (status)
@@ -102,6 +106,7 @@ class Migration {
             user_agent text DEFAULT NULL,
             action_taken varchar(20) NOT NULL DEFAULT 'blocked',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at_gmt datetime NULL,
             PRIMARY KEY  (id),
             KEY incident_id (incident_id),
             KEY ip_address (ip_address(50)),
@@ -117,10 +122,14 @@ class Migration {
             user_id bigint(20) unsigned NOT NULL,
             session_token varchar(64) NOT NULL DEFAULT '',
             login_time datetime NOT NULL,
+            login_time_gmt datetime NULL,
             logout_time datetime DEFAULT NULL,
+            logout_time_gmt datetime NULL,
             last_seen datetime DEFAULT NULL,
+            last_seen_gmt datetime NULL,
             encrypted_data longtext NOT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at_gmt datetime NULL,
             PRIMARY KEY  (id),
             KEY user_id (user_id),
             KEY session_token (session_token(32)),
@@ -135,6 +144,6 @@ class Migration {
         dbDelta($sql5);
         dbDelta($sql6);
 
-        update_option('wcpscan_db_version', '1.11.0');
+        update_option('wcpscan_db_version', '1.12.0');
     }
 }

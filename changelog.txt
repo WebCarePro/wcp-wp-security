@@ -1,8 +1,9 @@
 v:1.26.0 - 2026-10-26
-- Scan Audit Trail Immutable UTC/GMT Timestamps (`Migration.php`, `Plugin.php`, `ScannerRoutes.php`, `Scheduler.php`):
-  * Added `created_at_gmt` column to `wcpscan_scans` table and bumped database version to `1.11.0`.
-  * Saved immutable `gmdate('Y-m-d H:i:s')` upon scan creation across manual scans, batch self-healing, and scheduled runs.
-  * Preserves existing historical database records without modification, while ensuring any newly created scans remain 100% time-consistent and immune to future WordPress timezone changes.
+- Universal System-Wide UTC/GMT Immutable Timestamps (`Migration.php`, `Plugin.php`, `ScannerRoutes.php`, `Scheduler.php`, `FirewallEngine.php`, `QuarantineManager.php`, `LoginHistoryManager.php`, `FindingRepository.php`, `WafLogsPage.tsx`, `FirewallPage.tsx`, `IdentityForensicsCard.tsx`):
+  * Comprehensive Database Schema Upgrade: Added `created_at_gmt`, `scanned_at_gmt`, `quarantined_at_gmt`, `restored_at_gmt`, `login_time_gmt`, `logout_time_gmt`, and `last_seen_gmt` across all plugin database tables (`wcpscan_scans`, `wcpscan_scan_issues`, `wcpscan_scan_files`, `wcpscan_quarantine`, `wcpscan_firewall_logs`, `wcpscan_login_history`) and bumped database version to `1.12.0`.
+  * Multi-Engine Immutable UTC Recording: Updated all backend recording hooks across WAF blocks, quarantined threat files, scan issues, and user device session telemetry to save true UTC timestamps via native `gmdate('Y-m-d H:i:s')`.
+  * Zero Historical Data Alteration: Retains all historical records as-is without destructive migrations or shifts, while guaranteeing any newly generated event across the entire plugin remains 100% time-consistent and immune to site timezone shifts.
+  * Adaptive UI Normalization: Updated WAF Logs, Firewall activity, Identity Forensics, and Audit Ledger to seamlessly consume UTC/GMT timestamps with automatic fallback to site local time.
 - Image Asset Interactive Viewer & Binary Malware Forensic Validation (`ScannerRoutes.php`, `App.tsx`):
   * Binary Magic Header Verification: Inspects raw leading bytes of image files (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`, `.bmp`) to verify genuine file types against spoofed extensions.
   * Disguised Executable Detection: Detects compiled Windows PE executables (`MZ`), Linux ELF binaries (`\x7fELF`), Mach-O binaries (`\xca\xfe\xba\xbe`), shell shebang scripts (`#!/bin/...`), and pure PHP scripts masquerading as harmless image files.
