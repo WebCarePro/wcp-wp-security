@@ -1,6 +1,6 @@
 {
   "version": "1.27.0",
-  "generated_at": "2026-10-26T19:47:53.601Z",
+  "generated_at": "2026-10-26T19:52:17.510Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 515742
     },
     "build/index.asset.php": {
-      "sha256": "3d6f4bdd1199bd6487162ea4714e32f65414a407da173e906d95bbe23edec501",
+      "sha256": "174526ddb160c9c2965cc5b6d72a2114853821dbd6b8037a97e8cd6df22e648a",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 515603
     },
     "build/index.js": {
-      "sha256": "703a32bdd5c3ff8b0d4238decb1018d723c39e0d5eb5ca3f9bb7bebf638fe1ba",
-      "size": 1689743
+      "sha256": "1476eb07a9b8a5f81b22f4f7000d2f92333e36deed779845e732450cb7da5b7b",
+      "size": 1689496
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
