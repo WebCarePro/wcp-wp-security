@@ -2320,6 +2320,19 @@ class FirewallEngine {
         $raw_ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         $user_agent = substr($raw_ua, 0, 300);
 
+        // Red Team Synthetic Attack Drill: NEVER log synthetic simulation probes to persistent incident table
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
+        if (!empty($drill_token)) {
+            return null;
+        }
+
+        // Server Origin IP Safety: Never log server's own outbound IP as an offending attacker
+        $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
+        if (!empty($server_ip) && $ip === $server_ip) {
+            return null;
+        }
+
         $raw_referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
         $referer = substr($raw_referer, 0, 500);
 

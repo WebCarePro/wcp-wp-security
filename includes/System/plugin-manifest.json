@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T03:06:04.329Z",
+  "generated_at": "2026-10-26T03:15:28.755Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -96,8 +96,8 @@
       "size": 48300
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "be20d2e7af06e7ad691a9fc8d00da817e97d37487faae3942977ff14aebb31ba",
-      "size": 80826
+      "sha256": "15fde7731cd0b656ee4c4c10bb6c2a79208d8fe75350a2802829d54bea22c198",
+      "size": 81296
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "052f1c1ace4ee77084cbc8f74b3dbcbd2c347aa719f640d6225b46224a358bae",
@@ -216,8 +216,8 @@
       "size": 37903
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "a08f855643b6b0c637d1b8e51808558ae8d373c49605a523d070825a32ec080e",
-      "size": 230468
+      "sha256": "c9b491733fffe9a2a9760cd8b26e45ac5ed06c11859614bd27fedd2ccee1b87f",
+      "size": 231368
     },
     "includes/Firewall/HoneyTokenEngine.php": {
       "sha256": "3103cb2de5084e6a46809994f307cd2b20f7c4154c3eecbc0b8d282ab26e64a1",

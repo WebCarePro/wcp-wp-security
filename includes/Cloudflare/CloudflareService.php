@@ -467,7 +467,7 @@ class CloudflareService {
                 'description'  => 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
                 'action'       => 'block',
                 'action_label' => 'Block',
-                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))',
+                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))',
             ],
             'compound_login_bot' => [
                 'id'           => 'wcpscan_compound_login_bot',
@@ -513,7 +513,7 @@ class CloudflareService {
                 'badge'       => 'Zero-Day Shield',
                 'description' => __('Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.', 'wcp-security-scanner'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))',
+                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))',
             ],
             'compound_login_bot' => [
                 'id'          => 'wcpscan_compound_login_bot',
@@ -1216,10 +1216,11 @@ class CloudflareService {
             $current_client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
             $is_admin = \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator();
             $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
+            $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
 
-            if ($ip === $current_client_ip || ($is_admin && $ip === $current_client_ip) || $is_whitelisted) {
+            if ($ip === $current_client_ip || ($is_admin && $ip === $current_client_ip) || $is_whitelisted || (!empty($server_ip) && $ip === $server_ip)) {
                 // translators: %s: IP address
-                return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to administrator or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
+                return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to server origin, administrator, or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
             }
         }
 
