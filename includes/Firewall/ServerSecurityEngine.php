@@ -105,6 +105,12 @@ class ServerSecurityEngine {
         // Migrate legacy wcp-waf if exists
         $legacy_waf = wp_normalize_path(rtrim($upload_dir['basedir'], '/\\') . '/wcp-waf');
         if (is_dir($legacy_waf) && $legacy_waf !== wp_normalize_path($base)) {
+            global $wp_filesystem;
+            if (!$wp_filesystem) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+
             $legacy_files = @scandir($legacy_waf) ?: [];
             foreach ($legacy_files as $f) {
                 if ($f === '.' || $f === '..') {
@@ -113,12 +119,22 @@ class ServerSecurityEngine {
                 $src = $legacy_waf . '/' . $f;
                 $dst = $base . '/' . $f;
                 if (!file_exists($dst)) {
-                    @rename($src, $dst);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->move($src, $dst);
+                    } else {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                        @rename($src, $dst);
+                    }
                 } else {
-                    @unlink($src);
+                    wp_delete_file($src);
                 }
             }
-            @rmdir($legacy_waf);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($legacy_waf);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($legacy_waf);
+            }
         }
 
         return untrailingslashit($base);

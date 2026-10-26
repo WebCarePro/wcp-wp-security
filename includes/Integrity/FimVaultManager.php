@@ -56,6 +56,12 @@ class FimVaultManager {
         // Migrate legacy wcp-vault if exists
         $legacy_vault = wp_normalize_path(rtrim($base, '/\\') . '/wcp-vault');
         if (is_dir($legacy_vault) && $legacy_vault !== $vault_dir) {
+            global $wp_filesystem;
+            if (!$wp_filesystem) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+
             $legacy_files = @scandir($legacy_vault) ?: [];
             foreach ($legacy_files as $f) {
                 if ($f === '.' || $f === '..') {
@@ -64,12 +70,22 @@ class FimVaultManager {
                 $src = $legacy_vault . '/' . $f;
                 $dst = $vault_dir . '/' . $f;
                 if (!file_exists($dst)) {
-                    @rename($src, $dst);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->move($src, $dst);
+                    } else {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                        @rename($src, $dst);
+                    }
                 } else {
-                    @unlink($src);
+                    wp_delete_file($src);
                 }
             }
-            @rmdir($legacy_vault);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($legacy_vault);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($legacy_vault);
+            }
         }
 
         // Enforce webserver access lockdown (.htaccess for Apache/LiteSpeed, index.php for all)

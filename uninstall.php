@@ -97,7 +97,7 @@ if ($wcpscan_delete_data) {
     $wcpscan_mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
     $wcpscan_mu_file = $wcpscan_mu_dir . '/wcp-jit-guardian.php';
     if (file_exists($wcpscan_mu_file)) {
-        @unlink($wcpscan_mu_file);
+        wp_delete_file($wcpscan_mu_file);
     }
 
     // 7. Remove all plugin-created files in uploads (logs, quarantine, backups)

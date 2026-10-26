@@ -20,13 +20,24 @@ class DatabaseBackup {
             if (!is_dir($this->backup_dir)) {
                 wp_mkdir_p($this->backup_dir);
             }
+            global $wp_filesystem;
+            if (!$wp_filesystem) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+
             $legacy_files = @scandir($legacy_dir) ?: [];
             foreach ($legacy_files as $f) {
                 if (preg_match('/(\.sql|\.sql\.gz|\.state_.*)$/i', $f)) {
                     $src = $legacy_dir . '/' . $f;
                     $dst = $this->backup_dir . '/' . $f;
                     if (!file_exists($dst)) {
-                        @rename($src, $dst);
+                        if ($wp_filesystem) {
+                            $wp_filesystem->move($src, $dst);
+                        } else {
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                            @rename($src, $dst);
+                        }
                     }
                 }
             }

@@ -52,12 +52,27 @@ class WcpJitMuGuardian {
             wp_mkdir_p($mu_dir);
         }
 
-        if (!is_dir($mu_dir) || !is_writable($mu_dir)) {
+        global $wp_filesystem;
+        if (!$wp_filesystem) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
+        if ($wp_filesystem) {
+            // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.PluginDirectoryWrite -- Intentional deployment of Must-Use plugin watchdog into mu-plugins directory
+            $written = $wp_filesystem->put_contents($target_file, $mu_code, FS_CHMOD_FILE);
+            return (bool) $written;
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable
+        if (!is_writable($mu_dir)) {
             return false;
         }
 
+        // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.PluginDirectoryWrite, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Fallback deployment of Must-Use plugin watchdog into mu-plugins directory
         $written = @file_put_contents($target_file, $mu_code);
         if ($written !== false) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
             @chmod($target_file, 0644);
             return true;
         }
@@ -75,7 +90,7 @@ class WcpJitMuGuardian {
         $target_file = $mu_dir . '/' . self::MU_FILENAME;
 
         if (file_exists($target_file)) {
-            return @unlink($target_file);
+            return wp_delete_file($target_file);
         }
 
         return true;

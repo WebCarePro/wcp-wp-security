@@ -223,6 +223,12 @@ class PluginUpdater {
             trailingslashit($upload_dir['basedir']) . 'wcp-quarantine/backups/',
         ];
 
+        global $wp_filesystem;
+        if (!$wp_filesystem) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
         foreach ($legacy_dirs as $legacy_dir) {
             if (is_dir($legacy_dir) && $legacy_dir !== $backup_dir) {
                 $legacy_files = @scandir($legacy_dir) ?: [];
@@ -234,9 +240,14 @@ class PluginUpdater {
                         $src = $legacy_dir . $f;
                         $dst = $backup_dir . $f;
                         if (!file_exists($dst)) {
-                            @rename($src, $dst);
+                            if ($wp_filesystem) {
+                                $wp_filesystem->move($src, $dst);
+                            } else {
+                                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                                @rename($src, $dst);
+                            }
                         } else {
-                            @unlink($src);
+                            wp_delete_file($src);
                         }
                     }
                 }

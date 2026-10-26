@@ -131,6 +131,12 @@ class Plugin {
             wp_mkdir_p($main_dir);
         }
 
+        global $wp_filesystem;
+        if (!$wp_filesystem) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
         // 1. Migrate wcp-vault -> wcp-security-scanner/fim-vault
         $vault_src = $uploads_root . '/wcp-vault';
         if (is_dir($vault_src)) {
@@ -139,7 +145,12 @@ class Plugin {
                 wp_mkdir_p($fim_dest);
             }
             self::move_directory_contents($vault_src, $fim_dest);
-            @rmdir($vault_src);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($vault_src);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($vault_src);
+            }
         }
 
         // 2. Migrate wcp-waf -> wcp-security-scanner/waf
@@ -150,7 +161,12 @@ class Plugin {
                 wp_mkdir_p($waf_dest);
             }
             self::move_directory_contents($waf_src, $waf_dest);
-            @rmdir($waf_src);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($waf_src);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($waf_src);
+            }
         }
 
         // 3. Migrate wcp-scanner-quarantine:
@@ -165,7 +181,12 @@ class Plugin {
                     wp_mkdir_p($gk_dest);
                 }
                 self::move_directory_contents($gk_src, $gk_dest);
-                @rmdir($gk_src);
+                if ($wp_filesystem) {
+                    $wp_filesystem->rmdir($gk_src);
+                } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                    @rmdir($gk_src);
+                }
             }
 
             $tx_src = $sq_src . '/transactions';
@@ -175,12 +196,22 @@ class Plugin {
                     wp_mkdir_p($tx_dest);
                 }
                 self::move_directory_contents($tx_src, $tx_dest);
-                @rmdir($tx_src);
+                if ($wp_filesystem) {
+                    $wp_filesystem->rmdir($tx_src);
+                } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                    @rmdir($tx_src);
+                }
             }
 
             // Move any remaining files or clean up
             self::move_directory_contents($sq_src, $main_dir);
-            @rmdir($sq_src);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($sq_src);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($sq_src);
+            }
         }
 
         // 4. Migrate wcp-quarantine:
@@ -194,11 +225,21 @@ class Plugin {
                     wp_mkdir_p($bak_dest);
                 }
                 self::move_directory_contents($bak_src, $bak_dest);
-                @rmdir($bak_src);
+                if ($wp_filesystem) {
+                    $wp_filesystem->rmdir($bak_src);
+                } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                    @rmdir($bak_src);
+                }
             }
 
             self::move_directory_contents($q_src, $main_dir);
-            @rmdir($q_src);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($q_src);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($q_src);
+            }
         }
 
         // 5. Migrate SQL backups inside wcp-security-scanner/backups to db-backups, and ZIP snapshots to rollback-snapshots
@@ -215,16 +256,26 @@ class Plugin {
                 if (is_dir($src)) {
                     // e.g. backups/plugin-updates/ -> rollback-snapshots/
                     self::move_directory_contents($src, $rollback_dir);
-                    @rmdir($src);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->rmdir($src);
+                    } else {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                        @rmdir($src);
+                    }
                 } elseif (preg_match('/(\.sql|\.sql\.gz|\.state_.*)$/i', $file)) {
                     if (!is_dir($db_backups_dir)) {
                         wp_mkdir_p($db_backups_dir);
                     }
                     $dst = $db_backups_dir . '/' . $file;
                     if (!file_exists($dst)) {
-                        @rename($src, $dst);
+                        if ($wp_filesystem) {
+                            $wp_filesystem->move($src, $dst);
+                        } else {
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                            @rename($src, $dst);
+                        }
                     } else {
-                        @unlink($src);
+                        wp_delete_file($src);
                     }
                 } elseif (str_ends_with(strtolower($file), '.zip')) {
                     if (!is_dir($rollback_dir)) {
@@ -232,15 +283,25 @@ class Plugin {
                     }
                     $dst = $rollback_dir . '/' . $file;
                     if (!file_exists($dst)) {
-                        @rename($src, $dst);
+                        if ($wp_filesystem) {
+                            $wp_filesystem->move($src, $dst);
+                        } else {
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                            @rename($src, $dst);
+                        }
                     } else {
-                        @unlink($src);
+                        wp_delete_file($src);
                     }
                 }
             }
             $remaining = array_diff(@scandir($legacy_backups_dir) ?: [], ['.', '..']);
             if (empty($remaining)) {
-                @rmdir($legacy_backups_dir);
+                if ($wp_filesystem) {
+                    $wp_filesystem->rmdir($legacy_backups_dir);
+                } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                    @rmdir($legacy_backups_dir);
+                }
             }
         }
     }
@@ -256,6 +317,12 @@ class Plugin {
             wp_mkdir_p($dst);
         }
 
+        global $wp_filesystem;
+        if (!$wp_filesystem) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
         $items = @scandir($src) ?: [];
         foreach ($items as $item) {
             if ($item === '.' || $item === '..') {
@@ -267,19 +334,38 @@ class Plugin {
 
             if (is_dir($src_path)) {
                 if (!is_dir($dst_path)) {
-                    if (!@rename($src_path, $dst_path)) {
-                        self::move_directory_contents($src_path, $dst_path);
-                        @rmdir($src_path);
+                    $moved = $wp_filesystem ? $wp_filesystem->move($src_path, $dst_path) : false;
+                    if (!$moved) {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                        if (!@rename($src_path, $dst_path)) {
+                            self::move_directory_contents($src_path, $dst_path);
+                            if ($wp_filesystem) {
+                                $wp_filesystem->rmdir($src_path);
+                            } else {
+                                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                                @rmdir($src_path);
+                            }
+                        }
                     }
                 } else {
                     self::move_directory_contents($src_path, $dst_path);
-                    @rmdir($src_path);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->rmdir($src_path);
+                    } else {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                        @rmdir($src_path);
+                    }
                 }
             } else {
                 if (!file_exists($dst_path)) {
-                    @rename($src_path, $dst_path);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->move($src_path, $dst_path);
+                    } else {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                        @rename($src_path, $dst_path);
+                    }
                 } else {
-                    @unlink($src_path);
+                    wp_delete_file($src_path);
                 }
             }
         }

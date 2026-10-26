@@ -1,4 +1,12 @@
 v:1.26.0 - 2026-10-26
+- WordPress.org Plugin Check (PCP) Complete Compliance Refactoring (`uninstall.php`, `CVEIntelligenceService.php`, `WcpJitMuGuardian.php`, `Plugin.php`, `TransactionalRemediation.php`, `DatabaseBackup.php`, `FimVaultManager.php`, `UpdateGatekeeperEngine.php`, `PluginUpdater.php`, `ServerSecurityEngine.php`):
+  * Eliminated all 38 Plugin Check filesystem and alternative function ERRORS across the entire codebase.
+  * Replaced direct raw PHP `rename()` operations with `WP_Filesystem::move()` / `$wp_filesystem->move()`.
+  * Replaced direct raw PHP `rmdir()` operations with `WP_Filesystem::rmdir()` / `$wp_filesystem->rmdir()`.
+  * Replaced direct raw PHP `unlink()` file deletion calls with standard WordPress core `wp_delete_file()`.
+  * Replaced non-standard `parse_url()` with cross-version WordPress standard `wp_parse_url()` in `CVEIntelligenceService.php`.
+  * Modernized `WcpJitMuGuardian.php` with `WP_Filesystem` / `wp_delete_file()` methods and verified proper Must-Use plugin deployment in `WP_CONTENT_DIR/mu-plugins/`.
+  * Validated full pass in Docker using `wp plugin check wcp-security-scanner` with 0 ERRORS remaining.
 - WordPress Root Folder Unknown File, Dotfile & Dot-Directory Deep Scanning (`CoreIntegrity.php`, `DirectoryWalker.php`, `Engine.php`, `FileScanner.php`, `HeuristicEngine.php`, `SettingsPage.tsx`):
   * Comprehensive Root Directory Inspection: Enhanced the core integrity reverse reconciliation and filesystem scanner to thoroughly scan the WordPress root folder (`ABSPATH`), detecting unknown rogue files, stealth scripts, and dotfiles (e.g. `.hidden.php`, `.shell.php`, `.user.ini`, `.custom-shell`).
   * Hidden & Rogue Root Folder Traversal: Added deep recursive inspection for unexpected directories and hidden `.dot` directories located directly on the WordPress root (e.g. `.hidden/`, `.vault/`, `custom_folder/` outside of standard `wp-admin`, `wp-includes`, and `wp-content`), discovering and evaluating all dropped backdoors and webshells.

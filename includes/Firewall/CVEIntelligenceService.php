@@ -208,7 +208,7 @@ class CVEIntelligenceService {
                 $ref_url = esc_url_raw($ref['url'] ?? '');
                 if ($ref_url && !isset($seen_urls[$ref_url])) {
                     $seen_urls[$ref_url] = true;
-                    $host = parse_url($ref_url, PHP_URL_HOST) ?: 'Reference';
+                    $host = wp_parse_url($ref_url, PHP_URL_HOST) ?: 'Reference';
                     $references[] = [
                         'url'  => $ref_url,
                         'host' => str_replace('www.', '', $host),

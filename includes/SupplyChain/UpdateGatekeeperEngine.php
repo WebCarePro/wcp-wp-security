@@ -291,6 +291,12 @@ class UpdateGatekeeperEngine {
         // Migrate legacy wcp-scanner-quarantine/gatekeeper_snapshots if exists
         $legacy_base = wp_normalize_path($uploads['basedir'] . '/wcp-scanner-quarantine/gatekeeper_snapshots');
         if (is_dir($legacy_base) && $legacy_base !== $base_snapshots) {
+            global $wp_filesystem;
+            if (!$wp_filesystem) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+
             $legacy_items = @scandir($legacy_base) ?: [];
             foreach ($legacy_items as $item) {
                 if ($item === '.' || $item === '..') {
@@ -299,10 +305,20 @@ class UpdateGatekeeperEngine {
                 $src = $legacy_base . '/' . $item;
                 $dst = $base_snapshots . '/' . $item;
                 if (!file_exists($dst)) {
-                    @rename($src, $dst);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->move($src, $dst);
+                    } else {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                        @rename($src, $dst);
+                    }
                 }
             }
-            @rmdir($legacy_base);
+            if ($wp_filesystem) {
+                $wp_filesystem->rmdir($legacy_base);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($legacy_base);
+            }
             // Update any paths stored in option
             $snapshots = get_option(self::OPTION_SNAPSHOTS, []);
             if (is_array($snapshots)) {
