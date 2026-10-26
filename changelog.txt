@@ -1,4 +1,8 @@
 v:1.26.0 - 2026-10-26
+- Cloudflare Edge WAF Credentials Banner Visual Highlighting (`FirewallPage.tsx`):
+  * Domain & Zone Identity Badge: Prominently formatted the connected zone domain into a cyan monospace telemetry chip with an embedded globe icon (`ui-monospace`, `0.1` background, `#0284c7`), ensuring the active domain is instantly recognizable at a glance.
+  * Cloudflare Plan Name Pill: Elevated the Cloudflare subscription plan into an indigo badge with an embedded sparkles icon (`#4f46e5`, uppercase `0.3px` letter spacing) for clear plan recognition.
+  * Hostname Tag Styling: Highlighted the active proxy hostname on the Orange Cloud telemetry banner in a high-contrast orange monospace pill.
 - Universal System-Wide UTC/GMT Immutable Timestamps (`Migration.php`, `Plugin.php`, `ScannerRoutes.php`, `Scheduler.php`, `FirewallEngine.php`, `QuarantineManager.php`, `LoginHistoryManager.php`, `FindingRepository.php`, `WafLogsPage.tsx`, `FirewallPage.tsx`, `IdentityForensicsCard.tsx`):
   * Comprehensive Database Schema Upgrade: Added `created_at_gmt`, `scanned_at_gmt`, `quarantined_at_gmt`, `restored_at_gmt`, `login_time_gmt`, `logout_time_gmt`, and `last_seen_gmt` across all plugin database tables (`wcpscan_scans`, `wcpscan_scan_issues`, `wcpscan_scan_files`, `wcpscan_quarantine`, `wcpscan_firewall_logs`, `wcpscan_login_history`) and bumped database version to `1.12.0`.
   * Multi-Engine Immutable UTC Recording: Updated all backend recording hooks across WAF blocks, quarantined threat files, scan issues, and user device session telemetry to save true UTC timestamps via native `gmdate('Y-m-d H:i:s')`.
