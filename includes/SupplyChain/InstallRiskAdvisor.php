@@ -39,6 +39,35 @@ class InstallRiskAdvisor {
             ];
         }
 
+        $resolved_slug = $slug ?: basename($real_dir);
+
+        // Self-Exclusion: Never flag WCP Security Scanner itself
+        if ($resolved_slug === 'wcp-security-scanner' || $resolved_slug === 'wcp-wp-scanner') {
+            return [
+                'success'      => true,
+                'slug'         => $resolved_slug,
+                'dir_path'     => $real_dir,
+                'score'        => 0,
+                'level'        => 'clean',
+                'findings'     => [],
+                'capabilities' => [
+                    'has_network'      => false,
+                    'has_exec'         => false,
+                    'has_obfuscation'  => false,
+                    'has_persistence'   => false,
+                    'has_priv_escalation' => false,
+                    'contacted_domains'=> [],
+                    'contacted_ips'    => [],
+                ],
+                'stats'        => [
+                    'total_files_found' => 0,
+                    'files_scanned'     => 0,
+                    'findings_count'    => 0,
+                    'scanned_at'        => current_time('mysql'),
+                ],
+            ];
+        }
+
         $files = self::get_scannable_files($real_dir);
         $findings = [];
         $capabilities = [
@@ -237,9 +266,12 @@ class InstallRiskAdvisor {
         // 3. Raw IP Network Sockets & cURL to External IPs
         if (preg_match_all('/https?:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?/i', $content, $ip_matches)) {
             foreach ($ip_matches[1] as $ip) {
-                if ($ip !== '127.0.0.1' && $ip !== '0.0.0.0') {
-                    $capabilities['has_network'] = true;
-                    $capabilities['contacted_ips'][] = $ip;
+                // Ignore loopback, broadcast, private subnets (RFC 1918) and link-local metadata addresses
+                if ($ip === '127.0.0.1' || $ip === '0.0.0.0' || str_starts_with($ip, '10.') || str_starts_with($ip, '192.168.') || str_starts_with($ip, '169.254.') || preg_match('/^172\.(1[6-9]|2[0-9]|3[0-1])\./', $ip)) {
+                    continue;
+                }
+                $capabilities['has_network'] = true;
+                $capabilities['contacted_ips'][] = $ip;
                     $findings[] = [
                         'category'    => 'Network Telemetry',
                         'severity'    => 'high',

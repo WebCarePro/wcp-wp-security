@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-25T23:58:04.056Z",
+  "generated_at": "2026-10-26T00:08:04.597Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 514110
     },
     "build/index.asset.php": {
-      "sha256": "f8a04beb3c9f6806689d445635f1dc168a67a6d4d7efe32605acc960650910d3",
+      "sha256": "e546da54911b4c8fed7b62fc2c4dd74c45d0ca805dd58ccadc9d49ad17cd4780",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 513971
     },
     "build/index.js": {
-      "sha256": "0c56f0466920402f55a0f4fb2bfb44ba3a2739bec552a506811e9d8498bad546",
-      "size": 1655676
+      "sha256": "8b4b69c68909208fc11d4101de9f6746b1d90f894d1901963cde137aa9e0163d",
+      "size": 1656484
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -68,8 +68,8 @@
       "size": 73683
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "ec584c137ab8038006f6759acdc9f3b5df846ca06a5931d11fb888fb82c9e285",
-      "size": 414856
+      "sha256": "ce7c46e697e16139e9ec2a0ac380a566689263c0bcf15258f28cf0eb85e85f13",
+      "size": 415488
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "1b483a410c8f666e1250ebf8ae5da87f6c907db1c8be5309798641cf28053691",
@@ -412,16 +412,16 @@
       "size": 19037
     },
     "includes/SupplyChain/InstallRiskAdvisor.php": {
-      "sha256": "563c3a82af314b4f8afd4b799a2eb32623e6238fde75db3684d51431e9e5ae51",
-      "size": 12403
+      "sha256": "e093cc73a31e7349ab9ed793dbda5e1751a9d17a34dd2146b1ba2c1d0567c83d",
+      "size": 13882
     },
     "includes/SupplyChain/SbomSentinelEngine.php": {
       "sha256": "59da7b7c04c97c79e092d6dd9c573c6c3af60d2786954f88318cc7940c601ac9",
       "size": 22520
     },
     "includes/SupplyChain/UpdateGatekeeperEngine.php": {
-      "sha256": "50f8bb91b1216ff61cbe25b749fc1d6dcbcecc3c84a39f06352203e6b3826961",
-      "size": 16820
+      "sha256": "96ff7da6f346e3c8b2ae148b7699c69172e43ed13a3dbc706b8e3f57781dc1c6",
+      "size": 17366
     },
     "includes/System/AIService.php": {
       "sha256": "7618ca81afc785ec666fc885664b5ba17acef4de747518d6a1a76d464f8aa0f3",

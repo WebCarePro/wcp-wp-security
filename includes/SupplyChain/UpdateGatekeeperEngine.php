@@ -82,6 +82,13 @@ class UpdateGatekeeperEngine {
         }
 
         $folder_name = basename(untrailingslashit($source));
+
+        // Self-Exclusion: Never intercept or flag WCP Security Scanner itself
+        // (Internal attack simulation test suites, virtual patch synthesizers, and quarantine engines contain controlled exploit strings)
+        if ($folder_name === 'wcp-security-scanner' || $folder_name === 'wcp-wp-scanner') {
+            return $source;
+        }
+
         $installed_plugin_dir = wp_normalize_path(WP_PLUGIN_DIR . '/' . $folder_name);
         $is_update = is_dir($installed_plugin_dir);
 
@@ -381,6 +388,15 @@ class UpdateGatekeeperEngine {
             return [];
         }
         return array_slice($logs, 0, $limit);
+    }
+
+    /**
+     * Clear recorded Gatekeeper audit logs.
+     *
+     * @return bool
+     */
+    public static function clear_logs(): bool {
+        return update_option(self::OPTION_LOGS, []);
     }
 
     /**

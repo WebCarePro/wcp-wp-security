@@ -1111,6 +1111,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/supply-chain/gatekeeper/clear', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'clear_supply_chain_gatekeeper_logs'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/supply-chain/analyze-plugin', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'analyze_supply_chain_plugin'],
@@ -7344,6 +7350,14 @@ class ScannerRoutes {
 
         $result = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::rollback_snapshot($snapshot_id);
         return rest_ensure_response($result);
+    }
+
+    public static function clear_supply_chain_gatekeeper_logs(\WP_REST_Request $request) {
+        \WcpScanner\SupplyChain\UpdateGatekeeperEngine::clear_logs();
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Gatekeeper intercepted logs cleared successfully.', 'wcp-security-scanner'),
+        ]);
     }
 
     public static function analyze_supply_chain_plugin(\WP_REST_Request $request) {
