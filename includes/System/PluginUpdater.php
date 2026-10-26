@@ -210,49 +210,53 @@ class PluginUpdater {
     public static function create_local_backup(): array {
         $current_version = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0.0';
         $upload_dir = wp_upload_dir();
-        $backup_dir = trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/backups/plugin-updates/';
+        $backup_dir = trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/rollback-snapshots/';
 
         if (!wp_mkdir_p($backup_dir)) {
             return ['success' => false, 'message' => 'Unable to create backup directory.'];
         }
 
-        // Migrate legacy wcp-quarantine/backups if exists
-        $legacy_backup_dir = trailingslashit($upload_dir['basedir']) . 'wcp-quarantine/backups/';
-        if (is_dir($legacy_backup_dir) && $legacy_backup_dir !== $backup_dir) {
-            $legacy_files = @scandir($legacy_backup_dir) ?: [];
-            foreach ($legacy_files as $f) {
-                if ($f === '.' || $f === '..') {
-                    continue;
-                }
-                $src = $legacy_backup_dir . $f;
-                $dst = $backup_dir . $f;
-                if (!file_exists($dst)) {
-                    @rename($src, $dst);
-                } else {
-                    @unlink($src);
+        // Migrate legacy folders (backups/plugin-updates or wcp-quarantine/backups) if exist
+        $legacy_dirs = [
+            trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/backups/plugin-updates/',
+            trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/backups/',
+            trailingslashit($upload_dir['basedir']) . 'wcp-quarantine/backups/',
+        ];
+
+        foreach ($legacy_dirs as $legacy_dir) {
+            if (is_dir($legacy_dir) && $legacy_dir !== $backup_dir) {
+                $legacy_files = @scandir($legacy_dir) ?: [];
+                foreach ($legacy_files as $f) {
+                    if ($f === '.' || $f === '..' || $f === '.htaccess' || $f === 'index.php') {
+                        continue;
+                    }
+                    if (str_ends_with(strtolower($f), '.zip')) {
+                        $src = $legacy_dir . $f;
+                        $dst = $backup_dir . $f;
+                        if (!file_exists($dst)) {
+                            @rename($src, $dst);
+                        } else {
+                            @unlink($src);
+                        }
+                    }
                 }
             }
-            @rmdir($legacy_backup_dir);
-            $parent_quarantine = trailingslashit($upload_dir['basedir']) . 'wcp-quarantine';
-            if (is_dir($parent_quarantine)) {
-                $rem = array_diff(@scandir($parent_quarantine) ?: [], ['.', '..']);
-                if (empty($rem)) {
-                    @rmdir($parent_quarantine);
-                }
-            }
-            // Update file paths in recorded options
-            $existing_records = get_option(self::BACKUPS_OPTION, []);
-            if (is_array($existing_records)) {
-                $changed = false;
-                foreach ($existing_records as &$rec) {
-                    if (!empty($rec['file_path']) && strpos($rec['file_path'], 'wcp-quarantine/backups') !== false) {
-                        $rec['file_path'] = str_replace('wcp-quarantine/backups', 'wcp-security-scanner/backups/plugin-updates', $rec['file_path']);
+        }
+
+        // Update file paths in recorded options
+        $existing_records = get_option(self::BACKUPS_OPTION, []);
+        if (is_array($existing_records)) {
+            $changed = false;
+            foreach ($existing_records as &$rec) {
+                if (!empty($rec['file_path'])) {
+                    if (strpos($rec['file_path'], 'backups/plugin-updates') !== false || strpos($rec['file_path'], 'wcp-quarantine/backups') !== false || strpos($rec['file_path'], 'wcp-security-scanner/backups') !== false) {
+                        $rec['file_path'] = $backup_dir . basename($rec['file_path']);
                         $changed = true;
                     }
                 }
-                if ($changed) {
-                    update_option(self::BACKUPS_OPTION, $existing_records, false);
-                }
+            }
+            if ($changed) {
+                update_option(self::BACKUPS_OPTION, $existing_records, false);
             }
         }
 
@@ -353,7 +357,7 @@ class PluginUpdater {
         foreach ($backups as $b) {
             $fp = $b['file_path'] ?? '';
             if (!empty($fp) && !file_exists($fp)) {
-                $migrated_fp = trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/backups/plugin-updates/' . basename($fp);
+                $migrated_fp = trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/rollback-snapshots/' . basename($fp);
                 if (file_exists($migrated_fp)) {
                     $b['file_path'] = $migrated_fp;
                     $fp = $migrated_fp;

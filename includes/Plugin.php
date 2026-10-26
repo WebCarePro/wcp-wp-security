@@ -119,6 +119,10 @@ class Plugin {
             }
         }
 
+        if (is_dir($main_dir . '/backups')) {
+            $has_legacy = true;
+        }
+
         if (!$has_legacy) {
             return;
         }
@@ -180,12 +184,12 @@ class Plugin {
         }
 
         // 4. Migrate wcp-quarantine:
-        //    backups -> wcp-security-scanner/backups/plugin-updates/
+        //    backups -> wcp-security-scanner/rollback-snapshots/
         $q_src = $uploads_root . '/wcp-quarantine';
         if (is_dir($q_src)) {
             $bak_src = $q_src . '/backups';
             if (is_dir($bak_src)) {
-                $bak_dest = $main_dir . '/backups/plugin-updates';
+                $bak_dest = $main_dir . '/rollback-snapshots';
                 if (!is_dir($bak_dest)) {
                     wp_mkdir_p($bak_dest);
                 }
@@ -197,22 +201,46 @@ class Plugin {
             @rmdir($q_src);
         }
 
-        // 5. Migrate SQL backups inside wcp-security-scanner/backups to db-backups
+        // 5. Migrate SQL backups inside wcp-security-scanner/backups to db-backups, and ZIP snapshots to rollback-snapshots
         $legacy_backups_dir = $main_dir . '/backups';
         $db_backups_dir     = $main_dir . '/db-backups';
+        $rollback_dir       = $main_dir . '/rollback-snapshots';
         if (is_dir($legacy_backups_dir)) {
             $files = @scandir($legacy_backups_dir) ?: [];
             foreach ($files as $file) {
-                if (preg_match('/(\.sql|\.sql\.gz|\.state_.*)$/i', $file)) {
+                if ($file === '.' || $file === '..') {
+                    continue;
+                }
+                $src = $legacy_backups_dir . '/' . $file;
+                if (is_dir($src)) {
+                    // e.g. backups/plugin-updates/ -> rollback-snapshots/
+                    self::move_directory_contents($src, $rollback_dir);
+                    @rmdir($src);
+                } elseif (preg_match('/(\.sql|\.sql\.gz|\.state_.*)$/i', $file)) {
                     if (!is_dir($db_backups_dir)) {
                         wp_mkdir_p($db_backups_dir);
                     }
-                    $src = $legacy_backups_dir . '/' . $file;
                     $dst = $db_backups_dir . '/' . $file;
                     if (!file_exists($dst)) {
                         @rename($src, $dst);
+                    } else {
+                        @unlink($src);
+                    }
+                } elseif (str_ends_with(strtolower($file), '.zip')) {
+                    if (!is_dir($rollback_dir)) {
+                        wp_mkdir_p($rollback_dir);
+                    }
+                    $dst = $rollback_dir . '/' . $file;
+                    if (!file_exists($dst)) {
+                        @rename($src, $dst);
+                    } else {
+                        @unlink($src);
                     }
                 }
+            }
+            $remaining = array_diff(@scandir($legacy_backups_dir) ?: [], ['.', '..']);
+            if (empty($remaining)) {
+                @rmdir($legacy_backups_dir);
             }
         }
     }

@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T01:47:26.485Z",
+  "generated_at": "2026-10-26T01:53:58.789Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 515656
     },
     "build/index.asset.php": {
-      "sha256": "eb9d7a37a71d8b251191884f577109bd13fed7fca05a2dfe4245a06026e5b948",
+      "sha256": "b3b9b4a28e87d547722f9558306c2e38bcae67bae53991ce7678841d18475346",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 515517
     },
     "build/index.js": {
-      "sha256": "9c005e6688312d0689221699d72472b53bb15de921d5779d7c06e584bbfdc3d2",
-      "size": 1657241
+      "sha256": "78005ef01ba8f90ce30df560e8af82da686358f2c283af9ff277492ba171f9b3",
+      "size": 1657240
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -344,8 +344,8 @@
       "size": 32465
     },
     "includes/Plugin.php": {
-      "sha256": "5bf2119333c7a450ba9c558ac09dae25a5996cf861dee35aa33a363ae62f9cd5",
-      "size": 9574
+      "sha256": "56f0db75f47e3ccbb481aca3d3b1d0d33ff1dc106e57cac4cb9cbd009938b9e8",
+      "size": 10792
     },
     "includes/Quarantine/CoreRepairManager.php": {
       "sha256": "b07003c796a8f65d783113ee8653a4ec7bf9fe17fb21f5da174bd4112a57bd43",
@@ -436,8 +436,8 @@
       "size": 6081
     },
     "includes/System/PluginUpdater.php": {
-      "sha256": "57825a475c793db35e239bd6b5ff8b61a089c7a106f6f24b5374b533300ad0ba",
-      "size": 22656
+      "sha256": "e6f7b7a64d5e634a4a29fb9e2a86eeab32fec56c7e8105e2f2d95bbda880936f",
+      "size": 22836
     },
     "includes/System/Scheduler.php": {
       "sha256": "0ed8908c5396573dad7c1166fef20748f87c9d84f667a186c3b20988d25d2628",
