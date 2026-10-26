@@ -1,6 +1,6 @@
 {
   "version": "1.27.0",
-  "generated_at": "2026-10-26T20:01:17.844Z",
+  "generated_at": "2026-10-26T20:08:20.687Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -248,8 +248,8 @@
       "size": 20926
     },
     "includes/Firewall/WafFileLogger.php": {
-      "sha256": "7054817953f31e8e4045a26874af32154b5d39f02cad32d841ea9dfdca8648cf",
-      "size": 30112
+      "sha256": "9571ecb5991c77085f8d3faec46a596bd45b667a906f2629b73f7455dc4978a5",
+      "size": 30211
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "bdfe5e2e2ccac727a0551ca9544db3835ada6f90873a2bc579b77fd0d3d3e454",

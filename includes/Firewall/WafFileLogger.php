@@ -54,7 +54,7 @@ class WafFileLogger {
             wp_mkdir_p($dir);
         }
 
-        if (!is_dir($dir) || !is_writable($dir)) {
+        if (!is_dir($dir) || !wp_is_writable($dir)) {
             return false;
         }
 
@@ -341,6 +341,7 @@ class WafFileLogger {
                 continue;
             }
 
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Low-memory progressive streaming of partitioned JSONL log files
             $handle = @fopen($filepath, 'r');
             if (!$handle) {
                 continue;
@@ -365,6 +366,7 @@ class WafFileLogger {
                 $all_matched[] = $record;
             }
 
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Stream resource cleanup
             fclose($handle);
         }
 
@@ -563,6 +565,7 @@ class WafFileLogger {
                 continue;
             }
 
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Low-memory progressive streaming of partitioned JSONL log files
             $handle = @fopen($filepath, 'r');
             if (!$handle) {
                 continue;
@@ -614,6 +617,7 @@ class WafFileLogger {
                 }
             }
 
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Stream resource cleanup
             fclose($handle);
         }
 
@@ -739,12 +743,7 @@ class WafFileLogger {
             }
 
             if ($file_time !== false && $file_time < $cutoff_time) {
-                if (function_exists('wp_delete_file')) {
-                    wp_delete_file($filepath);
-                } else {
-                    // phpcs:ignore WordPress.WP.AlternativeFileSystem.unlink_unlink
-                    @unlink($filepath);
-                }
+                wp_delete_file($filepath);
                 $pruned++;
             }
         }
@@ -824,12 +823,7 @@ class WafFileLogger {
         foreach ($files as $file) {
             if (preg_match('/-waf-logs\.json$/', $file)) {
                 $filepath = $dir . '/' . $file;
-                if (function_exists('wp_delete_file')) {
-                    wp_delete_file($filepath);
-                } else {
-                    // phpcs:ignore WordPress.WP.AlternativeFileSystem.unlink_unlink
-                    @unlink($filepath);
-                }
+                wp_delete_file($filepath);
             }
         }
 
