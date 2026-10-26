@@ -5006,6 +5006,40 @@ class ScannerRoutes {
         }
 
         $perms = substr(sprintf('%o', fileperms($real_path)), -4);
+
+        $extension = strtolower(pathinfo($real_path, PATHINFO_EXTENSION));
+        $image_mimes = [
+            'png'  => 'image/png',
+            'jpg'  => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'gif'  => 'image/gif',
+            'webp' => 'image/webp',
+            'svg'  => 'image/svg+xml',
+            'ico'  => 'image/x-icon',
+            'bmp'  => 'image/bmp',
+        ];
+
+        $is_image = isset($image_mimes[$extension]);
+        $image_base64 = null;
+        $image_dimensions = null;
+
+        if ($is_image) {
+            // For SVG, content is textual; for raster images, encode as base64 data URI
+            $raw_bytes = file_get_contents($real_path, false, null, 0, 5 * 1024 * 1024);
+            if ($raw_bytes !== false) {
+                $image_base64 = 'data:' . $image_mimes[$extension] . ';base64,' . base64_encode($raw_bytes);
+            }
+            if ($extension !== 'svg' && function_exists('getimagesize')) {
+                $img_size = @getimagesize($real_path);
+                if (!empty($img_size)) {
+                    $image_dimensions = [
+                        'width'  => $img_size[0] ?? null,
+                        'height' => $img_size[1] ?? null,
+                    ];
+                }
+            }
+        }
+
         $lines = explode("\n", $content);
         $line_count = count($lines);
 
@@ -5013,17 +5047,21 @@ class ScannerRoutes {
         $rel_path = ltrim($rel_path, '/\\');
 
         return rest_ensure_response([
-            'success'        => true,
-            'filename'       => basename($real_path),
-            'file_path'      => $rel_path,
-            'full_path'      => $real_path,
-            'size_bytes'     => $file_size,
-            'size_formatted' => size_format($file_size, 2),
-            'permissions'    => $perms,
-            'is_writable'    => wp_is_writable($real_path),
-            'line_count'     => $line_count,
-            'content'        => $content,
-            'is_truncated'   => $is_truncated,
+            'success'          => true,
+            'filename'         => basename($real_path),
+            'file_path'        => $rel_path,
+            'full_path'        => $real_path,
+            'size_bytes'       => $file_size,
+            'size_formatted'   => size_format($file_size, 2),
+            'permissions'      => $perms,
+            'is_writable'      => wp_is_writable($real_path),
+            'line_count'       => $line_count,
+            'content'          => $content,
+            'is_truncated'     => $is_truncated,
+            'is_image'         => $is_image,
+            'image_mime'       => $is_image ? $image_mimes[$extension] : null,
+            'image_base64'     => $image_base64,
+            'image_dimensions' => $image_dimensions,
         ]);
     }
 
