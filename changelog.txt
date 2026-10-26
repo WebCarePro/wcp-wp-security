@@ -1,10 +1,10 @@
 v:1.26.0 - 2026-10-26
-- Image Asset Interactive Viewer & Forensic Inspection (`ScannerRoutes.php`, `App.tsx`):
-  * Built an interactive Image Asset Viewer inside the File Inspection Modal for image findings and rogue media files (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`, `.bmp`).
-  * Instant Visual Inspection: Renders high-resolution image previews directly from server-generated Base64 Data URIs on an obsidian transparency grid canvas.
-  * Image Forensic Telemetry: Displays native image dimensions (`Width × Height px`), MIME type, file size, permissions, and writability metadata.
-  * Interactive Zoom Controls: Added dedicated zoom in (`+25%`), zoom out (`-25%`), and zoom reset controls (25% to 300% zoom range).
-  * Dual-Mode Mode Switcher: Seamlessly toggles between "Image Preview" and "Raw / Hex Source" for inspecting hidden webshell headers or payload code embedded in image assets (steganography or fake image extensions like `image.png.php`).
+- Image Asset Interactive Viewer & Binary Malware Forensic Validation (`ScannerRoutes.php`, `App.tsx`):
+  * Binary Magic Header Verification: Inspects raw leading bytes of image files (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`, `.bmp`) to verify genuine file types against spoofed extensions.
+  * Disguised Executable Detection: Detects compiled Windows PE executables (`MZ`), Linux ELF binaries (`\x7fELF`), Mach-O binaries (`\xca\xfe\xba\xbe`), shell shebang scripts (`#!/bin/...`), and pure PHP scripts masquerading as harmless image files.
+  * Embedded PHP Polyglot & Steganography Inspection: Analyzes head headers (EXIF/IPTC) and trailing bytes for appended PHP webshell backdoors and malicious payloads (e.g. `eval`, `system`, `passthru`, `assert`).
+  * Instant Visual Inspection & Threat Banners: Safely previews validated images on an obsidian transparency grid, while displaying prominent security alert banners and disabling visual rendering if a disguised binary or active polyglot is detected.
+  * Forensic Image Telemetry & Controls: Displays verified binary signature, image dimensions (`Width × Height px`), MIME type, zoom controls (`25%` - `300%`), and a 1-click toggle to inspect raw injected code.
 - WordPress.org Plugin Check (PCP) Complete Compliance Refactoring & Fresh Architecture (`uninstall.php`, `CVEIntelligenceService.php`, `WcpJitMuGuardian.php`, `Plugin.php`, `TransactionalRemediation.php`, `DatabaseBackup.php`, `FimVaultManager.php`, `UpdateGatekeeperEngine.php`, `PluginUpdater.php`, `ServerSecurityEngine.php`):
   * Eliminated all 38 Plugin Check filesystem and alternative function ERRORS across the entire codebase.
   * Fresh Brand-New Architecture: Completely removed legacy directory consolidation, migration, moving, and renaming routines (`Plugin::consolidate_uploads_storage()`, legacy folder migrations in `DatabaseBackup.php`, `FimVaultManager.php`, `TransactionalRemediation.php`, `UpdateGatekeeperEngine.php`, `PluginUpdater.php`, and `ServerSecurityEngine.php`), ensuring the plugin runs entirely cleanly and natively on its modern storage layout (`wp-content/uploads/wcp-security-scanner/`) with zero migration overhead.

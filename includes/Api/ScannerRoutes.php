@@ -5019,23 +5019,137 @@ class ScannerRoutes {
             'bmp'  => 'image/bmp',
         ];
 
-        $is_image = isset($image_mimes[$extension]);
+        $is_image_ext = isset($image_mimes[$extension]);
+        $is_image = false;
         $image_base64 = null;
         $image_dimensions = null;
+        $image_security = [
+            'is_valid_binary'    => false,
+            'detected_type'      => null,
+            'magic_bytes_match'  => false,
+            'threat_warning'     => null,
+            'has_embedded_php'   => false,
+            'disguised_exec'     => null,
+        ];
 
-        if ($is_image) {
-            // For SVG, content is textual; for raster images, encode as base64 data URI
-            $raw_bytes = file_get_contents($real_path, false, null, 0, 5 * 1024 * 1024);
-            if ($raw_bytes !== false) {
-                $image_base64 = 'data:' . $image_mimes[$extension] . ';base64,' . base64_encode($raw_bytes);
+        if ($is_image_ext) {
+            $magic_header = @file_get_contents($real_path, false, null, 0, 32);
+
+            // 1. Binary Magic Header Check for True Image Formats
+            $magic_matches = false;
+            $detected_format = null;
+
+            if ($magic_header !== false && strlen($magic_header) >= 4) {
+                // PNG: 89 50 4E 47 0D 0A 1A 0A
+                if (str_starts_with($magic_header, "\x89PNG\r\n\x1a\n")) {
+                    $magic_matches = in_array($extension, ['png'], true);
+                    $detected_format = 'PNG Image';
+                }
+                // JPEG: FF D8 FF
+                elseif (str_starts_with($magic_header, "\xFF\xD8\xFF")) {
+                    $magic_matches = in_array($extension, ['jpg', 'jpeg'], true);
+                    $detected_format = 'JPEG Image';
+                }
+                // GIF: GIF87a or GIF89a
+                elseif (str_starts_with($magic_header, 'GIF87a') || str_starts_with($magic_header, 'GIF89a')) {
+                    $magic_matches = in_array($extension, ['gif'], true);
+                    $detected_format = 'GIF Image';
+                }
+                // WebP: RIFF....WEBP
+                elseif (str_starts_with($magic_header, 'RIFF') && strlen($magic_header) >= 12 && substr($magic_header, 8, 4) === 'WEBP') {
+                    $magic_matches = in_array($extension, ['webp'], true);
+                    $detected_format = 'WebP Image';
+                }
+                // BMP: BM
+                elseif (str_starts_with($magic_header, 'BM')) {
+                    $magic_matches = in_array($extension, ['bmp'], true);
+                    $detected_format = 'BMP Image';
+                }
+                // ICO: 00 00 01 00
+                elseif (str_starts_with($magic_header, "\x00\x00\x01\x00")) {
+                    $magic_matches = in_array($extension, ['ico'], true);
+                    $detected_format = 'ICO Icon';
+                }
+                // SVG: XML header or <svg tag
+                elseif ($extension === 'svg') {
+                    $trimmed_head = ltrim($magic_header);
+                    if (str_starts_with($trimmed_head, '<?xml') || str_starts_with($trimmed_head, '<svg')) {
+                        $magic_matches = true;
+                        $detected_format = 'SVG Vector';
+                    }
+                }
             }
-            if ($extension !== 'svg' && function_exists('getimagesize')) {
-                $img_size = @getimagesize($real_path);
-                if (!empty($img_size)) {
-                    $image_dimensions = [
-                        'width'  => $img_size[0] ?? null,
-                        'height' => $img_size[1] ?? null,
-                    ];
+
+            // 2. Check for Disguised Executable Binaries (PE, ELF, Mach-O, Shell Shebang)
+            $disguised_exec = null;
+            if ($magic_header !== false) {
+                if (str_starts_with($magic_header, 'MZ')) {
+                    $disguised_exec = 'Windows PE Executable / DLL (MZ Header)';
+                } elseif (str_starts_with($magic_header, "\x7fELF")) {
+                    $disguised_exec = 'Linux ELF Binary Executable';
+                } elseif (in_array(substr($magic_header, 0, 4), ["\xca\xfe\xba\xbe", "\xcf\xfa\xed\xfe", "\xce\xfa\xed\xfe"], true)) {
+                    $disguised_exec = 'Mach-O Binary Executable';
+                } elseif (str_starts_with($magic_header, '#!') && preg_match('/^#!\s*\/(bin|usr)/i', $magic_header)) {
+                    $disguised_exec = 'Unix Shell Script (Shebang Header)';
+                } elseif (preg_match('/^\s*<\?php/i', $magic_header)) {
+                    $disguised_exec = 'Pure PHP Script disguised with Image Extension';
+                }
+            }
+
+            // 3. Check for Embedded Active PHP Polyglots (Head, EXIF, or Tail)
+            $has_embedded_php = false;
+            $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
+            
+            // Scan first 8KB
+            $head_8k = @file_get_contents($real_path, false, null, 0, 8192);
+            if ($head_8k !== false && preg_match($php_pattern, $head_8k)) {
+                $has_embedded_php = true;
+            }
+
+            // Scan trailing 8KB for appended payloads
+            if (!$has_embedded_php && $file_size > 8192) {
+                $tail_offset = max(0, $file_size - 8192);
+                $tail_8k = @file_get_contents($real_path, false, null, $tail_offset, 8192);
+                if ($tail_8k !== false && preg_match($php_pattern, $tail_8k)) {
+                    $has_embedded_php = true;
+                }
+            }
+
+            // Determine if safe to render visually as image
+            $is_image = $magic_matches && empty($disguised_exec);
+
+            $threat_warning = null;
+            if (!empty($disguised_exec)) {
+                $threat_warning = "MALICIOUS DISGUISED EXECUTABLE: File has a '.{$extension}' extension but its binary signature indicates it is a {$disguised_exec}.";
+            } elseif (!$magic_matches) {
+                $threat_warning = "MISMATCHED BINARY SIGNATURE: File claims to be an image (.{$extension}), but lacks valid image magic bytes. " . ($detected_format ? "Detected as: {$detected_format}." : "It may be a disguised script or corrupt file.");
+            } elseif ($has_embedded_php) {
+                $threat_warning = "MALICIOUS POLYGLOT: File is a valid {$detected_format}, but contains embedded executable PHP script code or backdoor tokens.";
+            }
+
+            $image_security = [
+                'is_valid_binary'   => $magic_matches,
+                'detected_type'     => $detected_format,
+                'magic_bytes_match' => $magic_matches,
+                'threat_warning'    => $threat_warning,
+                'has_embedded_php'  => $has_embedded_php,
+                'disguised_exec'    => $disguised_exec,
+            ];
+
+            // If genuine image, load base64 preview and dimensions
+            if ($is_image) {
+                $raw_bytes = file_get_contents($real_path, false, null, 0, 5 * 1024 * 1024);
+                if ($raw_bytes !== false) {
+                    $image_base64 = 'data:' . $image_mimes[$extension] . ';base64,' . base64_encode($raw_bytes);
+                }
+                if ($extension !== 'svg' && function_exists('getimagesize')) {
+                    $img_size = @getimagesize($real_path);
+                    if (!empty($img_size)) {
+                        $image_dimensions = [
+                            'width'  => $img_size[0] ?? null,
+                            'height' => $img_size[1] ?? null,
+                        ];
+                    }
                 }
             }
         }
@@ -5058,10 +5172,12 @@ class ScannerRoutes {
             'line_count'       => $line_count,
             'content'          => $content,
             'is_truncated'     => $is_truncated,
-            'is_image'         => $is_image,
-            'image_mime'       => $is_image ? $image_mimes[$extension] : null,
+            'is_image'         => $is_image_ext,
+            'is_valid_image'   => $is_image,
+            'image_mime'       => $is_image_ext ? $image_mimes[$extension] : null,
             'image_base64'     => $image_base64,
             'image_dimensions' => $image_dimensions,
+            'image_security'   => $image_security,
         ]);
     }
 
