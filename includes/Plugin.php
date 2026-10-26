@@ -196,6 +196,25 @@ class Plugin {
             self::move_directory_contents($q_src, $main_dir);
             @rmdir($q_src);
         }
+
+        // 5. Migrate SQL backups inside wcp-security-scanner/backups to db-backups
+        $legacy_backups_dir = $main_dir . '/backups';
+        $db_backups_dir     = $main_dir . '/db-backups';
+        if (is_dir($legacy_backups_dir)) {
+            $files = @scandir($legacy_backups_dir) ?: [];
+            foreach ($files as $file) {
+                if (preg_match('/(\.sql|\.sql\.gz|\.state_.*)$/i', $file)) {
+                    if (!is_dir($db_backups_dir)) {
+                        wp_mkdir_p($db_backups_dir);
+                    }
+                    $src = $legacy_backups_dir . '/' . $file;
+                    $dst = $db_backups_dir . '/' . $file;
+                    if (!file_exists($dst)) {
+                        @rename($src, $dst);
+                    }
+                }
+            }
+        }
     }
 
     /**

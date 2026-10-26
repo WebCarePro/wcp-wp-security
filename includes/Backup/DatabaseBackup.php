@@ -12,7 +12,26 @@ class DatabaseBackup {
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        $this->backup_dir = $base . '/wcp-security-scanner/backups';
+        $this->backup_dir = $base . '/wcp-security-scanner/db-backups';
+
+        // Migrate legacy wcp-security-scanner/backups/ if sql files exist there
+        $legacy_dir = $base . '/wcp-security-scanner/backups';
+        if (is_dir($legacy_dir) && $legacy_dir !== $this->backup_dir) {
+            if (!is_dir($this->backup_dir)) {
+                wp_mkdir_p($this->backup_dir);
+            }
+            $legacy_files = @scandir($legacy_dir) ?: [];
+            foreach ($legacy_files as $f) {
+                if (preg_match('/(\.sql|\.sql\.gz|\.state_.*)$/i', $f)) {
+                    $src = $legacy_dir . '/' . $f;
+                    $dst = $this->backup_dir . '/' . $f;
+                    if (!file_exists($dst)) {
+                        @rename($src, $dst);
+                    }
+                }
+            }
+        }
+
         $this->ensure_directory();
     }
 
@@ -37,21 +56,13 @@ class DatabaseBackup {
 
         if (!is_dir($this->backup_dir)) {
             wp_mkdir_p($this->backup_dir);
-            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
-                $wp_filesystem->chmod($this->backup_dir, 0775);
-            } else {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-                @chmod($this->backup_dir, 0775);
-            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($this->backup_dir, 0775);
         }
 
         if (is_dir($this->backup_dir) && !wp_is_writable($this->backup_dir)) {
-            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
-                $wp_filesystem->chmod($this->backup_dir, 0775);
-            } else {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-                @chmod($this->backup_dir, 0775);
-            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($this->backup_dir, 0775);
         }
 
         // Lock with .htaccess
@@ -976,7 +987,12 @@ class DatabaseBackup {
      */
     public function list_backups(): array {
         $backups = [];
-        $dirs = [$this->backup_dir];
+        $uploads = wp_upload_dir();
+        $base = untrailingslashit($uploads['basedir']);
+        $dirs = [
+            $this->backup_dir,
+            $base . '/wcp-security-scanner/backups',
+        ];
 
         $seen = [];
         foreach ($dirs as $dir) {
@@ -1046,6 +1062,14 @@ class DatabaseBackup {
         if (file_exists($path) && is_file($path)) {
             return $path;
         }
+
+        // Check legacy backups directory
+        $uploads = wp_upload_dir();
+        $legacy_path = untrailingslashit($uploads['basedir']) . '/wcp-security-scanner/backups/' . $basename;
+        if (file_exists($legacy_path) && is_file($legacy_path)) {
+            return $legacy_path;
+        }
+
         return null;
     }
 }

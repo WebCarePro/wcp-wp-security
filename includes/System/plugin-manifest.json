@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T01:26:43.621Z",
+  "generated_at": "2026-10-26T01:33:55.067Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -92,8 +92,8 @@
       "size": 46784
     },
     "includes/Backup/DatabaseBackup.php": {
-      "sha256": "4f8c95fc3fc9852f49d3e60cf85ae0ffff1d3a91792d22ffeedb22452ad505ac",
-      "size": 47425
+      "sha256": "7845d4934d497e7c9c18d84383005aa99d0ff6567f156e6610257ae45716f1a0",
+      "size": 48300
     },
     "includes/Cloudflare/CloudflareService.php": {
       "sha256": "c118876261a87eedbfc03560fcd802d262210bb1baac8a9e3be54fea452515f7",
@@ -340,8 +340,8 @@
       "size": 32465
     },
     "includes/Plugin.php": {
-      "sha256": "783c2fce1c1161bdd567e5418ac41eb22fe48e57cce1ffa5a4662a487a83a33d",
-      "size": 8739
+      "sha256": "5bf2119333c7a450ba9c558ac09dae25a5996cf861dee35aa33a363ae62f9cd5",
+      "size": 9574
     },
     "includes/Quarantine/CoreRepairManager.php": {
       "sha256": "b07003c796a8f65d783113ee8653a4ec7bf9fe17fb21f5da174bd4112a57bd43",
