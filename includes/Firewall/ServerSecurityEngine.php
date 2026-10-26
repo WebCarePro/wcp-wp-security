@@ -102,41 +102,6 @@ class ServerSecurityEngine {
             @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
         }
 
-        // Migrate legacy wcp-waf if exists
-        $legacy_waf = wp_normalize_path(rtrim($upload_dir['basedir'], '/\\') . '/wcp-waf');
-        if (is_dir($legacy_waf) && $legacy_waf !== wp_normalize_path($base)) {
-            global $wp_filesystem;
-            if (!$wp_filesystem) {
-                require_once ABSPATH . 'wp-admin/includes/file.php';
-                WP_Filesystem();
-            }
-
-            $legacy_files = @scandir($legacy_waf) ?: [];
-            foreach ($legacy_files as $f) {
-                if ($f === '.' || $f === '..') {
-                    continue;
-                }
-                $src = $legacy_waf . '/' . $f;
-                $dst = $base . '/' . $f;
-                if (!file_exists($dst)) {
-                    if ($wp_filesystem) {
-                        $wp_filesystem->move($src, $dst);
-                    } else {
-                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-                        @rename($src, $dst);
-                    }
-                } else {
-                    wp_delete_file($src);
-                }
-            }
-            if ($wp_filesystem) {
-                $wp_filesystem->rmdir($legacy_waf);
-            } else {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
-                @rmdir($legacy_waf);
-            }
-        }
-
         return untrailingslashit($base);
     }
 

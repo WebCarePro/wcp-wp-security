@@ -32,53 +32,6 @@ class TransactionalRemediation {
             @file_put_contents($base . '/index.php', "<?php\n// Silence is golden.\nexit;\n");
         }
 
-        // Migrate legacy wcp-scanner-quarantine/transactions if exists
-        $legacy_base = wp_normalize_path($upload_dir['basedir'] . '/wcp-scanner-quarantine/transactions');
-        if (is_dir($legacy_base) && $legacy_base !== $base) {
-            global $wp_filesystem;
-            if (!$wp_filesystem) {
-                require_once ABSPATH . 'wp-admin/includes/file.php';
-                WP_Filesystem();
-            }
-
-            $legacy_items = @scandir($legacy_base) ?: [];
-            foreach ($legacy_items as $item) {
-                if ($item === '.' || $item === '..') {
-                    continue;
-                }
-                $src = $legacy_base . '/' . $item;
-                $dst = $base . '/' . $item;
-                if (!file_exists($dst)) {
-                    if ($wp_filesystem) {
-                        $wp_filesystem->move($src, $dst);
-                    } else {
-                        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-                        @rename($src, $dst);
-                    }
-                }
-            }
-            if ($wp_filesystem) {
-                $wp_filesystem->rmdir($legacy_base);
-            } else {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
-                @rmdir($legacy_base);
-            }
-
-            // Also clean up parent wcp-scanner-quarantine if it is now empty
-            $parent_legacy = wp_normalize_path($upload_dir['basedir'] . '/wcp-scanner-quarantine');
-            if (is_dir($parent_legacy)) {
-                $rem = array_diff(@scandir($parent_legacy) ?: [], ['.', '..']);
-                if (empty($rem)) {
-                    if ($wp_filesystem) {
-                        $wp_filesystem->rmdir($parent_legacy);
-                    } else {
-                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
-                        @rmdir($parent_legacy);
-                    }
-                }
-            }
-        }
-
         return $base;
     }
 

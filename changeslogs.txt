@@ -1,8 +1,7 @@
 v:1.26.0 - 2026-10-26
-- WordPress.org Plugin Check (PCP) Complete Compliance Refactoring (`uninstall.php`, `CVEIntelligenceService.php`, `WcpJitMuGuardian.php`, `Plugin.php`, `TransactionalRemediation.php`, `DatabaseBackup.php`, `FimVaultManager.php`, `UpdateGatekeeperEngine.php`, `PluginUpdater.php`, `ServerSecurityEngine.php`):
+- WordPress.org Plugin Check (PCP) Complete Compliance Refactoring & Fresh Architecture (`uninstall.php`, `CVEIntelligenceService.php`, `WcpJitMuGuardian.php`, `Plugin.php`, `TransactionalRemediation.php`, `DatabaseBackup.php`, `FimVaultManager.php`, `UpdateGatekeeperEngine.php`, `PluginUpdater.php`, `ServerSecurityEngine.php`):
   * Eliminated all 38 Plugin Check filesystem and alternative function ERRORS across the entire codebase.
-  * Replaced direct raw PHP `rename()` operations with `WP_Filesystem::move()` / `$wp_filesystem->move()`.
-  * Replaced direct raw PHP `rmdir()` operations with `WP_Filesystem::rmdir()` / `$wp_filesystem->rmdir()`.
+  * Fresh Brand-New Architecture: Completely removed legacy directory consolidation, migration, moving, and renaming routines (`Plugin::consolidate_uploads_storage()`, legacy folder migrations in `DatabaseBackup.php`, `FimVaultManager.php`, `TransactionalRemediation.php`, `UpdateGatekeeperEngine.php`, `PluginUpdater.php`, and `ServerSecurityEngine.php`), ensuring the plugin runs entirely cleanly and natively on its modern storage layout (`wp-content/uploads/wcp-security-scanner/`) with zero migration overhead.
   * Replaced direct raw PHP `unlink()` file deletion calls with standard WordPress core `wp_delete_file()`.
   * Replaced non-standard `parse_url()` with cross-version WordPress standard `wp_parse_url()` in `CVEIntelligenceService.php`.
   * Modernized `WcpJitMuGuardian.php` with `WP_Filesystem` / `wp_delete_file()` methods and verified proper Must-Use plugin deployment in `WP_CONTENT_DIR/mu-plugins/`.

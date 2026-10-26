@@ -216,61 +216,6 @@ class PluginUpdater {
             return ['success' => false, 'message' => 'Unable to create backup directory.'];
         }
 
-        // Migrate legacy folders (backups/plugin-updates or wcp-quarantine/backups) if exist
-        $legacy_dirs = [
-            trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/backups/plugin-updates/',
-            trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/backups/',
-            trailingslashit($upload_dir['basedir']) . 'wcp-quarantine/backups/',
-        ];
-
-        global $wp_filesystem;
-        if (!$wp_filesystem) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            WP_Filesystem();
-        }
-
-        foreach ($legacy_dirs as $legacy_dir) {
-            if (is_dir($legacy_dir) && $legacy_dir !== $backup_dir) {
-                $legacy_files = @scandir($legacy_dir) ?: [];
-                foreach ($legacy_files as $f) {
-                    if ($f === '.' || $f === '..' || $f === '.htaccess' || $f === 'index.php') {
-                        continue;
-                    }
-                    if (str_ends_with(strtolower($f), '.zip')) {
-                        $src = $legacy_dir . $f;
-                        $dst = $backup_dir . $f;
-                        if (!file_exists($dst)) {
-                            if ($wp_filesystem) {
-                                $wp_filesystem->move($src, $dst);
-                            } else {
-                                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-                                @rename($src, $dst);
-                            }
-                        } else {
-                            wp_delete_file($src);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Update file paths in recorded options
-        $existing_records = get_option(self::BACKUPS_OPTION, []);
-        if (is_array($existing_records)) {
-            $changed = false;
-            foreach ($existing_records as &$rec) {
-                if (!empty($rec['file_path'])) {
-                    if (strpos($rec['file_path'], 'backups/plugin-updates') !== false || strpos($rec['file_path'], 'wcp-quarantine/backups') !== false || strpos($rec['file_path'], 'wcp-security-scanner/backups') !== false) {
-                        $rec['file_path'] = $backup_dir . basename($rec['file_path']);
-                        $changed = true;
-                    }
-                }
-            }
-            if ($changed) {
-                update_option(self::BACKUPS_OPTION, $existing_records, false);
-            }
-        }
-
         // Add htaccess security to prevent direct web download of internal backups
         $htaccess = $backup_dir . '.htaccess';
         if (!file_exists($htaccess)) {
