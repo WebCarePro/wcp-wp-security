@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T01:59:11.004Z",
+  "generated_at": "2026-10-26T02:15:20.240Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 515656
     },
     "build/index.asset.php": {
-      "sha256": "b3b9b4a28e87d547722f9558306c2e38bcae67bae53991ce7678841d18475346",
+      "sha256": "e606dfa5635681b3569d0a591cfea92563a94303f216ec589b3aa5ea78e6358c",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 515517
     },
     "build/index.js": {
-      "sha256": "78005ef01ba8f90ce30df560e8af82da686358f2c283af9ff277492ba171f9b3",
-      "size": 1657240
+      "sha256": "b434585160930228d4468e7e1debe99c67782ff955e66421f4070464d8f89e9b",
+      "size": 1657917
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -148,8 +148,8 @@
       "size": 13771
     },
     "includes/Filesystem/DirectoryWalker.php": {
-      "sha256": "08fdb3419b62c8542e68cdce76a06818fffbf1d18cc64d0d5df5cbf9e12c3823",
-      "size": 7075
+      "sha256": "3ae5d442ad996dff56654b4c9d10a56d56fea622ebbf8637d62663fa004eb70f",
+      "size": 7313
     },
     "includes/Filesystem/FileHasher.php": {
       "sha256": "30b0219b9838e0dd39e93be39c342a70436478dc9ac94987040c7424877c433a",
@@ -160,8 +160,8 @@
       "size": 1065
     },
     "includes/Filesystem/FileScanner.php": {
-      "sha256": "8d02bcd1b8443229b2342641e5fc870f0cfbf8a7bdd446c057209e59ca9c69e1",
-      "size": 4170
+      "sha256": "a1d3786cb4d1565ce6efb4fea0de467d829c12768a724a7a8b6e77125a118092",
+      "size": 4411
     },
     "includes/Filesystem/PathValidator.php": {
       "sha256": "b77801e16544379d105c5e2ddd3366dde30fcd8c01e63ba83439462336598cef",
@@ -284,8 +284,8 @@
       "size": 7441
     },
     "includes/Integrity/CoreIntegrity.php": {
-      "sha256": "318df95891aa8b2a9b501d29ee04bde5bdf0cef7e457e53ad9a7f0209a150d88",
-      "size": 6523
+      "sha256": "8a9a6707124bba6ee0cfde2c71c9ce3a9214b40273c8532237e4e4a6408461c1",
+      "size": 13523
     },
     "includes/Integrity/FileIntegrityMonitor.php": {
       "sha256": "1792b91a1c0c799eb8fcef560dbe19e706a920ccc6a838398525c6072076e6cf",
@@ -316,8 +316,8 @@
       "size": 5321
     },
     "includes/Malware/HeuristicEngine.php": {
-      "sha256": "d1cf332febbd4b3f6e681592a8907981e7ff959aa45b80c1f3e145da5cbf05d0",
-      "size": 2976
+      "sha256": "d73f310564a54304064f5987bf744c6dafeba1710314a4738cf6f0796d070755",
+      "size": 3228
     },
     "includes/Malware/KnownHashDetector.php": {
       "sha256": "01956706b7db3c8d4c0ef85a48414ca667a1423392c3a66d0cae24273ed9d1a4",
@@ -388,8 +388,8 @@
       "size": 2670
     },
     "includes/Scanner/Engine.php": {
-      "sha256": "0360f67a2845d62e3c5fd071368b82c6d21c21ba8c03d64c18b7909d3470b432",
-      "size": 4635
+      "sha256": "87b9f89a0c9fdd41191f629f5755ef223dc9d20696763e740b0408beac54bd4b",
+      "size": 5697
     },
     "includes/Scanner/Rules.php": {
       "sha256": "a056d161c560e031377676efa5ad62183734abab5819f918dea1ca5b9ff259fc",

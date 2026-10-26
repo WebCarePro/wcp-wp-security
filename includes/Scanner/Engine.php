@@ -87,9 +87,14 @@ class Engine {
 
             // Skip heavy non-code and runtime directories
             $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) {
+                $pathname = str_replace('\\', '/', $current->getPathname());
                 if ($current->isDir()) {
                     $name = $current->getFilename();
-                    if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf'], true)) {
+                    // System VCS and internal plugin storage exclusions
+                    if (in_array($name, ['.git', '.svn', '.hg', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf'], true)) {
+                        return false;
+                    }
+                    if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
                         return false;
                     }
                 }
@@ -97,7 +102,8 @@ class Engine {
             });
 
             $iterator = new \RecursiveIteratorIterator($filter_iterator, \RecursiveIteratorIterator::SELF_FIRST);
-            $allowed_exts = ['php', 'phtml', 'php5', 'php7', 'suspected', 'js', 'txt'];
+            $allowed_exts = ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phar', 'inc', 'suspected', 'js', 'txt', 'sh', 'pl', 'cgi'];
+            $has_settings_manager = class_exists('\\WcpScanner\\System\\SettingsManager');
 
             foreach ($iterator as $item) {
                 if ($item->isFile()) {
@@ -105,8 +111,18 @@ class Engine {
                     if (strpos($pathname, '/plugins/wcp-wp-scanner/') !== false || strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
                         continue; // Do not enqueue scanner's own files
                     }
+
+                    // Respect user-defined excluded paths / patterns
+                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
+                        continue;
+                    }
+
+                    $filename = $item->getFilename();
                     $ext = strtolower($item->getExtension());
-                    if (in_array($ext, $allowed_exts, true)) {
+                    $is_dotfile = str_starts_with($filename, '.');
+
+                    // Check if file is executable code, recognized script extension, dotfile, or double-extension
+                    if (in_array($ext, $allowed_exts, true) || $is_dotfile || substr_count($filename, '.') > 1) {
                         $files[] = $item->getPathname();
                         if ($limit > 0 && count($files) >= $limit) {
                             break;

@@ -157,6 +157,11 @@ class DirectoryWalker {
             }
         }
 
+        // Check user-configured excluded paths and patterns
+        if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
+            return true;
+        }
+
         return false;
     }
 

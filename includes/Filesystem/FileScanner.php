@@ -42,6 +42,11 @@ class FileScanner {
             return $findings;
         }
 
+        // Respect user-defined excluded paths / patterns
+        if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($norm_path)) {
+            return $findings;
+        }
+
         $metadata = new FileMetadata($file_path);
 
         // 1. Permission check
