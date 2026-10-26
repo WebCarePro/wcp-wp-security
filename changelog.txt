@@ -18,6 +18,10 @@ v:1.27.0 - 2026-10-27
   * Severity Priority Ranking: Updated scan report email generator to intelligently prioritize detected findings by threat weight (`critical` webshells and remote backdoors > `high` integrity tampering > `medium` vulnerable software > `low` / `info`), guaranteeing the most dangerous threats always appear at the top of the email list.
   * Customizable Email Threat Cap (1–25): Added `email_report_items_limit` setting (default 20, strictly clamped between 1 and 25) with an interactive slider and number input on the Settings page under Email & Notifications, keeping notifications lightweight and preventing email server delivery rejections during massive infections.
   * Informative Overflow Alert: Displays a clean breakdown banner when findings exceed the configured cap (`...and X more findings detected. View complete forensic details and 1-click remediation in WordPress Admin`).
+- Scan Home & Dashboard Findings Virtual Pagination (`App.tsx`):
+  * 100-Item Default Chunking on Scan Home: Implemented client virtual pagination on the primary Security Findings table on the Scan Home page (`App.tsx`), eliminating browser UI freezes, memory bloat, and laggy rendering when auditing sites with massive infections or thousands of findings.
+  * Customizable Page Size Dropdown: Added inline "Per Page" selector (25, 50, 100, 200 items/page) to the findings toolbar.
+  * Responsive Pagination Navigation Bar: Displays total findings count, current slice range, Previous/Next page buttons, and auto-scroll viewport repositioning back to the findings hub.
 
 v:1.26.0 - 2026-10-26
 - Cloudflare Edge WAF Credentials Banner Visual Highlighting (`FirewallPage.tsx`):
