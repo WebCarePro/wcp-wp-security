@@ -351,6 +351,30 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/firewall/logs/files', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_log_files'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs/retention', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_firewall_log_retention'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs/prune', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'prune_firewall_logs'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/logs/download', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'download_firewall_log_file'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/firewall/logs/delete', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'delete_firewall_log'],
@@ -5540,39 +5564,113 @@ class ScannerRoutes {
     }
 
     public static function get_firewall_logs(\WP_REST_Request $request) {
-        $limit   = (int) ($request->get_param('limit') ?: 50);
-        $offset  = (int) ($request->get_param('offset') ?: 0);
-        $search   = sanitize_text_field((string) ($request->get_param('search') ?: ''));
-        $category = sanitize_text_field((string) ($request->get_param('category') ?: ''));
-        $action   = sanitize_text_field((string) ($request->get_param('action') ?: ''));
+        $limit       = (int) ($request->get_param('limit') ?: 50);
+        $offset      = (int) ($request->get_param('offset') ?: 0);
+        $range       = sanitize_key((string) ($request->get_param('range') ?: 'today'));
+        $date        = sanitize_text_field((string) ($request->get_param('date') ?: ''));
+        $search      = sanitize_text_field((string) ($request->get_param('search') ?: ''));
+        $category    = sanitize_text_field((string) ($request->get_param('category') ?: ''));
+        $action      = sanitize_text_field((string) ($request->get_param('action') ?: ''));
         $method      = sanitize_text_field((string) ($request->get_param('method') ?: ''));
         $ip          = sanitize_text_field((string) ($request->get_param('ip') ?: ''));
         $status_code = sanitize_text_field((string) ($request->get_param('status_code') ?: ''));
+        $sort_by     = sanitize_key((string) ($request->get_param('sort_by') ?: 'created_at'));
+        $sort_order  = strtolower(sanitize_key((string) ($request->get_param('sort_order') ?: 'desc')));
 
         $filters = array_filter([
+            'range'       => $range,
+            'date'        => $date,
             'search'      => $search,
             'category'    => $category,
             'action'      => $action,
             'method'      => $method,
             'ip'          => $ip,
             'status_code' => $status_code,
+            'sort_by'     => $sort_by,
+            'sort_order'  => $sort_order,
         ]);
 
         $res = \WcpScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);
         $res['current_client_ip'] = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        $res['retention_days']    = \WcpScanner\Firewall\WafFileLogger::get_retention_days();
+        $res['active_range']      = $range;
         return rest_ensure_response($res);
     }
 
-    public static function get_firewall_log_stats() {
+    public static function get_firewall_log_stats(\WP_REST_Request $request) {
+        $range = sanitize_key((string) ($request->get_param('range') ?: 'today'));
         return rest_ensure_response([
-            'stats' => \WcpScanner\Firewall\FirewallEngine::get_log_stats(),
+            'stats'          => \WcpScanner\Firewall\FirewallEngine::get_log_stats($range),
+            'retention_days' => \WcpScanner\Firewall\WafFileLogger::get_retention_days(),
+        ]);
+    }
+
+    public static function get_firewall_log_files() {
+        return rest_ensure_response([
+            'files'          => \WcpScanner\Firewall\WafFileLogger::get_available_files(),
+            'storage_dir'    => \WcpScanner\Firewall\WafFileLogger::get_storage_dir(),
+            'retention_days' => \WcpScanner\Firewall\WafFileLogger::get_retention_days(),
+        ]);
+    }
+
+    public static function update_firewall_log_retention(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $days   = (int) ($params['retention_days'] ?? 30);
+        $saved  = \WcpScanner\Firewall\WafFileLogger::set_retention_days($days);
+        return rest_ensure_response([
+            'success'        => $saved,
+            'retention_days' => \WcpScanner\Firewall\WafFileLogger::get_retention_days(),
+            'message'        => $saved ? __('WAF log retention period updated.', 'wcp-security-scanner') : __('Failed to update retention period.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function prune_firewall_logs() {
+        $pruned = \WcpScanner\Firewall\WafFileLogger::prune_expired_logs();
+        return rest_ensure_response([
+            'success'      => true,
+            'pruned_count' => $pruned,
+            'message'      => sprintf(
+                /* translators: %d: number of pruned daily log files */
+                _n('%d expired daily WAF log file pruned.', '%d expired daily WAF log files pruned.', $pruned, 'wcp-security-scanner'),
+                $pruned
+            ),
+        ]);
+    }
+
+    public static function download_firewall_log_file(\WP_REST_Request $request) {
+        $filename = sanitize_file_name((string) $request->get_param('filename'));
+        if (empty($filename) || !preg_match('/-waf-logs\.json$/', $filename)) {
+            return new \WP_Error('invalid_file', 'Valid daily WAF log filename is required.', ['status' => 400]);
+        }
+
+        $dir      = \WcpScanner\Firewall\WafFileLogger::get_storage_dir();
+        $filepath = $dir . '/' . $filename;
+        if (!file_exists($filepath) || !is_readable($filepath)) {
+            return new \WP_Error('not_found', 'Log file does not exist on disk.', ['status' => 404]);
+        }
+
+        $lines = @file($filepath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $records = [];
+        if (is_array($lines)) {
+            foreach ($lines as $line) {
+                $decoded = json_decode($line, true);
+                if (is_array($decoded)) {
+                    $records[] = $decoded;
+                }
+            }
+        }
+
+        return rest_ensure_response([
+            'filename' => $filename,
+            'count'    => count($records),
+            'records'  => $records,
         ]);
     }
 
     public static function delete_firewall_log(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $id = (int) ($params['id'] ?? 0);
-        if ($id <= 0) {
+        $id = sanitize_text_field(trim((string) ($params['id'] ?? '')));
+        if (empty($id)) {
             return new \WP_Error('invalid_id', 'Valid log ID is required', ['status' => 400]);
         }
         $deleted = \WcpScanner\Firewall\FirewallEngine::delete_log($id);

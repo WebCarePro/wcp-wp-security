@@ -1,3 +1,13 @@
+v:1.27.0 - 2026-10-27
+- Zero-SQL Daily Partitioned Filesystem WAF Incident Logging Engine (`WafFileLogger.php`, `FirewallEngine.php`, `ScannerRoutes.php`, `Plugin.php`, `WafLogsPage.tsx`):
+  * High-Speed Filesystem Partitioning: Replaced direct MySQL database writes and deduplication queries with zero-SQL, append-only daily JSON files located under `wp-content/uploads/wcp-security-scanner/waf-logs/` (named e.g. `october-27-2026-waf-logs.json`). Eliminates database lockups and connection exhaustion during aggressive brute-force attacks.
+  * Microsecond Atomic Writing: Employs JSON Lines (`JSONL`) appended atomically via `file_put_contents(..., FILE_APPEND | LOCK_EX)` with an in-memory 60-second deduplication cache, avoiding high-concurrency file lock contention and disk thrashing.
+  * Directory Hardening & Download Protection: Automatically creates `.htaccess` (`Require all denied` / `Deny from all`) and silent `index.php` in the log storage directory, guaranteeing forensic incident files cannot be browsed or directly fetched via public HTTP.
+  * Rich User & Identity Forensic Telemetry: Captures authenticated WordPress user ID (`user_id`), username (`user_login`), role (`user_role`), or attempted login usernames from unauthenticated probes, along with client headers, request URI, HTTP status code, method, user-agent, sanitized payload sample, and hostname.
+  * Multi-Window Time Range Filtering: Added quick-toggle time filters in the WAF Logs UI for "Today", "Select Specific Day" (with daily JSON dropdown picker), "Last 7 Days", "Last 1 Month", "Last 6 Months", and "All Retained Logs".
+  * Interactive Click-to-Sort Columns: Enabled full interactive column sorting (Timestamp, HTTP Status, Client IP, WP User, Attack Category, Target URI, Method, Action Taken) with visual asc/desc indicators (`▲` / `▼`).
+  * Automated Daily Retention Pruning: Integrated automated log retention management (7, 14, 30, 60, 90, 180, 365 days, or Keep Forever) with a daily background cron worker (`wcpscan_waf_log_retention_prune`) and 1-click manual prune & raw JSON download controls.
+
 v:1.26.0 - 2026-10-26
 - Cloudflare Edge WAF Credentials Banner Visual Highlighting (`FirewallPage.tsx`):
   * Domain & Zone Identity Badge: Prominently formatted the connected zone domain into a cyan monospace telemetry chip with an embedded globe icon (`ui-monospace`, `0.1` background, `#0284c7`), ensuring the active domain is instantly recognizable at a glance.

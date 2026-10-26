@@ -2351,42 +2351,12 @@ class FirewallEngine {
         }
         $category = sanitize_key($rule['category'] ?? 'general_defense');
 
-        // Deduplication safeguard: don't log the same IP/rule more than once per minute
-        $recent_sql = "SELECT id FROM `{$table}` WHERE ip_address = %s AND rule_category = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE) LIMIT 1";
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $recent = $wpdb->get_var(
-            $wpdb->prepare(
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                $recent_sql,
-                $ip,
-                $category
-            )
-        );
-
-        if ($recent) {
-            return $incident_id;
+        // Delegate zero-SQL WAF incident logging to daily JSON filesystem partitioner
+        $logged_id = WafFileLogger::log_incident($rule, $action, $incident_id);
+        if ($logged_id === null) {
+            return null;
         }
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-        $wpdb->insert(
-            $table,
-            [
-                'incident_id'      => sanitize_text_field($incident_id),
-                'ip_address'       => sanitize_text_field($ip),
-                'request_uri'      => sanitize_text_field($uri),
-                'request_method'   => sanitize_key($method),
-                'http_status_code' => (int) $status_code,
-                'http_referer'     => !empty($referer) ? sanitize_text_field($referer) : null,
-                'rule_category'    => $category,
-                'rule_description' => sanitize_text_field($rule['description'] ?? $rule['name'] ?? 'Threat payload blocked by firewall policy.'),
-                'payload_sample'   => sanitize_text_field(substr($rule['payload'] ?? $rule['match_value'] ?? '', 0, 255)),
-                'user_agent'       => sanitize_text_field($user_agent),
-                'action_taken'     => sanitize_key($action),
-                'created_at'       => current_time('mysql'),
-                'created_at_gmt'   => gmdate('Y-m-d H:i:s'),
-            ],
-            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
-        );
+        $incident_id = $logged_id;
 
         // Dispatch DevSecOps Webhook on blocked attack
         if ($action === 'blocked' && class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
@@ -2989,225 +2959,33 @@ class FirewallEngine {
     }
 
     /**
-     * Get recent blocked logs with optional filtering, search, pagination, and category filters
+     * Get recent blocked logs from daily JSON filesystem partitions
      */
     public static function get_logs(int $limit = 50, int $offset = 0, array $filters = []): array {
-        global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
-        if (!$table_exists) {
-            return [
-                'logs'        => [],
-                'total'       => 0,
-                'page'        => 1,
-                'total_pages' => 1,
-            ];
-        }
-
-        $limit = max(1, min(500, $limit));
-        $offset = max(0, $offset);
-
-        $where_clauses = ['1=1'];
-        $where_params = [];
-
-        // Search Incident ID or IP or URI or Payload or Referer
-        if (!empty($filters['search'])) {
-            $like = '%' . $wpdb->esc_like(trim($filters['search'])) . '%';
-            $where_clauses[] = "(incident_id LIKE %s OR ip_address LIKE %s OR request_uri LIKE %s OR rule_description LIKE %s OR payload_sample LIKE %s OR user_agent LIKE %s OR http_referer LIKE %s)";
-            $where_params[] = $like;
-            $where_params[] = $like;
-            $where_params[] = $like;
-            $where_params[] = $like;
-            $where_params[] = $like;
-            $where_params[] = $like;
-            $where_params[] = $like;
-        }
-
-        // Filter by HTTP Status Code
-        if (!empty($filters['status_code']) && $filters['status_code'] !== 'all') {
-            $where_clauses[] = "http_status_code = %d";
-            $where_params[] = (int) $filters['status_code'];
-        }
-
-        // Filter by rule category
-        if (!empty($filters['category']) && $filters['category'] !== 'all') {
-            $cat_input = sanitize_text_field($filters['category']);
-            $cat_slug  = sanitize_key($cat_input);
-            $where_clauses[] = "(rule_category = %s OR rule_category = %s OR rule_category LIKE %s)";
-            $where_params[] = $cat_input;
-            $where_params[] = $cat_slug;
-            $where_params[] = '%' . $wpdb->esc_like($cat_slug) . '%';
-        }
-
-        // Filter by action taken (blocked vs detected)
-        if (!empty($filters['action']) && $filters['action'] !== 'all') {
-            $where_clauses[] = "action_taken = %s";
-            $where_params[] = sanitize_text_field($filters['action']);
-        }
-
-        // Filter by HTTP method
-        if (!empty($filters['method']) && $filters['method'] !== 'all') {
-            $where_clauses[] = "request_method = %s";
-            $where_params[] = sanitize_text_field($filters['method']);
-        }
-
-        // Filter by specific IP
-        if (!empty($filters['ip'])) {
-            $where_clauses[] = "ip_address = %s";
-            $where_params[] = sanitize_text_field($filters['ip']);
-        }
-
-        $where_sql = implode(' AND ', $where_clauses);
-
-        // Count total matching
-        $count_sql = "SELECT COUNT(*) FROM `{$table}` WHERE {$where_sql}";
-        if (!empty($where_params)) {
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            $count_sql = $wpdb->prepare($count_sql, ...$where_params);
-        }
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $total = (int) $wpdb->get_var($count_sql);
-
-        // Fetch paginated results
-        $data_sql = "SELECT * FROM `{$table}` WHERE {$where_sql} ORDER BY id DESC LIMIT %d OFFSET %d";
-        $data_params = array_merge($where_params, [$limit, $offset]);
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $rows = $wpdb->get_results(
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            $wpdb->prepare($data_sql, ...$data_params),
-            ARRAY_A
-        ) ?: [];
-
-        foreach ($rows as &$r) {
-            if (!empty($r['created_at_gmt'])) {
-                $r['created_at_gmt'] = gmdate('Y-m-d\TH:i:s\Z', strtotime($r['created_at_gmt']));
-            } elseif (!empty($r['created_at'])) {
-                $r['created_at_gmt'] = get_gmt_from_date($r['created_at'], 'Y-m-d\TH:i:s\Z');
-            }
-        }
-        unset($r);
-
-        $page = (int) floor($offset / $limit) + 1;
-        $total_pages = max(1, (int) ceil($total / $limit));
-
-        return [
-            'logs'        => $rows,
-            'total'       => $total,
-            'page'        => $page,
-            'total_pages' => $total_pages,
-            'limit'       => $limit,
-            'offset'      => $offset,
-        ];
+        return WafFileLogger::query_logs($filters, $limit, $offset);
     }
 
     /**
      * Get aggregate statistics and metrics for WAF logs dashboard
      */
-    public static function get_log_stats(): array {
-        global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
-
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
-        if (!$table_exists) {
-            return [
-                'total_intercepted' => 0,
-                'blocked_24h'       => 0,
-                'detected_learning' => 0,
-                'unique_attack_ips' => 0,
-                'top_categories'    => [],
-                'top_ips'           => [],
-                'top_targets'       => [],
-                'methods_breakdown' => [],
-                'hourly_trend'      => [],
-            ];
-        }
-
-        $total_int_sql = "SELECT COUNT(*) FROM `{$table}`";
-        $blocked_24h_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)";
-        $det_learn_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'detected'";
-        $uniq_ips_sql = "SELECT COUNT(DISTINCT ip_address) FROM `{$table}`";
-
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
-        $total_intercepted = (int) $wpdb->get_var($total_int_sql);
-        $blocked_24h       = (int) $wpdb->get_var($blocked_24h_sql);
-        $detected_learning = (int) $wpdb->get_var($det_learn_sql);
-        $unique_attack_ips = (int) $wpdb->get_var($uniq_ips_sql);
-
-        // Top Attack Categories
-        $top_cat_sql = "SELECT rule_category, COUNT(*) as count FROM `{$table}` GROUP BY rule_category ORDER BY count DESC LIMIT 8";
-        $top_categories = $wpdb->get_results(
-            $top_cat_sql,
-            ARRAY_A
-        ) ?: [];
-
-        // Top Offending IPs
-        $top_ips_sql = "SELECT ip_address, COUNT(*) as count, MAX(created_at) as last_seen, rule_category as primary_reason FROM `{$table}` GROUP BY ip_address ORDER BY count DESC LIMIT 10";
-        $top_ips = $wpdb->get_results(
-            $top_ips_sql,
-            ARRAY_A
-        ) ?: [];
-
-        // Top Targeted Endpoints
-        $top_targets_sql = "SELECT request_uri, COUNT(*) as count FROM `{$table}` GROUP BY request_uri ORDER BY count DESC LIMIT 8";
-        $top_targets = $wpdb->get_results(
-            $top_targets_sql,
-            ARRAY_A
-        ) ?: [];
-
-        // HTTP Methods Breakdown
-        $methods_sql = "SELECT request_method, COUNT(*) as count FROM `{$table}` GROUP BY request_method ORDER BY count DESC";
-        $methods_breakdown = $wpdb->get_results(
-            $methods_sql,
-            ARRAY_A
-        ) ?: [];
-
-        // 24-hour volume trend by hour
-        $trend_sql = "SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_slot, COUNT(*) as count 
-             FROM `{$table}` 
-             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) 
-             GROUP BY hour_slot 
-             ORDER BY hour_slot ASC";
-        $hourly_trend = $wpdb->get_results(
-            $trend_sql,
-            ARRAY_A
-        ) ?: [];
-        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
-        return [
-            'total_intercepted' => $total_intercepted,
-            'blocked_24h'       => $blocked_24h,
-            'detected_learning' => $detected_learning,
-            'unique_attack_ips' => $unique_attack_ips,
-            'top_categories'    => $top_categories,
-            'top_ips'           => $top_ips,
-            'top_targets'       => $top_targets,
-            'methods_breakdown' => $methods_breakdown,
-            'hourly_trend'      => $hourly_trend,
-        ];
+    public static function get_log_stats(string $range = 'today'): array {
+        return WafFileLogger::get_log_stats($range);
     }
 
     /**
-     * Delete a single firewall incident log row
+     * Delete a single firewall incident log entry
+     *
+     * @param int|string $id
      */
-    public static function delete_log(int $id): bool {
-        global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        return (bool) $wpdb->delete($table, ['id' => $id], ['%d']);
+    public static function delete_log($id): bool {
+        return WafFileLogger::delete_log($id);
     }
 
     /**
      * Clear firewall logs
      */
     public static function clear_logs(): bool {
-        global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
-        $truncate_sql = "TRUNCATE TABLE `{$table}`";
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
-        return (bool) $wpdb->query($truncate_sql);
+        return WafFileLogger::clear_all_logs();
     }
 
     /**

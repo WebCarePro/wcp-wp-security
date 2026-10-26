@@ -43,6 +43,9 @@ class Plugin {
         $audit_logger->init();
 
         // Firewall & Edge Security Services
+        if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+            \WcpScanner\Firewall\WafFileLogger::init();
+        }
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
             \WcpScanner\Firewall\FirewallEngine::init();
         }
