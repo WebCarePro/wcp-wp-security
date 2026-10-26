@@ -10,7 +10,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 }
 
 $wcpscan_settings = get_option('wcpscan_settings', []);
-$wcpscan_delete_data = true; // Enabled by default
+$wcpscan_delete_data = false; // Disabled by default to prevent loss of quarantine vault & settings on reinstallation
 
 if (is_array($wcpscan_settings) && array_key_exists('delete_data_on_uninstall', $wcpscan_settings)) {
     $wcpscan_delete_data = (bool) $wcpscan_settings['delete_data_on_uninstall'];

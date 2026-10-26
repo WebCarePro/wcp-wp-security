@@ -14,6 +14,8 @@ class AdminMenu {
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
         add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
+        add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
+        add_action('wp_ajax_wcpscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
     }
 
     public static function add_menu_page() {
@@ -533,6 +535,188 @@ class AdminMenu {
             wp_safe_redirect(add_query_arg(['wcpscan_restored' => $count], admin_url('users.php')));
             exit;
         }
+    }
+
+    /**
+     * Handle AJAX update for uninstall purge preference when user confirms in modal.
+     */
+    public static function ajax_set_uninstall_purge() {
+        check_ajax_referer('wcpscan_uninstall_prompt_nonce', 'nonce');
+
+        if (!current_user_can('delete_plugins')) {
+            wp_send_json_error(['message' => __('Unauthorized permission.', 'wcp-security-scanner')], 403);
+        }
+
+        $purge = !empty($_POST['purge']);
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings['delete_data_on_uninstall'] = $purge;
+        \WcpScanner\System\SettingsManager::save_settings($settings);
+
+        wp_send_json_success(['purge' => $purge]);
+    }
+
+    /**
+     * Render the interactive modal on wp-admin/plugins.php when deleting WCP Security Scanner.
+     * Reminds administrators about quarantined malware, firewall rules, and scan logs,
+     * defaulting to KEEP ALL DATA.
+     */
+    public static function render_plugins_uninstall_modal() {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if (!$screen || $screen->id !== 'plugins' || !current_user_can('delete_plugins')) {
+            return;
+        }
+
+        $nonce = wp_create_nonce('wcpscan_uninstall_prompt_nonce');
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $is_purge_checked = !empty($settings['delete_data_on_uninstall']);
+        ?>
+        <!-- WCP Security Scanner Uninstall Confirmation Modal -->
+        <div id="wcpscan-uninstall-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 100050; backdrop-filter: blur(3px); align-items: center; justify-content: center;">
+            <div id="wcpscan-uninstall-modal" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 520px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif; border: 1px solid #e2e8f0; animation: wcpscanFadeIn 0.2s ease-out;">
+                
+                {/* Header */}
+                <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+                            <?php echo esc_html__('Uninstalling WCP Security Scanner', 'wcp-security-scanner'); ?>
+                        </h3>
+                        <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">
+                            <?php echo esc_html__('Please choose your data retention preference before deletion.', 'wcp-security-scanner'); ?>
+                        </p>
+                    </div>
+                </div>
+
+                {/* Body Content */}
+                <div style="padding: 22px 24px; color: #334155; font-size: 13.5px; line-height: 1.55;">
+                    <p style="margin: 0 0 16px 0;">
+                        <?php echo esc_html__('You are deleting WCP Security Scanner. If you reinstall the plugin later, keeping your data ensures your quarantined files and configurations remain intact.', 'wcp-security-scanner'); ?>
+                    </p>
+
+                    {/* Option 1: Retain Data (Recommended Default) */}
+                    <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; border: 2px solid #10b981; background: #f0fdf4; cursor: pointer; margin-bottom: 12px;">
+                        <input type="radio" name="wcpscan_uninstall_choice" value="retain" <?php checked(!$is_purge_checked); ?> style="margin-top: 3px; accent-color: #059669;">
+                        <div>
+                            <div style="font-weight: 700; color: #065f46; font-size: 13.5px; display: flex; align-items: center; gap: 6px;">
+                                <span><?php echo esc_html__('Keep All Data & Quarantine Vault', 'wcp-security-scanner'); ?></span>
+                                <span style="background: #10b981; color: #ffffff; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 1px 6px; border-radius: 4px;"><?php echo esc_html__('Recommended', 'wcp-security-scanner'); ?></span>
+                            </div>
+                            <div style="font-size: 12px; color: #047857; margin-top: 2px;">
+                                <?php echo esc_html__('Preserves quarantined malware files, firewall bypass rules, scan history, and custom settings across reinstalls.', 'wcp-security-scanner'); ?>
+                            </div>
+                        </div>
+                    </label>
+
+                    {/* Option 2: Full Purge */}
+                    <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; cursor: pointer;">
+                        <input type="radio" name="wcpscan_uninstall_choice" value="purge" <?php checked($is_purge_checked); ?> style="margin-top: 3px; accent-color: #dc2626;">
+                        <div>
+                            <div style="font-weight: 700; color: #0f172a; font-size: 13.5px;">
+                                <?php echo esc_html__('Completely Purge All Data & Tables', 'wcp-security-scanner'); ?>
+                            </div>
+                            <div style="font-size: 12px; color: #dc2626; margin-top: 2px;">
+                                <?php echo esc_html__('Permanently drops all database tables and deletes quarantined files, virtual patches, and backups.', 'wcp-security-scanner'); ?>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                {/* Footer Buttons */}
+                <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" id="wcpscan-uninstall-cancel-btn" class="button" style="padding: 4px 14px; font-size: 13px; font-weight: 600;">
+                        <?php echo esc_html__('Cancel', 'wcp-security-scanner'); ?>
+                    </button>
+                    <button type="button" id="wcpscan-uninstall-confirm-btn" class="button button-primary" style="background: #dc2626; border-color: #b91c1c; padding: 4px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25);">
+                        <?php echo esc_html__('Proceed with Deletion', 'wcp-security-scanner'); ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        (function() {
+            var targetDeleteLink = null;
+            var overlay = document.getElementById('wcpscan-uninstall-modal-overlay');
+            var cancelBtn = document.getElementById('wcpscan-uninstall-cancel-btn');
+            var confirmBtn = document.getElementById('wcpscan-uninstall-confirm-btn');
+
+            if (!overlay || !cancelBtn || !confirmBtn) return;
+
+            // Intercept click on the "Delete" action link for this plugin
+            document.addEventListener('click', function(e) {
+                var link = e.target.closest('a');
+                if (!link) return;
+
+                var href = link.getAttribute('href') || '';
+                var isDelete = href.indexOf('action=delete-selected') !== -1 || (link.classList.contains('delete') && href.indexOf('plugins.php') !== -1);
+                var isWcpPlugin = href.indexOf('wcp-wp-scanner') !== -1 || href.indexOf('wcp-security-scanner') !== -1;
+
+                if (!isWcpPlugin) {
+                    var row = link.closest('tr[data-plugin*="wcp-"]');
+                    if (row) isWcpPlugin = true;
+                }
+
+                if (isDelete && isWcpPlugin) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    targetDeleteLink = href;
+                    overlay.style.display = 'flex';
+                }
+            }, true);
+
+            // Cancel button
+            cancelBtn.addEventListener('click', function() {
+                overlay.style.display = 'none';
+                targetDeleteLink = null;
+            });
+
+            // Close on backdrop click
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    overlay.style.display = 'none';
+                    targetDeleteLink = null;
+                }
+            });
+
+            // Confirm & Save preference via AJAX before proceeding
+            confirmBtn.addEventListener('click', function() {
+                var selected = document.querySelector('input[name="wcpscan_uninstall_choice"]:checked');
+                var shouldPurge = selected ? selected.value === 'purge' : false;
+
+                confirmBtn.disabled = true;
+                confirmBtn.innerText = '<?php echo esc_js(__('Saving preference...', 'wcp-security-scanner')); ?>';
+
+                var data = new URLSearchParams();
+                data.append('action', 'wcpscan_set_uninstall_purge');
+                data.append('nonce', '<?php echo esc_js($nonce); ?>');
+                data.append('purge', shouldPurge ? '1' : '0');
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    body: data,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                }).then(function() {
+                    // Navigate to WordPress native delete confirmation
+                    if (targetDeleteLink) {
+                        window.location.href = targetDeleteLink;
+                    } else {
+                        overlay.style.display = 'none';
+                    }
+                }).catch(function() {
+                    if (targetDeleteLink) {
+                        window.location.href = targetDeleteLink;
+                    }
+                });
+            });
+        })();
+        </script>
+        <?php
     }
 }
 

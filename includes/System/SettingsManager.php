@@ -72,8 +72,8 @@ class SettingsManager {
             'header_csp_enabled'               => false,
             'header_csp_custom'                => '',
 
-            // 7. Cleanup & Data Privacy on Plugin Uninstall (Enabled by default)
-            'delete_data_on_uninstall' => true,
+            // 7. Cleanup & Data Privacy on Plugin Uninstall (Disabled by default to protect quarantine vault and configuration)
+            'delete_data_on_uninstall' => false,
 
             // 8. Web Application Firewall (WAF) Lite
             'waf_enabled'              => true,

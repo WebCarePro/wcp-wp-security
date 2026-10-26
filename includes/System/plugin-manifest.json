@@ -1,6 +1,6 @@
 {
   "version": "1.26.0",
-  "generated_at": "2026-10-26T00:12:26.484Z",
+  "generated_at": "2026-10-26T01:01:31.557Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 515656
     },
     "build/index.asset.php": {
-      "sha256": "c5efb0a78be8fbdbf358c8f0abe949498d6e340ae10e7447602e07dc3deb143e",
+      "sha256": "bf26b953342e22fa91313dab84e776d489f3ae6995e0786e026ed6f5f8de8fb9",
       "size": 121
     },
     "build/index.css": {
@@ -52,16 +52,16 @@
       "size": 515517
     },
     "build/index.js": {
-      "sha256": "fc5ccd03be4ad47461a3cc0f951ba9b6d3fd787ce01132463ff1f59e5b26361c",
-      "size": 1656748
+      "sha256": "69feb5c7e1497bea84189249743fcf920f8a109b9512f7fc1703eb3047a288dd",
+      "size": 1656917
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
       "size": 342
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "a0f822d36af1930956e04137380797be161ce17e3bbb09f0da292e0d09c488e4",
-      "size": 26543
+      "sha256": "e2040cd147cdf18951e73f3f2875c63a29c715523795db91be2f11d70e4cb7ad",
+      "size": 37807
     },
     "includes/Api/MCPAgentService.php": {
       "sha256": "ad8ebe7966ffc3485ba1537061cc3f5b5579b9e403610403b963285132955a33",
@@ -444,8 +444,8 @@
       "size": 18790
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "98370b3da6d46cec651e24b4b796d1e7c352e07f011899768b462e08ca5488f6",
-      "size": 66115
+      "sha256": "599b24b6c220d61fb077814db3604d111f2d222b1511be1b0e610d53fa570152",
+      "size": 66163
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "166d9705dac653ea076209d111b27d4e3c468fac4f24d788d432bdafa82e824e",
@@ -500,8 +500,8 @@
       "size": 16107
     },
     "uninstall.php": {
-      "sha256": "90a32910ef748c0e53d879752b1668923e32dbf89b69cbdeb690fe94f2a0deca",
-      "size": 4885
+      "sha256": "fae27fb0daba7c376d03d96f49566caa9340f4ecf4402f67ec8bdf85a85d63ea",
+      "size": 4952
     },
     "wcp-wp-scanner.php": {
       "sha256": "f3920e7869c52e289a29856e0fa689b04d2464ae98a52c71a35ce9d6319e73b0",
