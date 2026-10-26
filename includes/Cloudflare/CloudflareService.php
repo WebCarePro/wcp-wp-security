@@ -1246,6 +1246,99 @@ class CloudflareService {
         if (stripos($err, 'Authentication error') !== false || stripos($err, 'actor does not have permission') !== false) {
             $err .= ' ' . __('Ensure your Cloudflare API Token has "Zone > Firewall Services: Edit" permission.', 'wcp-security-scanner');
         }
+    }
+
+    /**
+     * Retrieve list of IPs banned at Cloudflare Edge by WCP Security Scanner
+     *
+     * @param int $page
+     * @param int $per_page
+     * @return array
+     */
+    public static function get_banned_ips(int $page = 1, int $per_page = 50): array {
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
+            return [
+                'success' => false,
+                'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner'),
+                'rules'   => [],
+                'total'   => 0,
+            ];
+        }
+
+        $tag_encoded = urlencode(self::WCP_RULE_TAG);
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?notes={$tag_encoded}&mode=block&page={$page}&per_page={$per_page}");
+
+        if (!empty($res['success']) && isset($res['result'])) {
+            $rules = [];
+            foreach ($res['result'] as $rule) {
+                $raw_notes = $rule['notes'] ?? '';
+                // Strip the [WCP Security Scanner] tag prefix to extract clean ban reason
+                $clean_reason = trim(str_replace(self::WCP_RULE_TAG, '', $raw_notes));
+                if (empty($clean_reason)) {
+                    $clean_reason = __('Malicious activity detected by WAF / Brute-force', 'wcp-security-scanner');
+                }
+
+                $rules[] = [
+                    'id'          => $rule['id'] ?? '',
+                    'ip'          => $rule['configuration']['value'] ?? '',
+                    'target'      => $rule['configuration']['target'] ?? 'ip',
+                    'mode'        => $rule['mode'] ?? 'block',
+                    'reason'      => $clean_reason,
+                    'created_on'  => $rule['created_on'] ?? '',
+                    'modified_on' => $rule['modified_on'] ?? '',
+                ];
+            }
+
+            return [
+                'success'     => true,
+                'rules'       => $rules,
+                'total'       => (int) ($res['result_info']['total_count'] ?? count($rules)),
+                'page'        => $page,
+                'per_page'    => $per_page,
+                'total_pages' => (int) ($res['result_info']['total_pages'] ?? 1),
+            ];
+        }
+
+        $err = $res['errors'][0]['message'] ?? __('Failed to fetch banned IP rules from Cloudflare.', 'wcp-security-scanner');
+        return [
+            'success' => false,
+            'message' => $err,
+            'rules'   => [],
+            'total'   => 0,
+        ];
+    }
+
+    /**
+     * Remove / unblock an IP rule at Cloudflare Edge
+     *
+     * @param string $rule_id Cloudflare rule ID
+     * @return array
+     */
+    public static function unblock_ip(string $rule_id): array {
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+        }
+
+        if (empty($rule_id)) {
+            return ['success' => false, 'message' => __('Invalid rule ID.', 'wcp-security-scanner')];
+        }
+
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules/{$rule_id}", 'DELETE');
+
+        if (!empty($res['success'])) {
+            return [
+                'success' => true,
+                'message' => __('IP successfully unbanned from Cloudflare Edge.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $err = $res['errors'][0]['message'] ?? __('Failed to unban IP from Cloudflare Edge.', 'wcp-security-scanner');
         return ['success' => false, 'message' => $err];
     }
 

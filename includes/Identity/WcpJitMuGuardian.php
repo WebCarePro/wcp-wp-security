@@ -112,8 +112,9 @@ class WcpJitMuGuardianRuntime {
     const OPTION_HISTORY    = 'wcpscan_ephemeral_admin_history';
 
     public static function init() {
-        // Enforce expiration check on every single request
-        add_action('muplugins_loaded', [__CLASS__, 'check_expirations'], 1);
+        // Enforce expiration check once pluggable/user functions are available
+        add_action('plugins_loaded', [__CLASS__, 'check_expirations'], 1);
+        add_action('init', [__CLASS__, 'check_expirations'], 1);
 
         // Block direct plugin deactivation & deletion attempts by JIT elevated users
         add_action('admin_init', [__CLASS__, 'intercept_unauthorized_plugin_actions'], 0);
@@ -222,6 +223,10 @@ class WcpJitMuGuardianRuntime {
      * Check and expire overdue elevations on every request
      */
     public static function check_expirations() {
+        if (!function_exists('get_userdata')) {
+            return;
+        }
+
         $elevations = get_option(self::OPTION_ELEVATIONS, []);
         if (!is_array($elevations) || empty($elevations)) {
             return;

@@ -869,6 +869,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/cloudflare/banned-ips', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_cloudflare_banned_ips'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/unblock-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'unblock_cloudflare_ip'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/cloudflare/purge-cache', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'purge_cloudflare_cache'],
@@ -7017,6 +7029,28 @@ class ScannerRoutes {
         $reason = sanitize_text_field($params['reason'] ?? 'Manual block via Security Scanner');
 
         $result = \WcpScanner\Cloudflare\CloudflareService::block_ip($ip, $reason);
+        return rest_ensure_response($result);
+    }
+
+    public static function get_cloudflare_banned_ips(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $page     = max(1, (int) $request->get_param('page'));
+        $per_page = max(1, min(100, (int) ($request->get_param('per_page') ?: 50)));
+
+        $result = \WcpScanner\Cloudflare\CloudflareService::get_banned_ips($page, $per_page);
+        return rest_ensure_response($result);
+    }
+
+    public static function unblock_cloudflare_ip(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params  = $request->get_json_params() ?: [];
+        $rule_id = sanitize_text_field($params['rule_id'] ?? '');
+
+        $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
         return rest_ensure_response($result);
     }
 
