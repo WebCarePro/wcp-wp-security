@@ -22,6 +22,12 @@ v:1.27.0 - 2026-10-27
   * 100-Item Default Chunking on Scan Home: Implemented client virtual pagination on the primary Security Findings table on the Scan Home page (`App.tsx`), eliminating browser UI freezes, memory bloat, and laggy rendering when auditing sites with massive infections or thousands of findings.
   * Customizable Page Size Dropdown: Added inline "Per Page" selector (25, 50, 100, 200 items/page) to the findings toolbar.
   * Responsive Pagination Navigation Bar: Displays total findings count, current slice range, Previous/Next page buttons, and auto-scroll viewport repositioning back to the findings hub.
+- Smart Form Plugin Shield & Zero False-Positive Compatibility Engine (`FirewallEngine.php`, `SettingsManager.php`, `FirewallPage.tsx`):
+  * Broad Form Ecosystem Immunity: Added dedicated `waf_forms_safe_mode` shield (default enabled) providing guaranteed false-positive immunity across Contact Form 7, WPForms, Fluent Forms, Gravity Forms, Ninja Forms, Formidable Forms, WS Form, Caldera Forms, HappyForms, and Everest Forms.
+  * Admin-AJAX Rate Limiting Exemption: Automatically exempts form AJAX submission actions (`wpforms_submit`, `fluentform_submit`, `nf_ajax_submit`, `gform_submit`, `frm_forms_preview`, etc.) from burst rate limiting to ensure legitimate customer inquiries and lead submissions are never throttled with 429 errors.
+  * Empty Referrer & Blank UA Drop Exemption: Automatically permits verified form endpoints to bypass empty user-agent/referrer drop rules, accommodating embedded headless forms, mobile WebViews, and privacy-hardened customer browsers.
+  * Harmless Free-Form Field Normalization: Safely isolates benign user text, address lines, and multi-line comments (`your-message`, `message`, `comments`, `feedback`, `notes`, etc.) during deep WAF inspection so legitimate English grammar (single quotes, apostrophes, dashes, words like "select" or "order") never triggers SQL injection or path traversal heuristics, while continuing to strictly block actual attack vectors (`<script>`, `UNION SELECT`, `eval()`).
+  * Real-Time Form Plugin Telemetry & UI Rule Card: Integrated real-time detection telemetry (`forms_telemetry`) in the Firewall status payload, with a high-contrast rule card in the Firewall Rules tab (`FirewallPage.tsx`), dynamic detection badge pill, and single-rule instant save controls.
 
 v:1.26.0 - 2026-10-26
 - Cloudflare Edge WAF Credentials Banner Visual Highlighting (`FirewallPage.tsx`):

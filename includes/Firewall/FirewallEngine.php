@@ -839,7 +839,27 @@ class FirewallEngine {
                         'woocommerce_add_to_cart',
                     ], true);
 
-                    if (!$is_woo_public) {
+                    // Smart Form Plugin Shield: Automatically exempt legitimate form submissions (CF7, WPForms, Fluent Forms, Gravity, Ninja, etc.)
+                    $is_form_submission = !empty($settings['waf_forms_safe_mode']) && (
+                        self::is_form_submission_request($request_uri) ||
+                        in_array($ajax_action, [
+                            'wpforms_submit',
+                            'wpforms_form_submit',
+                            'wpforms_file_upload',
+                            'fluentform_submit',
+                            'fluentform_file_upload',
+                            'fluentform_form_submit',
+                            'nf_ajax_submit',
+                            'ninja_forms_ajax_submit',
+                            'frm_entries_create',
+                            'frm_entries_update',
+                            'wsf_submit',
+                            'happyforms_message',
+                            'everest_forms_ajax_submit',
+                        ], true)
+                    );
+
+                    if (!$is_woo_public && !$is_form_submission) {
                         $limit_per_min = (int) ($settings['waf_admin_ajax_limit_per_min'] ?? 60);
                         $rate_check = self::check_rate_limit('ajax:' . md5($client_ip), $limit_per_min, 60);
                         if (!$rate_check['allowed']) {
@@ -930,7 +950,8 @@ class FirewallEngine {
                 // E-Commerce & Membership Safe Mode: Server-to-server payment gateway webhooks
                 // (Stripe, PayPal IPN, Mollie, Square) frequently POST without browser Referer or standard UA.
                 $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($request_uri);
-                if (!$is_commerce_safe) {
+                $is_form_safe = !empty($settings['waf_forms_safe_mode']) && self::is_form_submission_request($request_uri);
+                if (!$is_commerce_safe && !$is_form_safe) {
                     $has_ua  = !empty(trim(isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : ''));
                     $has_ref = !empty(trim(isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_REFERER'])) : ''));
                     if (!$has_ua && !$has_ref) {
@@ -1363,6 +1384,8 @@ class FirewallEngine {
         if (!empty($_POST) && is_array($_POST)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
+
+            // E-Commerce & Membership field normalization:
             // (e.g. "Apt. #4", "O'Reilly", "Suite / Flat 2B", "Deliver c/o neighbor")
             // must not be concatenated directly into generic path traversal or SQL heuristics.
             if ($is_commerce_safe) {
@@ -1376,6 +1399,37 @@ class FirewallEngine {
                     unset($post_data[$field_key]);
                 }
             }
+
+            // Smart Form Plugin Shield: Automatically normalize harmless free-form message fields
+            // (e.g. your-message, contact inquiries, feedback notes, user address lines)
+            // so benign English phrases containing single quotes or dashes don't trigger SQLi heuristics
+            $is_form_safe = !empty($settings['waf_forms_safe_mode']) && self::is_form_submission_request($raw_uri);
+            if ($is_form_safe) {
+                $benign_form_keys = [
+                    'your-message', 'your-name', 'your-subject', 'your-email',
+                    'message', 'comments', 'comment', 'description', 'subject', 'notes',
+                    'feedback', 'inquiry', 'wpforms', 'fluentform', 'gform_fields',
+                    'formData', 'frm_action'
+                ];
+                foreach ($post_data as $pk => $pv) {
+                    if (is_string($pv)) {
+                        // Check if key matches common form content fields
+                        $lower_k = strtolower((string)$pk);
+                        foreach ($benign_form_keys as $bfk) {
+                            if (strpos($lower_k, $bfk) !== false) {
+                                // Keep actual exploit tags (script, eval, UNION SELECT), but strip benign single-quote patterns
+                                $cleaned_val = preg_replace('/(\bunion\s+(all\s+)?select\b|<script|<iframe)/i', '$1', $pv);
+                                // If it doesn't contain genuine exploit signatures, isolate it from raw SQL heuristics
+                                if (!preg_match('/(<script|<iframe|\bunion\s+(all\s+)?select\b|php:\/\/|\b(eval|passthru|shell_exec|system)\s*\()/i', $pv)) {
+                                    unset($post_data[$pk]);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             $params_to_check[] = urldecode(http_build_query($post_data));
         }
 
@@ -2028,6 +2082,110 @@ class FirewallEngine {
     }
 
     /**
+     * Check if an incoming request corresponds to a legitimate form submission
+     * across major WordPress form plugins (Contact Form 7, WPForms, Fluent Forms,
+     * Gravity Forms, Ninja Forms, Formidable Forms, WS Form, HappyForms, etc.).
+     *
+     * @param string $uri
+     * @return bool
+     */
+    public static function is_form_submission_request(string $uri): bool {
+        $parsed_path = strtolower(wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
+        $query_string = isset($_SERVER['QUERY_STRING']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']))) : '';
+        $req_method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET');
+
+        // Form submissions are predominantly POST (or PUT/PATCH in specialized AJAX pipelines)
+        $is_submit_method = in_array($req_method, ['POST', 'PUT', 'PATCH'], true);
+
+        // 1. Contact Form 7 (CF7) REST API & Feedback Routes
+        // Modern CF7 submits exclusively via: /wp-json/contact-form-7/v1/contact-forms/{id}/feedback
+        if (strpos($parsed_path, '/contact-form-7/v1/contact-forms/') !== false || strpos($uri, 'contact-form-7/v1') !== false) {
+            return true;
+        }
+        if (strpos($query_string, 'contact-form-7') !== false || strpos($query_string, '_wpcf7') !== false) {
+            return true;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        if (!empty($_POST['_wpcf7']) || !empty($_POST['_wpcf7_version']) || !empty($_POST['_wpcf7_unit_tag'])) {
+            return true;
+        }
+
+        // 2. WPForms AJAX & REST Submissions
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        $action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
+        if ($action === 'wpforms_submit' || $action === 'wpforms_form_submit' || $action === 'wpforms_file_upload') {
+            return true;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        if (!empty($_POST['wpforms']) && is_array($_POST['wpforms'])) {
+            return true;
+        }
+        if (strpos($parsed_path, '/wp-json/wpforms/') !== false) {
+            return true;
+        }
+
+        // 3. Fluent Forms AJAX & REST Submissions
+        if ($action === 'fluentform_submit' || $action === 'fluentform_file_upload' || $action === 'fluentform_form_submit') {
+            return true;
+        }
+        if (strpos($parsed_path, '/wp-json/fluentform/v1/') !== false) {
+            return true;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        if (!empty($_POST['fluent_forms_nonce']) || !empty($_POST['__fluent_form_embded_post_id'])) {
+            return true;
+        }
+
+        // 4. Gravity Forms AJAX & Standard Submissions
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        if (!empty($_POST['gform_submit']) || !empty($_POST['gform_ajax']) || (isset($_POST['is_submit_']) && is_numeric($_POST['is_submit_']))) {
+            return true;
+        }
+        if (strpos($parsed_path, '/wp-json/gf/v2/') !== false) {
+            return true;
+        }
+
+        // 5. Ninja Forms AJAX Submissions
+        if ($action === 'nf_ajax_submit' || $action === 'ninja_forms_ajax_submit' || $action === 'nf_async_upload') {
+            return true;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        if (!empty($_POST['nf_form_id']) || !empty($_POST['ninja_forms_form_id'])) {
+            return true;
+        }
+
+        // 6. Formidable Forms Submissions
+        if ($action === 'frm_entries_create' || $action === 'frm_entries_update' || $action === 'frm_forms_preview') {
+            return true;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        if (!empty($_POST['frm_action']) || !empty($_POST['form_id']) && isset($_POST['frm_hide_fields_'])) {
+            return true;
+        }
+
+        // 7. WS Form, HappyForms, Kali Forms & Everest Forms
+        if ($action === 'wsf_submit' || $action === 'happyforms_message' || $action === 'everest_forms_ajax_submit') {
+            return true;
+        }
+        if (strpos($parsed_path, '/wp-json/ws-form/') !== false || strpos($parsed_path, '/wp-json/everest-forms/') !== false) {
+            return true;
+        }
+
+        // 8. General Generic Form POST detection with verified nonces/honeytokens
+        if ($is_submit_method) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+            if (!empty($_POST['_wp_http_referer']) && (!empty($_POST['form_id']) || !empty($_POST['form_token']) || !empty($_POST['_wpnonce']))) {
+                // If it's not an admin panel or REST login action, treat as user form
+                if (strpos($parsed_path, '/wp-admin/admin-post.php') !== false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Check if an IP is in the user-defined whitelist
      */
     public static function is_ip_whitelisted(string $ip, string $whitelist_str): bool {
@@ -2583,6 +2741,32 @@ class FirewallEngine {
                     class_exists('wpmembers') ? 'WP-Members' : null,
                     (class_exists('BuddyBoss_Platform') || defined('BP_PLATFORM_VERSION')) ? 'BuddyBoss Platform' : null,
                     (class_exists('Youzify') || defined('YOUZIFY_VERSION')) ? 'Youzify' : null,
+                ])),
+            ],
+            'forms_telemetry'    => [
+                'is_active' => (
+                    defined('WPCF7_VERSION') || class_exists('WPCF7') ||
+                    defined('WPFORMS_VERSION') || class_exists('WPForms') ||
+                    defined('FLUENTFORM_VERSION') ||
+                    class_exists('GFForms') ||
+                    class_exists('Ninja_Forms') ||
+                    class_exists('FrmAppController') ||
+                    defined('WS_FORM_VERSION') ||
+                    defined('CALDERA_FORMS_VERSION') ||
+                    defined('HAPPYFORMS_VERSION') ||
+                    defined('EVEREST_FORMS_VERSION')
+                ),
+                'detected_names' => array_values(array_filter([
+                    (defined('WPCF7_VERSION') || class_exists('WPCF7')) ? 'Contact Form 7' : null,
+                    (defined('WPFORMS_VERSION') || class_exists('WPForms')) ? 'WPForms' : null,
+                    defined('FLUENTFORM_VERSION') ? 'Fluent Forms' : null,
+                    class_exists('GFForms') ? 'Gravity Forms' : null,
+                    class_exists('Ninja_Forms') ? 'Ninja Forms' : null,
+                    class_exists('FrmAppController') ? 'Formidable Forms' : null,
+                    defined('WS_FORM_VERSION') ? 'WS Form' : null,
+                    defined('CALDERA_FORMS_VERSION') ? 'Caldera Forms' : null,
+                    defined('HAPPYFORMS_VERSION') ? 'HappyForms' : null,
+                    defined('EVEREST_FORMS_VERSION') ? 'Everest Forms' : null,
                 ])),
             ],
             'integrations_telemetry' => [

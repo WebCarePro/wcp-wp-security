@@ -104,6 +104,7 @@ class SettingsManager {
             'waf_allow_central_management'     => false, // Allow central WordPress management workers (ManageWP, MainWP, InfiniteWP) via cryptographic handshake
 
             // Enhanced Perimeter & Identity Protection Rules
+            'waf_forms_safe_mode'               => true,  // Smart Form Plugin Shield & False-Positive Immunity (CF7, WPForms, Gravity, Fluent Forms, etc.)
             'waf_ecommerce_safe_mode'           => false, // E-Commerce & Membership Smart Shield (off by default, recommended when shop/membership active)
             'waf_allow_page_builders'           => false, // Visual Page Builder & Editor Smart Pass (off by default, recommended when Elementor/Divi active)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
@@ -582,6 +583,7 @@ class SettingsManager {
         $clean['waf_allow_page_builders']          = !empty($merged['waf_allow_page_builders']);
 
         // Enhanced Perimeter & Identity Protection Rules
+        $clean['waf_forms_safe_mode']             = !empty($merged['waf_forms_safe_mode']);
         $clean['waf_ecommerce_safe_mode']         = !empty($merged['waf_ecommerce_safe_mode']);
         $clean['waf_block_empty_post_ua_referer'] = !empty($merged['waf_block_empty_post_ua_referer']);
         $clean['waf_whitelisted_urls']            = sanitize_textarea_field($merged['waf_whitelisted_urls'] ?? '');
