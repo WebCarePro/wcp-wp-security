@@ -27,6 +27,7 @@ class SettingsManager {
             'email_digest_enabled'     => false,
             'email_on_scan_completed'  => false,
             'notify_on_cve_detected'   => true,
+            'email_report_items_limit' => 20, // Maximum threat items in scan email report (1 to 25, default 20)
 
             // 3. AI Threat & Code Analysis Integration
             'ai_enabled'               => false,
@@ -483,6 +484,7 @@ class SettingsManager {
         $clean['email_digest_enabled']    = !empty($merged['email_digest_enabled']);
         $clean['email_on_scan_completed'] = !empty($merged['email_on_scan_completed']);
         $clean['notify_on_cve_detected']  = !empty($merged['notify_on_cve_detected']);
+        $clean['email_report_items_limit'] = max(1, min(25, intval($merged['email_report_items_limit'] ?? 20)));
 
         // 3. AI Threat Integration
         $clean['ai_enabled']               = !empty($merged['ai_enabled']);

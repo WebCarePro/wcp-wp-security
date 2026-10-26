@@ -542,26 +542,47 @@ class Scheduler {
         $body .= "</div>";
 
         if (!empty($issues)) {
-            $body .= "<h3 style='font-size:14px;font-weight:700;color:#0f172a;margin:20px 0 10px 0;text-transform:uppercase;letter-spacing:0.5px;'>Top Detected Issues:</h3>";
+            // Priority-based sorting so high-risk items (critical/high) always appear first in emails
+            $severity_ranks = [
+                'critical' => 4,
+                'high'     => 3,
+                'medium'   => 2,
+                'low'      => 1,
+                'info'     => 0,
+            ];
+            usort($issues, function($a, $b) use ($severity_ranks) {
+                $rank_a = $severity_ranks[$a['severity'] ?? 'info'] ?? 0;
+                $rank_b = $severity_ranks[$b['severity'] ?? 'info'] ?? 0;
+                if ($rank_a !== $rank_b) {
+                    return $rank_b <=> $rank_a; // Descending priority
+                }
+                return strcmp($a['file_path'] ?? '', $b['file_path'] ?? '');
+            });
+
+            $limit = max(1, min(25, (int) ($settings['email_report_items_limit'] ?? 20)));
+            $display_issues = array_slice($issues, 0, $limit);
+            $total_count = count($issues);
+
+            $body .= "<h3 style='font-size:14px;font-weight:700;color:#0f172a;margin:20px 0 10px 0;text-transform:uppercase;letter-spacing:0.5px;'>Top Detected Issues (Priority Ranked):</h3>";
             $body .= "<table style='width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;font-size:13px;border:1px solid #e2e8f0;'>";
             $body .= "<tr style='background:#f1f5f9;color:#475569;text-align:left;'>";
             $body .= "<th style='padding:10px 12px;font-size:11px;text-transform:uppercase;'>Severity</th><th style='padding:10px 12px;font-size:11px;text-transform:uppercase;'>Type</th><th style='padding:10px 12px;font-size:11px;text-transform:uppercase;'>Target / File</th>";
             $body .= "</tr>";
-            $limit = 10;
-            $count = 0;
-            foreach ($issues as $iss) {
-                if ($count++ >= $limit) break;
-                $sev_color = $iss['severity'] === 'critical' ? '#dc2626' : ($iss['severity'] === 'high' ? '#ea580c' : '#ca8a04');
+            foreach ($display_issues as $iss) {
+                $sev = strtolower($iss['severity'] ?? 'medium');
+                $sev_color = $sev === 'critical' ? '#dc2626' : ($sev === 'high' ? '#ea580c' : ($sev === 'medium' ? '#ca8a04' : '#64748b'));
                 $body .= "<tr style='border-top:1px solid #e2e8f0;'>";
-                $body .= "<td style='padding:8px 12px;'><span style='background:{$sev_color};color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;'>".strtoupper($iss['severity'])."</span></td>";
-                $body .= "<td style='padding:8px 12px;color:#334155;font-weight:500;'>".esc_html($iss['type'])."</td>";
-                $body .= "<td style='padding:8px 12px;color:#64748b;word-break:break-all;font-family:monospace;font-size:12px;'>".esc_html($iss['file_path'])."</td>";
+                $body .= "<td style='padding:8px 12px;'><span style='background:{$sev_color};color:#fff;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px;'>".strtoupper($sev)."</span></td>";
+                $body .= "<td style='padding:8px 12px;color:#334155;font-weight:500;'>".esc_html($iss['type'] ?? 'Threat')."</td>";
+                $body .= "<td style='padding:8px 12px;color:#64748b;word-break:break-all;font-family:monospace;font-size:12px;'>".esc_html($iss['file_path'] ?? 'Unknown target')."</td>";
                 $body .= "</tr>";
             }
             $body .= "</table>";
-            if (count($issues) > 10) {
-                $rem = count($issues) - 10;
-                $body .= "<p style='font-size:12px;color:#64748b;margin-top:8px;'>...and {$rem} more findings. View full forensic report in WordPress Admin.</p>";
+            if ($total_count > $limit) {
+                $rem = $total_count - $limit;
+                $body .= "<div style='margin-top:12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12.5px;color:#475569;'>";
+                $body .= "...and <strong>{$rem}</strong> more findings detected. View complete forensic details and 1-click remediation in WordPress Admin.";
+                $body .= "</div>";
             }
         }
 

@@ -14,6 +14,10 @@ v:1.27.0 - 2026-10-27
 - Scan Report Findings High-Performance Client Pagination (`ScanLogsPage.tsx`):
   * 100-Item Max Page Chunking: Implemented virtual client pagination on the Inspection & Audit Findings Report table, defaulting to 100 items per page with customizable 25/50/100/200 options to prevent browser thread freeze and DOM bloat on scans with thousands of detected threats.
   * Integrated Pagination Navigation Bar: Added responsive footer pagination controls with total threat count tallies, previous/next buttons, and auto-scroll viewport repositioning.
+- Scan Report Email Threat Priority Ranking & Customizable Findings Limit (`Scheduler.php`, `SettingsManager.php`, `SettingsPage.tsx`):
+  * Severity Priority Ranking: Updated scan report email generator to intelligently prioritize detected findings by threat weight (`critical` webshells and remote backdoors > `high` integrity tampering > `medium` vulnerable software > `low` / `info`), guaranteeing the most dangerous threats always appear at the top of the email list.
+  * Customizable Email Threat Cap (1–25): Added `email_report_items_limit` setting (default 20, strictly clamped between 1 and 25) with an interactive slider and number input on the Settings page under Email & Notifications, keeping notifications lightweight and preventing email server delivery rejections during massive infections.
+  * Informative Overflow Alert: Displays a clean breakdown banner when findings exceed the configured cap (`...and X more findings detected. View complete forensic details and 1-click remediation in WordPress Admin`).
 
 v:1.26.0 - 2026-10-26
 - Cloudflare Edge WAF Credentials Banner Visual Highlighting (`FirewallPage.tsx`):
