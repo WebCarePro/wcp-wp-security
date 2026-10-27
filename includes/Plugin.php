@@ -75,6 +75,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
             \WcpScanner\SupplyChain\UpdateGatekeeperEngine::init();
         }
+        if (class_exists('\\WcpScanner\\Content\\ScriptInventoryMonitor')) {
+            \WcpScanner\Content\ScriptInventoryMonitor::init();
+        }
         if (class_exists('\\WcpScanner\\Identity\\SessionForensicsEngine')) {
             \WcpScanner\Identity\SessionForensicsEngine::init();
         }

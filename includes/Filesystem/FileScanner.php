@@ -14,12 +14,14 @@ class FileScanner {
     private $permission_scanner;
     private $hasher;
     private $heuristic_engine;
+    private $js_scanner;
 
     public function __construct() {
         $this->symlink_scanner = new SymlinkScanner();
         $this->permission_scanner = new PermissionScanner();
         $this->hasher = new FileHasher();
         $this->heuristic_engine = new HeuristicEngine();
+        $this->js_scanner = new \WcpScanner\Malware\JavaScriptSecurityScanner();
     }
 
     /**
@@ -92,6 +94,15 @@ class FileScanner {
         // 4. PHP Heuristic Malware Scan
         $malware_findings = $this->heuristic_engine->scan_file($file_path, $scan_id);
         $findings = array_merge($findings, $malware_findings);
+
+        // 5. Client-Side JavaScript Threat Scan (Magecart, Form Skimmers, Miners)
+        $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        if ($ext === 'js') {
+            $js_findings = $this->js_scanner->scan_file($file_path, $scan_id);
+            if (!empty($js_findings)) {
+                $findings = array_merge($findings, $js_findings);
+            }
+        }
 
         // Future: Core Integrity verification will hook here or run in a separate engine pass using $this->hasher
 

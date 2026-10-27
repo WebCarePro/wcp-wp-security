@@ -1184,6 +1184,38 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Script Inventory & Third-Party Hostname Drift Monitor
+        register_rest_route(self::NAMESPACE, '/supply-chain/scripts', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_script_inventory_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/scripts/calibrate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'calibrate_script_inventory'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/scripts/dismiss', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'dismiss_script_drift_alert'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Offline Dependency Lockfile Auditor
+        register_rest_route(self::NAMESPACE, '/supply-chain/lockfiles', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_supply_chain_lockfiles'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/supply-chain/lockfiles/scan', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'scan_supply_chain_lockfiles'],
+            'permission_callback' => $permission,
+        ]);
+
         // 18. Behavioral WAF & Anti-Automated Abuse (Pillar 3)
         register_rest_route(self::NAMESPACE, '/behavioral/status', [
             'methods'             => 'GET',
@@ -7737,6 +7769,45 @@ class ScannerRoutes {
             'success'  => true,
             'analysis' => $analysis,
         ]);
+    }
+
+    public static function get_script_inventory_status(\WP_REST_Request $request) {
+        $data = \WcpScanner\Content\ScriptInventoryMonitor::get_status();
+        return rest_ensure_response($data);
+    }
+
+    public static function calibrate_script_inventory(\WP_REST_Request $request) {
+        $data = \WcpScanner\Content\ScriptInventoryMonitor::calibrate_baseline();
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Script inventory baseline calibrated successfully.', 'wcp-security-scanner'),
+            'status'  => $data,
+        ]);
+    }
+
+    public static function dismiss_script_drift_alert(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $alert_id = sanitize_text_field($params['alert_id'] ?? '');
+
+        if (empty($alert_id)) {
+            return new \WP_Error('missing_alert_id', __('Alert ID is required to dismiss.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Content\ScriptInventoryMonitor::dismiss_alert($alert_id);
+        return rest_ensure_response([
+            'success' => $res,
+            'message' => __('Script drift alert dismissed.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function get_supply_chain_lockfiles(\WP_REST_Request $request) {
+        $data = \WcpScanner\SupplyChain\LockfileAuditEngine::run_audit(false);
+        return rest_ensure_response($data);
+    }
+
+    public static function scan_supply_chain_lockfiles(\WP_REST_Request $request) {
+        $data = \WcpScanner\SupplyChain\LockfileAuditEngine::run_audit(true);
+        return rest_ensure_response($data);
     }
 
     // ==========================================
