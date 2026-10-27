@@ -1367,8 +1367,7 @@ class ScannerRoutes {
             if (!$existing_scan || $existing_scan['status'] !== 'running') {
                 ScanLock::release($locked_id);
             } else {
-                $queue = get_transient("wcpscan_scan_queue_{$locked_id}");
-                $remaining = is_array($queue) ? count($queue) : 0;
+                $remaining = \WcpScanner\Scan\ScanQueueManager::get_remaining_count($locked_id);
                 return rest_ensure_response([
                     'success'       => true,
                     'scan_id'       => $locked_id,
@@ -1392,7 +1391,6 @@ class ScannerRoutes {
         }
         
         $paths = [];
-        $all_files = [];
 
         // Determine scannable filesystem files based on scan profile (0 = unlimited)
         $file_limit = (int) apply_filters('wcpscan_file_limit', 0, $target);
@@ -1408,9 +1406,7 @@ class ScannerRoutes {
                 || !empty($custom_options['scan_outside_root'])
                 || !empty($custom_options['scan_images_executable']);
 
-            if (!$has_filesystem_scan) {
-                $all_files = [];
-            } else {
+            if ($has_filesystem_scan) {
                 if (!empty($custom_options['scan_outside_root'])) {
                     $parent = dirname(ABSPATH);
                     if (is_dir($parent) && is_readable($parent) && realpath($parent) !== realpath(ABSPATH)) {
@@ -1431,37 +1427,29 @@ class ScannerRoutes {
                         $paths[] = untrailingslashit(ABSPATH);
                     }
                 }
-                foreach (array_unique($paths) as $path) {
-                    $all_files = array_merge($all_files, Engine::get_scannable_files($path, $file_limit));
-                }
             }
         } elseif (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel', 'modified_files'], true)) {
             // Targeted deep engines do not queue filesystem files
-            $all_files = [];
+            $paths = [];
         } elseif ($target === 'filesystem_only' || $target === 'full') {
             $paths[] = untrailingslashit(ABSPATH);
-            foreach ($paths as $path) {
-                $all_files = array_merge($all_files, Engine::get_scannable_files($path, $file_limit));
-            }
         } else { // default plugins_themes
             $paths[] = WP_PLUGIN_DIR;
             $paths[] = get_theme_root();
-            foreach ($paths as $path) {
-                $all_files = array_merge($all_files, Engine::get_scannable_files($path, $file_limit));
-            }
         }
 
         $table_scans = $wpdb->prefix . 'wcpscan_scans';
         $now_exact = self::now_fractional_mysql();
         $start_micro = microtime(true);
 
+        // Pre-insert scan record to obtain unique scan_id
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->insert($table_scans, [
             'status'        => 'running',
             'scan_target'   => $target,
             'trigger_type'  => 'manual',
             'scanned_files' => 0,
-            'total_files'   => count($all_files),
+            'total_files'   => 0,
             'issues_found'  => 0,
             'risk_score'    => 0,
             'duration'      => 0,
@@ -1475,20 +1463,30 @@ class ScannerRoutes {
         // Acquire lock
         ScanLock::acquire($scan_id);
 
+        // Initialize high-performance streaming session queue on disk
+        $total_files = 0;
+        if (!empty($paths)) {
+            $total_files = \WcpScanner\Scan\ScanQueueManager::init_queue($scan_id, $paths, $file_limit);
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->update($table_scans, [
+            'total_files' => $total_files,
+        ], ['id' => $scan_id]);
+
         if ($target === 'custom' && !empty($custom_options)) {
             set_transient("wcpscan_custom_options_{$scan_id}", $custom_options, HOUR_IN_SECONDS);
         }
 
         set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
-        set_transient("wcpscan_scan_queue_{$scan_id}", $all_files, HOUR_IN_SECONDS);
 
-        $init_telemetry = self::get_realtime_resource_stats(null, null, 0, count($all_files), 0, 0.0);
+        $init_telemetry = self::get_realtime_resource_stats(null, null, 0, $total_files, 0, 0.0);
         set_transient("wcpscan_scan_live_telemetry_{$scan_id}", $init_telemetry, 600);
 
         return rest_ensure_response([
             'success'     => true,
             'scan_id'     => $scan_id,
-            'total_files' => count($all_files),
+            'total_files' => $total_files,
             'status'      => 'running',
             'started_at'  => $now_exact,
             'telemetry'   => $init_telemetry,
@@ -1508,8 +1506,16 @@ class ScannerRoutes {
         // Update lock heartbeat
         ScanLock::heartbeat($scan_id);
 
-        $queue = get_transient("wcpscan_scan_queue_{$scan_id}");
-        if ($queue === false || !is_array($queue)) {
+        // Initialize Dynamic Resource Governor
+        $governor = new \WcpScanner\Resource\ResourceMonitor(70, 18, 'balanced');
+        $effective_batch_size = $governor->get_adaptive_batch_size($batch_size);
+
+        $batch_data = \WcpScanner\Scan\ScanQueueManager::get_batch($scan_id, $effective_batch_size);
+        $files_to_process = $batch_data['files'];
+        $line_bytes = $batch_data['line_bytes'];
+        $remaining = $batch_data['remaining'];
+
+        if (empty($files_to_process)) {
             // Check if scan exists in DB to prevent hard 404 failure
             $check_sql = "SELECT id FROM {$wpdb->prefix}wcpscan_scans WHERE id = %d";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -1518,6 +1524,7 @@ class ScannerRoutes {
                 $wpdb->prepare($check_sql, $scan_id)
             );
             if ($scan_exists) {
+                \WcpScanner\Scan\ScanQueueManager::cleanup($scan_id);
                 return rest_ensure_response([
                     'success'     => true,
                     'is_finished' => true,
@@ -1533,25 +1540,14 @@ class ScannerRoutes {
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
 
-        // Initialize Dynamic Resource Governor
-        $governor = new \WcpScanner\Resource\ResourceMonitor(70, 18, 'balanced');
-        $effective_batch_size = $governor->get_adaptive_batch_size($batch_size);
-
-        $total_files = count($queue);
-        $files_to_process = array_splice($queue, 0, $effective_batch_size);
-
         $file_scanner = new FileScanner();
         $processed_count = 0;
         $accumulated_weight = 0.0;
+        $bytes_consumed = 0;
 
-        foreach ($files_to_process as $filepath) {
+        foreach ($files_to_process as $idx => $filepath) {
             // Adaptive breathing and resource headroom check before each file
             if ($governor->throttle_and_check()) {
-                // If nearing limit or OS pressure, push remaining files in this slice back onto queue front
-                $unprocessed = array_slice($files_to_process, $processed_count);
-                if (!empty($unprocessed)) {
-                    $queue = array_merge($unprocessed, $queue);
-                }
                 break;
             }
 
@@ -1561,10 +1557,6 @@ class ScannerRoutes {
 
             // If heavy files filled the batch weight budget early, save remaining and yield
             if ($accumulated_weight >= ($effective_batch_size * 1.25) && $processed_count > 10) {
-                $unprocessed = array_slice($files_to_process, $processed_count);
-                if (!empty($unprocessed)) {
-                    $queue = array_merge($unprocessed, $queue);
-                }
                 break;
             }
 
@@ -1575,22 +1567,24 @@ class ScannerRoutes {
 
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->insert($table_files, [
-                'scan_id'    => $scan_id,
-                'file_path'  => $rel_path,
-                'file_size'  => $file_size,
+                'scan_id'        => $scan_id,
+                'file_path'      => $rel_path,
+                'file_size'      => $file_size,
                 'status'         => $file_status,
                 'scanned_at'     => current_time('mysql'),
                 'scanned_at_gmt' => gmdate('Y-m-d H:i:s'),
             ]);
 
             $processed_count++;
+            if (!empty($line_bytes[$idx])) {
+                $bytes_consumed += $line_bytes[$idx];
+            }
 
             foreach ($findings as $f) {
                 $item = $f->to_array();
                 $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
                 $status = ($matched_rule !== null) ? 'ignored' : 'open';
 
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->insert($table_issues, [
                     'scan_id'      => $scan_id,
@@ -1610,14 +1604,9 @@ class ScannerRoutes {
             }
         }
 
-        $remaining = count($queue);
+        $remaining = \WcpScanner\Scan\ScanQueueManager::advance($scan_id, $processed_count, $bytes_consumed);
         $is_finished = ($remaining === 0);
 
-        if ($is_finished) {
-            delete_transient("wcpscan_scan_queue_{$scan_id}");
-        } else {
-            set_transient("wcpscan_scan_queue_{$scan_id}", $queue, HOUR_IN_SECONDS);
-        }
 
         $tot_sql = "SELECT total_files FROM `{$table_scans}` WHERE id = %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -2964,13 +2953,13 @@ class ScannerRoutes {
         }
 
         // Lock heartbeat
-        ScanLock::heartbeat($locked_id);
-
-        $queue = get_transient("wcpscan_scan_queue_{$locked_id}");
         $total = (int) $running_scan['total_files'];
         $scanned = (int) $running_scan['scanned_files'];
         $trigger_type = !empty($running_scan['trigger_type']) ? $running_scan['trigger_type'] : 'manual';
-        $remaining = is_array($queue) ? count($queue) : max(0, $total - $scanned);
+        $remaining = \WcpScanner\Scan\ScanQueueManager::get_remaining_count($locked_id);
+        if ($remaining === 0 && $total > $scanned) {
+            $remaining = max(0, $total - $scanned);
+        }
         $last_file = get_transient("wcpscan_active_scan_file_{$locked_id}") ?: '';
 
         $live_telemetry = get_transient("wcpscan_scan_live_telemetry_{$locked_id}");
@@ -3066,7 +3055,7 @@ class ScannerRoutes {
                 'duration_ms'  => $duration_ms,
                 'completed_at' => $now_exact,
             ], ['id' => $scan_id]);
-            delete_transient("wcpscan_scan_queue_{$scan_id}");
+            \WcpScanner\Scan\ScanQueueManager::cleanup($scan_id);
             ScanLock::release($scan_id);
         }
 

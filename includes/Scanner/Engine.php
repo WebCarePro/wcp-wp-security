@@ -70,17 +70,20 @@ class Engine {
     }
 
     /**
-     * Recursively list PHP, JS, and scannable code files in target directory.
+     * Stream PHP, JS, and scannable code files in target directory via callback.
+     * Prevents giant in-memory array allocations during large filesystem scans.
      *
-     * @param string $dir
+     * @param string $dir Target directory
+     * @param callable $callback Callback receiving each string filepath
      * @param int $limit 0 for unlimited (default)
-     * @return array
+     * @return int Number of files processed
      */
-    public static function get_scannable_files($dir, $limit = 0) {
-        $files = [];
+    public static function stream_scannable_files(string $dir, callable $callback, int $limit = 0): int {
         if (!is_dir($dir)) {
-            return $files;
+            return 0;
         }
+
+        $count = 0;
 
         try {
             $dir_iterator = new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS);
@@ -123,8 +126,9 @@ class Engine {
 
                     // Check if file is executable code, recognized script extension, dotfile, or double-extension
                     if (in_array($ext, $allowed_exts, true) || $is_dotfile || substr_count($filename, '.') > 1) {
-                        $files[] = $item->getPathname();
-                        if ($limit > 0 && count($files) >= $limit) {
+                        $callback($item->getPathname());
+                        $count++;
+                        if ($limit > 0 && $count >= $limit) {
                             break;
                         }
                     }
@@ -135,6 +139,22 @@ class Engine {
             error_log('WCP Scanner: File discovery error in ' . $dir . ': ' . $e->getMessage());
         }
 
+        return $count;
+    }
+
+    /**
+     * Recursively list PHP, JS, and scannable code files in target directory.
+     *
+     * @param string $dir
+     * @param int $limit 0 for unlimited (default)
+     * @return array
+     */
+    public static function get_scannable_files($dir, $limit = 0) {
+        $files = [];
+        self::stream_scannable_files((string) $dir, function ($path) use (&$files) {
+            $files[] = $path;
+        }, (int) $limit);
         return $files;
     }
 }
+
