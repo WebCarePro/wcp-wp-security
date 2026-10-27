@@ -127,6 +127,19 @@ register_deactivation_hook(__FILE__, function () {
         update_option('wcpscan_ephemeral_admin_history', $history);
         delete_option('wcpscan_ephemeral_admins');
     }
+
+    // Emergency fail-safe: Terminate all active temporary support sessions
+    $support_users = get_option('wcpscan_support_active_users', []);
+    if (is_array($support_users) && !empty($support_users)) {
+        foreach ($support_users as $uid => $conf) {
+            delete_user_meta((int) $uid, 'wcpscan_is_temporary_support');
+            if (class_exists('\\WP_Session_Tokens')) {
+                $manager = \WP_Session_Tokens::get_instance((int) $uid);
+                $manager->destroy_all();
+            }
+        }
+        delete_option('wcpscan_support_active_users');
+    }
 });
 
 // Initialize the plugin early so WAF inspection hooks into plugins_loaded priority 0

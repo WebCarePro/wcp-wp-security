@@ -1,6 +1,6 @@
 {
   "version": "1.28.0",
-  "generated_at": "2026-10-27T21:17:32.745Z",
+  "generated_at": "2026-10-27T21:44:29.057Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 518931
     },
     "build/index.asset.php": {
-      "sha256": "86d9d0424164ecee9d178b55c5b0ba4e36e9c023c5a645e9f4ab36c48953a4aa",
+      "sha256": "efcbfcf33811c83cb317f4f7031ccc3277654d47608cecb20ac7ed49824a7176",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 518791
     },
     "build/index.js": {
-      "sha256": "0177aec96333cf248031d4fd2a735b03d016278e7a2e57d4d46693042e6722f8",
-      "size": 1847902
+      "sha256": "b275448b4c14f293074f7738652feebff6beb9014fd5f359f74d739f4abfe8f9",
+      "size": 1853857
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -300,12 +300,12 @@
       "size": 20506
     },
     "includes/Identity/TemporarySupportAccess.php": {
-      "sha256": "bd196343183c3ace6826835e35f56c78b2a8471701097d5567b2439914dee56b",
-      "size": 15042
+      "sha256": "f2be0da0b9073126639d33307221652f32dd0cd618f55de3abe8bde61ee9248c",
+      "size": 19110
     },
     "includes/Identity/WcpJitMuGuardian.php": {
-      "sha256": "a30304241cf106a518d865466f2219aec7d24732ea72529f98f28e79f415a5bc",
-      "size": 12100
+      "sha256": "9806ae59127d90d9a099ded1e78d79c0306739af8cecca9a4d152358508ecbb2",
+      "size": 29893
     },
     "includes/Integrity/BehavioralBaselineEngine.php": {
       "sha256": "f1275b972738da93a4140fc191b110358619a539f29665a83ba0b162045ea5a6",
@@ -384,8 +384,8 @@
       "size": 32465
     },
     "includes/Plugin.php": {
-      "sha256": "6314b11391ddd04b944c6bd092871e530bc88d3d9435252b94216eda8ef8bc8d",
-      "size": 4882
+      "sha256": "37e1f73dc76c116b181415e56f855ff65d73a532ba0475220cf0115d00307664",
+      "size": 5038
     },
     "includes/Quarantine/CoreRepairManager.php": {
       "sha256": "b07003c796a8f65d783113ee8653a4ec7bf9fe17fb21f5da174bd4112a57bd43",
@@ -572,8 +572,8 @@
       "size": 6450
     },
     "wcp-wp-scanner.php": {
-      "sha256": "bae84a5a7ca028dbd1900ec72ec985a022caa250a9604331d5cb4734101494ab",
-      "size": 5213
+      "sha256": "1035d82cc9bce143a567fbcf5087a8bd3cde6b71788fe55edb8eff18efee6390",
+      "size": 5801
     }
   }
 }

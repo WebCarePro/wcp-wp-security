@@ -77,6 +77,11 @@ class TemporarySupportAccess {
         $duration_hours = max(1, min(168, (int) ($args['duration_hours'] ?? 4))); // Default 4 hours, max 7 days (168h)
         $restrict_ip = !empty($args['restrict_ip']) ? sanitize_text_field(wp_unslash($args['restrict_ip'])) : '';
         $restrict_vault = !empty($args['restrict_vault']);
+        $block_plugin_deactivation = isset($args['block_plugin_deactivation']) ? !empty($args['block_plugin_deactivation']) : true;
+        $block_plugin_deletion     = isset($args['block_plugin_deletion']) ? !empty($args['block_plugin_deletion']) : true;
+        $block_plugin_install      = isset($args['block_plugin_install']) ? !empty($args['block_plugin_install']) : true;
+        $block_file_editor         = isset($args['block_file_editor']) ? !empty($args['block_file_editor']) : true;
+        $block_user_management     = isset($args['block_user_management']) ? !empty($args['block_user_management']) : true;
         $acting_admin = wp_get_current_user()->user_login ?: 'administrator';
 
         $token = wp_generate_password(48, false, false);
@@ -88,19 +93,25 @@ class TemporarySupportAccess {
         $signature = hash_hmac('sha256', $link_id . '|' . $expires_at . '|' . $restrict_ip, wp_salt('auth'));
 
         $record = [
-            'id'             => $link_id,
-            'label'          => $label,
-            'token_hash'     => hash('sha256', $token),
-            'signature'      => $signature,
-            'created_at'     => $created_at,
-            'created_by'     => $acting_admin,
-            'expires_at'     => $expires_at,
-            'duration_hours' => $duration_hours,
-            'restrict_ip'    => $restrict_ip,
-            'restrict_vault' => $restrict_vault,
-            'used_count'     => 0,
-            'last_used'      => null,
-            'revoked'        => false,
+            'id'                        => $link_id,
+            'label'                     => $label,
+            'token_hash'                => hash('sha256', $token),
+            'signature'                 => $signature,
+            'created_at'                => $created_at,
+            'created_by'                => $acting_admin,
+            'expires_at'                => $expires_at,
+            'duration_hours'            => $duration_hours,
+            'restrict_ip'               => $restrict_ip,
+            'restrict_vault'            => $restrict_vault,
+            'protect_security_plugin'   => true, // Inviolable MU guardian protection
+            'block_plugin_deactivation' => $block_plugin_deactivation,
+            'block_plugin_deletion'     => $block_plugin_deletion,
+            'block_plugin_install'      => $block_plugin_install,
+            'block_file_editor'         => $block_file_editor,
+            'block_user_management'     => $block_user_management,
+            'used_count'                => 0,
+            'last_used'                 => null,
+            'revoked'                   => false,
         ];
 
         $links = get_option(self::OPTION_LINKS, []);
@@ -109,6 +120,9 @@ class TemporarySupportAccess {
         }
         $links[$link_id] = $record;
         update_option(self::OPTION_LINKS, $links, false);
+
+        // Ensure MU Guardian watchdog is deployed
+        WcpJitMuGuardian::ensure_installed();
 
         // Construct magic login URL
         $magic_url = add_query_arg([
@@ -119,19 +133,25 @@ class TemporarySupportAccess {
 
         AuditLogger::log(
             'temporary_support_link_created',
-            sprintf('Temporary Support Link ("%s") created by %s. Valid for %d hours (Expires: %s). IP lock: %s.', $label, $acting_admin, $duration_hours, gmdate('Y-m-d H:i:s', $expires_at), $restrict_ip ?: 'None')
+            sprintf('Temporary Support Link ("%s") created by %s. Valid for %d hours (Expires: %s). IP lock: %s. Zero-Trust MU Shield active.', $label, $acting_admin, $duration_hours, gmdate('Y-m-d H:i:s', $expires_at), $restrict_ip ?: 'None')
         );
 
         return [
-            'success'          => true,
-            'link_id'          => $link_id,
-            'label'            => $label,
-            'magic_url'        => $magic_url,
-            'expires_at'       => $expires_at,
-            'remaining_human'  => human_time_diff($created_at, $expires_at),
-            'restrict_ip'      => $restrict_ip,
-            'restrict_vault'   => $restrict_vault,
-            'message'          => __('Temporary Support Link generated. Copy and share securely with the authorized technician.', 'wcp-security-scanner'),
+            'success'                   => true,
+            'link_id'                   => $link_id,
+            'label'                     => $label,
+            'magic_url'                 => $magic_url,
+            'expires_at'                => $expires_at,
+            'remaining_human'           => human_time_diff($created_at, $expires_at),
+            'restrict_ip'               => $restrict_ip,
+            'restrict_vault'            => $restrict_vault,
+            'protect_security_plugin'   => true,
+            'block_plugin_deactivation' => $block_plugin_deactivation,
+            'block_plugin_deletion'     => $block_plugin_deletion,
+            'block_plugin_install'      => $block_plugin_install,
+            'block_file_editor'         => $block_file_editor,
+            'block_user_management'     => $block_user_management,
+            'message'                   => __('Temporary Support Link generated with Zero-Trust MU Guardian protection. Copy and share securely with the authorized technician.', 'wcp-security-scanner'),
         ];
     }
 
@@ -206,6 +226,9 @@ class TemporarySupportAccess {
         // Mark session metadata
         update_user_meta($support_user->ID, 'wcpscan_is_temporary_support', $link_id);
 
+        // Register with Zero-Trust Must-Use Guardian watchdog
+        WcpJitMuGuardian::register_support_user($support_user->ID, $record, $client_ip);
+
         // Update record stats
         $record['used_count'] = ($record['used_count'] ?? 0) + 1;
         $record['last_used']  = time();
@@ -219,7 +242,7 @@ class TemporarySupportAccess {
 
         AuditLogger::log(
             'temporary_support_login_success',
-            sprintf('Temporary technician logged in via magic link "%s" from IP %s.', $record['label'], $client_ip)
+            sprintf('Temporary technician logged in via magic link "%s" from IP %s. Zero-Trust MU Guardian active.', $record['label'], $client_ip)
         );
 
         wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner'));
@@ -260,6 +283,9 @@ class TemporarySupportAccess {
      * @param string $link_id
      */
     private static function terminate_link_user_sessions(string $link_id): void {
+        // Revoke active sessions from Must-Use watchdog
+        WcpJitMuGuardian::revoke_link_sessions($link_id);
+
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $user_ids = $wpdb->get_col(
@@ -314,10 +340,25 @@ class TemporarySupportAccess {
         if ($changed) {
             update_option(self::OPTION_LINKS, $retained, false);
         }
+
+        // Clean up any stale support users in MU guardian
+        $active_support = get_option(WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if (is_array($active_support) && !empty($active_support)) {
+            $sup_changed = false;
+            foreach ($active_support as $uid => $conf) {
+                if (!empty($conf['expires_at']) && $conf['expires_at'] < $now) {
+                    unset($active_support[$uid]);
+                    $sup_changed = true;
+                }
+            }
+            if ($sup_changed) {
+                update_option(WcpJitMuGuardian::OPTION_SUPPORT_USERS, $active_support, true);
+            }
+        }
     }
 
     /**
-     * Filter capabilities to restrict Secret Vault and user management for temporary support sessions.
+     * Filter capabilities to restrict Secret Vault, plugins, and user management for temporary support sessions.
      *
      * @param array $allcaps
      * @param array $caps
@@ -335,9 +376,38 @@ class TemporarySupportAccess {
         $record = is_array($links) ? ($links[$link_id] ?? null) : null;
 
         // Disallow user creation or user deletion for temporary support accounts
-        $allcaps['create_users'] = false;
-        $allcaps['delete_users'] = false;
-        $allcaps['promote_users'] = false;
+        if (!isset($record['block_user_management']) || !empty($record['block_user_management'])) {
+            $allcaps['create_users']  = false;
+            $allcaps['delete_users']  = false;
+            $allcaps['promote_users'] = false;
+            $allcaps['remove_users']  = false;
+        }
+
+        // Disallow deactivating plugins
+        if (!isset($record['block_plugin_deactivation']) || !empty($record['block_plugin_deactivation'])) {
+            $allcaps['deactivate_plugins'] = false;
+        }
+
+        // Disallow deleting plugins or themes
+        if (!isset($record['block_plugin_deletion']) || !empty($record['block_plugin_deletion'])) {
+            $allcaps['delete_plugins'] = false;
+            $allcaps['delete_themes']  = false;
+        }
+
+        // Disallow installing arbitrary plugins or themes
+        if (!isset($record['block_plugin_install']) || !empty($record['block_plugin_install'])) {
+            $allcaps['install_plugins'] = false;
+            $allcaps['upload_plugins']  = false;
+            $allcaps['install_themes']  = false;
+            $allcaps['upload_themes']   = false;
+        }
+
+        // Disallow theme and plugin code editors
+        if (!isset($record['block_file_editor']) || !empty($record['block_file_editor'])) {
+            $allcaps['edit_plugins'] = false;
+            $allcaps['edit_themes']  = false;
+            $allcaps['edit_files']   = false;
+        }
 
         // If vault restricted, disallow export and credential viewing
         if (!empty($record['restrict_vault'])) {

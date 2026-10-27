@@ -1,4 +1,16 @@
 v:1.28.0 - 2026-10-28
+- Zero-Trust Must-Use Guardian & Sandboxed Temporary Support Access (`WcpJitMuGuardian.php`, `TemporarySupportAccess.php`, `TemporarySupportAccessCard.tsx`, `Plugin.php`, `wcp-wp-scanner.php`):
+  * Inviolable MU Security Watchdog: Deployed an infallible Must-Use plugin (`wp-content/mu-plugins/wcp-jit-guardian.php`) executing at earliest bootstrap (`muplugins_loaded`) that cannot be deactivated or deleted via the WordPress admin UI.
+  * Inviolable Anti-Tamper Shield: Strictly prohibits temporary support technicians and JIT administrators from deactivating, deleting, or modifying WCP Security Scanner, immediately aborting attempts with a 403 Forbidden intercept.
+  * Configurable Zero-Trust Sandboxing Shields: Added granular policy controls when generating Temporary Support links:
+    - Lock Plugin Deactivations: Prevents technicians from deactivating any active plugins on the site.
+    - Block Plugin/Theme Deletion: Prevents deleting or uninstalling existing plugins and themes.
+    - Block Plugin Installation: Disallows uploading or installing untrusted third-party plugins.
+    - Disable Code Editors: Blocks Theme & Plugin code editors (`theme-editor.php`, `plugin-editor.php`) to eliminate backdoor insertion vectors.
+    - Lock User Administration: Disallows creating new admin accounts, editing other users, or deleting existing accounts.
+    - Protect Secret Vault: Restricts credential viewing, exporting, and database backup downloads.
+  * UI Hardening & Action Link Filtering: Dynamically removes 'Deactivate' and 'Delete' links from `plugins.php` for protected plugins and renders high-contrast badges (`🛡️ Anti-Tamper Protected`, `🔒 Locked`).
+  * Infallible Auto-Termination: On every request, expired sessions are pruned and active user tokens destroyed; if WCP Security Scanner is ever deactivated, all temporary support sessions are instantly revoked.
 - Preload Micro-WAF & Early Execution Engine (`MicroWafCompiler.php`, `ScannerRoutes.php`):
   * Zero-Dependency Standalone Runtime: Engineered a lightweight Preload Micro-WAF compiled to OPcache-shared static PHP arrays (`micro-waf-compiled.php`), intercepting malicious requests in PHP's early request lifecycle via `auto_prepend_file` before WordPress core boots or database connections initialize.
   * Linux Fail2ban & CrowdSec Integration: Automatically formats and appends early dropped requests to a standardized append-only syslog (`wp-content/uploads/wcp-security-scanner/waf-logs/fail2ban.log`), enabling instant kernel/network-level blocking via Linux Fail2ban jails and CrowdSec parsers.
