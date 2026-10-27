@@ -65,6 +65,32 @@ v:1.28.0 - 2026-10-28
 - Deep Server Pre-loader & System Crontab Audits (`PersistenceScanner.php`):
   * Server-Level Pre-loader Audits: Deeply inspects `auto_prepend_file`, `auto_append_file`, `.user.ini`, `.htaccess`, and accessible PHP-FPM directives, intelligently exempting WCP's compiled micro-waf while flagging rogue pre-loaders.
   * Crontab & System Task Audits: Audits system crontabs (`/var/spool/cron`, `/etc/crontab`) when accessible, gracefully documenting shared hosting sandbox constraints.
+- Unified Threat Correlation Engine (`CorrelationEngine.php`, `ThreatCorrelationHierarchyCard.tsx`, `ForensicsPage.tsx`):
+  * 5-Tier Telemetry Hierarchy: Synthesizes disparate signals across Filesystem, Database, WAF, Identity, and Network into 5 structured intelligence tiers: Concrete Observed Facts (Tier 1) -> Contextualized Threat Indicators (Tier 2) -> Multi-Signal Temporal Correlations (Tier 3) -> Attack Kill-Chain Hypotheses (Tier 4) -> Actionable Containment Outcomes (Tier 5).
+  * Interactive Telemetry Navigator: Added interactive 5-tier correlation console under Forensics with filter chips, kill-chain timeline visualizations, and 1-click remediation actions.
+- Enhanced 1-Click Panic Button Emergency Containment Protocol (`EmergencyContainmentManager.php`, `OutboundEgressFirewall.php`, `App.tsx`, `SettingsPage.tsx`):
+  * Cloudflare Under-Attack Offload: Synchronizes containment activation directly to Cloudflare Free-Tier API tokens, activating Under-Attack Mode / Turnstile challenge pages to deflect volumetric DDoS and automated bots at the global edge.
+  * Outbound HTTP Egress Freeze: Integrates with `OutboundEgressFirewall` to intercept and drop all external HTTP requests originating from core, plugins, or themes to prevent attacker reverse shells, C2 beaconing, or data exfiltration during active containment.
+  * Automatic 72-Hour Forensic Snapshot: Captures an immediate compressed baseline archive of all files modified in the preceding 72 hours before lockdown to preserve volatile incident evidence.
+  * Prominent Header Panic Button: Integrated a 1-click "Panic Button" directly into the top header toolbar on every page for immediate incident containment.
+- Autonomous System Number (ASN) & TLS Fingerprint Session Binding (`SessionSentinel.php`):
+  * Advanced Network Drift Detection: Cryptographically anchors administrator session cookies to the origin Autonomous System Number (`HTTP_CF_IPASN`) and TLS Cipher Fingerprint (`SSL_CIPHER`), detecting session hijacking even when attackers rotate through residential proxies or rotate IP subnets within the same geographic region.
+  * Instant Token Liquidation: Liquidates compromised tokens in `wp_usermeta` and purges cookies immediately upon unverified ASN or TLS fingerprint drift.
+- Native Dependency-Free W3C WebAuthn Biometric Passkeys (`WebAuthnManager.php`, `WebAuthnPasskeyCard.tsx`, `AuthSecurityPage.tsx`):
+  * Zero-Dependency RFC 8812 Implementation: Implemented native W3C WebAuthn Level 2 passkey registration and biometric authentication in pure PHP (no external composer libraries), unpacking CBOR/COSE structures and validating cryptographic assertions via native `openssl_verify()`.
+  * Hardware Biometric Support: Enables frictionless hardware-backed authentication using Apple FaceID, TouchID, Windows Hello, Android Biometrics, and FIDO2 YubiKeys.
+  * Interactive Passkey Manager: Added a dedicated "Biometric Passkeys" subtab in Identity Armor with key registration, friendly naming, last-used timestamps, and hardware assertion testing.
+- Scoped Time-Bombed Emergency Support Access (`TemporarySupportAccess.php`, `TemporarySupportAccessCard.tsx`, `AuthSecurityPage.tsx`):
+  * Cryptographically Signed Magic Login Links: Provisions passwordless, ephemeral administrative access for external technicians with customizable duration (1 hour to 7 days), IP range binding, and HMAC-SHA256 signatures.
+  * Secret Vault Boundary Protection: Automatically restricts temporary support sessions from accessing the cryptographic Secret Vault, viewing decrypted API keys, or exporting raw database backups.
+  * Automated Account Liquidation: Tracks expiration with high-precision timebombs, auto-revoking credentials upon expiry.
+- 10-Vector Non-Destructive Attack Simulation Engine (`AttackSimulationEngine.php`):
+  * Expanded to 10 safe synthetic probe vectors (SQLi, LFI/RFI, XSS, Dotfile recon, REST user scraping, Uploads PHP execution, 404 Backdoor Fuzzing, AI Prompt-Injection, XML-RPC Pingback, and Server Rule Bypass) with explicit assertion evaluation (`PASS`, `FAIL`, `INCONCLUSIVE`).
+- Caddy v2 Security Directives & Perimeter Verification Suite (`ServerSecurityEngine.php`, `ServerSecurityTab.tsx`):
+  * Caddy v2 Snippet Generator: Auto-detects Caddy web server and generates modular `(wcp_security_rules)` blocks with 403 blocks on uploads PHP, sensitive dotfiles, XML-RPC, author scans, and HTTP security headers.
+  * Synthetic Perimeter Verification Probe: Added interactive "Run Perimeter Verification" tool simulating live loopback probes against server rules to verify whether sensitive files and upload executions are intercepted before PHP wakes up.
+
+
 
 
 

@@ -1522,6 +1522,82 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'check_domain_reputation_now'],
             'permission_callback' => $permission,
         ]);
+
+        // Phase 6: Threat Correlation Telemetry Hierarchy
+        register_rest_route(self::NAMESPACE, '/correlation/hierarchy', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_correlation_hierarchy'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Phase 6: WebAuthn Passkeys (Biometric FIDO2) Endpoints
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/register-options', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'webauthn_register_options'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/register-verify', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'webauthn_register_verify'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/credentials', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'webauthn_get_credentials'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/delete-credential', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'webauthn_delete_credential'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/login-options', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'webauthn_login_options'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/login-verify', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'webauthn_login_verify'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        // Phase 6: Scoped Time-Bombed Emergency Support Access
+        register_rest_route(self::NAMESPACE, '/identity/temporary-access/list', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_temporary_access_list'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/temporary-access/create', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'create_temporary_access'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/identity/temporary-access/revoke', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_temporary_access'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Phase 6: Server Security Verification & Caddy
+        register_rest_route(self::NAMESPACE, '/server-security/verify', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'verify_server_security_rules'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/server-security/caddy-config', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_caddy_server_config'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -9338,6 +9414,142 @@ class ScannerRoutes {
 
     public static function check_domain_reputation_now() {
         return rest_ensure_response(\WcpScanner\Firewall\DomainReputationMonitor::run_reputation_audit(true));
+    }
+
+    // ==========================================
+    // Phase 6: Threat Correlation Hierarchy Handlers
+    // ==========================================
+
+    public static function get_correlation_hierarchy() {
+        $engine = new \WcpScanner\Findings\CorrelationEngine();
+        return rest_ensure_response($engine->generate_telemetry_hierarchy());
+    }
+
+    // ==========================================
+    // Phase 6: WebAuthn Passkeys (Biometric FIDO2) Handlers
+    // ==========================================
+
+    public static function webauthn_register_options(\WP_REST_Request $request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new \WP_Error('unauthorized', __('Authentication required.', 'wcp-security-scanner'), ['status' => 401]);
+        }
+        return rest_ensure_response(\WcpScanner\Auth\WebAuthnManager::generate_registration_options($user_id));
+    }
+
+    public static function webauthn_register_verify(\WP_REST_Request $request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new \WP_Error('unauthorized', __('Authentication required.', 'wcp-security-scanner'), ['status' => 401]);
+        }
+        $params = $request->get_json_params() ?: [];
+        $payload = is_array($params['payload'] ?? null) ? $params['payload'] : [];
+        $label = sanitize_text_field(wp_unslash($params['label'] ?? ''));
+
+        $res = \WcpScanner\Auth\WebAuthnManager::verify_registration($user_id, $payload, $label);
+        if (empty($res['success'])) {
+            return new \WP_Error('verification_failed', $res['message'] ?? __('Passkey registration failed.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+        return rest_ensure_response($res);
+    }
+
+    public static function webauthn_get_credentials(\WP_REST_Request $request) {
+        $user_id = get_current_user_id();
+        return rest_ensure_response([
+            'success'     => true,
+            'credentials' => \WcpScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
+            'rp_id'       => \WcpScanner\Auth\WebAuthnManager::get_rp_id(),
+        ]);
+    }
+
+    public static function webauthn_delete_credential(\WP_REST_Request $request) {
+        $user_id = get_current_user_id();
+        $params = $request->get_json_params() ?: [];
+        $credential_id = sanitize_text_field(wp_unslash($params['credential_id'] ?? ''));
+
+        if (empty($credential_id)) {
+            return new \WP_Error('missing_id', __('Credential ID required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $deleted = \WcpScanner\Auth\WebAuthnManager::delete_credential($user_id, $credential_id);
+        return rest_ensure_response([
+            'success'     => $deleted,
+            'message'     => $deleted ? __('Passkey removed successfully.', 'wcp-security-scanner') : __('Passkey not found.', 'wcp-security-scanner'),
+            'credentials' => \WcpScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
+        ]);
+    }
+
+    public static function webauthn_login_options(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $username = sanitize_text_field(wp_unslash($params['username'] ?? ''));
+        return rest_ensure_response(\WcpScanner\Auth\WebAuthnManager::generate_login_options($username));
+    }
+
+    public static function webauthn_login_verify(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $session_id = sanitize_key($params['session_id'] ?? '');
+        $payload = is_array($params['payload'] ?? null) ? $params['payload'] : [];
+
+        if (empty($session_id) || empty($payload)) {
+            return new \WP_Error('missing_params', __('Authentication session and payload required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Auth\WebAuthnManager::verify_login($session_id, $payload);
+        if (empty($res['success'])) {
+            return new \WP_Error('login_failed', $res['message'] ?? __('Biometric login failed.', 'wcp-security-scanner'), ['status' => 401]);
+        }
+        return rest_ensure_response($res);
+    }
+
+    // ==========================================
+    // Phase 6: Scoped Temporary Support Access Handlers
+    // ==========================================
+
+    public static function get_temporary_access_list() {
+        return rest_ensure_response([
+            'success' => true,
+            'links'   => \WcpScanner\Identity\TemporarySupportAccess::get_active_links(),
+        ]);
+    }
+
+    public static function create_temporary_access(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $res = \WcpScanner\Identity\TemporarySupportAccess::create_support_link($params);
+        return rest_ensure_response($res);
+    }
+
+    public static function revoke_temporary_access(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $link_id = sanitize_key($params['link_id'] ?? '');
+
+        if (empty($link_id)) {
+            return new \WP_Error('missing_id', __('Link ID required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $revoked = \WcpScanner\Identity\TemporarySupportAccess::revoke_link($link_id);
+        return rest_ensure_response([
+            'success' => $revoked,
+            'message' => $revoked ? __('Support link revoked immediately.', 'wcp-security-scanner') : __('Link not found.', 'wcp-security-scanner'),
+            'links'   => \WcpScanner\Identity\TemporarySupportAccess::get_active_links(),
+        ]);
+    }
+
+    // ==========================================
+    // Phase 6: Server Security Verification & Caddy
+    // ==========================================
+
+    public static function verify_server_security_rules() {
+        return rest_ensure_response(\WcpScanner\Firewall\ServerSecurityEngine::verify_rule_enforcement());
+    }
+
+    public static function get_caddy_server_config() {
+        $options = \WcpScanner\Firewall\ServerSecurityEngine::get_options();
+        $config = \WcpScanner\Firewall\ServerSecurityEngine::generate_caddy_config($options);
+        return rest_ensure_response([
+            'success'   => true,
+            'config'    => $config,
+            'file_info' => \WcpScanner\Firewall\ServerSecurityEngine::get_file_info(),
+        ]);
     }
 }
 

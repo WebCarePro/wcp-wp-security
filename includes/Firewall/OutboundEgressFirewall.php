@@ -186,8 +186,18 @@ class OutboundEgressFirewall {
             }
         }
 
+        // 5. Emergency Containment Lockdown Enforcement
+        $is_containment = class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager') && \WcpScanner\Security\EmergencyContainmentManager::is_active();
+        if ($is_containment && !$threat) {
+            $is_core_host = ($host === 'api.wordpress.org' || $host === 'wordpress.org' || $host === 'downloads.wordpress.org');
+            if (!$is_core_host && !self::is_host_approved($host, $settings)) {
+                $threat = 'containment_outbound_freeze';
+                $reason = 'Outbound external network connection blocked by active Emergency Incident Containment protocol.';
+            }
+        }
+
         if ($threat) {
-            $is_enforced = ($settings['mode'] === 'enforce');
+            $is_enforced = ($settings['mode'] === 'enforce' || $is_containment);
             self::record_egress_event($url, $host, $caller, $threat, $reason, $is_enforced ? 'blocked' : 'monitored');
 
             if ($is_enforced) {

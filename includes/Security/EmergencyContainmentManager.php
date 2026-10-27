@@ -110,7 +110,30 @@ class EmergencyContainmentManager {
         // 1. Invalidate all user sessions except current admin
         $terminated_sessions_count = self::invalidate_all_sessions_except_current();
 
-        // 2. Persist active state and metadata
+        // 2. Trigger Cloudflare Under-Attack Mode if Cloudflare Edge is configured
+        $cf_toggled = false;
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        if (!empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id'])) {
+            $cf_res = \WcpScanner\Cloudflare\CloudflareService::request(
+                '/zones/' . $settings['cloudflare_zone_id'] . '/settings/security_level',
+                'PATCH',
+                ['value' => 'under_attack']
+            );
+            if (!empty($cf_res['success'])) {
+                $cf_toggled = true;
+            }
+        }
+
+        // 3. Capture an immediate emergency forensic snapshot of bespoke themes and plugins
+        $snapshot_result = null;
+        if (class_exists('\\WcpScanner\\Integrity\\LocalSnapshotManager')) {
+            $snapshot_result = \WcpScanner\Integrity\LocalSnapshotManager::create_snapshot(
+                'emergency_containment_' . gmdate('Ymd_His'),
+                'Emergency Incident Containment Baseline Snapshot'
+            );
+        }
+
+        // 4. Persist active state and metadata
         $meta = [
             'activated_at'        => time(),
             'activated_by_id'     => $current_user_id,
@@ -118,15 +141,17 @@ class EmergencyContainmentManager {
             'reason'              => $reason,
             'maintenance_enabled' => $maintenance,
             'sessions_purged'     => $terminated_sessions_count,
+            'cloudflare_toggled'  => $cf_toggled,
+            'snapshot_created'    => !empty($snapshot_result['success']),
         ];
 
         update_option(self::OPTION_ACTIVE, true, false);
         update_option(self::OPTION_META, $meta, false);
 
-        // 3. Log audit event
+        // 5. Log audit event
         AuditLogger::log(
             'containment_mode_activated',
-            sprintf('Emergency Containment Mode ACTIVATED by %s. Reason: %s. Terminated %d user sessions.', $username, $reason, $terminated_sessions_count)
+            sprintf('Emergency Containment Mode ACTIVATED by %s. Reason: %s. Terminated %d user sessions. Cloudflare Edge: %s.', $username, $reason, $terminated_sessions_count, $cf_toggled ? 'Under-Attack engaged' : 'N/A')
         );
 
         return [
@@ -137,6 +162,8 @@ class EmergencyContainmentManager {
             'reason'              => $reason,
             'maintenance_enabled' => $maintenance,
             'sessions_purged'     => $terminated_sessions_count,
+            'cloudflare_toggled'  => $cf_toggled,
+            'snapshot_created'    => !empty($snapshot_result['success']),
             'message'             => __('Emergency Containment Mode is now ACTIVE. The site blast radius has been frozen.', 'wcp-security-scanner'),
         ];
     }
@@ -157,6 +184,18 @@ class EmergencyContainmentManager {
         $old_meta = get_option(self::OPTION_META, []);
         $old_meta['deactivated_at'] = time();
         $old_meta['deactivated_by'] = $username;
+
+        // Restore Cloudflare security level if it was toggled during activation
+        if (!empty($old_meta['cloudflare_toggled'])) {
+            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            if (!empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id'])) {
+                \WcpScanner\Cloudflare\CloudflareService::request(
+                    '/zones/' . $settings['cloudflare_zone_id'] . '/settings/security_level',
+                    'PATCH',
+                    ['value' => 'medium']
+                );
+            }
+        }
 
         update_option(self::OPTION_ACTIVE, false, false);
         update_option(self::OPTION_META, $old_meta, false);

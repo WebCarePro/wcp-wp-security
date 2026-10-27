@@ -240,6 +240,26 @@ class SessionSentinel {
                 $sessions_meta[$current_verifier]['last_seen'] = time();
                 update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
             }
+
+            // Cryptographic Session Binding & ASN Drift Verification
+            $current_ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+            $current_asn = isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : '';
+            $recorded_asn = $decoded['asn'] ?? '';
+
+            $is_ip_valid = self::is_ip_match_or_subnet($current_login_ip, $ip, $decoded, $current_ua);
+            $asn_drift = (!empty($recorded_asn) && !empty($current_asn) && $recorded_asn !== $current_asn);
+            $ua_mismatch = (!empty($decoded['user_agent']) && !empty($current_ua) && $decoded['user_agent'] !== substr($current_ua, 0, 255));
+
+            if ((!empty($settings['session_lock_ip']) && !$is_ip_valid) || ($asn_drift && $ua_mismatch)) {
+                // Invalidate hijacked session
+                self::terminate_session($user_id, $current_token, 'Session Hijacking / ASN Drift Detected');
+                \WcpScanner\System\AuditLogger::log(
+                    'session_hijack_deflected',
+                    sprintf('Deflected hijacked administrative session for %s. Baseline IP %s (ASN %s) vs Incoming IP %s (ASN %s). Session liquidated.', $user->user_login, $current_login_ip, $recorded_asn ?: 'N/A', $ip, $current_asn ?: 'N/A')
+                );
+                wp_safe_redirect(add_query_arg('wcp_session_invalidated', '1', wp_login_url()));
+                exit;
+            }
         } catch (\Throwable $e) {
             // Failsafe: never disrupt WordPress admin execution
         }
@@ -359,6 +379,8 @@ class SessionSentinel {
                 'login_ip'   => $ip,
                 'alt_ip'     => $existing_decoded['alt_ip'] ?? '',
                 'user_agent' => substr(!empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : ($existing_decoded['user_agent'] ?? 'Unknown'), 0, 255),
+                'asn'        => isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : ($existing_decoded['asn'] ?? ''),
+                'tls_fp'     => !empty($_SERVER['SSL_CIPHER']) ? hash('sha256', (string) sanitize_text_field(wp_unslash($_SERVER['SSL_CIPHER']))) : ($existing_decoded['tls_fp'] ?? ''),
             ])),
         ];
 

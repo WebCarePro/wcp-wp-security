@@ -21,6 +21,7 @@ class ServerSecurityEngine {
     const WAF_FOLDER = 'wcp-security-scanner/waf';
     const NGINX_FILENAME = 'nginx-wcp-security.conf';
     const APACHE_FILENAME = 'apache-wcp-security.conf';
+    const CADDY_FILENAME = 'caddy-wcp-security.conf';
 
     /**
      * Default security matrix options
@@ -112,6 +113,7 @@ class ServerSecurityEngine {
         $dir = self::get_storage_dir();
         $nginx_path = $dir . '/' . self::NGINX_FILENAME;
         $apache_path = $dir . '/' . self::APACHE_FILENAME;
+        $caddy_path = $dir . '/' . self::CADDY_FILENAME;
         $htaccess_root = ABSPATH . '.htaccess';
 
         return [
@@ -125,6 +127,10 @@ class ServerSecurityEngine {
             'apache_path'          => $apache_path,
             'apache_exists'        => file_exists($apache_path),
             'apache_updated_at'    => file_exists($apache_path) ? gmdate('Y-m-d H:i:s', filemtime($apache_path)) : null,
+            'caddy_path'           => $caddy_path,
+            'caddy_exists'         => file_exists($caddy_path),
+            'caddy_updated_at'     => file_exists($caddy_path) ? gmdate('Y-m-d H:i:s', filemtime($caddy_path)) : null,
+            'caddy_import_code'    => 'import ' . $caddy_path,
             'htaccess_root'        => $htaccess_root,
             'htaccess_writable'    => wp_is_writable($htaccess_root) || (!file_exists($htaccess_root) && wp_is_writable(ABSPATH)),
         ];
@@ -432,6 +438,34 @@ class ServerSecurityEngine {
                 'options'      => $saved_opts,
                 'content'      => $content,
             ];
+        } elseif ($server_type === 'caddy') {
+            $content = self::generate_caddy_config($saved_opts);
+            $target_file = $file_info['caddy_path'];
+            $written = @file_put_contents($target_file, $content);
+            if ($written === false) {
+                return [
+                    'success' => false,
+                    'message' => sprintf(
+                        /* translators: %s: target file path */
+                        __('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'),
+                        $target_file
+                    ),
+                ];
+            }
+            if ($wp_filesystem) {
+                $wp_filesystem->chmod($target_file, 0644);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($target_file, 0644);
+            }
+            return [
+                'success'      => true,
+                'message'      => __('Caddy v2 security rules saved successfully.', 'wcp-security-scanner'),
+                'file_path'    => $target_file,
+                'include_code' => 'import ' . $target_file,
+                'options'      => $saved_opts,
+                'content'      => $content,
+            ];
         } else {
             // Apache / LiteSpeed
             $content = self::generate_apache_config($saved_opts);
@@ -505,6 +539,118 @@ class ServerSecurityEngine {
             'success'   => true,
             'message'   => __('Server security rules deployed directly into root .htaccess successfully.', 'wcp-security-scanner'),
             'file_path' => $htaccess_path,
+        ];
+    }
+
+    /**
+     * Generate complete Caddy v2 Security Configuration snippet.
+     *
+     * @param array $opts
+     * @return string
+     */
+    public static function generate_caddy_config(array $opts): string {
+        $now = gmdate('Y-m-d H:i:s \U\T\C');
+        $site_url = get_site_url();
+
+        $c = "# =========================================================================\n";
+        $c .= "# WebCare Pro - High Performance Caddy v2 Security Snippet\n";
+        $c .= "# Site: {$site_url}\n";
+        $c .= "# Generated: {$now}\n";
+        $c .= "# Import into your Caddyfile: import " . self::get_file_info()['caddy_path'] . "\n";
+        $c .= "# =========================================================================\n\n";
+
+        $c .= "(wcp_security_rules) {\n";
+
+        if (!empty($opts['block_uploads_php'])) {
+            $c .= "    # Deny direct PHP execution in media uploads directory\n";
+            $c .= "    @wcp_uploads_php path /wp-content/uploads/*.php /wp-content/uploads/*.phtml\n";
+            $c .= "    respond @wcp_uploads_php 403\n\n";
+        }
+
+        if (!empty($opts['block_sensitive_files'])) {
+            $c .= "    # Block access to hidden dotfiles, git repositories, and env files\n";
+            $c .= "    @wcp_sensitive_files path /.git* /.env* /.user.ini /wp-config.php*\n";
+            $c .= "    respond @wcp_sensitive_files 403\n\n";
+        }
+
+        if (!empty($opts['block_xmlrpc'])) {
+            $c .= "    # Disable XML-RPC endpoint to prevent brute-force amplification\n";
+            $c .= "    @wcp_xmlrpc path /xmlrpc.php\n";
+            $c .= "    respond @wcp_xmlrpc 403\n\n";
+        }
+
+        if (!empty($opts['block_author_scans'])) {
+            $c .= "    # Block author enumeration query strings\n";
+            $c .= "    @wcp_author {\n";
+            $c .= "        query author=*\n";
+            $c .= "    }\n";
+            $c .= "    respond @wcp_author 403\n\n";
+        }
+
+        // HTTP Security Headers
+        $c .= "    # Security Headers\n";
+        $c .= "    header {\n";
+        if (!empty($opts['header_x_frame_options'])) {
+            $c .= "        X-Frame-Options \"SAMEORIGIN\"\n";
+        }
+        if (!empty($opts['header_x_content_type'])) {
+            $c .= "        X-Content-Type-Options \"nosniff\"\n";
+        }
+        if (!empty($opts['header_referrer_policy'])) {
+            $c .= "        Referrer-Policy \"strict-origin-when-cross-origin\"\n";
+        }
+        if (!empty($opts['header_permissions'])) {
+            $c .= "        Permissions-Policy \"camera=(), microphone=(), geolocation=()\"\n";
+        }
+        if (!empty($opts['header_hsts'])) {
+            $c .= "        Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\"\n";
+        }
+        $c .= "    }\n";
+        $c .= "}\n";
+
+        return $c;
+    }
+
+    /**
+     * Safe loopback probe tester to verify whether server security rules are actively enforced.
+     *
+     * @return array
+     */
+    public static function verify_rule_enforcement(): array {
+        $server_software = isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown';
+
+        // Probe 1: Uploads Executable Probe
+        $probe_url = home_url('/wp-content/uploads/wcp_server_enforcement_test.php');
+        $args = [
+            'timeout'     => 8,
+            'redirection' => 0,
+            'sslverify'   => false,
+            'user-agent'  => 'WCP-Server-Verifier/1.0',
+        ];
+
+        $uploads_res = wp_remote_get($probe_url, $args);
+        $uploads_code = !is_wp_error($uploads_res) ? (int) wp_remote_retrieve_response_code($uploads_res) : 0;
+        $uploads_blocked = in_array($uploads_code, [400, 403, 404, 410], true);
+
+        // Probe 2: Sensitive Dotfile (.env) Probe
+        $env_url = home_url('/.env');
+        $env_res = wp_remote_get($env_url, $args);
+        $env_code = !is_wp_error($env_res) ? (int) wp_remote_retrieve_response_code($env_res) : 0;
+        $env_blocked = in_array($env_code, [400, 403, 404, 410], true);
+
+        $is_enforced = ($uploads_blocked && $env_blocked);
+
+        return [
+            'success'            => true,
+            'server_software'    => $server_software,
+            'uploads_code'       => $uploads_code,
+            'uploads_blocked'    => $uploads_blocked,
+            'env_code'           => $env_code,
+            'env_blocked'        => $env_blocked,
+            'active_enforcement' => $is_enforced,
+            'message'            => $is_enforced
+                ? __('Web server security rules are actively enforced at the perimeter (HTTP 403/404 responses confirmed).', 'wcp-security-scanner')
+                : __('Perimeter enforcement test inconclusive. Ensure the generated server config has been included in your Nginx, Apache, or Caddy configuration.', 'wcp-security-scanner'),
         ];
     }
 }

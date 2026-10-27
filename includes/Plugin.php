@@ -102,6 +102,12 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Firewall\\DomainReputationMonitor')) {
             \WcpScanner\Firewall\DomainReputationMonitor::init();
         }
+        if (class_exists('\\WcpScanner\\Auth\\WebAuthnManager')) {
+            \WcpScanner\Auth\WebAuthnManager::init();
+        }
+        if (class_exists('\\WcpScanner\\Identity\\TemporarySupportAccess')) {
+            \WcpScanner\Identity\TemporarySupportAccess::init();
+        }
         if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
             \WcpScanner\System\PluginUpdater::init();
         }
