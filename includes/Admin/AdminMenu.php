@@ -18,8 +18,25 @@ class AdminMenu {
         add_action('wp_ajax_wcpscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
     }
 
+    /**
+     * Get the menu icon as an inline base64-encoded SVG data URI with fallback to URL.
+     * Prevents broken image icons if static asset requests are delayed, misconfigured, or blocked.
+     *
+     * @return string
+     */
+    public static function get_menu_icon(): string {
+        $icon_file = plugin_dir_path(WCPSCAN_FILE) . 'assets/icon.svg';
+        if (file_exists($icon_file)) {
+            $svg_content = @file_get_contents($icon_file);
+            if ($svg_content !== false && !empty($svg_content)) {
+                return 'data:image/svg+xml;base64,' . base64_encode($svg_content);
+            }
+        }
+        return plugins_url('assets/icon.svg', WCPSCAN_FILE);
+    }
+
     public static function add_menu_page() {
-        $menu_icon = plugins_url('assets/icon.svg', WCPSCAN_FILE);
+        $menu_icon = self::get_menu_icon();
 
         // Main Menu: Dashboard
         add_menu_page(
@@ -431,7 +448,7 @@ class AdminMenu {
      * Enqueue custom admin CSS for official branding logo in sidebar and plugins page
      */
     public static function enqueue_brand_styles(): void {
-        $logo_url = plugins_url('assets/icon.svg', WCPSCAN_FILE);
+        $logo_url = self::get_menu_icon();
         $custom_css = "
             /* WCP Security Scanner - Sidebar Menu Icon */
             #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image img {
@@ -441,8 +458,18 @@ class AdminMenu {
                 object-fit: contain;
                 transition: transform 0.15s ease-in-out;
             }
+            #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image.svg {
+                background-repeat: no-repeat;
+                background-position: center;
+                background-size: 20px 20px;
+                opacity: 0.88;
+                transition: transform 0.15s ease-in-out, opacity 0.15s ease-in-out;
+            }
             #adminmenu #toplevel_page_wcp-security-scanner:hover .wp-menu-image img,
-            #adminmenu #toplevel_page_wcp-security-scanner.wp-has-current-submenu .wp-menu-image img {
+            #adminmenu #toplevel_page_wcp-security-scanner.wp-has-current-submenu .wp-menu-image img,
+            #adminmenu #toplevel_page_wcp-security-scanner:hover .wp-menu-image.svg,
+            #adminmenu #toplevel_page_wcp-security-scanner.wp-has-current-submenu .wp-menu-image.svg {
+                opacity: 1;
                 transform: scale(1.1);
             }
             /* WCP Security Scanner - Plugins List Page Brand Logo */
@@ -454,7 +481,7 @@ class AdminMenu {
                 width: 20px;
                 height: 20px;
                 margin-right: 8px;
-                background: url(\"" . esc_url($logo_url) . "\") no-repeat center center;
+                background: url(\"" . esc_attr($logo_url) . "\") no-repeat center center;
                 background-size: contain;
                 border-radius: 4px;
             }
