@@ -71,8 +71,9 @@ class WcpJitMuGuardian {
         }
 
         if ($wp_filesystem) {
+            $mode = defined('FS_CHMOD_FILE') ? FS_CHMOD_FILE : 0644;
             // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.PluginDirectoryWrite -- Intentional deployment of Must-Use plugin watchdog into mu-plugins directory
-            $written = $wp_filesystem->put_contents($target_file, $mu_code, FS_CHMOD_FILE);
+            $written = $wp_filesystem->put_contents($target_file, $mu_code, $mode);
             return (bool) $written;
         }
 
@@ -110,19 +111,23 @@ class WcpJitMuGuardian {
         $user = get_userdata($user_id);
 
         $support_users[$user_id] = [
-            'link_id'                   => $record['id'] ?? '',
-            'label'                     => $record['label'] ?? 'External Technician',
-            'user_login'                => $user ? $user->user_login : '',
-            'expires_at'                => $record['expires_at'] ?? (time() + 14400),
-            'protect_security_plugin'   => true,
-            'block_plugin_deactivation' => !empty($record['block_plugin_deactivation']),
-            'block_plugin_deletion'     => !empty($record['block_plugin_deletion']),
-            'block_plugin_install'      => !empty($record['block_plugin_install']),
-            'block_file_editor'         => !empty($record['block_file_editor']),
-            'block_user_management'     => !empty($record['block_user_management']),
-            'restrict_vault'            => !empty($record['restrict_vault']),
-            'client_ip'                 => $client_ip,
-            'login_at'                  => time(),
+            'link_id'                     => $record['id'] ?? '',
+            'label'                       => $record['label'] ?? 'External Technician',
+            'user_login'                  => $user ? $user->user_login : '',
+            'expires_at'                  => $record['expires_at'] ?? (time() + 14400),
+            'protect_security_plugin'     => true,
+            'block_plugin_deactivation'   => !empty($record['block_plugin_deactivation']),
+            'block_plugin_deletion'       => !empty($record['block_plugin_deletion']),
+            'block_plugin_install'        => !empty($record['block_plugin_install']),
+            'block_file_editor'           => !empty($record['block_file_editor']),
+            'block_user_management'       => !empty($record['block_user_management']),
+            'block_database_and_options'  => !empty($record['block_database_and_options']),
+            'block_tools_and_exports'     => !empty($record['block_tools_and_exports']),
+            'block_remediation_actions'   => !empty($record['block_remediation_actions']),
+            'block_settings_modification' => !empty($record['block_settings_modification']),
+            'restrict_vault'              => !empty($record['restrict_vault']),
+            'client_ip'                   => $client_ip,
+            'login_at'                    => time(),
         ];
 
         update_option(self::OPTION_SUPPORT_USERS, $support_users, true);
@@ -233,8 +238,21 @@ class WcpJitMuGuardianRuntime {
         // Block direct plugin deactivation & deletion attempts by JIT or support users
         add_action('admin_init', [__CLASS__, 'intercept_unauthorized_plugin_actions'], 0);
 
-        // Block theme/plugin code editors and unauthorized admin settings for support users
+        // Block options.php, core settings, tools, export/import, file editors, and user creation
         add_action('admin_init', [__CLASS__, 'enforce_editor_and_settings_restrictions'], 0);
+
+        // Intercept AJAX calls attempting to install, upload, or modify plugins/themes/users
+        add_action('admin_init', [__CLASS__, 'intercept_unauthorized_ajax_actions'], 0);
+
+        // Inviolable Database Options Shield: reject modifications to core options
+        add_filter('pre_update_option', [__CLASS__, 'guard_critical_options'], 1, 3);
+        $core_opts = ['siteurl', 'home', 'admin_email', 'users_can_register', 'default_role', 'active_plugins'];
+        foreach ($core_opts as $c_opt) {
+            add_filter('pre_update_option_' . $c_opt, [__CLASS__, 'guard_critical_option_direct'], 1, 3);
+        }
+
+        // Anti-Hijacking User Shield: disallow modifying credentials of support user or editing others
+        add_filter('wp_pre_insert_user_data', [__CLASS__, 'guard_user_tampering'], 1, 4);
 
         // Fail-Safe: If WCP Security Scanner is deactivated, instantly revoke all elevations and support sessions
         add_action('deactivated_plugin', [__CLASS__, 'on_plugin_deactivated']);
@@ -248,6 +266,131 @@ class WcpJitMuGuardianRuntime {
 
         // Admin Notice: Display informative sandboxed session indicator for temporary technicians
         add_action('admin_notices', [__CLASS__, 'render_support_session_notice']);
+
+        // Zero-Trust REST API Intercept: Block resetting defaults, importing, user/plugin creation, database remediation
+        add_filter('rest_pre_dispatch', [__CLASS__, 'intercept_unauthorized_rest_actions'], 10, 3);
+    }
+
+    /**
+     * Intercept destructive REST API requests
+     */
+    public static function intercept_unauthorized_rest_actions($result, $server, $request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return $result;
+        }
+
+        $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
+        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+            return $result;
+        }
+
+        $route = (is_object($request) && method_exists($request, 'get_route')) ? $request->get_route() : '';
+        if (empty($route)) {
+            return $result;
+        }
+
+        $cfg = $support_users[$user_id];
+        $method = (is_object($request) && method_exists($request, 'get_method')) ? strtoupper($request->get_method()) : 'GET';
+
+        // 1. Inviolable: Prohibit creating, viewing, or revoking temporary support links
+        if (strpos($route, '/wcp-scanner/v1/identity/temporary-access') !== false) {
+            return new \WP_Error(
+                'rest_forbidden',
+                esc_html__('Temporary Support Technicians are strictly prohibited from generating, viewing, or revoking temporary support access links.', 'wcp-security-scanner'),
+                ['status' => 403]
+            );
+        }
+
+        // 2. Inviolable: Prohibit Reset Defaults & Import Settings
+        if (strpos($route, '/wcp-scanner/v1/settings/reset') !== false) {
+            return new \WP_Error(
+                'rest_forbidden',
+                esc_html__('Temporary Support Technicians are strictly prohibited from resetting plugin settings to factory defaults.', 'wcp-security-scanner'),
+                ['status' => 403]
+            );
+        }
+
+        if (strpos($route, '/wcp-scanner/v1/settings/import') !== false) {
+            return new \WP_Error(
+                'rest_forbidden',
+                esc_html__('Temporary Support Technicians are strictly prohibited from importing or overwriting plugin settings.', 'wcp-security-scanner'),
+                ['status' => 403]
+            );
+        }
+
+        // 3. Prohibit modifying settings or whitelist if block_settings_modification
+        if (!empty($cfg['block_settings_modification'])) {
+            if (strpos($route, '/wcp-scanner/v1/settings') !== false && $method === 'POST') {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Temporary Support Technicians are operating in read-only diagnostic mode and cannot modify security settings.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+            if (strpos($route, '/wcp-scanner/v1/whitelist') !== false && $method === 'POST') {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Temporary Support Technicians are prohibited from modifying false-positive whitelist rules.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
+        // 4. Prohibit database row remediation / deletion / cleansing
+        if (!empty($cfg['block_database_and_options'])) {
+            if (strpos($route, '/wcp-scanner/v1/database') !== false && $method === 'POST') {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Temporary Support Technicians are prohibited from deleting or cleansing database records.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
+        // 5. Prohibit file remediation and user repair
+        if (!empty($cfg['block_remediation_actions'])) {
+            if ((strpos($route, '/wcp-scanner/v1/remediation') !== false || strpos($route, '/wcp-scanner/v1/user/remediate') !== false) && $method === 'POST') {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Remediation file deletion and user repairs are restricted during temporary support sessions.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
+        // 6. Prohibit updater operations
+        if (strpos($route, '/wcp-scanner/v1/updater') !== false && $method === 'POST') {
+            return new \WP_Error(
+                'rest_forbidden',
+                esc_html__('Plugin updates and rollbacks are restricted to permanent administrators.', 'wcp-security-scanner'),
+                ['status' => 403]
+            );
+        }
+
+        // 7. WordPress Core REST API: Block creating/modifying/deleting users
+        if (!empty($cfg['block_user_management'])) {
+            if (strpos($route, '/wp/v2/users') !== false && in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Temporary support technicians cannot create, modify, or delete user accounts via the REST API.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
+        // 8. WordPress Core REST API: Block installing or deleting plugins & themes
+        if (!empty($cfg['block_plugin_install'])) {
+            if ((strpos($route, '/wp/v2/plugins') !== false || strpos($route, '/wp/v2/themes') !== false) && in_array($method, ['POST', 'DELETE'], true)) {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Temporary support technicians cannot install or delete plugins or themes via the REST API.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -336,7 +479,7 @@ class WcpJitMuGuardianRuntime {
     }
 
     /**
-     * Enforce restrictions against Theme/Plugin file code editors and user management
+     * Enforce restrictions against options.php, core settings, code editors, and user management
      */
     public static function enforce_editor_and_settings_restrictions() {
         $user_id = get_current_user_id();
@@ -352,7 +495,76 @@ class WcpJitMuGuardianRuntime {
         $cfg = $support_users[$user_id];
         global $pagenow;
 
-        // Block File Editors
+        // 1. Unconditional Lockout: options.php
+        if ($pagenow === 'options.php') {
+            wp_die(
+                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                '<p>' . esc_html__('Direct modification of WordPress database options via options.php is strictly blocked for temporary support technicians.', 'wcp-security-scanner') . '</p>' .
+                '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
+                esc_html__('Access Denied', 'wcp-security-scanner'),
+                ['response' => 403]
+            );
+        }
+
+        // 2. Block Core Settings screens
+        if (!empty($cfg['block_database_and_options'])) {
+            $blocked_options_pages = [
+                'options-general.php', 'options-writing.php', 'options-reading.php',
+                'options-discussion.php', 'options-media.php', 'options-permalink.php', 'options-privacy.php'
+            ];
+            if (in_array($pagenow, $blocked_options_pages, true)) {
+                wp_die(
+                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                    '<p>' . esc_html__('Modifying core WordPress site settings and database options is restricted during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
+                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    ['response' => 403]
+                );
+            }
+        }
+
+        // 3. Block Plugin & Theme Installation screens and update.php uploads
+        if (!empty($cfg['block_plugin_install'])) {
+            if (in_array($pagenow, ['plugin-install.php', 'theme-install.php'], true)) {
+                wp_die(
+                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                    '<p>' . esc_html__('Installing or uploading new plugins and themes is strictly disabled during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
+                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    ['response' => 403]
+                );
+            }
+
+            if ($pagenow === 'update.php') {
+                $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
+                if (in_array($action, ['upload-plugin', 'upload-theme', 'install-plugin', 'install-theme', 'upload-plugin-cancel'], true)) {
+                    wp_die(
+                        '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                        '<p>' . esc_html__('Uploading or installing packages is strictly prohibited for temporary support technicians.', 'wcp-security-scanner') . '</p>',
+                        esc_html__('Access Denied', 'wcp-security-scanner'),
+                        ['response' => 403]
+                    );
+                }
+            }
+        }
+
+        // 4. Block Core Tools, Export, Import, Erase Personal Data
+        if (!empty($cfg['block_tools_and_exports'])) {
+            $blocked_tools_pages = [
+                'tools.php', 'import.php', 'export.php', 'export-personal-data.php', 'erase-personal-data.php'
+            ];
+            if (in_array($pagenow, $blocked_tools_pages, true)) {
+                wp_die(
+                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                    '<p>' . esc_html__('Core tools, database exports, and data import operations are restricted during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
+                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    ['response' => 403]
+                );
+            }
+        }
+
+        // 5. Block File Editors
         if (!empty($cfg['block_file_editor']) && in_array($pagenow, ['plugin-editor.php', 'theme-editor.php'], true)) {
             wp_die(
                 '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
@@ -363,7 +575,7 @@ class WcpJitMuGuardianRuntime {
             );
         }
 
-        // Block User Creation and User Deletion screens
+        // 6. Block User Creation and User Deletion screens
         if (!empty($cfg['block_user_management'])) {
             if ($pagenow === 'user-new.php') {
                 wp_die(
@@ -387,6 +599,134 @@ class WcpJitMuGuardianRuntime {
                 );
             }
         }
+    }
+
+    /**
+     * Intercept AJAX actions attempting to install, upload, or modify plugins/themes/users
+     */
+    public static function intercept_unauthorized_ajax_actions() {
+        if (!wp_doing_ajax()) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return;
+        }
+
+        $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
+        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+            return;
+        }
+
+        $cfg = $support_users[$user_id];
+        $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
+        if (empty($action)) {
+            return;
+        }
+
+        $blocked_ajax = [];
+        if (!empty($cfg['block_plugin_install'])) {
+            $blocked_ajax = array_merge($blocked_ajax, [
+                'install-plugin', 'upload-plugin', 'install-theme', 'upload-theme',
+                'update-plugin', 'update-theme'
+            ]);
+        }
+        if (!empty($cfg['block_plugin_deletion'])) {
+            $blocked_ajax = array_merge($blocked_ajax, ['delete-plugin', 'delete-theme']);
+        }
+        if (!empty($cfg['block_file_editor'])) {
+            $blocked_ajax = array_merge($blocked_ajax, ['edit-theme-plugin-file']);
+        }
+        if (!empty($cfg['block_user_management'])) {
+            $blocked_ajax = array_merge($blocked_ajax, ['save-user', 'create-user', 'delete-user']);
+        }
+
+        if (in_array($action, $blocked_ajax, true)) {
+            wp_send_json_error([
+                'message' => esc_html__('This action is strictly prohibited during temporary support sessions.', 'wcp-security-scanner')
+            ], 403);
+        }
+    }
+
+    /**
+     * Inviolable Database Options Shield: reject modifications to core options
+     */
+    public static function guard_critical_options($value, $option, $old_value) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return $value;
+        }
+
+        $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
+        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+            return $value;
+        }
+
+        $cfg = $support_users[$user_id];
+        if (!empty($cfg['block_database_and_options'])) {
+            $guarded_options = [
+                'siteurl', 'home', 'admin_email', 'users_can_register', 'default_role',
+                'active_plugins', 'permalink_structure', 'category_base', 'tag_base',
+                'WPLANG', 'blogname', 'blogdescription'
+            ];
+            if (in_array($option, $guarded_options, true) || strpos($option, 'wcpscan_') === 0) {
+                return $old_value;
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * Direct Option Filter Adapter for pre_update_option_{$option} hook
+     */
+    public static function guard_critical_option_direct($value, $old_value, $option = '') {
+        if (empty($option)) {
+            $filter = current_filter();
+            if (strpos($filter, 'pre_update_option_') === 0) {
+                $option = substr($filter, strlen('pre_update_option_'));
+            }
+        }
+        return self::guard_critical_options($value, $option, $old_value);
+    }
+
+    /**
+     * Anti-Hijacking User Shield: disallow modifying credentials of support user or editing others
+     */
+    public static function guard_user_tampering($data, $update, $user_id, $userdata) {
+        $acting_uid = get_current_user_id();
+        if (!$acting_uid) {
+            return $data;
+        }
+
+        $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
+        if (!is_array($support_users) || !isset($support_users[$acting_uid])) {
+            return $data;
+        }
+
+        // Rule 1: Temporary support technician cannot edit other user accounts
+        if ($acting_uid !== (int) $user_id) {
+            wp_die(
+                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
+                '<p>' . esc_html__('Temporary support technicians are prohibited from modifying other user accounts.', 'wcp-security-scanner') . '</p>',
+                esc_html__('Access Denied', 'wcp-security-scanner'),
+                ['response' => 403]
+            );
+        }
+
+        // Rule 2: Cannot change their own username, email, or password (prevents account hijacking/persistence)
+        if ($update && isset($userdata['user_pass']) && $data['user_pass'] !== $userdata['user_pass']) {
+            $data['user_pass'] = $userdata['user_pass'];
+        }
+        if ($update && isset($userdata['user_email'])) {
+            $data['user_email'] = $userdata['user_email'];
+        }
+        if ($update && isset($userdata['user_login'])) {
+            $data['user_login'] = $userdata['user_login'];
+        }
+
+        return $data;
     }
 
     /**
@@ -439,13 +779,18 @@ class WcpJitMuGuardianRuntime {
                 return ['do_not_allow'];
             }
 
-            // Block arbitrary plugin/theme installations
-            if (!empty($cfg['block_plugin_install']) && in_array($cap, ['install_plugins', 'upload_plugins', 'install_themes', 'upload_themes'], true)) {
+            // Block arbitrary plugin/theme installations, uploads, and updates
+            if (!empty($cfg['block_plugin_install']) && in_array($cap, ['install_plugins', 'upload_plugins', 'update_plugins', 'install_themes', 'upload_themes', 'update_themes', 'switch_themes', 'update_core'], true)) {
                 return ['do_not_allow'];
             }
 
             // Block Theme & Plugin code editors
             if (!empty($cfg['block_file_editor']) && in_array($cap, ['edit_plugins', 'edit_themes', 'edit_files'], true)) {
+                return ['do_not_allow'];
+            }
+
+            // Block core tools, database export, import, and personal data erasure
+            if (!empty($cfg['block_tools_and_exports']) && in_array($cap, ['export', 'import', 'erase_others_personal_data', 'manage_privacy_options', 'export_others_personal_data'], true)) {
                 return ['do_not_allow'];
             }
 

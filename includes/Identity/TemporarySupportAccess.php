@@ -47,6 +47,11 @@ class TemporarySupportAccess {
      * @return array
      */
     public static function get_active_links(): array {
+        $acting_uid = get_current_user_id();
+        if (!empty(get_user_meta($acting_uid, 'wcpscan_is_temporary_support', true))) {
+            return [];
+        }
+
         $links = get_option(self::OPTION_LINKS, []);
         if (!is_array($links)) {
             return [];
@@ -73,15 +78,27 @@ class TemporarySupportAccess {
      * @return array
      */
     public static function create_support_link(array $args): array {
+        $acting_uid = get_current_user_id();
+        if (!empty(get_user_meta($acting_uid, 'wcpscan_is_temporary_support', true))) {
+            return [
+                'success' => false,
+                'message' => __('Access Denied: Temporary support technicians are strictly prohibited from generating support links.', 'wcp-security-scanner'),
+            ];
+        }
+
         $label = !empty($args['label']) ? sanitize_text_field(wp_unslash($args['label'])) : 'External Technician Access';
         $duration_hours = max(1, min(168, (int) ($args['duration_hours'] ?? 4))); // Default 4 hours, max 7 days (168h)
         $restrict_ip = !empty($args['restrict_ip']) ? sanitize_text_field(wp_unslash($args['restrict_ip'])) : '';
-        $restrict_vault = !empty($args['restrict_vault']);
-        $block_plugin_deactivation = isset($args['block_plugin_deactivation']) ? !empty($args['block_plugin_deactivation']) : true;
-        $block_plugin_deletion     = isset($args['block_plugin_deletion']) ? !empty($args['block_plugin_deletion']) : true;
-        $block_plugin_install      = isset($args['block_plugin_install']) ? !empty($args['block_plugin_install']) : true;
-        $block_file_editor         = isset($args['block_file_editor']) ? !empty($args['block_file_editor']) : true;
-        $block_user_management     = isset($args['block_user_management']) ? !empty($args['block_user_management']) : true;
+        $restrict_vault = isset($args['restrict_vault']) ? !empty($args['restrict_vault']) : true;
+        $block_plugin_deactivation  = isset($args['block_plugin_deactivation']) ? !empty($args['block_plugin_deactivation']) : true;
+        $block_plugin_deletion      = isset($args['block_plugin_deletion']) ? !empty($args['block_plugin_deletion']) : true;
+        $block_plugin_install       = isset($args['block_plugin_install']) ? !empty($args['block_plugin_install']) : true;
+        $block_file_editor          = isset($args['block_file_editor']) ? !empty($args['block_file_editor']) : true;
+        $block_user_management      = isset($args['block_user_management']) ? !empty($args['block_user_management']) : true;
+        $block_database_and_options = isset($args['block_database_and_options']) ? !empty($args['block_database_and_options']) : true;
+        $block_tools_and_exports    = isset($args['block_tools_and_exports']) ? !empty($args['block_tools_and_exports']) : true;
+        $block_remediation_actions  = isset($args['block_remediation_actions']) ? !empty($args['block_remediation_actions']) : true;
+        $block_settings_modification = isset($args['block_settings_modification']) ? !empty($args['block_settings_modification']) : true;
         $acting_admin = wp_get_current_user()->user_login ?: 'administrator';
 
         $token = wp_generate_password(48, false, false);
@@ -93,25 +110,29 @@ class TemporarySupportAccess {
         $signature = hash_hmac('sha256', $link_id . '|' . $expires_at . '|' . $restrict_ip, wp_salt('auth'));
 
         $record = [
-            'id'                        => $link_id,
-            'label'                     => $label,
-            'token_hash'                => hash('sha256', $token),
-            'signature'                 => $signature,
-            'created_at'                => $created_at,
-            'created_by'                => $acting_admin,
-            'expires_at'                => $expires_at,
-            'duration_hours'            => $duration_hours,
-            'restrict_ip'               => $restrict_ip,
-            'restrict_vault'            => $restrict_vault,
-            'protect_security_plugin'   => true, // Inviolable MU guardian protection
-            'block_plugin_deactivation' => $block_plugin_deactivation,
-            'block_plugin_deletion'     => $block_plugin_deletion,
-            'block_plugin_install'      => $block_plugin_install,
-            'block_file_editor'         => $block_file_editor,
-            'block_user_management'     => $block_user_management,
-            'used_count'                => 0,
-            'last_used'                 => null,
-            'revoked'                   => false,
+            'id'                          => $link_id,
+            'label'                       => $label,
+            'token_hash'                  => hash('sha256', $token),
+            'signature'                   => $signature,
+            'created_at'                  => $created_at,
+            'created_by'                  => $acting_admin,
+            'expires_at'                  => $expires_at,
+            'duration_hours'              => $duration_hours,
+            'restrict_ip'                 => $restrict_ip,
+            'restrict_vault'              => $restrict_vault,
+            'protect_security_plugin'     => true, // Inviolable MU guardian protection
+            'block_plugin_deactivation'   => $block_plugin_deactivation,
+            'block_plugin_deletion'       => $block_plugin_deletion,
+            'block_plugin_install'        => $block_plugin_install,
+            'block_file_editor'           => $block_file_editor,
+            'block_user_management'       => $block_user_management,
+            'block_database_and_options'  => $block_database_and_options,
+            'block_tools_and_exports'     => $block_tools_and_exports,
+            'block_remediation_actions'   => $block_remediation_actions,
+            'block_settings_modification' => $block_settings_modification,
+            'used_count'                  => 0,
+            'last_used'                   => null,
+            'revoked'                     => false,
         ];
 
         $links = get_option(self::OPTION_LINKS, []);
@@ -137,21 +158,25 @@ class TemporarySupportAccess {
         );
 
         return [
-            'success'                   => true,
-            'link_id'                   => $link_id,
-            'label'                     => $label,
-            'magic_url'                 => $magic_url,
-            'expires_at'                => $expires_at,
-            'remaining_human'           => human_time_diff($created_at, $expires_at),
-            'restrict_ip'               => $restrict_ip,
-            'restrict_vault'            => $restrict_vault,
-            'protect_security_plugin'   => true,
-            'block_plugin_deactivation' => $block_plugin_deactivation,
-            'block_plugin_deletion'     => $block_plugin_deletion,
-            'block_plugin_install'      => $block_plugin_install,
-            'block_file_editor'         => $block_file_editor,
-            'block_user_management'     => $block_user_management,
-            'message'                   => __('Temporary Support Link generated with Zero-Trust MU Guardian protection. Copy and share securely with the authorized technician.', 'wcp-security-scanner'),
+            'success'                     => true,
+            'link_id'                     => $link_id,
+            'label'                       => $label,
+            'magic_url'                   => $magic_url,
+            'expires_at'                  => $expires_at,
+            'remaining_human'             => human_time_diff($created_at, $expires_at),
+            'restrict_ip'                 => $restrict_ip,
+            'restrict_vault'              => $restrict_vault,
+            'protect_security_plugin'     => true,
+            'block_plugin_deactivation'   => $block_plugin_deactivation,
+            'block_plugin_deletion'       => $block_plugin_deletion,
+            'block_plugin_install'        => $block_plugin_install,
+            'block_file_editor'           => $block_file_editor,
+            'block_user_management'       => $block_user_management,
+            'block_database_and_options'  => $block_database_and_options,
+            'block_tools_and_exports'     => $block_tools_and_exports,
+            'block_remediation_actions'   => $block_remediation_actions,
+            'block_settings_modification' => $block_settings_modification,
+            'message'                     => __('Temporary Support Link generated with Zero-Trust MU Guardian protection. Copy and share securely with the authorized technician.', 'wcp-security-scanner'),
         ];
     }
 
@@ -256,6 +281,11 @@ class TemporarySupportAccess {
      * @return bool
      */
     public static function revoke_link(string $link_id): bool {
+        $acting_uid = get_current_user_id();
+        if (!empty(get_user_meta($acting_uid, 'wcpscan_is_temporary_support', true))) {
+            return false;
+        }
+
         $links = get_option(self::OPTION_LINKS, []);
         if (!is_array($links) || !isset($links[$link_id])) {
             return false;
@@ -394,12 +424,16 @@ class TemporarySupportAccess {
             $allcaps['delete_themes']  = false;
         }
 
-        // Disallow installing arbitrary plugins or themes
+        // Disallow installing, uploading, or updating arbitrary plugins or themes
         if (!isset($record['block_plugin_install']) || !empty($record['block_plugin_install'])) {
             $allcaps['install_plugins'] = false;
             $allcaps['upload_plugins']  = false;
+            $allcaps['update_plugins']  = false;
             $allcaps['install_themes']  = false;
             $allcaps['upload_themes']   = false;
+            $allcaps['update_themes']   = false;
+            $allcaps['switch_themes']   = false;
+            $allcaps['update_core']     = false;
         }
 
         // Disallow theme and plugin code editors
@@ -407,6 +441,21 @@ class TemporarySupportAccess {
             $allcaps['edit_plugins'] = false;
             $allcaps['edit_themes']  = false;
             $allcaps['edit_files']   = false;
+        }
+
+        // Disallow core tools, database export, import, and personal data erasure
+        if (!isset($record['block_tools_and_exports']) || !empty($record['block_tools_and_exports'])) {
+            $allcaps['export']                      = false;
+            $allcaps['import']                      = false;
+            $allcaps['erase_others_personal_data']  = false;
+            $allcaps['manage_privacy_options']      = false;
+            $allcaps['export_others_personal_data'] = false;
+        }
+
+        // Disallow dashboard customization & options
+        if (!isset($record['block_database_and_options']) || !empty($record['block_database_and_options'])) {
+            $allcaps['edit_dashboard'] = false;
+            $allcaps['customize']      = false;
         }
 
         // If vault restricted, disallow export and credential viewing

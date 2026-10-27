@@ -442,7 +442,8 @@ class LocalSnapshotManager {
         global $wp_filesystem;
         $written = false;
         if ($wp_filesystem) {
-            $written = $wp_filesystem->put_contents($live_path, $content, FS_CHMOD_FILE);
+            $mode = defined('FS_CHMOD_FILE') ? FS_CHMOD_FILE : 0644;
+            $written = $wp_filesystem->put_contents($live_path, $content, $mode);
         } else {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected -- Restoring verified baseline code file back to original location.
             $written = (@file_put_contents($live_path, $content, LOCK_EX) !== false);

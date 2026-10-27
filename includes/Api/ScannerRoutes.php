@@ -5558,13 +5558,43 @@ class ScannerRoutes {
         $settings = \WcpScanner\System\SettingsManager::get_settings();
         $time_info = self::build_schedule_time_info();
 
+        $uid = get_current_user_id();
+        $is_support = false;
+        $restrictions = [];
+        if ($uid) {
+            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $is_support = !empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
+            if ($is_support && is_array($support_users) && isset($support_users[$uid])) {
+                $restrictions = $support_users[$uid];
+            }
+        }
+
+        // Redact Secret Vault keys if accessed by temporary support technician
+        if ($is_support) {
+            $secret_keys = [
+                'cloudflare_api_token',
+                'cloudflare_global_api_key',
+                'ai_api_key',
+                'mcp_token',
+                'smtp_password',
+                'webhook_url',
+            ];
+            foreach ($secret_keys as $skey) {
+                if (!empty($settings[$skey])) {
+                    $settings[$skey] = '••••••••••••••••';
+                }
+            }
+        }
+
         return rest_ensure_response([
-            'success'           => true,
-            'settings'          => $settings,
-            'ai_connect_status' => \WcpScanner\System\AIService::get_ai_connect_status(),
-            'next_scheduled'    => $time_info['next_scheduled_wp'],
-            'schedule_time'     => $time_info,
-            'current_time'      => $time_info['current_wp_time'],
+            'success'                        => true,
+            'settings'                       => $settings,
+            'ai_connect_status'              => \WcpScanner\System\AIService::get_ai_connect_status(),
+            'next_scheduled'                 => $time_info['next_scheduled_wp'],
+            'schedule_time'                  => $time_info,
+            'current_time'                   => $time_info['current_wp_time'],
+            'is_temporary_support'           => $is_support,
+            'temporary_support_restrictions' => $restrictions,
         ]);
     }
 
@@ -5572,6 +5602,21 @@ class ScannerRoutes {
      * Save plugin settings
      */
     public static function save_settings(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        if ($uid) {
+            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+                $cfg = $support_users[$uid] ?? [];
+                if (!isset($cfg['block_settings_modification']) || !empty($cfg['block_settings_modification'])) {
+                    return new \WP_Error(
+                        'rest_forbidden',
+                        __('Access Denied: Temporary support technicians are prohibited from modifying security settings.', 'wcp-security-scanner'),
+                        ['status' => 403]
+                    );
+                }
+            }
+        }
+
         $params = $request->get_json_params();
         if (!is_array($params)) {
             $params = $request->get_body_params();
@@ -5619,6 +5664,18 @@ class ScannerRoutes {
             return new \WP_Error('invalid_import', __('Invalid JSON data.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
+        $uid = get_current_user_id();
+        if ($uid) {
+            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    __('Temporary support technicians are strictly prohibited from importing or overwriting plugin settings.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
         try {
             $imported = \WcpScanner\System\SettingsManager::import_settings($payload);
             return rest_ensure_response([
@@ -5635,6 +5692,18 @@ class ScannerRoutes {
      * Reset settings to factory defaults
      */
     public static function reset_settings(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        if ($uid) {
+            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    __('Temporary support technicians are strictly prohibited from resetting plugin settings to factory defaults.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
+        }
+
         $defaults = \WcpScanner\System\SettingsManager::reset_defaults();
         return rest_ensure_response([
             'success'  => true,
@@ -6609,6 +6678,12 @@ class ScannerRoutes {
      * Database Row Remediation (Delete row or cleanse field with auto-backup snapshot)
      */
     public static function remediate_database_row(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Database row remediation and deletion is prohibited during temporary support sessions.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
         $params = $request->get_json_params() ?: [];
         $table = !empty($params['table']) ? sanitize_text_field($params['table']) : '';
         $column = !empty($params['column']) ? sanitize_text_field($params['column']) : '';
@@ -6682,6 +6757,12 @@ class ScannerRoutes {
      * Restore Database Row from Auto-Backup Snapshot
      */
     public static function restore_database_row(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Database restoration is prohibited during temporary support sessions.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
         $params = $request->get_json_params() ?: [];
         $backup_id = !empty($params['backup_id']) ? sanitize_text_field($params['backup_id']) : '';
 
@@ -6708,6 +6789,12 @@ class ScannerRoutes {
      * - 'delete_user': Safely deletes anomalous/ghost account with mandatory pre-action snapshot.
      */
     public static function remediate_user(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: User account remediation is prohibited during temporary support sessions.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
         global $wpdb;
 
         $params = $request->get_json_params() ?: [];
@@ -9506,6 +9593,12 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_temporary_access_list() {
+        $uid = get_current_user_id();
+        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Temporary support technicians cannot view access links.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
         return rest_ensure_response([
             'success' => true,
             'links'   => \WcpScanner\Identity\TemporarySupportAccess::get_active_links(),
@@ -9513,12 +9606,27 @@ class ScannerRoutes {
     }
 
     public static function create_temporary_access(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Temporary support technicians are prohibited from generating new support links.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
         $params = $request->get_json_params() ?: [];
         $res = \WcpScanner\Identity\TemporarySupportAccess::create_support_link($params);
+        if (empty($res['success'])) {
+            return new \WP_Error('creation_failed', $res['message'] ?? __('Failed to create support link.', 'wcp-security-scanner'), ['status' => 403]);
+        }
         return rest_ensure_response($res);
     }
 
     public static function revoke_temporary_access(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Temporary support technicians are prohibited from revoking support links.', 'wcp-security-scanner'), ['status' => 403]);
+        }
+
         $params = $request->get_json_params() ?: [];
         $link_id = sanitize_key($params['link_id'] ?? '');
 

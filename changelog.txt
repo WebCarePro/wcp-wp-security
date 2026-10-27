@@ -1,14 +1,14 @@
 v:1.28.0 - 2026-10-28
-- Zero-Trust Must-Use Guardian & Sandboxed Temporary Support Access (`WcpJitMuGuardian.php`, `TemporarySupportAccess.php`, `TemporarySupportAccessCard.tsx`, `Plugin.php`, `wcp-wp-scanner.php`):
+- Zero-Trust Must-Use Guardian & Sandboxed Temporary Support Access (`WcpJitMuGuardian.php`, `TemporarySupportAccess.php`, `TemporarySupportAccessCard.tsx`, `SettingsPage.tsx`, `ScannerRoutes.php`, `Plugin.php`, `wcp-wp-scanner.php`):
   * Inviolable MU Security Watchdog: Deployed an infallible Must-Use plugin (`wp-content/mu-plugins/wcp-jit-guardian.php`) executing at earliest bootstrap (`muplugins_loaded`) that cannot be deactivated or deleted via the WordPress admin UI.
   * Inviolable Anti-Tamper Shield: Strictly prohibits temporary support technicians and JIT administrators from deactivating, deleting, or modifying WCP Security Scanner, immediately aborting attempts with a 403 Forbidden intercept.
-  * Configurable Zero-Trust Sandboxing Shields: Added granular policy controls when generating Temporary Support links:
-    - Lock Plugin Deactivations: Prevents technicians from deactivating any active plugins on the site.
-    - Block Plugin/Theme Deletion: Prevents deleting or uninstalling existing plugins and themes.
-    - Block Plugin Installation: Disallows uploading or installing untrusted third-party plugins.
-    - Disable Code Editors: Blocks Theme & Plugin code editors (`theme-editor.php`, `plugin-editor.php`) to eliminate backdoor insertion vectors.
-    - Lock User Administration: Disallows creating new admin accounts, editing other users, or deleting existing accounts.
-    - Protect Secret Vault: Restricts credential viewing, exporting, and database backup downloads.
+  * Anti-Sub-Account & Delegation Lockdown: Strictly prohibits temporary technicians from creating new temporary support accounts, inspecting active magic login links, or revoking existing credentials, shutting down privilege escalation vectors.
+  * Plugin & Theme Installation Lockdown: Intercepts `plugin-install.php`, `theme-install.php`, `update.php` package uploads, core REST endpoints (`/wp/v2/plugins`, `/wp/v2/themes`), and AJAX installer actions (`install-plugin`, `upload-plugin`, `install-theme`, `upload-theme`).
+  * Database & Core Options Protection: Blocks direct navigation to `wp-admin/options.php` with an immediate 403 exit, restricts `options-*.php` core settings screens, filters `pre_update_option` on critical options (`siteurl`, `home`, `admin_email`, `active_plugins`, `wcpscan_*`), and rejects database row modification endpoints (`/database/*`, `/remediation/*`).
+  * Anti-Account Hijacking & Persistence Defense: Hooks `wp_pre_insert_user_data` to forbid temporary technicians from modifying other user accounts or changing their own username, email, or password to establish unauthorized persistence.
+  * Secret Vault Redaction: Redacts sensitive API tokens (Cloudflare, AI keys, MCP tokens, webhooks, SMTP credentials) in `/settings` responses for temporary sessions.
+  * Plugin Settings Read-Only Enforcement: Forbids settings reset (`/settings/reset`), import (`/settings/import`), and configuration updates, rendering a locked "Reset Defaults (Locked)" button with a Lock icon and contextual Zero-Trust session notices in `SettingsPage.tsx`.
+  * Configurable Zero-Trust Sandboxing Shields: Added granular policy toggles in `TemporarySupportAccessCard.tsx` covering plugin deactivation, package installation, file editors, user administration, secret vault, database/options protection, tools/exports restriction, forensic remediation lock, and settings lock.
   * UI Hardening & Action Link Filtering: Dynamically removes 'Deactivate' and 'Delete' links from `plugins.php` for protected plugins and renders high-contrast badges (`🛡️ Anti-Tamper Protected`, `🔒 Locked`).
   * Infallible Auto-Termination: On every request, expired sessions are pruned and active user tokens destroyed; if WCP Security Scanner is ever deactivated, all temporary support sessions are instantly revoked.
 - Preload Micro-WAF & Early Execution Engine (`MicroWafCompiler.php`, `ScannerRoutes.php`):
