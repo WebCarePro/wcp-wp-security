@@ -224,6 +224,9 @@ class QuarantineManager {
             $wpdb->update($issues_table, ['status' => 'quarantined'], ['file_path' => $real_path]);
         }
 
+        // Trigger 72-Hour Reinfection Watchdog post-remediation surveillance
+        do_action('wcpscan_file_quarantined', $real_path, $sha256);
+
         return [
             'success'       => true,
             'message'       => 'File successfully quarantined and encrypted in vault.',

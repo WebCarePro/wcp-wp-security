@@ -48,6 +48,24 @@ v:1.28.0 - 2026-10-28
   * AI API Key & Plaintext Credential Exposure Scanner: Rapidly audits root directory dotfiles (`.env`, `.git/config`), uploads folder, and active theme assets for hardcoded or exposed production secrets (OpenAI, Anthropic, Gemini, Stripe live, AWS Access Keys, GitHub Personal Access Tokens, and private SSH keys) with secure masking (`sk-proj-********...Ab3d`).
   * REST API & AJAX Attack Surface Inventory: Automatically catalogs and maps all registered WordPress REST API endpoints and `wp_ajax_nopriv_` actions. Flags unauthenticated write endpoints (`POST`, `PUT`, `DELETE`), provides namespace categorization, and enforces 1-click user enumeration defense against `/wp/v2/users`.
   * Interactive AI Defense Cockpit: Built a dedicated 5-tab cockpit under the Firewall tab for real-time decoy route telemetry, egress firewall mode toggling, prompt injection testing, credential exposure audits, and interactive attack surface inventory exploration.
+- 72-Hour Post-Remediation Reinfection Watchdog (`ReinfectionWatchdog.php`, `QuarantineManager.php`, `ScannerRoutes.php`, `Plugin.php`):
+  * Post-Remediation Surveillance: Automatically registers quarantined or remediated threat files into high-frequency surveillance tracking (`wcpscan_reinfection_watchdog` option) hooked into `wcpscan_file_quarantined`.
+  * Hourly Automated Cron Check: Hourly cron `wcpscan_reinfection_hourly_check` continuously monitors remediated paths across a 72-hour threat window, verifying whether deleted backdoors reappear or disinfected files undergo hash drift.
+  * Active Directory Lockdown Escalation: Automatically escalates to defensive containment upon detecting reinfection attempts by freezing directory write permissions (`chmod 0555`), neutralizing persistent drops, and triggering high-priority forensic alerts.
+  * Interactive Watchdog Cockpit: Provides administrators with 1-click manual checks, active watch lists, reinfection incident logs, and resolution management.
+- "Time-Machine" Local File & Snapshot Baseline Engine (`LocalSnapshotManager.php`, `ScannerRoutes.php`):
+  * Bespoke Asset Baseline Archives: Captures compressed, read-only baseline snapshots (`.gz`) of custom client themes, bespoke plugins, and premium extensions stored in hardened directory `wp-content/uploads/wcp-security-scanner/snapshots/` protected by `.htaccess` and `index.php`.
+  * Visual Myers Diff Inspection: Calculates side-by-side file comparisons with diff metrics (lines added/removed/modified) and content previews against verified snapshots to detect tampering, supply-chain adulteration, or unauthorized edits.
+  * 1-Click Atomic Restoration: Supports 1-click atomic restoration of modified or injected files back to clean baseline state using native WordPress filesystem abstractions.
+- Automated Blacklist & Domain Reputation Early-Warning Sentinel (`DomainReputationMonitor.php`, `Plugin.php`, `ScannerRoutes.php`):
+  * Daily Automated Reputation Audit: Runs daily cron `wcpscan_domain_reputation_daily_check` auditing site domain reputation, SSL certificate health, email authentication records, and DNSBL listings.
+  * SSL Certificate Expiration & Peer Verification: Inspects TLS peer certificate validity, subject alternative names (SANs), and calculates exact days remaining before expiration.
+  * DNSBL Multi-List Querying: Queries leading spam and reputation blacklists (Spamhaus Zen/DBL, Barracuda, SpamCop, SURBL) to alert administrators before domain blacklisting impacts traffic or search engine rankings.
+  * Email Hygiene & Authentication Records: Audits domain SPF (`v=spf1`) and DMARC (`_dmarc`) DNS records to identify spoofing vulnerabilities and email deliverability risks.
+- Deep Server Pre-loader & System Crontab Audits (`PersistenceScanner.php`):
+  * Server-Level Pre-loader Audits: Deeply inspects `auto_prepend_file`, `auto_append_file`, `.user.ini`, `.htaccess`, and accessible PHP-FPM directives, intelligently exempting WCP's compiled micro-waf while flagging rogue pre-loaders.
+  * Crontab & System Task Audits: Audits system crontabs (`/var/spool/cron`, `/etc/crontab`) when accessible, gracefully documenting shared hosting sandbox constraints.
+
 
 
 v:1.27.0 - 2026-10-27

@@ -1447,6 +1447,81 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'update_attack_surface_settings'],
             'permission_callback' => $permission,
         ]);
+
+        // Phase 5: 72-Hour Reinfection Watchdog Endpoints
+        register_rest_route(self::NAMESPACE, '/reinfection-watchdog/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_reinfection_watchdog_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/reinfection-watchdog/register', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'register_reinfection_watch'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/reinfection-watchdog/dismiss', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'dismiss_reinfection_watch'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/reinfection-watchdog/check-now', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'check_reinfection_watchdog_now'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Phase 5: "Time-Machine" Local Snapshots & Diff Endpoints
+        register_rest_route(self::NAMESPACE, '/snapshots/list', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_local_snapshots_list'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/snapshots/create', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'create_local_snapshot'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/snapshots/compare', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'compare_local_snapshot'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/snapshots/diff', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_local_snapshot_diff'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/snapshots/restore', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'restore_local_snapshot_file'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/snapshots/delete', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'delete_local_snapshot'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Phase 5: Domain Reputation & SSL Sentinel Endpoints
+        register_rest_route(self::NAMESPACE, '/domain-reputation/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_domain_reputation_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/domain-reputation/check', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'check_domain_reputation_now'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -9134,6 +9209,135 @@ class ScannerRoutes {
             'message' => __('Attack surface defense settings updated.', 'wcp-security-scanner'),
             'data'    => \WcpScanner\WordPress\RestApiInventory::get_inventory(),
         ]);
+    }
+
+    // ==========================================
+    // Phase 5: 72-Hour Reinfection Watchdog Handlers
+    // ==========================================
+
+    public static function get_reinfection_watchdog_status() {
+        return rest_ensure_response(\WcpScanner\Quarantine\ReinfectionWatchdog::get_status());
+    }
+
+    public static function register_reinfection_watch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = sanitize_text_field($params['file_path'] ?? '');
+        $status = sanitize_key($params['expected_status'] ?? 'deleted');
+        $clean_hash = sanitize_text_field($params['clean_hash'] ?? '');
+        $reason = sanitize_text_field($params['reason'] ?? '');
+
+        if (empty($file_path)) {
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Quarantine\ReinfectionWatchdog::register_watch($file_path, $status, $clean_hash ?: null, $reason);
+        return rest_ensure_response($res);
+    }
+
+    public static function dismiss_reinfection_watch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $watch_id = sanitize_key($params['watch_id'] ?? '');
+        if (empty($watch_id)) {
+            return new \WP_Error('missing_param', __('Missing watch_id parameter.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Quarantine\ReinfectionWatchdog::dismiss_watch($watch_id);
+        return rest_ensure_response([
+            'success' => $res,
+            'message' => $res ? __('Watchdog monitor dismissed.', 'wcp-security-scanner') : __('Watch not found.', 'wcp-security-scanner'),
+            'status'  => \WcpScanner\Quarantine\ReinfectionWatchdog::get_status(),
+        ]);
+    }
+
+    public static function check_reinfection_watchdog_now() {
+        $res = \WcpScanner\Quarantine\ReinfectionWatchdog::inspect_all_monitors();
+        return rest_ensure_response(array_merge([
+            'status' => \WcpScanner\Quarantine\ReinfectionWatchdog::get_status(),
+        ], $res));
+    }
+
+    // ==========================================
+    // Phase 5: "Time-Machine" Local Snapshots Handlers
+    // ==========================================
+
+    public static function get_local_snapshots_list() {
+        return rest_ensure_response(\WcpScanner\Integrity\LocalSnapshotManager::list_snapshots());
+    }
+
+    public static function create_local_snapshot(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $target = sanitize_text_field($params['target_rel_path'] ?? '');
+        $label = sanitize_text_field($params['label'] ?? '');
+
+        if (empty($target)) {
+            return new \WP_Error('missing_target', __('Target relative directory path is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Integrity\LocalSnapshotManager::create_snapshot($target, $label);
+        return rest_ensure_response($res);
+    }
+
+    public static function compare_local_snapshot(\WP_REST_Request $request) {
+        $snap_id = sanitize_key($request->get_param('snapshot_id') ?: '');
+        if (empty($snap_id)) {
+            return new \WP_Error('missing_id', __('Snapshot ID required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Integrity\LocalSnapshotManager::compare_snapshot($snap_id);
+        return rest_ensure_response($res);
+    }
+
+    public static function get_local_snapshot_diff(\WP_REST_Request $request) {
+        $snap_id = sanitize_key($request->get_param('snapshot_id') ?: '');
+        $rel_path = sanitize_text_field($request->get_param('rel_path') ?: '');
+
+        if (empty($snap_id) || empty($rel_path)) {
+            return new \WP_Error('missing_params', __('Snapshot ID and rel_path are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Integrity\LocalSnapshotManager::get_file_diff($snap_id, $rel_path);
+        return rest_ensure_response($res);
+    }
+
+    public static function restore_local_snapshot_file(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $snap_id = sanitize_key($params['snapshot_id'] ?? '');
+        $rel_path = sanitize_text_field($params['rel_path'] ?? '');
+
+        if (empty($snap_id) || empty($rel_path)) {
+            return new \WP_Error('missing_params', __('Snapshot ID and rel_path are required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Integrity\LocalSnapshotManager::restore_file($snap_id, $rel_path);
+        return rest_ensure_response($res);
+    }
+
+    public static function delete_local_snapshot(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $snap_id = sanitize_key($params['snapshot_id'] ?? '');
+
+        if (empty($snap_id)) {
+            return new \WP_Error('missing_id', __('Snapshot ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $deleted = \WcpScanner\Integrity\LocalSnapshotManager::delete_snapshot($snap_id);
+        return rest_ensure_response([
+            'success'   => $deleted,
+            'message'   => $deleted ? __('Snapshot deleted.', 'wcp-security-scanner') : __('Snapshot not found.', 'wcp-security-scanner'),
+            'snapshots' => \WcpScanner\Integrity\LocalSnapshotManager::list_snapshots(),
+        ]);
+    }
+
+    // ==========================================
+    // Phase 5: Domain Reputation & SSL Sentinel Handlers
+    // ==========================================
+
+    public static function get_domain_reputation_status() {
+        return rest_ensure_response(\WcpScanner\Firewall\DomainReputationMonitor::run_reputation_audit(false));
+    }
+
+    public static function check_domain_reputation_now() {
+        return rest_ensure_response(\WcpScanner\Firewall\DomainReputationMonitor::run_reputation_audit(true));
     }
 }
 

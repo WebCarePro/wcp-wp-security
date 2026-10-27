@@ -96,6 +96,12 @@ class Plugin {
         if (class_exists('\\WcpScanner\\WordPress\\RestApiInventory')) {
             \WcpScanner\WordPress\RestApiInventory::init();
         }
+        if (class_exists('\\WcpScanner\\Quarantine\\ReinfectionWatchdog')) {
+            \WcpScanner\Quarantine\ReinfectionWatchdog::init();
+        }
+        if (class_exists('\\WcpScanner\\Firewall\\DomainReputationMonitor')) {
+            \WcpScanner\Firewall\DomainReputationMonitor::init();
+        }
         if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
             \WcpScanner\System\PluginUpdater::init();
         }

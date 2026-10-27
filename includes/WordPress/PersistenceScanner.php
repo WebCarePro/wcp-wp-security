@@ -222,11 +222,26 @@ class PersistenceScanner {
             ]);
         }
 
+        // 6. Convert Rogue Server Pre-Loaders to Findings
+        foreach ($audit['server_preloaders'] as $pre) {
+            if ($pre['severity'] === 'critical' || $pre['severity'] === 'high') {
+                $findings[] = new Finding([
+                    'engine'      => 'server-preloader',
+                    'type'        => 'rogue_server_preloader',
+                    'severity'    => $pre['severity'],
+                    'confidence'  => 95,
+                    'file_path'   => $pre['target_file'],
+                    'description' => $pre['description'],
+                    'evidence'    => 'Directive: ' . $pre['directive'],
+                ]);
+            }
+        }
+
         return $findings;
     }
 
     /**
-     * Deep Audit of all 4 Persistence Vectors.
+     * Deep Audit of all Persistence Vectors.
      * Returns a rich, structured payload for live dashboard cards, forensic inspection, and 1-click remediation.
      *
      * @return array
@@ -237,6 +252,8 @@ class PersistenceScanner {
         $autoload_options = $this->audit_database_autoload();
         $cron_tasks = $this->audit_cron_tasks();
         $resurrections = $this->audit_resurrections();
+        $server_preloaders = $this->audit_server_preloaders();
+        $system_crons = $this->audit_system_crons();
 
         $insecure_mu = 0;
         foreach ($mu_plugins as $m) {
@@ -259,7 +276,9 @@ class PersistenceScanner {
             }
         }
 
-        $total_threats = $insecure_mu + $insecure_dropins + count($autoload_options) + $insecure_crons + count($resurrections);
+        $insecure_preloaders = count(array_filter($server_preloaders, fn($p) => $p['severity'] === 'critical' || $p['severity'] === 'high'));
+
+        $total_threats = $insecure_mu + $insecure_dropins + count($autoload_options) + $insecure_crons + count($resurrections) + $insecure_preloaders;
 
         return [
             'success'                 => true,
@@ -273,12 +292,176 @@ class PersistenceScanner {
                 'autoload_threats'    => count($autoload_options),
                 'cron_threats_count'  => $insecure_crons,
                 'resurrections_count' => count($resurrections),
+                'preloader_threats'   => $insecure_preloaders,
             ],
             'mu_plugins'              => $mu_plugins,
             'dropins'                 => $dropins,
             'autoload_options'        => $autoload_options,
             'cron_tasks'              => $cron_tasks,
             'resurrections'           => $resurrections,
+            'server_preloaders'       => $server_preloaders,
+            'system_crons'            => $system_crons,
+        ];
+    }
+
+    /**
+     * Vector 6: Audit Server-Level Pre-Loader Directives (auto_prepend_file, .user.ini, .htaccess)
+     *
+     * @return array
+     */
+    public function audit_server_preloaders(): array {
+        $findings = [];
+
+        // 1. auto_prepend_file & auto_append_file from INI
+        $auto_prepend = ini_get('auto_prepend_file');
+        if (!empty($auto_prepend)) {
+            $norm = wp_normalize_path($auto_prepend);
+            // Ignore WCP's compiled micro-waf
+            $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+            $exists = file_exists($auto_prepend);
+            $findings[] = [
+                'type'        => 'ini_auto_prepend',
+                'directive'   => 'auto_prepend_file',
+                'target_file' => $auto_prepend,
+                'is_wcp'      => $is_wcp,
+                'file_exists' => $exists,
+                'severity'    => $is_wcp ? 'clean' : ($exists ? 'critical' : 'high'),
+                'description' => $is_wcp
+                    ? __('Legitimate WCP Preload Micro-WAF engine active.', 'wcp-security-scanner')
+                    : ($exists
+                        ? sprintf(
+                            /* translators: %s: target file path */
+                            __('Unknown PHP pre-loader active in auto_prepend_file: "%s". This file runs before any WordPress code boots.', 'wcp-security-scanner'),
+                            $auto_prepend
+                        )
+                        : sprintf(
+                            /* translators: %s: target file path */
+                            __('auto_prepend_file references a missing file: "%s".', 'wcp-security-scanner'),
+                            $auto_prepend
+                        )),
+            ];
+        }
+
+        $auto_append = ini_get('auto_append_file');
+        if (!empty($auto_append)) {
+            $exists = file_exists($auto_append);
+            $findings[] = [
+                'type'        => 'ini_auto_append',
+                'directive'   => 'auto_append_file',
+                'target_file' => $auto_append,
+                'is_wcp'      => false,
+                'file_exists' => $exists,
+                'severity'    => 'critical',
+                'description' => sprintf(
+                    /* translators: %s: target file path */
+                    __('Stealth post-execution pre-loader configured in auto_append_file: "%s". Executes after all WordPress scripts terminate.', 'wcp-security-scanner'),
+                    $auto_append
+                ),
+            ];
+        }
+
+        // 2. Scan root .user.ini for rogue preloaders
+        $user_ini = ABSPATH . '.user.ini';
+        if (file_exists($user_ini)) {
+            $content = @file_get_contents($user_ini) ?: '';
+            if (preg_match_all('/^\s*(auto_prepend_file|auto_append_file)\s*=\s*["\']?([^"\'\r\n]+)/m', $content, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $m) {
+                    $directive = $m[1];
+                    $target = trim($m[2]);
+                    $norm = wp_normalize_path($target);
+                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+                    if (!$is_wcp) {
+                        $findings[] = [
+                            'type'        => 'user_ini_preloader',
+                            'directive'   => '.user.ini:' . $directive,
+                            'target_file' => $target,
+                            'is_wcp'      => false,
+                            'file_exists' => file_exists($target),
+                            'severity'    => 'critical',
+                            'description' => sprintf(
+                                /* translators: 1: directive, 2: target */
+                                __('Root .user.ini declares rogue preloader "%1$s = %2$s".', 'wcp-security-scanner'),
+                                $directive,
+                                $target
+                            ),
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 3. Scan root .htaccess for php_value auto_prepend_file
+        $htaccess = ABSPATH . '.htaccess';
+        if (file_exists($htaccess)) {
+            $content = @file_get_contents($htaccess) ?: '';
+            if (preg_match_all('/^\s*php_value\s+(auto_prepend_file|auto_append_file)\s+["\']?([^"\'\r\n]+)/mi', $content, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $m) {
+                    $directive = $m[1];
+                    $target = trim($m[2]);
+                    $norm = wp_normalize_path($target);
+                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+                    if (!$is_wcp) {
+                        $findings[] = [
+                            'type'        => 'htaccess_preloader',
+                            'directive'   => '.htaccess:php_value ' . $directive,
+                            'target_file' => $target,
+                            'is_wcp'      => false,
+                            'file_exists' => file_exists($target),
+                            'severity'    => 'critical',
+                            'description' => sprintf(
+                                /* translators: 1: directive, 2: target */
+                                __('Root .htaccess injects preloader directive "php_value %1$s %2$s".', 'wcp-security-scanner'),
+                                $directive,
+                                $target
+                            ),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Vector 7: Audit Server System Crontab Accessibility
+     *
+     * @return array
+     */
+    public function audit_system_crons(): array {
+        $paths = [
+            '/etc/crontab',
+            '/etc/cron.d',
+            '/etc/cron.daily',
+            '/etc/cron.hourly',
+            '/var/spool/cron/crontabs',
+            '/var/spool/cron',
+        ];
+
+        $checked = [];
+        $accessible = false;
+
+        foreach ($paths as $p) {
+            if (@file_exists($p)) {
+                $is_readable = @is_readable($p);
+                if ($is_readable) {
+                    $accessible = true;
+                }
+                $checked[] = [
+                    'path'        => $p,
+                    'exists'      => true,
+                    'readable'    => $is_readable,
+                ];
+            }
+        }
+
+        return [
+            'is_accessible'   => $accessible,
+            'is_restricted'   => !$accessible,
+            'notice'          => $accessible
+                ? __('Server-level system crontab paths detected and accessible for inspection.', 'wcp-security-scanner')
+                : __('Server-level system crontab paths (/var/spool/cron, /etc/crontab) are restricted by hosting isolation (open_basedir/chroot). WordPress-level scheduled tasks are actively audited.', 'wcp-security-scanner'),
+            'checked_paths'   => $checked,
         ];
     }
 
