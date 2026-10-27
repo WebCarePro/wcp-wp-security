@@ -228,11 +228,27 @@ class ReinfectionWatchdog {
                     ], 'blocked');
                 }
 
-                // Parent directory lockdown if supported and writable
-                $parent = $watch['parent_dir'];
-                if (is_dir($parent) && wp_is_writable($parent) && !str_contains($parent, 'wp-content/uploads')) {
-                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-                    @chmod($parent, 0555);
+                // Safely re-quarantine the resurrected/re-injected file to neutralize persistence loops
+                if (file_exists($path) && class_exists('\\WcpScanner\\Quarantine\\QuarantineManager')) {
+                    try {
+                        $qm = new \WcpScanner\Quarantine\QuarantineManager();
+                        $quarantine_res = $qm->quarantine_file($path);
+                        if (!empty($quarantine_res['success'])) {
+                            AuditLogger::log(
+                                'malware_reinfection_quarantined',
+                                sprintf('72-Hour Watchdog neutralized resurrected file by placing into quarantine vault: %s', $watch['rel_path'])
+                            );
+                        }
+                    } catch (\Throwable $e) {
+                        // Prevent unhandled filesystem exceptions from interrupting the batch inspection loop
+                    }
+                }
+
+                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
+                        'threat_count' => 1,
+                        'message'      => sprintf('CRITICAL: 72-Hour Watchdog detected malware resurrection on %s: %s', $watch['rel_path'], $trigger_reason),
+                    ]);
                 }
             }
 

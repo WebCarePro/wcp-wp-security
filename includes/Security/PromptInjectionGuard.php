@@ -68,7 +68,7 @@ class PromptInjectionGuard {
             'block_prompt_override' => true,
             'block_unicode_tags'    => true,
             'block_secret_leaks'    => true,
-            'action'                => 'block', // 'block' or 'sanitize'
+            'action'                => 'moderate', // 'moderate' (hold for review), 'sanitize', or 'block'
         ];
         $saved = get_option(self::OPTION_SETTINGS, []);
         return is_array($saved) ? array_merge($defaults, $saved) : $defaults;
@@ -88,7 +88,7 @@ class PromptInjectionGuard {
             'block_prompt_override' => !empty($settings['block_prompt_override']),
             'block_unicode_tags'    => !empty($settings['block_unicode_tags']),
             'block_secret_leaks'    => !empty($settings['block_secret_leaks']),
-            'action'                => in_array($settings['action'] ?? '', ['block', 'sanitize'], true) ? $settings['action'] : 'block',
+            'action'                => in_array($settings['action'] ?? '', ['block', 'sanitize', 'moderate'], true) ? $settings['action'] : 'moderate',
         ];
         return update_option(self::OPTION_SETTINGS, array_merge($current, $updated), false);
     }
@@ -110,15 +110,20 @@ class PromptInjectionGuard {
             $settings = self::get_settings();
             self::record_catch('comment', $analysis['findings'], $analysis['risk_score'], $settings['action']);
 
+            // Sanitize invisible unicode tag smuggling characters if detected
+            if (!empty($analysis['has_unicode_tags'])) {
+                $commentdata['comment_content'] = $analysis['cleaned_text'];
+            }
+
             if ($settings['action'] === 'block') {
                 wp_die(
                     esc_html__('Submission rejected: Potential prompt injection or adversarial instruction detected.', 'wcp-security-scanner'),
                     esc_html__('Prompt Injection Blocked', 'wcp-security-scanner'),
                     ['response' => 403, 'back_link' => true]
                 );
-            } else {
-                // Sanitize out dangerous Unicode and tags
-                $commentdata['comment_content'] = $analysis['cleaned_text'];
+            } elseif ($settings['action'] === 'moderate') {
+                // Route comment to WordPress moderation hold queue rather than breaking user experience with 403
+                $commentdata['comment_approved'] = 0;
             }
         }
 
@@ -157,8 +162,16 @@ class PromptInjectionGuard {
         }
 
         // 3. Secret Leak / Environment Extraction Check
+        // In public comment contexts, require an explicit extraction verb (print/dump/reveal/cat)
+        // to prevent false positives when visitors legitimately discuss wp-config.php or WordPress settings.
         foreach (self::SECRET_LEAK_PATTERNS as $name => $pattern) {
             if (preg_match($pattern, $text, $m)) {
+                if ($context === 'wordpress_comment') {
+                    $has_extraction_intent = (bool) preg_match('/(?:reveal|leak|print|display|dump|extract|output|cat|show|get)\s+.*(?:wp-config|DB_|AUTH_|KEY|passwd|getenv|printenv)/i', $text);
+                    if (!$has_extraction_intent) {
+                        continue; // Benign technical discussion in WordPress comment
+                    }
+                }
                 $has_secret_leak = true;
                 $score += 85;
                 $findings[] = sprintf('Targeted credential or environment extraction attempt detected: "%s".', $m[0]);

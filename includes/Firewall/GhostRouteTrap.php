@@ -53,6 +53,9 @@ class GhostRouteTrap {
             add_action('wp_footer', [__CLASS__, 'render_canary_links'], 9999);
             add_action('login_footer', [__CLASS__, 'render_canary_links'], 9999);
         }
+
+        // 4. Inject robots.txt exclusion directives to keep compliant crawlers off decoy routes
+        add_filter('robots_txt', [__CLASS__, 'filter_robots_txt'], 10, 2);
     }
 
     /**
@@ -64,9 +67,9 @@ class GhostRouteTrap {
         $defaults = [
             'enabled'              => true,
             'inject_canary_links'  => true,
-            'block_client_ip'      => true,
-            'sync_cloudflare_edge' => true,
-            'tarpit_duration'      => 0, // 0 = instant 403, >0 = artificial delay
+            'block_client_ip'      => false, // Default to monitor/detect mode for zero-breakage safety
+            'sync_cloudflare_edge' => false, // Require explicit admin opt-in for automated Cloudflare Edge bans
+            'tarpit_duration'      => 0,     // 0 = instant 403, >0 = artificial delay
         ];
         $saved = get_option(self::OPTION_SETTINGS, []);
         return is_array($saved) ? array_merge($defaults, $saved) : $defaults;
@@ -138,6 +141,23 @@ class GhostRouteTrap {
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
         $settings = self::get_settings();
 
+        // 0. Search Engine & Uptime Monitor Immunity:
+        // Genuine search crawlers (Googlebot, Bingbot, etc.) or verified uptime monitors must NEVER be banned or blocked.
+        $is_genuine_crawler = false;
+        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+            $is_genuine_crawler = BotReconDefense::is_genuine_search_engine($ip, $user_agent)
+                || BotReconDefense::is_genuine_uptime_monitor($ip, $user_agent);
+        }
+
+        if ($is_genuine_crawler) {
+            status_header(404);
+            nocache_headers();
+            header('X-Robots-Tag: noindex, nofollow, noarchive');
+            header('Content-Type: text/plain; charset=utf-8');
+            echo "Not Found\n";
+            exit;
+        }
+
         // 1. Record catch telemetry
         $catches = get_option(self::OPTION_CATCHES, []);
         if (!is_array($catches)) {
@@ -197,6 +217,7 @@ class GhostRouteTrap {
         // 6. Terminate request with 403 Forbidden payload
         status_header(403);
         nocache_headers();
+        header('X-Robots-Tag: noindex, nofollow, noarchive');
         header('Content-Type: application/json; charset=utf-8');
         echo wp_json_encode([
             'code'    => 'wcp_canary_intercept',
@@ -207,6 +228,20 @@ class GhostRouteTrap {
     }
 
     /**
+     * Filter virtual robots.txt output to instruct compliant web crawlers to ignore canary traps.
+     *
+     * @param string $output
+     * @param bool $public
+     * @return string
+     */
+    public static function filter_robots_txt(string $output, bool $public): string {
+        $output .= "\n# WCP Decoy Canary Shield - Prohibit Automated Traversal\n";
+        $output .= "Disallow: /" . self::CANARY_PATH_PREFIX . "/\n";
+        $output .= "Disallow: /*" . self::CANARY_QUERY_VAR . "=\n";
+        return $output;
+    }
+
+    /**
      * Render hidden canary link in public and login HTML templates.
      */
     public static function render_canary_links() {
@@ -214,9 +249,9 @@ class GhostRouteTrap {
         $path_canary = esc_url(home_url('/' . self::CANARY_PATH_PREFIX . '/telemetry'));
 
         echo "\n<!-- Internal Diagnostics Canary Shield -->\n";
-        echo '<div style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;z-index:-1;" aria-hidden="true" tabindex="-1">';
-        echo '<a href="' . esc_url($canary_url) . '" rel="nofollow" tabindex="-1">System Telemetry Diagnostics</a>';
-        echo '<a href="' . esc_url($path_canary) . '" rel="nofollow" tabindex="-1">Internal Environment Dump</a>';
+        echo '<div style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;z-index:-1;" aria-hidden="true" tabindex="-1" data-nosnippet="true">';
+        echo '<a href="' . esc_url($canary_url) . '" rel="nofollow noindex noarchive" tabindex="-1">System Telemetry Diagnostics</a>';
+        echo '<a href="' . esc_url($path_canary) . '" rel="nofollow noindex noarchive" tabindex="-1">Internal Environment Dump</a>';
         echo "</div>\n";
     }
 

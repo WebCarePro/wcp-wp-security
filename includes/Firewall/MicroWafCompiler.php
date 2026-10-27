@@ -114,9 +114,14 @@ class MicroWafCompiler {
     /**
      * Compile active WAF rules, IP blocklists, and signatures into a zero-dependency PHP script.
      *
+     * @param string|null $chained_file Optional pre-existing prepend script to chain after WCP execution.
      * @return array Result array with success bool and metadata.
      */
-    public static function compile(): array {
+    public static function compile(?string $chained_file = null): array {
+        if ($chained_file === null) {
+            $chained_file = (string) get_option('wcpscan_micro_waf_chained_file', '');
+        }
+
         $dir = self::get_compiled_dir();
         if (!file_exists($dir)) {
             wp_mkdir_p($dir);
@@ -151,7 +156,7 @@ class MicroWafCompiler {
         // 2. High-confidence zero-false-positive attack signatures for early drop
         $compiled_signatures = [
             'SQLI-CORE' => [
-                'pattern' => '/(?:\b(?:union\s+(?:all\s+)?select|benchmark\s*\(|pg_sleep\s*\(|information_schema|order\s+by\s+\d{2,})\b)/i',
+                'pattern' => '/(?:\b(?:union\s+(?:all\s+)?select|benchmark\s*\(|pg_sleep\s*\(|information_schema)\b)/i',
                 'desc'    => 'High-Confidence SQL Injection Probe',
             ],
             'RCE-EXEC' => [
@@ -175,7 +180,7 @@ class MicroWafCompiler {
             update_option('wcpscan_micro_waf_bypass_token', $bypass_token);
         }
 
-        $code = self::generate_standalone_code($blocked_ips, $compiled_signatures, $fail2ban_log, $bypass_token);
+        $code = self::generate_standalone_code($blocked_ips, $compiled_signatures, $fail2ban_log, $bypass_token, $chained_file);
 
         // Write compiled file atomically
         $temp_file = $compiled_file . '.tmp.' . wp_rand();
@@ -223,7 +228,7 @@ class MicroWafCompiler {
     /**
      * Generate the complete standalone PHP source code for the Micro-WAF.
      */
-    private static function generate_standalone_code(array $blocked_ips, array $signatures, string $fail2ban_log, string $bypass_token): string {
+    private static function generate_standalone_code(array $blocked_ips, array $signatures, string $fail2ban_log, string $bypass_token, string $chained_file = ''): string {
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $ips_export = var_export($blocked_ips, true);
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
@@ -294,6 +299,15 @@ class MicroWafCompiler {
         $out .= "    }\n";
         $out .= "})();\n\n";
 
+        // Chained pre-existing auto_prepend_file script (e.g. Wordfence or hosting runtime)
+        if (!empty($chained_file)) {
+            $chained_escaped = addslashes($chained_file);
+            $out .= "// Chained pre-existing auto_prepend_file runtime\n";
+            $out .= "if (file_exists('{$chained_escaped}')) {\n";
+            $out .= "    require_once '{$chained_escaped}';\n";
+            $out .= "}\n\n";
+        }
+
         // Responder function
         $out .= "function wcp_micro_waf_block(string \$ip, string \$rule_id, string \$desc, string \$fail2ban_log): void {\n";
         $out .= "    // Log in Linux Fail2ban / CrowdSec compatible format\n";
@@ -338,12 +352,6 @@ class MicroWafCompiler {
      * @return array
      */
     public static function install_preload(): array {
-        // Compile first
-        $compile_res = self::compile();
-        if (!$compile_res['success']) {
-            return $compile_res;
-        }
-
         $target_info = self::detect_server_target();
         $target_file = $target_info['target_file'];
         $compiled_file = self::get_compiled_file_path();
@@ -355,6 +363,22 @@ class MicroWafCompiler {
 
         // Strip previous WCP block if present
         $clean_content = preg_replace('/' . preg_quote($begin_marker, '/') . '[\s\S]*?' . preg_quote($end_marker, '/') . '\s*/i', '', $existing_content);
+
+        // Detect if another security plugin or hosting environment already configured auto_prepend_file
+        $chained_file = '';
+        if (preg_match('/(?:auto_prepend_file\s*=\s*[\'"]?([^\r\n\'"]+)[\'"]?|php_value\s+auto_prepend_file\s+[\'"]?([^\r\n\'"]+)[\'"]?)/i', $clean_content, $m)) {
+            $detected = trim(!empty($m[1]) ? $m[1] : ($m[2] ?? ''));
+            if (!empty($detected) && !str_contains($detected, self::COMPILED_FILE_NAME) && file_exists($detected)) {
+                $chained_file = $detected;
+                update_option('wcpscan_micro_waf_chained_file', $chained_file);
+            }
+        }
+
+        // Compile first with chained script if detected
+        $compile_res = self::compile($chained_file);
+        if (!$compile_res['success']) {
+            return $compile_res;
+        }
 
         // Build directive block
         $block = "\n" . $begin_marker . "\n";
@@ -392,6 +416,7 @@ class MicroWafCompiler {
         AuditLogger::log('micro_waf_installed', [
             'target_file'   => $target_file,
             'compiled_file' => $compiled_file,
+            'chained_file'  => $chained_file,
             'environment'   => $target_info['reason'],
         ]);
 
@@ -423,12 +448,22 @@ class MicroWafCompiler {
         $begin_marker = '### BEGIN WCP_MICRO_WAF';
         $end_marker   = '### END WCP_MICRO_WAF';
         $modified_count = 0;
+        $chained_file = (string) get_option('wcpscan_micro_waf_chained_file', '');
+        delete_option('wcpscan_micro_waf_chained_file');
 
         foreach ($files as $file) {
             if (file_exists($file) && wp_is_writable($file)) {
                 $content = (string) file_get_contents($file);
                 if (str_contains($content, $begin_marker)) {
                     $cleaned = preg_replace('/' . preg_quote($begin_marker, '/') . '[\s\S]*?' . preg_quote($end_marker, '/') . '\s*/i', '', $content);
+                    // If an external chained prepend previously existed, restore its single directive
+                    if (!empty($chained_file) && !str_contains($cleaned, 'auto_prepend_file')) {
+                        if (str_ends_with($file, '.user.ini')) {
+                            $cleaned = trim($cleaned) . "\nauto_prepend_file = '{$chained_file}'\n";
+                        } else {
+                            $cleaned = trim($cleaned) . "\n<IfModule mod_php.c>\n    php_value auto_prepend_file '{$chained_file}'\n</IfModule>\n";
+                        }
+                    }
                     file_put_contents($file, trim($cleaned) . "\n");
                     $modified_count++;
                 }

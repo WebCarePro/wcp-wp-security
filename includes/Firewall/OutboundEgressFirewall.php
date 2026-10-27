@@ -31,19 +31,38 @@ class OutboundEgressFirewall {
     ];
 
     /**
-     * Default approved external domains and APIs.
+     * Default approved external domains and APIs (WordPress core, WooCommerce, payments, AI, CDNs, mailers).
      */
     const DEFAULT_APPROVED_HOSTS = [
-        'api.wordpress.org',
+        // WordPress Core & Community
         'wordpress.org',
+        'api.wordpress.org',
         'downloads.wordpress.org',
+        'dashboard.wordpress.org',
+        // WooCommerce Ecosystem
+        'woocommerce.com',
+        'connect.woocommerce.com',
+        // Payment Gateways
+        'stripe.com',
         'api.stripe.com',
+        'paypal.com',
         'api.paypal.com',
+        // Official AI Providers
         'api.openai.com',
         'api.anthropic.com',
         'generativelanguage.googleapis.com',
+        // Cloud Infrastructure & Updates
         'api.cloudflare.com',
         'secure.gravatar.com',
+        'api.github.com',
+        // Popular Transactional Mailers
+        'api.sendgrid.com',
+        'api.mailgun.net',
+        'api.postmarkapp.com',
+        'api.brevo.com',
+        // Google Services
+        'googleapis.com',
+        'accounts.google.com',
     ];
 
     /**
