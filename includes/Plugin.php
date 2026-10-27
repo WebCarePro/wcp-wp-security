@@ -84,6 +84,18 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Identity\\EphemeralAdminEngine')) {
             \WcpScanner\Identity\EphemeralAdminEngine::init();
         }
+        if (class_exists('\\WcpScanner\\Firewall\\GhostRouteTrap')) {
+            \WcpScanner\Firewall\GhostRouteTrap::init();
+        }
+        if (class_exists('\\WcpScanner\\Firewall\\OutboundEgressFirewall')) {
+            \WcpScanner\Firewall\OutboundEgressFirewall::init();
+        }
+        if (class_exists('\\WcpScanner\\Security\\PromptInjectionGuard')) {
+            \WcpScanner\Security\PromptInjectionGuard::init();
+        }
+        if (class_exists('\\WcpScanner\\WordPress\\RestApiInventory')) {
+            \WcpScanner\WordPress\RestApiInventory::init();
+        }
         if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
             \WcpScanner\System\PluginUpdater::init();
         }

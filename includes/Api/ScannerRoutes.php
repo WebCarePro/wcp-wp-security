@@ -1380,6 +1380,73 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'virtual_patch_deactivate_component'],
             'permission_callback' => $permission,
         ]);
+
+        // 20. 2026 AI Threat Defense, MCP Governance & Decoy Ghost Routes (Pillar 3 & Phase 4)
+        register_rest_route(self::NAMESPACE, '/defense/ai-status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_ai_defense_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/ghost-routes', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_ghost_routes_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/ghost-routes/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_ghost_routes_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/egress', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_egress_firewall_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/egress/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_egress_firewall_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/credentials', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_credential_exposure_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/credentials/scan', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'scan_credential_exposure'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/prompt-guard', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_prompt_guard_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/prompt-guard/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_prompt_guard_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/attack-surface', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_attack_surface_inventory'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/attack-surface/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_attack_surface_settings'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -8975,6 +9042,98 @@ class ScannerRoutes {
         }
 
         return rest_ensure_response($result);
+    }
+
+    // =========================================================================
+    // 20. 2026 AI Threat Defense, MCP Governance & Decoy Ghost Routes Handlers
+    // =========================================================================
+
+    public static function get_ai_defense_status() {
+        return rest_ensure_response([
+            'success'        => true,
+            'ghost_routes'   => \WcpScanner\Firewall\GhostRouteTrap::get_status(),
+            'egress'         => \WcpScanner\Firewall\OutboundEgressFirewall::get_status(),
+            'prompt_guard'   => \WcpScanner\Security\PromptInjectionGuard::get_status(),
+            'credentials'    => \WcpScanner\Security\CredentialExposureScanner::get_status(),
+            'attack_surface' => \WcpScanner\WordPress\RestApiInventory::get_inventory(),
+        ]);
+    }
+
+    public static function get_ghost_routes_status() {
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], \WcpScanner\Firewall\GhostRouteTrap::get_status()));
+    }
+
+    public static function update_ghost_routes_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $res = \WcpScanner\Firewall\GhostRouteTrap::update_settings($params);
+        return rest_ensure_response([
+            'success' => $res,
+            'message' => __('Ghost route trap settings updated.', 'wcp-security-scanner'),
+            'status'  => \WcpScanner\Firewall\GhostRouteTrap::get_status(),
+        ]);
+    }
+
+    public static function get_egress_firewall_status() {
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], \WcpScanner\Firewall\OutboundEgressFirewall::get_status()));
+    }
+
+    public static function update_egress_firewall_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $res = \WcpScanner\Firewall\OutboundEgressFirewall::update_settings($params);
+        return rest_ensure_response([
+            'success' => $res,
+            'message' => __('Outbound egress firewall settings updated.', 'wcp-security-scanner'),
+            'status'  => \WcpScanner\Firewall\OutboundEgressFirewall::get_status(),
+        ]);
+    }
+
+    public static function get_credential_exposure_status() {
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], \WcpScanner\Security\CredentialExposureScanner::get_status()));
+    }
+
+    public static function scan_credential_exposure() {
+        $report = \WcpScanner\Security\CredentialExposureScanner::run_scan(true);
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], $report));
+    }
+
+    public static function get_prompt_guard_status() {
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], \WcpScanner\Security\PromptInjectionGuard::get_status()));
+    }
+
+    public static function update_prompt_guard_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $res = \WcpScanner\Security\PromptInjectionGuard::update_settings($params);
+        return rest_ensure_response([
+            'success' => $res,
+            'message' => __('Prompt injection guard settings updated.', 'wcp-security-scanner'),
+            'status'  => \WcpScanner\Security\PromptInjectionGuard::get_status(),
+        ]);
+    }
+
+    public static function get_attack_surface_inventory() {
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], \WcpScanner\WordPress\RestApiInventory::get_inventory()));
+    }
+
+    public static function update_attack_surface_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $res = \WcpScanner\WordPress\RestApiInventory::update_settings($params);
+        return rest_ensure_response([
+            'success' => $res,
+            'message' => __('Attack surface defense settings updated.', 'wcp-security-scanner'),
+            'data'    => \WcpScanner\WordPress\RestApiInventory::get_inventory(),
+        ]);
     }
 }
 
