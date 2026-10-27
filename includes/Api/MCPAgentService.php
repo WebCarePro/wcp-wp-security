@@ -74,7 +74,7 @@ class MCPAgentService {
      * @return string
      */
     public static function get_tool_policy(string $tool): string {
-        $scope = SettingsManager::get('mcp_permission_scope', 'read_write');
+        $scope = SettingsManager::get('mcp_permission_scope', 'read_only');
         if ($scope === 'read_only' && in_array($tool, self::MUTATING_TOOLS, true)) {
             return 'blocked';
         }
@@ -102,7 +102,7 @@ class MCPAgentService {
      * @return array
      */
     public static function get_tools_catalog(): array {
-        $scope = SettingsManager::get('mcp_permission_scope', 'read_write');
+        $scope = SettingsManager::get('mcp_permission_scope', 'read_only');
 
         $tools = [
             [

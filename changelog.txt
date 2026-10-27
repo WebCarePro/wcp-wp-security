@@ -1,3 +1,18 @@
+v:1.28.0 - 2026-10-28
+- Preload Micro-WAF & Early Execution Engine (`MicroWafCompiler.php`, `ScannerRoutes.php`):
+  * Zero-Dependency Standalone Runtime: Engineered a lightweight Preload Micro-WAF compiled to OPcache-shared static PHP arrays (`micro-waf-compiled.php`), intercepting malicious requests in PHP's early request lifecycle via `auto_prepend_file` before WordPress core boots or database connections initialize.
+  * Linux Fail2ban & CrowdSec Integration: Automatically formats and appends early dropped requests to a standardized append-only syslog (`wp-content/uploads/wcp-security-scanner/waf-logs/fail2ban.log`), enabling instant kernel/network-level blocking via Linux Fail2ban jails and CrowdSec parsers.
+  * Automatic Environment Detection & Safe Installer: Detects server environment (PHP-FPM `.user.ini` vs Apache/LiteSpeed `.htaccess`) and safely injects/uninstalls `auto_prepend_file` directives with delimited marker comments.
+  * Fail-Safe Architecture: Features emergency query bypass tokens (`wcp_waf_bypass`) and `WCP_DISABLE_MICRO_WAF` constant support to prevent lockout scenarios.
+  * Dedicated Preload Micro-WAF UI Cockpit: Added high-contrast telemetry card in the Server Security tab (`ServerSecurityTab.tsx`) for 1-click Micro-WAF compilation, installation, detachment, OPcache memory status, and an interactive Linux Fail2ban / CrowdSec live syslog viewer.
+- Strict Anti-Spoofing Allowlist Hardening (`FirewallEngine.php`):
+  * Eliminated Client-Forged User-Agent Bypasses: Hardened `match_targeted_allowlist_rule()` to strictly reject allowlist rules that specify only User-Agents without an IP, endpoint, or forward-confirmed reverse DNS hostname constraint, closing bypass vulnerabilities against spoofed client headers.
+- Autonomous MCP Governance Hardening (`MCPAgentService.php`, `SettingsManager.php`):
+  * Strict Read-Only Default: Defaulted `mcp_permission_scope` to `'read_only'`, ensuring autonomous AI agents cannot execute mutating actions (quarantine, file edit, user demotion) without explicit administrator elevation.
+- Manifest Uniformity & Automated Verification (`verify-manifests.js`, `package.json`, `wcp-wp-scanner.php`, `readme.txt`, `version.json`, `README.md`):
+  * Standardized Minimum Compatibility Floor: Synchronized compatibility declarations (`Requires at least: 7.0`, `Requires PHP: 8.3`) across all manifest files.
+  * Automated Verification Suite: Created `scripts/verify-manifests.js` (callable via `npm run verify-manifests`) to prevent version or compatibility drift across releases.
+
 v:1.27.0 - 2026-10-27
 - Zero-SQL Daily Partitioned Filesystem WAF Incident Logging Engine (`WafFileLogger.php`, `FirewallEngine.php`, `ScannerRoutes.php`, `Plugin.php`, `SettingsManager.php`, `SettingsPage.tsx`, `WafLogsPage.tsx`):
   * High-Speed Filesystem Partitioning: Replaced direct MySQL database writes and deduplication queries with zero-SQL, append-only daily JSON files located under `wp-content/uploads/wcp-security-scanner/waf-logs/` (named e.g. `october-27-2026-waf-logs.json`). Eliminates database lockups and connection exhaustion during aggressive brute-force attacks.

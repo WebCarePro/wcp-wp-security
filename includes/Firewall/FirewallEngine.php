@@ -3269,6 +3269,18 @@ class FirewallEngine {
                 continue;
             }
 
+            // Security Hardening (Roadmap Finding 3): A rule specifying ONLY User-Agents
+            // without an IP, specific Endpoint, or verified Hostname constraint is easily forged by attackers.
+            // Reject allowlist rules that lack at least one network, endpoint, or cryptographic constraint.
+            $has_ip_constraint       = !empty($rule['ip_addresses']) && is_array($rule['ip_addresses']);
+            $has_endpoint_constraint = !empty($rule['endpoints']) && is_array($rule['endpoints']);
+            $has_hostname_constraint = !empty($rule['hostnames']) && is_array($rule['hostnames']);
+            $has_ua_constraint       = !empty($rule['user_agents']) && is_array($rule['user_agents']);
+
+            if ($has_ua_constraint && !$has_ip_constraint && !$has_endpoint_constraint && !$has_hostname_constraint) {
+                continue;
+            }
+
             // 1. Method Check
             $allowed_methods = !empty($rule['methods']) && is_array($rule['methods']) ? array_map('strtoupper', $rule['methods']) : ['ALL'];
             if (!in_array('ALL', $allowed_methods, true) && !in_array($upper_method, $allowed_methods, true)) {

@@ -23,6 +23,8 @@ test_*.js
 *.test.js
 *.spec.js
 scripts/update-ui.js
+future-plan*.md
+roadmap plan.md
 
 # Frontend Source (compiled files in build/ are deployed)
 src/

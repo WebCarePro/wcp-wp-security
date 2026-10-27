@@ -436,6 +436,31 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Preload Micro-WAF (Zero-Latency Early Execution) Endpoints
+        register_rest_route(self::NAMESPACE, '/firewall/micro-waf/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_micro_waf_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/micro-waf/compile', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'compile_micro_waf'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/micro-waf/install', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'install_micro_waf_preload'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/micro-waf/uninstall', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'uninstall_micro_waf_preload'],
+            'permission_callback' => $permission,
+        ]);
+
         // File Integrity Monitoring (FIM) & Code Diff Endpoints
         register_rest_route(self::NAMESPACE, '/integrity/recent-changes', [
             'methods'             => 'GET',
@@ -5821,6 +5846,50 @@ class ScannerRoutes {
         $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
 
         $result = \WcpScanner\Firewall\ServerSecurityEngine::deploy_to_htaccess($options);
+        return rest_ensure_response($result);
+    }
+
+    public static function get_micro_waf_status(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $status = \WcpScanner\Firewall\MicroWafCompiler::get_status();
+        return rest_ensure_response($status);
+    }
+
+    public static function compile_micro_waf(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $result = \WcpScanner\Firewall\MicroWafCompiler::compile();
+        return rest_ensure_response($result);
+    }
+
+    public static function install_micro_waf_preload(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $result = \WcpScanner\Firewall\MicroWafCompiler::install_preload();
+        return rest_ensure_response($result);
+    }
+
+    public static function uninstall_micro_waf_preload(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+        $result = \WcpScanner\Firewall\MicroWafCompiler::uninstall_preload();
         return rest_ensure_response($result);
     }
 

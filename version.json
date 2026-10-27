@@ -1,18 +1,28 @@
 {
-  "version": "1.27.0",
-  "requires_wp": "5.8",
-  "requires_php": "7.4",
+  "version": "1.28.0",
+  "requires_wp": "7.0",
+  "requires_php": "8.3",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip",
   "manifest_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json",
-  "released_at": "2026-10-26",
+  "released_at": "2026-10-27",
   "author": "Mir Alamin (WebCare Pro)",
   "author_homepage": "https://profiles.wordpress.org/webcarepro/",
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
-    "changelog": "v:1.25.0 - 2026-10-25:\n- Next-Gen Pillar 5: Continuous Threat Intel Network & Automated Virtual Patching Ecosystem (Multi-feed IP reputation scoring, sub-microsecond in-memory synthetic payload simulator, CVE hotpatch synthesizer, and autonomous MCP SecOps tools)."
+    "changelog": "v:1.28.0 - 2026-10-28:\n- Preload Micro-WAF & Early Execution Engine, strict anti-spoofing allowlist hardening, default read-only autonomous MCP governance, and manifest uniformity."
   },
   "previous_versions": [
+    {
+      "version": "1.27.0",
+      "released_at": "2026-10-27",
+      "summary": "Zero-SQL Daily Partitioned Filesystem WAF Incident Logging Engine, granular developer uninstallation cleanup, and smart form compatibility shield."
+    },
+    {
+      "version": "1.26.0",
+      "released_at": "2026-10-26",
+      "summary": "Universal System-Wide UTC/GMT Immutable Timestamps, image binary malware validation, and WordPress root unknown dotfile deep scanning."
+    },
     {
       "version": "1.24.0",
       "released_at": "2026-10-24",

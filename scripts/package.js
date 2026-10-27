@@ -10,6 +10,9 @@ const ZIP_FILE = path.join(ROOT_DIR, `${PLUGIN_SLUG}.zip`);
 
 console.log('--- Packaging WCP Security Scanner for WordPress.org ---');
 
+// 0. Pre-Flight Manifest Uniformity Verification
+execSync(`node "${path.join(__dirname, 'verify-manifests.js')}"`, { stdio: 'inherit' });
+
 // 1. Clean dist directory and previous zip
 if (fs.existsSync(DIST_DIR)) {
   fs.rmSync(DIST_DIR, { recursive: true, force: true });

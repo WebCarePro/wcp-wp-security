@@ -195,7 +195,7 @@ class SettingsManager {
             // 14. Model Context Protocol (MCP) Agent Service Surface
             'mcp_enabled'                        => true,
             'mcp_token'                          => '',
-            'mcp_permission_scope'               => 'read_write',
+            'mcp_permission_scope'               => 'read_only',
             'mcp_rate_limit_per_min'             => 60,
             'mcp_tool_matrix'                    => self::get_default_mcp_tool_matrix(),
 
@@ -785,7 +785,7 @@ class SettingsManager {
         $valid_scopes = ['read_only', 'read_write'];
         $clean['mcp_permission_scope'] = in_array($merged['mcp_permission_scope'] ?? '', $valid_scopes, true)
             ? $merged['mcp_permission_scope']
-            : ($current['mcp_permission_scope'] ?? 'read_write');
+            : ($current['mcp_permission_scope'] ?? 'read_only');
 
         $clean['mcp_rate_limit_per_min'] = max(10, min(600, intval($merged['mcp_rate_limit_per_min'] ?? ($current['mcp_rate_limit_per_min'] ?? 60))));
 

@@ -5,7 +5,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 1.27.0
+Stable tag: 1.28.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -165,6 +165,12 @@ To compile the React admin application from source:
 4. Run `npm run package` to compile and package the release zip.
 
 == Changelog ==
+
+= 1.28.0 =
+* Preload Micro-WAF & Early Execution Engine: Zero-dependency standalone Micro-WAF (`MicroWafCompiler.php`) compiled to static OPcache-shared PHP arrays via `auto_prepend_file`, intercepting threats before WordPress core boots with Linux Fail2ban/CrowdSec log formatting.
+* Strict Anti-Spoofing Allowlist Hardening: Eliminated client-forged User-Agent only allowlists in `FirewallEngine.php`, enforcing multi-attribute network and path validation.
+* Autonomous MCP Governance Hardening: Defaulted Model Context Protocol tools to strict read-only mode with human-in-the-loop confirmation gates for mutating tools.
+* Manifest Uniformity & Automated Verification: Standardized compatibility floor across all plugin manifests with automated pre-commit integrity checking (`verify-manifests.js`).
 
 = 1.25.0 =
 * Intelligent Prohibited Installation Armor: Added multi-stage WP Upgrader pipeline inspection (`upgrader_source_selection`) and deep archive stream sampling (`stream_get_contents`) to prevent upload or installation of phpMyAdmin, Adminer, and standalone File Manager web shells.
