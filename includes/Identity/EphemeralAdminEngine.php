@@ -79,13 +79,13 @@ class EphemeralAdminEngine {
         $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
 
         $is_targeting_wcp = false;
-        if ($plugin && (strpos($plugin, 'wcp-wp-scanner') !== false || strpos($plugin, 'wcp-security-scanner') !== false)) {
+        if ($plugin && strpos($plugin, 'wcp-security-scanner') !== false) {
             $is_targeting_wcp = true;
         }
 
         if (!empty($checked)) {
             foreach ($checked as $p) {
-                if (strpos($p, 'wcp-wp-scanner') !== false || strpos($p, 'wcp-security-scanner') !== false) {
+                if (strpos($p, 'wcp-security-scanner') !== false) {
                     $is_targeting_wcp = true;
                     break;
                 }
@@ -125,7 +125,7 @@ class EphemeralAdminEngine {
         // Prevent deactivating WCP Security Scanner
         if ($cap === 'deactivate_plugin' || $cap === 'deactivate_plugins') {
             $target_plugin = !empty($args[0]) ? $args[0] : '';
-            if (empty($target_plugin) || strpos($target_plugin, 'wcp-wp-scanner') !== false || strpos($target_plugin, 'wcp-security-scanner') !== false) {
+            if (empty($target_plugin) || strpos($target_plugin, 'wcp-security-scanner') !== false) {
                 return ['do_not_allow'];
             }
         }

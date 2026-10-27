@@ -85,7 +85,7 @@ class UpdateGatekeeperEngine {
 
         // Self-Exclusion: Never intercept or flag WCP Security Scanner itself
         // (Internal attack simulation test suites, virtual patch synthesizers, and quarantine engines contain controlled exploit strings)
-        if ($folder_name === 'wcp-security-scanner' || $folder_name === 'wcp-wp-scanner') {
+        if ($folder_name === 'wcp-security-scanner') {
             return $source;
         }
 

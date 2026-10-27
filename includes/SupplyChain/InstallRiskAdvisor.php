@@ -42,7 +42,7 @@ class InstallRiskAdvisor {
         $resolved_slug = $slug ?: basename($real_dir);
 
         // Self-Exclusion: Never flag WCP Security Scanner itself
-        if ($resolved_slug === 'wcp-security-scanner' || $resolved_slug === 'wcp-wp-scanner') {
+        if ($resolved_slug === 'wcp-security-scanner') {
             return [
                 'success'      => true,
                 'slug'         => $resolved_slug,

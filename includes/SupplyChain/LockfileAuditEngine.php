@@ -281,7 +281,7 @@ class LockfileAuditEngine {
                         if (isset($filenames[$name])) {
                             $path = wp_normalize_path($item->getPathname());
                             // Self-Exclusion: Skip scanner's own lockfiles
-                            if (str_contains($path, '/plugins/wcp-security-scanner/') || str_contains($path, '/plugins/wcp-wp-scanner/')) {
+                            if (str_contains($path, '/plugins/wcp-security-scanner/')) {
                                 continue;
                             }
 

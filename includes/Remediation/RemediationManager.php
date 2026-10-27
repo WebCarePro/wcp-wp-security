@@ -63,7 +63,7 @@ class RemediationManager {
         $normalized_real = wp_normalize_path($real_path);
 
         // Prohibit modifying scanner plugin files
-        if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false || strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
+        if (strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
             return ['success' => false, 'message' => 'Action Blocked: Cannot modify security scanner files.'];
         }
 
@@ -203,7 +203,7 @@ class RemediationManager {
         $normalized_plugins = rtrim(wp_normalize_path(realpath($raw_plugins_dir) ?: $raw_plugins_dir), '/') . '/';
 
         // Prohibit scanner's own plugin
-        if (strpos($normalized_real, '/wcp-wp-scanner/') !== false || strpos($normalized_real, '/wcp-security-scanner/') !== false) {
+        if (strpos($normalized_real, '/wcp-security-scanner/') !== false) {
             return ['success' => false, 'message' => 'Action Blocked: Cannot reinstall security scanner files.'];
         }
 
@@ -450,7 +450,7 @@ class RemediationManager {
         }
 
         // Never modify scanner plugin files
-        if (strpos($normalized_real, '/plugins/wcp-wp-scanner/') !== false || strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
+        if (strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
             return ['success' => false, 'message' => __('Action Blocked: Cannot modify security scanner files.', 'wcp-security-scanner')];
         }
 

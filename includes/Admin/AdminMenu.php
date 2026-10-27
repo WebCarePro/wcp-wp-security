@@ -663,7 +663,7 @@ class AdminMenu {
 
                 var href = link.getAttribute('href') || '';
                 var isDelete = href.indexOf('action=delete-selected') !== -1 || (link.classList.contains('delete') && href.indexOf('plugins.php') !== -1);
-                var isWcpPlugin = href.indexOf('wcp-wp-scanner') !== -1 || href.indexOf('wcp-security-scanner') !== -1;
+                var isWcpPlugin = href.indexOf('wcp-security-scanner') !== -1;
 
                 if (!isWcpPlugin) {
                     var row = link.closest('tr[data-plugin*="wcp-"]');

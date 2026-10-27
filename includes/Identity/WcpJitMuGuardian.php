@@ -66,6 +66,9 @@ class WcpJitMuGuardian {
 
         global $wp_filesystem;
         if (!$wp_filesystem) {
+            if (!function_exists('wp_generate_password')) {
+                require_once ABSPATH . WPINC . '/pluggable.php';
+            }
             require_once ABSPATH . 'wp-admin/includes/file.php';
             WP_Filesystem();
         }
@@ -428,13 +431,13 @@ class WcpJitMuGuardianRuntime {
         $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
 
         $is_targeting_wcp = false;
-        if ($plugin && (strpos($plugin, 'wcp-wp-scanner') !== false || strpos($plugin, 'wcp-security-scanner') !== false)) {
+        if ($plugin && strpos($plugin, 'wcp-security-scanner') !== false) {
             $is_targeting_wcp = true;
         }
 
         if (!empty($checked)) {
             foreach ($checked as $p) {
-                if (strpos($p, 'wcp-wp-scanner') !== false || strpos($p, 'wcp-security-scanner') !== false) {
+                if (strpos($p, 'wcp-security-scanner') !== false) {
                     $is_targeting_wcp = true;
                     break;
                 }
@@ -733,7 +736,7 @@ class WcpJitMuGuardianRuntime {
      * If WCP Security Scanner is deactivated, immediately demote JIT admins and terminate support sessions
      */
     public static function on_plugin_deactivated($plugin) {
-        if (strpos($plugin, 'wcp-wp-scanner') !== false || strpos($plugin, 'wcp-security-scanner') !== false) {
+        if (strpos($plugin, 'wcp-security-scanner') !== false) {
             self::revert_all_elevations('Emergency de-elevation: WCP Security Scanner plugin was deactivated.');
             self::terminate_all_support_sessions('Emergency termination: WCP Security Scanner plugin was deactivated.');
         }
@@ -760,7 +763,7 @@ class WcpJitMuGuardianRuntime {
         // Rule 1 (Inviolable): Block deactivating or deleting WCP Security Scanner
         if (in_array($cap, ['deactivate_plugin', 'deactivate_plugins', 'delete_plugins'], true)) {
             $target_plugin = !empty($args[0]) ? (string) $args[0] : '';
-            if (empty($target_plugin) || strpos($target_plugin, 'wcp-wp-scanner') !== false || strpos($target_plugin, 'wcp-security-scanner') !== false) {
+            if (empty($target_plugin) || strpos($target_plugin, 'wcp-security-scanner') !== false) {
                 return ['do_not_allow'];
             }
         }
@@ -850,7 +853,7 @@ class WcpJitMuGuardianRuntime {
             return $actions;
         }
 
-        $is_wcp = (strpos($plugin_file, 'wcp-wp-scanner') !== false || strpos($plugin_file, 'wcp-security-scanner') !== false);
+        $is_wcp = (strpos($plugin_file, 'wcp-security-scanner') !== false);
 
         // Anti-Tamper: Remove Deactivate and Delete for WCP Security Scanner
         if ($is_wcp) {

@@ -33,7 +33,6 @@ class CorrelationEngine {
         foreach ($grouped as $target => $target_findings) {
             $norm_target = str_replace('\\', '/', rtrim($target, '/'));
             if (
-                strpos($norm_target, '/plugins/wcp-wp-scanner') !== false ||
                 strpos($norm_target, '/plugins/wcp-security-scanner') !== false ||
                 strpos($norm_target, '/tests/') !== false
             ) {

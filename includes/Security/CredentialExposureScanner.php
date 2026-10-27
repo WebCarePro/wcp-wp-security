@@ -197,7 +197,7 @@ class CredentialExposureScanner {
                         $path = $item->getPathname();
                         // Self-Exclusion
                         $norm = str_replace('\\', '/', $path);
-                        if (str_contains($norm, '/plugins/wcp-security-scanner/') || str_contains($norm, '/plugins/wcp-wp-scanner/')) {
+                        if (str_contains($norm, '/plugins/wcp-security-scanner/')) {
                             continue;
                         }
 

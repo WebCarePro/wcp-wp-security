@@ -45,7 +45,6 @@ class PluginIntegrity {
             if (
                 $plugin_dir_name === $scanner_slug ||
                 $plugin_dir_name === 'wcp-security-scanner' ||
-                $plugin_dir_name === 'wcp-wp-scanner' ||
                 strpos($plugin_file, 'wcp-') === 0
             ) {
                 continue;

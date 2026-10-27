@@ -19,7 +19,6 @@ class DirectoryWalker {
         'wfcache',
         'updraft',
         'wcp-security-scanner',
-        'wcp-wp-scanner',
         'wcp-scanner-quarantine',
         'wcp-vault',
         'wcp-waf',

@@ -111,7 +111,7 @@ class Engine {
             foreach ($iterator as $item) {
                 if ($item->isFile()) {
                     $pathname = str_replace('\\', '/', $item->getPathname());
-                    if (strpos($pathname, '/plugins/wcp-wp-scanner/') !== false || strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
+                    if (strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
                         continue; // Do not enqueue scanner's own files
                     }
 

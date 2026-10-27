@@ -233,7 +233,7 @@ class OutboundEgressFirewall {
             $norm = str_replace('\\', '/', $file);
 
             // Skip scanner's own code and core HTTP classes
-            if (str_contains($norm, '/plugins/wcp-security-scanner/') || str_contains($norm, '/plugins/wcp-wp-scanner/')) {
+            if (str_contains($norm, '/plugins/wcp-security-scanner/')) {
                 continue;
             }
             if (str_contains($norm, 'class-wp-http') || str_contains($norm, 'Requests/')) {
