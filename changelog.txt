@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Header Menu Centering & Mode Toggle Redesign (App.tsx, index.css):
+  * Perfectly Centered Main Navigation: Centered the primary navigation row (Dashboard, Scanner, Firewall, Identity, Vault & Tools, Settings, ⌘K All Modules) inside the lower tier with balanced padding, giving the administrative console a cohesive, symmetrical feel.
+  * Interactive Compact Mode Pill Toggle: Replaced the bulky dual-button switcher with an elegant, responsive pill toggle featuring a dynamic state thumb (Shield icon for Essential, Sliders icon for Advanced SOC) and pill badges ('Simple' vs. '53 Engines').
 - Two-Tier Professional Header Architecture (App.tsx, index.css):
   * Executive Dual-Tier Layout: Redesigned the top navigation into a structured two-tier header bar inspired by enterprise platforms (Cloudflare/Datadog) to completely eliminate horizontal button crowding and multi-line wrapping.
   * Tier 1 Identity & Governance Strip: Displays the 3D brand logo, brand title, active status subtitle ("Enterprise Protection Active • v1.29.0"), Essential vs. Advanced SOC mode toggle, 1-Click Quick Setup wizard trigger, Emergency Panic lockdown, and theme toggle.
