@@ -35,7 +35,7 @@ class ImportantFileFIM {
                         'type'        => 'missing_critical_file',
                         'severity'    => 'critical',
                         'confidence'  => 100,
-                        'file_path'   => $path,
+                        'file_path'   => wp_normalize_path($path),
                         'description' => "Critical WordPress file ($name) is missing from the root directory."
                     ]);
                 }
@@ -55,7 +55,7 @@ class ImportantFileFIM {
                         'type'        => 'injected_critical_file',
                         'severity'    => 'critical',
                         'confidence'  => 95,
-                        'file_path'   => $path,
+                        'file_path'   => wp_normalize_path($path),
                         'description' => "Suspicious function call detected at the very beginning of $name. This is a common backdoor injection technique.",
                         'code_snippet'=> substr($content, 0, 200)
                     ]);
@@ -70,7 +70,7 @@ class ImportantFileFIM {
                         'type'        => 'injected_wp_config',
                         'severity'    => 'critical',
                         'confidence'  => 90,
-                        'file_path'   => $path,
+                        'file_path'   => wp_normalize_path($path),
                         'description' => "Suspicious executable code or remote file inclusion detected in wp-config.php.",
                     ]);
                 }

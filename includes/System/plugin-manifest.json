@@ -1,6 +1,6 @@
 {
   "version": "1.28.0",
-  "generated_at": "2026-10-28T01:07:14.536Z",
+  "generated_at": "2026-10-28T01:22:02.126Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -68,8 +68,8 @@
       "size": 73681
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "5d7dcef8858244e5d9656dae949615e0fb497fb21af37eb75c7c9270ec98d372",
-      "size": 469405
+      "sha256": "c1d98836dff0539af056565b10d6869fbc7859e8b5c82b337e3a28d963f69b6b",
+      "size": 471531
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "1b483a410c8f666e1250ebf8ae5da87f6c907db1c8be5309798641cf28053691",
@@ -188,8 +188,8 @@
       "size": 23464
     },
     "includes/Findings/CorrelationEngine.php": {
-      "sha256": "c793b61f00d1aad6368d60a95c56dbb52029f56ff8e14e05bc7ee196a98bb91a",
-      "size": 22196
+      "sha256": "4b8d13991a0196237a3bd0668c41083ff1887f5f758f18fc8e1224e6b9a03655",
+      "size": 24225
     },
     "includes/Findings/Finding.php": {
       "sha256": "413e67b9bde99fab44f3aa961e88df004ba96433cf6e657f07005319096bf06c",
@@ -316,8 +316,8 @@
       "size": 29280
     },
     "includes/Integrity/CoreIntegrity.php": {
-      "sha256": "8a9a6707124bba6ee0cfde2c71c9ce3a9214b40273c8532237e4e4a6408461c1",
-      "size": 13523
+      "sha256": "6650cc96372b57105b0855142172b78348949cd72478d7dd11cb2608df6d490f",
+      "size": 13618
     },
     "includes/Integrity/FileIntegrityMonitor.php": {
       "sha256": "1792b91a1c0c799eb8fcef560dbe19e706a920ccc6a838398525c6072076e6cf",
@@ -332,8 +332,8 @@
       "size": 12030
     },
     "includes/Integrity/ImportantFileFIM.php": {
-      "sha256": "b60df0c31fd1f5273eaa9975ffe2255220a22af59bda7f64502183810ac89030",
-      "size": 3459
+      "sha256": "47d393f3e91d3c92f7416704876cf4580ba4ad7429c1276b959d71b2c09fefed",
+      "size": 3516
     },
     "includes/Integrity/LocalSnapshotManager.php": {
       "sha256": "224c7883d5bbac22acf027753f643cd823c90bb058a33c558c498eb9d1e4f33f",
@@ -344,8 +344,8 @@
       "size": 13929
     },
     "includes/Integrity/ThemeIntegrity.php": {
-      "sha256": "8184ce42b8ef35eb23205ea7d5e08fc70fa47d7acfc948761c8fb87b719902bc",
-      "size": 10731
+      "sha256": "6decfa539803798a888cde78552d8984530fd6d8a36a179d0870ec3a10dc6d1f",
+      "size": 10769
     },
     "includes/Malware/DeobfuscationEngine.php": {
       "sha256": "2e196c8899e8031555ec4c303bba7afe687c6fc60c08dded3c190d2a66c749e2",

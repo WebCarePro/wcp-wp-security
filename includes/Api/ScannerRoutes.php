@@ -2238,13 +2238,17 @@ class ScannerRoutes {
 
             $inserted_signatures = [];
             foreach ($existing_issues as $ex) {
-                $sig = md5(($ex['engine'] ?? '') . '|' . ($ex['type'] ?? '') . '|' . ($ex['file_path'] ?? '') . '|' . ($ex['line_number'] ?? '') . '|' . ($ex['description'] ?? ''));
+                $norm_path = self::normalize_finding_path($ex['file_path'] ?? '');
+                $line_no = (int) ($ex['line_number'] ?? 0);
+                $sig = strtolower($ex['type'] ?? '') . '|' . $norm_path . '|' . $line_no;
                 $inserted_signatures[$sig] = true;
             }
 
             foreach ($correlated as $f) {
                 $item = $f->to_array();
-                $sig = md5(($item['engine'] ?? '') . '|' . ($item['type'] ?? '') . '|' . ($item['file_path'] ?? '') . '|' . ($item['line_number'] ?? '') . '|' . ($item['description'] ?? ''));
+                $norm_path = self::normalize_finding_path($item['file_path'] ?? '');
+                $line_no = (int) ($item['line_number'] ?? 0);
+                $sig = strtolower($item['type'] ?? '') . '|' . $norm_path . '|' . $line_no;
                 if (isset($inserted_signatures[$sig])) {
                     continue; // Skip exact duplicate finding for this scan
                 }
@@ -2270,6 +2274,9 @@ class ScannerRoutes {
                     'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
                 ]);
             }
+
+            // Prune any duplicate issue rows to ensure clean database storage
+            self::prune_duplicate_issues($scan_id);
 
             // Calculate final risk score across all findings (decorating whitelist status)
             $all_iss_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d";
@@ -2512,42 +2519,7 @@ class ScannerRoutes {
         }
 
         // Prune any duplicate issue rows for this scan to keep database clean
-        $dup_sql = "SELECT MIN(id) as keep_id, scan_id, engine, type, file_path, line_number, description, COUNT(*) as cnt FROM `{$table_issues}` WHERE scan_id = %d GROUP BY scan_id, engine, type, file_path, line_number, description HAVING cnt > 1";
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $duplicates = $wpdb->get_results(
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            $wpdb->prepare($dup_sql, $latest_scan['id']),
-            ARRAY_A
-        );
-
-        if (!empty($duplicates)) {
-            foreach ($duplicates as $dup) {
-                $del_dup_sql = "DELETE FROM `{$table_issues}` WHERE scan_id = %d AND engine = %s AND type = %s AND file_path = %s AND description = %s AND id != %d";
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-                $wpdb->query(
-                    $wpdb->prepare(
-                        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                        $del_dup_sql,
-                        $dup['scan_id'],
-                        $dup['engine'],
-                        $dup['type'],
-                        $dup['file_path'],
-                        $dup['description'],
-                        $dup['keep_id']
-                    )
-                );
-            }
-            // Update issues_found count on scan record
-            $fc_sql = "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d";
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            $fixed_count = (int) $wpdb->get_var(
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                $wpdb->prepare($fc_sql, $latest_scan['id'])
-            );
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->update($table_scans, ['issues_found' => $fixed_count], ['id' => $latest_scan['id']]);
-            $latest_scan['issues_found'] = $fixed_count;
-        }
+        self::prune_duplicate_issues((int) $latest_scan['id']);
 
         $iss_list_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -2818,6 +2790,9 @@ class ScannerRoutes {
         if (!$scan) {
             return new \WP_Error('scan_not_found', 'Scan log not found', ['status' => 404]);
         }
+
+        // Prune any duplicate issue rows for this historical log to heal database
+        self::prune_duplicate_issues($scan_id);
 
         $scan_iss_sql = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info'), id DESC";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -3982,11 +3957,14 @@ class ScannerRoutes {
         }
         unset($item);
 
-        // Deduplicate identical issues by unique signature
+        // Deduplicate identical issues by normalized signature (type + normalized target path + line number)
         $deduped = [];
         $seen_signatures = [];
         foreach ($issues as $entry) {
-            $sig = ($entry['engine'] ?? '') . '|' . ($entry['type'] ?? '') . '|' . ($entry['file_path'] ?? '') . '|' . ($entry['line_number'] ?? '') . '|' . ($entry['description'] ?? '');
+            $norm_path = self::normalize_finding_path($entry['file_path'] ?? ($entry['target'] ?? ''));
+            $type = strtolower(trim($entry['type'] ?? ''));
+            $line = (int) ($entry['line_number'] ?? 0);
+            $sig = $type . '|' . $norm_path . '|' . $line;
             if (isset($seen_signatures[$sig])) {
                 continue;
             }
@@ -3995,6 +3973,99 @@ class ScannerRoutes {
         }
 
         return $deduped;
+    }
+
+    /**
+     * Normalize a finding target key (file path or entity ID) to canonical format.
+     *
+     * @param string $path
+     * @return string Canonical normalized target key
+     */
+    public static function normalize_finding_path(string $path): string {
+        $clean = trim($path);
+        if ($clean === '') {
+            return '';
+        }
+        $normalized = str_replace('\\', '/', $clean);
+        $normalized = preg_replace('#/+#', '/', $normalized);
+        $normalized = strtolower(rtrim($normalized, '/'));
+
+        if (defined('ABSPATH')) {
+            $norm_abspath = strtolower(rtrim(str_replace('\\', '/', ABSPATH), '/'));
+            if (!empty($norm_abspath) && str_starts_with($normalized, $norm_abspath)) {
+                $normalized = ltrim(substr($normalized, strlen($norm_abspath)), '/');
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Prune duplicate issue rows for a scan to ensure each file/anomaly type is stored only once.
+     *
+     * @param int $scan_id
+     * @return int Number of pruned duplicate rows
+     */
+    public static function prune_duplicate_issues(int $scan_id): int {
+        global $wpdb;
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+
+        if ($scan_id <= 0) {
+            return 0;
+        }
+
+        $iss_query = "SELECT id, engine, type, file_path, line_number, confidence FROM `{$table_issues}` WHERE scan_id = %d ORDER BY id ASC";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $rows = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($iss_query, $scan_id),
+            ARRAY_A
+        ) ?: [];
+
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $seen = [];
+        $ids_to_delete = [];
+
+        foreach ($rows as $row) {
+            $norm_path = self::normalize_finding_path($row['file_path'] ?? '');
+            $type = strtolower(trim($row['type'] ?? ''));
+            $line = (int) ($row['line_number'] ?? 0);
+            $sig = $type . '|' . $norm_path . '|' . $line;
+
+            if (isset($seen[$sig])) {
+                $ids_to_delete[] = (int) $row['id'];
+            } else {
+                $seen[$sig] = (int) $row['id'];
+            }
+        }
+
+        if (!empty($ids_to_delete)) {
+            foreach (array_chunk($ids_to_delete, 80) as $chunk) {
+                $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+                $del_sql = "DELETE FROM `{$table_issues}` WHERE id IN ($placeholders)";
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+                $wpdb->query(
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                    $wpdb->prepare($del_sql, ...$chunk)
+                );
+            }
+
+            // Recalculate true active open issues on scan row
+            $cnt_sql = "SELECT COUNT(*) FROM `{$table_issues}` WHERE scan_id = %d AND status = 'open'";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $open_count = (int) $wpdb->get_var(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($cnt_sql, $scan_id)
+            );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->update($table_scans, ['issues_found' => $open_count], ['id' => $scan_id]);
+        }
+
+        return count($ids_to_delete);
     }
 
     /**

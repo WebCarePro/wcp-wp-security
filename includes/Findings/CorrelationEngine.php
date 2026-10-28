@@ -18,13 +18,11 @@ class CorrelationEngine {
             return [];
         }
 
-        // Group findings by file_path or target identifier
+        // Group findings by normalized file_path or target identifier
         $grouped = [];
         foreach ($findings as $idx => $finding) {
-            $key = trim($finding->file_path);
-            if (empty($key)) {
-                $key = '__global__' . $idx;
-            }
+            $raw_path = (string) ($finding->file_path ?? '');
+            $key = !empty($raw_path) ? self::normalize_target_key($raw_path) : ('__global__' . $idx);
             $grouped[$key][] = $finding;
         }
 
@@ -38,6 +36,25 @@ class CorrelationEngine {
             ) {
                 continue; // Always drop findings on scanner's own code
             }
+
+            // Deduplicate duplicate findings of the same issue type and line number on this target
+            $deduped_target_findings = [];
+            $seen_types = [];
+            foreach ($target_findings as $f) {
+                $type_key = strtolower(trim($f->type ?? '')) . '|' . (int) ($f->line_number ?? 0);
+                if (isset($seen_types[$type_key])) {
+                    $existing_idx = $seen_types[$type_key];
+                    $existing = $deduped_target_findings[$existing_idx];
+                    // Keep the one with higher confidence or richer evidence
+                    if (($f->confidence ?? 0) > ($existing->confidence ?? 0) || (strlen($f->evidence ?? '') > strlen($existing->evidence ?? ''))) {
+                        $deduped_target_findings[$existing_idx] = $f;
+                    }
+                    continue;
+                }
+                $seen_types[$type_key] = count($deduped_target_findings);
+                $deduped_target_findings[] = $f;
+            }
+            $target_findings = $deduped_target_findings;
 
             if (count($target_findings) === 1) {
                 $correlated_findings[] = $target_findings[0];
@@ -429,5 +446,30 @@ class CorrelationEngine {
                 'tier_5_outcomes'     => array_values($outcomes),
             ],
         ];
+    }
+
+    /**
+     * Normalize a finding target key (file path or entity ID) to canonical format.
+     *
+     * @param string $path
+     * @return string Canonical normalized target key
+     */
+    public static function normalize_target_key(string $path): string {
+        $clean = trim($path);
+        if ($clean === '') {
+            return '';
+        }
+        $normalized = str_replace('\\', '/', $clean);
+        $normalized = preg_replace('#/+#', '/', $normalized);
+        $normalized = strtolower(rtrim($normalized, '/'));
+
+        if (defined('ABSPATH')) {
+            $norm_abspath = strtolower(rtrim(str_replace('\\', '/', ABSPATH), '/'));
+            if (!empty($norm_abspath) && str_starts_with($normalized, $norm_abspath)) {
+                $normalized = ltrim(substr($normalized, strlen($norm_abspath)), '/');
+            }
+        }
+
+        return $normalized;
     }
 }

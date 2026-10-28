@@ -66,7 +66,7 @@ class CoreIntegrity {
                     'type'        => 'missing_core_file',
                     'severity'    => 'high',
                     'confidence'  => 100,
-                    'file_path'   => $absolute_path,
+                    'file_path'   => wp_normalize_path($absolute_path),
                     'description' => "A WordPress core file is missing.",
                     'evidence'    => "File: $file"
                 ]);
@@ -93,7 +93,7 @@ class CoreIntegrity {
                     'type'        => 'modified_core_file',
                     'severity'    => 'high',
                     'confidence'  => 99,
-                    'file_path'   => $absolute_path,
+                    'file_path'   => wp_normalize_path($absolute_path),
                     'description' => "WordPress core file differs from the official checksum.",
                     'evidence'    => "Expected: $expected_hash, Actual: $actual_hash"
                 ]);
@@ -151,7 +151,7 @@ class CoreIntegrity {
                             'type'        => 'unknown_core_file',
                             'severity'    => $is_executable ? 'high' : 'medium',
                             'confidence'  => 95,
-                            'file_path'   => $real_file_path,
+                            'file_path'   => wp_normalize_path($real_file_path),
                             'description' => "Unrecognized/unknown file found inside WordPress core directory: {$rel_file}",
                             'evidence'    => "File '{$rel_file}' is not part of the official WordPress release manifest."
                         ]);
@@ -208,7 +208,7 @@ class CoreIntegrity {
                                 'type'        => 'unknown_core_file',
                                 'severity'    => ($is_executable || $is_hidden_file) ? 'high' : 'medium',
                                 'confidence'  => 95,
-                                'file_path'   => $full_item_path,
+                                'file_path'   => wp_normalize_path($full_item_path),
                                 'description' => $is_hidden_file 
                                     ? "Unrecognized hidden file found in WordPress root directory: {$item_name}" 
                                     : "Unrecognized file found in WordPress root directory: {$item_name}",
@@ -248,7 +248,7 @@ class CoreIntegrity {
                                         'type'        => 'unknown_core_file',
                                         'severity'    => ($child_executable || $is_dot_dir) ? 'high' : 'medium',
                                         'confidence'  => 95,
-                                        'file_path'   => $child_full_path,
+                                        'file_path'   => wp_normalize_path($child_full_path),
                                         'description' => $is_dot_dir
                                             ? "Rogue file found inside hidden directory on WordPress root: {$child_rel}"
                                             : "Unrecognized file found inside non-standard root directory: {$child_rel}",

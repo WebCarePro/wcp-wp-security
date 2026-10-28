@@ -110,7 +110,7 @@ class ThemeIntegrity {
                         'type'        => 'missing_theme_file',
                         'severity'    => 'medium',
                         'confidence'  => 100,
-                        'file_path'   => $absolute_path,
+                        'file_path'   => wp_normalize_path($absolute_path),
                         'description' => "A theme file is missing: {$theme_data->get('Name')}",
                         'evidence'    => "File: $file"
                     ]);
@@ -204,7 +204,7 @@ class ThemeIntegrity {
                                 'type'        => 'unknown_theme_file',
                                 'severity'    => $is_executable ? 'high' : 'medium',
                                 'confidence'  => 95,
-                                'file_path'   => $real_path,
+                                'file_path'   => wp_normalize_path($real_path),
                                 'description' => "Unrecognized/unknown file found inside official theme {$theme_data->get('Name')}: {$rel_file}",
                                 'evidence'    => "File '{$rel_file}' is not part of the official WordPress release manifest for theme {$theme_slug} v{$version}."
                             ]);
