@@ -1951,6 +1951,14 @@ class ScannerRoutes {
     public static function run_deep_audit(\WP_REST_Request $request) {
         global $wpdb;
 
+        // Ensure sufficient execution time and memory for deep forensic correlation
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(180);
+        }
+        if (function_exists('wp_raise_memory_limit')) {
+            @wp_raise_memory_limit('admin');
+        }
+
         $scan_id = (int) $request->get_param('scan_id');
         $target = sanitize_text_field($request->get_param('target') ?: '');
         $admins_only = (bool) $request->get_param('admins_only');
@@ -2215,38 +2223,66 @@ class ScannerRoutes {
             } elseif ($target === 'filesystem_only') {
                 // Filesystem-only scan: no additional deep audit engines needed
             } else {
-                // Full or plugins_themes: run all engines
-                $core_integrity = new CoreIntegrity();
-                $plugin_integrity = new PluginIntegrity();
-                $theme_integrity = new ThemeIntegrity();
-                $important_fim = new ImportantFileFIM();
-                $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
-                $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
-                $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
-                $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
+                // Full or plugins_themes: execute deep audit engines with heartbeat & fault isolation
+                try {
+                    ScanLock::heartbeat($scan_id);
+                    $core_integrity = new CoreIntegrity();
+                    $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
+                } catch (\Throwable $e) {}
 
-                $db_scanner = new DatabaseScanner();
-                $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
+                try {
+                    $important_fim = new ImportantFileFIM();
+                    $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
+                } catch (\Throwable $e) {}
 
-                $content_scanner = new ContentScanner();
-                $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
+                try {
+                    ScanLock::heartbeat($scan_id);
+                    $plugin_integrity = new PluginIntegrity();
+                    $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
+                } catch (\Throwable $e) {}
 
-                $wp_security = new WordPressSecurityScanner();
-                $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
+                try {
+                    ScanLock::heartbeat($scan_id);
+                    $theme_integrity = new ThemeIntegrity();
+                    $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
+                } catch (\Throwable $e) {}
 
-                $update_scanner = new UpdateScanner();
-                $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
+                try {
+                    ScanLock::heartbeat($scan_id);
+                    $db_scanner = new DatabaseScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
+                } catch (\Throwable $e) {}
 
-                $uploads_scanner = new UploadsScanner();
-                $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+                try {
+                    $content_scanner = new ContentScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
+                } catch (\Throwable $e) {}
 
-                // Reputation Checks (Domain blocklist, Spamvertised, Spam IP)
-                $reputation_findings = self::audit_reputation_checks((string) $scan_id, [
-                    'check_domain_blocklist' => true,
-                    'check_spamvertised'     => true,
-                    'check_spam_ip'          => true,
-                ]);
-                $all_deep_findings = array_merge($all_deep_findings, $reputation_findings);
+                try {
+                    ScanLock::heartbeat($scan_id);
+                    $wp_security = new WordPressSecurityScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
+                } catch (\Throwable $e) {}
+
+                try {
+                    $update_scanner = new UpdateScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
+                } catch (\Throwable $e) {}
+
+                try {
+                    $uploads_scanner = new UploadsScanner();
+                    $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
+                } catch (\Throwable $e) {}
+
+                // Quick reputation check (skips if non-responsive or local)
+                try {
+                    $reputation_findings = self::audit_reputation_checks((string) $scan_id, [
+                        'check_domain_blocklist' => true,
+                        'check_spamvertised'     => true,
+                        'check_spam_ip'          => true,
+                    ]);
+                    $all_deep_findings = array_merge($all_deep_findings, $reputation_findings);
+                } catch (\Throwable $e) {}
             }
 
             // Cross-engine Correlation
