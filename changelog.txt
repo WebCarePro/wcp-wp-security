@@ -1,4 +1,9 @@
 v:1.29.0 - 2026-10-29
+- Small Laptop & Medium Screen Responsive Navigation (`App.tsx`, `index.css`):
+  * Responsive Top Header & Nav Adaptation: Added granular fluid media breakpoints (`1480px`, `1320px`, `1180px`, `768px`) for compact laptop displays (1366x768, 1280x800, and 125%-150% OS display scaling).
+  * Compact Nav Buttons: Dynamically scaled navigation padding, button font sizes, brand emblem, and gaps to prevent wrapping or overflowing into the panic button.
+  * Action Button Optimization: Replaced long text in Panic Button and Dark/White Mode buttons with sleek icon-focused triggers on screens below 1320px, keeping all 6 primary navigation pillars, All Modules mega-menu, and actions on a single clean row.
+  * Smooth Tablet/Touch Flex Wrapping: Allowed horizontal touch-scrolling without scrollbars on sub-1180px viewports with WordPress admin menu open.
 - Scanner Engine Turbo Optimization & Integrity Checksum Caching (`ChecksumProvider.php`, `Engine.php`, `ScannerRoutes.php`):
   * Checksum Provider In-Memory & Negative Caching: Added immediate in-memory caching (`self::$plugin_checksums_memory`, `self::$theme_checksums_memory`) and negative transient caching (`'none'` for 6 hours) on 404/not_found responses from WordPress.org. Completely eliminated repeated blocking outgoing HTTP requests to downloads.wordpress.org when scanning custom, unmanaged, or premium plugins/themes, preventing scan stall and increasing throughput up to 100x.
   * Smart Test & Vendor Directory Exclusions: Added recursive directory filter exclusions in `Engine::stream_scannable_files` for non-production folders (`tests`, `test`, `testing`, `spec`, `specs`, `phpunit`, `.github`, `docs`, `documentation`, `examples`, `fixtures`, `.vscode`, `.idea`), preventing tens of thousands of harmless unit test fixtures and sample scripts from inflating the file scan queue.
