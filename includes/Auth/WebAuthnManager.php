@@ -28,8 +28,9 @@ class WebAuthnManager {
      * Bootstrap WebAuthn Manager.
      */
     public static function init(): void {
-        // Handle login page injection or passkey modal integration
+        // Handle login page injection and WebAuthn browser ceremony scripts
         add_action('login_form', [__CLASS__, 'render_login_passkey_prompt']);
+        add_action('login_footer', [__CLASS__, 'render_login_passkey_scripts']);
     }
 
     /**
@@ -478,11 +479,172 @@ class WebAuthnManager {
      */
     public static function render_login_passkey_prompt(): void {
         ?>
-        <div style="margin: 12px 0; text-align: center;">
-            <button type="button" id="wcp-passkey-login-btn" class="button button-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; padding: 6px 12px;">
+        <div style="margin: 14px 0 10px; text-align: center;">
+            <button type="button" id="wcp-passkey-login-btn" class="button button-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; padding: 6px 12px; height: auto; min-height: 38px; cursor: pointer; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: all 0.2s ease;">
                 <span style="font-size: 16px;">🔑</span> <?php esc_html_e('Sign in with Passkey / Biometrics', 'wcp-security-scanner'); ?>
             </button>
         </div>
+        <?php
+    }
+
+    /**
+     * Render passkey authentication scripts on login page.
+     */
+    public static function render_login_passkey_scripts(): void {
+        $options_url = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-options'));
+        $verify_url  = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-verify'));
+        $default_redirect = esc_url_raw(admin_url());
+        ?>
+        <script>
+        (function() {
+            var btn = document.getElementById('wcp-passkey-login-btn');
+            if (!btn) return;
+
+            var isSupported = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.get);
+
+            function showNotice(msg, isSuccess) {
+                var loginForm = document.getElementById('loginform') || document.getElementById('login');
+                var existing = document.getElementById('wcp-passkey-notice');
+                if (existing) existing.remove();
+
+                var notice = document.createElement('div');
+                notice.id = 'wcp-passkey-notice';
+                notice.className = isSuccess ? 'notice notice-success' : 'notice notice-error';
+                notice.style.cssText = 'padding: 10px 14px; margin-bottom: 16px; border-left: 4px solid ' + (isSuccess ? '#46b450' : '#dc3232') + '; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 13px; line-height: 1.4;';
+                notice.innerHTML = '<p style="margin: 0;">' + msg + '</p>';
+                if (loginForm && loginForm.parentNode) {
+                    loginForm.parentNode.insertBefore(notice, loginForm);
+                }
+            }
+
+            function base64urlToUint8Array(base64url) {
+                var base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+                while (base64.length % 4) {
+                    base64 += '=';
+                }
+                var raw = window.atob(base64);
+                var buffer = new Uint8Array(raw.length);
+                for (var i = 0; i < raw.length; i++) {
+                    buffer[i] = raw.charCodeAt(i);
+                }
+                return buffer;
+            }
+
+            function arrayBufferToBase64url(buffer) {
+                var bytes = new Uint8Array(buffer);
+                var binary = '';
+                for (var i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            }
+
+            btn.addEventListener('click', async function(e) {
+                e.preventDefault();
+
+                if (!isSupported) {
+                    showNotice('<?php echo esc_js(__('WebAuthn Passkeys are not supported by this browser, or require HTTPS.', 'wcp-security-scanner')); ?>', false);
+                    return;
+                }
+
+                if (!window.isSecureContext) {
+                    showNotice('<?php echo esc_js(__('Passkeys require a secure HTTPS connection or localhost.', 'wcp-security-scanner')); ?>', false);
+                    return;
+                }
+
+                var origHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span style="display: inline-block;">⏳</span> <?php echo esc_js(__('Connecting to Windows Hello / Passkey...', 'wcp-security-scanner')); ?>';
+
+                var userLoginInput = document.getElementById('user_login');
+                var username = userLoginInput ? userLoginInput.value.trim() : '';
+
+                try {
+                    // 1. Fetch challenge and options from REST endpoint
+                    var optRes = await fetch('<?php echo esc_url($options_url); ?>', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: username })
+                    });
+                    var optData = await optRes.json();
+
+                    if (!optData || !optData.success || !optData.options) {
+                        throw new Error(optData && optData.message ? optData.message : '<?php echo esc_js(__('Failed to initialize passkey challenge.', 'wcp-security-scanner')); ?>');
+                    }
+
+                    var opts = optData.options;
+                    opts.challenge = base64urlToUint8Array(opts.challenge);
+
+                    if (opts.allowCredentials && opts.allowCredentials.length > 0) {
+                        opts.allowCredentials = opts.allowCredentials.map(function(c) {
+                            return {
+                                id: base64urlToUint8Array(c.id),
+                                type: c.type || 'public-key'
+                            };
+                        });
+                    } else {
+                        // Allow discoverable/resident credentials (e.g. Windows Hello passwordless)
+                        delete opts.allowCredentials;
+                    }
+
+                    // 2. Prompt native Windows Hello / biometric authenticator
+                    var assertion = await navigator.credentials.get({ publicKey: opts });
+                    if (!assertion) {
+                        throw new Error('<?php echo esc_js(__('Authentication cancelled by user.', 'wcp-security-scanner')); ?>');
+                    }
+
+                    btn.innerHTML = '<span>🔑</span> <?php echo esc_js(__('Verifying credential signature...', 'wcp-security-scanner')); ?>';
+
+                    // 3. Prepare assertion payload
+                    var assertionPayload = {
+                        id: assertion.id,
+                        type: assertion.type,
+                        response: {
+                            clientDataJSON: arrayBufferToBase64url(assertion.response.clientDataJSON),
+                            authenticatorData: arrayBufferToBase64url(assertion.response.authenticatorData),
+                            signature: arrayBufferToBase64url(assertion.response.signature),
+                            userHandle: assertion.response.userHandle ? arrayBufferToBase64url(assertion.response.userHandle) : null
+                        }
+                    };
+
+                    // 4. Verify assertion on server and authenticate session
+                    var verifyRes = await fetch('<?php echo esc_url($verify_url); ?>', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: optData.session_id,
+                            payload: assertionPayload
+                        })
+                    });
+                    var verifyData = await verifyRes.json();
+
+                    if (!verifyData || !verifyData.success) {
+                        throw new Error(verifyData && verifyData.message ? verifyData.message : '<?php echo esc_js(__('Biometric verification failed.', 'wcp-security-scanner')); ?>');
+                    }
+
+                    btn.style.background = '#46b450';
+                    btn.style.color = '#ffffff';
+                    btn.style.borderColor = '#46b450';
+                    btn.innerHTML = '✓ <?php echo esc_js(__('Authenticated! Redirecting...', 'wcp-security-scanner')); ?>';
+
+                    var urlParams = new URLSearchParams(window.location.search);
+                    var redirectTo = urlParams.get('redirect_to') || verifyData.redirect_url || '<?php echo esc_url($default_redirect); ?>';
+                    window.location.href = redirectTo;
+
+                } catch (err) {
+                    console.error('Passkey login error:', err);
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+
+                    var msg = err.message || '<?php echo esc_js(__('Passkey authentication failed.', 'wcp-security-scanner')); ?>';
+                    if (err.name === 'NotAllowedError') {
+                        msg = '<?php echo esc_js(__('Windows Hello / Passkey prompt was cancelled or timed out.', 'wcp-security-scanner')); ?>';
+                    }
+                    showNotice(msg, false);
+                }
+            });
+        })();
+        </script>
         <?php
     }
 }
