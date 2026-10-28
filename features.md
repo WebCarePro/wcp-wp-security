@@ -748,7 +748,7 @@ Your privacy is sacred. WCP Security Scanner runs 100% locally on your own serve
 ## 49. CrashGuard Zero-Downtime Circuit Breaker & Safe Mode Self-Preservation
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Security tools must never be the reason your website crashes or shows "There has been a critical error on this website". CrashGuard is a built-in safety net and circuit breaker engineered by Mir Alamin. If any unexpected PHP error, memory spike, or third-party conflict ever occurs inside the plugin, CrashGuard instantly isolates the issue into "Safe Mode". Your website, store, themes, and admin dashboard remain 100% online and accessible while a helpful recovery notice appears in your admin area with 1-click self-healing.
+Security tools must never be the reason your website crashes or shows "There has been a critical error on this website". CrashGuard is a built-in safety net and circuit breaker engineered by Mir Alamin. If any unexpected PHP error, memory spike, or third-party conflict ever occurs inside the plugin, CrashGuard instantly isolates the issue into "Safe Mode". Your website, store, themes, and admin dashboard keep loading safely without interruption while a helpful recovery notice appears in your admin area with 1-click self-healing.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Top-Level Bootstrap Guard (`CrashGuard::shield_bootstrap()`):** Wraps all heavy plugin initialization, WAF hooks, and routing controllers inside an early defensive `try/catch (\Throwable $e)` envelope.

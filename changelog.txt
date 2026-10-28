@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Security Policy & Responsible Vulnerability Disclosure (SECURITY.md, README.md):
+  * Official Security Policy: Published SECURITY.md detailing supported versions (1.29.x), dedicated direct disclosure channels (security@webcarespro.com / miralamin.dev@gmail.com), 24-48 hour acknowledgment SLAs, and coordinated patch schedules.
+  * Measured Resilience & Copy Discipline: Audited user-facing documentation to replace lingering absolute uptime language with measured, honest enterprise terminology (Safe Mode self-preservation and fault isolation).
+  * Security Policy Badge: Integrated official security disclosure policy badge on repository README.md.
 - Targeted Allowlist Duplicate Rule Prevention & Smart Detected Banner Sync (TargetedAllowlistManagerCard.tsx):
   * Multi-Field Rule Presence Detection: Upgraded isPresetAlreadyAdded logic to check against template name, rule name, plugin name, badge, and descriptive keywords (e.g. matching 'PayPal' across rule name or description).
   * Guaranteed Unique Rule IDs: Formatted newly added preset rules with deterministic unique IDs (
