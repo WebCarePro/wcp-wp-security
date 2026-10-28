@@ -142,6 +142,19 @@ register_deactivation_hook(__FILE__, function () {
     }
 });
 
-// Initialize the plugin early so WAF inspection hooks into plugins_loaded priority 0
-\WcpScanner\Plugin::get_instance();
+// =========================================================================
+// CRASHGUARD ZERO-DOWNTIME CIRCUIT BREAKER BOOTSTRAP
+// =========================================================================
+// Protects WordPress from internal crashes, White Screens of Death (WSOD),
+// or fatal execution aborts. If any unhandled exception strikes inside the
+// plugin, CrashGuard intercepts it, isolates execution in Safe Mode, and
+// ensures the client website remains 100% online without interruption.
+// =========================================================================
+
+\WcpScanner\System\CrashGuard::register_protection();
+
+\WcpScanner\System\CrashGuard::run_guarded(function () {
+    // Initialize the plugin early so WAF inspection hooks into plugins_loaded priority 0
+    \WcpScanner\Plugin::get_instance();
+});
 
