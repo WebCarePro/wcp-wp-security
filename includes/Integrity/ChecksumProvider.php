@@ -8,11 +8,33 @@ if (!defined('ABSPATH')) {
 class ChecksumProvider {
     
     /**
+     * In-memory cache for official WordPress core checksums to avoid redundant transient/DB queries in high-volume batch loops.
+     * @var array|null
+     */
+    private static $core_checksums_memory = null;
+
+    /**
+     * In-memory cache for plugin checksums indexed by slug_version.
+     * @var array
+     */
+    private static $plugin_checksums_memory = [];
+
+    /**
+     * In-memory cache for installed plugin versions.
+     * @var array|null
+     */
+    private static $installed_plugin_versions = null;
+
+    /**
      * Fetch core checksums for the current WordPress version.
      *
      * @return array|null Array of file => hash, or null on failure.
      */
     public function get_core_checksums() {
+        if (self::$core_checksums_memory !== null && is_array(self::$core_checksums_memory)) {
+            return self::$core_checksums_memory;
+        }
+
         global $wp_version, $wp_local_package;
 
         $locale = empty($wp_local_package) ? 'en_US' : $wp_local_package;
@@ -24,6 +46,7 @@ class ChecksumProvider {
         $cache_key = "wcpscan_core_chk_{$version}_{$locale}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
+            self::$core_checksums_memory = $cached;
             return $cached;
         }
 
@@ -40,6 +63,7 @@ class ChecksumProvider {
 
         if (isset($data['checksums']) && is_array($data['checksums'])) {
             set_transient($cache_key, $data['checksums'], 12 * HOUR_IN_SECONDS);
+            self::$core_checksums_memory = $data['checksums'];
             return $data['checksums'];
         }
 
@@ -184,5 +208,173 @@ class ChecksumProvider {
         }
 
         return null;
+    }
+
+    /**
+     * Check if a given absolute file path is an authentic, unmodified WordPress core file.
+     *
+     * @param string $file_path Absolute path to the file.
+     * @return bool True if the file resides in core and bit-for-bit matches official WordPress.org checksums.
+     */
+    public static function is_authentic_core_file(string $file_path): bool {
+        if (!defined('ABSPATH')) {
+            return false;
+        }
+
+        $norm_path = str_replace('\\', '/', $file_path);
+        $norm_abs  = str_replace('\\', '/', rtrim(ABSPATH, '/\\') . '/');
+
+        // Must be located within WordPress root
+        if (strpos($norm_path, $norm_abs) !== 0) {
+            return false;
+        }
+
+        $rel_file = substr($norm_path, strlen($norm_abs));
+
+        // wp-content is NOT part of core (themes/plugins/uploads)
+        if (strpos($rel_file, 'wp-content/') === 0) {
+            return false;
+        }
+
+        // Fast path check: Only files in wp-includes/, wp-admin/, or root files can be core
+        $is_core_dir = (
+            strpos($rel_file, 'wp-includes/') === 0 ||
+            strpos($rel_file, 'wp-admin/') === 0 ||
+            (strpos($rel_file, '/') === false && (strpos($rel_file, 'wp-') === 0 || $rel_file === 'index.php'))
+        );
+
+        if (!$is_core_dir) {
+            return false;
+        }
+
+        $provider = new self();
+        $checksums = $provider->get_core_checksums();
+        if (empty($checksums) || !isset($checksums[$rel_file])) {
+            return false;
+        }
+
+        $expected_md5 = $checksums[$rel_file];
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            return false;
+        }
+
+        $actual_md5 = md5_file($file_path);
+        if ($actual_md5 === $expected_md5) {
+            return true;
+        }
+
+        // Handle line-ending normalization (CRLF vs LF) to prevent OS/zip extraction false positives
+        $raw_content = @file_get_contents($file_path);
+        if ($raw_content !== false) {
+            if (md5(str_replace("\r\n", "\n", $raw_content)) === $expected_md5) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a file belongs to an installed plugin and matches official WordPress.org plugin checksums.
+     *
+     * @param string $file_path Absolute path to the file.
+     * @return bool
+     */
+    public static function is_authentic_plugin_file(string $file_path): bool {
+        if (!defined('WP_PLUGIN_DIR')) {
+            return false;
+        }
+
+        $norm_path   = str_replace('\\', '/', $file_path);
+        $plugin_dir  = str_replace('\\', '/', rtrim(WP_PLUGIN_DIR, '/\\') . '/');
+
+        if (strpos($norm_path, $plugin_dir) !== 0) {
+            return false;
+        }
+
+        $rel_path = substr($norm_path, strlen($plugin_dir));
+        $parts = explode('/', $rel_path, 2);
+        if (count($parts) < 2) {
+            return false; // Single-file plugin in root of plugins directory
+        }
+
+        $slug = $parts[0];
+        $file_inside_plugin = $parts[1];
+
+        // Self-exclusion: our scanner handles its own self-exclusion
+        if ($slug === 'wcp-security-scanner') {
+            return true;
+        }
+
+        $version = self::get_installed_plugin_version($slug);
+        if (empty($version)) {
+            return false;
+        }
+
+        $provider = new self();
+        $checksums = $provider->get_plugin_checksums($slug, $version);
+        if (empty($checksums) || !isset($checksums[$file_inside_plugin])) {
+            return false;
+        }
+
+        $expected = $checksums[$file_inside_plugin];
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            return false;
+        }
+
+        $actual_md5 = md5_file($file_path);
+
+        if (is_string($expected) && $actual_md5 === $expected) {
+            return true;
+        }
+
+        if (is_array($expected)) {
+            if (isset($expected['algo']) && $expected['algo'] === 'sha256') {
+                return hash_file('sha256', $file_path) === $expected['hash'];
+            }
+            if (in_array($actual_md5, $expected, true)) {
+                return true;
+            }
+        }
+
+        // Handle line-ending normalization (CRLF vs LF)
+        $raw_content = @file_get_contents($file_path);
+        if ($raw_content !== false) {
+            $norm_md5 = md5(str_replace("\r\n", "\n", $raw_content));
+            if (is_string($expected) && $norm_md5 === $expected) {
+                return true;
+            }
+            if (is_array($expected) && in_array($norm_md5, $expected, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Retrieve the version of an installed plugin by directory slug.
+     *
+     * @param string $slug
+     * @return string|null
+     */
+    public static function get_installed_plugin_version(string $slug): ?string {
+        if (self::$installed_plugin_versions === null) {
+            self::$installed_plugin_versions = [];
+            if (!function_exists('get_plugins')) {
+                require_once ABSPATH . 'wp-admin/includes/plugin.php';
+            }
+            if (function_exists('get_plugins')) {
+                $all_plugins = get_plugins();
+                foreach ($all_plugins as $plugin_file => $plugin_data) {
+                    $plugin_slug = dirname($plugin_file);
+                    if ($plugin_slug !== '.' && !empty($plugin_data['Version'])) {
+                        self::$installed_plugin_versions[$plugin_slug] = $plugin_data['Version'];
+                    }
+                }
+            }
+        }
+
+        return self::$installed_plugin_versions[$slug] ?? null;
     }
 }
