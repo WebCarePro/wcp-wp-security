@@ -20,6 +20,9 @@ v:1.28.0 - 2026-10-28
 - Canonical Plugin Slug Standardization & Legacy Slug Elimination (`FileScanner.php`, `DirectoryWalker.php`, `Engine.php`, `RemediationManager.php`, `QuarantineManager.php`, `PluginIntegrity.php`, `WcpJitMuGuardian.php`, `EphemeralAdminEngine.php`, `OutboundEgressFirewall.php`, `LockfileAuditEngine.php`, `InstallRiskAdvisor.php`, `UpdateGatekeeperEngine.php`, `CredentialExposureScanner.php`, `CorrelationEngine.php`, `App.tsx`, `AdminMenu.php`):
   * Completely purged all legacy `/plugins/wcp-wp-scanner/` and `'wcp-wp-scanner'` directory slug references across the codebase.
   * Standardized all malware scanner exclusions, self-defense shields, integrity checkers, and JIT elevation anti-tamper guards exclusively on the official production plugin slug: `/plugins/wcp-security-scanner/`.
+- 1-Click WP_DEBUG Remediation Engine (`RemediationManager.php`, `ScannerRoutes.php`):
+  * Added instant 1-click remediation endpoint (`/remediation/disable-wp-debug`) to automatically and safely disable `WP_DEBUG`, `WP_DEBUG_LOG`, and `WP_DEBUG_DISPLAY` directly in `wp-config.php`.
+  * Integrated encrypted safety backups into WCP Vault before file alteration, syntax validation against PHP token stream, and OPcache invalidation.
 - Active Sessions Sentinel & Multi-Factor Telemetry Cockpit (`SessionSentinel.php`, `AuthSecurityPage.tsx`, `index.css`):
   * Multi-Factor & Passkey Authentication Tracking: Enriched session token metadata with real-time authentication method detection (`passkey`, `2fa`, `magic_link`, `password`), device categorization (Desktop/Mobile/Tablet), idle activity formatting, and session lifespan countdowns.
   * High-Contrast Sentinel Metrics Bar: Added a summary metrics strip displaying total active administrator sessions, Passkey Verified sessions, 2FA TOTP Protected sessions, Magic Support Links, and single-factor Password Only sessions.

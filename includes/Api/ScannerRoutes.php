@@ -529,6 +529,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/remediation/disable-wp-debug', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remediate_disable_wp_debug'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/permissions/audit', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'permissions_audit'],
@@ -6460,6 +6466,17 @@ class ScannerRoutes {
 
         $manager = new \WcpScanner\Remediation\RemediationManager();
         $result = $manager->delete_file($file_path, $issue_id);
+
+        return rest_ensure_response($result);
+    }
+
+    public static function remediate_disable_wp_debug(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
+        $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
+
+        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $result = $manager->disable_wp_debug($file_path, $issue_id);
 
         return rest_ensure_response($result);
     }

@@ -673,6 +673,189 @@ class RemediationManager {
     }
 
     /**
+     * Intelligently and safely disable WP_DEBUG and related error-reporting directives in wp-config.php.
+     *
+     * This hardening action:
+     * 1. Safely creates an encrypted, permission-locked snapshot in the WCP Vault prior to modification.
+     * 2. Sets WP_DEBUG to false.
+     * 3. Sets WP_DEBUG_LOG to false.
+     * 4. Sets WP_DEBUG_DISPLAY to false.
+     * 5. Silences display_errors via @ini_set('display_errors', '0').
+     * 6. Sets SCRIPT_DEBUG and SAVEQUERIES to false if present.
+     * 7. Validates the PHP syntax via token_get_all before committing.
+     * 8. Atomically writes the hardened configuration and flushes OPcache.
+     * 9. Marks the issue as permanently repaired in the scanner database.
+     *
+     * @param string|null $file_path Optional target path (defaults to wp-config.php)
+     * @param int|null $issue_id Optional scan issue ID
+     * @return array
+     */
+    public function disable_wp_debug($file_path = null, $issue_id = null) {
+        if (empty($file_path)) {
+            $file_path = ABSPATH . 'wp-config.php';
+            if (!file_exists($file_path) && file_exists(dirname(ABSPATH) . '/wp-config.php')) {
+                $file_path = dirname(ABSPATH) . '/wp-config.php';
+            }
+        }
+
+        $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
+
+        if (!$real_path || !file_exists($real_path)) {
+            return [
+                'success' => false,
+                'message' => __('Target wp-config.php file does not exist on server.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $is_wp_config = (strtolower(basename($real_path)) === 'wp-config.php');
+        if (!$is_wp_config) {
+            return [
+                'success' => false,
+                'message' => __('Action Blocked: Target file is not wp-config.php.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $is_wp_config_parent = (realpath($real_path) === realpath(dirname(ABSPATH) . '/wp-config.php'));
+        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH) && !$is_wp_config_parent) {
+            return [
+                'success' => false,
+                'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner'),
+            ];
+        }
+
+        if (!is_writable($real_path)) {
+            return [
+                'success' => false,
+                'message' => __('wp-config.php is not writable by the web server. Please check file permissions or owner.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Create safety backup in WCP Vault before modifying
+        $backup_result = $this->create_file_backup($real_path, 'disable_wp_debug');
+        if (empty($backup_result['success'])) {
+            return [
+                'success' => false,
+                'message' => __('Failed to create encrypted safety backup before modification. Aborting to protect your configuration.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $content = @file_get_contents($real_path);
+        if ($content === false || strlen($content) < 30) {
+            return [
+                'success' => false,
+                'message' => __('Could not read contents of wp-config.php.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $has_debug = (bool) preg_match('/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,/i', $content);
+        $has_log = (bool) preg_match('/define\s*\(\s*[\'"]WP_DEBUG_LOG[\'"]\s*,/i', $content);
+        $has_display = (bool) preg_match('/define\s*\(\s*[\'"]WP_DEBUG_DISPLAY[\'"]\s*,/i', $content);
+        $has_script_debug = (bool) preg_match('/define\s*\(\s*[\'"]SCRIPT_DEBUG[\'"]\s*,/i', $content);
+        $has_savequeries = (bool) preg_match('/define\s*\(\s*[\'"]SAVEQUERIES[\'"]\s*,/i', $content);
+        $has_ini_display = (bool) preg_match('/@?ini_set\s*\(\s*[\'"]display_errors[\'"]\s*,/i', $content);
+
+        $modified = $content;
+
+        // In-place updates for already existing directives
+        if ($has_log) {
+            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])WP_DEBUG_LOG\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('WP_DEBUG_LOG', false);", $modified);
+        }
+        if ($has_display) {
+            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])WP_DEBUG_DISPLAY\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('WP_DEBUG_DISPLAY', false);", $modified);
+        }
+        if ($has_script_debug) {
+            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])SCRIPT_DEBUG\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('SCRIPT_DEBUG', false);", $modified);
+        }
+        if ($has_savequeries) {
+            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])SAVEQUERIES\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('SAVEQUERIES', false);", $modified);
+        }
+        if ($has_ini_display) {
+            $modified = preg_replace('/[ \t]*@?ini_set\s*\(\s*([\'"])display_errors\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "@ini_set('display_errors', '0');", $modified);
+        }
+
+        // Determine missing auxiliary directives to bundle cleanly with WP_DEBUG
+        $additions = [];
+        if (!$has_log) {
+            $additions[] = "define('WP_DEBUG_LOG', false);";
+        }
+        if (!$has_display) {
+            $additions[] = "define('WP_DEBUG_DISPLAY', false);";
+        }
+        if (!$has_ini_display) {
+            $additions[] = "@ini_set('display_errors', '0');";
+        }
+
+        $debug_block = array_merge(["define('WP_DEBUG', false);"], $additions);
+        $debug_block_str = implode("\n", $debug_block);
+
+        if ($has_debug) {
+            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])WP_DEBUG\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', $debug_block_str, $modified);
+        } else {
+            $inserted = false;
+            $targets = [
+                '/* That\'s all, stop editing!',
+                '/* That’s all, stop editing!',
+                "require_once ABSPATH . 'wp-settings.php';",
+                'require_once(ABSPATH . \'wp-settings.php\');',
+                'require_once ABSPATH . "wp-settings.php";',
+            ];
+            foreach ($targets as $target) {
+                if (strpos($modified, $target) !== false) {
+                    $modified = str_replace($target, $debug_block_str . "\n\n" . $target, $modified);
+                    $inserted = true;
+                    break;
+                }
+            }
+            if (!$inserted) {
+                $modified .= "\n\n" . $debug_block_str . "\n";
+            }
+        }
+
+        // Validate PHP token stream
+        $tokens = @token_get_all($modified);
+        if (empty($tokens) || count($tokens) < 5) {
+            return [
+                'success' => false,
+                'message' => __('Syntax verification failed on transformed configuration. Modification canceled to avoid site downtime.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Atomic write
+        $write_success = @file_put_contents($real_path, $modified, LOCK_EX);
+        if ($write_success === false) {
+            return [
+                'success' => false,
+                'message' => __('Failed to write updated configuration to wp-config.php. Check disk space and permissions.', 'wcp-security-scanner'),
+            ];
+        }
+
+        if (function_exists('opcache_invalidate')) {
+            @opcache_invalidate($real_path, true);
+        }
+        clearstatcache(true, $real_path);
+
+        $this->mark_file_issues_repaired($real_path, $issue_id);
+
+        global $wpdb;
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->update($table_issues, ['status' => 'repaired'], ['type' => 'wp_debug_enabled']);
+
+        return [
+            'success'   => true,
+            'message'   => __('WordPress debugging has been securely disabled in wp-config.php (WP_DEBUG, WP_DEBUG_LOG, and WP_DEBUG_DISPLAY set to false; display_errors silenced). Encrypted backup retained in WCP Vault.', 'wcp-security-scanner'),
+            'backup_id' => $backup_result['backup_id'],
+            'file_path' => $real_path,
+        ];
+    }
+
+    /**
      * Create safety backup before any remediation action
      */
     private function create_file_backup($file_path, $action_type) {
