@@ -219,7 +219,7 @@ class WebAuthnManager {
 
         NotificationDispatcher::trigger('auth_passkey_registered', [
             'title'   => __('FIDO2 / WebAuthn Biometric Passkey Enrolled', 'wcp-security-scanner'),
-            'message' => sprintf(__('Biometric passkey (%s) enrolled for user "%s".', $device_name, $user ? $user->user_login : 'ID #' . $user_id),
+            'message' => sprintf(__('Biometric passkey (%1$s) enrolled for user "%2$s".', 'wcp-security-scanner'), $device_name, $user ? $user->user_login : 'ID #' . $user_id),
             'details' => [
                 'triggered_by' => $user ? $user->user_login : 'ID #' . $user_id,
                 'device_name'  => $device_name,
@@ -454,7 +454,7 @@ class WebAuthnManager {
             $u_login = $u ? $u->user_login : ('user #' . $user_id);
             NotificationDispatcher::trigger('auth_passkey_revoked', [
                 'title'   => __('WebAuthn Hardware Passkey Revoked / Deleted', 'wcp-security-scanner'),
-                'message' => sprintf(__('Biometric passkey revoked for user "%s".', $u_login),
+                'message' => sprintf(__('Biometric passkey revoked for user "%s".', 'wcp-security-scanner'), $u_login),
                 'details' => [
                     'triggered_by'    => $u_login,
                     'credential_stub' => substr($credential_id, 0, 16) . '...',
