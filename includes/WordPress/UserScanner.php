@@ -352,6 +352,7 @@ class UserScanner {
             'nav_menu_item', 'revision', 'attachment', 'custom_css', 'oembed_cache',
             'wplconsentlogs', 'custom-css-js', 'action_log'
         ];
+        $post_type_placeholders = implode("','", array_map('esc_sql', $excluded_post_types));
         $orphaned_sql = "SELECT p.ID, p.post_title, p.post_name, p.post_type, p.post_status, p.post_date, p.post_author FROM `{$posts_table}` p LEFT JOIN `{$users_table}` u ON p.post_author = u.ID WHERE u.ID IS NULL AND p.post_author > 0 AND p.post_type NOT IN ('{$post_type_placeholders}') AND p.post_status IN ('publish', 'future', 'draft') LIMIT 500";
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
         $orphaned = $wpdb->get_results($orphaned_sql);

@@ -40,8 +40,8 @@ class ConfigScanner {
                     ]);
                 }
 
-                // Check for debug mode enabled in production
-                if (preg_match('/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,\s*true\s*\)/i', $config_content)) {
+                // Check for debug mode enabled in production (must be active and not commented out)
+                if (preg_match('/^[ \t]*define\s*\(\s*[\'\"]WP_DEBUG[\'\"]\s*,\s*true\s*\)/mi', $config_content)) {
                     $findings[] = new Finding([
                         'engine'      => 'wordpress-config',
                         'type'        => 'wp_debug_enabled',

@@ -767,49 +767,79 @@ class RemediationManager {
             ];
         }
 
-        $has_debug = (bool) preg_match('/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,/i', $content);
-        $has_log = (bool) preg_match('/define\s*\(\s*[\'"]WP_DEBUG_LOG[\'"]\s*,/i', $content);
-        $has_display = (bool) preg_match('/define\s*\(\s*[\'"]WP_DEBUG_DISPLAY[\'"]\s*,/i', $content);
-        $has_script_debug = (bool) preg_match('/define\s*\(\s*[\'"]SCRIPT_DEBUG[\'"]\s*,/i', $content);
-        $has_savequeries = (bool) preg_match('/define\s*\(\s*[\'"]SAVEQUERIES[\'"]\s*,/i', $content);
-        $has_ini_display = (bool) preg_match('/@?ini_set\s*\(\s*[\'"]display_errors[\'"]\s*,/i', $content);
+        // Split by lines to intelligently comment out all developer debugging lines and blocks
+        $config_lines = explode("\n", $content);
+        $output = [];
+        $depth = 0;
+        $in_debug_if = false;
+        $commented_directives = 0;
 
-        $modified = $content;
+        for ($i = 0; $i < count($config_lines); $i++) {
+            $line = $config_lines[$i];
 
-        // In-place updates for already existing directives
-        if ($has_log) {
-            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])WP_DEBUG_LOG\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('WP_DEBUG_LOG', false);", $modified);
-        }
-        if ($has_display) {
-            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])WP_DEBUG_DISPLAY\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('WP_DEBUG_DISPLAY', false);", $modified);
-        }
-        if ($has_script_debug) {
-            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])SCRIPT_DEBUG\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('SCRIPT_DEBUG', false);", $modified);
-        }
-        if ($has_savequeries) {
-            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])SAVEQUERIES\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "define('SAVEQUERIES', false);", $modified);
-        }
-        if ($has_ini_display) {
-            $modified = preg_replace('/[ \t]*@?ini_set\s*\(\s*([\'"])display_errors\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', "@ini_set('display_errors', '0');", $modified);
+            // 1. Detect start of wrapped if ( ! defined( 'WP_DEBUG' ) ) block
+            if (!$in_debug_if && preg_match('/^\s*if\s*\(\s*!\s*defined\s*\(\s*[\'\"]WP_DEBUG[\'\"]\s*\)\s*\)/i', $line)) {
+                $in_debug_if = true;
+                $depth = 0;
+            }
+
+            if ($in_debug_if) {
+                $depth += substr_count($line, '{');
+                $depth -= substr_count($line, '}');
+                if (!preg_match('/^\s*\/\//', $line)) {
+                    $output[] = '// [Disabled by WCP Security Scanner]: ' . $line;
+                    $commented_directives++;
+                } else {
+                    $output[] = $line;
+                }
+                if ($depth <= 0 && strpos($line, '}') !== false) {
+                    $in_debug_if = false;
+                }
+                continue;
+            }
+
+            // 2. Detect standalone debugging constants and error-reporting directives
+            $is_debug_directive = (
+                preg_match('/define\s*\(\s*[\'\"](?:WP_DEBUG|WP_DEBUG_LOG|WP_DEBUG_DISPLAY|SCRIPT_DEBUG|SAVEQUERIES)[\'\"](?:\s*,|\s*\))/i', $line) ||
+                preg_match('/@?ini_set\s*\(\s*[\'\"](?:display_errors|log_errors|error_reporting)[\'\"]/i', $line) ||
+                preg_match('/@?error_reporting\s*\(/i', $line)
+            );
+
+            // Do not re-comment our own hardening block if already applied
+            $is_already_hardened = (strpos($line, 'Hardened by WCP Security Scanner') !== false || strpos($line, 'Disabled by WCP Security Scanner') !== false);
+
+            if ($is_debug_directive && !$is_already_hardened) {
+                if (!preg_match('/^\s*\/\//', $line)) {
+                    $output[] = '// [Disabled by WCP Security Scanner]: ' . $line;
+                    $commented_directives++;
+                    continue;
+                }
+            }
+
+            $output[] = $line;
         }
 
-        // Determine missing auxiliary directives to bundle cleanly with WP_DEBUG
-        $additions = [];
-        if (!$has_log) {
-            $additions[] = "define('WP_DEBUG_LOG', false);";
-        }
-        if (!$has_display) {
-            $additions[] = "define('WP_DEBUG_DISPLAY', false);";
-        }
-        if (!$has_ini_display) {
-            $additions[] = "@ini_set('display_errors', '0');";
-        }
+        $reconstructed = implode("\n", $output);
 
-        $debug_block = array_merge(["define('WP_DEBUG', false);"], $additions);
-        $debug_block_str = implode("\n", $debug_block);
+        // Standardized, high-security production debugging lockdown block
+        $hardened_block = implode("\n", [
+            "// [Hardened by WCP Security Scanner - Safe Production Debugging Lockdown]",
+            "define( 'WP_DEBUG', false );",
+            "define( 'WP_DEBUG_LOG', false );",
+            "define( 'WP_DEBUG_DISPLAY', false );",
+            "define( 'SCRIPT_DEBUG', false );",
+            "@ini_set( 'display_errors', '0' );",
+        ]);
 
-        if ($has_debug) {
-            $modified = preg_replace('/[ \t]*define\s*\(\s*([\'"])WP_DEBUG\1\s*,\s*[^)]+\s*\)\s*;[^\r\n]*/i', $debug_block_str, $modified);
+        $modified = $reconstructed;
+
+        // Check if an existing WCP hardening block exists to replace, otherwise insert cleanly before the stop-editing marker
+        if (strpos($modified, '// [Hardened by WCP Security Scanner - Safe Production Debugging Lockdown]') !== false) {
+            $modified = preg_replace(
+                '/\/\/\s*\[Hardened by WCP Security Scanner - Safe Production Debugging Lockdown\][\s\S]*?(?:@ini_set\s*\(\s*[\'\"]display_errors[\'\"]\s*,\s*[\'\"]0[\'\"]\s*\)\s*;|define\s*\(\s*[\'\"]WP_DEBUG_DISPLAY[\'\"]\s*,\s*false\s*\)\s*;)/i',
+                $hardened_block,
+                $modified
+            );
         } else {
             $inserted = false;
             $targets = [
@@ -821,13 +851,13 @@ class RemediationManager {
             ];
             foreach ($targets as $target) {
                 if (strpos($modified, $target) !== false) {
-                    $modified = str_replace($target, $debug_block_str . "\n\n" . $target, $modified);
+                    $modified = str_replace($target, $hardened_block . "\n\n" . $target, $modified);
                     $inserted = true;
                     break;
                 }
             }
             if (!$inserted) {
-                $modified .= "\n\n" . $debug_block_str . "\n";
+                $modified .= "\n\n" . $hardened_block . "\n";
             }
         }
 
