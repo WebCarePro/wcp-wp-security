@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Two-Tier Professional Header Architecture (App.tsx, index.css):
+  * Executive Dual-Tier Layout: Redesigned the top navigation into a structured two-tier header bar inspired by enterprise platforms (Cloudflare/Datadog) to completely eliminate horizontal button crowding and multi-line wrapping.
+  * Tier 1 Identity & Governance Strip: Displays the 3D brand logo, brand title, active status subtitle ("Enterprise Protection Active • v1.29.0"), Essential vs. Advanced SOC mode toggle, 1-Click Quick Setup wizard trigger, Emergency Panic lockdown, and theme toggle.
+  * Tier 2 Dedicated Navigation Rail: Houses all 6 core pillars (Dashboard, Scanner, Firewall, Identity, Vault & Tools, Settings) plus the ⌘K All Modules explorer in a clean, dedicated horizontal track with high-contrast active states.
 - First-Run Quick Setup Wizard & Pre-Flight Orchestration (WelcomeModal.tsx, App.tsx):
   * Executive Header Quick Setup Action: Integrated a dedicated 1-click 'Quick Setup' trigger in the top executive header navigation, allowing site owners and administrators to launch the onboarding flow and system readiness audit at any time.
   * Guided 4-Step Pre-Flight Readiness: Streamlined the 14-point server environment verification (PHP version, memory limits, storage writeability, cryptographic extensions) with instant re-check capabilities and automated 1-click health audit transition.
