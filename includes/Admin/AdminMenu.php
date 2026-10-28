@@ -25,6 +25,14 @@ class AdminMenu {
      * @return string
      */
     public static function get_menu_icon(): string {
+        $png_icon = plugin_dir_path(WCPSCAN_FILE) . 'assets/logo-96x96.png';
+        if (file_exists($png_icon)) {
+            $png_content = @file_get_contents($png_icon);
+            if ($png_content !== false && !empty($png_content)) {
+                return 'data:image/png;base64,' . base64_encode($png_content);
+            }
+            return plugins_url('assets/logo-96x96.png', WCPSCAN_FILE);
+        }
         $icon_file = plugin_dir_path(WCPSCAN_FILE) . 'assets/icon.svg';
         if (file_exists($icon_file)) {
             $svg_content = @file_get_contents($icon_file);
@@ -416,8 +424,9 @@ class AdminMenu {
                     return !empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
                 })(),
                 'assetsUrl'          => esc_url_raw(WCPSCAN_URL . 'assets/'),
+                'logoPngUrl'         => esc_url_raw(WCPSCAN_URL . 'assets/logo.png'),
                 'logo3dUrl'          => esc_url_raw(WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
-                'emblem3dUrl'        => esc_url_raw(WCPSCAN_URL . 'assets/webcare-3d-emblem.png'),
+                'emblem3dUrl'        => esc_url_raw(WCPSCAN_URL . 'assets/logo.png'),
             ]);
         }
 
@@ -462,11 +471,12 @@ class AdminMenu {
         $custom_css = "
             /* WCP Security Scanner - Sidebar Menu Icon */
             #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image img {
-                width: 20px;
-                height: 20px;
-                padding: 7px 0 0;
-                object-fit: contain;
-                transition: transform 0.15s ease-in-out;
+                width: 20px !important;
+                height: 20px !important;
+                padding: 6px 0 0 !important;
+                object-fit: contain !important;
+                border-radius: 4px !important;
+                transition: transform 0.15s ease-in-out !important;
             }
             #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image.svg {
                 background-repeat: no-repeat;
