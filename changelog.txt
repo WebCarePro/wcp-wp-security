@@ -1,4 +1,9 @@
 v:1.29.0 - 2026-10-29
+- Essential vs. Advanced SOC Workspace Architecture (App.tsx, index.css):
+  * Dual-Persona Interface Switching: Added a top-bar 'Essential' vs. 'Advanced SOC (53 Engines)' mode toggle in the executive header, persisting user preference in localStorage ('wcp_workspace_mode').
+  * Streamlined Essential View: Presents site owners and non-technical operators with a clutter-free, low-cognitive-load security cockpit focused on Core Malware Scanning, Real-Time Firewall, 1-Click Quarantine, File Integrity, and Zero-Trust Identity.
+  * Advanced SOC View: Seamlessly unlocks all 53 deep inspection engines, AST Forensic Decompilers, Drop-In SBOM Sentinels, Hex Dumps, Targeted Audits, and Autonomous MCP Server controls for Linux SysAdmins and Security Engineers.
+  * Context-Adaptive Secondary Navigation: Automatically tailors contextual sub-navigation tabs and secondary tool links based on the active workspace mode without breaking direct deep links.
 - Security Disclosure Channels Streamlining (SECURITY.md):
   * Official Direct Channels: Standardized the primary vulnerability contact on hello@webcarespro.com, direct WhatsApp (+8801322691090 with prebuilt greeting), and direct Microsoft Teams channel link (teams.live.com).
 - Open Redirect Guard Internal Host Toleration & Self-Lockout Fix (FirewallEngine.php):
