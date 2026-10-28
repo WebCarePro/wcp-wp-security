@@ -217,6 +217,16 @@ class WebAuthnManager {
             sprintf('New biometric Passkey ("%s") registered for administrator %s.', $device_name, $user ? $user->user_login : 'ID #' . $user_id)
         );
 
+        NotificationDispatcher::trigger('auth_passkey_registered', [
+            'title'   => __('FIDO2 / WebAuthn Biometric Passkey Enrolled', 'wcp-security-scanner'),
+            'message' => sprintf(__('Biometric passkey (%s) enrolled for user "%s".', $device_name, $user ? $user->user_login : 'ID #' . $user_id),
+            'details' => [
+                'triggered_by' => $user ? $user->user_login : 'ID #' . $user_id,
+                'device_name'  => $device_name,
+                'status'       => 'Biometric Key Bound',
+            ],
+        ]);
+
         return [
             'success'     => true,
             'device_name' => $device_name,
@@ -439,6 +449,18 @@ class WebAuthnManager {
                 'webauthn_passkey_deleted',
                 sprintf('Biometric Passkey revoked for user ID #%d (Credential: %s).', $user_id, substr($credential_id, 0, 16) . '...')
             );
+
+            $u = get_userdata($user_id);
+            $u_login = $u ? $u->user_login : ('user #' . $user_id);
+            NotificationDispatcher::trigger('auth_passkey_revoked', [
+                'title'   => __('WebAuthn Hardware Passkey Revoked / Deleted', 'wcp-security-scanner'),
+                'message' => sprintf(__('Biometric passkey revoked for user "%s".', $u_login),
+                'details' => [
+                    'triggered_by'    => $u_login,
+                    'credential_stub' => substr($credential_id, 0, 16) . '...',
+                    'status'          => 'Passkey Removed',
+                ],
+            ]);
             return true;
         }
 

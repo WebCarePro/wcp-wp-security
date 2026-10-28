@@ -317,6 +317,155 @@ class NotificationDispatcher {
                 'description' => __('Fires when Model Context Protocol agent API access is toggled on or off.', 'wcp-security-scanner'),
                 'severity'    => 'info',
             ],
+            // Category: Supply-Chain Defense & SBOM
+            'supply_chain_anchor_tampered' => [
+                'category'    => 'supply_chain',
+                'category_label' => __('Supply-Chain Defense & SBOM', 'wcp-security-scanner'),
+                'title'       => __('Runtime Anchor / Drop-in Tampering Detected', 'wcp-security-scanner'),
+                'description' => __('Fires when a cryptographic hash mismatch or stealth modification is detected in object-cache.php, db.php, or advanced-cache.php.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+            'supply_chain_gatekeeper_blocked' => [
+                'category'    => 'supply_chain',
+                'category_label' => __('Supply-Chain Defense & SBOM', 'wcp-security-scanner'),
+                'title'       => __('Hostile Plugin Update Intercepted by Gatekeeper', 'wcp-security-scanner'),
+                'description' => __('Alerts immediately when an automated or manual plugin update contains critical webshells, obfuscated payloads, or unauthorized mutations.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+            'supply_chain_gatekeeper_rollback' => [
+                'category'    => 'supply_chain',
+                'category_label' => __('Supply-Chain Defense & SBOM', 'wcp-security-scanner'),
+                'title'       => __('Pre-Install Gatekeeper Rollback Executed', 'wcp-security-scanner'),
+                'description' => __('Notifies when a hazardous plugin update is reverted back to its verified pre-install snapshot.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'supply_chain_risk_advisor_alert' => [
+                'category'    => 'supply_chain',
+                'category_label' => __('Supply-Chain Defense & SBOM', 'wcp-security-scanner'),
+                'title'       => __('High-Risk Plugin Installation Flagged', 'wcp-security-scanner'),
+                'description' => __('Dispatches when Shift-Left Risk Analyzer detects critical risk signals, abandoned code, or severe supply-chain flags.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'supply_chain_lockfile_cve' => [
+                'category'    => 'supply_chain',
+                'category_label' => __('Supply-Chain Defense & SBOM', 'wcp-security-scanner'),
+                'title'       => __('Vulnerable Dependency in Lockfile (Composer / NPM)', 'wcp-security-scanner'),
+                'description' => __('Alerts when known CVE vulnerabilities or supply-chain advisories match packages in composer.lock or package-lock.json.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'supply_chain_script_drift' => [
+                'category'    => 'supply_chain',
+                'category_label' => __('Supply-Chain Defense & SBOM', 'wcp-security-scanner'),
+                'title'       => __('Client JS Drift / Unauthorized Remote Hostname', 'wcp-security-scanner'),
+                'description' => __('Fires when newly enqueued frontend JavaScript loads from an uncalibrated third-party domain or external CDN.', 'wcp-security-scanner'),
+                'severity'    => 'warning',
+            ],
+
+            // Category: Behavioral WAF & Active Traps
+            'behavioral_bot_trap_triggered' => [
+                'category'    => 'behavioral',
+                'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),
+                'title'       => __('Behavioral Honeytoken / Ghost Route Tripped', 'wcp-security-scanner'),
+                'description' => __('Fires when an automated crawler, scraper, or scanner touches hidden ghost routes or deceptive canary endpoints.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'behavioral_rate_limit_exceeded' => [
+                'category'    => 'behavioral',
+                'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),
+                'title'       => __('Behavioral Rate Anomaly Fence Tripped', 'wcp-security-scanner'),
+                'description' => __('Dispatches when an offensive IP exceeds heuristic burst frequency thresholds across critical endpoints.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'ai_defense_prompt_injection' => [
+                'category'    => 'behavioral',
+                'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),
+                'title'       => __('AI Prompt Injection & Jailbreak Decoy Intercepted', 'wcp-security-scanner'),
+                'description' => __('Alerts when malicious system-prompt override attempts, adversarial jailbreaks, or LLM scraping probes are terminated.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+            'attack_drill_completed' => [
+                'category'    => 'behavioral',
+                'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),
+                'title'       => __('Red Team Attack Drill Simulation Finished', 'wcp-security-scanner'),
+                'description' => __('Summarizes firewall defensibility, payload interception ratios, and alert responsiveness upon drill completion.', 'wcp-security-scanner'),
+                'severity'    => 'info',
+            ],
+
+            // Category: Zero-Trust Identity & Session Forensics
+            'auth_passkey_registered' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('FIDO2 / WebAuthn Biometric Passkey Enrolled', 'wcp-security-scanner'),
+                'description' => __('Notifies when an administrator binds a new biometric credential, YubiKey, or hardware passkey.', 'wcp-security-scanner'),
+                'severity'    => 'info',
+            ],
+            'auth_passkey_revoked' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('WebAuthn Hardware Passkey Revoked / Deleted', 'wcp-security-scanner'),
+                'description' => __('Alerts when a hardware security key or biometric credential is removed from an account.', 'wcp-security-scanner'),
+                'severity'    => 'warning',
+            ],
+            'auth_temporary_access_granted' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('Zero-Trust Temporary Support Access Created', 'wcp-security-scanner'),
+                'description' => __('Notifies when a time-limited, sandboxed technician link is issued under MU Guardian supervision.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'auth_temporary_access_revoked' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('Temporary Support Access Revoked / Expired', 'wcp-security-scanner'),
+                'description' => __('Fires when a technician session is prematurely terminated or reaches its expiration boundary.', 'wcp-security-scanner'),
+                'severity'    => 'info',
+            ],
+            'auth_impossible_travel_flag' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('Impossible Geo-Velocity Travel Anomaly Detected', 'wcp-security-scanner'),
+                'description' => __('Critical alert when an admin account authenticates from two distant geographical locations in an impossible timeframe.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+
+            // Category: Advanced Forensics, Vault & Quarantine
+            'forensics_reinfection_resurrection' => [
+                'category'    => 'backups_vault',
+                'category_label' => __('Database Backups & Vault', 'wcp-security-scanner'),
+                'title'       => __('72-Hour Watchdog: Malware Resurrection Intercepted', 'wcp-security-scanner'),
+                'description' => __('Urgent alert when a previously cleaned or quarantined file is recreated by persistent rogue crons or hidden web shells.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+            'vault_secrets_rotated' => [
+                'category'    => 'backups_vault',
+                'category_label' => __('Database Backups & Vault', 'wcp-security-scanner'),
+                'title'       => __('Secrets Vault Master Key / Cryptographic Salt Rotated', 'wcp-security-scanner'),
+                'description' => __('Notifies when master encryption keys or authentication salts are re-encrypted and safely rotated in wp-config.php.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
+            'remediation_transaction_rollback' => [
+                'category'    => 'backups_vault',
+                'category_label' => __('Database Backups & Vault', 'wcp-security-scanner'),
+                'title'       => __('Atomic Remediation Transaction Reverted', 'wcp-security-scanner'),
+                'description' => __('Fires when an administrative rollback action restores previous file, database, or user states from a transaction log.', 'wcp-security-scanner'),
+                'severity'    => 'warning',
+            ],
+
+            // Category: Emergency Containment Protocol
+            'containment_mode_activated' => [
+                'category'    => 'self_defense',
+                'category_label' => __('Plugin Self-Defense', 'wcp-security-scanner'),
+                'title'       => __('1-Click Incident Containment Protocol ACTIVATED', 'wcp-security-scanner'),
+                'description' => __('Emergency broadcast: Host egress severed, unauthorized admin sessions frozen, and public maintenance lockdown engaged.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+            'containment_mode_deactivated' => [
+                'category'    => 'self_defense',
+                'category_label' => __('Plugin Self-Defense', 'wcp-security-scanner'),
+                'title'       => __('Incident Containment Protocol Disengaged', 'wcp-security-scanner'),
+                'description' => __('Notifies when emergency containment lockdown is lifted and normal platform operations resume.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
         ];
     }
 

@@ -272,6 +272,36 @@ class SettingsManager {
             'webhook_delivery_failed'   => ['email' => false, 'webhook' => false],
             'ai_forensics_toggled'      => ['email' => false, 'webhook' => false],
             'mcp_service_toggled'       => ['email' => false, 'webhook' => false],
+
+            // Supply-Chain Defense & SBOM
+            'supply_chain_anchor_tampered'      => ['email' => false, 'webhook' => false],
+            'supply_chain_gatekeeper_blocked'   => ['email' => true,  'webhook' => true],
+            'supply_chain_gatekeeper_rollback'  => ['email' => false, 'webhook' => false],
+            'supply_chain_risk_advisor_alert'   => ['email' => false, 'webhook' => false],
+            'supply_chain_lockfile_cve'         => ['email' => false, 'webhook' => false],
+            'supply_chain_script_drift'         => ['email' => false, 'webhook' => false],
+
+            // Behavioral WAF & Active Traps
+            'behavioral_bot_trap_triggered'     => ['email' => false, 'webhook' => false],
+            'behavioral_rate_limit_exceeded'    => ['email' => false, 'webhook' => false],
+            'ai_defense_prompt_injection'       => ['email' => true,  'webhook' => true],
+            'attack_drill_completed'            => ['email' => false, 'webhook' => false],
+
+            // Zero-Trust Identity & Session Forensics
+            'auth_passkey_registered'           => ['email' => false, 'webhook' => false],
+            'auth_passkey_revoked'              => ['email' => false, 'webhook' => false],
+            'auth_temporary_access_granted'     => ['email' => false, 'webhook' => false],
+            'auth_temporary_access_revoked'     => ['email' => false, 'webhook' => false],
+            'auth_impossible_travel_flag'       => ['email' => true,  'webhook' => true],
+
+            // Advanced Forensics, Vault & Quarantine
+            'forensics_reinfection_resurrection'=> ['email' => true,  'webhook' => true],
+            'vault_secrets_rotated'             => ['email' => false, 'webhook' => false],
+            'remediation_transaction_rollback'  => ['email' => false, 'webhook' => false],
+
+            // Emergency Containment Protocol
+            'containment_mode_activated'        => ['email' => true,  'webhook' => true],
+            'containment_mode_deactivated'      => ['email' => true,  'webhook' => true],
         ];
     }
 

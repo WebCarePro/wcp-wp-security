@@ -138,6 +138,16 @@ class UpdateGatekeeperEngine {
                     sprintf('WCP Gatekeeper BLOCKED supply-chain update for "%s" (Risk Score: %d/100).', $folder_name, $analysis['score'])
                 );
 
+                NotificationDispatcher::trigger('supply_chain_gatekeeper_blocked', [
+                    'title'   => __('Hostile Plugin Update Intercepted by Gatekeeper', 'wcp-security-scanner'),
+                    'message' => sprintf(__('Hostile update intercepted for "%s" (Risk Score: %d/100). Production files protected.', 'wcp-security-scanner'), $folder_name, $analysis['score']),
+                    'details' => [
+                        'plugin_slug'     => $folder_name,
+                        'risk_score'      => $analysis['score'] . '/100',
+                        'findings_sample' => !empty($analysis['findings'][0]['title']) ? $analysis['findings'][0]['title'] : 'Critical anomalies detected',
+                    ],
+                ]);
+
                 $reason = !empty($analysis['findings'][0]['title'])
                     ? $analysis['findings'][0]['title'] . ' (' . ($analysis['findings'][0]['file'] ?? '') . ')'
                     : 'Critical supply-chain security anomaly detected.';
@@ -376,6 +386,16 @@ class UpdateGatekeeperEngine {
             'gatekeeper_rollback_executed',
             sprintf('WCP Gatekeeper successfully rolled back plugin "%s" to pre-update snapshot "%s".', $slug, $snapshot_id)
         );
+
+        NotificationDispatcher::trigger('supply_chain_gatekeeper_rollback', [
+            'title'   => __('Pre-Install Gatekeeper Rollback Executed', 'wcp-security-scanner'),
+            'message' => sprintf(__('Plugin "%s" was successfully rolled back to pre-update snapshot "%s".', 'slug', $snapshot_id), $slug, $snapshot_id),
+            'details' => [
+                'plugin_slug' => $slug,
+                'snapshot_id' => $snapshot_id,
+                'action'      => 'Reverted to Verified Snapshot',
+            ],
+        ]);
 
         return [
             'success'     => true,

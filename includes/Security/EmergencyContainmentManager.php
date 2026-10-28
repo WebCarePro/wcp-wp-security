@@ -154,6 +154,18 @@ class EmergencyContainmentManager {
             sprintf('Emergency Containment Mode ACTIVATED by %s. Reason: %s. Terminated %d user sessions. Cloudflare Edge: %s.', $username, $reason, $terminated_sessions_count, $cf_toggled ? 'Under-Attack engaged' : 'N/A')
         );
 
+        NotificationDispatcher::trigger('containment_mode_activated', [
+            'title'   => __('1-Click Incident Containment Protocol ACTIVATED', 'wcp-security-scanner'),
+            'message' => sprintf(__('Incident containment mode engaged by %s. Reason: %s. Blast radius frozen, sessions terminated (%d).', 'wcp-security-scanner'), $username, $reason, $terminated_sessions_count),
+            'details' => [
+                'triggered_by'        => $username,
+                'reason'              => $reason,
+                'sessions_terminated' => $terminated_sessions_count,
+                'maintenance_mode'    => $maintenance ? 'Enabled' : 'Disabled',
+                'cloudflare_edge'     => $cf_toggled ? 'Under-Attack Engaged' : 'Not Connected',
+            ],
+        ]);
+
         return [
             'success'             => true,
             'active'              => true,
@@ -204,6 +216,15 @@ class EmergencyContainmentManager {
             'containment_mode_deactivated',
             sprintf('Emergency Containment Mode DEACTIVATED by %s.', $username)
         );
+
+        NotificationDispatcher::trigger('containment_mode_deactivated', [
+            'title'   => __('Incident Containment Protocol Disengaged', 'wcp-security-scanner'),
+            'message' => sprintf(__('Incident containment mode disengaged by %s. Normal platform operations resumed.', 'wcp-security-scanner'), $username),
+            'details' => [
+                'triggered_by' => $username,
+                'status'       => 'Platform Restored',
+            ],
+        ]);
 
         return [
             'success' => true,
