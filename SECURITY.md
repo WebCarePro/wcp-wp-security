@@ -12,7 +12,7 @@ WCP Security Scanner is maintained through active continuous delivery. Enhanceme
 
 | Version | Status | Maintenance Policy |
 |:---|:---:|:---|
-| **1.x (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
+| **1.29.0 (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
 | **Prior Releases** | 🔄 Upgrade Recommended | Feature-complete. Upgrading to the latest active release ensures access to current threat intelligence signatures and performance enhancements |
 
 ---
