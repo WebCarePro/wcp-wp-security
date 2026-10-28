@@ -1,4 +1,6 @@
 v:1.29.0 - 2026-10-29
+- WordPress Admin Sidebar Authentic Logo SVG Embedding (`AdminMenu.php`):
+  * Base64 SVG Image Data URE: Replaced raw `data:image/png` URI with an inline SVG <image> wrapper formatted as `data:image/svg+xml;base64,...`. WordPress core menu renderer specifically checks `str_starts_with($item[6], 'data:image/svg+xml;base64,')`; raw` data:image/png` was stripped by WordPress core's `esc_url()` sanitizer, leaving a broken image icon. The authentic WebCare Pro 3D shield logo now renders cleanly directly in the WordPress admin menu sidebar without external network dependencies.
 - Small Laptop & Medium Screen Responsive Navigation (`App.tsx`, `index.css`):
   * Responsive Top Header & Nav Adaptation: Added granular fluid media breakpoints (`1480px`, `1320px`, `1180px`, `768px`) for compact laptop displays (1366x768, 1280x800, and 125%-150% OS display scaling).
   * Compact Nav Buttons: Dynamically scaled navigation padding, button font sizes, brand emblem, and gaps to prevent wrapping or overflowing into the panic button.

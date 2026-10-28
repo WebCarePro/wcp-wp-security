@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-28T19:38:56.070Z",
+  "generated_at": "2026-10-28T20:00:25.285Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -60,8 +60,8 @@
       "size": 342
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "2d9527c6a16bdd049d556cbd6c79d2405413665e5d4d8b4fa05ae6eb7022222f",
-      "size": 40443
+      "sha256": "b08388ef8697f1a01ccda1bcae179a1a6048646e5ecef28bce0740fdfc01ca59",
+      "size": 40802
     },
     "includes/Api/MCPAgentService.php": {
       "sha256": "2811123e6e53da07d4bf7ef263f583ac7d2f1ddcf177bd5fbb2e47e6718a25ac",

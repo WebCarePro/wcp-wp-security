@@ -26,12 +26,18 @@ class AdminMenu {
      */
     public static function get_menu_icon(): string {
         $png_icon = plugin_dir_path(WCPSCAN_FILE) . 'assets/logo-96x96.png';
+        if (!file_exists($png_icon)) {
+            $png_icon = plugin_dir_path(WCPSCAN_FILE) . 'assets/logo.png';
+        }
         if (file_exists($png_icon)) {
             $png_content = @file_get_contents($png_icon);
             if ($png_content !== false && !empty($png_content)) {
-                return 'data:image/png;base64,' . base64_encode($png_content);
+                $png_data_uri = 'data:image/png;base64,' . base64_encode($png_content);
+                $svg_wrapper = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="20" height="20">'
+                    . '<image href="' . $png_data_uri . '" width="96" height="96"/>'
+                    . '</svg>';
+                return 'data:image/svg+xml;base64,' . base64_encode($svg_wrapper);
             }
-            return plugins_url('assets/logo-96x96.png', WCPSCAN_FILE);
         }
         $icon_file = plugin_dir_path(WCPSCAN_FILE) . 'assets/icon.svg';
         if (file_exists($icon_file)) {
@@ -40,7 +46,7 @@ class AdminMenu {
                 return 'data:image/svg+xml;base64,' . base64_encode($svg_content);
             }
         }
-        return plugins_url('assets/icon.svg', WCPSCAN_FILE);
+        return 'dashicons-shield';
     }
 
     public static function add_menu_page() {
