@@ -1,4 +1,6 @@
 v:1.29.0 - 2026-10-29
+- Security Disclosure Channels Streamlining (SECURITY.md):
+  * Official Direct Channels: Standardized the primary vulnerability contact on hello@webcarespro.com, direct WhatsApp (+8801322691090 with prebuilt greeting), and direct Microsoft Teams channel link (teams.live.com).
 - Open Redirect Guard Internal Host Toleration & Self-Lockout Fix (FirewallEngine.php):
   * Dynamic Self-Host Normalization: Upgraded Rule #21 (Open Redirect Guard) to dynamically construct an inclusive allowed hosts set matching site_url(), home_url(), ['HTTP_HOST'], ['SERVER_NAME'], localhost/127.0.0.1, and automatic www vs non-www domain variants.
   * Prevent Login Redirect Self-Lockout: Fixed false-positive 403 Forbidden intercept on /wp-login.php?redirect_to=https://iw-academy.com/wp-admin/ during unauthenticated visits or incognito tab admin logins.

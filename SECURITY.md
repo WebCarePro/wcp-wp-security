@@ -25,11 +25,13 @@ WCP Security Scanner is maintained through active continuous delivery. Enhanceme
 
 To report a vulnerability directly and privately to Mir Alamin:
 
-1. **Email:** Send full technical details to **`security@webcarespro.com`** or **`hello@webcarespro.com`** (direct backup: **`miralamin.dev@gmail.com`**).
-2. **Direct WhatsApp Channel:** For urgent security coordination, connect directly via WhatsApp:  
+1. **Email:** Send full technical details to **`hello@webcarespro.com`**.
+2. **Direct WhatsApp Channel:** For direct 1-on-1 security coordination, connect via WhatsApp:  
    👉 [**+880 1322-691090** (Click to start chat with prebuilt message)](https://wa.me/8801322691090?text=Hello%20Mir%20Alamin,%20I%20am%20reporting%20a%20security%20vulnerability%20regarding%20WCP%20Security%20Scanner)
-3. **Subject Line:** `[Vulnerability Report] WCP Security Scanner - <Brief Description>`
-4. **Report Contents:**
+3. **Microsoft Teams:** Connect directly via MS Teams:  
+   👉 [**Join Mir Alamin on Microsoft Teams**](https://teams.live.com/l/invite/FEAI60zv48mwbIKhA?v=g1)
+4. **Subject Line:** `[Vulnerability Report] WCP Security Scanner - <Brief Description>`
+5. **Report Contents:**
    - Detailed description of the vulnerability and its potential impact.
    - Exact steps or proof-of-concept (PoC) code to reproduce the issue in a standard environment.
    - Affected file(s), function(s), or REST API endpoint(s).
