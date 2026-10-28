@@ -175,6 +175,7 @@ class SessionSentinel {
                 $auth_type = 'magic_link';
                 $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'wcp-security-scanner');
                 $auth_details = ['type' => 'magic_link'];
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection during session authentication creation to detect 2FA submission
             } elseif (!empty($_POST['wcpscan_2fa_code'])) {
                 $auth_type = '2fa';
                 $auth_label = __('2FA (TOTP Authenticator)', 'wcp-security-scanner');

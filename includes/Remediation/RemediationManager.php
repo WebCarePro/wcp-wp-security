@@ -729,7 +729,21 @@ class RemediationManager {
             ];
         }
 
-        if (!is_writable($real_path)) {
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+
+        $is_writable = false;
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'is_writable')) {
+            $is_writable = $wp_filesystem->is_writable($real_path);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- Intentional fallback check when WP_Filesystem is not initialized
+            $is_writable = is_writable($real_path);
+        }
+
+        if (!$is_writable) {
             return [
                 'success' => false,
                 'message' => __('wp-config.php is not writable by the web server. Please check file permissions or owner.', 'wcp-security-scanner'),
@@ -826,9 +840,17 @@ class RemediationManager {
             ];
         }
 
-        // Atomic write
-        $write_success = @file_put_contents($real_path, $modified, LOCK_EX);
-        if ($write_success === false) {
+        // Atomic write via WP_Filesystem with fallback
+        $write_success = false;
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'put_contents')) {
+            $file_mode = defined('FS_CHMOD_FILE') ? FS_CHMOD_FILE : 0644;
+            $write_success = $wp_filesystem->put_contents($real_path, $modified, $file_mode);
+        } else {
+            // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected,WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Intentional atomic fallback to modify wp-config.php when WP_Filesystem is unavailable
+            $write_success = (@file_put_contents($real_path, $modified, LOCK_EX) !== false);
+        }
+
+        if (!$write_success) {
             return [
                 'success' => false,
                 'message' => __('Failed to write updated configuration to wp-config.php. Check disk space and permissions.', 'wcp-security-scanner'),

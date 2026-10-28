@@ -219,7 +219,18 @@ class PluginUpdater {
         // Add htaccess security to prevent direct web download of internal backups
         $htaccess = $backup_dir . '.htaccess';
         if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "Order deny,allow\nDeny from all\n");
+            global $wp_filesystem;
+            if (!$wp_filesystem) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+            if ($wp_filesystem) {
+                // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected -- Security lockfile creation for plugin rollback backups
+                $wp_filesystem->put_contents($htaccess, "Order deny,allow\nDeny from all\n");
+            } else {
+                // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected,WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Fallback lockfile creation for plugin rollback backups
+                @file_put_contents($htaccess, "Order deny,allow\nDeny from all\n");
+            }
         }
 
         $zip_name = 'wcp-security-scanner-v' . sanitize_file_name($current_version) . '-' . gmdate('Ymd-His') . '.zip';

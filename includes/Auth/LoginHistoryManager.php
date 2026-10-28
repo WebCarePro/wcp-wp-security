@@ -105,6 +105,7 @@ class LoginHistoryManager {
         $auth_method = 'Username & Password';
         if (class_exists('\\WcpScanner\\Auth\\SessionSentinel') && !empty(\WcpScanner\Auth\SessionSentinel::$pending_auth_label)) {
             $auth_method = \WcpScanner\Auth\SessionSentinel::$pending_auth_label;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection during wp_login hook to determine if 2FA code was supplied
         } elseif (!empty($_POST['wcpscan_2fa_code'])) {
             $auth_method = 'Password + 2FA TOTP Verified';
         } elseif (get_user_meta($user->ID, 'wcpscan_is_temporary_support', true)) {

@@ -56,7 +56,9 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (30 Specialized Security Engines)
+## 🌟 Comprehensive Feature Catalog (48 Specialized Security Engines & Subsystems)
+
+> 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
 ### 1. Next-Gen Cyber Command Center & Threat Dashboard
 - **High-Precision SVG Security Health Meter**: Circular dynamic vector meter displaying site security score (0–100%) with reactive color accents (emerald `#10b981`, sky blue `#38bdf8`, amber `#f59e0b`, rose `#ef4444`) and live letter grades (`A+`, `A`, `B`, `C`, `D`, `F`).
@@ -73,7 +75,6 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **High-Throughput Findings Bulk Ingestion**: Persists file audit and finding records using prepared multi-row SQL batches (`bulk_insert_files`, `bulk_insert_issues`) capped at 80 rows per statement via `FindingsRepository`, staying safely under MySQL `max_allowed_packet` with safe null parameter binding and zero table lock contention.
 - **Crontab & Scheduled Task Auditing**: Audits both Linux server-level crontab files (`/var/spool/cron`, `crontab -l`) and WordPress virtual `wp-cron` hooks for unauthorized piped downloads (`curl | bash`, `wget | sh`), reverse shells, and persistence callbacks.
 - **User Account & Privilege Security**: Identifies weak administrator passwords, dormant superuser accounts, and suspicious newly created administrator accounts.
-- **Server Configuration Hardening Safeguards**: Checks permissions for `wp-config.php` and `.htaccess`, audits `WP_DEBUG` exposure flags, and validates protection against public access to `.env`, `.git`, `.user.ini`, and database dumps.
 
 ### 3. Targeted Single-Purpose Security Audits & Auto-Scroll Workflow
 - **7 Dedicated Rapid Audit Modules**: Database Injections, Uploads Quarantine Audit, Theme Integrity Deep Scan, Plugin Vulnerabilities Audit, Core Checksums Audit, Privilege Escalation Check, and Runtime Hook Infiltration (LotL).
@@ -117,47 +118,30 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 ### 10. Web Application Firewall (WAF Lite) & Virtual Patching
 - **Real-Time Request Filtering**: Inspects incoming HTTP payloads at `plugins_loaded` (priority 0) with sub-millisecond evaluation before core WordPress queries execute.
 - **Attack Vector Shields**: Blocks SQL Injections (`UNION SELECT`, `information_schema`, `benchmark`), Cross-Site Scripting (XSS scripts/handlers), Path Traversal & LFI (`/etc/passwd`, `php://filter`), PHP code tag injections (`<?php`, `eval`, `base64_decode`, `system`), and XML-RPC exploitation.
-- **Smart Shields & Verified Integrations Control Center**: Dedicated reactive controls for intelligent false-positive bypasses with individual on/off toggles, automatic plugin detection, and 1-click recommendation banners:
-  1. *Granular Targeted User-Agent, Endpoint & Multi-Layer Network Bypass Engine:* Administrators can define targeted zero-trust allowlist rules pairing User-Agent wildcard signatures (`*Shopify*`, `*Stripe*`, `*Woo*`) and Target Endpoints (`/wp-json/wc/v3/*`, `/?wc-api=*`) with HTTP methods (`ALL`, `GET`, `POST`), verified IP/CIDR subnets, Reverse DNS domain validation with forward confirm (`rDNS`), Autonomous System Numbers (`ASN`), and Required Security/HMAC Signature Headers (`X-Shopify-Hmac-Sha256`, `Stripe-Signature`, `X-Square-Hmacsha256-Signature`).
-  2. *32 Verified Integration Presets & Auto-Detection:* Pre-engineered, verified rule templates categorized across E-Commerce, Payments, Shipping, Marketing & CRM, Membership & LMS, and Automation. Active plugins on the site are automatically detected with an emerald "Detected" badge and a 1-click "Enable All Detected" batch setup.
-  3. *Dynamic Security Trust Tiers & Privacy Data Redaction:* Real-time scoring ranks rules into High Trust (HMAC, verified CIDRs, or two-way rDNS), Medium Trust (ASN verification), and Low Trust (User-Agent only with spoofing warnings). Bypassed requests are forensically logged into `wcpscan_firewall_logs` (`action_taken = 'allowed'`) with sensitive tokens, passwords, and authorization keys automatically redacted (`[REDACTED]`).
-  4. *E-Commerce & Membership Smart Shield:* Protects 34 top shopping, membership, donation, and community plugins (WooCommerce, EDD, SureCart, MemberPress, GiveWP, PMPro, Restrict Content Pro, ARMember, BuddyBoss, Youzify) with cryptographic webhook signature authentication (Stripe, PayPal, Square, Mollie, Razorpay) and active shopper cart session immunity against 404 lockouts.
-  5. *Visual Page Builder & Editor Smart Pass:* Safeguards authenticated editors using 20 leading page builders and block design suites (Elementor, Divi, Beaver, Bricks, Breakdance, Oxygen, SeedProd, Brizy, Thrive Architect, WPBakery, Visual Composer, Themify, SiteOrigin, Droip, Live Composer, WP Site Editor FSE, GenerateBlocks, Kadence Blocks, Spectra, Avada Fusion Builder) against false-positive XSS/SQLi payload drops and buffer limits.
-  6. *Automattic Jetpack Sync Shield:* Enables verified Jetpack syncs hitting `xmlrpc.php` while strictly validating incoming requests against Automattic's official CIDR blocks (`192.0.64.0/18`, etc.) and cryptographic signatures.
-  7. *Uptime Monitors & Health Check Immunity:* Protects legitimate uptime monitors (UptimeRobot, Pingdom, StatusCake, BetterUptime, GTmetrix) with 24-hour cached reverse DNS (PTR) + forward DNS (A) verification against 404 scanner lockouts.
-  8. *Central WordPress Management Worker Pass:* Authenticates remote maintenance sweeps from ManageWP, MainWP, and InfiniteWP when official on-site worker plugins are active.
+- **Smart Shields & 32 Verified Integrations**: Comprehensive allowlist rules for WooCommerce, Stripe, PayPal, Elementor, Divi, Gutenberg, Jetpack, ManageWP, and 30+ other tools.
 - **Smart Cloudflare & Coexistence**: Decodes visitor Real-IP from `HTTP_CF_CONNECTING_IP` with Cloudflare proxy range validation. Auto-negotiates with Wordfence, Sucuri, and Solid Security into Complementary Virtual Patching mode without hook conflicts.
-- **Live Incidents Stream & Controls**: Real-time blocked attack table, 1-click IP whitelisting, Learning Mode toggle (audit-only logging), and individual rule toggles. Custom dark-themed 403 Forbidden screen with incident reference IDs.
 
 ### 11. Dedicated WAF Incident Logs, Threat Intelligence & Attack Forensics
 - **Full-Page Forensic Analytics Hub (`admin.php?page=wcp-scanner-waf-logs`)**: Deep-linked directly from Firewall header actions and navigation bar.
 - **Real-Time KPI Threat Metrics**: 4 live KPI cards displaying Total Incursions Blocked, 24h Attack Surge, Distinct Attack IPs, and Simulation/Learning Mode hits.
 - **Threat Vector & Offender Analytics Grid**: Top Attack Vectors breakdown with proportional percentage bars and Frequent Offending Hostile IP Directory with hit counts, last seen timestamps, and 1-click Filter/Block actions.
-- **Multi-Field Forensic Search**: Real-time search across IP addresses, target URIs, malicious payload signatures, and User-Agents, combined with category, action, and HTTP method filters.
-- **Expandable Forensic Deep-Dive Accordion**: Per-incident inspection view displaying rule trigger descriptions, raw User-Agent fingerprints, and syntax-highlighted malicious payload excerpts with 1-click JSON export.
-- **Export & Forensics Reporting**: Download filtered incident records as CSV (`.csv`), raw JSON (`.json`), or formatted printable audit reports (`window.print()`).
+- **Multi-Field Forensic Search & Export**: Real-time search across IP addresses, target URIs, malicious payload signatures, and User-Agents, with CSV, JSON, and printable report downloads.
 
 ### 12. Smart 404 Scanner Rate-Limiter & Reconnaissance Shield
 - **Automated 404 Scanner Lockouts**: Automatically isolates fuzzing and vulnerability scanning bots that trigger repetitive 404 errors across WordPress installations (default 10 probes in 60s trigger a 30-minute block).
-- **DNS-Verified Search Engine Exemption**: Genuine search engines (Googlebot, Bingbot, DuckDuckBot, Yandex, Baidu, Yahoo) verified via Reverse DNS (PTR) + Forward DNS (A/AAAA) confirmation with 24h caching are strictly exempted to prevent search engine indexing drops or SEO penalties.
-- **Static Asset & Media Exclusion**: Missing static assets (`.jpg`, `.png`, `.webp`, `.svg`, `.css`, `.js`, `.ico`, `.woff`, `.pdf`) are ignored from 404 tallies, completely preventing false-positive lockouts for legitimate human visitors.
+- **DNS-Verified Search Engine Exemption**: Genuine search engines (Googlebot, Bingbot, DuckDuckBot, Yandex, Baidu, Yahoo) verified via Reverse DNS (PTR) + Forward DNS (A/AAAA) confirmation with 24h caching are strictly exempted.
+- **Static Asset & Media Exclusion**: Missing static assets (`.jpg`, `.png`, `.webp`, `.svg`, `.css`, `.js`, `.ico`, `.woff`, `.pdf`) are ignored from 404 tallies to prevent human visitor lockouts.
 - **High-Risk Reconnaissance Acceleration**: High-threat backdoor and sensitive file probes (`.env`, `.git`, `.bak`, `wp-config.php.bak`, `shell.php`, database dumps) advance the counter by 3 to swiftly isolate active exploit scanners.
 
 ### 13. Cloudflare Edge Defense & Zero-Resource WAF (100% Free Plan)
 - **Zero-Resource Threat Interception**: Blocks malicious bots and automated exploits at Cloudflare's Global Anycast Edge before requests ever reach your origin server or consume PHP and MySQL resources.
-- **3 Master Compound Rules (Free Plan Calibrated)**:
-  1. *Rule 1: Master Perimeter & Sensitive File Armor:* Blocks `/xmlrpc.php`, script execution in uploads/upgrade trees, sensitive dotfiles (`.env`, `.git`), and backup files in 1 unified Block rule.
-  2. *Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield:* Terminates directory traversal (`../`, `etc/passwd`), code execution wrappers, `?author=` harvesting, and REST user scraping.
-  3. *Rule 3: Login Portal Automated Bot Defense:* Challenges automated bots targeting `wp-login.php`, membership portals, and WooCommerce account endpoints with Cloudflare Turnstile / Managed Challenge.
-- **Single-Rule Push & Remove (`/cloudflare/deploy-single-rule`)**: Push, update, or remove individual Cloudflare edge rules independently without touching or redeploying other rules.
-- **Cloudflare Free Rate Limiter**: Deploys edge rate limiting on `/wp-login.php` (5 requests / 60s per IP, 10s mitigation cooldown) to mitigate brute-force attacks with zero server resource consumption.
-- **Bi-Directional WAF Auto-Ban Sync**: Automatically syncs locally detected high-threat attack IPs to Cloudflare Edge IP Access Rules.
-- **1-Click CDN Cache Purge**: Instant global edge cache purge directly from the WordPress administration panel.
+- **3 Master Compound Rules (Free Plan Calibrated)**: Master Perimeter Armor, LFI/RFI Directory Traversal Shield, and Login Portal Bot Defense.
+- **Single-Rule Push & Remove (`/cloudflare/deploy-single-rule`)**: Push, update, or remove individual Cloudflare edge rules independently without touching other rules.
+- **Cloudflare Free Rate Limiter & Auto-Ban Sync**: Edge rate limiting on `/wp-login.php` with bi-directional syncing of locally detected attack IPs to Cloudflare Edge IP Access Rules.
 
 ### 14. Community Threat Intelligence & Botnet IP Blacklists
-- **Community Botnet IP Blacklists**: Synchronizes active botnet nodes and brute-force scanner pools from Blocklist.de, Stamparm Ipsum, and FireHOL. Performs static in-memory $O(1)$ hash map and CIDR subnet matching (<0.05ms) to auto-drop botnet traffic at the perimeter.
-- **Zero-Day CVE Feed & Site Correlation**: Real-time zero-day vulnerability definitions with WAF virtual patching. Automatically correlates CVEs with installed WordPress Core, plugins, and themes, displaying status badges (`Installed — Vulnerable`, `Installed — Patched`, `Global Virtual Shield`).
-- **IP Reputation Diagnostic Tool**: Built-in checker to test client or visitor IPs against the active threat database.
+- **Community Botnet IP Blacklists**: Synchronizes active botnet nodes and brute-force scanner pools from Blocklist.de, Stamparm Ipsum, and FireHOL with static in-memory $O(1)$ hash map and CIDR subnet matching (<0.05ms).
+- **Zero-Day CVE Feed & Site Correlation**: Real-time zero-day vulnerability definitions correlated with installed WordPress Core, plugins, and themes.
 
 ### 15. Active Session Sentinel & Access Control
 - **Active Administrative Session Inspector**: Real-time tracking of active user logins via `\WP_Session_Tokens` with IP address, browser, OS, and timestamp telemetry.
@@ -165,98 +149,122 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **1-Click Remote Termination**: Remotely terminate individual compromised sessions or revoke all other sessions with 1-click.
 
 ### 16. Inline Expandable User Session Forensics & Real IP Tracking
-- **In-Table Forensic Accordion**: Clicking an administrator row expands the forensic audit panel in place (`Hide Forensics` / `Forensics`), completely eliminating viewport modal overlap with admin top bars.
-- **Strict Decrypted Origin IP Fidelity**: Inspects the authentic user's decrypted login IP recorded at authentication time (`$data['ip']`), preventing Cloudflare Anycast edge proxies or viewer reverse proxy IPs from colliding with or overwriting remote administrator IPs.
-- **Fallback Session Integrity**: Preserves authentic origin IP telemetry across all core session token iterations and password reset audit trails.
+- **In-Table Forensic Accordion**: Clicking an administrator row expands the forensic audit panel in place (`Hide Forensics` / `Forensics`), completely eliminating viewport modal overlap.
+- **Strict Decrypted Origin IP Fidelity**: Inspects the authentic user's decrypted login IP recorded at authentication time (`$data['ip']`), preventing Cloudflare Anycast edge proxies from colliding with remote administrator IPs.
 
 ### 17. Multi-Factor Authentication (2FA) & Login Hardening
 - **Pure PHP RFC 6238 TOTP Engine**: Compatible with Google Authenticator, Authy, 1Password, Bitwarden, and Microsoft Authenticator without external libraries.
 - **Native `wp-login.php` Interception**: Displays a responsive, branded two-factor verification challenge screen supporting rotating 6-digit TOTP codes and single-use emergency backup recovery codes.
-- **AES-256-GCM AEAD Encrypted User Secrets**: Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault with 128-bit authentication integrity tags and transparent in-memory runtime decryption.
-- **Brute Force Rate-Limiter**: Tracks failed login attempts per client IP with configurable thresholds and temporary lockout durations with countdown notices.
-- **Administrator 2FA Governance & Policy Enforcement**:
-  - View all administrator accounts with their profile avatars, 2FA status, and compliance state.
-  - 1-click Emergency Unlock & Disable 2FA for locked-out administrators.
-  - 1-click Credential Reset & QR Code Delivery Modal for remote enrollment.
-  - Mandatory 2FA Enforcement Policies: Force Immediately, Grace Period Countdown, or Remind on Next Login.
-  - Emergency Backup Codes (`.txt`) Download Guard with auto-download prior to activation.
-  - Post-setup Backup Code Regeneration with real-time remaining code counters.
+- **AES-256-GCM AEAD Encrypted User Secrets**: Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault with 128-bit authentication integrity tags.
 
-### 18. Dedicated Notification Center & Granular 32+ Event Alert Matrix
-- **Dedicated Administrative Notification Hub (`admin.php?page=wcp-scanner-notifications`)**: Full-page notification operations hub accessible via direct deep-link from Settings, Firewall, and email footers.
+### 18. WebAuthn Passwordless Biometric Login & Native Windows Hello Ceremony
+- **Complete Native WebAuthn Ceremony (`WebAuthnManager.php`)**: Implements the official W3C WebAuthn Level 3 protocol directly inside the WordPress core login lifecycle (`wp-login.php`).
+- **Native Windows Hello & Biometric Integration**: Supports platform authenticators (Windows Hello PIN/Fingerprint, Apple Touch ID/Face ID, Android Biometrics, and USB FIDO2 security keys) for instant, 100% phishing-immune login.
+
+### 19. Dedicated Notification Center & Granular 32+ Event Alert Matrix
+- **Dedicated Administrative Notification Hub (`admin.php?page=wcp-scanner-notifications`)**: Full-page notification operations hub accessible via direct deep-link.
 - **32+ Granular Security Events Across 8 Categories**: Core Scans & Threats, Plugin Self-Defense, Cloudflare & WAF Defense, Authentication & Access Security, File Integrity Monitoring, Vulnerabilities & CVE Feeds, Database Backups & Vault, and DevSecOps & AI Forensics.
 - **Independent Dual-Channel Matrix**: Independent toggle switches for Email (`wp_mail`) and DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Generic JSON) per event.
-- **Granular Default Baseline**: By default, only two critical high-priority events are activated ("Plugin Deactivated" and "Critical / High Threats Detected"), while all other 30+ events remain cleanly silenced until customized.
-- **Executive Obsidian Email Template**: Branded obsidian styling (`#0b1120`), glowing priority badges, client IP/device metadata detection, and Schema.org (`SecurityIncident`) JSON-LD structured data for LLM inbox summarization.
-- **1-Click Test Delivery**: Test buttons on each event trigger live test payloads via `/notifications/test-event`.
 
-### 19. Enterprise HTTP Security Headers & 1-Click Site Hardening
+### 20. Enterprise HTTP Security Headers & 1-Click Site Hardening
 - **Enterprise Security Headers Dispatcher**: Injects `Strict-Transport-Security` (HSTS with preload), `X-Frame-Options` (DENY/SAMEORIGIN), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, and `Content-Security-Policy` (CSP Lite).
 - **Runtime PHP File Editor Lock**: Defines `DISALLOW_FILE_EDIT` at runtime to prevent attackers from editing plugin/theme files through `wp-admin`.
-- **User Enumeration & Reconnaissance Defense**: Blocks author archive scraping (`/?author=1`) and removes user listings from unauthenticated REST API queries (`/wp/v2/users`). Strips WordPress version meta tags and asset query strings (`?ver=`).
-- **Sensitive System File Probe Shield**: Returns 403 Forbidden on requests attempting to access `.env`, `.git`, `.htaccess`, `.sql`, `composer.json`, and backup archives.
-- **1-Click Hardening Presets**: Instant "Apply Recommended A+ Hardening" preset in Settings with live grade assessment badge (`A+`, `A`, `B`, `C`).
+- **User Enumeration & Reconnaissance Defense**: Blocks author archive scraping (`/?author=1`) and removes user listings from unauthenticated REST API queries (`/wp/v2/users`).
 
-### 20. Bot Recon Defense & AI Scraper Shield
-- **Fake Search Engine Crawler Defense**: Verifies claimed Googlebot, Bingbot, Slurp, and DuckDuckBot User-Agents via reverse DNS (PTR) and forward DNS (A/AAAA) lookups with 24-hour transient caching to block spoofed reconnaissance probes.
-- **AI Content Scraper & Harvester Shield**: Intercepts aggressive AI model scrapers (`GPTBot`, `CCBot`, `Bytespider`, `ClaudeBot`, `PerplexityBot`, `Diffbot`, `Cohere-ai`) at the WAF level.
-- **Dynamic Virtual `robots.txt` Injection**: Automatically generates and injects standard AI bot Disallow directives into virtual `robots.txt`.
+### 21. 1-Click WP_DEBUG & Sensitive Configuration Remediation Engine
+- **Automated Configuration Remediation (`RemediationManager::disable_wp_debug`)**: Safely parses and updates `wp-config.php` via REST endpoint `/remediation/disable-wp-debug`.
+- **Atomic File Alteration with Syntax Tokenizer Validation**: Uses PHP's native `token_get_all()` parser to safely turn off `WP_DEBUG`, `WP_DEBUG_LOG`, and `WP_DEBUG_DISPLAY` constants without syntax corruption.
 
-### 21. Multi-Provider AI Code Forensics (ChatGPT, Gemini, Claude)
-- **Supported AI Forensic Providers**: Google Gemini (3.8 Flash, 2.5 Flash, 1.5 Pro), OpenAI (GPT-6.1 Sol, GPT-4o, GPT-4o-mini), and Anthropic Claude (Sonnet 5.5, 3.7 Sonnet, 3.5 Haiku).
-- **WordPress 7.0+ Core AI Client Bridge**: Automatically detects and leverages WordPress 7.0+ native `wp_ai_client()` site-level AI credentials for zero-configuration AI forensics.
+### 22. Bot Recon Defense & AI Scraper Shield
+- **Fake Search Engine Crawler Defense**: Verifies claimed Googlebot, Bingbot, Slurp, and DuckDuckBot User-Agents via reverse DNS (PTR) and forward DNS (A/AAAA) lookups with 24-hour transient caching.
+- **AI Content Scraper & Harvester Shield**: Intercepts aggressive AI model scrapers (`GPTBot`, `CCBot`, `Bytespider`, `ClaudeBot`, `PerplexityBot`, `Diffbot`, `Cohere-ai`) with virtual `robots.txt` disallows.
+
+### 23. Multi-Provider AI Code Forensics (ChatGPT, Gemini, Claude)
+- **Supported AI Forensic Providers**: Google Gemini, OpenAI, and Anthropic Claude.
 - **1-Click AI Code Forensics Modal**: Decodes obfuscated scripts in seconds, assesses threat confidence (0–100%), explains exploit mechanics, and generates surgical clean code patches.
 
-### 22. Model Context Protocol (MCP) Agentic Surface (AI SecOps Automation)
-- **Native JSON-RPC 2.0 Agentic Integration**: Bridges external AI coding agents (Claude Desktop, Cursor IDE, Antigravity, custom LLM agents) with WordPress security operations over standard JSON-RPC 2.0 and Bearer token authentication.
-- **7 First-Class SecOps Tools**: `wcp_get_site_health`, `wcp_list_findings`, `wcp_get_finding_detail`, `wcp_list_quarantined_files`, `wcp_get_waf_stats`, `wcp_trigger_scan`, and `wcp_whitelist_finding`.
-- **Granular Permission Scopes**: Enforce **Read-Only (Observation)** mode to allow AI agents to safely inspect and diagnose without write privileges, or **Full Remediation (Read + Write)** for automated incident response.
-- **Sliding-Window Rate Limiting**: Per-token rate limiter configurable from 30 to 300 requests/minute to protect origin servers from agentic query floods.
-- **Persistent Ring-Buffer Execution Audit Trail**: Logs every incoming MCP agent call with timestamp, tool name, client IP, payload preview, execution time, and response status in a persistent 150-event ring buffer (`wcpscan_mcp_audit_log`).
-- **1-Click Ready Client Configs**: Ready-to-copy JSON configuration snippets formatted specifically for Cursor (`cursor_mcp.json`) and Claude Desktop (`claude_desktop_config.json`).
+### 24. Model Context Protocol (MCP) Agentic Surface (AI SecOps Automation)
+- **Native JSON-RPC 2.0 Agentic Integration**: Bridges external AI coding agents (Claude Desktop, Cursor IDE, Antigravity) with WordPress security operations over standard JSON-RPC 2.0.
+- **Granular Permission Scopes & Rate Limiting**: Enforce Read-Only or Full Remediation mode with per-token rate-limiting and persistent 150-event ring-buffer execution logging (`wcpscan_mcp_audit_log`).
 
-### 23. Cryptographic Secret Vault (Pure AES-256-GCM AEAD & Two-Phase Key Rotation)
-- **Pure AES-256-GCM Authenticated Encryption (AEAD)**: All sensitive third-party API credentials, webhook endpoints, and infrastructure tokens are encrypted at rest before being saved to `wp_options`.
-- **128-bit Cryptographic Authentication Tags**: Cryptographically verifies ciphertext integrity prior to decryption, completely preventing bit-flipping vulnerabilities and CBC padding oracle attacks.
-- **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`)**: Robust state machine (`idle` → `preparing` → `migrating` → `verifying` → `committed`) manages zero-downtime key rotation with dual-key background decrypt fallback and atomic snapshot rollbacks.
-- **Dynamic 256-bit Key Derivation**: Derives keys from `WCP_VAULT_KEY` environment variables, `wp-config.php` constants, or cryptographic SHA-256 hashes of 4 WordPress core salts (`AUTH_KEY`, `AUTH_SALT`, `SECURE_AUTH_KEY`, `SECURE_AUTH_SALT`).
+### 25. Cryptographic Secret Vault (Pure AES-256-GCM AEAD & Two-Phase Key Rotation)
+- **Pure AES-256-GCM Authenticated Encryption (AEAD)**: Encrypts all sensitive credentials (webhooks, Cloudflare tokens, AI keys, 2FA TOTP secrets) before writing to `wp_options`.
+- **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`)**: Zero-downtime state machine with dual-key background decrypt fallback and atomic snapshot rollbacks.
 
-### 24. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
-- **Centralized Security Vault Page (`wcp-vault`)**: Consolidates all site isolation, backup, and encryption primitives into a single high-performance interface with live telemetry and direct deep-linking.
-- **Facility 1 — File Quarantine Isolation Vault**: View, inspect, restore, or permanently purge quarantined rogue scripts and backdoors preserved with SHA-256 integrity hashes in `.htaccess`-protected storage.
-- **Facility 2 — Database Snapshot & Point-in-Time Recovery Vault**: Create on-demand Gzip-compressed `.sql.gz` database snapshots, inspect byte-accurate archive sizes, and download for offsite disaster recovery.
-- **Facility 3 — Pre-Cure Safety Rollback & Remediation Vault**: Inspect safety diffs and restore modified files prior to Auto-Cure or webshell stripping actions.
-- **Facility 4 — Secret & Cryptographic Key Vault**: Real-time health metrics of the AES-256-GCM AEAD encryption subsystem, including self-healing dual-key decryption fallback, stale rotation lock recovery, and 1-click diagnostic reset.
+### 26. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
+- **Centralized Security Vault Page (`wcp-vault`)**: Consolidates File Quarantine, Database Snapshots, Pre-Cure Safety Rollbacks, and Secret Vault metrics into one unified screen.
 
-### 25. On-Demand Database Backup Vault (`.sql.gz`)
-- **1-Click Database Backup Vault**: Creates instant on-demand database dumps with automatic `.sql.gz` Gzip compression, size metadata indexing, and secure browser downloads.
-- **Secure File Storage**: Guarded by Apache/LiteSpeed `.htaccess` (`Require all denied`) and silent PHP index files.
+### 27. On-Demand Database Backup Vault (`.sql.gz`)
+- **1-Click Compressed Database Vault**: Creates instant on-demand database dumps with automatic `.sql.gz` Gzip compression, size metadata indexing, and secure browser downloads.
 
-### 26. High-Precision Microsecond Telemetry & Diagnostics
-- **Microsecond Scan Duration Tracking**: Database schema upgraded with `started_at` (`datetime(3)`), `completed_at` (`datetime(3)`), and `duration_ms` (`int(11)`) columns to guarantee sub-second and millisecond tracking across all scan types.
-- **Timezone-Aware Accuracy**: Replaced timezone-clashing server queries with WordPress `wp_timezone()` arithmetic, eliminating drift between server clocks and site timezones.
-- **Real-Time Environment Diagnostics**: Live diagnostics for PHP memory limit, execution time, SAPI interface, active extensions (`cURL`, `OpenSSL`, `sodium`, `Zip`), MySQL collation, database size, and OS architecture.
-- **Historical Audit Logs**: Complete chronological history of past scans with durations, scanned file counts, risk scores, and granular issue categorization.
+### 28. High-Precision Microsecond Telemetry & Diagnostics
+- **Microsecond Scan Duration Tracking**: Database schema upgraded with `started_at` (`datetime(3)`), `completed_at` (`datetime(3)`), and `duration_ms` (`int(11)`) for millisecond accuracy.
+- **Real-Time Environment Diagnostics**: Live diagnostics for PHP memory limit, execution time, SAPI interface, active extensions, MySQL collation, and historical audit logs.
 
-### 27. Behavioral Baseline & Attack Chain Correlation
+### 29. Behavioral Baseline & Attack Chain Correlation
 - **Behavioral Drift Detection**: Tracks alterations in critical site metadata, administrator counts, PHP execution options, and file counts against historic baselines.
-- **Attack Chain Timeline**: Correlates disparate security events (failed login brute-force → backdoor upload → cron modification) into a unified chronological breach narrative with estimated blast radius scoring.
+- **Attack Chain Timeline**: Correlates disparate security events into a unified chronological breach narrative with estimated blast radius scoring.
 
-### 28. Frictionless 1-Click "Mark Safe / Ignore" UX with SHA-256 Hash-Locking
-- **1-Click Intelligent Suppression**: Instantly suppress known false-positives with a single click. Automatically computes SHA-256 cryptographic checksums of the target file to lock the rule to that exact file version, with a 90-day auto-review safety period.
-- **Collapsible Power-User Drawer**: Advanced controls to customize rule match types (Exact SHA-256 Hash vs File Path vs Pattern Signature), adjust expiration periods (30 days, 90 days, 1 year, or Permanent), and log administrative audit rationale.
-- **Segmented Findings Status Filtering**: Instantly toggle between **Active Threats**, **Whitelisted / Ignored**, and **All Findings** with dynamic count badges, keeping active security views clean and actionable.
+### 30. Frictionless 1-Click "Mark Safe / Ignore" UX with SHA-256 Hash-Locking
+- **1-Click Intelligent Suppression**: Instantly suppress known false-positives with automated SHA-256 cryptographic checksum locking and customizable expiration windows (30 days, 90 days, 1 year, or Permanent).
 
-### 29. Data Privacy, Non-Destructive Operations & Clean Uninstall Lifecycle
-- **Automated Pre-Action Safety Backups**: Every Auto-Cure, Quarantine, and Remediation action creates an automated safety snapshot in the local vault before modifying files.
-- **Zero Tracking or Analytics**: The plugin does NOT track, collect, store, or sell any personal data, analytics, or browsing habits.
-- **100% On-Premise Execution**: Core scans, heuristic checks, file integrity monitoring, brute-force defenses, 2FA generation, and firewall evaluation run 100% locally within your PHP environment.
-- **Clean 6-Table Database Purge on Uninstall (`uninstall.php`)**: When "Auto-Remove All Data on Uninstall" is active (default), deleting the plugin automatically drops all 6 custom database tables (`wcpscan_scans`, `wcpscan_scan_issues`, `wcpscan_scan_files`, `wcpscan_quarantine`, `wcpscan_firewall_logs`, `wcpscan_login_history`), purges user meta, clears transients, deletes options, removes crons, and safely purges the upload storage folder.
+### 31. Zero-Trust Must-Use (MU) Guardian & Sandboxed Temporary Support Access
+- **Inviolable Must-Use Guardian (`WcpJitMuGuardian.php`)**: Deployed as an infallible Must-Use plugin (`wp-content/mu-plugins/wcp-jit-guardian.php`) executing at earliest bootstrap (`muplugins_loaded`) that cannot be deactivated or deleted via the WordPress admin UI.
+- **Granular Sandboxing Shields**: Strictly forbids temporary technicians from modifying security settings, deactivating plugins, installing unapproved packages, editing files, or viewing decrypted secrets.
 
-### 30. Dual-Theme Design System (High-Contrast White Mode & Dark Obsidian)
-- **Flawless White (Light) Mode Parity**: Custom semantic token architecture (`var(--wcp-bg-panel)`, `var(--wcp-text-primary)`, `var(--wcp-border)`) guarantees maximum readability, deep contrast, and crisp table borders (`#ffffff`, `#f8fafc`, `#e2e8f0`, `#0f172a`), eliminating washed-out text or unreadable badges.
-- **Midnight Obsidian Dark Mode**: Cyberpunk-inspired deep midnight palette (`#090d16` canvas, `#0f172a` cards, `#1e293b` borders) with vibrant neon accents and glowing status indicators.
-- **1-Click Theme Switcher**: Instant toggle between White Mode and Dark Mode saved in local storage.
+### 32. Preload Micro-WAF & Early Execution Engine (Linux Fail2ban & CrowdSec Syslog)
+- **Zero-Dependency Standalone Runtime (`MicroWafCompiler.php`)**: Compiles WAF rules to OPcache-shared static PHP arrays (`micro-waf-compiled.php`), intercepting malicious requests via `auto_prepend_file` before WordPress core boots or database connections initialize.
+- **Linux Fail2ban & CrowdSec Integration**: Automatically appends early dropped requests to a standardized append-only syslog for instant kernel/network-level blocking.
+
+### 33. JavaScript Threat Intelligence, Magecart Payment Skimmer & Beacon Detector
+- **Dedicated Client-Side Malware Engine (`JavaScriptSecurityScanner.php`)**: Inspects static `.js` files for Magecart payment skimmers, event listeners listening to credit card fields, and unauthorized data-theft beacons (`fetch()`, `sendBeacon()`, `new Image()`).
+
+### 34. Third-Party Script Inventory & Frontend Hostname Drift Sentinel
+- **Passive Frontend Enqueue Telemetry (`ScriptInventoryMonitor.php`)**: Monitors dynamically enqueued scripts across checkout and sensitive transaction boundaries, alerting on unexpected third-party domain drift.
+
+### 35. Offline Dependency Lockfile (Composer & npm) Supply-Chain Auditor
+- **Offline SemVer Parser (`LockfileAuditEngine.php`)**: Scans `composer.lock` and `package-lock.json` manifests against bundled high-profile CVE signatures completely offline, without requiring npm or Composer on the server.
+
+### 36. 2026 AI Threat Defense, Prompt-Injection Guard & Decoy Ghost Route Traps
+- **Autonomous AI Pentest Bot & Decoy Canary Trap (`GhostRouteTrap.php`)**: Injects invisible canary link tags and phantom REST honeypot routes to immediately catch, tarpit, and block aggressive AI scrapers and vulnerability scanners.
+- **WordPress 7.0+ AI Client & Prompt-Injection Guard (`PromptInjectionGuard.php`)**: Inspects incoming prompt vectors and comments against prompt override attacks, DAN jailbreak patterns, and invisible Unicode tag smuggling.
+
+### 37. Outbound AI & SSRF Egress Firewall (Cloud Metadata & Exfiltration Shield)
+- **Outbound HTTP Client Interception (`OutboundEgressFirewall.php`)**: Hooks `pre_http_request` with stack backtrace inspection to block SSRF targeting cloud metadata (`169.254.169.254`, private LAN CIDRs) and data exfiltration pipelines.
+
+### 38. Plaintext Credential Exposure & Secret Leak Scanner (.env, Git, Keys)
+- **Automated Root & Uploads Audit (`CredentialExposureScanner.php`)**: Rapidly scans public folders for exposed `.env` files, `.git/config`, OpenAI keys, Stripe secret keys, AWS keys, and private SSH keys, with safe administrative masking.
+
+### 39. REST API & Public AJAX Attack Surface Inventory & User Enumeration Guard
+- **Automated Surface Discovery (`RestApiInventory.php`)**: Maps all registered WordPress REST API endpoints and public unauthenticated AJAX actions, highlighting mutating write endpoints.
+- **1-Click User Enumeration Defense**: Intercepts unauthenticated queries targeting `/wp/v2/users` to prevent username harvesting.
+
+### 40. 72-Hour Post-Remediation Reinfection Watchdog & Surveillance Vault
+- **Automated Surveillance Enlistment (`ReinfectionWatchdog.php`)**: Maintains hourly automated surveillance over remediated paths across a 72-hour threat window, instantly locking resurrected backdoors into the quarantine vault.
+
+### 41. "Time-Machine" Local File & Bespoke Asset Snapshot Baseline Engine
+- **Bespoke Asset Baseline Archives (`LocalSnapshotManager.php`)**: Captures compressed, read-only baseline snapshots (`.gz`) of custom client themes and bespoke plugins for visual Myers diff inspection and 1-click atomic restoration.
+
+### 42. Automated Blacklist, Domain Reputation & DNSBL Early-Warning Sentinel
+- **Daily Automated Reputation Audit (`DomainReputationMonitor.php`)**: Continuously audits site domain reputation across leading DNSBL blacklists, verifies TLS/SSL certificate expiration countdowns, and validates SPF/DMARC email authentication records.
+
+### 43. Unified 5-Tier Threat Correlation Engine & Attack Kill-Chain Forensics
+- **5-Tier Telemetry Hierarchy (`CorrelationEngine.php`)**: Synthesizes disparate signals into 5 structured intelligence tiers (Observed Facts &rarr; Threat Indicators &rarr; Temporal Correlations &rarr; Kill-Chain Hypotheses &rarr; Actionable Containment Outcomes).
+
+### 44. 1-Click Panic Button Emergency Site Lockdown & Containment Protocol
+- **1-Click Header Panic Button (`EmergencyContainmentManager.php`)**: Instantly locks down the site by activating Cloudflare Under-Attack defense, freezing outbound HTTP egress, and capturing a 72-hour forensic snapshot.
+
+### 45. Global Command Center & All Modules Mega-Menu (Ctrl+K Navigation)
+- **Comprehensive Navigation Matrix (`MegaMenuModal.tsx`)**: Categorizes all 13 core security pillars with real-time text filtering and `Ctrl+K` keyboard shortcuts for instant module hopping.
+
+### 46. Zero-Allocation Streaming Session Queue & Microsecond Disk Cursor
+- **Ephemeral Stream Queue Storage (`ScanQueueManager.php`)**: Streams discovered files directly into private line-delimited session files on disk, maintaining flat ~2MB RAM consumption regardless of website size.
+
+### 47. Host Antivirus Immunity & Heuristic Engine Resilience (CPGuard / Imunify360 Bypass Defense)
+- **Dynamic Runtime Token Assembly**: Assembles malware detection patterns in memory to prevent false-positive quarantines of the security scanner by server-level security daemons like CPGuard, Imunify360, and ClamAV.
+
+### 48. Data Privacy, Safety Policies & Clean Uninstall Lifecycle
+- **100% On-Premise Execution & Clean Database Purge**: Zero tracking, zero telemetry, non-destructive safety backups before any file edit, and clean 6-table database dropping on uninstall (`uninstall.php`).
 
 ---
 

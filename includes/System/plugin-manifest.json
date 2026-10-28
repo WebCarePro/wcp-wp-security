@@ -1,6 +1,6 @@
 {
   "version": "1.28.0",
-  "generated_at": "2026-10-28T01:36:14.710Z",
+  "generated_at": "2026-10-28T01:47:34.704Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -76,16 +76,16 @@
       "size": 12281
     },
     "includes/Auth/LoginHistoryManager.php": {
-      "sha256": "6ebe78e0175f7c6c9ccabd45c542b19524736631fe7a9b883cd2d880c57789b1",
-      "size": 24431
+      "sha256": "e69d1b1b68b2d777e94599694eaa4102c9934d35e9aec73f934e7c474617c5e7",
+      "size": 24573
     },
     "includes/Auth/QRCodeGenerator.php": {
       "sha256": "827b00efb51a59a0501d314dc6ecd037dd327726d1e5c348021a2cec64a31c16",
       "size": 13108
     },
     "includes/Auth/SessionSentinel.php": {
-      "sha256": "6433b3743e5ca1f19bcbeddfc0a54206d8526de916b9ff43db4137ea2bd2b951",
-      "size": 49473
+      "sha256": "7773c0aa1b45f1e0a4474b428a0037757e089c745aa5302a3caa193b9cfbf318",
+      "size": 49625
     },
     "includes/Auth/TwoFactorAuth.php": {
       "sha256": "ca7df9f4530ce3ef0c1bd13849ac137a3a196431dfa47ed1292c7965fa2e9052",
@@ -304,8 +304,8 @@
       "size": 22866
     },
     "includes/Identity/WcpJitMuGuardian.php": {
-      "sha256": "563c2e93f9faca56ab44572f1dba95141a162e29515b60e09f0df7214138f054",
-      "size": 46577
+      "sha256": "fa0fc2980bc16082b337c5ca5d105e6ff897898cf8a81f5e5545813680f8bc16",
+      "size": 46678
     },
     "includes/Integrity/BehavioralBaselineEngine.php": {
       "sha256": "f1275b972738da93a4140fc191b110358619a539f29665a83ba0b162045ea5a6",
@@ -400,8 +400,8 @@
       "size": 14555
     },
     "includes/Remediation/RemediationManager.php": {
-      "sha256": "dc17e78766d20a7243f01ebe4f7a2958e6dab38009e0fcacf7b70634e5b2a91a",
-      "size": 49813
+      "sha256": "2152a1fadb43708775c6a30360d90274a4c12f432f7db1f674a264b98bbd98ef",
+      "size": 51023
     },
     "includes/Remediation/TransactionalRemediation.php": {
       "sha256": "c92e35bd60cb214637cd7a3e2b2be16871e54802979806df1f661700ebb7f15a",
@@ -496,8 +496,8 @@
       "size": 6081
     },
     "includes/System/PluginUpdater.php": {
-      "sha256": "cc75efe82e6b104196005d8d2b838b9419fda8542efaf50351921724a9211391",
-      "size": 20799
+      "sha256": "2d37d6157cd75e58329284e1b14b584dca6718a8b8837a29efbc842cb5f2fc41",
+      "size": 21509
     },
     "includes/System/Scheduler.php": {
       "sha256": "d9e28775edbb606ba1288cacb5751c42a2ee281992fb2336a3ca553912c0b886",
@@ -560,8 +560,8 @@
       "size": 430
     },
     "README.md": {
-      "sha256": "abec65a18e81ffc341d4ec0e405766882ce485cda2f4b7d03c8d3fe2167e401a",
-      "size": 46633
+      "sha256": "f6bf3717d610ea2ac9491fa2cf1de598f4ab2430089e86d9815470a13f85c000",
+      "size": 41736
     },
     "readme.txt": {
       "sha256": "43fab0b20511a33f6432663e7f90f6c60ef17c16165683fede1091f778a56217",
