@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Header Controls Right-Side Positioning & Full Mobile Responsiveness (App.tsx, index.css):
+  * Right-Aligned Top Governance Controls: Placed the full header governance group (Essential/Advanced SOC Mode toggle, Quick Setup, Panic Lockdown, and Dark/White Mode) in the top-right section with dedicated right padding (28px container edge padding and 8px actions margin), ensuring breathing room away from the card boundary.
+  * Mobile & Tablet Viewport Optimization: Implemented adaptive responsive rules for 991px (tablets) and 640px (mobile phones) with horizontal smooth touch scrolling for action pills and navigation tabs, auto-scaling brand logo, and zero awkward line-wrapping.
 - Header Controls Alignment & Dark/White Mode Position Refinement (App.tsx, index.css):
   * Left-Aligned Top Header Controls: Brought the top header action controls (Dark/White Mode toggle, Mode switcher, Quick Setup, Panic button) to the left side immediately following the brand identity block with a comfortable 16px gap, eliminating awkward edge-spacing.
   * Optimized Dark/White Mode Toggle: Positioned the White Mode / Dark Mode toggle cleanly alongside the brand block with streamlined 12px pill geometry and polished contrast borders.
