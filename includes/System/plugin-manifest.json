@@ -1,6 +1,6 @@
 {
   "version": "1.28.0",
-  "generated_at": "2026-10-28T00:02:02.269Z",
+  "generated_at": "2026-10-28T00:12:07.516Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -168,8 +168,8 @@
       "size": 1065
     },
     "includes/Filesystem/FileScanner.php": {
-      "sha256": "439b1588e212afe5d9672a2a3776c5d7a7977c622779d9458f4b9a92803ac388",
-      "size": 4859
+      "sha256": "5e54cef015236d0bbc6624d8e99eab64d8147215b2430c22702d87514b671100",
+      "size": 5057
     },
     "includes/Filesystem/PathValidator.php": {
       "sha256": "b77801e16544379d105c5e2ddd3366dde30fcd8c01e63ba83439462336598cef",
@@ -348,12 +348,12 @@
       "size": 10731
     },
     "includes/Malware/DeobfuscationEngine.php": {
-      "sha256": "b0f9c809f59f2fb81dc4b07f34a58329fccb2b2643b9cbda23a13e689f24d078",
-      "size": 6338
+      "sha256": "c5a03fce232676bf1afa85d5532f5d92e0f044f7cb6a0d9cc2b6056890eb1282",
+      "size": 8175
     },
     "includes/Malware/HeuristicEngine.php": {
-      "sha256": "5d2b27feeb26e812f7bfd7f4a100a5064af41d31086827c99f95fddd4ef46777",
-      "size": 3168
+      "sha256": "94f5f7548b2067ed7ac69bf2ddcfab0f1b93677c52f04b2f6c85680ca6f336b2",
+      "size": 3787
     },
     "includes/Malware/JavaScriptSecurityScanner.php": {
       "sha256": "cdf01661e0e92f826e562045e3a6d9e5dfa620ef97fa055b8c998e509d053f57",

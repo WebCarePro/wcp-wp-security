@@ -92,8 +92,14 @@ class FileScanner {
         }
 
         // 4. PHP Heuristic Malware Scan
-        $malware_findings = $this->heuristic_engine->scan_file($file_path, $scan_id);
-        $findings = array_merge($findings, $malware_findings);
+        try {
+            $malware_findings = $this->heuristic_engine->scan_file($file_path, $scan_id);
+            if (!empty($malware_findings)) {
+                $findings = array_merge($findings, $malware_findings);
+            }
+        } catch (\Throwable $e) {
+            // Guard against individual file heuristic failure
+        }
 
         // 5. Client-Side JavaScript Threat Scan (Magecart, Form Skimmers, Miners)
         $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
