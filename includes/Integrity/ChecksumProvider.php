@@ -20,10 +20,22 @@ class ChecksumProvider {
     private static $plugin_checksums_memory = [];
 
     /**
+     * In-memory cache for theme checksums indexed by slug_version.
+     * @var array
+     */
+    private static $theme_checksums_memory = [];
+
+    /**
      * In-memory cache for installed plugin versions.
      * @var array|null
      */
     private static $installed_plugin_versions = null;
+
+    /**
+     * In-memory cache for installed theme versions.
+     * @var array|null
+     */
+    private static $installed_theme_versions = null;
 
     /**
      * Fetch core checksums for the current WordPress version.
@@ -140,9 +152,15 @@ class ChecksumProvider {
             return null;
         }
 
+        $mem_key = "{$theme_slug}_{$version}";
+        if (isset(self::$theme_checksums_memory[$mem_key])) {
+            return self::$theme_checksums_memory[$mem_key];
+        }
+
         $cache_key = "wcpscan_theme_chk_v3_{$theme_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
+            self::$theme_checksums_memory[$mem_key] = $cached;
             return $cached;
         }
 
@@ -182,6 +200,7 @@ class ChecksumProvider {
                         wp_delete_file($tmp_file);
                         if (!empty($manifest)) {
                             set_transient($cache_key, $manifest, defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400);
+                            self::$theme_checksums_memory[$mem_key] = $manifest;
                             return $manifest;
                         }
                     }
@@ -203,6 +222,7 @@ class ChecksumProvider {
             }
             if (!empty($theme_files)) {
                 set_transient($cache_key, $theme_files, defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400);
+                self::$theme_checksums_memory[$mem_key] = $theme_files;
                 return $theme_files;
             }
         }
@@ -376,5 +396,379 @@ class ChecksumProvider {
         }
 
         return self::$installed_plugin_versions[$slug] ?? null;
+    }
+
+    /**
+     * Retrieve the version of an installed theme by directory slug.
+     *
+     * @param string $slug
+     * @return string|null
+     */
+    public static function get_installed_theme_version(string $slug): ?string {
+        if (self::$installed_theme_versions === null) {
+            self::$installed_theme_versions = [];
+            if (!function_exists('wp_get_themes')) {
+                require_once ABSPATH . WPINC . '/theme.php';
+            }
+            if (function_exists('wp_get_themes')) {
+                $themes = wp_get_themes();
+                foreach ($themes as $theme_slug => $theme_obj) {
+                    $ver = $theme_obj->get('Version');
+                    if (!empty($ver)) {
+                        self::$installed_theme_versions[$theme_slug] = $ver;
+                    }
+                }
+            }
+        }
+
+        return self::$installed_theme_versions[$slug] ?? null;
+    }
+
+    /**
+     * Check if a file belongs to an installed official theme and matches official WordPress.org checksums.
+     *
+     * @param string $file_path Absolute path to the file.
+     * @return bool
+     */
+    public static function is_authentic_theme_file(string $file_path): bool {
+        $check = self::verify_theme_file($file_path);
+        return ($check['status'] === 'authentic');
+    }
+
+    /**
+     * Strictly verify a file against official WordPress core checksums and detect rogue/unknown files.
+     *
+     * @param string $file_path
+     * @return array [
+     *   'status'   => 'not_core' | 'authentic' | 'modified' | 'unknown' | 'ignored',
+     *   'rel_file' => string,
+     *   'expected' => string,
+     *   'actual'   => string
+     * ]
+     */
+    public static function verify_core_file(string $file_path): array {
+        if (!defined('ABSPATH')) {
+            return ['status' => 'not_core'];
+        }
+
+        $norm_path = str_replace('\\', '/', $file_path);
+        $norm_abs  = str_replace('\\', '/', rtrim(ABSPATH, '/\\') . '/');
+
+        if (strpos($norm_path, $norm_abs) !== 0) {
+            return ['status' => 'not_core'];
+        }
+
+        $rel_file = substr($norm_path, strlen($norm_abs));
+
+        // wp-content is NOT part of core
+        if (strpos($rel_file, 'wp-content/') === 0) {
+            return ['status' => 'not_core'];
+        }
+
+        $is_in_core_dir = (strpos($rel_file, 'wp-includes/') === 0 || strpos($rel_file, 'wp-admin/') === 0);
+        $is_in_root     = (strpos($rel_file, '/') === false);
+
+        if (!$is_in_core_dir && !$is_in_root) {
+            // Non-standard directory on WordPress root (e.g. /custom-folder/file.php)
+            // If it contains executable PHP code, it's considered unknown core/root
+            $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+            if (in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true)) {
+                return [
+                    'status'   => 'unknown',
+                    'rel_file' => $rel_file,
+                ];
+            }
+            return ['status' => 'not_core'];
+        }
+
+        $provider = new self();
+        $checksums = $provider->get_core_checksums();
+        if (empty($checksums)) {
+            return ['status' => 'not_core'];
+        }
+
+        if (isset($checksums[$rel_file])) {
+            $expected_md5 = $checksums[$rel_file];
+            if (!file_exists($file_path) || !is_readable($file_path)) {
+                return ['status' => 'not_core'];
+            }
+
+            $actual_md5 = md5_file($file_path);
+            if ($actual_md5 === $expected_md5) {
+                return [
+                    'status'   => 'authentic',
+                    'rel_file' => $rel_file,
+                ];
+            }
+
+            // Normalization
+            $raw_content = @file_get_contents($file_path);
+            if ($raw_content !== false && md5(str_replace("\r\n", "\n", $raw_content)) === $expected_md5) {
+                return [
+                    'status'   => 'authentic',
+                    'rel_file' => $rel_file,
+                ];
+            }
+
+            return [
+                'status'   => 'modified',
+                'rel_file' => $rel_file,
+                'expected' => $expected_md5,
+                'actual'   => $actual_md5,
+            ];
+        }
+
+        // File is in wp-admin, wp-includes, or root ABSPATH, but NOT in official core checksums!
+        $basename_lower = strtolower(basename($file_path));
+
+        // Ignored safe files
+        $ignored_basenames = ['.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db'];
+        if (in_array($basename_lower, $ignored_basenames, true)) {
+            return ['status' => 'ignored', 'rel_file' => $rel_file];
+        }
+
+        // Standard root legitimate entries
+        if ($is_in_root) {
+            $standard_root = [
+                'wp-config.php', 'wp-config-sample.php', 'robots.txt', 'favicon.ico',
+                '.user.ini', 'php.ini', 'sitemap.xml', 'sitemap.xml.gz', 'ads.txt',
+                'app-ads.txt', 'security.txt', 'license.txt', 'readme.html'
+            ];
+            if (in_array($basename_lower, $standard_root, true)) {
+                return ['status' => 'authentic', 'rel_file' => $rel_file];
+            }
+        }
+
+        // It is an UNKNOWN file inside core or root!
+        return [
+            'status'   => 'unknown',
+            'rel_file' => $rel_file,
+        ];
+    }
+
+    /**
+     * Strictly verify a file against official WordPress.org plugin checksums and detect rogue/unknown files.
+     *
+     * @param string $file_path
+     * @return array [
+     *   'status'   => 'not_plugin' | 'unmanaged' | 'authentic' | 'modified' | 'unknown' | 'ignored',
+     *   'slug'     => string,
+     *   'rel_file' => string,
+     *   'expected' => string,
+     *   'actual'   => string
+     * ]
+     */
+    public static function verify_plugin_file(string $file_path): array {
+        if (!defined('WP_PLUGIN_DIR')) {
+            return ['status' => 'not_plugin'];
+        }
+
+        $norm_path  = str_replace('\\', '/', $file_path);
+        $plugin_dir = str_replace('\\', '/', rtrim(WP_PLUGIN_DIR, '/\\') . '/');
+
+        if (strpos($norm_path, $plugin_dir) !== 0) {
+            return ['status' => 'not_plugin'];
+        }
+
+        $rel_path = substr($norm_path, strlen($plugin_dir));
+        $parts = explode('/', $rel_path, 2);
+        if (count($parts) < 2) {
+            return ['status' => 'not_plugin']; // Single file plugin
+        }
+
+        $slug = $parts[0];
+        $file_inside_plugin = $parts[1];
+
+        if ($slug === 'wcp-security-scanner') {
+            return ['status' => 'authentic', 'slug' => $slug, 'rel_file' => $file_inside_plugin];
+        }
+
+        $version = self::get_installed_plugin_version($slug);
+        if (empty($version)) {
+            return ['status' => 'unmanaged', 'slug' => $slug];
+        }
+
+        $provider = new self();
+        $checksums = $provider->get_plugin_checksums($slug, $version);
+        if (empty($checksums)) {
+            return ['status' => 'unmanaged', 'slug' => $slug];
+        }
+
+        if (isset($checksums[$file_inside_plugin])) {
+            $expected = $checksums[$file_inside_plugin];
+            if (!file_exists($file_path) || !is_readable($file_path)) {
+                return ['status' => 'not_plugin'];
+            }
+
+            $actual_md5 = md5_file($file_path);
+
+            $is_match = false;
+            if (is_string($expected) && $actual_md5 === $expected) {
+                $is_match = true;
+            } elseif (is_array($expected)) {
+                if (isset($expected['algo']) && $expected['algo'] === 'sha256') {
+                    $is_match = (hash_file('sha256', $file_path) === $expected['hash']);
+                } elseif (in_array($actual_md5, $expected, true)) {
+                    $is_match = true;
+                }
+            }
+
+            if (!$is_match) {
+                // CRLF vs LF
+                $raw_content = @file_get_contents($file_path);
+                if ($raw_content !== false) {
+                    $norm_md5 = md5(str_replace("\r\n", "\n", $raw_content));
+                    if (is_string($expected) && $norm_md5 === $expected) {
+                        $is_match = true;
+                    } elseif (is_array($expected) && in_array($norm_md5, $expected, true)) {
+                        $is_match = true;
+                    }
+                }
+            }
+
+            if ($is_match) {
+                return [
+                    'status'   => 'authentic',
+                    'slug'     => $slug,
+                    'rel_file' => $file_inside_plugin,
+                ];
+            }
+
+            $exp_str = is_array($expected) ? ($expected['hash'] ?? implode(', ', $expected)) : $expected;
+            return [
+                'status'   => 'modified',
+                'slug'     => $slug,
+                'rel_file' => $file_inside_plugin,
+                'expected' => $exp_str,
+                'actual'   => $actual_md5,
+            ];
+        }
+
+        // File is inside an official WordPress.org plugin directory, but NOT in official manifest!
+        $basename_lower = strtolower(basename($file_path));
+        $ignored_basenames = [
+            '.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db',
+            '.gitignore', 'license.txt', 'license', 'readme.md', 'changelog.txt'
+        ];
+        if (in_array($basename_lower, $ignored_basenames, true)) {
+            return ['status' => 'ignored', 'slug' => $slug, 'rel_file' => $file_inside_plugin];
+        }
+
+        // Allow harmless non-executable runtime storage files (e.g. cache/logs)
+        $runtime_dirs = ['logs', 'storage', 'cache', 'caches', 'backups', 'temp', 'tmp'];
+        $path_segments = explode('/', strtolower($file_inside_plugin));
+        $is_in_runtime_dir = !empty(array_intersect($path_segments, $runtime_dirs));
+        $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
+
+        if ($is_in_runtime_dir && !$is_executable) {
+            return ['status' => 'ignored', 'slug' => $slug, 'rel_file' => $file_inside_plugin];
+        }
+
+        if ($is_in_runtime_dir && in_array($basename_lower, ['index.php', 'index.html'], true) && filesize($file_path) < 500) {
+            return ['status' => 'ignored', 'slug' => $slug, 'rel_file' => $file_inside_plugin];
+        }
+
+        return [
+            'status'   => 'unknown',
+            'slug'     => $slug,
+            'rel_file' => $file_inside_plugin,
+        ];
+    }
+
+    /**
+     * Strictly verify a file against official WordPress.org theme checksums and detect rogue/unknown files.
+     *
+     * @param string $file_path
+     * @return array [
+     *   'status'   => 'not_theme' | 'unmanaged' | 'authentic' | 'modified' | 'unknown' | 'ignored',
+     *   'slug'     => string,
+     *   'rel_file' => string,
+     *   'expected' => string,
+     *   'actual'   => string
+     * ]
+     */
+    public static function verify_theme_file(string $file_path): array {
+        if (!function_exists('get_theme_root')) {
+            return ['status' => 'not_theme'];
+        }
+
+        $norm_path  = str_replace('\\', '/', $file_path);
+        $theme_root = str_replace('\\', '/', rtrim(get_theme_root(), '/\\') . '/');
+
+        if (strpos($norm_path, $theme_root) !== 0) {
+            return ['status' => 'not_theme'];
+        }
+
+        $rel_path = substr($norm_path, strlen($theme_root));
+        $parts = explode('/', $rel_path, 2);
+        if (count($parts) < 2) {
+            return ['status' => 'not_theme'];
+        }
+
+        $slug = $parts[0];
+        $file_inside_theme = $parts[1];
+
+        $version = self::get_installed_theme_version($slug);
+        if (empty($version)) {
+            return ['status' => 'unmanaged', 'slug' => $slug];
+        }
+
+        $provider = new self();
+        $checksums = $provider->get_theme_checksums($slug, $version);
+        if (empty($checksums)) {
+            return ['status' => 'unmanaged', 'slug' => $slug];
+        }
+
+        if (isset($checksums[$file_inside_theme])) {
+            $expected = $checksums[$file_inside_theme];
+            if (!file_exists($file_path) || !is_readable($file_path)) {
+                return ['status' => 'not_theme'];
+            }
+
+            $actual_md5 = md5_file($file_path);
+            $is_match = ($actual_md5 === $expected || $expected === true);
+
+            if (!$is_match) {
+                // CRLF vs LF
+                $raw_content = @file_get_contents($file_path);
+                if ($raw_content !== false && md5(str_replace("\r\n", "\n", $raw_content)) === $expected) {
+                    $is_match = true;
+                }
+            }
+
+            if ($is_match) {
+                return [
+                    'status'   => 'authentic',
+                    'slug'     => $slug,
+                    'rel_file' => $file_inside_theme,
+                ];
+            }
+
+            return [
+                'status'   => 'modified',
+                'slug'     => $slug,
+                'rel_file' => $file_inside_theme,
+                'expected' => is_string($expected) ? $expected : 'authentic_release',
+                'actual'   => $actual_md5,
+            ];
+        }
+
+        // File is inside official theme, but not in official manifest!
+        $basename_lower = strtolower(basename($file_path));
+        $ignored_basenames = [
+            '.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db',
+            '.gitignore', 'license.txt', 'readme.md', 'changelog.txt', '.editorconfig',
+            'package.json', 'package-lock.json', 'contributing.md', 'contributing.txt'
+        ];
+        if (in_array($basename_lower, $ignored_basenames, true)) {
+            return ['status' => 'ignored', 'slug' => $slug, 'rel_file' => $file_inside_theme];
+        }
+
+        return [
+            'status'   => 'unknown',
+            'slug'     => $slug,
+            'rel_file' => $file_inside_theme,
+        ];
     }
 }

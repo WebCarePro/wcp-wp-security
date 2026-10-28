@@ -110,7 +110,109 @@ class FileScanner {
             }
         }
 
-        // Future: Core Integrity verification will hook here or run in a separate engine pass using $this->hasher
+        // 6. Strict Official Integrity & Rogue/Unknown File Detection
+        // Strictly verify every official core, plugin, and theme file against official WordPress.org checksums,
+        // and strictly detect modified files or unknown rogue files injected into core, root, or official components.
+        try {
+            $integrity_findings = $this->verify_official_integrity($file_path, $scan_id);
+            if (!empty($integrity_findings)) {
+                $findings = array_merge($findings, $integrity_findings);
+            }
+        } catch (\Throwable $e) {
+            // Guard against individual file integrity verification error
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Strictly verify files against official WordPress.org release manifests (Core, Plugins, Themes)
+     * and strictly detect modified files or unknown rogue files inside core, root, or official components.
+     *
+     * @param string $file_path
+     * @param string $scan_id
+     * @return Finding[]
+     */
+    private function verify_official_integrity($file_path, $scan_id) {
+        $findings = [];
+
+        // 1. Core & Root Integrity Verification
+        $core_check = \WcpScanner\Integrity\ChecksumProvider::verify_core_file($file_path);
+        if ($core_check['status'] === 'modified') {
+            $findings[] = new Finding([
+                'engine'      => 'integrity-core',
+                'type'        => 'modified_core_file',
+                'severity'    => 'high',
+                'confidence'  => 99,
+                'file_path'   => wp_normalize_path($file_path),
+                'description' => "WordPress core file differs from the official checksum: {$core_check['rel_file']}",
+                'evidence'    => "Expected: {$core_check['expected']}, Actual: {$core_check['actual']}"
+            ]);
+        } elseif ($core_check['status'] === 'unknown') {
+            $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+            $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
+            $findings[] = new Finding([
+                'engine'      => 'integrity-core',
+                'type'        => 'unknown_core_file',
+                'severity'    => $is_executable ? 'high' : 'medium',
+                'confidence'  => 95,
+                'file_path'   => wp_normalize_path($file_path),
+                'description' => "Unrecognized/unknown file found inside WordPress core/root: {$core_check['rel_file']}",
+                'evidence'    => "File '{$core_check['rel_file']}' is not part of the official WordPress release manifest."
+            ]);
+        }
+
+        // 2. Official Plugins Integrity Verification
+        $plugin_check = \WcpScanner\Integrity\ChecksumProvider::verify_plugin_file($file_path);
+        if ($plugin_check['status'] === 'modified') {
+            $findings[] = new Finding([
+                'engine'      => 'integrity-plugin',
+                'type'        => 'modified_plugin_file',
+                'severity'    => 'high',
+                'confidence'  => 95,
+                'file_path'   => wp_normalize_path($file_path),
+                'description' => "Plugin file differs from official WordPress.org checksum: {$plugin_check['slug']}/{$plugin_check['rel_file']}",
+                'evidence'    => "Expected: {$plugin_check['expected']}, Actual: {$plugin_check['actual']}"
+            ]);
+        } elseif ($plugin_check['status'] === 'unknown') {
+            $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+            $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
+            $findings[] = new Finding([
+                'engine'      => 'integrity-plugin',
+                'type'        => 'unknown_plugin_file',
+                'severity'    => $is_executable ? 'high' : 'medium',
+                'confidence'  => 95,
+                'file_path'   => wp_normalize_path($file_path),
+                'description' => "Unrecognized/unknown file found inside official plugin {$plugin_check['slug']}: {$plugin_check['rel_file']}",
+                'evidence'    => "File '{$plugin_check['rel_file']}' is not part of the official WordPress.org release manifest for plugin {$plugin_check['slug']}."
+            ]);
+        }
+
+        // 3. Official Themes Integrity Verification
+        $theme_check = \WcpScanner\Integrity\ChecksumProvider::verify_theme_file($file_path);
+        if ($theme_check['status'] === 'modified') {
+            $findings[] = new Finding([
+                'engine'      => 'integrity-theme',
+                'type'        => 'modified_theme_file',
+                'severity'    => 'high',
+                'confidence'  => 95,
+                'file_path'   => wp_normalize_path($file_path),
+                'description' => "Theme file differs from official WordPress.org checksum: {$theme_check['slug']}/{$theme_check['rel_file']}",
+                'evidence'    => "Expected: {$theme_check['expected']}, Actual: {$theme_check['actual']}"
+            ]);
+        } elseif ($theme_check['status'] === 'unknown') {
+            $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+            $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
+            $findings[] = new Finding([
+                'engine'      => 'integrity-theme',
+                'type'        => 'unknown_theme_file',
+                'severity'    => $is_executable ? 'high' : 'medium',
+                'confidence'  => 95,
+                'file_path'   => wp_normalize_path($file_path),
+                'description' => "Unrecognized/unknown file found inside official theme {$theme_check['slug']}: {$theme_check['rel_file']}",
+                'evidence'    => "File '{$theme_check['rel_file']}' is not part of the official WordPress.org release manifest for theme {$theme_check['slug']}."
+            ]);
+        }
 
         return $findings;
     }
