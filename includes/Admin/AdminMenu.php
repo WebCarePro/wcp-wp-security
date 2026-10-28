@@ -50,7 +50,7 @@ class AdminMenu {
         );
 
         // =========================================================================
-        // PRIMARY VISIBLE MENU PILLARS (Clean SOC Organization)
+        // PRIMARY VISIBLE MENU PILLARS (Clean 7 SOC Pillars)
         // =========================================================================
 
         // 1. Submenu: Dashboard
@@ -63,7 +63,7 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // 2. Submenu: Scanner & Findings
+        // 2. Submenu: Security Scanner
         add_submenu_page(
             'wcp-security-scanner',
             __('Security Scan & Findings', 'wcp-security-scanner'),
@@ -76,16 +76,60 @@ class AdminMenu {
         // 3. Submenu: Firewall & WAF
         add_submenu_page(
             'wcp-security-scanner',
-            __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
+            __('Web Application Firewall & Traffic Defense', 'wcp-security-scanner'),
             __('Firewall & WAF', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-firewall',
             [__CLASS__, 'render_app_container']
         );
 
-        // 3b. Submenu: Virtual Patching & 0-Day Defense Studio
+        // 4. Submenu: Identity & Access
         add_submenu_page(
             'wcp-security-scanner',
+            __('Zero-Trust Identity, 2FA & Access Control', 'wcp-security-scanner'),
+            __('Identity & Access', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-auth',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 5. Submenu: Quarantine & Vault
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Quarantine Vault & Safety Recoveries', 'wcp-security-scanner'),
+            __('Quarantine & Vault', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-vault',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 6. Submenu: System Forensics & Diagnostics
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
+            __('System Forensics', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-forensics',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // 7. Submenu: Settings & AI
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Scanner Settings, AI Copilot & Governance', 'wcp-security-scanner'),
+            __('Settings & AI', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-settings',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // =========================================================================
+        // COMPANION SUB-PAGES (Accessible via Mega-Menu & Contextual Sub-Nav Hub)
+        // =========================================================================
+
+        // Sub-Page: Virtual Patching & 0-Day Exploit Studio
+        add_submenu_page(
+            null,
             __('Virtual Patching & 0-Day Exploit Studio', 'wcp-security-scanner'),
             __('Virtual Patching', 'wcp-security-scanner'),
             'manage_options',
@@ -93,49 +137,15 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // 4. Submenu: Login Security & 2FA
+        // Sub-Page: About & Services
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
-            __('Identity & 2FA', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-auth',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // 5. Submenu: WCP Vault & Diagnostics
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
-            __('Vault & Tools', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-vault',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // 6. Submenu: Settings & AI
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Scanner Settings & AI Configuration', 'wcp-security-scanner'),
-            __('Settings & AI', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-settings',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // 7. Submenu: About & Services
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('About WebCare Pro & Services', 'wcp-security-scanner'),
+            null,
+            __('About WebCare Pro & Direct Support', 'wcp-security-scanner'),
             __('About & Support', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-about',
             [__CLASS__, 'render_app_container']
         );
-
-        // =========================================================================
-        // COMPANION SUB-PAGES (Accessible via Top Header & Contextual Sub-Nav Hub)
-        // =========================================================================
 
         // Sub-Page: Targeted Scans
         add_submenu_page(
