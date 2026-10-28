@@ -10,9 +10,14 @@
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
-    "changelog": "v:1.28.0 - 2026-10-28:\n- Preload Micro-WAF & Early Execution Engine, strict anti-spoofing allowlist hardening, default read-only autonomous MCP governance, and manifest uniformity."
+    "changelog": "v:1.29.0 - 2026-10-29:\n- Wordfence WAF & Authentic Security Tool Preload Verification, Open Redirect Internal Host Normalization, Client-Side JS Drift Verified Providers, and Full-Detail Supply-Chain SBOM Export."
   },
   "previous_versions": [
+    {
+      "version": "1.28.0",
+      "released_at": "2026-10-28",
+      "summary": "Preload Micro-WAF & Early Execution Engine, strict anti-spoofing allowlist hardening, default read-only autonomous MCP governance, and manifest uniformity."
+    },
     {
       "version": "1.27.0",
       "released_at": "2026-10-27",
