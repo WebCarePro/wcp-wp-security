@@ -1561,15 +1561,59 @@ class FirewallEngine {
             $redirect_keys = ['redirect_to', 'redirect', 'url', 'return_to', 'next', 'target'];
             // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Inspection of redirect params
             $all_params = array_merge($_GET, $_POST);
-            $home_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?: '');
+
+            // Collect all authorized site host variations (home_url, site_url, HTTP_HOST, SERVER_NAME, www vs non-www)
+            $allowed_hosts = ['localhost', '127.0.0.1', '::1'];
+            $base_hosts = [];
+
+            $h_url = wp_parse_url(home_url(), PHP_URL_HOST);
+            if ($h_url) {
+                $base_hosts[] = strtolower($h_url);
+            }
+            $s_url = wp_parse_url(site_url(), PHP_URL_HOST);
+            if ($s_url) {
+                $base_hosts[] = strtolower($s_url);
+            }
+            if (!empty($_SERVER['HTTP_HOST'])) {
+                $raw_http_host = sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST']));
+                $base_hosts[] = strtolower(trim(preg_replace('/:\d+$/', '', $raw_http_host)));
+            }
+            if (!empty($_SERVER['SERVER_NAME'])) {
+                $raw_server_name = sanitize_text_field(wp_unslash($_SERVER['SERVER_NAME']));
+                $base_hosts[] = strtolower(trim(preg_replace('/:\d+$/', '', $raw_server_name)));
+            }
+
+            foreach ($base_hosts as $bh) {
+                if (!empty($bh)) {
+                    $allowed_hosts[] = $bh;
+                    if (str_starts_with($bh, 'www.')) {
+                        $allowed_hosts[] = substr($bh, 4);
+                    } else {
+                        $allowed_hosts[] = 'www.' . $bh;
+                    }
+                }
+            }
+
+            // Custom administrator allowed host aliases
+            if (!empty($settings['waf_allowed_host_aliases'])) {
+                $aliases = preg_split('/[\r\n,]+/', (string) $settings['waf_allowed_host_aliases']);
+                foreach ($aliases as $al) {
+                    $al_clean = strtolower(trim(preg_replace('/:\d+$/', '', $al)));
+                    if (!empty($al_clean)) {
+                        $allowed_hosts[] = $al_clean;
+                    }
+                }
+            }
+            $allowed_hosts = array_unique(array_filter($allowed_hosts));
 
             foreach ($redirect_keys as $key) {
                 if (!empty($all_params[$key]) && is_string($all_params[$key])) {
                     $val = trim(urldecode($all_params[$key]));
                     if (preg_match('#^https?://#i', $val) || strpos($val, '//') === 0) {
                         $parsed_host = strtolower(wp_parse_url($val, PHP_URL_HOST) ?: '');
-                        // If host is specified and does not match the home host or localhost
-                        if (!empty($parsed_host) && $parsed_host !== $home_host && $parsed_host !== 'localhost' && $parsed_host !== '127.0.0.1') {
+
+                        // If host is specified and is not in our authorized site hosts
+                        if (!empty($parsed_host) && !in_array($parsed_host, $allowed_hosts, true)) {
                             // E-Commerce & Membership Intelligence: Exempt legitimate payment processor redirects
                             // and social OAuth return destinations (PayPal, Stripe, Mollie, Klarna, Square, Google, Apple).
                             $trusted_redirect_domains = [

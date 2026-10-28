@@ -1,4 +1,10 @@
 v:1.29.0 - 2026-10-29
+- Open Redirect Guard Internal Host Toleration & Self-Lockout Fix (FirewallEngine.php):
+  * Dynamic Self-Host Normalization: Upgraded Rule #21 (Open Redirect Guard) to dynamically construct an inclusive allowed hosts set matching site_url(), home_url(), ['HTTP_HOST'], ['SERVER_NAME'], localhost/127.0.0.1, and automatic www vs non-www domain variants.
+  * Prevent Login Redirect Self-Lockout: Fixed false-positive 403 Forbidden intercept on /wp-login.php?redirect_to=https://iw-academy.com/wp-admin/ during unauthenticated visits or incognito tab admin logins.
+- Security Policy & Disclosure Channels Update (SECURITY.md):
+  * Contact Expansion: Added direct channels hello@webcarespro.com and a dedicated 1-click WhatsApp direct coordination link (+8801322691090) with prebuilt vulnerability disclosure message.
+  * Progressive Version Policy: Reframed the version support table to emphasize continuous delivery and active maintenance rather than categorizing prior versions as deprecated or vulnerable.
 - Supply-Chain Defense & SBOM Sentinel Full Detail Export (SbomSupplyChainCard.tsx):
   * Multi-Format Forensic Export: Added an 'Export Report' dropdown to the Supply-Chain Defense & SBOM Sentinel header allowing one-click export of the entire supply-chain posture in JSON and CSV formats.
   * Comprehensive Forensic Payload (.JSON): Bundles metadata, active baseline drift status, cryptographic hashes of all drop-ins and must-use plugins, PHP INI pre-loader directives, Update Gatekeeper delta audit trail, offline lockfile dependencies, and client-side runtime script inventory for in-depth offline analysis and false-positive eradication.

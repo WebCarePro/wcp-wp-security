@@ -8,12 +8,12 @@ Security integrity and responsible disclosure are paramount. If you discover a s
 
 ## Supported Versions
 
-Only the latest release version on the active `main` branch receives active security patches and hotfixes.
+WCP Security Scanner is maintained through active continuous delivery. Enhancements, security updates, and performance optimizations are rolled directly into the latest release line.
 
-| Version | Supported | Status |
+| Version | Status | Maintenance Policy |
 |:---|:---:|:---|
-| **1.29.x** (Current) | ✅ Yes | Active Security Maintenance |
-| < 1.29.0 | ❌ No | Deprecated — Please upgrade to the latest release |
+| **1.x (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
+| **Prior Releases** | 🔄 Upgrade Recommended | Feature-complete. Upgrading to the latest active release ensures access to current threat intelligence signatures and performance enhancements |
 
 ---
 
@@ -25,9 +25,11 @@ Only the latest release version on the active `main` branch receives active secu
 
 To report a vulnerability directly and privately to Mir Alamin:
 
-1. **Email:** Send full technical details to **`security@webcarespro.com`** (or directly via **`miralamin.dev@gmail.com`**).
-2. **Subject Line:** `[Vulnerability Report] WCP Security Scanner - <Brief Description>`
-3. **Report Contents:**
+1. **Email:** Send full technical details to **`security@webcarespro.com`** or **`hello@webcarespro.com`** (direct backup: **`miralamin.dev@gmail.com`**).
+2. **Direct WhatsApp Channel:** For urgent security coordination, connect directly via WhatsApp:  
+   👉 [**+880 1322-691090** (Click to start chat with prebuilt message)](https://wa.me/8801322691090?text=Hello%20Mir%20Alamin,%20I%20am%20reporting%20a%20security%20vulnerability%20regarding%20WCP%20Security%20Scanner)
+3. **Subject Line:** `[Vulnerability Report] WCP Security Scanner - <Brief Description>`
+4. **Report Contents:**
    - Detailed description of the vulnerability and its potential impact.
    - Exact steps or proof-of-concept (PoC) code to reproduce the issue in a standard environment.
    - Affected file(s), function(s), or REST API endpoint(s).
