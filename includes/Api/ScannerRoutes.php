@@ -5533,6 +5533,16 @@ class ScannerRoutes {
             }
         }
 
+        $is_masked = false;
+        $file_basename = strtolower(basename($real_path));
+        if (preg_match('/(?:^|[\\/\\\\])wp-config(?:-[^\\/\\\\]+)?\\.php$/i', $real_path) ||
+            preg_match('/^(?:\\.env(?:\\.[a-z0-9_-]+)?|wp-config(?:-[^\\/\\\\]+)?\\.php)$/i', $file_basename)
+        ) {
+            $masked_res = self::mask_sensitive_config_content($content);
+            $content = $masked_res['content'];
+            $is_masked = $masked_res['is_masked'];
+        }
+
         $lines = explode("\n", $content);
         $line_count = count($lines);
 
@@ -5551,6 +5561,7 @@ class ScannerRoutes {
             'line_count'       => $line_count,
             'content'          => $content,
             'is_truncated'     => $is_truncated,
+            'is_masked'        => $is_masked,
             'is_image'         => $is_image_ext,
             'is_valid_image'   => $is_image,
             'image_mime'       => $is_image_ext ? $image_mimes[$extension] : null,
@@ -5558,6 +5569,56 @@ class ScannerRoutes {
             'image_dimensions' => $image_dimensions,
             'image_security'   => $image_security,
         ]);
+    }
+
+    /**
+     * Redact database credentials and secret authentication keys from wp-config.php and env files.
+     */
+    public static function mask_sensitive_config_content($content) {
+        $is_masked = false;
+
+        $sensitive_keys = [
+            'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST',
+            'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY',
+            'AUTH_SALT', 'SECURE_AUTH_SALT', 'LOGGED_IN_SALT', 'NONCE_SALT',
+            'FTP_USER', 'FTP_PASS', 'FTP_HOST', 'FTP_BASE',
+            'FTP_SSL', 'FTP_SSH', 'FTP_PUBKEY', 'FTP_PRIKEY',
+        ];
+
+        $keys_pattern = implode('|', array_map('preg_quote', $sensitive_keys));
+
+        // Mask define( 'KEY', 'VALUE' ) or define("KEY", "VALUE")
+        $new_content = preg_replace_callback(
+            "/define\\s*\\(\\s*(['\"])(" . $keys_pattern . ")\\1\\s*,\\s*(['\"])(.*?)\\3(\\s*\\))/i",
+            function ($matches) use (&$is_masked) {
+                $is_masked = true;
+                $quote = $matches[1];
+                $key = $matches[2];
+                $val_quote = $matches[3];
+                $close = $matches[5];
+                return "define( {$quote}{$key}{$quote}, {$val_quote}••••••••••••••••{$val_quote}{$close} /* [REDACTED BY WCP SECURITY SCANNER] */";
+            },
+            $content
+        );
+
+        // Also mask .env style or assignment style: DB_PASSWORD=xxxx or DB_PASS=xxxx
+        $env_keys = 'DB_PASSWORD|DB_PASS|DB_USER|DB_USERNAME|DB_HOST|DB_NAME|FTP_PASS|FTP_PASSWORD';
+        $new_content = preg_replace_callback(
+            "/^(\\s*(" . $env_keys . ")\\s*=\\s*)(['\"]?)(.+?)\\3(\\s*(?:#.*)?)$/mi",
+            function ($matches) use (&$is_masked) {
+                $is_masked = true;
+                $prefix = $matches[1];
+                $quote = $matches[3];
+                $suffix = $matches[5];
+                return "{$prefix}{$quote}••••••••••••••••{$quote}{$suffix} # [REDACTED BY WCP SECURITY SCANNER]";
+            },
+            $new_content
+        );
+
+        return [
+            'content'   => $new_content,
+            'is_masked' => $is_masked,
+        ];
     }
 
     /**
