@@ -156,7 +156,8 @@ class EmergencyContainmentManager {
 
         NotificationDispatcher::trigger('containment_mode_activated', [
             'title'   => __('1-Click Incident Containment Protocol ACTIVATED', 'wcp-security-scanner'),
-            'message' => sprintf(__('Incident containment mode engaged by %s. Reason: %s. Blast radius frozen, sessions terminated (%d).', 'wcp-security-scanner'), $username, $reason, $terminated_sessions_count),
+            /* translators: 1%$s: username, 2%$s: reason, 3%$d: number of terminated sessions */
+            'message' => sprintf(__('Incident containment mode engaged by %1. Reason: %2$s. Blast radius frozen, sessions terminated (%3$d).', 'wcp-security-scanner'), $username, $reason, $terminated_sessions_count),
             'details' => [
                 'triggered_by'        => $username,
                 'reason'              => $reason,
@@ -219,6 +220,7 @@ class EmergencyContainmentManager {
 
         NotificationDispatcher::trigger('containment_mode_deactivated', [
             'title'   => __('Incident Containment Protocol Disengaged', 'wcp-security-scanner'),
+            /* translators: %s: username who disengaged containment mode */
             'message' => sprintf(__('Incident containment mode disengaged by %s. Normal platform operations resumed.', 'wcp-security-scanner'), $username),
             'details' => [
                 'triggered_by' => $username,

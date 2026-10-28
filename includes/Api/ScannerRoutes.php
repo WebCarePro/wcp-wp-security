@@ -1953,6 +1953,7 @@ class ScannerRoutes {
 
         // Ensure sufficient execution time and memory for deep forensic correlation
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
             @set_time_limit(180);
         }
         if (function_exists('wp_raise_memory_limit')) {

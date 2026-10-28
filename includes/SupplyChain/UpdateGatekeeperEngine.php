@@ -140,7 +140,8 @@ class UpdateGatekeeperEngine {
 
                 NotificationDispatcher::trigger('supply_chain_gatekeeper_blocked', [
                     'title'   => __('Hostile Plugin Update Intercepted by Gatekeeper', 'wcp-security-scanner'),
-                    'message' => sprintf(__('Hostile update intercepted for "%s" (Risk Score: %d/100). Production files protected.', 'wcp-security-scanner'), $folder_name, $analysis['score']),
+                    /* translators: 1%$s: plugin slug, 2%$d: risk score out of 100 */
+                    'message' => sprintf(__('Hostile update intercepted for "%1$s" (Risk Score: %2$d/100). Production files protected.', 'wcp-security-scanner'), $folder_name, $analysis['score']),
                     'details' => [
                         'plugin_slug'     => $folder_name,
                         'risk_score'      => $analysis['score'] . '/100',
@@ -389,7 +390,8 @@ class UpdateGatekeeperEngine {
 
         NotificationDispatcher::trigger('supply_chain_gatekeeper_rollback', [
             'title'   => __('Pre-Install Gatekeeper Rollback Executed', 'wcp-security-scanner'),
-            'message' => sprintf(__('Plugin "%s" was successfully rolled back to pre-update snapshot "%s".', 'slug', $snapshot_id), $slug, $snapshot_id),
+            /* translators: 1%$s: plugin slug, 2%$s: snapshot identifier */
+            'message' => sprintf(__('Plugin "%1$s" was successfully rolled back to pre-update snapshot "%2$s".', 'wcp-security-scanner'), $slug, $snapshot_id),
             'details' => [
                 'plugin_slug' => $slug,
                 'snapshot_id' => $snapshot_id,

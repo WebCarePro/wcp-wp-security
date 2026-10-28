@@ -234,11 +234,11 @@ class CrashGuard {
                     </div>
 
                     <p style="margin: 0 0 10px 0; font-size: 13px; color: #475569; line-height: 1.5;">
-                        WCP Security Scanner entered <strong>Safe Mode</strong> after an internal error (<code style="background: #f1f5f9; color: #b91c1c; font-weight: 600;"><?php echo $err_type; ?></code> in <code style="background: #f1f5f9; color: #0284c7;"><?php echo $err_file . ':' . $err_line; ?></code>) so the rest of your site and admin dashboard could keep loading safely.
+                        WCP Security Scanner entered <strong>Safe Mode</strong> after an internal error (<code style="background: #f1f5f9; color: #b91c1c; font-weight: 600;"><?php echo esc_html($err_type); ?></code> in <code style="background: #f1f5f9; color: #0284c7;"><?php echo esc_html($err_file) . ':' . esc_html((string) $err_line); ?></code>) so the rest of your site and admin dashboard could keep loading safely.
                     </p>
 
                     <div style="background: #0f172a; color: #f8fafc; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 12px; margin-bottom: 14px; max-width: 900px; overflow-x: auto;">
-                        <span style="color: #ef4444; font-weight: bold;">[CrashGuard Incident <?php echo $err_time; ?>]</span> <?php echo $err_msg; ?>
+                        <span style="color: #ef4444; font-weight: bold;">[CrashGuard Incident <?php echo esc_html($err_time); ?>]</span> <?php echo esc_html($err_msg); ?>
                     </div>
 
                     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
