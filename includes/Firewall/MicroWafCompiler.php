@@ -253,51 +253,56 @@ class MicroWafCompiler {
         $out .= "    return;\n";
         $out .= "}\n\n";
 
-        // Micro-WAF Core Engine
-        $out .= "(function() {\n";
-        $out .= "    \$fail2ban_log = '{$fail2ban_escaped}';\n";
-        $out .= "    \$blocked_ips = {$ips_export};\n";
-        $out .= "    \$signatures  = {$sigs_export};\n\n";
+        // Micro-WAF Core Engine with Self-Preservation Try/Catch
+        $out .= "try {\n";
+        $out .= "    (function() {\n";
+        $out .= "        \$fail2ban_log = '{$fail2ban_escaped}';\n";
+        $out .= "        \$blocked_ips = {$ips_export};\n";
+        $out .= "        \$signatures  = {$sigs_export};\n\n";
 
-        $out .= "    // 1. Resolve real client IP\n";
-        $out .= "    \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
-        $out .= "    if (isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
-        $out .= "        \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
-        $out .= "    }\n\n";
+        $out .= "        // 1. Resolve real client IP\n";
+        $out .= "        \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
+        $out .= "        if (isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
+        $out .= "            \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
+        $out .= "        }\n\n";
 
-        $out .= "    // 2. Fast IP & CIDR match\n";
-        $out .= "    \$ip_blocked = false;\n";
-        $out .= "    foreach (\$blocked_ips as \$rule_ip) {\n";
-        $out .= "        if (\$ip === \$rule_ip) { \$ip_blocked = true; break; }\n";
-        $out .= "        if (str_contains(\$rule_ip, '/')) {\n";
-        $out .= "            list(\$subnet, \$mask) = explode('/', \$rule_ip, 2);\n";
-        $out .= "            if (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var(\$subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
-        $out .= "                \$ip_long = ip2long(\$ip);\n";
-        $out .= "                \$sub_long = ip2long(\$subnet);\n";
-        $out .= "                \$mask_long = ~((1 << (32 - (int) \$mask)) - 1);\n";
-        $out .= "                if ((\$ip_long & \$mask_long) === (\$sub_long & \$mask_long)) {\n";
-        $out .= "                    \$ip_blocked = true;\n";
-        $out .= "                    break;\n";
+        $out .= "        // 2. Fast IP & CIDR match\n";
+        $out .= "        \$ip_blocked = false;\n";
+        $out .= "        foreach (\$blocked_ips as \$rule_ip) {\n";
+        $out .= "            if (\$ip === \$rule_ip) { \$ip_blocked = true; break; }\n";
+        $out .= "            if (str_contains(\$rule_ip, '/')) {\n";
+        $out .= "                list(\$subnet, \$mask) = explode('/', \$rule_ip, 2);\n";
+        $out .= "                if (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var(\$subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                    \$ip_long = ip2long(\$ip);\n";
+        $out .= "                    \$sub_long = ip2long(\$subnet);\n";
+        $out .= "                    \$mask_long = ~((1 << (32 - (int) \$mask)) - 1);\n";
+        $out .= "                    if ((\$ip_long & \$mask_long) === (\$sub_long & \$mask_long)) {\n";
+        $out .= "                        \$ip_blocked = true;\n";
+        $out .= "                        break;\n";
+        $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
+        $out .= "        }\n\n";
+
+        $out .= "        if (\$ip_blocked) {\n";
+        $out .= "            wcp_micro_waf_block(\$ip, 'IP-BLOCKLIST', 'Connecting IP is present in WCP Blacklist / Threat Intel', \$fail2ban_log);\n";
+        $out .= "        }\n\n";
+
+        $out .= "        // 3. Inspect URI and Query String for high-confidence attack vectors\n";
+        $out .= "        \$uri = isset(\$_SERVER['REQUEST_URI']) ? (string) \$_SERVER['REQUEST_URI'] : '';\n";
+        $out .= "        \$query = isset(\$_SERVER['QUERY_STRING']) ? (string) \$_SERVER['QUERY_STRING'] : '';\n";
+        $out .= "        \$target_text = urldecode(\$uri . ' ' . \$query);\n\n";
+
+        $out .= "        foreach (\$signatures as \$rule_id => \$sig) {\n";
+        $out .= "            if (preg_match(\$sig['pattern'], \$target_text)) {\n";
+        $out .= "                wcp_micro_waf_block(\$ip, \$rule_id, \$sig['desc'], \$fail2ban_log);\n";
+        $out .= "            }\n";
         $out .= "        }\n";
-        $out .= "    }\n\n";
-
-        $out .= "    if (\$ip_blocked) {\n";
-        $out .= "        wcp_micro_waf_block(\$ip, 'IP-BLOCKLIST', 'Connecting IP is present in WCP Blacklist / Threat Intel', \$fail2ban_log);\n";
-        $out .= "    }\n\n";
-
-        $out .= "    // 3. Inspect URI and Query String for high-confidence attack vectors\n";
-        $out .= "    \$uri = isset(\$_SERVER['REQUEST_URI']) ? (string) \$_SERVER['REQUEST_URI'] : '';\n";
-        $out .= "    \$query = isset(\$_SERVER['QUERY_STRING']) ? (string) \$_SERVER['QUERY_STRING'] : '';\n";
-        $out .= "    \$target_text = urldecode(\$uri . ' ' . \$query);\n\n";
-
-        $out .= "    foreach (\$signatures as \$rule_id => \$sig) {\n";
-        $out .= "        if (preg_match(\$sig['pattern'], \$target_text)) {\n";
-        $out .= "            wcp_micro_waf_block(\$ip, \$rule_id, \$sig['desc'], \$fail2ban_log);\n";
-        $out .= "        }\n";
-        $out .= "    }\n";
-        $out .= "})();\n\n";
+        $out .= "    })();\n";
+        $out .= "} catch (\\Throwable \$e) {\n";
+        $out .= "    // Self-preservation: Log silently to PHP error_log so host WordPress bootstrap is NEVER killed\n";
+        $out .= "    @error_log('[WCP Micro-WAF Preload Error] Intercepted: ' . \$e->getMessage());\n";
+        $out .= "}\n\n";
 
         // Chained pre-existing auto_prepend_file script (e.g. Wordfence or hosting runtime)
         if (!empty($chained_file)) {

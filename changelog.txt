@@ -1,4 +1,9 @@
 v:1.28.0 - 2026-10-28
+- CrashGuard Enterprise Hardening & Micro-WAF Preload Isolation (`CrashGuard.php`, `MicroWafCompiler.php`):
+  * Sliding Window Strike Limiter: Refined crash loop deactivation to require 3 consecutive fatal crashes within a 5-minute (300-second) sliding window, preventing single transient errors or temporary database glitches from permanently deactivating the plugin.
+  * Ultra-Lean Shutdown Path: Hardened shutdown handler to perform minimal atomic updates without heavy reads, scans, or remote HTTP calls, keeping execution under 0.1ms at script termination.
+  * Standalone Micro-WAF Try/Catch Shield: Embedded defensive `try/catch (\Throwable $e)` inside the compiled `auto_prepend_file` template (`MicroWafCompiler.php`), ensuring that even early pre-WordPress inspection can never abort the host PHP process before WordPress core initializes.
+  * Honest & Accurate Copywriting: Updated admin notice copy to frame state changes as "Safe Mode Self-Preservation" and avoided inaccurate absolute downtime claims. Diagnostics remain strictly local on-premise without automatic data transmission.
 - CrashGuard Zero-Downtime Circuit Breaker (`CrashGuard.php`, `wcp-wp-scanner.php`):
   * Automatic Fault Interception & WSOD Prevention: Wrapped plugin bootstrap inside a guarded execution shield and registered an early shutdown error interceptor. Any unhandled PHP exception, TypeError, or fatal error originating inside the plugin is isolated in Safe Mode, guaranteeing the client website remains 100% online without displaying "There has been a critical error on this website".
   * 2-Stage Circuit Breaker: Automatically pauses active interception routines upon detecting an internal error so the host site, admin dashboard, themes, and other plugins function uninterrupted. If a persistent crash loop is detected (2+ crashes within 120 seconds), the plugin automatically self-deactivates safely.

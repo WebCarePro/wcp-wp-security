@@ -1,6 +1,6 @@
 {
   "version": "1.28.0",
-  "generated_at": "2026-10-28T18:36:32.342Z",
+  "generated_at": "2026-10-28T18:45:39.730Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -244,8 +244,8 @@
       "size": 14615
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "aa0b5cdbef1529fc50943133a1ec75c0a9543a59475bb81a180746c11575c4f2",
-      "size": 24522
+      "sha256": "a8b9095ae6b4bfa42b1fc41b3071afc7d26fafe07901c777f3cef7b05eebbde1",
+      "size": 25035
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "3bbeb7b37e2469dbe9bd9784aff753b8cb728aabc7bff6364c0ebf602821c060",
@@ -496,8 +496,8 @@
       "size": 6081
     },
     "includes/System/CrashGuard.php": {
-      "sha256": "661e592894e07962b24aa3a1c8c175fec1c79856b554f1b336e4e10d4bf50d69",
-      "size": 11960
+      "sha256": "a6a1174642b06ef03fb372f93fc2bf8ae0658e2bad8124453c19796a2907a16b",
+      "size": 13284
     },
     "includes/System/PluginUpdater.php": {
       "sha256": "2d37d6157cd75e58329284e1b14b584dca6718a8b8837a29efbc842cb5f2fc41",
