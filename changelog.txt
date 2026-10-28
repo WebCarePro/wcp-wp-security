@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- First-Run Quick Setup Wizard & Pre-Flight Orchestration (WelcomeModal.tsx, App.tsx):
+  * Executive Header Quick Setup Action: Integrated a dedicated 1-click 'Quick Setup' trigger in the top executive header navigation, allowing site owners and administrators to launch the onboarding flow and system readiness audit at any time.
+  * Guided 4-Step Pre-Flight Readiness: Streamlined the 14-point server environment verification (PHP version, memory limits, storage writeability, cryptographic extensions) with instant re-check capabilities and automated 1-click health audit transition.
 - Essential vs. Advanced SOC Workspace Architecture (App.tsx, index.css):
   * Dual-Persona Interface Switching: Added a top-bar 'Essential' vs. 'Advanced SOC (53 Engines)' mode toggle in the executive header, persisting user preference in localStorage ('wcp_workspace_mode').
   * Streamlined Essential View: Presents site owners and non-technical operators with a clutter-free, low-cognitive-load security cockpit focused on Core Malware Scanning, Real-Time Firewall, 1-Click Quarantine, File Integrity, and Zero-Trust Identity.
