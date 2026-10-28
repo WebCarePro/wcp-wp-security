@@ -21,6 +21,26 @@ class ScriptInventoryMonitor {
     const OPTION_ALERTS    = 'wcpscan_script_drift_alerts';
 
     /**
+     * Recognized official and verified third-party hosts.
+     * Stored with host keys to detect trusted providers during passive script telemetry audits.
+     * phpcs:disable PluginCheck.CodeAnalysis.Offloading.OffloadedContent
+     */
+    const KNOWN_VERIFIED_HOSTS = [
+        'www.google.com'             => ['provider' => 'Google reCAPTCHA & APIs', 'trusted' => true],
+        'google.com'                 => ['provider' => 'Google APIs', 'trusted' => true],
+        'recaptcha.net'              => ['provider' => 'Google reCAPTCHA Mirror', 'trusted' => true],
+        'www.gstatic.com'            => ['provider' => 'Google Static Assets', 'trusted' => true],
+        'apis.google.com'            => ['provider' => 'Google Platform APIs', 'trusted' => true],
+        'challenges.cloudflare.com'  => ['provider' => 'Cloudflare Turnstile', 'trusted' => true],
+        'js.stripe.com'              => ['provider' => 'Stripe Official Payments SDK', 'trusted' => true],
+        'www.paypal.com'             => ['provider' => 'PayPal Official SDK', 'trusted' => true],
+        'www.paypalobjects.com'      => ['provider' => 'PayPal Static Assets', 'trusted' => true],
+        'hcaptcha.com'               => ['provider' => 'hCaptcha Bot Protection', 'trusted' => true],
+        'assets.hcaptcha.com'        => ['provider' => 'hCaptcha Assets', 'trusted' => true],
+    ];
+    // phpcs:enable PluginCheck.CodeAnalysis.Offloading.OffloadedContent
+
+    /**
      * Initialize frontend hooks to capture enqueued scripts.
      */
     public static function init() {
@@ -175,11 +195,14 @@ class ScriptInventoryMonitor {
         foreach ($inventory as $item) {
             $host = $item['host'];
             if (!isset($domains[$host])) {
+                $is_known = isset(self::KNOWN_VERIFIED_HOSTS[$host]);
                 $domains[$host] = [
-                    'host'         => $host,
-                    'script_count' => 0,
-                    'is_baseline'  => is_array($baseline) && isset($baseline[$host]),
-                    'has_sensitive'=> false,
+                    'host'          => $host,
+                    'script_count'  => 0,
+                    'is_baseline'   => (is_array($baseline) && isset($baseline[$host])) || $is_known,
+                    'is_recognized' => $is_known,
+                    'provider'      => $is_known ? self::KNOWN_VERIFIED_HOSTS[$host]['provider'] : '',
+                    'has_sensitive' => false,
                 ];
             }
             $domains[$host]['script_count']++;

@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Client-Side JS & Hostname Drift Verified Integration Baseline (ScriptInventoryMonitor.php, SbomSupplyChainCard.tsx):
+  * Official Third-Party Host Recognition: Pre-authenticated verified third-party hosts (Google reCAPTCHA / gstatic, Cloudflare Turnstile, Stripe, PayPal, hCaptcha) to prevent false-positive drift alarms for standard form security assets.
+  * Verified Integration Badging: Enhanced the Hostname Drift ledger table to display green 'VERIFIED (Google reCAPTCHA & APIs)' badges with high-contrast status pills instead of alarming 'UNCALIBRATED DRIFT' alerts for recognized form handlers.
 - Wordfence WAF & Authentic Security Tool Preload Verification (SbomSentinelEngine.php, PersistenceScanner.php, ConfigScanner.php, SbomSupplyChainCard.tsx):
   * Official Security WAF Verification Engine: Implemented SbomSentinelEngine::verify_prepend_target() to automatically detect, inspect, and authenticate recognized PHP pre-loaders (Wordfence WAF wordfence-waf.php, WCP Micro-WAF micro-waf-compiled.php, NinjaFirewall ninjafirewall.php, and admin-calibrated cryptographic baselines).
   * Wordfence Bootstrap & Active Plugin Authentication: Verifies whether wordfence-waf.php contains authentic Wordfence bootstrap constants (WFWAF_LOG_PATH, wordfence/waf/bootstrap.php) and confirms whether Wordfence is installed and active on the site, accurately categorizing it as Clean / Verified Security WAF rather than a Critical Threat or Rogue INI Injection.
