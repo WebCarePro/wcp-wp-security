@@ -370,6 +370,19 @@ class WebAuthnManager {
         // Authenticate user into WordPress
         wp_clear_auth_cookie();
         wp_set_current_user($matched_user_id);
+
+        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
+            $pk_name = !empty($user_creds[$matched_cred_idx]['name']) ? $user_creds[$matched_cred_idx]['name'] : __('FIDO2 / Windows Hello', 'wcp-security-scanner');
+            \WcpScanner\Auth\SessionSentinel::$pending_auth_type = 'passkey';
+            /* translators: %s: name or model of the passkey authenticator */
+            \WcpScanner\Auth\SessionSentinel::$pending_auth_label = sprintf(__('Passkey (%s)', 'wcp-security-scanner'), $pk_name);
+            \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                'type'          => 'passkey',
+                'device_name'   => $pk_name,
+                'credential_id' => substr((string) $credential_id, 0, 16) . '...',
+            ];
+        }
+
         wp_set_auth_cookie($matched_user_id, true);
 
         // Notify plugins and hooks

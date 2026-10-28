@@ -103,9 +103,12 @@ class LoginHistoryManager {
         $parsed = self::parse_device_details($ua, $screen_raw);
 
         $auth_method = 'Username & Password';
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        if (!empty($_POST['wcpscan_2fa_code'])) {
+        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel') && !empty(\WcpScanner\Auth\SessionSentinel::$pending_auth_label)) {
+            $auth_method = \WcpScanner\Auth\SessionSentinel::$pending_auth_label;
+        } elseif (!empty($_POST['wcpscan_2fa_code'])) {
             $auth_method = 'Password + 2FA TOTP Verified';
+        } elseif (get_user_meta($user->ID, 'wcpscan_is_temporary_support', true)) {
+            $auth_method = 'Magic Support Link (Zero-Trust JIT)';
         } elseif (defined('XMLRPC_REQUEST') && XMLRPC_REQUEST) {
             $auth_method = 'XML-RPC Protocol';
         } elseif (defined('REST_REQUEST') && REST_REQUEST) {

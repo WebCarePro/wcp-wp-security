@@ -17,6 +17,9 @@ if (!defined('ABSPATH')) {
 class SessionSentinel {
 
     private static $last_auth_token = '';
+    public static string $pending_auth_type = '';
+    public static string $pending_auth_label = '';
+    public static array $pending_auth_details = [];
 
     /**
      * Bootstrap Session Sentinel
@@ -155,6 +158,38 @@ class SessionSentinel {
             }
         }
 
+        // Determine login authentication factor / mechanism
+        $auth_type = !empty(self::$pending_auth_type) ? self::$pending_auth_type : '';
+        $auth_label = !empty(self::$pending_auth_label) ? self::$pending_auth_label : '';
+        $auth_details = !empty(self::$pending_auth_details) ? self::$pending_auth_details : [];
+
+        // Reset static pending properties
+        self::$pending_auth_type = '';
+        self::$pending_auth_label = '';
+        self::$pending_auth_details = [];
+
+        // If not explicitly set by the calling authenticator, deduce it accurately:
+        if (empty($auth_type)) {
+            $is_support = get_user_meta($user->ID, 'wcpscan_is_temporary_support', true);
+            if ($is_support) {
+                $auth_type = 'magic_link';
+                $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'wcp-security-scanner');
+                $auth_details = ['type' => 'magic_link'];
+            } elseif (!empty($_POST['wcpscan_2fa_code'])) {
+                $auth_type = '2fa';
+                $auth_label = __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
+                $auth_details = ['type' => 'totp'];
+            } elseif (class_exists('\\WcpScanner\\Auth\\TwoFactorAuth') && \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user->ID) && \WcpScanner\Auth\TwoFactorAuth::is_trusted_device($user->ID)) {
+                $auth_type = '2fa';
+                $auth_label = __('2FA (Remembered Trusted Device)', 'wcp-security-scanner');
+                $auth_details = ['type' => 'trusted_device'];
+            } else {
+                $auth_type = 'password';
+                $auth_label = __('Password Only (Single-Factor)', 'wcp-security-scanner');
+                $auth_details = ['type' => 'password'];
+            }
+        }
+
         // Store session metadata in user meta
         $sessions_meta = get_user_meta($user->ID, 'wcpscan_session_meta', true) ?: [];
         if (!is_array($sessions_meta)) {
@@ -166,9 +201,15 @@ class SessionSentinel {
             $entry = [
                 'login_time'     => time(),
                 'last_seen'      => time(),
+                'auth_type'      => $auth_type,
+                'auth_label'     => $auth_label,
+                'auth_details'   => $auth_details,
                 'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
-                    'login_ip'   => $ip,
-                    'user_agent' => substr(sanitize_text_field($ua), 0, 255),
+                    'login_ip'     => $ip,
+                    'user_agent'   => substr(sanitize_text_field($ua), 0, 255),
+                    'auth_type'    => $auth_type,
+                    'auth_label'   => $auth_label,
+                    'auth_details' => $auth_details,
                 ])),
             ];
 
@@ -664,14 +705,65 @@ class SessionSentinel {
 
                 $ip = 'Unknown';
                 $ua = 'Unknown';
+                $auth_type = $meta['auth_type'] ?? '';
+                $auth_label = $meta['auth_label'] ?? '';
+                $auth_details = $meta['auth_details'] ?? [];
+
                 if (!empty($meta['encrypted_meta'])) {
                     $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $meta['encrypted_meta']);
                     $decoded = is_string($decrypted_meta) ? (json_decode($decrypted_meta, true) ?: []) : [];
                     $ip = $decoded['login_ip'] ?? ($data['ip'] ?? 'Unknown');
                     $ua = $decoded['user_agent'] ?? ($data['ua'] ?? 'Unknown');
+                    if (empty($auth_type) && !empty($decoded['auth_type'])) {
+                        $auth_type = $decoded['auth_type'];
+                        $auth_label = $decoded['auth_label'] ?? '';
+                        $auth_details = $decoded['auth_details'] ?? [];
+                    }
                 } else {
                     $ip = $meta['login_ip'] ?? ($data['ip'] ?? 'Unknown');
                     $ua = $meta['user_agent'] ?? ($data['ua'] ?? 'Unknown');
+                }
+
+                $login_ts = isset($meta['login_time']) ? (int) $meta['login_time'] : (isset($data['login']) ? (int) $data['login'] : time());
+
+                // Smart Deductive Inference for existing sessions without stored auth_type
+                if (empty($auth_type)) {
+                    $is_support = get_user_meta($admin->ID, 'wcpscan_is_temporary_support', true);
+                    if ($is_support) {
+                        $auth_type = 'magic_link';
+                        $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'wcp-security-scanner');
+                        $auth_details = ['type' => 'magic_link'];
+                    } else {
+                        // Check if a passkey was used around the login time
+                        $user_passkeys = class_exists('\\WcpScanner\\Auth\\WebAuthnManager') ? \WcpScanner\Auth\WebAuthnManager::get_user_credentials($admin->ID) : [];
+                        $matched_pk = null;
+                        foreach ($user_passkeys as $pk) {
+                            if (!empty($pk['last_used']) && abs((int) $pk['last_used'] - $login_ts) <= 180) {
+                                $matched_pk = $pk;
+                                break;
+                            }
+                        }
+                        if ($matched_pk) {
+                            $auth_type = 'passkey';
+                            $auth_label = sprintf(
+                                /* translators: %s: device name */
+                                __('Passkey (%s)', 'wcp-security-scanner'),
+                                $matched_pk['name'] ?? 'Windows Hello / FIDO2'
+                            );
+                            $auth_details = [
+                                'type'        => 'passkey',
+                                'device_name' => $matched_pk['name'] ?? 'Hardware Key',
+                            ];
+                        } elseif (class_exists('\\WcpScanner\\Auth\\TwoFactorAuth') && \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID)) {
+                            $auth_type = '2fa';
+                            $auth_label = __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
+                            $auth_details = ['type' => 'totp'];
+                        } else {
+                            $auth_type = 'password';
+                            $auth_label = __('Password Only (Single-Factor)', 'wcp-security-scanner');
+                            $auth_details = ['type' => 'password'];
+                        }
+                    }
                 }
 
                 // If $ip belongs to Cloudflare's Anycast proxy network, it's an edge node, not the visitor's device.
@@ -680,11 +772,17 @@ class SessionSentinel {
                     if ($is_current) {
                         $ip = $client_ip;
                         $entry = [
-                            'login_time'     => isset($data['login']) ? (int) $data['login'] : time(),
+                            'login_time'     => $login_ts,
                             'last_seen'      => time(),
+                            'auth_type'      => $auth_type,
+                            'auth_label'     => $auth_label,
+                            'auth_details'   => $auth_details,
                             'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
-                                'login_ip'   => $client_ip,
-                                'user_agent' => $ua,
+                                'login_ip'     => $client_ip,
+                                'user_agent'   => $ua,
+                                'auth_type'    => $auth_type,
+                                'auth_label'   => $auth_label,
+                                'auth_details' => $auth_details,
                             ])),
                         ];
                         $sessions_meta[$verifier] = $entry;
@@ -695,14 +793,80 @@ class SessionSentinel {
                     }
                 }
 
-                // Determine browser / OS info
+                // Determine browser / OS / device type info
                 $browser_info = self::parse_user_agent($ua);
 
-                $login_ts = isset($meta['login_time']) ? (int) $meta['login_time'] : (isset($data['login']) ? (int) $data['login'] : time());
                 $duration_sec = max(1, time() - $login_ts);
                 $duration_formatted = class_exists('\\WcpScanner\\Auth\\LoginHistoryManager') 
                     ? \WcpScanner\Auth\LoginHistoryManager::format_duration($duration_sec)
                     : sprintf('%d mins', round($duration_sec / 60));
+
+                // Security posture level and risk factor calculation
+                $security_level = 'hardened';
+                if ($auth_type === 'password') {
+                    $security_level = 'at_risk';
+                } elseif ($auth_type === 'magic_link') {
+                    $security_level = 'sandboxed';
+                }
+
+                $risk_factors = [];
+                if ($auth_type === 'password') {
+                    $risk_factors[] = __('Single-factor password login: Account lacks MFA (2FA or Passkey).', 'wcp-security-scanner');
+                }
+                if ($ip !== $client_ip && $is_current) {
+                    $risk_factors[] = sprintf(
+                        /* translators: 1: login IP, 2: current IP */
+                        __('IP changed since login (%1$s &rarr; %2$s).', 'wcp-security-scanner'),
+                        esc_html($ip),
+                        esc_html($client_ip)
+                    );
+                }
+                if ($auth_type === 'magic_link') {
+                    $risk_factors[] = __('Temporary technician session confined by Zero-Trust MU Guardian.', 'wcp-security-scanner');
+                }
+
+                // Expiration calculations
+                $expiration_ts = isset($data['expiration']) ? (int) $data['expiration'] : null;
+                $expiration_formatted = $expiration_ts ? date_i18n('Y-m-d H:i:s', $expiration_ts) : 'Default (14 days)';
+                $expiration_human = '';
+                if ($expiration_ts) {
+                    if ($expiration_ts < time()) {
+                        $expiration_human = __('Expired', 'wcp-security-scanner');
+                    } else {
+                        $expiration_human = sprintf(
+                            /* translators: %s: remaining time difference */
+                            __('Expires in %s', 'wcp-security-scanner'),
+                            human_time_diff(time(), $expiration_ts)
+                        );
+                    }
+                } else {
+                    $expiration_human = __('Expires in 14 days', 'wcp-security-scanner');
+                }
+
+                // Idle time calculation
+                $last_seen_ts = isset($meta['last_seen']) ? (int) $meta['last_seen'] : $login_ts;
+                $idle_diff = max(0, time() - $last_seen_ts);
+                $idle_human = $idle_diff < 90 ? __('Active just now', 'wcp-security-scanner') : sprintf(
+                    /* translators: %s: time difference */
+                    __('Idle for %s', 'wcp-security-scanner'),
+                    human_time_diff($last_seen_ts, time())
+                );
+
+                // Check for Magic Link metadata if temporary support user
+                $support_link_meta = null;
+                $is_support_user = get_user_meta($admin->ID, 'wcpscan_is_temporary_support', true);
+                if ($is_support_user && class_exists('\\WcpScanner\\Identity\\TemporarySupportAccess')) {
+                    $links = get_option(\WcpScanner\Identity\TemporarySupportAccess::OPTION_LINKS, []);
+                    if (isset($links[$is_support_user])) {
+                        $support_link_meta = [
+                            'link_id'     => $is_support_user,
+                            'label'       => $links[$is_support_user]['label'] ?? 'Technician',
+                            'scope'       => $links[$is_support_user]['scope'] ?? 'diagnostic',
+                            'restrict_ip' => $links[$is_support_user]['restrict_ip'] ?? '',
+                            'expires_at'  => isset($links[$is_support_user]['expires_at']) ? date_i18n('Y-m-d H:i:s', $links[$is_support_user]['expires_at']) : '',
+                        ];
+                    }
+                }
 
                 $results[] = [
                     'session_id'               => substr((string) $verifier, 0, 16),
@@ -716,16 +880,28 @@ class SessionSentinel {
                     'login_ip'                 => $ip,
                     'current_ip'               => $client_ip,
                     'is_same_ip'               => ($ip === $client_ip),
+                    'is_local_ip'              => ($ip === '127.0.0.1' || $ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_private_ip($ip)),
                     'login_time'               => date_i18n('Y-m-d H:i:s', $login_ts),
                     'login_time_raw'           => $login_ts,
                     'login_time_human'         => human_time_diff($login_ts, time()) . ' ago',
                     'login_duration_seconds'   => $duration_sec,
                     'login_duration_formatted' => $duration_formatted,
                     'last_seen'                => isset($meta['last_seen']) ? date_i18n('Y-m-d H:i:s', $meta['last_seen']) : 'Recently',
-                    'expiration'               => isset($data['expiration']) ? date_i18n('Y-m-d H:i:s', $data['expiration']) : null,
+                    'last_seen_raw'            => $last_seen_ts,
+                    'idle_human'               => $idle_human,
+                    'expiration'               => $expiration_formatted,
+                    'expiration_raw'           => $expiration_ts,
+                    'expiration_human'         => $expiration_human,
                     'browser'                  => $browser_info['browser'],
                     'platform'                 => $browser_info['platform'],
+                    'device_type'              => $browser_info['device_type'],
                     'user_agent'               => $ua,
+                    'auth_type'                => $auth_type,
+                    'auth_label'               => $auth_label,
+                    'auth_details'             => $auth_details,
+                    'security_level'           => $security_level,
+                    'risk_factors'             => $risk_factors,
+                    'support_link_meta'        => $support_link_meta,
                 ];
             }
         }
@@ -768,6 +944,14 @@ class SessionSentinel {
      */
     private static function parse_user_agent(string $ua): array {
         $platform = 'Unknown OS';
+        $device_type = 'Desktop';
+
+        if (stripos($ua, 'iPad') !== false || stripos($ua, 'Tablet') !== false) {
+            $device_type = 'Tablet';
+        } elseif (stripos($ua, 'Mobile') !== false || stripos($ua, 'Android') !== false || stripos($ua, 'iPhone') !== false) {
+            $device_type = 'Mobile';
+        }
+
         if (stripos($ua, 'Windows') !== false) {
             $platform = 'Windows';
         } elseif (stripos($ua, 'Macintosh') !== false || stripos($ua, 'Mac OS') !== false) {
@@ -794,8 +978,9 @@ class SessionSentinel {
         }
 
         return [
-            'browser'  => $browser,
-            'platform' => $platform,
+            'browser'     => $browser,
+            'platform'    => $platform,
+            'device_type' => $device_type,
         ];
     }
 }

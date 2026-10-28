@@ -263,6 +263,21 @@ class TemporarySupportAccess {
 
         wp_clear_auth_cookie();
         wp_set_current_user($support_user->ID);
+
+        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
+            \WcpScanner\Auth\SessionSentinel::$pending_auth_type = 'magic_link';
+            /* translators: %s: label of the temporary support technician */
+            \WcpScanner\Auth\SessionSentinel::$pending_auth_label = sprintf(__('Magic Support Link ("%s")', 'wcp-security-scanner'), $record['label']);
+            \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                'type'        => 'magic_link',
+                'link_id'     => $link_id,
+                'label'       => $record['label'],
+                'scope'       => $record['scope'] ?? 'diagnostic',
+                'restrict_ip' => $record['restrict_ip'] ?? '',
+                'duration'    => $record['duration_minutes'] ?? 60,
+            ];
+        }
+
         wp_set_auth_cookie($support_user->ID, false);
 
         AuditLogger::log(

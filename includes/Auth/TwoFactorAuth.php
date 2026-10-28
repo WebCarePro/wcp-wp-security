@@ -922,6 +922,13 @@ class TwoFactorAuth {
 
         // Check if current browser is a verified trusted device (e.g. remembered for 7 days)
         if (self::is_trusted_device($user->ID)) {
+            if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
+                \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
+                \WcpScanner\Auth\SessionSentinel::$pending_auth_label = __('2FA (Remembered Trusted Device)', 'wcp-security-scanner');
+                \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                    'type' => 'trusted_device',
+                ];
+            }
             return $user; // Trusted device bypass granted!
         }
 
@@ -932,14 +939,26 @@ class TwoFactorAuth {
 
         if (!empty($auth_code)) {
             $code_valid = false;
+            $code_type  = 'totp';
             // Check TOTP code
             if ($secret && self::verify_code($secret, $auth_code)) {
                 $code_valid = true;
+                $code_type  = 'totp';
             } elseif (self::verify_and_consume_backup_code($user->ID, $auth_code)) {
                 $code_valid = true;
+                $code_type  = 'backup_code';
             }
 
             if ($code_valid) {
+                if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
+                    \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
+                    \WcpScanner\Auth\SessionSentinel::$pending_auth_label = ($code_type === 'backup_code')
+                        ? __('2FA (Emergency Recovery Code)', 'wcp-security-scanner')
+                        : __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
+                    \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                        'type' => $code_type,
+                    ];
+                }
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
                 if (!empty($_POST['wcpscan_2fa_remember_device'])) {
                     self::set_trusted_device($user->ID, self::get_remember_device_days());
@@ -1013,15 +1032,28 @@ class TwoFactorAuth {
             $secret = self::get_user_secret($user_id);
             $valid  = false;
 
+            $code_type = 'totp';
             if ($secret && self::verify_code($secret, $code)) {
                 $valid = true;
+                $code_type = 'totp';
             } elseif (self::verify_and_consume_backup_code($user_id, $code)) {
                 $valid = true;
+                $code_type = 'backup_code';
             }
 
             if ($valid) {
                 // Delete session transient
                 delete_transient(self::SESSION_TRANSIENT . $pending_key);
+
+                if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
+                    \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
+                    \WcpScanner\Auth\SessionSentinel::$pending_auth_label = ($code_type === 'backup_code')
+                        ? __('2FA (Emergency Recovery Code)', 'wcp-security-scanner')
+                        : __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
+                    \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                        'type' => $code_type,
+                    ];
+                }
 
                 // Handle "Remember this device"
                 if (!empty($_POST['wcpscan_2fa_remember_device']) && $remember_device_allowed) {
