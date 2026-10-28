@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Supply-Chain Defense & SBOM Sentinel Full Detail Export (SbomSupplyChainCard.tsx):
+  * Multi-Format Forensic Export: Added an 'Export Report' dropdown to the Supply-Chain Defense & SBOM Sentinel header allowing one-click export of the entire supply-chain posture in JSON and CSV formats.
+  * Comprehensive Forensic Payload (.JSON): Bundles metadata, active baseline drift status, cryptographic hashes of all drop-ins and must-use plugins, PHP INI pre-loader directives, Update Gatekeeper delta audit trail, offline lockfile dependencies, and client-side runtime script inventory for in-depth offline analysis and false-positive eradication.
+  * Structured Compliance Ledger (.CSV): Generates a spreadsheet-ready tabular report classifying every runtime anchor, script domain, and Gatekeeper event with verification and sensitive context tags.
 - Client-Side JS & Hostname Drift Verified Integration Baseline (ScriptInventoryMonitor.php, SbomSupplyChainCard.tsx):
   * Official Third-Party Host Recognition: Pre-authenticated verified third-party hosts (Google reCAPTCHA / gstatic, Cloudflare Turnstile, Stripe, PayPal, hCaptcha) to prevent false-positive drift alarms for standard form security assets.
   * Verified Integration Badging: Enhanced the Hostname Drift ledger table to display green 'VERIFIED (Google reCAPTCHA & APIs)' badges with high-contrast status pills instead of alarming 'UNCALIBRATED DRIFT' alerts for recognized form handlers.
