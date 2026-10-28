@@ -316,18 +316,26 @@ class PersistenceScanner {
         $auto_prepend = ini_get('auto_prepend_file');
         if (!empty($auto_prepend)) {
             $norm = wp_normalize_path($auto_prepend);
-            // Ignore WCP's compiled micro-waf
+            // Verify if official security tool or baseline
+            $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
+                ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($auto_prepend)
+                : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => '', 'risk_level' => 'high'];
+
             $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+            $is_trusted = $is_wcp || !empty($verification['is_trusted']);
             $exists = file_exists($auto_prepend);
+
             $findings[] = [
                 'type'        => 'ini_auto_prepend',
                 'directive'   => 'auto_prepend_file',
                 'target_file' => $auto_prepend,
                 'is_wcp'      => $is_wcp,
+                'is_trusted'  => $is_trusted,
+                'provider'    => $verification['provider'] ?? '',
                 'file_exists' => $exists,
-                'severity'    => $is_wcp ? 'clean' : ($exists ? 'critical' : 'high'),
-                'description' => $is_wcp
-                    ? __('Legitimate WCP Preload Micro-WAF engine active.', 'wcp-security-scanner')
+                'severity'    => $is_trusted ? 'clean' : ($exists ? 'critical' : 'high'),
+                'description' => $is_trusted
+                    ? (!empty($verification['description']) ? $verification['description'] : __('Legitimate security pre-loader engine active.', 'wcp-security-scanner'))
                     : ($exists
                         ? sprintf(
                             /* translators: %s: target file path */
@@ -370,7 +378,14 @@ class PersistenceScanner {
                     $target = trim($m[2]);
                     $norm = wp_normalize_path($target);
                     $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
-                    if (!$is_wcp) {
+
+                    $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
+                        ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
+                        : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => ''];
+
+                    $is_trusted = ($directive === 'auto_prepend_file') && ($is_wcp || !empty($verification['is_trusted']));
+
+                    if (!$is_trusted) {
                         $findings[] = [
                             'type'        => 'user_ini_preloader',
                             'directive'   => '.user.ini:' . $directive,
@@ -400,7 +415,14 @@ class PersistenceScanner {
                     $target = trim($m[2]);
                     $norm = wp_normalize_path($target);
                     $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
-                    if (!$is_wcp) {
+
+                    $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
+                        ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
+                        : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => ''];
+
+                    $is_trusted = ($directive === 'auto_prepend_file') && ($is_wcp || !empty($verification['is_trusted']));
+
+                    if (!$is_trusted) {
                         $findings[] = [
                             'type'        => 'htaccess_preloader',
                             'directive'   => '.htaccess:php_value ' . $directive,

@@ -75,16 +75,29 @@ class ConfigScanner {
                 }
 
                 // Check for malicious PHP handlers or auto_prepend in .htaccess
-                if (preg_match('/(php_value\s+auto_prepend_file|php_value\s+auto_append_file|SetHandler\s+application\/x-httpd-php)/i', $htaccess_content, $matches)) {
-                    $findings[] = new Finding([
-                        'engine'      => 'wordpress-config',
-                        'type'        => 'htaccess_malicious_handler',
-                        'severity'    => 'critical',
-                        'confidence'  => 98,
-                        'file_path'   => $htaccess_path,
-                        'description' => "Malicious PHP handler/prepend directive found in .htaccess: '{$matches[0]}'.",
-                        'evidence'    => "Matched line: {$matches[0]}"
-                    ]);
+                if (preg_match('/(?:php_value\s+auto_prepend_file\s+["\']?([^"\'\r\n]+)|php_value\s+auto_append_file|SetHandler\s+application\/x-httpd-php)/i', $htaccess_content, $matches)) {
+                    $is_trusted = false;
+                    if (!empty($matches[1])) {
+                        $target = trim($matches[1]);
+                        $norm = wp_normalize_path($target);
+                        $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+                        $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
+                            ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
+                            : ['is_trusted' => false];
+                        $is_trusted = $is_wcp || !empty($verification['is_trusted']);
+                    }
+
+                    if (!$is_trusted) {
+                        $findings[] = new Finding([
+                            'engine'      => 'wordpress-config',
+                            'type'        => 'htaccess_malicious_handler',
+                            'severity'    => 'critical',
+                            'confidence'  => 98,
+                            'file_path'   => $htaccess_path,
+                            'description' => "Malicious PHP handler/prepend directive found in .htaccess: '{$matches[0]}'.",
+                            'evidence'    => "Matched line: {$matches[0]}"
+                        ]);
+                    }
                 }
             }
         }
@@ -94,16 +107,31 @@ class ConfigScanner {
         foreach ($ini_files as $ini_file) {
             if (file_exists($ini_file)) {
                 $ini_content = @file_get_contents($ini_file);
-                if ($ini_content && preg_match('/(auto_prepend_file|auto_append_file|allow_url_include)\s*=/i', $ini_content, $matches)) {
-                    $findings[] = new Finding([
-                        'engine'      => 'wordpress-config',
-                        'type'        => 'ini_auto_prepend_injection',
-                        'severity'    => 'critical',
-                        'confidence'  => 95,
-                        'file_path'   => $ini_file,
-                        'description' => "Backdoor persistence directive '{$matches[1]}' found in INI configuration.",
-                        'evidence'    => "Matched directive: {$matches[1]}"
-                    ]);
+                if ($ini_content && preg_match('/(?:(auto_prepend_file)\s*=\s*["\']?([^"\'\r\n]+)|(auto_append_file|allow_url_include)\s*=)/i', $ini_content, $matches)) {
+                    $is_trusted = false;
+                    $matched_dir = !empty($matches[1]) ? $matches[1] : (!empty($matches[3]) ? $matches[3] : 'directive');
+
+                    if (!empty($matches[1]) && !empty($matches[2])) {
+                        $target = trim($matches[2]);
+                        $norm = wp_normalize_path($target);
+                        $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+                        $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
+                            ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
+                            : ['is_trusted' => false];
+                        $is_trusted = $is_wcp || !empty($verification['is_trusted']);
+                    }
+
+                    if (!$is_trusted) {
+                        $findings[] = new Finding([
+                            'engine'      => 'wordpress-config',
+                            'type'        => 'ini_auto_prepend_injection',
+                            'severity'    => 'critical',
+                            'confidence'  => 95,
+                            'file_path'   => $ini_file,
+                            'description' => "Backdoor persistence directive '{$matched_dir}' found in INI configuration.",
+                            'evidence'    => "Matched directive: {$matches[0]}"
+                        ]);
+                    }
                 }
             }
         }

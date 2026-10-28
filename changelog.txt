@@ -1,4 +1,10 @@
 v:1.29.0 - 2026-10-29
+- Wordfence WAF & Authentic Security Tool Preload Verification (SbomSentinelEngine.php, PersistenceScanner.php, ConfigScanner.php, SbomSupplyChainCard.tsx):
+  * Official Security WAF Verification Engine: Implemented SbomSentinelEngine::verify_prepend_target() to automatically detect, inspect, and authenticate recognized PHP pre-loaders (Wordfence WAF wordfence-waf.php, WCP Micro-WAF micro-waf-compiled.php, NinjaFirewall ninjafirewall.php, and admin-calibrated cryptographic baselines).
+  * Wordfence Bootstrap & Active Plugin Authentication: Verifies whether wordfence-waf.php contains authentic Wordfence bootstrap constants (WFWAF_LOG_PATH, wordfence/waf/bootstrap.php) and confirms whether Wordfence is installed and active on the site, accurately categorizing it as Clean / Verified Security WAF rather than a Critical Threat or Rogue INI Injection.
+  * Multi-Engine Preload Allowance: Updated PersistenceScanner (audit_server_preloaders) and ConfigScanner (.user.ini, php.ini, .htaccess) to honor verified security tools and prevent false-positive persistence warnings during regular malware scans.
+  * Baseline Synchronization: Calibrating the cryptographic SBOM baseline now anchors the target pre-loader SHA-256 hash, ensuring that verified administrator preloads remain locked and protected from tampered drift.
+  * Clean UI Security Tool Badges: Updated SbomSupplyChainCard to render green 'Verified Security WAF' badges with 'Official Tool' status chips instead of red Critical Threat alerts for authentic security integrations.
 - Security Policy & Responsible Vulnerability Disclosure (SECURITY.md, README.md):
   * Official Security Policy: Published SECURITY.md detailing supported versions (1.29.x), dedicated direct disclosure channels (security@webcarespro.com / miralamin.dev@gmail.com), 24-48 hour acknowledgment SLAs, and coordinated patch schedules.
   * Measured Resilience & Copy Discipline: Audited user-facing documentation to replace lingering absolute uptime language with measured, honest enterprise terminology (Safe Mode self-preservation and fault isolation).
@@ -14,7 +20,7 @@ eadme.txt):
   * All-Version Changelog Summary in readme.txt: Comprehensively synchronized the readme.txt Changelog section to include every released version from 1.2.0 through 1.29.0 with clean, readable summaries complying with WordPress.org readme formatting.
 - WordPress.org Plugin Check (PCP) & I18n Compliance (`UpdateGatekeeperengine.php`, `EmergencyContainmentManager.php`, `TemporarySupportAccess.php`, `WebAuthnManager.php`, `CrashGuard.php`, `ChecksumProvider.php`, `ScannerRoutes.php`):
   * 0 Errors & Compliance Cleanup: Successfully eliminated all 20 Plugin Check errors and warnings across the codebase.
-  * I18n Translator Comments & Ordered Placeholders: Added preceding /*translators: ... */ comments and ordered format specifiers (%1$s, %É$s, %3$d) for all notification dispatch and audit logging strings in UpdateGatekeeperengine, EmergencyContainmentManager, TemporarySupportAccess, and WebAuthnManager.
+  * I18n Translator Comments & Ordered Placeholders: Added preceding /*translators: ... */ comments and ordered format specifiers (%1$s, %$s, %3$d) for all notification dispatch and audit logging strings in UpdateGatekeeperengine, EmergencyContainmentManager, TemporarySupportAccess, and WebAuthnManager.
   * Textdomain & Arguments Fix: Corrected mismatched textdomain and argument count on UpdateGatekeeperEngine rollback strings.
   * CrashGuard Safe Mode Sanitization: Escaped all dynamic forensic variables ($err_type, $err_file, $err_line, $err_time, $err_msg) in the Safe Mode admin notice via esc_html().
   * Checksum Provider Line Endings: Normalized mixed line endings across ChecksumProvider.php.

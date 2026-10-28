@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-28T20:50:19.604Z",
+  "generated_at": "2026-10-28T21:12:35.468Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 524353
     },
     "build/index.asset.php": {
-      "sha256": "8cc8bf11556c78de04c223a35d7fa3a2636018136db81149d2c3f03241f6b973",
+      "sha256": "03787404c375eb13c3d0f4a5b06d16caaac9ba17cd091a550b1492d42ee65611",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 524211
     },
     "build/index.js": {
-      "sha256": "0ff68d939b6274c3814438cc976cc76dd3456903b41646f3e5187c5094f213ca",
-      "size": 1909904
+      "sha256": "7711aa9ec5b5c440a8739fe758dfb9519dff34d9e4023e0388062def340d1fa9",
+      "size": 1910653
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -480,8 +480,8 @@
       "size": 17931
     },
     "includes/SupplyChain/SbomSentinelEngine.php": {
-      "sha256": "59da7b7c04c97c79e092d6dd9c573c6c3af60d2786954f88318cc7940c601ac9",
-      "size": 22520
+      "sha256": "dc175db26e4ec26a3a5a232232a9523a84c6e5f0d5a73a53720376781883903c",
+      "size": 31617
     },
     "includes/SupplyChain/UpdateGatekeeperEngine.php": {
       "sha256": "89c5cc054c0f4edf981d9bcb7ab218addb2342a7d94020c326de0b42eefaf985",
@@ -520,8 +520,8 @@
       "size": 25930
     },
     "includes/WordPress/ConfigScanner.php": {
-      "sha256": "be90fc2df608342c1b952676af35a8113349d85ed7bf121059cc23e5440c9ea6",
-      "size": 5579
+      "sha256": "c4052e3b084f32debe99412545cb3ebd125d87f2a9ce18b21c88b427d621ba5c",
+      "size": 7265
     },
     "includes/WordPress/CronScanner.php": {
       "sha256": "592b9f784bb70d4bd33d2308b5abfee51363a91d636c96784f5b22575998abff",
@@ -532,8 +532,8 @@
       "size": 11563
     },
     "includes/WordPress/PersistenceScanner.php": {
-      "sha256": "83d30455e2f25eb41aef14fe04437ce639097f45203240d0e71d056ec00f4a41",
-      "size": 50880
+      "sha256": "0e76b4b4466a0ff43d0ac676f0d55601971ea0c44cef002e77d124c7c6be0d8c",
+      "size": 51222
     },
     "includes/WordPress/RestApiInventory.php": {
       "sha256": "26a9c8c9a3efda330452c8de3931aa7b7a4b7f08d3ab18c26720ab1bcecf19e1",

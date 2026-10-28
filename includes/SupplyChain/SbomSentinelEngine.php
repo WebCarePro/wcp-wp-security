@@ -69,7 +69,7 @@ class SbomSentinelEngine {
             }
         }
         foreach ($inventory['ini_directives'] as $item) {
-            if ($item['has_prepend'] || $item['has_append']) {
+            if ($item['risk_level'] === 'high' || $item['risk_level'] === 'critical') {
                 $anomalies++;
             }
         }
@@ -233,6 +233,149 @@ class SbomSentinelEngine {
     }
 
     /**
+     * Verify whether an auto_prepend_file target is an authentic, recognized security tool
+     * (e.g. Wordfence WAF, WCP Micro-WAF, NinjaFirewall) or matches the calibrated baseline.
+     *
+     * @param string $target_path Absolute or relative path to preloaded file
+     * @return array Verification payload
+     */
+    public static function verify_prepend_target(string $target_path): array {
+        $target_path = trim($target_path, "'\" \t\n\r\0\x0B");
+        if (empty($target_path)) {
+            return [
+                'is_recognized' => false,
+                'is_trusted'    => false,
+                'provider'      => '',
+                'label'         => '',
+                'risk_level'    => 'none',
+                'description'   => '',
+            ];
+        }
+
+        $norm = wp_normalize_path($target_path);
+        $basename = basename($norm);
+        $exists = file_exists($target_path);
+        $sha256 = $exists ? hash_file('sha256', $target_path) : null;
+
+        // 1. Check calibrated baseline
+        $baseline = get_option(self::OPTION_BASELINE, null);
+        if (!empty($baseline['ini_prepend'])) {
+            $base_prepend = trim($baseline['ini_prepend'], "'\" \t\n\r\0\x0B");
+            if (wp_normalize_path($base_prepend) === $norm) {
+                $base_hashes = $baseline['hashes'] ?? [];
+                $hash_match = true;
+                if ($sha256 && !empty($base_hashes['ini_prepend:' . $basename]['sha256'])) {
+                    $hash_match = ($base_hashes['ini_prepend:' . $basename]['sha256'] === $sha256);
+                }
+
+                if ($hash_match) {
+                    return [
+                        'is_recognized' => true,
+                        'is_trusted'    => true,
+                        'provider'      => 'Calibrated Baseline',
+                        'label'         => 'Calibrated Trusted Preload',
+                        'risk_level'    => 'none',
+                        'description'   => sprintf(
+                            /* translators: %s: target file name */
+                            __('Preload file "%s" matches verified cryptographic administrator baseline.', 'wcp-security-scanner'),
+                            $basename
+                        ),
+                        'sha256'        => $sha256,
+                    ];
+                }
+            }
+        }
+
+        // 2. WCP Micro-WAF Preload
+        if ($basename === 'micro-waf-compiled.php' || str_contains($norm, 'wcp-security-scanner') || str_contains($norm, 'wcp-micro-waf.php')) {
+            return [
+                'is_recognized' => true,
+                'is_trusted'    => true,
+                'provider'      => 'WCP Security Scanner',
+                'label'         => 'Verified WCP Micro-WAF Preload',
+                'risk_level'    => 'none',
+                'description'   => __('Official WebCare Pro Micro-WAF pre-boot firewall engine.', 'wcp-security-scanner'),
+                'sha256'        => $sha256,
+            ];
+        }
+
+        // 3. Wordfence Web Application Firewall (wordfence-waf.php)
+        if ($basename === 'wordfence-waf.php' || str_contains($norm, 'wordfence-waf.php')) {
+            $is_authentic_wf = false;
+            $detail = '';
+
+            if ($exists) {
+                $content = @file_get_contents($target_path, false, null, 0, 16384);
+                if ($content !== false && (strpos($content, 'WFWAF_LOG_PATH') !== false || strpos($content, 'wordfence/waf/bootstrap.php') !== false)) {
+                    $is_authentic_wf = true;
+                    $detail = __('Authentic Wordfence WAF bootstrap directives verified.', 'wcp-security-scanner');
+                }
+            }
+
+            // Also check if wordfence plugin is installed/active
+            $active_plugins = (array) get_option('active_plugins', []);
+            $active_str = strtolower(implode(' ', $active_plugins));
+            $is_wf_active = strpos($active_str, 'wordfence.php') !== false;
+
+            if ($is_authentic_wf || $is_wf_active) {
+                return [
+                    'is_recognized' => true,
+                    'is_trusted'    => true,
+                    'provider'      => 'Wordfence WAF',
+                    'label'         => 'Verified Security WAF (Wordfence)',
+                    'risk_level'    => 'none',
+                    'description'   => $detail ?: __('Official Wordfence Web Application Firewall preload active.', 'wcp-security-scanner'),
+                    'sha256'        => $sha256,
+                ];
+            }
+
+            return [
+                'is_recognized' => true,
+                'is_trusted'    => false,
+                'provider'      => 'Wordfence WAF',
+                'label'         => 'Unverified Wordfence Script',
+                'risk_level'    => 'medium',
+                'description'   => __('Target is named wordfence-waf.php but Wordfence plugin was not detected or contents differed from official bootstrap.', 'wcp-security-scanner'),
+                'sha256'        => $sha256,
+            ];
+        }
+
+        // 4. NinjaFirewall
+        if ($basename === 'ninjafirewall.php' || str_contains($norm, 'ninjafirewall')) {
+            return [
+                'is_recognized' => true,
+                'is_trusted'    => true,
+                'provider'      => 'NinjaFirewall',
+                'label'         => 'Verified Security WAF (NinjaFirewall)',
+                'risk_level'    => 'none',
+                'description'   => __('Official NinjaFirewall PHP pre-boot engine active.', 'wcp-security-scanner'),
+                'sha256'        => $sha256,
+            ];
+        }
+
+        // 5. Unknown target file
+        return [
+            'is_recognized' => false,
+            'is_trusted'    => false,
+            'provider'      => '',
+            'label'         => '',
+            'risk_level'    => $exists ? 'critical' : 'high',
+            'description'   => $exists
+                ? sprintf(
+                    /* translators: %s: target file path */
+                    __('Unrecognized PHP preload file active: "%s". Runs before any WordPress core code boots.', 'wcp-security-scanner'),
+                    $target_path
+                )
+                : sprintf(
+                    /* translators: %s: target file path */
+                    __('Preload file is configured in INI directives but target file does not exist on disk: "%s".', 'wcp-security-scanner'),
+                    $target_path
+                ),
+            'sha256'        => $sha256,
+        ];
+    }
+
+    /**
      * Scan PHP INI directives and configuration files for auto_prepend_file or auto_append_file.
      *
      * @return array
@@ -245,29 +388,44 @@ class SbomSentinelEngine {
         $append  = ini_get('auto_append_file');
 
         $runtime_entry = [
-            'id'          => 'ini:runtime',
-            'name'        => 'PHP Runtime Directives',
-            'type'        => 'ini_directive',
-            'description' => 'Live PHP interpreter directives active for the current request process',
-            'has_prepend' => !empty($prepend),
-            'prepend_val' => $prepend ?: 'None',
-            'has_append'  => !empty($append),
-            'append_val'  => $append ?: 'None',
-            'risk_level'  => (!empty($prepend) || !empty($append)) ? 'high' : 'none',
-            'reasons'     => [],
+            'id'            => 'ini:runtime',
+            'name'          => 'PHP Runtime Directives',
+            'type'          => 'ini_directive',
+            'description'   => 'Live PHP interpreter directives active for the current request process',
+            'has_prepend'   => !empty($prepend),
+            'prepend_val'   => $prepend ?: 'None',
+            'has_append'    => !empty($append),
+            'append_val'    => $append ?: 'None',
+            'risk_level'    => 'none',
+            'is_recognized' => false,
+            'is_trusted'    => false,
+            'provider'      => '',
+            'label'         => '',
+            'reasons'       => [],
         ];
 
         if (!empty($prepend)) {
-            // Check if prepend file exists
+            $verification = self::verify_prepend_target($prepend);
+            $runtime_entry['is_recognized'] = $verification['is_recognized'];
+            $runtime_entry['is_trusted']    = $verification['is_trusted'];
+            $runtime_entry['provider']      = $verification['provider'];
+            $runtime_entry['label']         = $verification['label'] ?? '';
+
             if (file_exists($prepend)) {
                 $runtime_entry['prepend_sha'] = hash_file('sha256', $prepend);
-                $runtime_entry['reasons'][] = 'Runtime auto_prepend_file active: ' . esc_html($prepend);
+            }
+
+            if ($verification['is_trusted']) {
+                $runtime_entry['risk_level'] = 'none';
+                $runtime_entry['reasons'][] = $verification['description'];
             } else {
-                $runtime_entry['reasons'][] = 'Runtime auto_prepend_file configured but target file missing: ' . esc_html($prepend);
+                $runtime_entry['risk_level'] = $verification['risk_level'] ?: 'high';
+                $runtime_entry['reasons'][] = $verification['description'] ?: ('Runtime auto_prepend_file active: ' . esc_html($prepend));
             }
         }
 
         if (!empty($append)) {
+            $runtime_entry['risk_level'] = 'critical';
             $runtime_entry['reasons'][] = 'Runtime auto_append_file active: ' . esc_html($append);
         }
 
@@ -296,26 +454,52 @@ class SbomSentinelEngine {
 
             if ($has_prepend || $has_append) {
                 $reasons = [];
-                if ($has_prepend) {
-                    $reasons[] = sprintf('Found auto_prepend_file configuration pointing to "%s"', trim($m_prep[1] ?? ''));
+                $prepend_val = $has_prepend ? trim($m_prep[1] ?? '') : 'None';
+                $append_val  = $has_append ? trim($m_app[1] ?? '') : 'None';
+                $is_recognized = false;
+                $is_trusted    = false;
+                $provider      = '';
+                $label         = '';
+                $file_risk     = 'critical';
+
+                if ($has_prepend && $prepend_val !== 'None') {
+                    $verification = self::verify_prepend_target($prepend_val);
+                    $is_recognized = $verification['is_recognized'];
+                    $is_trusted    = $verification['is_trusted'];
+                    $provider      = $verification['provider'];
+                    $label         = $verification['label'] ?? '';
+
+                    if ($is_trusted && !$has_append) {
+                        $file_risk = 'none';
+                        $reasons[] = sprintf('Official auto_prepend_file configuration verified: "%s" (%s)', $prepend_val, $verification['provider']);
+                    } else {
+                        $file_risk = $verification['risk_level'] ?: 'critical';
+                        $reasons[] = sprintf('Found auto_prepend_file configuration pointing to "%s"', $prepend_val);
+                    }
                 }
+
                 if ($has_append) {
-                    $reasons[] = sprintf('Found auto_append_file configuration pointing to "%s"', trim($m_app[1] ?? ''));
+                    $file_risk = 'critical';
+                    $reasons[] = sprintf('Found auto_append_file configuration pointing to "%s"', $append_val);
                 }
 
                 $items[] = [
-                    'id'          => 'ini_file:' . $cfg_name,
-                    'name'        => $cfg_name . ' Directive',
-                    'type'        => 'ini_file',
-                    'description' => 'Server configuration file containing PHP file inclusion overrides',
-                    'path'        => $cfg_path,
-                    'rel_path'    => $cfg_name,
-                    'has_prepend' => $has_prepend,
-                    'prepend_val' => $has_prepend ? trim($m_prep[1] ?? '') : 'None',
-                    'has_append'  => $has_append,
-                    'append_val'  => $has_append ? trim($m_app[1] ?? '') : 'None',
-                    'risk_level'  => 'critical',
-                    'reasons'     => $reasons,
+                    'id'            => 'ini_file:' . $cfg_name,
+                    'name'          => $cfg_name . ' Directive',
+                    'type'          => 'ini_file',
+                    'description'   => 'Server configuration file containing PHP file inclusion overrides',
+                    'path'          => $cfg_path,
+                    'rel_path'      => $cfg_name,
+                    'has_prepend'   => $has_prepend,
+                    'prepend_val'   => $prepend_val,
+                    'has_append'    => $has_append,
+                    'append_val'    => $append_val,
+                    'risk_level'    => $file_risk,
+                    'is_recognized' => $is_recognized,
+                    'is_trusted'    => $is_trusted,
+                    'provider'      => $provider,
+                    'label'         => $label,
+                    'reasons'       => $reasons,
                 ];
             }
         }
@@ -393,13 +577,25 @@ class SbomSentinelEngine {
             }
         }
 
+        $ini_prepend = ini_get('auto_prepend_file');
+        if (!empty($ini_prepend) && file_exists($ini_prepend)) {
+            $base_name = basename($ini_prepend);
+            $hashes['ini_prepend:' . $base_name] = [
+                'sha256'      => hash_file('sha256', $ini_prepend),
+                'size'        => filesize($ini_prepend),
+                'modified_at' => filemtime($ini_prepend),
+                'rel_path'    => $ini_prepend,
+                'type'        => 'ini_directive',
+            ];
+        }
+
         $baseline = [
             'calibrated_at'   => current_time('mysql'),
             'timestamp'       => time(),
             'calibrated_by'   => $calibrated_by,
             'total_anchors'   => count($hashes),
             'hashes'          => $hashes,
-            'ini_prepend'     => ini_get('auto_prepend_file'),
+            'ini_prepend'     => $ini_prepend,
             'ini_append'      => ini_get('auto_append_file'),
         ];
 
