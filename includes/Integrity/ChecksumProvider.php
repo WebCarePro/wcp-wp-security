@@ -96,19 +96,32 @@ class ChecksumProvider {
             return null;
         }
 
+        $mem_key = "{$plugin_slug}_{$version}";
+        if (isset(self::$plugin_checksums_memory[$mem_key])) {
+            return self::$plugin_checksums_memory[$mem_key] === 'none' ? null : self::$plugin_checksums_memory[$mem_key];
+        }
+
         $cache_key = "wcpscan_plugin_chk_{$plugin_slug}_{$version}";
         $cached = get_transient($cache_key);
-        if ($cached !== false && is_array($cached)) {
+        if ($cached !== false) {
+            if ($cached === 'none' || !is_array($cached)) {
+                self::$plugin_checksums_memory[$mem_key] = 'none';
+                return null;
+            }
+            self::$plugin_checksums_memory[$mem_key] = $cached;
             return $cached;
         }
 
         $url = "https://downloads.wordpress.org/plugin-checksums/{$plugin_slug}/{$version}.json";
         
         $response = wp_remote_get($url, [
-            'timeout'   => 15,
+            'timeout'   => 8,
             'sslverify' => true,
         ]);
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            // Negative cache to prevent repeated blocking HTTP requests across hundreds/thousands of files in this plugin
+            set_transient($cache_key, 'none', 6 * HOUR_IN_SECONDS);
+            self::$plugin_checksums_memory[$mem_key] = 'none';
             return null;
         }
 
@@ -131,10 +144,13 @@ class ChecksumProvider {
             }
             if (!empty($checksums)) {
                 set_transient($cache_key, $checksums, 12 * HOUR_IN_SECONDS);
+                self::$plugin_checksums_memory[$mem_key] = $checksums;
+                return $checksums;
             }
-            return $checksums;
         }
 
+        set_transient($cache_key, 'none', 6 * HOUR_IN_SECONDS);
+        self::$plugin_checksums_memory[$mem_key] = 'none';
         return null;
     }
 
@@ -154,12 +170,16 @@ class ChecksumProvider {
 
         $mem_key = "{$theme_slug}_{$version}";
         if (isset(self::$theme_checksums_memory[$mem_key])) {
-            return self::$theme_checksums_memory[$mem_key];
+            return self::$theme_checksums_memory[$mem_key] === 'none' ? null : self::$theme_checksums_memory[$mem_key];
         }
 
         $cache_key = "wcpscan_theme_chk_v3_{$theme_slug}_{$version}";
         $cached = get_transient($cache_key);
-        if ($cached !== false && is_array($cached)) {
+        if ($cached !== false) {
+            if ($cached === 'none' || !is_array($cached)) {
+                self::$theme_checksums_memory[$mem_key] = 'none';
+                return null;
+            }
             self::$theme_checksums_memory[$mem_key] = $cached;
             return $cached;
         }
@@ -227,6 +247,9 @@ class ChecksumProvider {
             }
         }
 
+        // Negative cache theme manifest failure
+        set_transient($cache_key, 'none', 6 * HOUR_IN_SECONDS);
+        self::$theme_checksums_memory[$mem_key] = 'none';
         return null;
     }
 

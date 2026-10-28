@@ -94,7 +94,7 @@ class Engine {
                 if ($current->isDir()) {
                     $name = $current->getFilename();
                     // System VCS and internal plugin storage exclusions
-                    if (in_array($name, ['.git', '.svn', '.hg', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf'], true)) {
+                    if (in_array(strtolower($name), ['.git', '.svn', '.hg', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', 'tests', 'test', 'testing', 'spec', 'specs', 'phpunit', '.github', 'docs', 'documentation', 'examples', 'fixtures', '.vscode', '.idea'], true)) {
                         return false;
                     }
                     if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
@@ -105,7 +105,7 @@ class Engine {
             });
 
             $iterator = new \RecursiveIteratorIterator($filter_iterator, \RecursiveIteratorIterator::SELF_FIRST);
-            $allowed_exts = ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phar', 'inc', 'suspected', 'js', 'txt', 'sh', 'pl', 'cgi'];
+            $allowed_exts = ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phar', 'inc', 'suspected', 'js', 'sh', 'pl', 'cgi'];
             $has_settings_manager = class_exists('\\WcpScanner\\System\\SettingsManager');
 
             foreach ($iterator as $item) {

@@ -1800,6 +1800,7 @@ class ScannerRoutes {
         $processed_count = 0;
         $accumulated_weight = 0.0;
         $bytes_consumed = 0;
+        $batch_files_records = [];
 
         foreach ($files_to_process as $idx => $filepath) {
             // Adaptive breathing and resource headroom check before each file
@@ -1821,15 +1822,11 @@ class ScannerRoutes {
             $file_size = @filesize($filepath) ?: 0;
             $file_status = !empty($findings) ? 'threat' : 'clean';
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->insert($table_files, [
-                'scan_id'        => $scan_id,
-                'file_path'      => $rel_path,
-                'file_size'      => $file_size,
-                'status'         => $file_status,
-                'scanned_at'     => current_time('mysql'),
-                'scanned_at_gmt' => gmdate('Y-m-d H:i:s'),
-            ]);
+            $batch_files_records[] = [
+                'file_path' => $rel_path,
+                'file_size' => $file_size,
+                'status'    => $file_status,
+            ];
 
             $processed_count++;
             if (!empty($line_bytes[$idx])) {
@@ -1858,6 +1855,29 @@ class ScannerRoutes {
                     'created_at_gmt'=> gmdate('Y-m-d H:i:s'),
                 ]);
             }
+        }
+
+        // Bulk insert scanned file telemetry in a single high-efficiency SQL query instead of N individual queries
+        if (!empty($batch_files_records)) {
+            $now_mysql = current_time('mysql');
+            $now_gmt   = gmdate('Y-m-d H:i:s');
+            $placeholders = [];
+            $values = [];
+            foreach ($batch_files_records as $rec) {
+                $placeholders[] = '(%d, %s, %d, %s, %s, %s)';
+                $values[] = $scan_id;
+                $values[] = $rec['file_path'];
+                $values[] = $rec['file_size'];
+                $values[] = $rec['status'];
+                $values[] = $now_mysql;
+                $values[] = $now_gmt;
+            }
+            $insert_query = "INSERT INTO `{$table_files}` (scan_id, file_path, file_size, status, scanned_at, scanned_at_gmt) VALUES " . implode(', ', $placeholders);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($insert_query, $values)
+            );
         }
 
         $remaining = \WcpScanner\Scan\ScanQueueManager::advance($scan_id, $processed_count, $bytes_consumed);
