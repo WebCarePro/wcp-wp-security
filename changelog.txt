@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Documentation & Feature Catalog Synchronization (eatures.md, README.md, 
+eadme.txt):
+  * Expanded Features Catalog to 53 Specialized Security Engines: Added full deep-dive architectural sections and plain-English explanations in features.md and README.md for CrashGuard Zero-Downtime Circuit Breaker & Safe Mode (#49), Pre-Install Supply-Chain Gatekeeper & Update Risk Advisor (#50), Zero-SQL Partitioned WAF Incident Filesystem Engine (#51), Enterprise Granular Notification Center & DevSecOps Webhooks (#52), and Turbo Scan Engine Optimization (#53).
+  * All-Version Changelog Summary in readme.txt: Comprehensively synchronized the readme.txt Changelog section to include every released version from 1.2.0 through 1.29.0 with clean, readable summaries complying with WordPress.org readme formatting.
 - WordPress.org Plugin Check (PCP) & I18n Compliance (`UpdateGatekeeperengine.php`, `EmergencyContainmentManager.php`, `TemporarySupportAccess.php`, `WebAuthnManager.php`, `CrashGuard.php`, `ChecksumProvider.php`, `ScannerRoutes.php`):
   * 0 Errors & Compliance Cleanup: Successfully eliminated all 20 Plugin Check errors and warnings across the codebase.
   * I18n Translator Comments & Ordered Placeholders: Added preceding /*translators: ... */ comments and ordered format specifiers (%1$s, %É$s, %3$d) for all notification dispatch and audit logging strings in UpdateGatekeeperengine, EmergencyContainmentManager, TemporarySupportAccess, and WebAuthnManager.

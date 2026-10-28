@@ -56,7 +56,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (48 Specialized Security Engines & Subsystems)
+## 🌟 Comprehensive Feature Catalog (53 Specialized Security Engines & Subsystems)
 
 > 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
@@ -267,6 +267,23 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **100% On-Premise Execution & Clean Database Purge**: Zero tracking, zero telemetry, non-destructive safety backups before any file edit, and clean 6-table database dropping on uninstall (`uninstall.php`).
 
 ---
+### 49. CrashGuard Zero-Downtime Circuit Breaker & Safe Mode Self-Preservation
+- **Guarded Plugin Initialization & Fail-Closed Resilience**: Top-level bootstrap `try/catch` shield, scoped early shutdown fatal error interception (`CrashGuard.php`), 3-strike sliding-window loop protection, standalone Micro-WAF try/catch shield (`MicroWafCompiler.php`), and 1-click self-healing Safe Mode recovery preventing WSOD downtime.
+
+### 50. Pre-Install Supply-Chain Gatekeeper & Update Risk Advisor
+- **Shift-Left Upgrader Archive Static Analysis**: Intercepts extracted plugin and theme update archives before filesystem replacement (`UpdateGatekeeperEngine.php`), performs AST heuristic security audits, generates pre-update WCP Vault rollback snapshots, and blocks hostile supply-chain updates.
+
+### 51. Zero-SQL Partitioned WAF Incident Filesystem Engine
+- **High-Throughput Filesystem Incident Telemetry**: Streams blocked attack telemetry and Layer 7 incidents directly to partitioned daily JSON Lines logs (`WafFileLogger.php`) with atomic appending (`LOCK_EX`), eliminating MySQL database overhead under high-volume botnet attacks with Fail2ban and CrowdSec native ingestion.
+
+### 52. Enterprise Granular Notification Center & DevSecOps Webhooks
+- **59-Event Security Alert Matrix & Webhook Integrations**: Full-page interactive notification center (`?page=wcp-scanner-notifications`) with granular event toggles across 10 security categories and independent channels for Email, Slack, Discord, ClickUp, Asana, and custom DevSecOps webhooks with AES-256-GCM encrypted secrets.
+
+### 53. Turbo Scan Engine Optimization, In-Memory Caching & Bulk Ingestion
+- **320+ Files/Sec Audit Throughput**: In-memory WordPress.org checksum caching with negative transient caches (`ChecksumProvider.php`), automatic test suite and vendor sample directory exclusions (`Engine.php`), and multi-row batched atomic SQL staging (`ScannerRoutes.php`) delivering lightning-fast, zero-overhead malware scans.
+
+---
+
 
 ## ⚖️ Architectural Comparison at a Glance (as of Oct 2026)
 
