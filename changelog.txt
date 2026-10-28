@@ -1,4 +1,6 @@
 v:1.28.0 - 2026-10-28
+- Firewall & Edge Protection UI Modernization (`FirewallPage.tsx`):
+  * Rebuilt and deployed the interactive toggle button for "Manual Cloudflare Free Rules (Zero API Token Required)", allowing users to smoothly expand and collapse the 4 Master Compound Rule expressions and setup guide with a single click.
 - Zero-Breakage Production Stabilization & False Positive Elimination (`ReinfectionWatchdog.php`, `GhostRouteTrap.php`, `PromptInjectionGuard.php`, `OutboundEgressFirewall.php`, `MicroWafCompiler.php`, `AiDefenseCard.tsx`):
   * Reinfection Watchdog Persistence Vault: Eliminated automatic parent directory `chmod 0555` locking to prevent breaking media uploads or cache writes. Monitored resurrected files are now automatically quarantined into the secure vault with instant high-priority admin notifications.
   * Search Engine & Uptime Monitor Crawler Immunity: Hardened Ghost Route Decoy Traps with reverse-DNS crawler verification (`BotReconDefense::is_genuine_search_engine()`) so legitimate search engine bots (Googlebot, Bingbot, etc.) are never banned or pushed to Cloudflare Edge. Emitted `X-Robots-Tag: noindex, nofollow, noarchive` and virtual `robots.txt` disallow directives on canary routes.
