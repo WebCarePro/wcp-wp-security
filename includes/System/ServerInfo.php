@@ -190,12 +190,24 @@ class ServerInfo {
      * Checks server environment variables, OS network interfaces (net_get_interfaces),
      * hostname resolvers (A and AAAA records), and site hostname.
      *
+     * Optimization: If executing inside a local environment (Docker container, localhost, .local,
+     * or private development host), external DNS IPv6/AAAA lookups are completely bypassed to eliminate latency.
+     *
      * @return array List of unique IP addresses
      */
     public static function get_all_server_ips(): array {
         static $cached_ips = null;
         if ($cached_ips !== null) {
             return $cached_ips;
+        }
+
+        // Fast-path: Check WordPress persistent transient cache (12 hours)
+        $transient_key = 'wcpscan_server_ips_cache';
+        if (function_exists('get_transient')) {
+            $transient_ips = get_transient($transient_key);
+            if (is_array($transient_ips) && !empty($transient_ips)) {
+                return ($cached_ips = $transient_ips);
+            }
         }
 
         $ips = [];
@@ -231,61 +243,75 @@ class ServerInfo {
             }
         }
 
-        // 3. Resolve hostnames via DNS / local resolver (IPv4 A & IPv6 AAAA)
-        $host_candidates = [];
-        if (function_exists('gethostname')) {
-            $hostname = @gethostname();
-            if (!empty($hostname)) {
-                $host_candidates[] = $hostname;
-            }
-        }
-        $nodename = php_uname('n');
-        if (!empty($nodename)) {
-            $host_candidates[] = $nodename;
-        }
-        if (!empty($_SERVER['SERVER_NAME'])) {
-            $host_candidates[] = sanitize_text_field(wp_unslash($_SERVER['SERVER_NAME']));
-        }
-        if (!empty($_SERVER['HTTP_HOST'])) {
-            $host_candidates[] = preg_replace('/:[0-9]+$/', '', sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])));
-        }
-        $site_host = wp_parse_url(get_site_url(), PHP_URL_HOST);
-        if (!empty($site_host)) {
-            $host_candidates[] = $site_host;
-        }
+        // Detect if environment is Docker or Localhost
+        $is_docker = @file_exists('/.dockerenv') || @file_exists('/run/.containerenv') || (getenv('DOCKER_CONTAINER') !== false);
+        $site_host = wp_parse_url(function_exists('get_site_url') ? get_site_url() : '', PHP_URL_HOST);
+        $is_local_host = empty($site_host) 
+            || $site_host === 'localhost' 
+            || $site_host === '127.0.0.1' 
+            || $site_host === '::1' 
+            || str_ends_with($site_host, '.local') 
+            || str_ends_with($site_host, '.test') 
+            || str_ends_with($site_host, '.internal')
+            || (filter_var($site_host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false && filter_var($site_host, FILTER_VALIDATE_IP));
 
-        foreach ($host_candidates as $host) {
-            $host = trim((string) $host);
-            if (empty($host)) {
-                continue;
+        // Skip DNS resolution and external IPv6 AAAA record lookups completely on Docker / Localhost
+        if (!$is_docker && !$is_local_host) {
+            // 3. Resolve hostnames via DNS / local resolver for live production environments
+            $host_candidates = [];
+            if (function_exists('gethostname')) {
+                $hostname = @gethostname();
+                if (!empty($hostname)) {
+                    $host_candidates[] = $hostname;
+                }
             }
-            if (filter_var($host, FILTER_VALIDATE_IP)) {
-                $ips[] = $host;
-                continue;
+            $nodename = php_uname('n');
+            if (!empty($nodename)) {
+                $host_candidates[] = $nodename;
+            }
+            if (!empty($_SERVER['SERVER_NAME'])) {
+                $host_candidates[] = sanitize_text_field(wp_unslash($_SERVER['SERVER_NAME']));
+            }
+            if (!empty($_SERVER['HTTP_HOST'])) {
+                $host_candidates[] = preg_replace('/:[0-9]+$/', '', sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])));
+            }
+            if (!empty($site_host)) {
+                $host_candidates[] = $site_host;
             }
 
-            // IPv4 resolution
-            $resolved_ips = @gethostbynamel($host);
-            if (is_array($resolved_ips)) {
-                foreach ($resolved_ips as $r_ip) {
-                    if (filter_var($r_ip, FILTER_VALIDATE_IP)) {
-                        $ips[] = $r_ip;
+            foreach ($host_candidates as $host) {
+                $host = trim((string) $host);
+                if (empty($host) || $host === 'localhost') {
+                    continue;
+                }
+                if (filter_var($host, FILTER_VALIDATE_IP)) {
+                    $ips[] = $host;
+                    continue;
+                }
+
+                // IPv4 resolution
+                $resolved_ips = @gethostbynamel($host);
+                if (is_array($resolved_ips)) {
+                    foreach ($resolved_ips as $r_ip) {
+                        if (filter_var($r_ip, FILTER_VALIDATE_IP)) {
+                            $ips[] = $r_ip;
+                        }
+                    }
+                } else {
+                    $single_resolved = @gethostbyname($host);
+                    if (!empty($single_resolved) && $single_resolved !== $host && filter_var($single_resolved, FILTER_VALIDATE_IP)) {
+                        $ips[] = $single_resolved;
                     }
                 }
-            } else {
-                $single_resolved = @gethostbyname($host);
-                if (!empty($single_resolved) && $single_resolved !== $host && filter_var($single_resolved, FILTER_VALIDATE_IP)) {
-                    $ips[] = $single_resolved;
-                }
-            }
 
-            // IPv6 AAAA resolution
-            if (function_exists('dns_get_record')) {
-                $aaaa_records = @dns_get_record($host, DNS_AAAA);
-                if (!empty($aaaa_records) && is_array($aaaa_records)) {
-                    foreach ($aaaa_records as $rec) {
-                        if (!empty($rec['ipv6']) && filter_var($rec['ipv6'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-                            $ips[] = $rec['ipv6'];
+                // IPv6 AAAA resolution
+                if (function_exists('dns_get_record')) {
+                    $aaaa_records = @dns_get_record($host, DNS_AAAA);
+                    if (!empty($aaaa_records) && is_array($aaaa_records)) {
+                        foreach ($aaaa_records as $rec) {
+                            if (!empty($rec['ipv6']) && filter_var($rec['ipv6'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                                $ips[] = $rec['ipv6'];
+                            }
                         }
                     }
                 }
@@ -297,6 +323,11 @@ class ServerInfo {
         $ips[] = '::1';
 
         $cached_ips = array_values(array_unique(array_filter($ips)));
+
+        if (function_exists('set_transient')) {
+            set_transient($transient_key, $cached_ips, 12 * HOUR_IN_SECONDS);
+        }
+
         return $cached_ips;
     }
 
