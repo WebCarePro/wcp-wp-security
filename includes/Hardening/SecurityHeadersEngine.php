@@ -61,7 +61,8 @@ class SecurityHeadersEngine {
         $settings = SettingsManager::get_settings();
 
         // 1. Strict-Transport-Security (HSTS)
-        if (!empty($settings['header_hsts']) && \WcpScanner\System\ServerInfo::is_ssl_active()) {
+        $is_ssl = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::is_ssl_active() : (is_ssl() || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'));
+        if (!empty($settings['header_hsts']) && $is_ssl) {
             $hsts_val = 'max-age=31536000; includeSubDomains';
             if (!empty($settings['header_hsts_preload'])) {
                 $hsts_val .= '; preload';

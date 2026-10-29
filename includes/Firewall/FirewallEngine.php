@@ -620,8 +620,8 @@ class FirewallEngine {
      * Inspect Incoming Request
      */
     public static function inspect_incoming_request() {
-        // Emergency Override / Failsafe: Bypass all firewall inspection if WCPSCAN_DISABLE_WAF is defined in wp-config.php
-        if (defined('WCPSCAN_DISABLE_WAF') && WCPSCAN_DISABLE_WAF) {
+        // Emergency Override / Failsafe: Bypass all firewall inspection if WCPSCAN_DISABLE_WAF or WCPSCAN_DISABLE_FIREWALL is defined in wp-config.php
+        if ((defined('WCPSCAN_DISABLE_WAF') && WCPSCAN_DISABLE_WAF) || (defined('WCPSCAN_DISABLE_FIREWALL') && WCPSCAN_DISABLE_FIREWALL)) {
             return;
         }
 
@@ -2274,6 +2274,24 @@ class FirewallEngine {
     }
 
     public static function is_ip_whitelisted(string $ip, string $whitelist_str): bool {
+        $ip = trim($ip);
+        if (empty($ip)) {
+            return false;
+        }
+
+        // Emergency wp-config override constant: WCPSCAN_OVERRIDE_WHITELIST_IP
+        if (defined('WCPSCAN_OVERRIDE_WHITELIST_IP')) {
+            $override_ips = is_array(WCPSCAN_OVERRIDE_WHITELIST_IP) ? WCPSCAN_OVERRIDE_WHITELIST_IP : explode(',', (string) WCPSCAN_OVERRIDE_WHITELIST_IP);
+            foreach ($override_ips as $override_ip) {
+                $override_ip = trim($override_ip);
+                if (!empty($override_ip)) {
+                    if ($override_ip === $ip || (strpos($override_ip, '/') !== false && self::ip_in_range($ip, $override_ip))) {
+                        return true;
+                    }
+                }
+            }
+        }
+
         if (empty($whitelist_str)) {
             return false;
         }

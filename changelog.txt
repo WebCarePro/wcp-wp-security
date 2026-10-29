@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Emergency Production Unblock Overrides & Hardening Failsafes (FirewallEngine.php, SecurityHeadersEngine.php):
+  * wp-config.php Whitelist Override (`WCPSCAN_OVERRIDE_WHITELIST_IP`): Added support for `define('WCPSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1');` (or comma-separated string/array of IPs) in `wp-config.php`, guaranteeing instantaneous bypass across all WAF rules and login hardening checks even when database options cannot be reached or are locked.
+  * Universal Firewall Bypass Constants: Harmonized emergency disable constants so that both `define('WCPSCAN_DISABLE_WAF', true);` and `define('WCPSCAN_DISABLE_FIREWALL', true);` completely bypass all packet inspection and custom blocklist checks.
+  * Defensive Class Resolution in SecurityHeadersEngine: Added fallback checks in `SecurityHeadersEngine::send_security_headers()` for `is_ssl()` when resolving HTTPS status, preventing autoloader crashes on production environments with strict file permissions.
 - Server IPv6 Origin Recognition & Cloudflare Edge Whitelist Protocol Alignment (CloudflareService.php, FirewallEngine.php, ServerInfo.php):
   * Cloudflare IP Access Rules API Compliance: Fixed Cloudflare Edge whitelist synchronization error (`invalid mode received: "allow"`) by updating the IP Access Rule mode from `"allow"` to `"whitelist"` in `CloudflareService::whitelist_ip()`, enabling single-click synchronization of IPv4 and IPv6 addresses to Cloudflare Global Edge without API rejection.
   * Server IPv6 Host Origin Recognition: Added `FirewallEngine::is_server_origin_or_loopback()` and updated `ServerInfo::get_server_ip()` with `DNS_AAAA` IPv6 resolution, ensuring the host server's own IPv6 address (e.g. ``) is recognized as a legitimate internal origin.
