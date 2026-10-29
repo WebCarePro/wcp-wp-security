@@ -1,4 +1,12 @@
 v:1.30.0 - 2026-10-30
+- Code Viewer Advanced File Forensics & Multi-Format Copy Suite (ScannerRoutes.php, App.tsx):
+  * Deep Forensic Metadata Inspection: Enriched `ScannerRoutes::view_file_content()` with real-time filesystem stat telemetry, providing Created Time (`ctime`), Last Edited (`mtime`), Last Accessed (`atime`), File Ownership & Group (`owner:group` via POSIX lookup), Permissions (`0644` / `0755`), and accurate MIME Type (`mime_content_type` / `finfo`) displayed prominently across the modal inspection toolbar.
+  * Multi-Format Copy Dropdown: Replaced the basic copy button with a powerful multi-option export menu supporting:
+    - Normal Copy: Pure source code only.
+    - Forensic Text Copy: Complete ASCII audit ledger including file path, SHA-256/MD5 hashes, timestamps (ctime, mtime, atime), ownership, permissions, MIME type, flagged malware threat details, line numbers, and the source code.
+    - Markdown Copy: GitHub Flavored Markdown audit table with formatted property rows and fenced syntax-highlighted code block.
+    - HTML Copy: Standalone, styled, dark-mode ready HTML audit document for external ticket reporting and client presentations.
+    - CSV Style Copy: Comma-separated spreadsheet format for forensic data analysis and compliance archiving.
 - Readme Metadata Refinement (readme.txt):
   * Removed extraneous `Donate link` header from WordPress.org manifest to reflect individual solo freelancer status with zero open donation requests.
 - All Security Modules Mega Menu Visual Polish & Dark Mode High-Contrast Enhancement (MegaMenuModal.tsx, index.css):

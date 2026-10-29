@@ -5599,6 +5599,55 @@ class ScannerRoutes {
         $sha256 = hash_file('sha256', $real_path) ?: '';
         $md5 = md5_file($real_path) ?: '';
 
+        // Forensic filesystem timestamps & stat metadata
+        $stat = @stat($real_path) ?: [];
+        $ctime = isset($stat['ctime']) ? (int) $stat['ctime'] : @filectime($real_path);
+        $mtime = isset($stat['mtime']) ? (int) $stat['mtime'] : @filemtime($real_path);
+        $atime = isset($stat['atime']) ? (int) $stat['atime'] : @fileatime($real_path);
+
+        $owner_uid = isset($stat['uid']) ? (int) $stat['uid'] : (function_exists('fileowner') ? @fileowner($real_path) : null);
+        $group_gid = isset($stat['gid']) ? (int) $stat['gid'] : (function_exists('filegroup') ? @filegroup($real_path) : null);
+
+        $owner_name = null;
+        if ($owner_uid !== null && function_exists('posix_getpwuid')) {
+            $pw = @posix_getpwuid($owner_uid);
+            if (!empty($pw['name'])) {
+                $owner_name = $pw['name'];
+            }
+        }
+        if (!$owner_name && $owner_uid !== null) {
+            $owner_name = (string) $owner_uid;
+        }
+
+        $group_name = null;
+        if ($group_gid !== null && function_exists('posix_getgrgid')) {
+            $gr = @posix_getgrgid($group_gid);
+            if (!empty($gr['name'])) {
+                $group_name = $gr['name'];
+            }
+        }
+        if (!$group_name && $group_gid !== null) {
+            $group_name = (string) $group_gid;
+        }
+
+        $ownership_formatted = ($owner_name && $group_name) ? "{$owner_name}:{$group_name}" : ($owner_name ?: 'unknown');
+
+        // Detected MIME type
+        $mime_type = null;
+        if (function_exists('mime_content_type')) {
+            $mime_type = @mime_content_type($real_path) ?: null;
+        }
+        if (!$mime_type && function_exists('finfo_open')) {
+            $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $mime_type = @finfo_file($finfo, $real_path) ?: null;
+                @finfo_close($finfo);
+            }
+        }
+        if (!$mime_type) {
+            $mime_type = $is_image_ext ? ($image_mimes[$extension] ?? 'image/' . $extension) : 'text/plain';
+        }
+
         return rest_ensure_response([
             'success'          => true,
             'filename'         => basename($real_path),
@@ -5610,6 +5659,16 @@ class ScannerRoutes {
             'size_formatted'   => size_format($file_size, 2),
             'permissions'      => $perms,
             'is_writable'      => wp_is_writable($real_path),
+            'ctime'            => $ctime ? gmdate('Y-m-d H:i:s \U\T\C', $ctime) : 'N/A',
+            'mtime'            => $mtime ? gmdate('Y-m-d H:i:s \U\T\C', $mtime) : 'N/A',
+            'atime'            => $atime ? gmdate('Y-m-d H:i:s \U\T\C', $atime) : 'N/A',
+            'ctime_raw'        => $ctime ?: null,
+            'mtime_raw'        => $mtime ?: null,
+            'atime_raw'        => $atime ?: null,
+            'owner'            => $owner_name ?: 'unknown',
+            'group'            => $group_name ?: 'unknown',
+            'ownership'        => $ownership_formatted,
+            'mime_type'        => $mime_type,
             'line_count'       => $line_count,
             'content'          => $content,
             'is_truncated'     => $is_truncated,
