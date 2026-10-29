@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Targeted Allowlist Preset Rules & Canary Honey-Trap Hardening (TargetedAllowlistManagerCard.tsx, GhostRouteTrap.php):
+  * Removed Localhost IP Restriction: Stripped restrictive `'127.0.0.1'` entries from presets (WooCommerce Subscriptions, MemberPress, LearnDash, Tutor LMS), allowing legitimate external mobile apps, SaaS webhooks, and remote workers to connect to their designated REST endpoints cleanly without being dropped.
+  * Uptime Monitor Signature Alignment: Fixed argument count mismatch in `GhostRouteTrap.php` when delegating to `BotReconDefense::is_genuine_uptime_monitor()`, eliminating fatal errors and safe mode engagements during canary honey-trap probes.
 - Header Controls Overflow & Right-Side Spacing Fix (index.css):
   * Resolved Content-Box Overflow: Explicitly enforced `box-sizing: border-box` across `.wcp-header-tier-top` and `.wcp-header-tier-bottom`, eliminating horizontal padding-induced layout expansion beyond the parent `.header-bar` card.
   * Balanced Card Margin & Padding: Calibrated right-side padding to `24px` matching standard page grid rhythms, giving the action controls (Essential/Advanced toggle, Quick Setup, Panic Button, Theme Toggle) comfortable breathing space away from the right card edge and browser window without touching scrollbars.

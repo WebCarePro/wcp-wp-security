@@ -146,7 +146,7 @@ class GhostRouteTrap {
         $is_genuine_crawler = false;
         if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
             $is_genuine_crawler = BotReconDefense::is_genuine_search_engine($ip, $user_agent)
-                || BotReconDefense::is_genuine_uptime_monitor($ip, $user_agent);
+                || BotReconDefense::is_genuine_uptime_monitor($ip, $user_agent, $settings);
         }
 
         if ($is_genuine_crawler) {
