@@ -170,84 +170,73 @@ class FormSpamProtectionEngine {
      */
     private static function get_inline_armor_script(array $config): string {
         $json = wp_json_encode($config);
-        return <<<JS
-(function(){
-  if (window.__wcpFormArmorActive) return;
-  window.__wcpFormArmorActive = true;
-  var cfg = {$json};
-  var startTime = Date.now();
-  var entropy = 0;
-
-  function countEntropy() { entropy++; }
-  window.addEventListener('mousemove', countEntropy, {passive: true, once: false});
-  window.addEventListener('touchstart', countEntropy, {passive: true, once: false});
-  window.addEventListener('keydown', countEntropy, {passive: true, once: false});
-  window.addEventListener('scroll', countEntropy, {passive: true, once: false});
-
-  function injectArmor(form) {
-    if (form.getAttribute('data-wcp-armored')) return;
-    form.setAttribute('data-wcp-armored', '1');
-
-    // 1. Dynamic Polymorphic Honeypot (Accessible, off-screen, invisible to humans)
-    var hpWrap = document.createElement('div');
-    hpWrap.style.cssText = 'position:absolute!important;left:-9999px!important;top:-9999px!important;opacity:0!important;height:0!important;width:0!important;overflow:hidden!important;pointer-events:none!important;';
-    hpWrap.setAttribute('aria-hidden', 'true');
-    hpWrap.setAttribute('tabindex', '-1');
-
-    var hpInput = document.createElement('input');
-    hpInput.type = 'text';
-    hpInput.name = cfg.hpName;
-    hpInput.value = '';
-    hpInput.autocomplete = 'off';
-    hpInput.tabIndex = -1;
-    hpWrap.appendChild(hpInput);
-    form.appendChild(hpWrap);
-
-    // 2. Cryptographic Time-Gate & Entropy Field
-    var tokenInput = document.createElement('input');
-    tokenInput.type = 'hidden';
-    tokenInput.name = 'wcp_time_gate';
-    tokenInput.value = cfg.token;
-    form.appendChild(tokenInput);
-
-    var entropyInput = document.createElement('input');
-    entropyInput.type = 'hidden';
-    entropyInput.name = 'wcp_human_telemetry';
-    form.appendChild(entropyInput);
-
-    form.addEventListener('submit', function() {
-      var isWebDriver = navigator.webdriver === true || !!window.callPhantom || !!window._phantom || !!window.__nightmare;
-      var clientTimeDelta = Math.floor((Date.now() - startTime) / 1000);
-      var payload = {
-        webdriver: isWebDriver,
-        entropy: entropy,
-        delta: clientTimeDelta,
-        screen: [window.screen.width, window.screen.height].join('x')
-      };
-      try {
-        entropyInput.value = btoa(JSON.stringify(payload));
-      } catch(e) {
-        entropyInput.value = 'fallback';
-      }
-    });
-  }
-
-  function scanForms() {
-    var forms = document.querySelectorAll('form');
-    for (var i = 0; i < forms.length; i++) {
-      injectArmor(forms[i]);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scanForms);
-  } else {
-    scanForms();
-  }
-  // Re-scan periodically for dynamically loaded modal forms (Elementor popups, AJAX forms)
-  setInterval(scanForms, 2500);
-})();
-JS;
+        $lines = [
+            '(function(){',
+            '  if (window.__wcpFormArmorActive) return;',
+            '  window.__wcpFormArmorActive = true;',
+            '  var cfg = ' . $json . ';',
+            '  var startTime = Date.now();',
+            '  var entropy = 0;',
+            '  function countEntropy() { entropy++; }',
+            '  window.addEventListener("mousemove", countEntropy, {passive: true});',
+            '  window.addEventListener("touchstart", countEntropy, {passive: true});',
+            '  window.addEventListener("keydown", countEntropy, {passive: true});',
+            '  window.addEventListener("scroll", countEntropy, {passive: true});',
+            '  function injectArmor(form) {',
+            '    if (form.getAttribute("data-wcp-armored")) return;',
+            '    form.setAttribute("data-wcp-armored", "1");',
+            '    var hpWrap = document.createElement("div");',
+            '    hpWrap.style.cssText = "position:absolute!important;left:-9999px!important;top:-9999px!important;opacity:0!important;height:0!important;width:0!important;overflow:hidden!important;pointer-events:none!important;";',
+            '    hpWrap.setAttribute("aria-hidden", "true");',
+            '    hpWrap.setAttribute("tabindex", "-1");',
+            '    var hpInput = document.createElement("input");',
+            '    hpInput.type = "text";',
+            '    hpInput.name = cfg.hpName;',
+            '    hpInput.value = "";',
+            '    hpInput.autocomplete = "off";',
+            '    hpInput.tabIndex = -1;',
+            '    hpWrap.appendChild(hpInput);',
+            '    form.appendChild(hpWrap);',
+            '    var tokenInput = document.createElement("input");',
+            '    tokenInput.type = "hidden";',
+            '    tokenInput.name = "wcp_time_gate";',
+            '    tokenInput.value = cfg.token;',
+            '    form.appendChild(tokenInput);',
+            '    var entropyInput = document.createElement("input");',
+            '    entropyInput.type = "hidden";',
+            '    entropyInput.name = "wcp_human_telemetry";',
+            '    form.appendChild(entropyInput);',
+            '    form.addEventListener("submit", function() {',
+            '      var isWebDriver = navigator.webdriver === true || !!window.callPhantom || !!window._phantom || !!window.__nightmare;',
+            '      var clientTimeDelta = Math.floor((Date.now() - startTime) / 1000);',
+            '      var payload = {',
+            '        webdriver: isWebDriver,',
+            '        entropy: entropy,',
+            '        delta: clientTimeDelta,',
+            '        screen: [window.screen.width, window.screen.height].join("x")',
+            '      };',
+            '      try {',
+            '        entropyInput.value = btoa(JSON.stringify(payload));',
+            '      } catch(e) {',
+            '        entropyInput.value = "fallback";',
+            '      }',
+            '    });',
+            '  }',
+            '  function scanForms() {',
+            '    var forms = document.querySelectorAll("form");',
+            '    for (var i = 0; i < forms.length; i++) {',
+            '      injectArmor(forms[i]);',
+            '    }',
+            '  }',
+            '  if (document.readyState === "loading") {',
+            '    document.addEventListener("DOMContentLoaded", scanForms);',
+            '  } else {',
+            '    scanForms();',
+            '  }',
+            '  setInterval(scanForms, 2500);',
+            '})();'
+        ];
+        return implode("\n", $lines);
     }
 
     /**
