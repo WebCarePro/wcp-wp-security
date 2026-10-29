@@ -1523,12 +1523,41 @@ class CloudflareService {
             ];
         }
 
+        $settings = SettingsManager::get_settings();
+        $zone_id  = $data['zone_id'] ?? ($settings['cloudflare_zone_id'] ?? '');
+
         return [
             'success'      => true,
             'events'       => $data['events'] ?? [],
             'total_stored' => count($data['events'] ?? []),
             'last_synced'  => $data['last_synced'] ?? null,
             'zone_name'    => $data['zone_name'] ?? '',
+            'zone_id'      => $zone_id,
+        ];
+    }
+
+    /**
+     * Clear all stored Cloudflare Edge Security Events from WCP Vault JSON file.
+     *
+     * @return array
+     */
+    public static function clear_stored_firewall_events(): array {
+        $file = self::get_vault_events_filepath();
+
+        if (file_exists($file)) {
+            if (function_exists('wp_delete_file')) {
+                wp_delete_file($file);
+            } else {
+                @unlink($file);
+            }
+        }
+
+        return [
+            'success'      => true,
+            'message'      => __('All stored Cloudflare edge security events have been cleared from local JSON vault.', 'wcp-security-scanner'),
+            'total_stored' => 0,
+            'events'       => [],
+            'last_synced'  => null,
         ];
     }
 

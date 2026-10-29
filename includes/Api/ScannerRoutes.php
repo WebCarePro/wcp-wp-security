@@ -978,6 +978,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/cloudflare/clear-firewall-events', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'clear_cloudflare_firewall_events'],
+            'permission_callback' => $permission,
+        ]);
+
         // 13. Whitelist & False-Positive Tuning Routes
         register_rest_route(self::NAMESPACE, '/whitelist/rules', [
             'methods'             => 'GET',
@@ -8076,6 +8082,14 @@ class ScannerRoutes {
         $limit  = isset($params['limit']) ? intval($params['limit']) : 100;
 
         $result = \WcpScanner\Cloudflare\CloudflareService::fetch_and_store_firewall_events($limit);
+        return rest_ensure_response($result);
+    }
+
+    public static function clear_cloudflare_firewall_events(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $result = \WcpScanner\Cloudflare\CloudflareService::clear_stored_firewall_events();
         return rest_ensure_response($result);
     }
 
