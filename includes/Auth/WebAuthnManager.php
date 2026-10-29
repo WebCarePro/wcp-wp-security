@@ -220,8 +220,8 @@ class WebAuthnManager {
 
         NotificationDispatcher::trigger('auth_passkey_registered', [
             'title'   => __('FIDO2 / WebAuthn Biometric Passkey Enrolled', 'wcp-security-scanner'),
-            /* translators: 1%$s: device name, 2%$s: user login or ID */
-            'message' => sprintf(__('Biometric passkey (%1) enrolled for user "%2$s".', 'wcp-security-scanner'), $device_name, $user ? $user->user_login : 'ID #' . $user_id),
+            /* translators: 1: device name, 2: user login or ID */
+            'message' => sprintf(__('Biometric passkey (%1$s) enrolled for user "%2$s".', 'wcp-security-scanner'), $device_name, $user ? $user->user_login : 'ID #' . $user_id),
             'details' => [
                 'triggered_by' => $user ? $user->user_login : 'ID #' . $user_id,
                 'device_name'  => $device_name,
