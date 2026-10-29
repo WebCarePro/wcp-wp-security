@@ -619,17 +619,20 @@ class FirewallEngine {
      * Inspect Incoming Request
      */
     public static function inspect_incoming_request() {
-        // Skip CLI and background WordPress cron tasks
+        // Skip CLI execution
         if (php_sapi_name() === 'cli' || (defined('WP_CLI') && WP_CLI)) {
             return;
         }
-        if (defined('DOING_CRON') && DOING_CRON) {
-            return;
-        }
 
-        // Record real-time visitor traffic pulse (15s rolling transient) for scanner governor
-        // Only count actual public frontend visitor hits (exclude admin-ajax, REST API, admin panel, CLI, and static assets)
         $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+
+        // If DOING_CRON is defined, only skip if this is NOT an external HTTP trigger to wp-cron.php
+        if (defined('DOING_CRON') && DOING_CRON) {
+            $clean_cron_check = strtolower(wp_parse_url($req_uri, PHP_URL_PATH) ?: $req_uri);
+            if (strpos($clean_cron_check, 'wp-cron.php') === false) {
+                return;
+            }
+        }
         $is_rest = (defined('REST_REQUEST') && REST_REQUEST) || strpos($req_uri, '/wp-json/') !== false || strpos($req_uri, '?rest_route=') !== false;
         $is_ajax = (defined('DOING_AJAX') && DOING_AJAX) || strpos($req_uri, 'admin-ajax.php') !== false;
         $is_admin_area = is_admin() || strpos($req_uri, '/wp-admin/') !== false;
