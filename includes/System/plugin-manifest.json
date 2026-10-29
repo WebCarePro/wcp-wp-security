@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T07:57:06.541Z",
+  "generated_at": "2026-10-29T08:19:21.790Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 529390
     },
     "build/index.asset.php": {
-      "sha256": "3bb32b9b082152b5724d8125167199b8ec428f5b0949b1f95871182f36c1e9a4",
+      "sha256": "0602cda20513a8f39738b21aecf91ceee8f38f998d0688bf3bcc6aab5d442109",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 529249
     },
     "build/index.js": {
-      "sha256": "5aedd0fd3d1069b3cfc7752bccc857d23f8ad0232415a264e4d13ae28a486350",
-      "size": 1950144
+      "sha256": "5bf93c124eb35489918891f18862c584fa909c84f1752476fa9bfcfddf39d3de",
+      "size": 1950683
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -168,8 +168,8 @@
       "size": 1065
     },
     "includes/Filesystem/FileScanner.php": {
-      "sha256": "978ff0888c9825e5b8af23d9cb6f504c576bf64ebfe823648099ae1a013ddda4",
-      "size": 12162
+      "sha256": "61b4b5ca1219b2bba4d681f2042796518c72479ffb9103cf6e7cc0f1b1d2feea",
+      "size": 12684
     },
     "includes/Filesystem/PathValidator.php": {
       "sha256": "b77801e16544379d105c5e2ddd3366dde30fcd8c01e63ba83439462336598cef",
@@ -208,8 +208,8 @@
       "size": 3060
     },
     "includes/Findings/WhitelistManager.php": {
-      "sha256": "cd6d44277f5356af193292790eacb1272bffa97c5c00453980cc005e55599c16",
-      "size": 14703
+      "sha256": "f1558b31330bcea1c758e6e275d3bcf6221c11cea08dc30c02569fb65cf9ac4d",
+      "size": 24574
     },
     "includes/Firewall/AdaptiveRateLimiter.php": {
       "sha256": "03b857eba315e35f12bc130a248eecb40f7dab2ff77dcc8d43bef3329f1e7aa2",
@@ -316,8 +316,8 @@
       "size": 20668
     },
     "includes/Integrity/ChecksumProvider.php": {
-      "sha256": "4b84290bff4cb8281d622fc91c22c83b1617a47a9bec5b86b577fb94e7f828e0",
-      "size": 35807
+      "sha256": "43b14960618da46b56d4f573603748c0f8166d7eb19dd01b6d55b4f22afc7897",
+      "size": 36101
     },
     "includes/Integrity/CoreIntegrity.php": {
       "sha256": "6650cc96372b57105b0855142172b78348949cd72478d7dd11cb2608df6d490f",

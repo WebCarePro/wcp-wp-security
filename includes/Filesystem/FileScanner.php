@@ -49,6 +49,14 @@ class FileScanner {
             return $findings;
         }
 
+        // Uploads Cryptographic Hash Whitelist Check (0 database queries via local JSON registry):
+        // If file resides in wp-content/uploads/ and matches an authentic verified file hash, skip heuristics and threat scans.
+        if (strpos($norm_path, '/wp-content/uploads/') !== false) {
+            if (class_exists('\\WcpScanner\\Findings\\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::is_uploads_hash_whitelisted($file_path)) {
+                return $findings;
+            }
+        }
+
         $metadata = new FileMetadata($file_path);
 
         // 1. Permission check

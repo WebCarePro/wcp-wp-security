@@ -20,6 +20,205 @@ class WhitelistManager {
     const OPTION_KEY = 'wcpscan_whitelist_rules';
 
     /**
+     * In-memory cache for uploads whitelisted hashes to guarantee 0 database query hits in scanning loops.
+     * @var array|null
+     */
+    private static $uploads_hashes_memory = null;
+
+    /**
+     * Absolute filesystem path to the verified file hash JSON registry.
+     * Stored under /wp-content/uploads/wcp-security-scanner/verified-file-hash/uploads-whitelisted-hashes.json
+     *
+     * @return string
+     */
+    public static function get_uploads_hash_registry_path(): string {
+        $upload_dir = function_exists('wp_upload_dir') ? wp_upload_dir() : ['basedir' => WP_CONTENT_DIR . '/uploads'];
+        $base = rtrim($upload_dir['basedir'], '/\\') . '/wcp-security-scanner/verified-file-hash';
+        return $base . '/uploads-whitelisted-hashes.json';
+    }
+
+    /**
+     * Ensure the verified-file-hash storage directory exists and is strictly protected with .htaccess & index.php.
+     *
+     * @return string Directory path
+     */
+    public static function ensure_hash_registry_dir(): string {
+        $upload_dir = function_exists('wp_upload_dir') ? wp_upload_dir() : ['basedir' => WP_CONTENT_DIR . '/uploads'];
+        $dir = rtrim($upload_dir['basedir'], '/\\') . '/wcp-security-scanner/verified-file-hash';
+
+        if (!file_exists($dir)) {
+            @wp_mkdir_p($dir);
+        }
+
+        // Protective .htaccess: web access completely forbidden
+        $htaccess = $dir . '/.htaccess';
+        if (!file_exists($htaccess)) {
+            $rules = "Order Deny,Allow
+Deny from all
+<IfModule mod_authz_core.c>
+Require all denied
+</IfModule>
+";
+            @file_put_contents($htaccess, $rules);
+        }
+
+        // Silent index.php
+        $index = $dir . '/index.php';
+        if (!file_exists($index)) {
+            @file_put_contents($index, "<?php
+// Silence is golden.
+");
+        }
+
+        return $dir;
+    }
+
+    /**
+     * Retrieve all verified uploads hashes from the local JSON registry with 0 database queries.
+     *
+     * @return array<string, array> Keyed by SHA-256 hash
+     */
+    public static function get_uploads_whitelisted_hashes(): array {
+        if (self::$uploads_hashes_memory !== null && is_array(self::$uploads_hashes_memory)) {
+            return self::$uploads_hashes_memory;
+        }
+
+        $json_file = self::get_uploads_hash_registry_path();
+        if (!file_exists($json_file) || !is_readable($json_file)) {
+            self::$uploads_hashes_memory = [];
+            return self::$uploads_hashes_memory;
+        }
+
+        $raw = @file_get_contents($json_file);
+        if (empty($raw)) {
+            self::$uploads_hashes_memory = [];
+            return self::$uploads_hashes_memory;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            self::$uploads_hashes_memory = [];
+            return self::$uploads_hashes_memory;
+        }
+
+        self::$uploads_hashes_memory = $decoded;
+        return self::$uploads_hashes_memory;
+    }
+
+    /**
+     * Add a file's cryptographic hash into the verified uploads hash JSON registry.
+     *
+     * @param string $file_path Absolute or relative file path
+     * @param string $reason Administrative explanation
+     * @param string $author User login
+     * @return array Result array with status and hash info
+     */
+    public static function add_uploads_whitelisted_hash(string $file_path, string $reason = '', string $author = ''): array {
+        $abs = self::resolve_file_path($file_path);
+        if (!$abs || !file_exists($abs) || !is_file($abs)) {
+            return ['success' => false, 'message' => __('Physical file not found on disk.', 'wcp-security-scanner')];
+        }
+
+        $sha256 = hash_file('sha256', $abs);
+        $md5 = md5_file($abs);
+        $filesize = @filesize($abs) ?: 0;
+        $basename = basename($abs);
+
+        self::ensure_hash_registry_dir();
+        $json_file = self::get_uploads_hash_registry_path();
+
+        $registry = self::get_uploads_whitelisted_hashes();
+
+        $registry[$sha256] = [
+            'filename'    => $basename,
+            'source_path' => wp_normalize_path($abs),
+            'filesize'    => $filesize,
+            'sha256'      => $sha256,
+            'md5'         => $md5,
+            'created_by'  => !empty($author) ? $author : 'admin',
+            'created_at'  => current_time('mysql'),
+            'scope'       => 'uploads_only',
+            'reason'      => !empty($reason) ? $reason : __('Verified safe customization / Suppressed by site owner', 'wcp-security-scanner'),
+        ];
+
+        // Also index normalized line-ending LF hash if different (CRLF vs LF safety)
+        $content = @file_get_contents($abs);
+        if ($content !== false && strpos($content, "
+") !== false) {
+            $lf_sha256 = hash('sha256', str_replace("
+", "
+", $content));
+            if ($lf_sha256 && $lf_sha256 !== $sha256) {
+                $registry[$lf_sha256] = $registry[$sha256];
+                $registry[$lf_sha256]['sha256'] = $lf_sha256;
+                $registry[$lf_sha256]['normalized_lf'] = true;
+            }
+        }
+
+        // Save atomically with lock
+        @file_put_contents($json_file, json_encode($registry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+
+        // Update in-memory static cache
+        self::$uploads_hashes_memory = $registry;
+
+        return [
+            'success'  => true,
+            'sha256'   => $sha256,
+            'md5'      => $md5,
+            'registry' => $registry[$sha256],
+        ];
+    }
+
+    /**
+     * Checks if a given file located inside wp-content/uploads/ matches an active verified hash in the JSON registry.
+     * Executes in 0 database queries via in-memory O(1) dictionary lookup.
+     *
+     * @param string $file_path Absolute path to the file
+     * @param string|null $current_sha256 Optional pre-calculated SHA-256 hash
+     * @return bool True if file is inside uploads and its hash matches the verified JSON registry
+     */
+    public static function is_uploads_hash_whitelisted(string $file_path, ?string $current_sha256 = null): bool {
+        $norm_path = str_replace('\\', '/', $file_path);
+
+        // Strictly restricted to files inside wp-content/uploads/
+        if (strpos($norm_path, '/wp-content/uploads/') === false) {
+            return false;
+        }
+
+        $registry = self::get_uploads_whitelisted_hashes();
+        if (empty($registry)) {
+            return false;
+        }
+
+        if (!empty($current_sha256)) {
+            return isset($registry[$current_sha256]);
+        }
+
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            return false;
+        }
+
+        $sha256 = hash_file('sha256', $file_path);
+        if ($sha256 && isset($registry[$sha256])) {
+            return true;
+        }
+
+        // Test normalized LF hash
+        $content = @file_get_contents($file_path, false, null, 0, 5242880);
+        if ($content !== false && strpos($content, "
+") !== false) {
+            $lf_sha256 = hash('sha256', str_replace("
+", "
+", $content));
+            if (isset($registry[$lf_sha256])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Retrieve all whitelist rules.
      *
      * @param bool $active_only
@@ -162,7 +361,50 @@ class WhitelistManager {
         array_unshift($filtered, $new_rule);
         update_option(self::OPTION_KEY, $filtered, false);
 
-        // Update issue status in database if issue_id was provided
+        // Uploads Global Hash Registry & Automatic Cascade Neutralization:
+        // If file resides in wp-content/uploads/, store its cryptographic hash in verified-file-hash/uploads-whitelisted-hashes.json
+        // and instantly cascade-resolve all other open findings in the database matching this exact file across all upload folders!
+        $norm_target = str_replace('\\', '/', $target_path);
+        $cascade_resolved_count = 0;
+        if (strpos($norm_target, '/wp-content/uploads/') !== false) {
+            self::add_uploads_whitelisted_hash($target_path, $reason, $author);
+
+            global $wpdb;
+            $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            $target_basename = basename($target_path);
+
+            // Cascade update in database: Find all open findings in uploads with the exact same basename or file path
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $open_matches = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT id, file_path FROM {$table} WHERE status = 'open' AND file_path LIKE %s",
+                    '%' . $wpdb->esc_like($target_basename) . '%'
+                ),
+                ARRAY_A
+            );
+
+            if (!empty($open_matches)) {
+                $ids_to_resolve = [];
+                foreach ($open_matches as $open_issue) {
+                    $issue_path = $open_issue['file_path'] ?? '';
+                    if (strpos(str_replace('\\', '/', $issue_path), '/wp-content/uploads/') !== false) {
+                        // Check if file on disk matches whitelisted uploads hash
+                        if (self::is_uploads_hash_whitelisted($issue_path)) {
+                            $ids_to_resolve[] = (int) $open_issue['id'];
+                        }
+                    }
+                }
+
+                if (!empty($ids_to_resolve)) {
+                    $id_list = implode(',', $ids_to_resolve);
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    $wpdb->query("UPDATE {$table} SET status = 'ignored' WHERE id IN ({$id_list})");
+                    $cascade_resolved_count = count($ids_to_resolve);
+                }
+            }
+        }
+
+        // Update specific issue status in database if issue_id was provided
         if (!empty($data['issue_id'])) {
             global $wpdb;
             $table = $wpdb->prefix . 'wcpscan_scan_issues';
@@ -176,7 +418,11 @@ class WhitelistManager {
 
         return [
             'success' => true,
-            'message' => __('Finding successfully whitelisted.', 'wcp-security-scanner'),
+            'message' => $cascade_resolved_count > 1 
+                /* translators: %d: number of resolved files */
+                ? sprintf(__('Finding and %d identical files across uploads safely whitelisted.', 'wcp-security-scanner'), $cascade_resolved_count)
+                : __('Finding successfully whitelisted.', 'wcp-security-scanner'),
+            'cascade_resolved_count' => $cascade_resolved_count,
             'rule'    => $new_rule,
         ];
     }

@@ -494,6 +494,11 @@ class ChecksumProvider {
             return false;
         }
 
+        // 1. Check custom uploads verified file hash JSON registry (uploads-whitelisted-hashes.json)
+        if (class_exists('\WcpScanner\Findings\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::is_uploads_hash_whitelisted($file_path)) {
+            return true;
+        }
+
         // Fast hash verification (O(1) dictionary lookup)
         $sha256 = hash_file('sha256', $file_path);
         $whitelisted_hashes = self::get_whitelisted_vendor_hashes();
