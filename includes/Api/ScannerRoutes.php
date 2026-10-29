@@ -387,6 +387,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/firewall/logs/unblock-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'unblock_firewall_ip'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/blocklist', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_blocklist'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/firewall/logs/whitelist-ip', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'add_firewall_whitelisted_ip'],
@@ -6229,6 +6241,32 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => $added,
             'message' => $added ? sprintf('IP %s added to custom WAF blocklist.', $ip) : 'Failed to add IP.',
+        ]);
+    }
+
+    public static function unblock_firewall_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field(trim($params['ip'] ?? ''));
+        if (empty($ip)) {
+            return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
+        }
+
+        $unblocked = \WcpScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
+        return rest_ensure_response([
+            'success' => $unblocked,
+            /* translators: %s: unblocked IP address */
+            'message' => sprintf(__('IP %s has been unblocked. Standard WAF protection remains active.', 'wcp-security-scanner'), $ip),
+        ]);
+    }
+
+    public static function get_firewall_blocklist(\WP_REST_Request $request) {
+        $locked_ips = \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips();
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        return rest_ensure_response([
+            'success'          => true,
+            'locked_ips'       => $locked_ips,
+            'total_locked'     => count($locked_ips),
+            'waf_blocked_ips'  => $settings['waf_blocked_ips'] ?? '',
         ]);
     }
 

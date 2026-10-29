@@ -11,6 +11,7 @@ class FirewallEngine {
     private static $real_ip = null;
     private static $connecting_peer_ip = null;
     private static $detected_environment = null;
+    private static $last_incident_id = null;
 
     /**
      * Bootstrap the Firewall
@@ -2554,6 +2555,7 @@ class FirewallEngine {
         if (empty($incident_id)) {
             $incident_id = 'WCP-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
         }
+        self::$last_incident_id = $incident_id;
 
         // Determine HTTP Status Code
         $status_code = 403;
@@ -2655,7 +2657,7 @@ class FirewallEngine {
         }
 
         if (empty($incident_id)) {
-            $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
+            $incident_id = self::$last_incident_id ?: ('WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8)));
         }
         $site_name   = get_bloginfo('name');
         $rule_cat    = esc_html($rule['category'] ?? 'Security Shield');
@@ -3262,6 +3264,99 @@ class FirewallEngine {
             SettingsManager::save_settings($settings);
         }
         return true;
+    }
+
+    /**
+     * Remove an IP or CIDR subnet from custom blocklist and clear any active temporary lockouts.
+     * Restores normal visitor access with full WAF inspection protection active.
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function remove_blocked_ip(string $ip): bool {
+        $ip = trim($ip);
+        if (empty($ip)) {
+            return false;
+        }
+
+        // 1. Remove from settings waf_blocked_ips
+        $settings = SettingsManager::get_settings();
+        $current = trim($settings['waf_blocked_ips'] ?? '');
+        $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $current))));
+        $changed = false;
+
+        $new_lines = [];
+        foreach ($lines as $line) {
+            if ($line === $ip || strpos($line, $ip) !== false) {
+                $changed = true;
+                continue;
+            }
+            $new_lines[] = $line;
+        }
+
+        if ($changed) {
+            $settings['waf_blocked_ips'] = implode("\n", $new_lines);
+            SettingsManager::save_settings($settings);
+        }
+
+        // 2. Unlock from Login Hardening if locked
+        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
+            \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
+        }
+
+        // 3. Clear any active 404 lockout transients
+        delete_transient('wcpscan_404_lock_' . md5($ip));
+        delete_transient('wcpscan_404_cnt_' . md5($ip));
+
+        return true;
+    }
+
+    /**
+     * Retrieve aggregated list of all currently locked or custom-blocked IPs across engines.
+     *
+     * @return array
+     */
+    public static function get_all_locked_ips(): array {
+        $results = [];
+        $settings = SettingsManager::get_settings();
+
+        // 1. Custom WAF Blocklisted IPs
+        $blocked_raw = trim($settings['waf_blocked_ips'] ?? '');
+        if (!empty($blocked_raw)) {
+            $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $blocked_raw))));
+            foreach ($lines as $ip) {
+                $results[] = [
+                    'ip'         => $ip,
+                    'type'       => 'custom_blocklist',
+                    'badge'      => 'Custom Blocklist',
+                    'reason'     => 'Permanently blocked by administrator policy',
+                    'blocked_at' => null,
+                    'expires_at' => 'Permanent',
+                    'is_expired' => false,
+                ];
+            }
+        }
+
+        // 2. Brute-Force Login Hardening Lockouts
+        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
+            $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
+            $now = time();
+            foreach ($lockouts as $ip => $data) {
+                $expires_ts = $data['expires_at'] ?? 0;
+                $rem_mins = max(1, (int) ceil(($expires_ts - $now) / 60));
+                $results[] = [
+                    'ip'         => $ip,
+                    'type'       => 'login_bruteforce',
+                    'badge'      => 'Login Hardening',
+                    'reason'     => sprintf('Failed %d password attempts (user: %s)', $data['attempts'] ?? 0, $data['username'] ?? 'unknown'),
+                    'blocked_at' => $data['blocked_at'] ?? null,
+                    'expires_at' => "Expires in {$rem_mins}m",
+                    'is_expired' => ($expires_ts <= $now),
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**

@@ -1,4 +1,10 @@
 v:1.29.0 - 2026-10-29
+- Central Blocklist & IP Unblock Architecture (FirewallEngine.php, ScannerRoutes.php, FirewallPage.tsx, WafLogsPage.tsx):
+  * Dedicated Blocked IPs & Subnets Card: Added the missing "Blocked IP Addresses & Subnets" management card to the Firewall Rules tab with single-rule save button (`waf_blocked_ips`), allowing administrators to enter and update custom blocked IPs/subnets directly from the admin panel.
+  * 1-Click Central Lockout Manager Modal: Added an "Active Lockouts" viewer and management modal aggregating all custom blocked IPs and brute-force login lockouts with their expiration status and reason.
+  * Granular IP Unblock vs Whitelist Separation: Replaced dangerous global "Allow" (whitelist) actions with dedicated "Unblock" controls for blocked IPs in both the WAF Incident Logs table and the new Lockout Manager. Unblocking safely removes an IP from blocklists and resets brute-force counters, restoring normal visitor access while keeping all 35+ WAF firewall rules fully active.
+  * Incident ID Matching Fix: Harmonized incident IDs between disk logging (`log_incident`) and HTTP 403 block screens (`render_block_page`) so that the exact incident ID displayed to blocked visitors matches the WAF incident log record 1:1.
+  * Production Self-Lockout Safety & Emergency Guidance: Verified emergency recovery mechanisms via `define('WCPSCAN_DISABLE_FIREWALL', true);` and CLI/database recovery commands.
 - Universal Smart Form Armor & Anti-Bot Defense Engine (FormSpamProtectionEngine.php, FirewallPage.tsx, SettingsManager.php):
   * Comprehensive Multi-Ecosystem Form Defense: Built and deployed dedicated anti-spam hooks for Elementor Pro Forms, Contact Form 7, WPForms, Fluent Forms, Gravity Forms, Formidable Forms, Ninja Forms, WooCommerce Reviews/Registration, and native WordPress comments.
   * Headless & Autonomous Browser Intercept: Inspects `navigator.webdriver` execution markers and human pointer/touch/scroll entropy proof to stop Selenium, Puppeteer, and script-driven browser bots.
