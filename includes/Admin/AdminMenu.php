@@ -16,6 +16,7 @@ class AdminMenu {
         add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
         add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
         add_action('wp_ajax_wcpscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
+        add_action('wp_ajax_wcpscan_dismiss_quarantined_notice', [__CLASS__, 'ajax_dismiss_quarantined_notice']);
     }
 
     /**
@@ -554,10 +555,17 @@ class AdminMenu {
             '_wpnonce'       => $nonce,
         ], admin_url('users.php'));
 
+        $dismiss_url = add_query_arg([
+            'wcpscan_action' => 'dismiss_all_users',
+            '_wpnonce'       => $nonce,
+        ], admin_url('users.php'));
+
         $names = array_map(fn($u) => '<code style="background: #e2e8f0; font-weight: 700;">' . esc_html($u['user_login']) . '</code>', $missing_users);
         $names_str = implode(', ', $names);
 
-        echo '<div class="notice notice-warning is-dismissible" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
+        $ajax_dismiss_nonce = wp_create_nonce('wcpscan_dismiss_quarantined_notice_nonce');
+
+        echo '<div id="wcpscan-quarantined-users-notice" class="notice notice-warning is-dismissible" data-nonce="' . esc_attr($ajax_dismiss_nonce) . '" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">';
         echo '<div style="font-size: 13px; color: #14532d;">';
         echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
@@ -571,15 +579,46 @@ class AdminMenu {
             ['code' => ['style' => []]]
         );
         echo '</div>';
+        echo '<div style="display: flex; align-items: center; gap: 8px;">';
         echo '<a href="' . esc_url($restore_url) . '" class="button button-primary" style="background: #16a34a; border-color: #15803d; font-weight: 700; padding: 2px 14px; box-shadow: 0 2px 4px rgba(22,163,74,0.2);">';
         echo esc_html__('1-Click Restore All Admin Accounts', 'wcp-security-scanner');
         echo '</a>';
+        echo '<a href="' . esc_url($dismiss_url) . '" class="button" style="color: #475569; font-weight: 600; padding: 2px 12px;" title="' . esc_attr__('Acknowledge intentional removal and permanently silence this alert', 'wcp-security-scanner') . '">';
+        echo esc_html__('Dismiss Notice', 'wcp-security-scanner');
+        echo '</a>';
         echo '</div>';
         echo '</div>';
+        echo '</div>';
+
+        // AJAX script to permanently persist dismissal when clicking native WP notice "X" close button
+        ?>
+        <script>
+        (function() {
+            var notice = document.getElementById('wcpscan-quarantined-users-notice');
+            if (!notice) return;
+            notice.addEventListener('click', function(e) {
+                var btn = e.target.closest('.notice-dismiss');
+                if (!btn) return;
+                var nonce = notice.getAttribute('data-nonce');
+                if (!nonce || typeof ajaxurl === 'undefined') return;
+
+                var data = new URLSearchParams();
+                data.append('action', 'wcpscan_dismiss_quarantined_notice');
+                data.append('nonce', nonce);
+
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    body: data,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                }).catch(function() {});
+            });
+        })();
+        </script>
+        <?php
     }
 
     /**
-     * Process 1-click restore request initiated from the WordPress admin notice.
+     * Process 1-click restore or dismiss request initiated from the WordPress admin notice.
      */
     public static function handle_user_recovery_action() {
         if (!current_user_can('manage_options')) {
@@ -596,6 +635,33 @@ class AdminMenu {
             wp_safe_redirect(add_query_arg(['wcpscan_restored' => $count], admin_url('users.php')));
             exit;
         }
+
+        if (isset($_GET['wcpscan_action']) && $_GET['wcpscan_action'] === 'dismiss_all_users') {
+            check_admin_referer('wcpscan_restore_users_action');
+
+            $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+            $mgr->dismiss_all_missing_backups();
+
+            $redirect_url = remove_query_arg(['wcpscan_action', '_wpnonce']);
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+    }
+
+    /**
+     * Handle AJAX persistent dismissal when clicking native notice close button.
+     */
+    public static function ajax_dismiss_quarantined_notice() {
+        check_ajax_referer('wcpscan_dismiss_quarantined_notice_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Unauthorized permission.', 'wcp-security-scanner')], 403);
+        }
+
+        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $dismissed = $mgr->dismiss_all_missing_backups();
+
+        wp_send_json_success(['dismissed_count' => $dismissed]);
     }
 
     /**

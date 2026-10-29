@@ -39,6 +39,10 @@ class Plugin {
         AdminMenu::register();
         \WcpScanner\System\Scheduler::register();
         
+        if (class_exists('\\WcpScanner\\WordPress\\UserRemediationManager')) {
+            \WcpScanner\WordPress\UserRemediationManager::init();
+        }
+
         $audit_logger = new \WcpScanner\System\AuditLogger();
         $audit_logger->init();
 

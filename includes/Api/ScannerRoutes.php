@@ -669,6 +669,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/users/backups/dismiss', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'dismiss_user_backup'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/users/backups/delete', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'delete_user_backup'],
+            'permission_callback' => $permission,
+        ]);
+
         // Cloud Threat Intelligence & Community Blacklist Endpoints
         register_rest_route(self::NAMESPACE, '/threat-intel/status', [
             'methods'             => 'GET',
@@ -7100,6 +7112,64 @@ class ScannerRoutes {
 
         if (empty($result['success'])) {
             return new \WP_Error('restore_failed', $result['error'] ?? __('Failed to restore user account.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Dismiss / Acknowledge user backup snapshot(s) so they no longer prompt restoration alerts.
+     */
+    public static function dismiss_user_backup(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: $request->get_params();
+        $backup_file = !empty($params['backup_file']) ? sanitize_text_field($params['backup_file']) : '';
+        $user_login = !empty($params['user_login']) ? sanitize_text_field($params['user_login']) : '';
+        $user_id = !empty($params['user_id']) ? (int) $params['user_id'] : 0;
+        $dismiss_all = !empty($params['all']);
+
+        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+
+        if ($dismiss_all) {
+            $count = $mgr->dismiss_all_missing_backups();
+            return rest_ensure_response([
+                'success' => true,
+                /* translators: %d: count */
+                'message' => sprintf(__('Dismissed %d missing user backup notifications.', 'wcp-security-scanner'), $count),
+            ]);
+        }
+
+        if (!empty($backup_file)) {
+            $mgr->dismiss_user_backup($backup_file);
+        }
+        if (!empty($user_login)) {
+            $mgr->dismiss_user_backup($user_login);
+        }
+        if ($user_id > 0) {
+            $mgr->dismiss_user_backups_for_id($user_id);
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('User backup alert dismissed successfully.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    /**
+     * Permanently delete a user backup snapshot file from disk.
+     */
+    public static function delete_user_backup(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: $request->get_params();
+        $backup_file = !empty($params['backup_file']) ? sanitize_text_field($params['backup_file']) : '';
+
+        if (empty($backup_file)) {
+            return new \WP_Error('missing_param', __('Specify backup_file to delete.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $result = $mgr->delete_backup_file($backup_file);
+
+        if (empty($result['success'])) {
+            return new \WP_Error('delete_failed', $result['error'] ?? __('Failed to delete user backup file.', 'wcp-security-scanner'), ['status' => 500]);
         }
 
         return rest_ensure_response($result);

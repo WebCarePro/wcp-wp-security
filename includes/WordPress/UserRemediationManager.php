@@ -22,11 +22,34 @@ class UserRemediationManager {
 
     private $backup_dir;
 
+    const DISMISSED_BACKUPS_OPTION = 'wcpscan_dismissed_user_backups';
+
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
         $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
         $this->ensure_backup_directory();
+    }
+
+    /**
+     * Initialize WordPress core hook listeners (e.g. automatic dismissal on manual user deletion).
+     */
+    public static function init() {
+        // When a user is normally deleted via wp-admin/users.php or wp_delete_user
+        add_action('deleted_user', [__CLASS__, 'on_wordpress_deleted_user'], 10, 3);
+    }
+
+    /**
+     * Automatically mark any existing backup snapshots for a deleted user as dismissed,
+     * so intentional user deletions in WordPress do not trigger the "missing admin restore" notification.
+     *
+     * @param int $user_id Deleted user ID.
+     * @param int|null $reassign ID of user to whom post/links were reassigned.
+     * @param \WP_User|false $user WP_User object before deletion (if available).
+     */
+    public static function on_wordpress_deleted_user($user_id, $reassign = null, $user = null) {
+        $instance = new self();
+        $instance->dismiss_user_backups_for_id((int) $user_id);
     }
 
     /**
@@ -541,13 +564,146 @@ class UserRemediationManager {
     }
 
     /**
-     * Get all user backup snapshots whose accounts are missing from the WordPress database.
+     * Get all dismissed user backup references (filenames or logins).
      *
      * @return array
      */
-    public function get_missing_user_backups(): array {
+    public function get_dismissed_user_backups(): array {
+        $dismissed = get_option(self::DISMISSED_BACKUPS_OPTION, []);
+        return is_array($dismissed) ? $dismissed : [];
+    }
+
+    /**
+     * Mark a user backup snapshot or username as dismissed/acknowledged.
+     *
+     * @param string $identifier Backup filename (e.g. user_7_....json) or user_login
+     * @return bool
+     */
+    public function dismiss_user_backup(string $identifier): bool {
+        $identifier = sanitize_text_field(trim($identifier));
+        if (empty($identifier)) {
+            return false;
+        }
+
+        $dismissed = $this->get_dismissed_user_backups();
+        if (!in_array($identifier, $dismissed, true)) {
+            $dismissed[] = $identifier;
+            update_option(self::DISMISSED_BACKUPS_OPTION, array_values(array_unique($dismissed)), false);
+        }
+        return true;
+    }
+
+    /**
+     * Dismiss all backup snapshots associated with a specific user ID.
+     *
+     * @param int $user_id
+     * @return int Count of snapshots dismissed
+     */
+    public function dismiss_user_backups_for_id(int $user_id): int {
+        if ($user_id <= 0) {
+            return 0;
+        }
+
         $backups = $this->list_user_backups();
-        return array_values(array_filter($backups, fn($b) => empty($b['is_in_db'])));
+        $dismissed_count = 0;
+        foreach ($backups as $b) {
+            if ((int) ($b['user_id'] ?? 0) === $user_id) {
+                if (!empty($b['backup_file'])) {
+                    $this->dismiss_user_backup($b['backup_file']);
+                    $dismissed_count++;
+                }
+                if (!empty($b['user_login'])) {
+                    $this->dismiss_user_backup($b['user_login']);
+                }
+            }
+        }
+        return $dismissed_count;
+    }
+
+    /**
+     * Dismiss all currently missing user backups in bulk.
+     *
+     * @return int Count of snapshots dismissed
+     */
+    public function dismiss_all_missing_backups(): int {
+        $missing = $this->get_missing_user_backups(false); // get without dismissed filter
+        $dismissed_count = 0;
+        foreach ($missing as $b) {
+            if (!empty($b['backup_file'])) {
+                $this->dismiss_user_backup($b['backup_file']);
+                $dismissed_count++;
+            }
+            if (!empty($b['user_login'])) {
+                $this->dismiss_user_backup($b['user_login']);
+            }
+        }
+        return $dismissed_count;
+    }
+
+    /**
+     * Permanently delete a user backup snapshot file from disk.
+     *
+     * @param string $backup_file Filename (e.g. user_7_20261029_...json)
+     * @return array
+     */
+    public function delete_backup_file(string $backup_file): array {
+        $filename = basename(sanitize_file_name($backup_file));
+        if (empty($filename) || strpos($filename, 'user_') !== 0 || substr($filename, -5) !== '.json') {
+            return ['success' => false, 'error' => __('Invalid backup file name.', 'wcp-security-scanner')];
+        }
+
+        $backups = $this->list_user_backups();
+        $target = null;
+        foreach ($backups as $b) {
+            if ($b['backup_file'] === $filename) {
+                $target = $b;
+                break;
+            }
+        }
+
+        if (!$target || empty($target['filepath']) || !file_exists($target['filepath'])) {
+            return ['success' => false, 'error' => __('Backup snapshot file not found on disk.', 'wcp-security-scanner')];
+        }
+
+        $deleted = wp_delete_file($target['filepath']);
+        if (!$deleted && file_exists($target['filepath'])) {
+            // phpcs:ignore WordPress.WP.AlternativeFileSystem.Unlink
+            @unlink($target['filepath']);
+        }
+
+        // Also clean up from dismissed registry if present
+        $dismissed = $this->get_dismissed_user_backups();
+        $updated = array_diff($dismissed, [$filename]);
+        update_option(self::DISMISSED_BACKUPS_OPTION, array_values($updated), false);
+
+        return [
+            'success' => true,
+            /* translators: %s: backup file name */
+            'message' => sprintf(__('Permanently deleted backup snapshot %s.', 'wcp-security-scanner'), $filename),
+        ];
+    }
+
+    /**
+     * Get all user backup snapshots whose accounts are missing from the WordPress database.
+     *
+     * @param bool $exclude_dismissed Whether to exclude acknowledged/dismissed snapshots (default: true).
+     * @return array
+     */
+    public function get_missing_user_backups(bool $exclude_dismissed = true): array {
+        $backups = $this->list_user_backups();
+        $dismissed = $exclude_dismissed ? $this->get_dismissed_user_backups() : [];
+
+        return array_values(array_filter($backups, function ($b) use ($dismissed, $exclude_dismissed) {
+            if (!empty($b['is_in_db'])) {
+                return false;
+            }
+            if ($exclude_dismissed && !empty($dismissed)) {
+                if (in_array($b['backup_file'], $dismissed, true) || in_array($b['user_login'], $dismissed, true)) {
+                    return false;
+                }
+            }
+            return true;
+        }));
     }
 
     /**
