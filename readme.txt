@@ -194,6 +194,14 @@ This plugin can optionally connect to the following external third-party service
 * Terms of Service: https://github.com/stamparm/ipsum/blob/master/README.md
 * Privacy Policy: https://github.com/stamparm/ipsum
 
+16. GitHub Content Delivery (Official WordPress Core Fallback & Integrity Attestation)
+* Service: GitHub, Inc. / Microsoft Corporation (https://raw.githubusercontent.com).
+* Purpose: Retrieves authentic, unmodified WordPress core release sources as an authoritative fallback when SVN is unavailable during administrator-initiated core remediation, and checks plugin self-defense integrity attestation.
+* Data Sent: None (outbound GET request to fetch public WordPress core release files).
+* When: Triggered only when an administrator explicitly initiates core file remediation or integrity checks.
+* Terms of Service: https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
+* Privacy Policy: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement
+
 == Source Code & Build ==
 
 This plugin is open-source under GPLv2 or later. Non-minified React and JavaScript source files are included directly in the `src/` directory.
