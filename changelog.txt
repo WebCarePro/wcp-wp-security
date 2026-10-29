@@ -1,8 +1,9 @@
-v:1.29.0 - 2026-10-29
+v:1.30.0 - 2026-10-30
 - All Security Modules Mega Menu Visual Polish & Dark Mode High-Contrast Enhancement (MegaMenuModal.tsx, index.css):
   * Dynamic Dark Mode Adaptation: Integrated high-contrast dark theme tokens (`#0f172a` canvas, `#1e293b` card hover, `#334155` scrollbar thumbs) ensuring module cards, category containers, and search bars render with crisp contrast and zero washed-out white artifacts in Dark Mode.
   * Category Pillar Color System & Developer Tags: Assigned distinct chromatic identity to each security pillar block (Sky for Scanner, Red for Firewall, Purple for Behavioral WAF, Amber for Supply Chain, Emerald for Identity, Cyan for Vault, Indigo for Forensics) with vibrant developer badges (AI, MCP, WAF, LOGS, Cloudflare, 0-DAY, RED TEAM, TRAPS, CVE INTEL).
   * Filter Bar Smooth Horizontal Scrollbar: Added `.wcp-mega-filter-bar` with dedicated thin scrollbars in both Light Mode (`#cbd5e1`) and Dark Mode (`#334155`) so all category filter pills can be reached across any screen width.
+  * High-Contrast Menu Pills & Modules Badge: Brightened inactive category filter pills with `#1e293b` surface, crisp `#f8fafc` text, and luminous border highlights, paired with an illuminated "68 Modules Available" header badge.
 - Cloudflare Edge Logs Vault Clean & Security Events Retention Transparency (CloudflareService.php, ScannerRoutes.php, WafLogsPage.tsx):
   * Local JSON Vault Clean Control: Added `CloudflareService::clear_stored_firewall_events()` and REST route `POST /cloudflare/clear-firewall-events` with a dedicated "Clean Local JSON Logs" action button and in-app confirmation popover in the Cloudflare Edge Block Events toolbar, allowing administrators to completely purge the cached `cloudflare-edge-events.json` file from disk anytime.
   * 1,000 Recent Logs Retention Transparency Note: Added an explanatory notice banner explaining that only the 1,000 most recent Cloudflare edge logs are retained in the local zero-overhead JSON vault to protect disk resources, paired with a direct deep-link to the zone's Cloudflare Security Events dashboard (`dash.cloudflare.com/?to=/:account/:zone/security/events`) to view full historical telemetry.
@@ -15,6 +16,8 @@ v:1.29.0 - 2026-10-29
   * Automatic Deletion Lifecycle Hook (`deleted_user`): Connected `UserRemediationManager::on_wordpress_deleted_user` to WordPress core's native `deleted_user` action hook. When an administrator intentionally deletes a user account via `wp-admin/users.php` or `wp_delete_user()`, any corresponding backup snapshots are automatically marked as acknowledged and dismissed in `wcpscan_dismissed_user_backups`, preventing unwanted "Quarantined administrator account available in safety backups" notice prompts.
   * Native Admin Notice Dismissal & AJAX Persistence: Added a secondary "Dismiss Notice" action link and hooked the native `.is-dismissible` close button ("X") via asynchronous AJAX (`wp_ajax_wcpscan_dismiss_quarantined_notice`) so dismissing the banner persists across page refreshes and all wp-admin screens.
   * REST API Endpoints & In-App Vault Controls: Introduced `/users/backups/dismiss` and `/users/backups/delete` endpoints with full permission checks. Added interactive in-app popovers (`InlineConfirmPopover`) inside the Quarantine & Vault transactions tab to dismiss single or bulk recovery alerts or permanently delete safety snapshots from disk.
+
+v:1.29.0 - 2026-10-29
 - WordPress.org Official Plugin Directory Compliance & Review Hardening:
   * Complete Removal of Remote Access / Temporary Support Access: Deleted `TemporarySupportAccess.php`, frontend UI (`TemporarySupportAccessCard.tsx`), and REST endpoints to strictly conform with WordPress.org guidelines prohibiting unauthorized remote administration tools.
   * Disconnect GitHub Plugin Updater: Completely removed `PluginUpdater.php` and updater REST endpoints so all plugin releases and updates are handled exclusively by WordPress.org.

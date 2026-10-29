@@ -1,5 +1,5 @@
 {
-  "version": "1.29.0",
+  "version": "1.30.0",
   "requires_wp": "7.0",
   "requires_php": "8.3",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip",
@@ -10,9 +10,14 @@
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
-    "changelog": "v:1.29.0 - 2026-10-29:\n- Wordfence WAF & Authentic Security Tool Preload Verification, Open Redirect Internal Host Normalization, Client-Side JS Drift Verified Providers, and Full-Detail Supply-Chain SBOM Export."
+    "changelog": "v:1.30.0 - 2026-10-30:\n- All Security Modules Command Center Mega Menu Dark Mode Contrast, Unique Tab & Subtab Deep-Linking, Quarantined Administrator Notice Dismissal Lifecycle, and Local Cloudflare JSON Logs Purge Control."
   },
   "previous_versions": [
+    {
+      "version": "1.29.0",
+      "released_at": "2026-10-29",
+      "summary": "Wordfence WAF & Authentic Security Tool Preload Verification, Open Redirect Internal Host Normalization, Client-Side JS Drift Verified Providers, and Full-Detail Supply-Chain SBOM Export."
+    },
     {
       "version": "1.28.0",
       "released_at": "2026-10-28",
