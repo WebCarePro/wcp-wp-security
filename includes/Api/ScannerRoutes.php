@@ -966,6 +966,19 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/cloudflare/whitelisted-ips', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_cloudflare_whitelisted_ips'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/cloudflare/remove-whitelisted-ip', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remove_cloudflare_whitelisted_ip'],
+            'permission_callback' => $permission,
+        ]);
+
+
         register_rest_route(self::NAMESPACE, '/cloudflare/disconnect', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'disconnect_cloudflare'],
@@ -7977,6 +7990,31 @@ class ScannerRoutes {
         $settings = \WcpScanner\Settings\SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
         $result = \WcpScanner\Cloudflare\CloudflareService::inspect_edge_rules($zone_id);
+        return rest_ensure_response($result);
+    }
+
+    public static function get_cloudflare_whitelisted_ips(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $page     = max(1, (int) $request->get_param('page'));
+        $per_page = max(1, min(100, (int) ($request->get_param('per_page') ?: 50)));
+
+        $result = \WcpScanner\Cloudflare\CloudflareService::get_whitelisted_ips($page, $per_page);
+        return rest_ensure_response($result);
+    }
+
+    public static function remove_cloudflare_whitelisted_ip(\WP_REST_Request $request) {
+        if (!self::ensure_cloudflare_service()) {
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params  = $request->get_json_params() ?: [];
+        $rule_id = sanitize_text_field($params['rule_id'] ?? '');
+
+        $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
+        if (!empty($result['success'])) {
+            $result['message'] = __('Whitelisted IP rule successfully removed from Cloudflare Edge.', 'wcp-security-scanner');
+        }
         return rest_ensure_response($result);
     }
 

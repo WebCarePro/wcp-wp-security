@@ -1313,6 +1313,67 @@ class CloudflareService {
     }
 
     /**
+     * Retrieve whitelisted IP rules from Cloudflare Edge (mode: whitelist)
+     *
+     * @param int $page
+     * @param int $per_page
+     * @return array
+     */
+    public static function get_whitelisted_ips(int $page = 1, int $per_page = 50): array {
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
+            return [
+                'success' => false,
+                'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner'),
+                'rules'   => [],
+                'total'   => 0,
+            ];
+        }
+
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?mode=whitelist&page={$page}&per_page={$per_page}");
+
+        if (!empty($res['success']) && isset($res['result'])) {
+            $rules = [];
+            foreach ($res['result'] as $rule) {
+                $raw_notes = $rule['notes'] ?? '';
+                $clean_notes = trim(str_replace(self::WCP_RULE_TAG, '', $raw_notes));
+                if (empty($clean_notes)) {
+                    $clean_notes = __('Administrator / Developer Whitelist', 'wcp-security-scanner');
+                }
+
+                $rules[] = [
+                    'id'          => $rule['id'] ?? '',
+                    'ip'          => $rule['configuration']['value'] ?? '',
+                    'target'      => $rule['configuration']['target'] ?? 'ip',
+                    'mode'        => $rule['mode'] ?? 'whitelist',
+                    'notes'       => $clean_notes,
+                    'created_on'  => $rule['created_on'] ?? '',
+                    'modified_on' => $rule['modified_on'] ?? '',
+                ];
+            }
+
+            return [
+                'success'     => true,
+                'rules'       => $rules,
+                'total'       => (int) ($res['result_info']['total_count'] ?? count($rules)),
+                'page'        => $page,
+                'per_page'    => $per_page,
+                'total_pages' => (int) ($res['result_info']['total_pages'] ?? 1),
+            ];
+        }
+
+        $err = $res['errors'][0]['message'] ?? __('Failed to fetch whitelisted IP rules from Cloudflare.', 'wcp-security-scanner');
+        return [
+            'success' => false,
+            'message' => $err,
+            'rules'   => [],
+            'total'   => 0,
+        ];
+    }
+
+    /**
      * Remove / unblock an IP rule at Cloudflare Edge
      *
      * @param string $rule_id Cloudflare rule ID

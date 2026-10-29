@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Cloudflare Edge Whitelisted IPs Inspection & Removal Manager (CloudflareService.php, ScannerRoutes.php, FirewallPage.tsx):
+  * Dedicated Cloudflare Whitelist Viewer Modal: Added "View Cloudflare Whitelisted IPs" action alongside the Edge Sync button in the Whitelisted IP Addresses card, querying all active `mode: whitelist` IP Access Rules deployed on the Cloudflare Zone via the v4 REST API.
+  * 1-Click Edge Whitelist Removal: Implemented instant deletion and unblock controls for individual Cloudflare whitelist rules directly from the admin panel, with real-time list filtering by IP, CIDR subnet, or description.
+  * Edge Whitelist Endpoints: Registered REST API endpoints `/wcp-scanner/v1/cloudflare/whitelisted-ips` (GET) and `/wcp-scanner/v1/cloudflare/remove-whitelisted-ip` (POST) to inspect and delete rules from Cloudflare Edge safely.
 - Emergency Production Unblock Overrides & Hardening Failsafes (FirewallEngine.php, SecurityHeadersEngine.php):
   * wp-config.php Whitelist Override (`WCPSCAN_OVERRIDE_WHITELIST_IP`): Added support for `define('WCPSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1');` (or comma-separated string/array of IPs) in `wp-config.php`, guaranteeing instantaneous bypass across all WAF rules and login hardening checks even when database options cannot be reached or are locked.
   * Universal Firewall Bypass Constants: Harmonized emergency disable constants so that both `define('WCPSCAN_DISABLE_WAF', true);` and `define('WCPSCAN_DISABLE_FIREWALL', true);` completely bypass all packet inspection and custom blocklist checks.
