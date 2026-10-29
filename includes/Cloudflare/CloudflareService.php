@@ -713,7 +713,7 @@ class CloudflareService {
         }
 
         $err = $res['errors'][0]['message'] ?? __('Failed to whitelist IP at Cloudflare Edge.', 'wcp-security-scanner');
-        if (stripos($err, 'already exists') !== false) {
+        if (stripos($err, 'already exists') !== false || stripos($err, 'duplicate_of_existing') !== false) {
             return [
                 'success' => true,
                 // translators: %s: IP address

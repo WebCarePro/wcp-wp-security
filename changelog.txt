@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Cloudflare Whitelist Modal Icon & Edge Sync Duplicate Resolution (FirewallPage.tsx, CloudflareService.php):
+  * Missing CheckCircle Import Resolution: Fixed runtime `ReferenceError: CheckCircle is not defined` when opening the "View Cloudflare Whitelisted IPs" modal by importing `CheckCircle` from `lucide-react`.
+  * Cloudflare Idempotency & Duplicate Graceful Handling: Updated `CloudflareService::whitelist_ip()` to recognize Cloudflare error code `firewallaccessrules.api.duplicate_of_existing` as a successful sync rather than an error, preventing false alerts when re-syncing already whitelisted IPs to Cloudflare Edge.
 - Zero-Trust Tiered IP Whitelist & 100% WAF Telemetry Guarantee (FirewallEngine.php, SettingsManager.php, LoginHardening.php, WafFileLogger.php, FirewallPage.tsx, WafLogsPage.tsx):
   * Eliminating Silent Whitelist Telemetry Loss: Eliminated the legacy unconditional early return in `FirewallEngine::inspect_incoming_request()`. When a whitelisted IP matches an inspection rule or threshold, an audit record is now explicitly preserved in WAF Incident Logs with status `BYPASSED (WHITELIST)`, ensuring complete forensic visibility.
   * Two-Tier State-Aware Whitelist Security Model:
