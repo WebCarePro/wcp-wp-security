@@ -292,6 +292,13 @@ class SessionSentinel {
             $asn_drift = (!empty($recorded_asn) && !empty($current_asn) && $recorded_asn !== $current_asn);
             $ua_mismatch = (!empty($decoded['user_agent']) && !empty($current_ua) && $decoded['user_agent'] !== substr($current_ua, 0, 255));
 
+            // Record IP change / network shift in forensic directory if IP shifted
+            if (!empty($ip) && $ip !== $current_login_ip && !\WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip) && $ip !== '127.0.0.1' && $ip !== '::1') {
+                if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
+                    \WcpScanner\Auth\LoginHistoryManager::record_session_ip_shift($user_id, $ip, $current_token);
+                }
+            }
+
             if ((!empty($settings['session_lock_ip']) && !$is_ip_valid) || ($asn_drift && $ua_mismatch)) {
                 // Invalidate hijacked session
                 self::terminate_session($user_id, $current_token, 'Session Hijacking / ASN Drift Detected');

@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T03:39:24.725Z",
+  "generated_at": "2026-10-29T05:33:47.408Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 529390
     },
     "build/index.asset.php": {
-      "sha256": "24ba0506afcac16305e37451dc14e9d0f06f16fa22ebffd1e28fabdd51ebe20b",
+      "sha256": "cb5f4d6b3083e7e85553c3076db59ca88ac11cc154a2265041fc2c37f58453e1",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 529249
     },
     "build/index.js": {
-      "sha256": "3bfc3e2c5760eb317c8fe9c40782b5cdaded6f4c25ab97e3b0a666994154ff03",
-      "size": 1936683
+      "sha256": "dd3b59f6e73bfa8af8e196be983ac465cd74af77d34757e23751a74159b81686",
+      "size": 1937024
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -76,16 +76,16 @@
       "size": 12281
     },
     "includes/Auth/LoginHistoryManager.php": {
-      "sha256": "e69d1b1b68b2d777e94599694eaa4102c9934d35e9aec73f934e7c474617c5e7",
-      "size": 24573
+      "sha256": "fd5e53cd5b59c4fbc77764a6f8715ba82a3b6d1e8f1701b42fb5552db4f20a1f",
+      "size": 31422
     },
     "includes/Auth/QRCodeGenerator.php": {
       "sha256": "827b00efb51a59a0501d314dc6ecd037dd327726d1e5c348021a2cec64a31c16",
       "size": 13108
     },
     "includes/Auth/SessionSentinel.php": {
-      "sha256": "7773c0aa1b45f1e0a4474b428a0037757e089c745aa5302a3caa193b9cfbf318",
-      "size": 49625
+      "sha256": "b1227cb1ebfcb9786a0fcb5708d06cbb4ab8f4d6dc3a019cdda1f14c7dde3153",
+      "size": 50098
     },
     "includes/Auth/TwoFactorAuth.php": {
       "sha256": "ca7df9f4530ce3ef0c1bd13849ac137a3a196431dfa47ed1292c7965fa2e9052",

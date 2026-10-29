@@ -219,6 +219,95 @@ class LoginHistoryManager {
     }
 
     /**
+     * Record dynamic network IP change / shift during an active authenticated session.
+     * When an administrator moves across Wi-Fi networks, cellular hot-spots, or VPNs,
+     * this creates a discrete forensics record and adds the new IP to the IP Directory.
+     *
+     * @param int    $user_id
+     * @param string $new_ip
+     * @param string $session_token
+     * @return bool
+     */
+    public static function record_session_ip_shift(int $user_id, string $new_ip, string $session_token): bool {
+        if ($user_id <= 0 || empty($new_ip) || empty($session_token)) {
+            return false;
+        }
+
+        // Failsafe: Ignore loopback or empty IPs
+        if ($new_ip === '127.0.0.1' || $new_ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($new_ip)) {
+            return false;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE_NAME;
+
+        $token_hash = substr(hash('sha256', $session_token), 0, 64);
+
+        // Fetch latest session history record for this user and token
+        $query = "SELECT * FROM `{$table}` WHERE user_id = %d AND session_token = %s ORDER BY id DESC LIMIT 1";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $row = $wpdb->get_row(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($query, $user_id, $token_hash)
+        );
+
+        // If the latest record already has this IP, throttle and do not duplicate
+        if ($row) {
+            $decrypted_raw = SecretVault::decrypt($row->encrypted_data);
+            $data = is_string($decrypted_raw) ? (json_decode($decrypted_raw, true) ?: []) : [];
+            if (!empty($data['ip']) && $data['ip'] === $new_ip) {
+                return false;
+            }
+        }
+
+        // Parse user agent and client telemetry
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+        $parsed = self::parse_device_details($ua, '');
+
+        $auth_method = 'Network Shift (Active Session)';
+
+        $telemetry = [
+            'ip'                => $new_ip,
+            'user_agent'        => $ua,
+            'browser'           => $parsed['browser'],
+            'browser_version'   => $parsed['browser_version'],
+            'platform'          => $parsed['platform'],
+            'device_type'       => $parsed['device_type'],
+            'screen_resolution' => $parsed['screen_resolution'],
+            'viewport'          => $parsed['viewport'],
+            'timezone'          => 'UTC',
+            'auth_method'       => $auth_method,
+        ];
+
+        // Encrypt with AES-256-GCM before storage
+        $encrypted_data = SecretVault::encrypt((string) wp_json_encode($telemetry));
+
+        $now = current_time('mysql');
+        $now_gmt = gmdate('Y-m-d H:i:s');
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $inserted = $wpdb->insert(
+            $table,
+            [
+                'user_id'        => $user_id,
+                'session_token'  => $token_hash,
+                'login_time'     => $now,
+                'login_time_gmt' => $now_gmt,
+                'last_seen'      => $now,
+                'last_seen_gmt'  => $now_gmt,
+                'encrypted_data' => $encrypted_data,
+                'created_at'     => $now,
+                'created_at_gmt' => $now_gmt,
+            ],
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+        );
+
+        self::prune_old_logins($user_id);
+
+        return (bool) $inserted;
+    }
+
+    /**
      * Mark session logged out
      */
     public static function on_user_logout() {
@@ -318,9 +407,24 @@ class LoginHistoryManager {
         $wp_sessions = $manager->get_all();
         $current_token = wp_get_session_token();
 
+        // Retrieve current active sessions metadata to check for active tokens
+        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+
         $history = [];
         $total_active_seconds = 0;
         $latest_login_time = null;
+
+        // Build quick lookup of active session token hashes
+        $active_token_hashes = [];
+        if (!empty($wp_sessions) && is_array($wp_sessions)) {
+            $now_ts = time();
+            foreach ($wp_sessions as $verifier_key => $s_entry) {
+                if (isset($s_entry['expiration']) && (int) $s_entry['expiration'] <= $now_ts) {
+                    continue;
+                }
+                $active_token_hashes[$verifier_key] = true;
+            }
+        }
 
         foreach ($rows as $idx => $row) {
             $decrypted_raw = SecretVault::decrypt($row->encrypted_data);
@@ -332,9 +436,11 @@ class LoginHistoryManager {
 
             // Check if this record corresponds to an active WP session
             $is_active = false;
-            if (empty($logout_ts)) {
-                // If it's the latest session and last_seen is within reasonable activity window
-                if ($idx === 0 && !empty($wp_sessions)) {
+            if (empty($logout_ts) && !empty($wp_sessions)) {
+                $row_token = (string) $row->session_token;
+                if (!empty($row_token) && isset($active_token_hashes[$row_token])) {
+                    $is_active = true;
+                } elseif ($idx === 0) {
                     $is_active = true;
                 }
             }
@@ -416,6 +522,43 @@ class LoginHistoryManager {
                 if ($total_active_seconds === 0) {
                     $total_active_seconds = $dur;
                     $latest_login_time = date_i18n('Y-m-d H:i:s', $s_login);
+                }
+            }
+        }
+
+        // If an active session is currently accessing from a dynamic shifted IP that hasn't yet been
+        // committed to disk, ensure the active connection IP is represented in history so the IP Directory reflects it.
+        if (!empty($wp_sessions) && !empty($history)) {
+            $active_req_ip = FirewallEngine::get_client_ip();
+            if (!empty($active_req_ip) && $active_req_ip !== '127.0.0.1' && $active_req_ip !== '::1' && !FirewallEngine::is_cloudflare_ip($active_req_ip)) {
+                $known_ips = array_column($history, 'ip');
+                if (!in_array($active_req_ip, $known_ips, true)) {
+                    // Check if current user is the user whose history is being inspected
+                    $current_uid = get_current_user_id();
+                    if ($current_uid === $user_id) {
+                        $cur_ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+                        $parsed_cur = self::parse_device_details($cur_ua, '');
+                        array_unshift($history, [
+                            'id'                 => 0,
+                            'login_time'         => current_time('mysql'),
+                            'login_time_human'   => __('Active connection', 'wcp-security-scanner'),
+                            'logout_time'        => null,
+                            'last_seen'          => current_time('mysql'),
+                            'duration_seconds'   => 1,
+                            'duration_formatted' => 'Active now',
+                            'is_active'          => true,
+                            'ip'                 => $active_req_ip,
+                            'browser'            => $parsed_cur['browser'],
+                            'browser_version'    => $parsed_cur['browser_version'],
+                            'platform'           => $parsed_cur['platform'],
+                            'device_type'        => $parsed_cur['device_type'],
+                            'screen_resolution'  => $parsed_cur['screen_resolution'],
+                            'viewport'           => $parsed_cur['viewport'],
+                            'timezone'           => 'UTC',
+                            'user_agent'         => $cur_ua,
+                            'auth_method'        => 'Network Shift (Active Session)',
+                        ]);
+                    }
                 }
             }
         }

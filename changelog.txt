@@ -1,4 +1,10 @@
 v:1.29.0 - 2026-10-29
+- Dynamic Session IP Tracking & Forensic IP Address Directory (LoginHistoryManager.php, SessionSentinel.php, UserSessionForensicsModal.tsx):
+  * Dynamic In-Session IP Shift Recording: Implemented `LoginHistoryManager::record_session_ip_shift()` to actively detect whenever an authenticated administrator's network shifts (e.g. Wi-Fi to cellular hotspot, VPN toggle) during an ongoing active session.
+  * Encrypted Telemetry & Database Persistence: Every newly detected IP address is encrypted with AES-256-GCM AEAD and stored in `wcpscan_login_history` under the active session token, maintaining zero-plaintext security in MySQL.
+  * Complete IP Address Directory Aggregation: All distinct IP addresses connected to an account are automatically counted and displayed in the "IP Address Directory" tab and the "Unique IPs & Shifts" KPI card in the User Session Forensics modal, complete with connection counts and active session flags.
+  * Real-Time Active Connection Ingestion: Updated `get_user_history()` to dynamically inject the active connection IP if a network shift has occurred, ensuring instantaneous directory and timeline reflection.
+  * Visual Shift Indicators: Added distinct amber "Network Shift" badges and indicators in the session timeline forensics view.
 - Central Blocklist & IP Unblock Architecture (FirewallEngine.php, ScannerRoutes.php, FirewallPage.tsx, WafLogsPage.tsx):
   * Dedicated Blocked IPs & Subnets Card: Added the missing "Blocked IP Addresses & Subnets" management card to the Firewall Rules tab with single-rule save button (`waf_blocked_ips`), allowing administrators to enter and update custom blocked IPs/subnets directly from the admin panel.
   * 1-Click Central Lockout Manager Modal: Added an "Active Lockouts" viewer and management modal aggregating all custom blocked IPs and brute-force login lockouts with their expiration status and reason.
