@@ -2,6 +2,7 @@
 namespace WcpScanner\SupplyChain;
 
 use WcpScanner\System\AuditLogger;
+use WcpScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;

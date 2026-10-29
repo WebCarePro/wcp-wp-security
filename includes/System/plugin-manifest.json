@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T09:54:25.149Z",
+  "generated_at": "2026-10-29T09:58:43.782Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -92,8 +92,8 @@
       "size": 48687
     },
     "includes/Auth/WebAuthnManager.php": {
-      "sha256": "14ed23609477ae12a7fceefef2fbd568f837230fb368647c098188887165aae8",
-      "size": 28724
+      "sha256": "3de89ae25b603223a98924ad1762ab417d4cd87cfe992492d201e68daf82f03d",
+      "size": 28777
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "7752ff1d57c8f981c80561c1b556f61c5412b07aa1f52ad1d6cb5bf4fd0f9c78",
@@ -304,8 +304,8 @@
       "size": 20506
     },
     "includes/Identity/TemporarySupportAccess.php": {
-      "sha256": "0a3648bbf8411c3042720d95edbbe1be7b0157a3975e2dd955562c3c24612487",
-      "size": 24388
+      "sha256": "a19eb9136ec88ec0c058c6ff2c6482cfe5e2568931899f4b235d08aaa362b40b",
+      "size": 24441
     },
     "includes/Identity/WcpJitMuGuardian.php": {
       "sha256": "fa0fc2980bc16082b337c5ca5d105e6ff897898cf8a81f5e5545813680f8bc16",
@@ -488,8 +488,8 @@
       "size": 31617
     },
     "includes/SupplyChain/UpdateGatekeeperEngine.php": {
-      "sha256": "89c5cc054c0f4edf981d9bcb7ab218addb2342a7d94020c326de0b42eefaf985",
-      "size": 19125
+      "sha256": "e7af81eee54e97b0d29d18f3c8eeffe6b2f7cf4f8c2bb9b5d328b9423cc00f2f",
+      "size": 19178
     },
     "includes/System/AIService.php": {
       "sha256": "7618ca81afc785ec666fc885664b5ba17acef4de747518d6a1a76d464f8aa0f3",

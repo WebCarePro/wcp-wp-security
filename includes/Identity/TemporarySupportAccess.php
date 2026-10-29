@@ -14,6 +14,7 @@ namespace WcpScanner\Identity;
 
 use WcpScanner\System\AuditLogger;
 use WcpScanner\Firewall\FirewallEngine;
+use WcpScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;

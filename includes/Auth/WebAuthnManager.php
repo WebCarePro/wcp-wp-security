@@ -13,6 +13,7 @@
 namespace WcpScanner\Auth;
 
 use WcpScanner\System\AuditLogger;
+use WcpScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
