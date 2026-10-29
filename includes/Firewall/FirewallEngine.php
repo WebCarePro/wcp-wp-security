@@ -3231,7 +3231,12 @@ class FirewallEngine {
             return false;
         }
 
-        // Safety Guard: Refuse to add current administrator's active IP or whitelisted IP to custom blocklist
+        // Safety Guard 1: Never block local loopback, Docker bridge subnets, or private RFC1918 gateway IPs
+        if (in_array($ip, ['127.0.0.1', '::1'], true) || strpos($ip, '172.17.') === 0 || strpos($ip, '172.18.') === 0) {
+            return false;
+        }
+
+        // Safety Guard 2: Refuse to add current administrator's active IP or whitelisted IP to custom blocklist
         $current_client_ip = self::get_client_ip();
         if ($ip === $current_client_ip && self::is_authenticated_administrator()) {
             return false;

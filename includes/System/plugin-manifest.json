@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T02:33:48.897Z",
+  "generated_at": "2026-10-29T02:43:02.909Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -228,8 +228,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "fe8d815845fe54caeec248aeb546d10ac22ff85354e99f014471778d735807c6",
-      "size": 234473
+      "sha256": "456ccd43c443d361c5681edcd3e9bad04e0e5a693b7a135dfdd6dd7a9c7955b1",
+      "size": 234742
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "d60bc32675580e576a9dbcae47e661a72ed7e7c0b1350fc2ddb8146bcafa72c8",
@@ -456,8 +456,8 @@
       "size": 11179
     },
     "includes/Security/EmergencyContainmentManager.php": {
-      "sha256": "7a39be2cab9ef61f729a2acf6e88ee9dc7c50c7193afb004baa574c592ffe1f1",
-      "size": 20508
+      "sha256": "242c1a0aaa9dda583028f9bfa9787d2b127d458f90244b29de062376414df9f4",
+      "size": 20740
     },
     "includes/Security/PluginSelfDefense.php": {
       "sha256": "fa59e446e1e522fea249dc67c041bd3135430c97ec16a6502ae50361d8c40064",

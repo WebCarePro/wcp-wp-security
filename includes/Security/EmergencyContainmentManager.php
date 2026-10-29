@@ -108,8 +108,9 @@ class EmergencyContainmentManager {
         $reason = !empty($args['reason']) ? sanitize_text_field(wp_unslash($args['reason'])) : 'Active Threat Breach Response';
         $maintenance = !empty($args['maintenance_enabled']);
 
-        // 1. Invalidate all user sessions except current admin
-        $terminated_sessions_count = self::invalidate_all_sessions_except_current();
+        // 1. Invalidate user sessions (skip session invalidation in CLI/test drill mode so active admin sessions are not disrupted)
+        $skip_session_purge = !empty($args['skip_session_purge']) || (php_sapi_name() === 'cli' && empty($args['force_session_purge']));
+        $terminated_sessions_count = $skip_session_purge ? 0 : self::invalidate_all_sessions_except_current();
 
         // 2. Trigger Cloudflare Under-Attack Mode if Cloudflare Edge is configured
         $cf_toggled = false;
