@@ -149,6 +149,27 @@ class FileScanner {
                 'evidence'    => "Expected: {$core_check['expected']}, Actual: {$core_check['actual']}"
             ]);
         } elseif ($core_check['status'] === 'unknown') {
+            $basename_lower = strtolower(basename($file_path));
+            $norm_path = str_replace('\\', '/', $file_path);
+
+            // Exclude benign ACME / SSL Let's Encrypt validation files & protective .htaccess files
+            if (strpos($norm_path, '/.well-known/') !== false) {
+                return $findings;
+            }
+            if ($basename_lower === '.htaccess') {
+                if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_safe_protective_htaccess($file_path)) {
+                    return $findings;
+                }
+            }
+
+            // Exclude verified Wordfence WAF preload bootstrap (wordfence-waf.php)
+            if ($basename_lower === 'wordfence-waf.php') {
+                $content = @file_get_contents($file_path, false, null, 0, 8192);
+                if ($content !== false && (strpos($content, 'WFWAF_LOG_PATH') !== false || strpos($content, 'wordfence/waf/bootstrap.php') !== false || strpos($content, 'wordfence') !== false)) {
+                    return $findings;
+                }
+            }
+
             $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
             $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
             $findings[] = new Finding([

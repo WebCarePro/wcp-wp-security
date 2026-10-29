@@ -1159,6 +1159,74 @@ class SettingsManager {
      * @param string $file_path
      * @return bool True if benign plugin cache file with zero malware indicators.
      */
+    /**
+     * Checks if an .htaccess file is a clean, benign protective access-control configuration
+     * (e.g. SSL Let's Encrypt challenge isolation, ACME challenge, plugin uploads lockdown,
+     * or standard 'Require all denied' / 'Deny from all' protection), free of malicious PHP handlers,
+     * search engine cloaking redirects, or webshell execution overrides.
+     *
+     * @param string $file_path Absolute path to the .htaccess file.
+     * @return bool True if benign protective .htaccess file.
+     */
+    public static function is_safe_protective_htaccess(string $file_path): bool {
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            return false;
+        }
+
+        $size = @filesize($file_path);
+        // Protective or challenge .htaccess files are rarely larger than 16KB
+        if ($size === false || $size > 16384) {
+            return false;
+        }
+
+        $content = @file_get_contents($file_path);
+        if ($content === false) {
+            return false;
+        }
+
+        // 1. Strict Malicious Directive Scan:
+        // Must NOT contain PHP handler injections, auto_prepend / auto_append, engine enabling,
+        // or search engine user-agent cloaking redirects.
+        $malicious_directives = [
+            '/(?:AddType|AddHandler|SetHandler)\s+application\/x-httpd-php/i',
+            '/php_value\s+(?:auto_prepend_file|auto_append_file)/i',
+            '/php_flag\s+engine\s+(?:on|1)/i',
+            '/RewriteCond\s+%{HTTP_USER_AGENT}\s+.*(?:googlebot|bingbot|yahoo|baidu|slurp)/i',
+            '/RewriteRule\s+.*https?:\/\//i',
+            '/<FilesMatch\s+[^>]*\.(?:jpg|png|gif|ico|webp|svg|pdf)[^>]*>\s*SetHandler/i',
+        ];
+
+        foreach ($malicious_directives as $pattern) {
+            if (preg_match($pattern, $content)) {
+                return false; // Malicious rewrite/handler detected!
+            }
+        }
+
+        $norm = str_replace('\\', '/', $file_path);
+
+        // 2. SSL Let's Encrypt / ACME Challenge Verification:
+        // /.well-known/acme-challenge/.htaccess commonly contains standard mod_auth / mod_rewrite directives
+        if (strpos($norm, '/.well-known/acme-challenge/') !== false || strpos($norm, '/.well-known/pki-validation/') !== false) {
+            return true;
+        }
+
+        // 3. Standard Protective Lockdown Directives
+        // If it exclusively enforces access restrictions, directory browsing prevention, or script execution blocks
+        $is_protective = (
+            stripos($content, 'deny from all') !== false ||
+            stripos($content, 'require all denied') !== false ||
+            stripos($content, 'php_flag engine off') !== false ||
+            stripos($content, 'Options -Indexes') !== false ||
+            stripos($content, 'Options -ExecCGI') !== false ||
+            stripos($content, 'RemoveHandler') !== false ||
+            stripos($content, 'SetHandler default-handler') !== false ||
+            stripos($content, 'ForceType text/plain') !== false ||
+            trim($content) === ''
+        );
+
+        return $is_protective;
+    }
+
     public static function is_legitimate_uploads_cache_file(string $file_path): bool {
         if (!file_exists($file_path)) {
             return false;

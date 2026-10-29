@@ -948,7 +948,10 @@ class PersistenceScanner {
                         $next_code .= is_array($ntok) ? $ntok[1] : $ntok;
                     }
 
-                    if (preg_match('/(uploads|cache|tmp|\.ico|\.png|\.jpg|\.txt|\.css|\.woff)/i', $next_code)) {
+                    // Exempt official Redis object-cache drop-in from stealth loader false positive
+                    $is_redis_dropin = (strpos($file_path, 'object-cache.php') !== false && preg_match('/\b(predis|redis)\b/i', $next_code));
+
+                    if (!$is_redis_dropin && preg_match('/(uploads|cache|tmp|\.ico|\.png|\.jpg|\.txt|\.css|\.woff)/i', $next_code)) {
                         $result['is_malicious'] = true;
                         $result['reason'] = __('Stealth Loader: Drop-in or MU-plugin includes a hidden payload from uploads, cache, or disguised image file.', 'wcp-security-scanner');
                         $result['snippet'] = substr($tok[1] . ' ' . $next_code, 0, 140);

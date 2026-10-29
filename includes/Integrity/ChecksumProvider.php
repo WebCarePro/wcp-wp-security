@@ -459,6 +459,77 @@ class ChecksumProvider {
     }
 
     /**
+     * Known legitimate vendor packages, LMS runtimes, and SCORM/HTML5 learning players
+     * distributed within WordPress uploads (e.g. Uncanny Automator / TinCan SCORM modules,
+     * Articulate Storyline / Rise players, Elementor assets) verified against known cryptographic hashes.
+     * Format: 'sha256_hash' => ['vendor' => string, 'package' => string]
+     *
+     * @return array<string, array{vendor: string, package: string}>
+     */
+    public static function get_whitelisted_vendor_hashes(): array {
+        return [
+            // Articulate Storyline 360 / Rise HTML5 LMS player bootstrap bundle (ds-bootstrap)
+            // Windows CRLF & standard LF cryptographic checksums:
+            '0fafb9e63413eb6cf41e5e3241f441af78c9de719837f43744e868c118010c76' => [
+                'vendor'  => 'Articulate Storyline / Uncanny Automator SCORM',
+                'package' => 'bootstrapper.min.js (ds-bootstrap v1.0.0.33139)',
+            ],
+            '835bebae86ae2b1b4efe6ff713ab5505d9df057fac993197602953cfc43e9049' => [
+                'vendor'  => 'Articulate Storyline / Uncanny Automator SCORM',
+                'package' => 'bootstrapper.min.js (ds-bootstrap v1.0.0.33139 LF)',
+            ],
+        ];
+    }
+
+    /**
+     * Checks if a file (especially inside uploads/ or vendor assets) is an authentic,
+     * verified legitimate third-party vendor library or SCORM/HTML5 player matching known safe hashes
+     * or legitimate vendor header structures with zero malware.
+     *
+     * @param string $file_path
+     * @return bool True if recognized as an authentic, clean vendor/SCORM package file.
+     */
+    public static function is_authentic_known_library(string $file_path): bool {
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            return false;
+        }
+
+        // Fast hash verification (O(1) dictionary lookup)
+        $sha256 = hash_file('sha256', $file_path);
+        $whitelisted_hashes = self::get_whitelisted_vendor_hashes();
+        if ($sha256 && isset($whitelisted_hashes[$sha256])) {
+            return true;
+        }
+
+        // Normalize line endings to test LF hash if file was saved with CRLF or vice versa
+        $content = @file_get_contents($file_path);
+        if ($content !== false && strlen($content) > 0) {
+            $lf_sha256 = hash('sha256', str_replace("\r\n", "\n", $content));
+            if (isset($whitelisted_hashes[$lf_sha256])) {
+                return true;
+            }
+
+            // Vendor pattern recognition for Articulate Storyline / Uncanny SCORM packages in uploads
+            $norm = str_replace('\\', '/', $file_path);
+            if (preg_match('#/wp-content/uploads/uncanny-snc/[^/]+/html5/lib/scripts/[^/]+\.js$#i', $norm)) {
+                // Must have authentic Articulate Storyline / ds-bootstrap vendor header
+                if (strpos($content, 'ds-bootstrap') !== false || strpos($content, 'Articulate') !== false || strpos($content, 'window.DS=window.DS||{}') !== false) {
+                    // Strict anti-malware verification: must NOT contain webshell droppers or malicious sinks
+                    $has_malware_sink = (bool) preg_match('/(?<!->|::|function\s)\b(assert|create_function|passthru|shell_exec|system|proc_open|popen)\s*\(/i', $content);
+                    $has_payload_dropper = (bool) preg_match('#\\b(base64_decode|gzinflate|gzuncompress|str_rot13)\\s*\\(#i', $content);
+                    $has_exfil = (bool) preg_match('/https?:\/\/(?:discord(?:app)?\.com\/api\/webhooks|api\.telegram\.org\/bot|pastebin\.com\/api|transfer\.sh|iplogger\.org)/i', $content);
+
+                    if (!$has_malware_sink && !$has_payload_dropper && !$has_exfil) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Strictly verify a file against official WordPress core checksums and detect rogue/unknown files.
      *
      * @param string $file_path
@@ -492,6 +563,19 @@ class ChecksumProvider {
         $is_in_root     = (strpos($rel_file, '/') === false);
 
         if (!$is_in_core_dir && !$is_in_root) {
+            // 1. Exclude legitimate ACME / SSL Let's Encrypt validation folders and protective .htaccess
+            if (strpos($rel_file, '.well-known/') === 0) {
+                return ['status' => 'ignored', 'rel_file' => $rel_file];
+            }
+
+            // 2. Ignore non-code files, images, or .htaccess access-control rules in non-standard root folders
+            $basename_lower = strtolower(basename($file_path));
+            if ($basename_lower === '.htaccess') {
+                if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_safe_protective_htaccess($file_path)) {
+                    return ['status' => 'ignored', 'rel_file' => $rel_file];
+                }
+            }
+
             // Non-standard directory on WordPress root (e.g. /custom-folder/file.php)
             // If it contains executable PHP code, it's considered unknown core/root
             $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
@@ -550,7 +634,7 @@ class ChecksumProvider {
             return ['status' => 'ignored', 'rel_file' => $rel_file];
         }
 
-        // Standard root legitimate entries
+        // Standard root legitimate entries & recognized security/WAF files
         if ($is_in_root) {
             $standard_root = [
                 'wp-config.php', 'wp-config-sample.php', 'robots.txt', 'favicon.ico',
@@ -559,6 +643,14 @@ class ChecksumProvider {
             ];
             if (in_array($basename_lower, $standard_root, true)) {
                 return ['status' => 'authentic', 'rel_file' => $rel_file];
+            }
+
+            // Wordfence WAF preload bootstrap (wordfence-waf.php)
+            if ($basename_lower === 'wordfence-waf.php') {
+                $content = @file_get_contents($file_path, false, null, 0, 8192);
+                if ($content !== false && (strpos($content, 'WFWAF_LOG_PATH') !== false || strpos($content, 'wordfence/waf/bootstrap.php') !== false || strpos($content, 'wordfence') !== false)) {
+                    return ['status' => 'authentic', 'rel_file' => $rel_file];
+                }
             }
         }
 
