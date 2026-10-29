@@ -171,20 +171,67 @@ class ServerInfo {
      * @return string
      */
     public static function get_server_ip(): string {
+        $all_ips = self::get_all_server_ips();
+        if (!empty($all_ips)) {
+            // Prefer public IPv4 or IPv6 over loopback
+            foreach ($all_ips as $ip) {
+                if ($ip !== '127.0.0.1' && $ip !== '::1' && strpos($ip, 'fe80:') !== 0) {
+                    return $ip;
+                }
+            }
+            return $all_ips[0];
+        }
+
+        return 'Unavailable';
+    }
+
+    /**
+     * Discover all local and public IPv4 and IPv6 addresses belonging to this host server.
+     * Checks server environment variables, OS network interfaces (net_get_interfaces),
+     * hostname resolvers (A and AAAA records), and site hostname.
+     *
+     * @return array List of unique IP addresses
+     */
+    public static function get_all_server_ips(): array {
+        static $cached_ips = null;
+        if ($cached_ips !== null) {
+            return $cached_ips;
+        }
+
+        $ips = [];
+
         // 1. Direct server environment variables
         $env_candidates = [
             isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '',
             isset($_SERVER['LOCAL_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['LOCAL_ADDR'])) : '',
         ];
-
         foreach ($env_candidates as $candidate) {
             $candidate = trim((string) $candidate);
             if (!empty($candidate) && filter_var($candidate, FILTER_VALIDATE_IP)) {
-                return $candidate;
+                $ips[] = $candidate;
             }
         }
 
-        // 2. Resolve server hostnames via local resolver
+        // 2. Local OS network interfaces (net_get_interfaces - available in PHP 7.3+)
+        if (function_exists('net_get_interfaces')) {
+            $interfaces = @net_get_interfaces();
+            if (is_array($interfaces)) {
+                foreach ($interfaces as $iface_data) {
+                    if (!empty($iface_data['unicast']) && is_array($iface_data['unicast'])) {
+                        foreach ($iface_data['unicast'] as $u) {
+                            if (!empty($u['address'])) {
+                                $addr = trim((string) $u['address']);
+                                if (filter_var($addr, FILTER_VALIDATE_IP)) {
+                                    $ips[] = $addr;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Resolve hostnames via DNS / local resolver (IPv4 A & IPv6 AAAA)
         $host_candidates = [];
         if (function_exists('gethostname')) {
             $hostname = @gethostname();
@@ -213,32 +260,44 @@ class ServerInfo {
                 continue;
             }
             if (filter_var($host, FILTER_VALIDATE_IP)) {
-                return $host;
-            }
-            $resolved = @gethostbyname($host);
-            if (!empty($resolved) && $resolved !== $host && filter_var($resolved, FILTER_VALIDATE_IP)) {
-                return $resolved;
+                $ips[] = $host;
+                continue;
             }
 
-            // Query IPv6 AAAA record if host has an IPv6 address
+            // IPv4 resolution
+            $resolved_ips = @gethostbynamel($host);
+            if (is_array($resolved_ips)) {
+                foreach ($resolved_ips as $r_ip) {
+                    if (filter_var($r_ip, FILTER_VALIDATE_IP)) {
+                        $ips[] = $r_ip;
+                    }
+                }
+            } else {
+                $single_resolved = @gethostbyname($host);
+                if (!empty($single_resolved) && $single_resolved !== $host && filter_var($single_resolved, FILTER_VALIDATE_IP)) {
+                    $ips[] = $single_resolved;
+                }
+            }
+
+            // IPv6 AAAA resolution
             if (function_exists('dns_get_record')) {
                 $aaaa_records = @dns_get_record($host, DNS_AAAA);
                 if (!empty($aaaa_records) && is_array($aaaa_records)) {
                     foreach ($aaaa_records as $rec) {
                         if (!empty($rec['ipv6']) && filter_var($rec['ipv6'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-                            return $rec['ipv6'];
+                            $ips[] = $rec['ipv6'];
                         }
                     }
                 }
             }
         }
 
-        // 3. Fallback to raw SERVER_ADDR if present
-        if (!empty($_SERVER['SERVER_ADDR'])) {
-            return sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR']));
-        }
+        // Loopback standards
+        $ips[] = '127.0.0.1';
+        $ips[] = '::1';
 
-        return 'Unavailable';
+        $cached_ips = array_values(array_unique(array_filter($ips)));
+        return $cached_ips;
     }
 
     /**

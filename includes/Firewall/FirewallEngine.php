@@ -2208,10 +2208,10 @@ class FirewallEngine {
             return true;
         }
 
-        // 3. Compare against resolved ServerInfo IP (IPv4 or IPv6)
+        // 3. Compare against all resolved ServerInfo IPs (IPv4 and IPv6)
         if (class_exists('\\WcpScanner\\System\\ServerInfo')) {
-            $detected_server_ip = \WcpScanner\System\ServerInfo::get_server_ip();
-            if (!empty($detected_server_ip) && $detected_server_ip !== 'Unavailable' && $detected_server_ip === $ip) {
+            $all_server_ips = \WcpScanner\System\ServerInfo::get_all_server_ips();
+            if (in_array($ip, $all_server_ips, true)) {
                 return true;
             }
         }
@@ -2223,6 +2223,11 @@ class FirewallEngine {
         $ip = trim($ip);
         if (empty($ip)) {
             return false;
+        }
+
+        // 0. Auto-accept server's own origin IP (IPv4 and IPv6) and loopback addresses across all sites
+        if (self::is_server_origin_or_loopback($ip)) {
+            return true;
         }
 
         // Emergency wp-config override constant: WCPSCAN_OVERRIDE_WHITELIST_IP
