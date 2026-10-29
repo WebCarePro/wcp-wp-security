@@ -2798,9 +2798,11 @@ class FirewallEngine {
                     defined('WS_FORM_VERSION') ||
                     defined('CALDERA_FORMS_VERSION') ||
                     defined('HAPPYFORMS_VERSION') ||
-                    defined('EVEREST_FORMS_VERSION')
+                    defined('EVEREST_FORMS_VERSION') ||
+                    defined('ELEMENTOR_PRO_VERSION') || class_exists('\\ElementorPro\\Modules\\Forms\\Module')
                 ),
                 'detected_names' => array_values(array_filter([
+                    (defined('ELEMENTOR_PRO_VERSION') || class_exists('\\ElementorPro\\Modules\\Forms\\Module')) ? 'Elementor Pro Forms' : null,
                     (defined('WPCF7_VERSION') || class_exists('WPCF7')) ? 'Contact Form 7' : null,
                     (defined('WPFORMS_VERSION') || class_exists('WPForms')) ? 'WPForms' : null,
                     defined('FLUENTFORM_VERSION') ? 'Fluent Forms' : null,
@@ -2812,6 +2814,7 @@ class FirewallEngine {
                     defined('HAPPYFORMS_VERSION') ? 'HappyForms' : null,
                     defined('EVEREST_FORMS_VERSION') ? 'Everest Forms' : null,
                 ])),
+                'stats' => class_exists('WcpScanner\\Firewall\\FormSpamProtectionEngine') ? \WcpScanner\Firewall\FormSpamProtectionEngine::get_stats() : ['total_blocked' => 0],
             ],
             'integrations_telemetry' => [
                 'has_builders' => (

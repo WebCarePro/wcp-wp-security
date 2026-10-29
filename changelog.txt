@@ -1,4 +1,11 @@
 v:1.29.0 - 2026-10-29
+- Universal Smart Form Armor & Anti-Bot Defense Engine (FormSpamProtectionEngine.php, FirewallPage.tsx, SettingsManager.php):
+  * Comprehensive Multi-Ecosystem Form Defense: Built and deployed dedicated anti-spam hooks for Elementor Pro Forms, Contact Form 7, WPForms, Fluent Forms, Gravity Forms, Formidable Forms, Ninja Forms, WooCommerce Reviews/Registration, and native WordPress comments.
+  * Headless & Autonomous Browser Intercept: Inspects `navigator.webdriver` execution markers and human pointer/touch/scroll entropy proof to stop Selenium, Puppeteer, and script-driven browser bots.
+  * Polymorphic Dynamic Honeypot: Injects session-randomized, off-screen accessible CSS decoy input fields that trap autofill scrapers with zero impact or visual friction for genuine humans.
+  * Cryptographic Time-Gate: Rejects instantaneous sub-second form posts (< 2.5s) from automated HTTP flooders and drops stale scraper replay tokens (> 2 hours).
+  * High-Velocity Flood Limiter & Content Heuristics: Rate limits form submissions per IP (5 submits per 10 minutes) and blocks promotional crypto/pharma spam patterns or messages with excessive link counts.
+  * Interactive Telemetry & UI Controls: Embedded granular toggles and real-time neutralized spam telemetry directly inside the Smart Form Plugin Shield card on the Firewall page.
 - Targeted Allowlist Preset Rules & Canary Honey-Trap Hardening (TargetedAllowlistManagerCard.tsx, GhostRouteTrap.php):
   * Removed Localhost IP Restriction: Stripped restrictive `'127.0.0.1'` entries from presets (WooCommerce Subscriptions, MemberPress, LearnDash, Tutor LMS), allowing legitimate external mobile apps, SaaS webhooks, and remote workers to connect to their designated REST endpoints cleanly without being dropped.
   * Uptime Monitor Signature Alignment: Fixed argument count mismatch in `GhostRouteTrap.php` when delegating to `BotReconDefense::is_genuine_uptime_monitor()`, eliminating fatal errors and safe mode engagements during canary honey-trap probes.

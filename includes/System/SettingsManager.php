@@ -104,7 +104,17 @@ class SettingsManager {
             'waf_allow_central_management'     => false, // Allow central WordPress management workers (ManageWP, MainWP, InfiniteWP) via cryptographic handshake
 
             // Enhanced Perimeter & Identity Protection Rules
-            'waf_forms_safe_mode'               => true,  // Smart Form Plugin Shield & False-Positive Immunity (CF7, WPForms, Gravity, Fluent Forms, etc.)
+            'waf_forms_safe_mode'               => true,
+            'form_spam_protection_enabled'     => true,
+            'form_block_headless_browsers'     => true,
+            'form_honeypot_enabled'             => true,
+            'form_speed_gate_enabled'           => true,
+            'form_min_interaction_seconds'      => 2,
+            'form_flood_limit_enabled'          => true,
+            'form_max_submits_per_window'       => 5,
+            'form_flood_window_minutes'         => 10,
+            'form_content_filtering'            => true,
+            'form_max_urls_allowed'             => 2,  // Smart Form Plugin Shield & False-Positive Immunity (CF7, WPForms, Gravity, Fluent Forms, etc.)
             'waf_ecommerce_safe_mode'           => false, // E-Commerce & Membership Smart Shield (off by default, recommended when shop/membership active)
             'waf_allow_page_builders'           => false, // Visual Page Builder & Editor Smart Pass (off by default, recommended when Elementor/Divi active)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
@@ -614,6 +624,16 @@ class SettingsManager {
 
         // Enhanced Perimeter & Identity Protection Rules
         $clean['waf_forms_safe_mode']             = !empty($merged['waf_forms_safe_mode']);
+        $clean['form_spam_protection_enabled']     = !empty($merged['form_spam_protection_enabled']);
+        $clean['form_block_headless_browsers']     = !empty($merged['form_block_headless_browsers']);
+        $clean['form_honeypot_enabled']             = !empty($merged['form_honeypot_enabled']);
+        $clean['form_speed_gate_enabled']           = !empty($merged['form_speed_gate_enabled']);
+        $clean['form_min_interaction_seconds']      = max(1, min(10, (int) ($merged['form_min_interaction_seconds'] ?? 2)));
+        $clean['form_flood_limit_enabled']          = !empty($merged['form_flood_limit_enabled']);
+        $clean['form_max_submits_per_window']       = max(1, min(50, (int) ($merged['form_max_submits_per_window'] ?? 5)));
+        $clean['form_flood_window_minutes']         = max(1, min(60, (int) ($merged['form_flood_window_minutes'] ?? 10)));
+        $clean['form_content_filtering']            = !empty($merged['form_content_filtering']);
+        $clean['form_max_urls_allowed']             = max(0, min(10, (int) ($merged['form_max_urls_allowed'] ?? 2)));
         $clean['waf_ecommerce_safe_mode']         = !empty($merged['waf_ecommerce_safe_mode']);
         $clean['waf_block_empty_post_ua_referer'] = !empty($merged['waf_block_empty_post_ua_referer']);
         $clean['waf_whitelisted_urls']            = sanitize_textarea_field($merged['waf_whitelisted_urls'] ?? '');

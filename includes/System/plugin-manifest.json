@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T01:09:10.360Z",
+  "generated_at": "2026-10-29T01:20:48.438Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -44,7 +44,7 @@
       "size": 529390
     },
     "build/index.asset.php": {
-      "sha256": "e1e420db41e962364ec6c2d8993389a2e3784e7bbde0ab2ed4be27e5a6f65668",
+      "sha256": "2741ebb6bac3a9e3298a6b4830b11db7d42eb3e88ba617357833072cc940f40b",
       "size": 121
     },
     "build/index.css": {
@@ -52,8 +52,8 @@
       "size": 529249
     },
     "build/index.js": {
-      "sha256": "107fde15df157fcd4873d8ce4c11b3a35871003809f6057891dacd988a032383",
-      "size": 1920390
+      "sha256": "4ae416a8764e9e2c1822e06cfa9dd94991c42f1c7ac5331258e45f0258490501",
+      "size": 1920906
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -228,8 +228,12 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "eb7d10a12c8d1f710ddb2731ee365429cb5b8666622b95821329bf45507121f2",
-      "size": 233999
+      "sha256": "37e2704ce127f5d98f2f817046aff78182f099e31f69ab816134671219ff83f9",
+      "size": 234435
+    },
+    "includes/Firewall/FormSpamProtectionEngine.php": {
+      "sha256": "3353a3c1bf8bb3df9e1981bbc1eb02f3ba2989cc3f77914b662c173a4321f543",
+      "size": 24940
     },
     "includes/Firewall/GhostRouteTrap.php": {
       "sha256": "ce40bf8d99afc65a67c9c253f03e13e30bbbb5c01ba33f430f2c09bb69c6addf",
@@ -384,8 +388,8 @@
       "size": 32465
     },
     "includes/Plugin.php": {
-      "sha256": "37e1f73dc76c116b181415e56f855ff65d73a532ba0475220cf0115d00307664",
-      "size": 5038
+      "sha256": "37da81a4dff67cb1caf7232b190919cd5062a943199952bf5b031cfa5c0b2121",
+      "size": 5198
     },
     "includes/Quarantine/CoreRepairManager.php": {
       "sha256": "b07003c796a8f65d783113ee8653a4ec7bf9fe17fb21f5da174bd4112a57bd43",
@@ -512,8 +516,8 @@
       "size": 18790
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "5ab3ea24f0f268bf2636c03c8100edfd552ce330e705d5a8bdad532bdf4df035",
-      "size": 70032
+      "sha256": "77c84614db71a2c3e7b4597948cc6151816f71cc13562c047b13961bc4fc76a4",
+      "size": 71673
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "166d9705dac653ea076209d111b27d4e3c468fac4f24d788d432bdafa82e824e",

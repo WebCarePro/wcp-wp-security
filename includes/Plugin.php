@@ -87,6 +87,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Firewall\\GhostRouteTrap')) {
             \WcpScanner\Firewall\GhostRouteTrap::init();
         }
+        if (class_exists('\\WcpScanner\\Firewall\\FormSpamProtectionEngine')) {
+            \WcpScanner\Firewall\FormSpamProtectionEngine::init();
+        }
         if (class_exists('\\WcpScanner\\Firewall\\OutboundEgressFirewall')) {
             \WcpScanner\Firewall\OutboundEgressFirewall::init();
         }
