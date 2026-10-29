@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Server Origin IPv6 & Whitelist Exemption for wp-cron.php (FirewallEngine.php):
+  * Whitelist Check in Rule #20: Added explicit `is_ip_whitelisted()` check to Rule #20 (`waf_block_external_cron`), preventing the host server's public IPv6 address (``) from being blocked with HTTP 403 when triggering `wp-cron.php`.
+  * Centralized Rule Violation Routing: Routed Rule #20 and legacy direct-blocking triggers (unsafe HTTP methods, empty POST User-Agents, sensitive file probes, botnet blacklist) through `handle_rule_violation()`, ensuring proper tiered whitelist exemption and forensic audit retention.
 - Cloudflare Whitelist Modal Icon & Edge Sync Duplicate Resolution (FirewallPage.tsx, CloudflareService.php):
   * Missing CheckCircle Import Resolution: Fixed runtime `ReferenceError: CheckCircle is not defined` when opening the "View Cloudflare Whitelisted IPs" modal by importing `CheckCircle` from `lucide-react`.
   * Cloudflare Idempotency & Duplicate Graceful Handling: Updated `CloudflareService::whitelist_ip()` to recognize Cloudflare error code `firewallaccessrules.api.duplicate_of_existing` as a successful sync rather than an error, preventing false alerts when re-syncing already whitelisted IPs to Cloudflare Edge.

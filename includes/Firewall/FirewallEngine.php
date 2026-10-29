@@ -944,14 +944,8 @@ class FirewallEngine {
                     'payload'     => "Method: {$http_method} URI: {$request_uri}",
                 ];
 
-                $mode = $settings['waf_mode'] ?? 'enabled';
-                if ($mode === 'learning') {
-                    self::log_incident($rule_triggered, 'detected');
-                } else {
-                    self::log_incident($rule_triggered, 'blocked');
-                    self::render_block_page($rule_triggered, $client_ip);
-                    exit;
-                }
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 405);
+                exit;
             }
         }
 
@@ -977,14 +971,8 @@ class FirewallEngine {
                             'payload'     => "IP: {$client_ip} URI: {$request_uri}",
                         ];
 
-                        $mode = $settings['waf_mode'] ?? 'enabled';
-                        if ($mode === 'learning') {
-                            self::log_incident($rule_triggered, 'detected');
-                        } else {
-                            self::log_incident($rule_triggered, 'blocked');
-                            self::render_block_page($rule_triggered, $client_ip);
-                            exit;
-                        }
+                        self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                        exit;
                     }
                 }
             }
@@ -1011,14 +999,8 @@ class FirewallEngine {
                         'payload'     => "Path: {$clean_path} IP: {$client_ip}",
                     ];
 
-                    $mode = $settings['waf_mode'] ?? 'enabled';
-                    if ($mode === 'learning') {
-                        self::log_incident($rule_triggered, 'detected');
-                    } else {
-                        self::log_incident($rule_triggered, 'blocked');
-                        self::render_block_page($rule_triggered, $client_ip);
-                        exit;
-                    }
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    exit;
                 }
             }
         }
@@ -1151,8 +1133,9 @@ class FirewallEngine {
             if (strpos($clean_path, 'wp-cron.php') !== false) {
                 $is_loopback = self::is_server_origin_or_loopback($client_ip);
                 $is_admin = self::is_authenticated_administrator();
+                $is_whitelisted = self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '');
 
-                if (!$is_loopback && !$is_admin) {
+                if (!$is_loopback && !$is_admin && !$is_whitelisted) {
                     $rule_triggered = [
                         'id'          => 'WAF-EXTERNAL-CRON-BLOCK',
                         'name'        => 'External wp-cron.php Abuse Block',
@@ -1163,16 +1146,8 @@ class FirewallEngine {
                         'payload'     => "External IP: {$client_ip} URI: {$request_uri}",
                     ];
 
-                    $mode = $settings['waf_mode'] ?? 'enabled';
-                    if ($mode === 'learning') {
-                        self::log_incident($rule_triggered, 'detected');
-                    } else {
-                        self::log_incident($rule_triggered, 'blocked');
-                        status_header(403);
-                        header('Content-Type: text/plain; charset=utf-8');
-                        echo 'External access to wp-cron.php is blocked by WCP Security Scanner.';
-                        exit;
-                    }
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    exit;
                 }
             }
         }
@@ -1270,14 +1245,8 @@ class FirewallEngine {
                     'match_value' => $client_ip,
                 ];
 
-                $mode = $settings['waf_mode'] ?? 'enabled';
-                if ($mode === 'learning') {
-                    self::log_incident($rule_triggered, 'detected');
-                } else {
-                    self::log_incident($rule_triggered, 'blocked');
-                    self::render_block_page($rule_triggered, $client_ip);
-                    exit;
-                }
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                exit;
             }
         }
 
@@ -1285,14 +1254,8 @@ class FirewallEngine {
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
         if ($bot_rule !== null) {
-            $mode = $settings['waf_mode'] ?? 'enabled';
-            if ($mode === 'learning') {
-                self::log_incident($bot_rule, 'detected');
-            } else {
-                self::log_incident($bot_rule, 'blocked');
-                self::render_block_page($bot_rule, $client_ip);
-                exit;
-            }
+            self::handle_rule_violation($bot_rule, $settings, $client_ip, 403);
+            exit;
         }
 
         // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
