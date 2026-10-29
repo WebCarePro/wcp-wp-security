@@ -1,4 +1,8 @@
 v:1.29.0 - 2026-10-29
+- Emergency Unblock Documentation & Readme Changelog Optimization (README.md, readme.txt, version.json):
+  * Emergency Unblock Guide: Documented 4 straightforward failsafe recovery methods in `README.md` and `readme.txt` FAQ for administrators who get locked out (Emergency `WCPSCAN_OVERRIDE_WHITELIST_IP` in `wp-config.php`, WAF bypass constant `WCPSCAN_DISABLE_WAF`, WP-CLI lockout flush `wp option delete wcpscan_login_lockouts`, and database table clearing in `wp_options`).
+  * Readme.txt Changelog Pruning: Pruned historical changelog entries older than `= 1.20.0 =` from `readme.txt` to keep the official WordPress.org manifest lightweight and performant.
+  * Version History Synchronization: Synchronized all daily release entries (`1.25.0`, `1.23.0`, `1.21.0`, `1.20.0`) in `version.json`'s `previous_versions` list to match `changelog.txt`.
 - Finding Details SHA-256 Forensics & Code Viewer Word Wrap Enhancements (App.tsx, ScannerRoutes.php, index.css):
   * Expanded Finding SHA-256 Forensics Box: Added a dedicated cryptographic hash forensics box inside expanded finding details for all physical files, displaying the full SHA-256 hash alongside dedicated 1-click "Copy SHA-256" and "Copy Path" buttons.
   * File Viewer Header & Footer Enhancements: Updated the "View File" source code inspection modal header and footer to display the full file path, direct 1-click "Copy Path" button, and 1-click "Copy SHA-256" hash action button with copy feedback states.

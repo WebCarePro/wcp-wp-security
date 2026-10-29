@@ -353,6 +353,41 @@ npm run package
 
 ---
 
+## 🆘 Locked Out? How to Unblock Yourself Immediately
+
+If your IP address gets temporarily blocked by login rate-limiting, honeypot traps, or strict firewall inspection rules, you can instantly restore access without breaking your site using any of these 4 failsafe methods:
+
+### Method 1: Emergency `wp-config.php` Whitelist Override (Fastest & Recommended)
+Add this single line near the top of your `wp-config.php` file (above the `/* That's all, stop editing! */` comment) with your public IP address:
+
+```php
+define('WCPSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1');
+```
+
+> [!TIP]
+> You can also specify multiple comma-separated IP addresses or CIDR subnets:
+> `define('WCPSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1, 198.51.100.0/24');`  
+> This override executes with zero database dependencies and grants an instantaneous, zero-delay bypass across all WAF rules and login hardening checks.
+
+### Method 2: Emergency Firewall Bypass Constant
+If you need to temporarily disable all WAF inspection rules without deactivating or deleting the plugin:
+
+```php
+define('WCPSCAN_DISABLE_WAF', true);
+```
+
+### Method 3: Reset Login Lockouts via WP-CLI
+If you have SSH/terminal access to your server, flush active login brute-force lockouts with a single command:
+
+```bash
+wp option delete wcpscan_login_lockouts
+```
+
+### Method 4: Clear Lockout via Database (phpMyAdmin / MySQL)
+Open phpMyAdmin or your MySQL client, navigate to your site's `wp_options` table, search for the option named `wcpscan_login_lockouts`, and delete or empty that row. Access is immediately restored upon next page reload.
+
+---
+
 ## 🔒 Security & WordPress.org Directory Compliance
 
 WCP Security Scanner is strictly developed in adherence to the **WordPress.org Plugin Guidelines**:

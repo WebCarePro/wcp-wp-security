@@ -53,6 +53,25 @@ Yes! WCP Security Scanner provides 100% Free Plan compatible Cloudflare integrat
 = Does this plugin phone home or collect telemetry? =
 No. WCP Security Scanner contains zero tracking, zero telemetry, and zero analytics. All scans and security checks execute 100% locally on your server.
 
+= What if I get locked out? How do I unblock myself? =
+If your IP address gets temporarily blocked by login rate-limiting, honeypot traps, or firewall rules, you can immediately restore access using any of these simple methods:
+
+1. Emergency wp-config.php Whitelist (Fastest & Recommended):
+Add this single line to your wp-config.php file (above the "/* That's all, stop editing! */" line) with your public IP address:
+define('WCPSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1');
+This grants an instantaneous, zero-delay bypass across all WAF and login hardening checks even if the database is inaccessible.
+
+2. Emergency Firewall Bypass:
+To temporarily disable all WAF inspection rules without deactivating the plugin:
+define('WCPSCAN_DISABLE_WAF', true);
+
+3. Reset Login Lockouts via WP-CLI:
+If you have SSH/terminal access, simply run:
+wp option delete wcpscan_login_lockouts
+
+4. Database / phpMyAdmin:
+In your database tool, browse the wp_options table and delete the option named wcpscan_login_lockouts.
+
 == External Services ==
 
 This plugin can optionally connect to the following external third-party services to enhance security, provide checksum verification, and support optional AI forensics:
@@ -332,192 +351,3 @@ To compile the React admin application from source:
 * Plugin Self-Defense & Anti-Tamper Attestation Engine.
 * Resilient Cloudflare Service Class Loading & Shared Hosting Hardening.
 * Scan Logs Inspection Telemetry Font Sizing Refinement & Numerical Aggregation Fix.
-
-= 1.19.0 =
-* UI/UX update.
-
-= 1.18.0 =
-* Architecture-Aware Visitor IP Detection & Environment Intelligence.
-* Separate Custom Scan & Targeted Scan Naming & Target Name Attribution in Scan Logs.
-* Dashboard Custom Scan Engine Options Suite & Wordfence-Style Checklist.
-* Complete Settings Page Rebuild & Dedicated Model Context Protocol Suite.
-* Global 100% Full-Width WordPress Layout Expansion.
-* WordPress Native AI Connect Universal Bridge & Intelligent Detection.
-* Frictionless 1-Click "Mark Safe / Ignore" UX & Finding Status Segmentation.
-* Documentation & Linux System Hardening.
-* REST Telemetry Hardening, Cryptographic Rollback Verification & Database Lifecycle Integrity.
-* Codebase Streamlining & Legacy Compatibility Pruning.
-* WordPress.org Official Review Audit & Compliance Hardening.
-* Pre-Flight System Readiness & Compatibility Gate.
-* 3D Aesthetic First-Time Welcome Modal & Non-Technical Onboarding Rebuild.
-* False-Positive Whitelist & Finding Reopen Lifecycle Fix.
-* Dedicated "Scan" Tab in Main Navigation & Admin Menu.
-
-= 1.17.0 =
-* Dedicated WCP Vault & Top Navigation Suite.
-* Attack Chain Engine & User Privilege Escalation Overhaul.
-* WordPress.org Official Plugin Review Compliance & Architectural Hardening.
-
-= 1.16.0 =
-* Multi-Vector Reverse Proxy SSL / HTTPS Detection & Server Environment Audit.
-
-= 1.15.0 =
-* Real-Time Progress & Telemetry Engine for One-Click Database Backup Vault.
-* Phase 4: Executive Incident Response & Client Security PDF/JSON Report.
-* Phase 3: Automated Two-Tier Virtual Patching Engine.
-* Phase 2: Attack-Chain & Behavioral Anomaly Correlation Engine.
-* Phase 1: Self-Healing & Multi-Persistence Malware Hunter.
-* Dedicated Tabs for File Integrity Monitoring & Filesystem Permissions.
-* Compliant Root & Shared Hosting Directory Permission Recognition.
-* Filesystem Permissions & Ownership Auditor with 1-Click Mass Hardening.
-
-= 1.14.0 =
-* Official Verified Website Logo Branding & Plugin Action Links.
-* Directory Browsing Prevention & Safe Index Placeholder Recognition.
-* Filesystem Forensics & One-Click Permission Remediation for Unsafe Permissions.
-* Real-Time Integrity Auto-Reconciliation for Restored Files.
-* Theme Integrity Detail Expansion & Forensics Fault-Tolerance Fix.
-* Dashboard Comprehensive Scan Filtering & Targeted Scan Separation.
-* Full-System Queue Discovery & Artificial 3000 File Limit Removal.
-* Filesystem & Directory Storage Breakdown on Server Info.
-* Malware Scanning Expansion for Non-PHP Assets.
-* Premium & Third-Party Plugin Upstream Changelog Integration.
-* Official WordPress.org Repository Classification & Latest Upstream Changelog Viewer.
-* Current Authenticated Administrator Protection & Direct Password Change Remediation.
-* Database Record Forensics, Auto-Backup Quarantine & Surgical Remediation.
-* WordPress Comment Threat Forensics & Native Moderation Architecture.
-* Theme Integrity Version Reconciliation & Pristine Baseline Detection.
-* Real-Time Audit Telemetry, Memory & CPU Consumption HUD.
-* Deep Technical Telemetry & SysAdmin Diagnostics Across All Report Exports.
-* User Accounts, Roles & Capability Forensics & Surgical Remediation Architecture.
-* Active Scan Safeguards & Log Purging Self-Healing Architecture.
-* Custom & Premium Themes/Plugins Forensics, Changelog Modal & Finding Details Fix.
-
-= 1.13.0 =
-* Real-World Production Scan Calibration & False-Positive Elimination.
-* Two-Phase Commit Vault Key Rotation Orchestrator.
-* Hierarchical Resumable Cursor & Constant-Memory Filesystem Traversal.
-* Phased Streaming Scan Pipeline & Real OS Memory Ceilings.
-* Multi-Row Prepared Statement Database Persistence Layer.
-* Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault Upgrade.
-* Multi-Format Scan Results Export.
-* Official Plugin & Theme File Modification Detection & Full Scan Pipeline Hardening.
-* Quarantine Vault & Sensitive Storage Cryptographic Hardening.
-* Path Boundary Hardening & Sibling-Directory Prefix Confusion Elimination.
-* Strict Trusted Proxy Verification & Client IP Spoofing Prevention.
-* Dedicated Quarantine Vault Page & Admin Sidebar Navigation.
-
-= 1.12.0 =
-* Complete Dashboard Rebuild & Next-Gen Cyber Command Center.
-* Finding Table Modern Zebra Shading & Visual Hierarchy Rebuild.
-* Cron Hook & Database Option Non-File Categorization & Action Boundary Fix.
-* Visual Code Diff In-Page Modal Opening Fix & Resilient API Fallback.
-* High-Precision Microsecond & Millisecond Scan Execution Duration Tracking.
-* Plugin Integrity Self-Exclusion & Multi-Engine Deduplication Safeguards.
-* In-Page Visual Code Diff Modal on Dashboard & Inspection Reports.
-* Multi-Layer Finding Deduplication & Concurrency Lock Resolution.
-* Unknown & Rogue File FIM Action Boundary Correction.
-* 1-Click Scheduled Cron Hook Removal & Database Deletion.
-* Rogue & Unknown File Quarantine in Core Directories & Vault Purge.
-* Auto-Cure Remediation Resolution & Solved Issue State Synchronization.
-* Quarantine Button Exclusion for Protected & Modified Official Files.
-* Quarantine Vault Table Format & Action Button Overflow Fix.
-* 1-Click Single-File WordPress Core Auto-Cure & Pristine WP.org Restoration.
-* Dynamic Security Health Score & Remediated Threat Resolution.
-* Comprehensive Documentation & Extended 21-Engine Architecture Catalog.
-* CVEs & Warnings Threat Cube & Category Filter Synchronization.
-* WordPress Core Compatibility Header Standardization.
-
-= 1.5.1 =
-* Automated Sensitive Credential & Webhook Masking on Settings Save & Reveal.
-* Two-Step "Reset Defaults" Confirmation Modal Safeguard.
-* Encrypted Two-Factor Authentication User Secrets at Rest.
-* Consolidated & Strengthened Cloudflare Free Plan Custom WAF Edge Rules.
-* VirusTotal & Antivirus Heuristic False-Positive Elimination.
-* Scheduled Background Scan Architecture & Reliability Overhaul.
-* Scan Logs Execution Origin Tracking.
-* Schedule Scan Diagnostics: WordPress Time, GMT Time & Live Relative Countdown.
-* Custom Scheduled Start Time & Background Scan Progress Tracking.
-* Live Dashboard & Scanner UI Monitoring for Scheduled Background Scans.
-* Optimized "Scan Logs & History" with Deep-Link URL State & Auto-Scroll.
-
-= 1.5.0 =
-* Built Web Application Firewall & Virtual Patching Engine.
-* Built Real-Time File Integrity Monitoring & Visual Code Diff Viewer.
-* Built One-Click Malware Remediation & Auto-Cure Engine.
-* Built Cloud Threat Intelligence & Community Blacklists Synchronization.
-* Built Multi-Factor Authentication & Login Hardening Engine.
-* Built DevSecOps Chat & Automation Webhooks.
-* Built Dedicated "Support & Socials" Hub Under Scanner Settings.
-* WordPress.org Official Plugin Review Compliance & Hardening.
-* Cleaned Dashboard Top Menu Navigation & Streamlined Standalone Views.
-* Redesigned and Modernized Scanner Settings Page.
-* Fixed File Integrity Monitoring Scope Filter Stats Persistence.
-* Added Custom & Premium Component Recognition & Automatic Exclusion to FIM.
-* Added Automatic Safe Directory Index Protection & Custom Exclusion Engine for Uploads.
-* Fixed Cloud Threat Intelligence Live Sync and Enhanced Site Vulnerability Correlation.
-* Fixed Header Refresh Button Responsiveness & Visual Feedback.
-* Built HTTP Security Headers Engine & 1-Click Site Hardening.
-* Built Session Hijack Defense & Concurrent Admin Session Sentinel.
-* Built Database Micro-Anomaly & Rogue Administrator Trap.
-* Built Bot Recon Defense & AI Scraper Shield.
-* Built Living-off-the-Land Native Hook Infiltration Sentinel.
-* Expanded Comprehensive Plugin Documentation across `readme.txt`, `README.md`, and `docs/features.md`.
-* Resolved Targeted Scan JSON Response Errors.
-* Built Cloudflare Edge Defense & Zero-Resource WAF.
-* Resolved Fresh Installation FIM Baseline False-Positives.
-* Enhanced Dashboard UX & Scan Results Professionalism.
-* Modernized Scan Logs & Audit History Interface.
-* Built 2FA "Remember Trusted Device for 7 Days" Engine & Management Suite.
-* Enhanced Cloudflare Edge Defense Integration & 1-Click Token Pre-Configuration.
-* Enhanced Active Sessions Sentinel & Current Session UX.
-* Enhanced File Integrity Monitoring & Config Diff Viewer Security.
-* Encrypted Cloudflare Credentials, Webhook URLs & AI Tokens at Rest via AES-256-CBC SecretVault.
-* Resilient Cloudflare Service Loader & Host Scanner Quarantine Hardening.
-* Interactive "Reset Defaults" Safeguard Modal.
-* Repackaged production-ready WordPress.org release zip `wcp-security-scanner.zip`..
-
-= 1.4.0 =
-* Created Comprehensive Documentation `features.md`.
-* Added Dedicated "Scanner Settings & Automation" Page & Submenu.
-* Automated Scheduled Scanning Engine.
-* Email Security Notifications & Incident Alerts.
-* Multi-Provider AI Cybersecurity Intelligence Integration.
-* Settings Import & Export Engine.
-* Scanner Performance & Developer Hardening Options.
-* Redesigned "Scan Logs & History" UI & Formatting.
-* WordPress.org Submission & Plugin Check Hardening.
-* Advanced File System Malware Detection.
-* Comprehensive Database Malware Scanning.
-* Professional Remediation & User Audit Logging.
-* Dynamic Plugin Version Engine Badge.
-* Expanded Automated Test Suite.
-
-= 1.3.0 =
-* Added Dedicated "About Us & Services" Sub-Page.
-* Added Source File Code Inspection Popup Window & Modal.
-* Added Post & Page Malware / Spam Inspection & Direct WordPress Editor Navigation.
-* Modernized and Enhanced Interface.
-* Added Outdated WordPress Core, Themes & Plugins Detection with Known CVE References.
-* Added Dedicated "Vulnerabilities & Updates" Sub-Page.
-* Added Official vs. Premium/Custom Provenance & Unknown Foreign File Detection to Vulnerabilities Page.
-
-= 1.2.0 =
-* Bumped plugin and package version to 1.2.0..
-* Implemented Dedicated Sub-Pages & Tabs Navigation.
-* Registered new submenus in AdminMenu.php with synchronized initialTab state for direct deep linking..
-* Built REST API routes for /server-info, /backup/create, /backup/list, /backup/delete, /backup/download, /scan/history, and /scan/history/{id}..
-* Updated wcp_scans database table migration to include scan_target tracking with dbDelta and alter-table fallback..
-* Added Quarantine Shield: strictly blocked quarantining of critical WordPress bootstrap files in QuarantineManager.php..
-* Added Reverse Integrity Reconciliation: detected unrecognized/foreign files in CoreIntegrity.php, PluginIntegrity.php, and ThemeIntegrity.php regardless of extension..
-* Calibrated Malware Heuristics and SerializedDataScanner to prevent false positives on transients, embeds, and scanner self-code..
-* Expanded automated test suite in test-suite.php to 19 passing unit & integration checks..
-* Dynamic Browser URL Synchronization: Connected tab navigation to HTML5 History pushState and popstate event listeners so clicking Dashboard, Targeted Scans, Scan Logs, Database Backup Vault, and Server Info updates the browser URL and synchronizes WordPress sidebar menu active highlights without reloading..
-* Implemented Clear Scan Logs Feature: Added REST API route /scan/history/clear and UI button in Scan Logs & History tab to purge historical scan runs, and cleared all old test scan logs from database..
-* Hardened Database Backup Vault Permissions & Fallback: Added automatic 0775 permission enforcement and automatic fallback to wp-content/uploads/wcp-backups/ if the primary directory lacks write permissions for the web server user. Updated list, delete, and download handlers to cross-search all vault storage locations seamlessly..
-* Added Targeted Scan Option - Uploads Executables & Suspicious Files Audit.
-* Initialized Git repository tracking and configured .gitignore to exclude non-plugin environment files and frontend source build files leaving only production plugin files in repository..
-* Implemented Animated Real-Time Progress Bar for Targeted Scans.
-* Added Targeted Scans for Crontab / Persistence Audit & WordPress Core Integrity.
-* Hardened REST API Communication & Scan Resilience.
-* Implemented Persistent Running Scan State & Auto-Resumption on Page Refresh.

@@ -29,14 +29,34 @@
       "summary": "Universal System-Wide UTC/GMT Immutable Timestamps, image binary malware validation, and WordPress root unknown dotfile deep scanning."
     },
     {
+      "version": "1.25.0",
+      "released_at": "2026-10-25",
+      "summary": "WordPress Plugin Check clean verification, targeted firewall allowlist rules, and high-contrast dark mode preset styling."
+    },
+    {
       "version": "1.24.0",
       "released_at": "2026-10-24",
       "summary": "Automattic Jetpack Smart Pass (Official CIDR & Signed Token Verification), Verified Search Engine Crawler Exemption & Defense Architecture."
     },
     {
+      "version": "1.23.0",
+      "released_at": "2026-10-23",
+      "summary": "Plugin deactivation resiliency, 3rd-party mailer shield, error boundary hardening, and comprehensive firewall rule verification suite."
+    },
+    {
       "version": "1.22.0",
       "released_at": "2026-10-22",
       "summary": "Cloudflare Edge Master Rule 4 (Deep SQLi Armor), Malicious File Upload Armor, and GitHub Direct Updater"
+    },
+    {
+      "version": "1.21.0",
+      "released_at": "2026-10-21",
+      "summary": "Smart 404 Scanner Rate-Limiter, Reconnaissance Shield, dedicated WAF Incident Logs & Threat Intelligence Page."
+    },
+    {
+      "version": "1.20.0",
+      "released_at": "2026-10-20",
+      "summary": "Login Security User Session Forensics, IP Shift Tracking, and universal dropdown menu indicator styling."
     }
   ]
 }
