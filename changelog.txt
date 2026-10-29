@@ -1,4 +1,6 @@
 v:1.29.0 - 2026-10-29
+- Header Controls Right-Side Margin & Spacing Calibration (index.css):
+  * Generous Right Margin: Expanded the top tier right-side padding to 48px and added a 16px actions margin, providing prominent breathing space away from the right container edge as requested.
 - Header Controls Right-Side Positioning & Full Mobile Responsiveness (App.tsx, index.css):
   * Right-Aligned Top Governance Controls: Placed the full header governance group (Essential/Advanced SOC Mode toggle, Quick Setup, Panic Lockdown, and Dark/White Mode) in the top-right section with dedicated right padding (28px container edge padding and 8px actions margin), ensuring breathing room away from the card boundary.
   * Mobile & Tablet Viewport Optimization: Implemented adaptive responsive rules for 991px (tablets) and 640px (mobile phones) with horizontal smooth touch scrolling for action pills and navigation tabs, auto-scaling brand logo, and zero awkward line-wrapping.
