@@ -56,6 +56,11 @@ function copyDirRecursive(src, dest) {
     if (entry.name === 'tests' || entry.name === 'node_modules' || entry.name.endsWith('.map')) {
       continue;
     }
+    // WordPress.org Directory Assets Rule:
+    // icon-*.png and banner-*.png belong only in the w.org SVN /assets root, NOT inside the plugin zip package
+    if (src.includes('assets') && (/^icon-\d+x\d+\.png$/i.test(entry.name) || /^banner-\d+x\d+\.png$/i.test(entry.name))) {
+      continue;
+    }
 
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);

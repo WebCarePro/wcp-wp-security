@@ -420,6 +420,9 @@ class LocalSnapshotManager {
      * @return array
      */
     public static function restore_file(string $snapshot_id, string $rel_path): array {
+        if (!current_user_can('manage_options')) {
+            return ['success' => false, 'message' => esc_html__('Access Denied: manage_options capability required.', 'wcp-security-scanner')];
+        }
         $archive_data = self::load_snapshot_archive($snapshot_id);
         if (!$archive_data) {
             return ['success' => false, 'message' => esc_html__('Snapshot archive not found.', 'wcp-security-scanner')];

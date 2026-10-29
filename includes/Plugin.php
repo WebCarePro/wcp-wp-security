@@ -108,14 +108,8 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Auth\\WebAuthnManager')) {
             \WcpScanner\Auth\WebAuthnManager::init();
         }
-        if (class_exists('\\WcpScanner\\Identity\\TemporarySupportAccess')) {
-            \WcpScanner\Identity\TemporarySupportAccess::init();
-        }
         if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
             \WcpScanner\Identity\WcpJitMuGuardian::ensure_installed();
-        }
-        if (class_exists('\\WcpScanner\\System\\PluginUpdater')) {
-            \WcpScanner\System\PluginUpdater::init();
         }
 
         add_action('rest_api_init', function () {

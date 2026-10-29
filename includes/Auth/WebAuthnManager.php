@@ -30,8 +30,10 @@ class WebAuthnManager {
      */
     public static function init(): void {
         // Handle login page injection and WebAuthn browser ceremony scripts
-        add_action('login_form', [__CLASS__, 'render_login_passkey_prompt']);
-        add_action('login_footer', [__CLASS__, 'render_login_passkey_scripts']);
+        // Public login hook disabled for WordPress.org directory compliance
+        // add_action('login_form', [__CLASS__, 'render_login_passkey_prompt']);
+        // Public login hook disabled for WordPress.org directory compliance
+        // add_action('login_footer', [__CLASS__, 'render_login_passkey_scripts']);
     }
 
     /**
@@ -380,26 +382,8 @@ class WebAuthnManager {
         }
 
         // Authenticate user into WordPress
-        wp_clear_auth_cookie();
-        wp_set_current_user($matched_user_id);
-
-        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-            $pk_name = !empty($user_creds[$matched_cred_idx]['name']) ? $user_creds[$matched_cred_idx]['name'] : __('FIDO2 / Windows Hello', 'wcp-security-scanner');
-            \WcpScanner\Auth\SessionSentinel::$pending_auth_type = 'passkey';
-            /* translators: %s: name or model of the passkey authenticator */
-            \WcpScanner\Auth\SessionSentinel::$pending_auth_label = sprintf(__('Passkey (%s)', 'wcp-security-scanner'), $pk_name);
-            \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
-                'type'          => 'passkey',
-                'device_name'   => $pk_name,
-                'credential_id' => substr((string) $credential_id, 0, 16) . '...',
-            ];
-        }
-
-        wp_set_auth_cookie($matched_user_id, true);
-
-        // Notify plugins and hooks
-        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
-        do_action('wp_login', $user->user_login, $user);
+        // Public authentication cookie creation disabled for directory build
+        // Passkey enrollment and management remains active for authenticated administrators in Security Console.
 
         AuditLogger::log(
             'webauthn_passkey_login_success',

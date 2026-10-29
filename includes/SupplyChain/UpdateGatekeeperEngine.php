@@ -297,7 +297,7 @@ class UpdateGatekeeperEngine {
         if (!is_dir($base_snapshots)) {
             wp_mkdir_p($base_snapshots);
             @file_put_contents($base_snapshots . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
-            @file_put_contents($base_snapshots . '/index.php', "<?php\nexit;\n");
+            @file_put_contents($base_snapshots . '/index.php', "<?php\n// Silence is golden.\n");
         }
 
         $snapshot_id = 'snap_' . $slug . '_' . gmdate('Ymd_His') . '_' . bin2hex(random_bytes(3));

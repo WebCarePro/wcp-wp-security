@@ -860,22 +860,6 @@ class SessionSentinel {
                     human_time_diff($last_seen_ts, time())
                 );
 
-                // Check for Magic Link metadata if temporary support user
-                $support_link_meta = null;
-                $is_support_user = get_user_meta($admin->ID, 'wcpscan_is_temporary_support', true);
-                if ($is_support_user && class_exists('\\WcpScanner\\Identity\\TemporarySupportAccess')) {
-                    $links = get_option(\WcpScanner\Identity\TemporarySupportAccess::OPTION_LINKS, []);
-                    if (isset($links[$is_support_user])) {
-                        $support_link_meta = [
-                            'link_id'     => $is_support_user,
-                            'label'       => $links[$is_support_user]['label'] ?? 'Technician',
-                            'scope'       => $links[$is_support_user]['scope'] ?? 'diagnostic',
-                            'restrict_ip' => $links[$is_support_user]['restrict_ip'] ?? '',
-                            'expires_at'  => isset($links[$is_support_user]['expires_at']) ? date_i18n('Y-m-d H:i:s', $links[$is_support_user]['expires_at']) : '',
-                        ];
-                    }
-                }
-
                 $results[] = [
                     'session_id'               => substr((string) $verifier, 0, 16),
                     'token'                    => (string) $verifier,

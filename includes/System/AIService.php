@@ -199,48 +199,17 @@ class AIService {
         $connectors_url = admin_url('options-connectors.php');
         $has_connectors_api = function_exists('wp_get_connectors') || function_exists('wp_ai_client_prompt') || class_exists('\\WordPress\\AI\\Main') || function_exists('\\WordPress\\AI\\get_ai_service');
 
-        // Check active connectors configured in WordPress options-connectors.php
-        $active_connectors = [];
-        if (function_exists('wp_get_connectors')) {
-            foreach (wp_get_connectors() as $cid => $cdata) {
-                $isActive = is_callable($cdata['plugin']['is_active'] ?? null) ? $cdata['plugin']['is_active']() : false;
-                $hasKey = !empty(get_option("connectors_ai_{$cid}_api_key"));
-                if ($isActive || $hasKey) {
-                    $active_connectors[] = $cdata['name'] ?? ucfirst($cid);
-                }
-            }
-        }
-        if (empty($active_connectors) && function_exists('\\WordPress\\AI\\get_ai_connectors')) {
-            $conns = \WordPress\AI\get_ai_connectors(false);
-            foreach ($conns as $cid => $cdata) {
-                $hasKey = !empty(get_option("connectors_ai_{$cid}_api_key"));
-                if ($hasKey) {
-                    $active_connectors[] = $cdata['name'] ?? ucfirst($cid);
-                }
-            }
-        }
-        if (empty($active_connectors)) {
-            if (!empty(get_option('connectors_ai_google_api_key'))) $active_connectors[] = 'Google Gemini';
-            if (!empty(get_option('connectors_ai_openai_api_key'))) $active_connectors[] = 'OpenAI ChatGPT';
-            if (!empty(get_option('connectors_ai_anthropic_api_key'))) $active_connectors[] = 'Anthropic Claude';
-        }
-
-        // 1. Check WordPress Native Connectors API (options-connectors.php)
-        if ($has_connectors_api && !empty($active_connectors)) {
+        // 1. Check WordPress Native AI Client (WP 7.0+ options-connectors.php)
+        if ($has_connectors_api) {
             return [
                 'is_available'        => true,
-                'engine_name'         => 'WordPress Native AI Connectors (' . implode(', ', $active_connectors) . ')',
+                'engine_name'         => 'WordPress Native AI Client',
                 'engine_slug'         => 'wp_connectors',
-                'detected_via'        => 'WordPress Core Connectors API (options-connectors.php)',
+                'detected_via'        => 'WordPress Core AI Client (options-connectors.php)',
                 'connectors_url'      => $connectors_url,
-                'has_connectors_page' => true,
-                'active_connectors'   => $active_connectors,
-                'details'             => sprintf(
-                    /* translators: %s: Comma-separated list of active connectors */
-                    __('WordPress Native AI Connect is active with %s configured! You can manage or add connectors anytime at Settings → Connectors (options-connectors.php). WCP Security Scanner is 100%% compatible and seamlessly executes code de-obfuscation and threat forensics directly through your WordPress AI infrastructure.', 'wcp-security-scanner'),
-                    implode(', ', $active_connectors)
-                ),
-                'recommended_plugin'  => $recommended_plugin,
+                'supported_models'    => ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gpt-6.1-sol', 'claude-sonnet-5-5'],
+                'preferred_model'     => 'gemini-3.5-flash-lite',
+                'description'         => __('WordPress core AI Client configured via the native Site Connectors screen.', 'wcp-security-scanner'),
             ];
         }
 
@@ -403,39 +372,7 @@ class AIService {
             return $filtered;
         }
 
-        // 2. Direct connector credentials configured in WordPress options-connectors.php
-        // These provide instant, reliable execution using the credentials stored by WordPress Connectors admin screen.
-        // We prioritize high-speed flash models to avoid alpha core AI client rate-limiting or slow retry loops.
-        $google_conn_key = get_option('connectors_ai_google_api_key');
-        if (!empty($google_conn_key) && is_string($google_conn_key)) {
-            try {
-                return self::call_gemini($google_conn_key, 'gemini-3.5-flash-lite', $system, $user, $temp, $max_tokens, $timeout);
-            } catch (\Throwable $e) {
-                try {
-                    return self::call_gemini($google_conn_key, 'gemini-3.8-flash', $system, $user, $temp, $max_tokens, $timeout);
-                } catch (\Throwable $e2) {
-                    // Continue down fallback chain
-                }
-            }
-        }
-        $openai_conn_key = get_option('connectors_ai_openai_api_key');
-        if (!empty($openai_conn_key) && is_string($openai_conn_key)) {
-            try {
-                return self::call_openai($openai_conn_key, 'gpt-6.1-sol', $system, $user, $temp, $max_tokens, $timeout);
-            } catch (\Throwable $e) {
-                // Continue down fallback chain
-            }
-        }
-        $anthropic_conn_key = get_option('connectors_ai_anthropic_api_key');
-        if (!empty($anthropic_conn_key) && is_string($anthropic_conn_key)) {
-            try {
-                return self::call_claude($anthropic_conn_key, 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens, $timeout);
-            } catch (\Throwable $e) {
-                // Continue down fallback chain
-            }
-        }
-
-        // 3. Check WordPress Core AI Client Prompt Builder (wp_ai_client_prompt() in WP 7.0+)
+        // 2. Check WordPress Core AI Client Prompt Builder (wp_ai_client_prompt() in WP 7.0+)
         if (function_exists('wp_ai_client_prompt')) {
             try {
                 $full_prompt = "{$system}\n\n{$user}";
@@ -527,7 +464,7 @@ class AIService {
 
         // 5. Generic WordPress AI prompt filter (used by various plugins)
         // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
-        $prompt_filtered = apply_filters('wp_ai_prompt', null, $user, $system);
+        $prompt_filtered = apply_filters('wcpscan_ai_prompt', null, $user, $system);
         if (!empty($prompt_filtered) && is_string($prompt_filtered)) {
             return $prompt_filtered;
         }

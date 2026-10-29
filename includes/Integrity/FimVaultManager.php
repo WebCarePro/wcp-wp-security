@@ -70,7 +70,7 @@ class FimVaultManager {
 
         $index = rtrim($dir, '/\\') . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
+            @file_put_contents($index, "<?php\n// Silence is golden.\n");
         }
     }
 

@@ -170,6 +170,30 @@ This plugin can optionally connect to the following external third-party service
 * Terms of Service: https://www.cloudflare.com/terms/
 * Privacy Policy: https://www.cloudflare.com/privacypolicy/
 
+13. Have I Been Pwned API (HIBP)
+* Service: Troy Hunt / Have I Been Pwned (https://api.pwnedpasswords.com).
+* Purpose: Verifies whether user-submitted passwords or administrator accounts have been compromised in known global data breaches using k-Anonymity mathematical privacy model.
+* Data Sent: Only the first 5 characters of the SHA-1 hash of the password (k-Anonymity prefix). The full password or hash is never transmitted over the network.
+* When: Triggered during password audits or administrator login checks when HIBP Breach Shield is enabled.
+* Terms of Service: https://haveibeenpwned.com/Terms
+* Privacy Policy: https://haveibeenpwned.com/Privacy
+
+14. NIST National Vulnerability Database (NVD)
+* Service: National Institute of Standards and Technology (NIST) (https://services.nvd.nist.gov).
+* Purpose: Queries official CVE vulnerability descriptions and severity metrics for detected WordPress core, theme, and plugin vulnerabilities.
+* Data Sent: CVE identification string (e.g. CVE-2023-XXXX). No user or website data is sent.
+* When: Triggered on-demand when inspecting CVE threat details in the Vulnerabilities tab.
+* Terms of Service: https://www.nist.gov/oism/terms-use
+* Privacy Policy: https://www.nist.gov/privacy-policy
+
+15. Stamparm Ipsum & Threat Intelligence Feeds
+* Service: Stamparm Ipsum Project (https://raw.githubusercontent.com/stamparm/ipsum).
+* Purpose: Downloads curated feeds of suspicious IP addresses and known malicious scanners to update the local firewall blocklist.
+* Data Sent: None (outbound GET request to download public IP lists).
+* When: Triggered on-demand or during scheduled threat intelligence sync when enabled by administrator.
+* Terms of Service: https://github.com/stamparm/ipsum/blob/master/README.md
+* Privacy Policy: https://github.com/stamparm/ipsum
+
 == Source Code & Build ==
 
 This plugin is open-source under GPLv2 or later. Non-minified React and JavaScript source files are included directly in the `src/` directory.

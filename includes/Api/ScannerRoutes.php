@@ -868,37 +868,6 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
-        // Plugin GitHub Update & Rollback Endpoints
-        register_rest_route(self::NAMESPACE, '/updater/status', [
-            'methods'             => 'GET',
-            'callback'            => [__CLASS__, 'get_updater_status'],
-            'permission_callback' => $permission,
-        ]);
-
-        register_rest_route(self::NAMESPACE, '/updater/check', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'check_for_updates'],
-            'permission_callback' => $permission,
-        ]);
-
-        register_rest_route(self::NAMESPACE, '/updater/update-now', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'execute_plugin_update'],
-            'permission_callback' => $permission,
-        ]);
-
-        register_rest_route(self::NAMESPACE, '/updater/create-backup', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'create_plugin_backup'],
-            'permission_callback' => $permission,
-        ]);
-
-        register_rest_route(self::NAMESPACE, '/updater/rollback', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'execute_plugin_rollback'],
-            'permission_callback' => $permission,
-        ]);
-
         // Cloudflare Edge Defense Endpoints
         register_rest_route(self::NAMESPACE, '/cloudflare/status', [
             'methods'             => 'GET',
@@ -1586,36 +1555,7 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
-        register_rest_route(self::NAMESPACE, '/auth/webauthn/login-options', [
-            'methods'             => ['GET', 'POST'],
-            'callback'            => [__CLASS__, 'webauthn_login_options'],
-            'permission_callback' => '__return_true',
-        ]);
 
-        register_rest_route(self::NAMESPACE, '/auth/webauthn/login-verify', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'webauthn_login_verify'],
-            'permission_callback' => '__return_true',
-        ]);
-
-        // Phase 6: Scoped Time-Bombed Emergency Support Access
-        register_rest_route(self::NAMESPACE, '/identity/temporary-access/list', [
-            'methods'             => 'GET',
-            'callback'            => [__CLASS__, 'get_temporary_access_list'],
-            'permission_callback' => $permission,
-        ]);
-
-        register_rest_route(self::NAMESPACE, '/identity/temporary-access/create', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'create_temporary_access'],
-            'permission_callback' => $permission,
-        ]);
-
-        register_rest_route(self::NAMESPACE, '/identity/temporary-access/revoke', [
-            'methods'             => 'POST',
-            'callback'            => [__CLASS__, 'revoke_temporary_access'],
-            'permission_callback' => $permission,
-        ]);
 
         // Phase 6: Server Security Verification & Caddy
         register_rest_route(self::NAMESPACE, '/server-security/verify', [
@@ -9332,99 +9272,6 @@ class ScannerRoutes {
         return rest_ensure_response($res);
     }
 
-    // ==========================================
-    // 17. Plugin GitHub Updater & Rollback Endpoints
-    // ==========================================
-
-    public static function get_updater_status(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
-            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
-            if (file_exists($file)) {
-                require_once $file;
-            }
-        }
-
-        $status = \WcpScanner\System\PluginUpdater::check_update_status(false);
-        $backups = \WcpScanner\System\PluginUpdater::get_local_backups();
-
-        return rest_ensure_response([
-            'success' => true,
-            'status'  => $status,
-            'backups' => $backups,
-        ]);
-    }
-
-    public static function check_for_updates(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
-            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
-            if (file_exists($file)) {
-                require_once $file;
-            }
-        }
-
-        $status = \WcpScanner\System\PluginUpdater::check_update_status(true);
-        $backups = \WcpScanner\System\PluginUpdater::get_local_backups();
-
-        return rest_ensure_response([
-            'success' => true,
-            'status'  => $status,
-            'backups' => $backups,
-            'message' => $status['has_update']
-                /* translators: %s: new version */
-                ? sprintf(__('New update %s is available on GitHub!', 'wcp-security-scanner'), $status['latest_version'])
-                : __('You are running the latest version directly from GitHub.', 'wcp-security-scanner'),
-        ]);
-    }
-
-    public static function execute_plugin_update(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
-            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
-            if (file_exists($file)) {
-                require_once $file;
-            }
-        }
-
-        $params = $request->get_json_params();
-        $download_url = !empty($params['download_url']) ? esc_url_raw($params['download_url']) : null;
-
-        $res = \WcpScanner\System\PluginUpdater::execute_update($download_url);
-        return rest_ensure_response($res);
-    }
-
-    public static function create_plugin_backup(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
-            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
-            if (file_exists($file)) {
-                require_once $file;
-            }
-        }
-
-        $res = \WcpScanner\System\PluginUpdater::create_local_backup();
-        $backups = \WcpScanner\System\PluginUpdater::get_local_backups();
-
-        return rest_ensure_response([
-            'success' => $res['success'],
-            'message' => $res['message'],
-            'backups' => $backups,
-        ]);
-    }
-
-    public static function execute_plugin_rollback(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\System\PluginUpdater')) {
-            $file = WCPSCAN_PATH . 'includes/System/PluginUpdater.php';
-            if (file_exists($file)) {
-                require_once $file;
-            }
-        }
-
-        $params = $request->get_json_params();
-        $backup_id = sanitize_text_field($params['backup_id'] ?? '');
-        $download_url = !empty($params['download_url']) ? esc_url_raw($params['download_url']) : null;
-
-        $res = \WcpScanner\System\PluginUpdater::execute_rollback($backup_id, $download_url);
-        return rest_ensure_response($res);
-    }
-
     // =========================================================================
     // Pillar 5: Continuous Threat Intel Network & Automated Virtual Patching Ecosystem
     // =========================================================================
@@ -9857,82 +9704,6 @@ class ScannerRoutes {
             'success'     => $deleted,
             'message'     => $deleted ? __('Passkey removed successfully.', 'wcp-security-scanner') : __('Passkey not found.', 'wcp-security-scanner'),
             'credentials' => \WcpScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
-        ]);
-    }
-
-    public static function webauthn_login_options(\WP_REST_Request $request) {
-        $params = $request->get_json_params() ?: [];
-        $username = sanitize_text_field(wp_unslash($params['username'] ?? ''));
-        return rest_ensure_response(\WcpScanner\Auth\WebAuthnManager::generate_login_options($username));
-    }
-
-    public static function webauthn_login_verify(\WP_REST_Request $request) {
-        $params = $request->get_json_params() ?: [];
-        $session_id = sanitize_key($params['session_id'] ?? '');
-        $payload = is_array($params['payload'] ?? null) ? $params['payload'] : [];
-
-        if (empty($session_id) || empty($payload)) {
-            return new \WP_Error('missing_params', __('Authentication session and payload required.', 'wcp-security-scanner'), ['status' => 400]);
-        }
-
-        $res = \WcpScanner\Auth\WebAuthnManager::verify_login($session_id, $payload);
-        if (empty($res['success'])) {
-            return new \WP_Error('login_failed', $res['message'] ?? __('Biometric login failed.', 'wcp-security-scanner'), ['status' => 401]);
-        }
-        return rest_ensure_response($res);
-    }
-
-    // ==========================================
-    // Phase 6: Scoped Temporary Support Access Handlers
-    // ==========================================
-
-    public static function get_temporary_access_list() {
-        $uid = get_current_user_id();
-        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
-            return new \WP_Error('rest_forbidden', __('Access Denied: Temporary support technicians cannot view access links.', 'wcp-security-scanner'), ['status' => 403]);
-        }
-
-        return rest_ensure_response([
-            'success' => true,
-            'links'   => \WcpScanner\Identity\TemporarySupportAccess::get_active_links(),
-        ]);
-    }
-
-    public static function create_temporary_access(\WP_REST_Request $request) {
-        $uid = get_current_user_id();
-        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
-            return new \WP_Error('rest_forbidden', __('Access Denied: Temporary support technicians are prohibited from generating new support links.', 'wcp-security-scanner'), ['status' => 403]);
-        }
-
-        $params = $request->get_json_params() ?: [];
-        $res = \WcpScanner\Identity\TemporarySupportAccess::create_support_link($params);
-        if (empty($res['success'])) {
-            return new \WP_Error('creation_failed', $res['message'] ?? __('Failed to create support link.', 'wcp-security-scanner'), ['status' => 403]);
-        }
-        return rest_ensure_response($res);
-    }
-
-    public static function revoke_temporary_access(\WP_REST_Request $request) {
-        $uid = get_current_user_id();
-        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
-            return new \WP_Error('rest_forbidden', __('Access Denied: Temporary support technicians are prohibited from revoking support links.', 'wcp-security-scanner'), ['status' => 403]);
-        }
-
-        $params = $request->get_json_params() ?: [];
-        $link_id = sanitize_key($params['link_id'] ?? '');
-
-        if (empty($link_id)) {
-            return new \WP_Error('missing_id', __('Link ID required.', 'wcp-security-scanner'), ['status' => 400]);
-        }
-
-        $revoked = \WcpScanner\Identity\TemporarySupportAccess::revoke_link($link_id);
-        return rest_ensure_response([
-            'success' => $revoked,
-            'message' => $revoked ? __('Support link revoked immediately.', 'wcp-security-scanner') : __('Link not found.', 'wcp-security-scanner'),
-            'links'   => \WcpScanner\Identity\TemporarySupportAccess::get_active_links(),
         ]);
     }
 

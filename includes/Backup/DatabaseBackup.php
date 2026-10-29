@@ -57,7 +57,7 @@ class DatabaseBackup {
         // Lock with index.php
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index) && wp_is_writable($this->backup_dir)) {
-            @file_put_contents($index, "<?php\n// Silence is golden.\nexit;\n");
+            @file_put_contents($index, "<?php\n// Silence is golden.\n");
         }
     }
 

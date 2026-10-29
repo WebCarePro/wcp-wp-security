@@ -29,7 +29,7 @@ class TransactionalRemediation {
             wp_mkdir_p($base);
             // Harden transaction storage against public web access
             @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
-            @file_put_contents($base . '/index.php', "<?php\n// Silence is golden.\nexit;\n");
+            @file_put_contents($base . '/index.php', "<?php\n// Silence is golden.\n");
         }
 
         return $base;

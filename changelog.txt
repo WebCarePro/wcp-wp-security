@@ -1,4 +1,12 @@
 v:1.29.0 - 2026-10-29
+- WordPress.org Official Plugin Directory Compliance & Review Hardening:
+  * Complete Removal of Remote Access / Temporary Support Access: Deleted `TemporarySupportAccess.php`, frontend UI (`TemporarySupportAccessCard.tsx`), and REST endpoints to strictly conform with WordPress.org guidelines prohibiting unauthorized remote administration tools.
+  * Disconnect GitHub Plugin Updater: Completely removed `PluginUpdater.php` and updater REST endpoints so all plugin releases and updates are handled exclusively by WordPress.org.
+  * WebAuthn / Passkeys Public Login Hardening: Disabled unauthenticated public login endpoints and hooks (`/auth/webauthn/login-options`, `/auth/webauthn/login-verify`) for the directory release, preserving passkey registration and credential management strictly for authenticated administrators inside the WordPress Admin Security Console.
+  * File Operations & Sensitive Writes Tightening: Replaced generic exit statements in generated subfolder index files with standard `<?php\n// Silence is golden.\n` placeholder, and enforced strict `manage_options` capability checks on file snapshot restoration (`LocalSnapshotManager::restore_file`).
+  * WP Core AI Client Alignment & Security: Removed raw reads of unmanaged option keys (`connectors_ai_*_api_key`) and aligned with official WordPress AI Client while namespacing internal filter hooks to `wcpscan_ai_prompt`.
+  * Comprehensive External Services Documentation: Expanded `readme.txt` with detailed disclosures, Terms of Service, and Privacy Policy links for all external APIs including Have I Been Pwned (HIBP), NIST National Vulnerability Database (NVD), and Stamparm threat intelligence feeds.
+  * Package Cleanliness: Excluded WordPress.org directory icon/banner assets from the zip archive to keep plugin distributions minimal and fully compliant with SVN repository standards.
 - WordPress.org Plugin Check (PCP) Compliance & Direct DB Hardening (WhitelistManager.php, SessionSentinel.php):
   * Prepared SQL & Dynamic Placeholders: Refactored database cascade-resolution queries in `WhitelistManager.php` to use prepared parameterized `%d` placeholder lists (`$wpdb->prepare()`) and static table identifiers, resolving `WordPress.DB.PreparedSQL.InterpolatedNotPrepared` and `PluginCheck.Security.DirectDB.UnescapedDBParameter` warnings.
   * Mixed Line Endings Normalization: Standardized line endings across `SessionSentinel.php` to pure LF (`\n`), clearing the `Internal.LineEndings.Mixed` Plugin Check warning.
