@@ -2266,6 +2266,11 @@ class FirewallEngine {
             return false;
         }
 
+        // Hard Guard: Local loopback and Docker private gateway subnets can NEVER be blocked
+        if (in_array($ip, ['127.0.0.1', '::1'], true) || strpos($ip, '172.17.') === 0 || strpos($ip, '172.18.') === 0) {
+            return false;
+        }
+
         $lines = explode("\n", str_replace("\r", "", $blocklist_str));
         foreach ($lines as $line) {
             $clean = trim($line);
