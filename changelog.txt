@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Header Controls Overflow & Right-Side Spacing Fix (index.css):
+  * Resolved Content-Box Overflow: Explicitly enforced `box-sizing: border-box` across `.wcp-header-tier-top` and `.wcp-header-tier-bottom`, eliminating horizontal padding-induced layout expansion beyond the parent `.header-bar` card.
+  * Balanced Card Margin & Padding: Calibrated right-side padding to `24px` matching standard page grid rhythms, giving the action controls (Essential/Advanced toggle, Quick Setup, Panic Button, Theme Toggle) comfortable breathing space away from the right card edge and browser window without touching scrollbars.
 - Header Controls Right-Side Margin & Spacing Calibration (index.css):
   * Generous Right Margin: Expanded the top tier right-side padding to 48px and added a 16px actions margin, providing prominent breathing space away from the right container edge as requested.
 - Header Controls Right-Side Positioning & Full Mobile Responsiveness (App.tsx, index.css):
