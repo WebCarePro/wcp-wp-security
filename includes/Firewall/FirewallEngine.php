@@ -2271,8 +2271,8 @@ class FirewallEngine {
             return false;
         }
 
-        // Hard Guard: Local loopback and Docker private gateway subnets can NEVER be blocked
-        if (in_array($ip, ['127.0.0.1', '::1'], true) || strpos($ip, '172.17.') === 0 || strpos($ip, '172.18.') === 0) {
+        // Hard Guard: Local loopback can NEVER be blocked
+        if (in_array($ip, ['127.0.0.1', '::1'], true)) {
             return false;
         }
 
@@ -3241,8 +3241,8 @@ class FirewallEngine {
             return false;
         }
 
-        // Safety Guard 1: Never block local loopback, Docker bridge subnets, or private RFC1918 gateway IPs
-        if (in_array($ip, ['127.0.0.1', '::1'], true) || strpos($ip, '172.17.') === 0 || strpos($ip, '172.18.') === 0) {
+        // Safety Guard 1: Never block local loopback IPs
+        if (in_array($ip, ['127.0.0.1', '::1'], true)) {
             return false;
         }
 
