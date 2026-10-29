@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- IPv6 Telemetry on Host Infrastructure & Runtime Telemetry (ServerTelemetryPage.tsx, FirewallEngine.php):
+  * Dual-Stack Origin Server IP Display: Updated the "Real Server IP" telemetry card to display both Server Origin IPv4 and IPv6 addresses simultaneously with dedicated 1-click copy controls.
+  * Dual-Stack CDN Edge IP Display: Updated the "Website CDN IP" telemetry card to resolve and display both Cloudflare Edge Anycast IPv4 and IPv6 addresses alongside dedicated copy buttons.
 - Universal Server Origin Auto-Whitelisting (IPv4 & IPv6) (FirewallEngine.php, ServerInfo.php):
   * Automatic Server IP Discovery (`ServerInfo::get_all_server_ips()`): Implemented multi-vector host IP detection inspecting environment variables (`SERVER_ADDR`, `LOCAL_ADDR`), local OS network interface bindings via `net_get_interfaces()`, and DNS A/AAAA resolution across system hostnames and site domains.
   * Zero-Config Own Server Auto-Accept: Injected `is_server_origin_or_loopback()` directly into `FirewallEngine::is_ip_whitelisted()`. Requests originating from the server's own host IPv4 and IPv6 addresses or loopback interfaces are now automatically accepted and exempt across all sites without requiring manual entry into the IP whitelist.

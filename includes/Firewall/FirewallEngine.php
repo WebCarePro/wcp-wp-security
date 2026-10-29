@@ -2988,17 +2988,43 @@ class FirewallEngine {
         $php_arch = PHP_INT_SIZE === 8 ? '64-bit' : '32-bit';
         $opcache_active = (bool) (extension_loaded('Zend OPcache') && ini_get('opcache.enable'));
 
-        // 4. Real Server Origin IP
-        $real_server_ip = class_exists('\\WcpScanner\\System\\ServerInfo')
-            ? \WcpScanner\System\ServerInfo::get_server_ip()
-            : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : 'Unknown');
+        // 4. Real Server Origin IPs (IPv4 and IPv6)
+        $real_server_ip = 'Unknown';
+        $real_server_ipv4 = '';
+        $real_server_ipv6 = '';
+
+        if (class_exists('\\WcpScanner\\System\\ServerInfo')) {
+            $all_server_ips = \WcpScanner\System\ServerInfo::get_all_server_ips();
+            foreach ($all_server_ips as $s_ip) {
+                if (filter_var($s_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $s_ip !== '127.0.0.1' && empty($real_server_ipv4)) {
+                    $real_server_ipv4 = $s_ip;
+                }
+                if (filter_var($s_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) && $s_ip !== '::1' && strpos($s_ip, 'fe80:') !== 0 && empty($real_server_ipv6)) {
+                    $real_server_ipv6 = $s_ip;
+                }
+            }
+            $real_server_ip = \WcpScanner\System\ServerInfo::get_server_ip();
+        } else {
+            $real_server_ip = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : 'Unknown';
+            if (filter_var($real_server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $real_server_ipv4 = $real_server_ip;
+            } elseif (filter_var($real_server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                $real_server_ipv6 = $real_server_ip;
+            }
+        }
+
+        if (empty($real_server_ipv4) && filter_var($real_server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $real_server_ipv4 = $real_server_ip;
+        }
 
         $is_server_ip_private = !filter_var($real_server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
 
-        // 5. Website CDN Detection & CDN IP
+        // 5. Website CDN Detection & CDN IPs (IPv4 and IPv6)
         $cdn_detected = false;
         $cdn_provider = 'None (Direct Origin)';
         $cdn_ip = 'N/A';
+        $cdn_ipv4 = '';
+        $cdn_ipv6 = '';
 
         // Check if connecting peer or raw peer is an edge proxy
         $raw_peer = self::$connecting_peer_ip ?: (!empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
@@ -3052,17 +3078,15 @@ class FirewallEngine {
         $site_host = wp_parse_url(get_site_url(), PHP_URL_HOST);
         $is_local_host = empty($site_host) || in_array($site_host, ['localhost', '127.0.0.1', '::1', 'local.test'], true) || preg_match('/\.local$/i', $site_host) || preg_match('/\.test$/i', $site_host);
 
-        // If CDN was detected via headers, but CDN IP could not be derived from connecting peer (e.g. mod_remoteip restored client IP)
-        // OR if CDN was not detected via request headers, query DNS records for the website hostname
-        if ((!$cdn_detected || $cdn_ip === 'N/A') && !$is_local_host) {
-            $resolved_ips = [];
-
+        // Resolve DNS records (both A and AAAA) for site hostname to capture edge IPv4 and IPv6
+        $resolved_ips = [];
+        if (!$is_local_host) {
             // Method A: dns_get_record for A and AAAA
             if (function_exists('dns_get_record')) {
                 $dns_a = @dns_get_record($site_host, DNS_A);
                 if (is_array($dns_a)) {
                     foreach ($dns_a as $rec) {
-                        if (!empty($rec['ip'])) {
+                        if (!empty($rec['ip']) && filter_var($rec['ip'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
                             $resolved_ips[] = $rec['ip'];
                         }
                     }
@@ -3070,7 +3094,7 @@ class FirewallEngine {
                 $dns_aaaa = @dns_get_record($site_host, DNS_AAAA);
                 if (is_array($dns_aaaa)) {
                     foreach ($dns_aaaa as $rec) {
-                        if (!empty($rec['ipv6'])) {
+                        if (!empty($rec['ipv6']) && filter_var($rec['ipv6'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
                             $resolved_ips[] = $rec['ipv6'];
                         }
                     }
@@ -3091,23 +3115,41 @@ class FirewallEngine {
                 }
             }
 
-            $resolved_ips = array_unique(array_filter($resolved_ips));
+            $resolved_ips = array_values(array_unique(array_filter($resolved_ips)));
 
-            // Test resolved IPs against CDN networks
+            // Extract IPv4 and IPv6 edge IPs
             foreach ($resolved_ips as $rip) {
+                if (filter_var($rip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && empty($cdn_ipv4)) {
+                    $cdn_ipv4 = $rip;
+                }
+                if (filter_var($rip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) && empty($cdn_ipv6)) {
+                    $cdn_ipv6 = $rip;
+                }
+
                 if (self::is_cloudflare_ip($rip)) {
                     $cdn_detected = true;
                     if ($cdn_provider === 'None (Direct Origin)') {
                         $cdn_provider = 'Cloudflare Anycast';
                     }
-                    $cdn_ip = $rip;
-                    break;
                 }
             }
 
-            // If still no CDN IP found, but CDN headers confirmed provider, use first public DNS resolved IP
-            if ($cdn_detected && $cdn_ip === 'N/A' && !empty($resolved_ips)) {
-                $cdn_ip = reset($resolved_ips);
+            // Assign primary CDN IP (prefer connecting raw peer if edge, or resolved IPv4, or resolved IPv6)
+            if ($cdn_detected) {
+                if (!empty($raw_peer) && (self::is_cloudflare_ip($raw_peer) || filter_var($raw_peer, FILTER_VALIDATE_IP))) {
+                    $cdn_ip = $raw_peer;
+                    if (filter_var($raw_peer, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                        $cdn_ipv4 = $raw_peer;
+                    } elseif (filter_var($raw_peer, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                        $cdn_ipv6 = $raw_peer;
+                    }
+                } elseif (!empty($cdn_ipv4)) {
+                    $cdn_ip = $cdn_ipv4;
+                } elseif (!empty($cdn_ipv6)) {
+                    $cdn_ip = $cdn_ipv6;
+                } elseif (!empty($resolved_ips)) {
+                    $cdn_ip = reset($resolved_ips);
+                }
             }
         }
 
@@ -3185,10 +3227,14 @@ class FirewallEngine {
             'php_arch'             => $php_arch,
             'opcache_active'       => $opcache_active,
             'real_server_ip'       => $real_server_ip,
+            'real_server_ipv4'     => $real_server_ipv4,
+            'real_server_ipv6'     => $real_server_ipv6,
             'is_server_ip_private' => $is_server_ip_private,
             'cdn_available'        => $cdn_detected,
             'cdn_provider'         => $cdn_provider,
             'cdn_ip'               => $cdn_ip,
+            'cdn_ipv4'             => $cdn_ipv4,
+            'cdn_ipv6'             => $cdn_ipv6,
             'php_ram_limit'        => $display_limit,
             'php_ram_used'         => $current_usage_mb . ' MB',
             'php_ram_peak'         => $peak_usage_mb . ' MB',
