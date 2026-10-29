@@ -3267,6 +3267,18 @@ class FirewallEngine {
     }
 
     /**
+     * Compatibility alias for blocking an IP address (used by GhostRouteTrap / Bot Traps)
+     *
+     * @param string $ip
+     * @param string $reason
+     * @param int $duration_seconds
+     * @return bool
+     */
+    public static function block_ip(string $ip, string $reason = '', int $duration_seconds = 0): bool {
+        return self::add_blocked_ip($ip);
+    }
+
+    /**
      * Remove an IP or CIDR subnet from custom blocklist and clear any active temporary lockouts.
      * Restores normal visitor access with full WAF inspection protection active.
      *

@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T03:30:20.402Z",
+  "generated_at": "2026-10-29T03:39:24.725Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -228,16 +228,16 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "c7575c4864c180e11397fd35424e1c89dacd214e5ffc329438062af840eaea27",
-      "size": 238601
+      "sha256": "6acfc2abe8cacd3437c3434e545854c8167c2768f514ea723c82ce9a4da96381",
+      "size": 238978
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "d60bc32675580e576a9dbcae47e661a72ed7e7c0b1350fc2ddb8146bcafa72c8",
       "size": 25660
     },
     "includes/Firewall/GhostRouteTrap.php": {
-      "sha256": "ce40bf8d99afc65a67c9c253f03e13e30bbbb5c01ba33f430f2c09bb69c6addf",
-      "size": 12230
+      "sha256": "d8d16199e2b02cbc073a47b97a36523b3f4e6da70a80431ffda097f4fdd774bb",
+      "size": 12148
     },
     "includes/Firewall/HoneyTokenEngine.php": {
       "sha256": "3103cb2de5084e6a46809994f307cd2b20f7c4154c3eecbc0b8d282ab26e64a1",
