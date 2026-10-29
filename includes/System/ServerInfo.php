@@ -219,6 +219,18 @@ class ServerInfo {
             if (!empty($resolved) && $resolved !== $host && filter_var($resolved, FILTER_VALIDATE_IP)) {
                 return $resolved;
             }
+
+            // Query IPv6 AAAA record if host has an IPv6 address
+            if (function_exists('dns_get_record')) {
+                $aaaa_records = @dns_get_record($host, DNS_AAAA);
+                if (!empty($aaaa_records) && is_array($aaaa_records)) {
+                    foreach ($aaaa_records as $rec) {
+                        if (!empty($rec['ipv6']) && filter_var($rec['ipv6'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                            return $rec['ipv6'];
+                        }
+                    }
+                }
+            }
         }
 
         // 3. Fallback to raw SERVER_ADDR if present

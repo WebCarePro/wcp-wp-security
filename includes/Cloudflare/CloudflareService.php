@@ -694,7 +694,7 @@ class CloudflareService {
         }
 
         $payload = [
-            'mode'          => 'allow',
+            'mode'          => 'whitelist',
             'configuration' => [
                 'target' => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip',
                 'value'  => $ip,

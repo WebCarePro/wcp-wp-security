@@ -1152,8 +1152,7 @@ class FirewallEngine {
         if (!empty($settings['waf_block_external_cron'])) {
             $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'wp-cron.php') !== false) {
-                $server_addr = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '';
-                $is_loopback = in_array($client_ip, ['127.0.0.1', '::1', $server_addr], true);
+                $is_loopback = self::is_server_origin_or_loopback($client_ip);
                 $is_admin = self::is_authenticated_administrator();
 
                 if (!$is_loopback && !$is_admin) {
@@ -2241,6 +2240,39 @@ class FirewallEngine {
     /**
      * Check if an IP is in the user-defined whitelist
      */
+    /**
+     * Check if an IP address belongs to the server itself (Loopback or Host Origin IPv4/IPv6)
+     */
+    public static function is_server_origin_or_loopback(string $ip): bool {
+        $ip = trim($ip);
+        if (empty($ip)) {
+            return false;
+        }
+
+        // 1. Standard loopback
+        if (in_array($ip, ['127.0.0.1', '::1'], true)) {
+            return true;
+        }
+
+        // 2. Direct server environment address
+        if (!empty($_SERVER['SERVER_ADDR']) && $ip === $_SERVER['SERVER_ADDR']) {
+            return true;
+        }
+        if (!empty($_SERVER['LOCAL_ADDR']) && $ip === $_SERVER['LOCAL_ADDR']) {
+            return true;
+        }
+
+        // 3. Compare against resolved ServerInfo IP (IPv4 or IPv6)
+        if (class_exists('\\WcpScanner\\System\\ServerInfo')) {
+            $detected_server_ip = \WcpScanner\System\ServerInfo::get_server_ip();
+            if (!empty($detected_server_ip) && $detected_server_ip !== 'Unavailable' && $detected_server_ip === $ip) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function is_ip_whitelisted(string $ip, string $whitelist_str): bool {
         if (empty($whitelist_str)) {
             return false;
