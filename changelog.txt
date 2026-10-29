@@ -1,4 +1,6 @@
 v:1.30.0 - 2026-10-30
+- Readme Metadata Refinement (readme.txt):
+  * Removed extraneous `Donate link` header from WordPress.org manifest to reflect individual solo freelancer status with zero open donation requests.
 - All Security Modules Mega Menu Visual Polish & Dark Mode High-Contrast Enhancement (MegaMenuModal.tsx, index.css):
   * Dynamic Dark Mode Adaptation: Integrated high-contrast dark theme tokens (`#0f172a` canvas, `#1e293b` card hover, `#334155` scrollbar thumbs) ensuring module cards, category containers, and search bars render with crisp contrast and zero washed-out white artifacts in Dark Mode.
   * Category Pillar Color System & Developer Tags: Assigned distinct chromatic identity to each security pillar block (Sky for Scanner, Red for Firewall, Purple for Behavioral WAF, Amber for Supply Chain, Emerald for Identity, Cyan for Vault, Indigo for Forensics) with vibrant developer badges (AI, MCP, WAF, LOGS, Cloudflare, 0-DAY, RED TEAM, TRAPS, CVE INTEL).

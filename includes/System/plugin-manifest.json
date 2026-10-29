@@ -1,6 +1,6 @@
 {
   "version": "1.30.0",
-  "generated_at": "2026-10-29T23:27:34.069Z",
+  "generated_at": "2026-10-29T23:31:22.535Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -556,8 +556,8 @@
       "size": 45931
     },
     "readme.txt": {
-      "sha256": "99ea760849345f645719c7b6c67d396310dc6f78b2795297d6f80b9439cf3d04",
-      "size": 24120
+      "sha256": "965a358844d0f95e8def05f72ec8ade052489f467fd2a13a3e7509c8a8658685",
+      "size": 24082
     },
     "uninstall.php": {
       "sha256": "426b75835249bef3cbdf00ca623adb4f92fc309a84c316c4ff74add079c39c25",
