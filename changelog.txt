@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- Honeypot Form Field Whitelist Bypass with Guaranteed WAF Logging (FormSpamProtectionEngine.php, HoneyTokenEngine.php):
+  * Whitelisted IP Honeypot Exemption: Updated `FormSpamProtectionEngine::evaluate_submission()` and `HoneyTokenEngine::trigger_trap()` so that requests originating from whitelisted IPs bypass honeypot decoy rejections and auto-bans, allowing legitimate testing and browser autofill from whitelisted developers/origins to succeed seamlessly.
+  * Forensic Telemetry Retention: Whenever a whitelisted IP trips a hidden honeypot form field or canary honey-token decoy, an audit incident is now strictly recorded in WAF Incident Logs with status `BYPASSED` (`WAF-FORM-HONEYPOT-BYPASS` / `WAF-HONEYTOKEN-TRAP-BYPASS`), ensuring zero loss of forensic visibility.
 - IPv6 Telemetry on Host Infrastructure & Runtime Telemetry (ServerTelemetryPage.tsx, FirewallEngine.php):
   * Dual-Stack Origin Server IP Display: Updated the "Real Server IP" telemetry card to display both Server Origin IPv4 and IPv6 addresses simultaneously with dedicated 1-click copy controls.
   * Dual-Stack CDN Edge IP Display: Updated the "Website CDN IP" telemetry card to resolve and display both Cloudflare Edge Anycast IPv4 and IPv6 addresses alongside dedicated copy buttons.

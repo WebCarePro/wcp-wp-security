@@ -225,6 +225,36 @@ class HoneyTokenEngine {
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown Bot';
         $settings = self::get_settings();
 
+        // Check if IP is in the central WAF Whitelist
+        $is_whitelisted = false;
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            $waf_settings = SettingsManager::get_settings();
+            $is_whitelisted = FirewallEngine::is_ip_whitelisted($client_ip, $waf_settings['waf_whitelisted_ips'] ?? '');
+        }
+
+        // Whitelisted IPs bypass honeypot termination, but MUST store audit telemetry in WAF Incident Logs
+        if ($is_whitelisted) {
+            if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+                FirewallEngine::log_incident([
+                    'id'          => 'WAF-HONEYTOKEN-TRAP-BYPASS',
+                    'name'        => 'Honey-Token Decoy Tripped (Whitelist Bypass)',
+                    'category'    => 'Identity Defense',
+                    'description' => sprintf('Whitelisted IP tripped %s decoy (%s) [Bypassed via IP Whitelist].', esc_html($trap_type), esc_html($context['target'] ?? '')),
+                    'match_type'  => 'Honeytoken Decoy',
+                    'match_value' => $trap_type,
+                    'payload'     => 'Trap: ' . $trap_type . ' Target: ' . ($context['target'] ?? '') . ' IP: ' . $client_ip,
+                ], 'bypassed');
+            }
+
+            AuditLogger::log(
+                'honeytoken_bot_bypassed',
+                sprintf('Honey-Token Decoy tripped by Whitelisted IP "%s" via %s (%s). Bypassed with WAF log recorded.', $client_ip, $trap_type, $context['target'] ?? '')
+            );
+
+            // Allow request to continue without blocking
+            return;
+        }
+
         // 1. Record caught bot entry
         $catch_entry = [
             'id'         => 'bot_' . gmdate('Ymd_His') . '_' . bin2hex(random_bytes(3)),
@@ -242,6 +272,19 @@ class HoneyTokenEngine {
         // 2. Auto-ban bot IP if enabled
         if (!empty($settings['auto_ban_bot_ip'])) {
             self::ban_bot_ip($client_ip, $settings['ban_duration_hours'] ?? 24);
+        }
+
+        // Log blocked incident to WAF Incident Logs
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            FirewallEngine::log_incident([
+                'id'          => 'WAF-HONEYTOKEN-TRAP-BLOCKED',
+                'name'        => 'Honey-Token Bot Decoy Tripped',
+                'category'    => 'Identity Defense',
+                'description' => sprintf('Bot trapped and quarantined by honeytoken decoy: %s (%s).', esc_html($trap_type), esc_html($context['target'] ?? '')),
+                'match_type'  => 'Honeytoken Decoy',
+                'match_value' => $trap_type,
+                'payload'     => 'Trap: ' . $trap_type . ' Target: ' . ($context['target'] ?? '') . ' IP: ' . $client_ip,
+            ], 'blocked');
         }
 
         AuditLogger::log(

@@ -259,12 +259,55 @@ class FormSpamProtectionEngine {
             return true;
         }
 
+        // Tier 0.5: IP Whitelist Check
+        // Whitelisted IPs bypass Honeypot form field rejection, but their incident telemetry is strictly recorded in WAF logs
+        $is_whitelisted = false;
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            $waf_settings = \WcpScanner\Settings\SettingsManager::get_settings();
+            $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($client_ip, $waf_settings['waf_whitelisted_ips'] ?? '');
+        }
+
         // Tier 1: Dynamic Polymorphic Honeypot Verification
         if (!empty($settings['form_honeypot_enabled'])) {
             $hp_name = self::get_honeypot_field_name();
             if (isset($request_data[$hp_name]) && trim((string) $request_data[$hp_name]) !== '') {
-                self::record_spam_drop('honeypot_tripped', $form_source, $client_ip);
-                return new \WP_Error('wcp_spam_honeypot', __('Spam submission rejected. Automated bot decoy triggered.', 'wcp-security-scanner'));
+                $payload_sample = substr(trim((string) $request_data[$hp_name]), 0, 100);
+
+                if ($is_whitelisted) {
+                    // Record bypass in Form Spam stats
+                    self::record_spam_drop('honeypot_tripped_bypassed', $form_source, $client_ip);
+
+                    // Strictly log to WAF Incident Logs with status 'bypassed'
+                    if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+                        \WcpScanner\Firewall\FirewallEngine::log_incident([
+                            'id'          => 'WAF-FORM-HONEYPOT-BYPASS',
+                            'name'        => 'Form Honeypot Decoy Tripped (Whitelist Bypass)',
+                            'category'    => 'Form Spam Shield',
+                            'description' => sprintf('Whitelisted IP submitted value into hidden honeypot decoy on %s form [Bypassed via IP Whitelist].', esc_html($form_source)),
+                            'match_type'  => 'Honeypot Decoy',
+                            'match_value' => $hp_name,
+                            'payload'     => "Field: {$hp_name} Value: {$payload_sample} Engine: {$form_source} IP: {$client_ip}",
+                        ], 'bypassed');
+                    }
+                    // Allow the submission to proceed without dropping or returning an error
+                } else {
+                    self::record_spam_drop('honeypot_tripped', $form_source, $client_ip);
+
+                    // Log blocked incident to WAF Incident Logs
+                    if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+                        \WcpScanner\Firewall\FirewallEngine::log_incident([
+                            'id'          => 'WAF-FORM-HONEYPOT-BLOCKED',
+                            'name'        => 'Form Honeypot Decoy Tripped',
+                            'category'    => 'Form Spam Shield',
+                            'description' => sprintf('Automated submission rejected. Hidden honeypot decoy filled on %s form.', esc_html($form_source)),
+                            'match_type'  => 'Honeypot Decoy',
+                            'match_value' => $hp_name,
+                            'payload'     => "Field: {$hp_name} Value: {$payload_sample} Engine: {$form_source} IP: {$client_ip}",
+                        ], 'blocked');
+                    }
+
+                    return new \WP_Error('wcp_spam_honeypot', __('Spam submission rejected. Automated bot decoy triggered.', 'wcp-security-scanner'));
+                }
             }
         }
 
