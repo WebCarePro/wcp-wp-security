@@ -7999,7 +7999,7 @@ class ScannerRoutes {
         if (!self::ensure_cloudflare_service()) {
             return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
         }
-        $settings = \WcpScanner\Settings\SettingsManager::get_settings();
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
         $result = \WcpScanner\Cloudflare\CloudflareService::inspect_edge_rules($zone_id);
         return rest_ensure_response($result);

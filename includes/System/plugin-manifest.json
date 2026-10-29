@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T09:50:55.077Z",
+  "generated_at": "2026-10-29T09:54:25.149Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -68,8 +68,8 @@
       "size": 73681
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "778b5e82ec0d8fc6aad3551dda5e8858033f634bcb2e7a33fca1233a976e5852",
-      "size": 481479
+      "sha256": "d07b6995aeccfdfa98dc854e3286cc3154a810a44a8224a7a6cca0cdd958248f",
+      "size": 481477
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "8a1338e34f3c62ba87ccb55b20296ef73e534c0f30f984af8973c6150e296146",
@@ -232,8 +232,8 @@
       "size": 246735
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
-      "sha256": "26b2e5e571a729386f62d0a30b390c6724afd0a928d6be001021b66bc78a0f89",
-      "size": 28460
+      "sha256": "c76eeec67afd45a5d704e4c35bb3263b374a7dfc6ae78792514f0cdcf877874e",
+      "size": 28458
     },
     "includes/Firewall/GhostRouteTrap.php": {
       "sha256": "d8d16199e2b02cbc073a47b97a36523b3f4e6da70a80431ffda097f4fdd774bb",

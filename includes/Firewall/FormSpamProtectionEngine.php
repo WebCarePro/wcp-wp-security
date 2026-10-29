@@ -263,7 +263,7 @@ class FormSpamProtectionEngine {
         // Whitelisted IPs bypass Honeypot form field rejection, but their incident telemetry is strictly recorded in WAF logs
         $is_whitelisted = false;
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            $waf_settings = \WcpScanner\Settings\SettingsManager::get_settings();
+            $waf_settings = \WcpScanner\System\SettingsManager::get_settings();
             $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($client_ip, $waf_settings['waf_whitelisted_ips'] ?? '');
         }
 
