@@ -1,4 +1,7 @@
 v:1.29.0 - 2026-10-29
+- WordPress.org Plugin Check (PCP) Compliance & Direct DB Hardening (WhitelistManager.php, SessionSentinel.php):
+  * Prepared SQL & Dynamic Placeholders: Refactored database cascade-resolution queries in `WhitelistManager.php` to use prepared parameterized `%d` placeholder lists (`$wpdb->prepare()`) and static table identifiers, resolving `WordPress.DB.PreparedSQL.InterpolatedNotPrepared` and `PluginCheck.Security.DirectDB.UnescapedDBParameter` warnings.
+  * Mixed Line Endings Normalization: Standardized line endings across `SessionSentinel.php` to pure LF (`\n`), clearing the `Internal.LineEndings.Mixed` Plugin Check warning.
 - Emergency Unblock Documentation & Readme Changelog Optimization (README.md, readme.txt, version.json):
   * Emergency Unblock Guide: Documented 4 straightforward failsafe recovery methods in `README.md` and `readme.txt` FAQ for administrators who get locked out (Emergency `WCPSCAN_OVERRIDE_WHITELIST_IP` in `wp-config.php`, WAF bypass constant `WCPSCAN_DISABLE_WAF`, WP-CLI lockout flush `wp option delete wcpscan_login_lockouts`, and database table clearing in `wp_options`).
   * Readme.txt Changelog Pruning: Pruned historical changelog entries older than `= 1.20.0 =` from `readme.txt` to keep the official WordPress.org manifest lightweight and performant.

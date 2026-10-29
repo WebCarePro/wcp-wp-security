@@ -1,6 +1,6 @@
 {
   "version": "1.29.0",
-  "generated_at": "2026-10-29T08:48:56.563Z",
+  "generated_at": "2026-10-29T09:50:55.077Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -84,8 +84,8 @@
       "size": 13108
     },
     "includes/Auth/SessionSentinel.php": {
-      "sha256": "b1227cb1ebfcb9786a0fcb5708d06cbb4ab8f4d6dc3a019cdda1f14c7dde3153",
-      "size": 50098
+      "sha256": "5116a72797a2bb4b43053ad870e370e82226d647c87420fa75fc70189717f9bb",
+      "size": 49111
     },
     "includes/Auth/TwoFactorAuth.php": {
       "sha256": "ca7df9f4530ce3ef0c1bd13849ac137a3a196431dfa47ed1292c7965fa2e9052",
@@ -208,8 +208,8 @@
       "size": 3060
     },
     "includes/Findings/WhitelistManager.php": {
-      "sha256": "f1558b31330bcea1c758e6e275d3bcf6221c11cea08dc30c02569fb65cf9ac4d",
-      "size": 24574
+      "sha256": "df8e114bd4b4a63c0cd59a6395d42b13cc4819a595c6db8dbfd8928b8c038181",
+      "size": 25013
     },
     "includes/Firewall/AdaptiveRateLimiter.php": {
       "sha256": "03b857eba315e35f12bc130a248eecb40f7dab2ff77dcc8d43bef3329f1e7aa2",

@@ -370,14 +370,15 @@ Require all denied
             self::add_uploads_whitelisted_hash($target_path, $reason, $author);
 
             global $wpdb;
-            $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table_name = $wpdb->prefix . 'wcpscan_scan_issues';
             $target_basename = basename($target_path);
 
             // Cascade update in database: Find all open findings in uploads with the exact same basename or file path
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $open_matches = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT id, file_path FROM {$table} WHERE status = 'open' AND file_path LIKE %s",
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    "SELECT id, file_path FROM `{$wpdb->prefix}wcpscan_scan_issues` WHERE status = 'open' AND file_path LIKE %s",
                     '%' . $wpdb->esc_like($target_basename) . '%'
                 ),
                 ARRAY_A
@@ -396,9 +397,14 @@ Require all denied
                 }
 
                 if (!empty($ids_to_resolve)) {
-                    $id_list = implode(',', $ids_to_resolve);
-                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                    $wpdb->query("UPDATE {$table} SET status = 'ignored' WHERE id IN ({$id_list})");
+                    $how_many = count($ids_to_resolve);
+                    $placeholders = array_fill(0, $how_many, '%d');
+                    $format = implode(', ', $placeholders);
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $wpdb->query(
+                        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+                        $wpdb->prepare("UPDATE `{$wpdb->prefix}wcpscan_scan_issues` SET status = 'ignored' WHERE id IN ($format)", $ids_to_resolve)
+                    );
                     $cascade_resolved_count = count($ids_to_resolve);
                 }
             }
