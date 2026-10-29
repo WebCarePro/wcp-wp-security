@@ -1,4 +1,11 @@
 v:1.29.0 - 2026-10-29
+- Zero-Trust Tiered IP Whitelist & 100% WAF Telemetry Guarantee (FirewallEngine.php, SettingsManager.php, LoginHardening.php, WafFileLogger.php, FirewallPage.tsx, WafLogsPage.tsx):
+  * Eliminating Silent Whitelist Telemetry Loss: Eliminated the legacy unconditional early return in `FirewallEngine::inspect_incoming_request()`. When a whitelisted IP matches an inspection rule or threshold, an audit record is now explicitly preserved in WAF Incident Logs with status `BYPASSED (WHITELIST)`, ensuring complete forensic visibility.
+  * Two-Tier State-Aware Whitelist Security Model:
+    - Pre-Auth Tier (Unauthenticated traffic on Whitelisted IP): Excluded from login brute-force lockouts, rapid rate limiting, 404 scan tripwires, and diagnostic checks. Critical exploit payloads (SQL Injection, PHP/Command Injection, Remote Code Execution, Webshells, LFI/RFI Directory Traversal, Hostile XSS, and Virtual Patches) remain strictly inspected and blocked.
+    - Post-Auth Tier (Verified Authenticated Administrator Sessions): Granted full developer/administrative bypass across all 35+ firewall checks to prevent false-positives when saving complex page builder layouts or executing administrative REST updates.
+  * Granular Whitelist Configuration Controls: Added two new toggles in the Whitelisted IP Addresses card: `Require Administrator Login for Complete WAF Bypass` (Zero-Trust protection, enabled by default) and `Log All Whitelisted IP Telemetry to WAF Incident Logs` (100% forensic retention, enabled by default).
+  * WAF Incident Logs Table Enhancement: Added the new `BYPASSED` status badge in the Action Taken column and added `Bypassed (IP Whitelist)` filter option to the Actions dropdown selector.
 - UI Component Dependency Fix (FirewallPage.tsx):
   * Missing Icon Import Resolution: Fixed runtime `ReferenceError: ListFilter is not defined` crash in the Cloudflare Edge Whitelist modal on the Firewall page by importing `ListFilter` from `lucide-react`.
 - Cloudflare Edge Whitelisted IPs Inspection & Removal Manager (CloudflareService.php, ScannerRoutes.php, FirewallPage.tsx):

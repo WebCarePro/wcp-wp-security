@@ -657,8 +657,11 @@ class FirewallEngine {
         $raw_req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $client_ip = self::get_client_ip();
 
-        // Check user IP whitelist
-        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+        // Tiered Context-Aware IP Whitelist Check (Replaces legacy unconditional early return)
+        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+        if ($whitelist_ctx['is_whitelisted'] && $whitelist_ctx['full_bypass']) {
+            // Verified Authenticated Administrator (or legacy full-bypass override mode):
+            // Grant safe bypass across all frontend and backend inspection checks.
             return;
         }
 
@@ -1034,14 +1037,8 @@ class FirewallEngine {
                     'payload'     => "Upload Script: {$clean_path} IP: {$client_ip}",
                 ];
 
-                $mode = $settings['waf_mode'] ?? 'enabled';
-                if ($mode === 'learning') {
-                    self::log_incident($rule_triggered, 'detected');
-                } else {
-                    self::log_incident($rule_triggered, 'blocked');
-                    self::render_block_page($rule_triggered, $client_ip);
-                    exit;
-                }
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                exit;
             }
         }
 
@@ -1303,14 +1300,8 @@ class FirewallEngine {
         $vpatch_rule = VirtualPatchManager::evaluate_request($client_ip, $request_uri);
         if ($vpatch_rule !== null) {
             ThreatIntelNetwork::record_consensus_beacon($client_ip, $vpatch_rule['name'] ?? 'Virtual Patch Violation', ['category' => 'Virtual Patch']);
-            $mode = $settings['waf_mode'] ?? 'enabled';
-            if ($mode === 'learning') {
-                self::log_incident($vpatch_rule, 'detected');
-            } else {
-                self::log_incident($vpatch_rule, 'blocked');
-                self::render_block_page($vpatch_rule, $client_ip);
-                exit;
-            }
+            self::handle_rule_violation($vpatch_rule, $settings, $client_ip, 403);
+            exit;
         }
 
         $env = self::detect_environment();
@@ -1321,27 +1312,8 @@ class FirewallEngine {
         $rule_triggered = self::evaluate_rules($settings, $is_complementary);
 
         if ($rule_triggered) {
-            $mode = $settings['waf_mode'] ?? 'enabled';
-
-            if ($mode === 'learning') {
-                if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine') && \WcpScanner\Firewall\LearningModeEngine::is_route_graduated()) {
-                    // Graduated route: actively enforce blocking even in learning mode
-                    self::log_incident($rule_triggered, 'blocked');
-                    self::render_block_page($rule_triggered, $client_ip);
-                    exit;
-                } else {
-                    if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
-                        \WcpScanner\Firewall\LearningModeEngine::record_threat_encountered(\WcpScanner\Firewall\LearningModeEngine::get_current_route_key());
-                    }
-                    // Log only, do not block
-                    self::log_incident($rule_triggered, 'detected');
-                }
-            } else {
-                // Enforce block
-                self::log_incident($rule_triggered, 'blocked');
-                self::render_block_page($rule_triggered, $client_ip);
-                exit;
-            }
+            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+            exit;
         } else {
             // Clean request passed all firewall filters: profile route parameters
             if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
@@ -1735,8 +1707,19 @@ class FirewallEngine {
 
         $client_ip = self::get_client_ip();
 
-        // 1. Skip if client IP is whitelisted by administrator
-        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+        // 1. Skip if client IP is whitelisted by administrator (with telemetry)
+        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+        if ($whitelist_ctx['is_whitelisted']) {
+            $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
+            if ($log_telemetry && self::is_high_risk_recon_probe(isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/')) {
+                self::log_incident([
+                    'id'          => 'RATE-LIMIT-404-PROBE',
+                    'name'        => '404 Vulnerability Probe (Bypassed)',
+                    'category'    => '404 Scanner Rate Limit',
+                    'description' => '404 probe detected on sensitive path [Bypassed via IP Whitelist]',
+                    'payload'     => 'Probe: ' . substr(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/')), 0, 200),
+                ], 'bypassed');
+            }
             return;
         }
 
@@ -4415,8 +4398,21 @@ class FirewallEngine {
         if (in_array($test_user, $forbidden_list, true)) {
             $client_ip = self::get_client_ip();
 
-            // Skip whitelisted IPs
-            if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
+            // Skip whitelisted IPs (with forensic telemetry)
+            $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+            if ($whitelist_ctx['is_whitelisted']) {
+                $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
+                if ($log_telemetry) {
+                    self::log_incident([
+                        'id'          => 'WAF-FORBIDDEN-USERNAME-TRAP',
+                        'name'        => 'Forbidden Honeypot Username Trap (Bypassed)',
+                        'category'    => 'Identity Defense',
+                        'description' => sprintf('Whitelisted IP tried to log in using honeypot username "%s" [Bypassed via IP Whitelist].', esc_html($username)),
+                        'match_type'  => 'Honeypot Username',
+                        'match_value' => $username,
+                        'payload'     => "User: {$username} IP: {$client_ip}",
+                    ], 'bypassed');
+                }
                 return $user;
             }
 
@@ -4639,6 +4635,54 @@ class FirewallEngine {
      * @param int    $status_code
      * @return void
      */
+    /**
+     * Determine if an IP matches the configured whitelist and whether the current session qualifies for complete bypass.
+     *
+     * Two-Tier Context-Aware Architecture:
+     * - Tier 1 (Pre-Auth): IP is in whitelist, but user is NOT logged in as Administrator.
+     *   Can bypass operational/rate-limiting/debug rules, but CANNOT bypass critical exploits (SQLi, Webshell, RCE, LFI).
+     * - Tier 2 (Post-Auth): IP is in whitelist AND user is verified Authenticated Administrator.
+     *   Full developer/administrator bypass across all firewall checks.
+     *
+     * @param string $client_ip
+     * @param array  $settings
+     * @return array [ 'is_whitelisted' => bool, 'is_admin' => bool, 'full_bypass' => bool ]
+     */
+    public static function check_ip_whitelist_context(string $client_ip, array $settings): array {
+        $whitelist_str = $settings['waf_whitelisted_ips'] ?? '';
+        $is_whitelisted = self::is_ip_whitelisted($client_ip, $whitelist_str);
+
+        if (!$is_whitelisted) {
+            return [
+                'is_whitelisted' => false,
+                'is_admin'       => false,
+                'full_bypass'    => false,
+            ];
+        }
+
+        $is_admin = self::is_authenticated_administrator();
+        $require_admin = isset($settings['waf_whitelist_require_admin']) ? !empty($settings['waf_whitelist_require_admin']) : true;
+
+        // If require_admin is FALSE, all whitelisted traffic gets full bypass (classic mode).
+        // If require_admin is TRUE, only authenticated admins get full bypass; unauthenticated get tiered pre-auth protection.
+        $full_bypass = !$require_admin || $is_admin;
+
+        return [
+            'is_whitelisted' => true,
+            'is_admin'       => $is_admin,
+            'full_bypass'    => $full_bypass,
+        ];
+    }
+
+    /**
+     * Handle firewall rule violation with mode sensitivity (learning vs blocking).
+     *
+     * @param array  $rule
+     * @param array  $settings
+     * @param string $client_ip
+     * @param int    $status_code
+     * @return void
+     */
     public static function handle_rule_violation(array $rule, array $settings, string $client_ip, int $status_code = 403): void {
         // Red Team Drill Intercept Handler
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -4658,6 +4702,40 @@ class FirewallEngine {
                 'status_code' => $status_code,
             ]);
             exit;
+        }
+
+        // Tiered Context-Aware IP Whitelist Interceptor
+        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+        if ($whitelist_ctx['is_whitelisted']) {
+            $is_admin = $whitelist_ctx['is_admin'];
+            $full_bypass = $whitelist_ctx['full_bypass'];
+
+            // Critical Exploit Categories that Pre-Auth (unauthenticated) traffic can NEVER bypass
+            $critical_exploit_categories = [
+                'SQL Injection',
+                'PHP Code Injection',
+                'Path Traversal',
+                'Cross-Site Scripting (XSS)',
+                'Execution Armor',
+                'AI & Agent Defense',
+                'Virtual Patch',
+            ];
+            $rule_cat = $rule['category'] ?? '';
+            $is_critical_exploit = in_array($rule_cat, $critical_exploit_categories, true);
+
+            // If full bypass is permitted (verified authenticated admin session), OR
+            // if this is an operational / rate limit / scan probe rule (NOT a critical exploit payload):
+            if ($full_bypass || !$is_critical_exploit) {
+                // Log incident telemetry as 'bypassed' if telemetry logging is enabled
+                $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
+                if ($log_telemetry) {
+                    $bypass_rule = $rule;
+                    $bypass_context = $is_admin ? 'Authenticated Administrator Session' : 'Pre-Auth Whitelisted IP';
+                    $bypass_rule['description'] = ($rule['description'] ?? 'Firewall trigger') . " [Bypassed via {$bypass_context}]";
+                    self::log_incident($bypass_rule, 'bypassed');
+                }
+                return; // Traffic allowed without dropping connection
+            }
         }
 
         $mode = $settings['waf_mode'] ?? 'enabled';
@@ -4880,9 +4958,6 @@ class FirewallEngine {
         }
 
         $client_ip = self::get_client_ip();
-        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
-            return $access;
-        }
 
         $rule_triggered = [
             'id'          => 'WAF-REST-USER-ENUM',
@@ -4893,6 +4968,19 @@ class FirewallEngine {
             'match_value' => '/wp/v2/users',
             'payload'     => "URI: {$request_uri} IP: {$client_ip}",
         ];
+
+        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+        if ($whitelist_ctx['is_whitelisted']) {
+            if ($whitelist_ctx['full_bypass'] || true) { // User enumeration is an operational probe, whitelisted IP can bypass
+                $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
+                if ($log_telemetry) {
+                    $bypass_rule = $rule_triggered;
+                    $bypass_rule['description'] .= ' [Bypassed via IP Whitelist]';
+                    self::log_incident($bypass_rule, 'bypassed');
+                }
+                return $access;
+            }
+        }
 
         $mode = $settings['waf_mode'] ?? 'enabled';
         if ($mode === 'learning') {
@@ -4942,9 +5030,6 @@ class FirewallEngine {
         }
 
         $client_ip = self::get_client_ip();
-        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
-            return;
-        }
 
         $rule_triggered = [
             'id'          => 'WAF-AUTHOR-ENUM',
@@ -4953,8 +5038,19 @@ class FirewallEngine {
             'description' => sprintf('Author ID enumeration query (?author=%s) blocked from harvesting usernames.', esc_html($author_param)),
             'match_type'  => 'Author Query Probe',
             'match_value' => '?author=' . $author_param,
-            'payload'     => "URI: {$raw_req_uri} IP: {$client_ip}",
+            'payload'     => "URI: {$author_param} IP: {$client_ip}",
         ];
+
+        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+        if ($whitelist_ctx['is_whitelisted']) {
+            $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
+            if ($log_telemetry) {
+                $bypass_rule = $rule_triggered;
+                $bypass_rule['description'] .= ' [Bypassed via IP Whitelist]';
+                self::log_incident($bypass_rule, 'bypassed');
+            }
+            return;
+        }
 
         $mode = $settings['waf_mode'] ?? 'enabled';
         if ($mode === 'learning') {
@@ -4986,9 +5082,6 @@ class FirewallEngine {
         }
 
         $client_ip = self::get_client_ip();
-        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
-            return;
-        }
 
         // Allow max 10 view requests per 15 minutes per IP
         $rate_check = self::check_rate_limit('lostpw_view:' . md5($client_ip), 10, 900);
@@ -5022,11 +5115,6 @@ class FirewallEngine {
         }
 
         if (empty($settings['waf_limit_lostpassword'])) {
-            return;
-        }
-
-        $client_ip = self::get_client_ip();
-        if (self::is_ip_whitelisted($client_ip, $settings['waf_whitelisted_ips'] ?? '')) {
             return;
         }
 

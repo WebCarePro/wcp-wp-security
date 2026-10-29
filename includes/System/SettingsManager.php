@@ -92,6 +92,8 @@ class SettingsManager {
             'waf_allow_jetpack_xmlrpc' => false, // Allow verified Automattic Jetpack sync via xmlrpc.php if Jetpack is used
             'waf_login_rate_limit'     => true,
             'waf_whitelisted_ips'      => '',
+            'waf_whitelist_require_admin' => true, // Tiered Whitelist: Unauthenticated IPs can only bypass operational rules; require active Admin session for complete bypass
+            'waf_whitelist_log_telemetry' => true, // 100% WAF Telemetry: Always log forensic incident when whitelisted IP triggers/bypasses a rule
             'waf_blocked_ips'          => '',
             'waf_block_fake_bots'      => true,
             'waf_block_ai_scrapers'    => false,
@@ -610,6 +612,8 @@ class SettingsManager {
         $clean['waf_allow_jetpack_xmlrpc'] = !empty($merged['waf_allow_jetpack_xmlrpc']);
         $clean['waf_login_rate_limit']    = !empty($merged['waf_login_rate_limit']);
         $clean['waf_whitelisted_ips']     = sanitize_textarea_field($merged['waf_whitelisted_ips'] ?? '');
+        $clean['waf_whitelist_require_admin'] = isset($merged['waf_whitelist_require_admin']) ? !empty($merged['waf_whitelist_require_admin']) : true;
+        $clean['waf_whitelist_log_telemetry'] = isset($merged['waf_whitelist_log_telemetry']) ? !empty($merged['waf_whitelist_log_telemetry']) : true;
         $clean['waf_blocked_ips']         = sanitize_textarea_field($merged['waf_blocked_ips'] ?? '');
         $clean['waf_block_fake_bots']     = !empty($merged['waf_block_fake_bots']);
         $clean['waf_block_ai_scrapers']   = !empty($merged['waf_block_ai_scrapers']);

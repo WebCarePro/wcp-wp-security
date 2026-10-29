@@ -90,8 +90,24 @@ class LoginHardening {
 
         $ip = FirewallEngine::get_client_ip();
 
-        // Check if IP is whitelisted
+        // Check if IP is whitelisted (whitelisted IPs bypass login brute force lockouts with telemetry)
         if (!empty($settings['waf_whitelisted_ips']) && FirewallEngine::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'])) {
+            $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
+            if ($log_telemetry) {
+                $fail_key = self::TRANSIENT_FAIL_PREFIX . md5($ip);
+                $attempts = (int) get_transient($fail_key) + 1;
+                set_transient($fail_key, $attempts, 3600);
+                $max_retries = (int) ($settings['login_max_retries'] ?? 5);
+                if ($attempts >= $max_retries) {
+                    FirewallEngine::log_incident([
+                        'id'          => 'WAF-LOGIN-BRUTEFORCE-BYPASS',
+                        'name'        => 'Login Brute Force Threshold Exceeded (Bypassed)',
+                        'category'    => 'Brute Force & Auth Armor',
+                        'description' => sprintf('Failed login threshold exceeded (%d attempts for user "%s") [Bypassed via IP Whitelist].', $attempts, esc_html($username)),
+                        'payload'     => "User: {$username} Attempts: {$attempts} IP: {$ip}",
+                    ], 'bypassed');
+                }
+            }
             return;
         }
 

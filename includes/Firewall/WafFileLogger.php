@@ -161,7 +161,7 @@ class WafFileLogger {
 
         // Determine HTTP Status Code
         $status_code = 403;
-        if ($action === 'detected') {
+        if ($action === 'detected' || $action === 'bypassed' || $action === 'allowed') {
             $status_code = 200;
         } elseif (isset($rule['category']) && $rule['category'] === '404 Scanner Rate Limit') {
             $status_code = 404;
