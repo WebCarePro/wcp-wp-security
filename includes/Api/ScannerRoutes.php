@@ -3909,9 +3909,16 @@ class ScannerRoutes {
                     $parent_perms = file_exists($parent_dir) ? substr(sprintf('%o', fileperms($parent_dir)), -4) : '0755';
                     $now = current_time('timestamp', 1);
 
+                    $sha256 = !$is_dir && $fsize <= 10485760 ? (hash_file('sha256', $realPath) ?: '') : '';
+                    if ($sha256) {
+                        $item['sha256'] = $sha256;
+                        $item['file_sha256'] = $sha256;
+                    }
+
                     $item['fs_forensics'] = [
                         'file_size'             => $fsize !== false ? $fsize : 0,
                         'file_size_formatted'   => $fsize !== false ? size_format($fsize) : '0 B',
+                        'sha256'                => $sha256,
                         'created_time'          => $ctime ? gmdate('Y-m-d H:i:s', $ctime) . ' UTC' : null,
                         'created_time_human'    => $ctime ? human_time_diff($ctime, $now) . ' ago' : 'Unknown',
                         'modified_time'         => $mtime ? gmdate('Y-m-d H:i:s', $mtime) . ' UTC' : null,
@@ -5631,11 +5638,16 @@ class ScannerRoutes {
         $rel_path = str_replace(wp_normalize_path(ABSPATH), '', wp_normalize_path($real_path));
         $rel_path = ltrim($rel_path, '/\\');
 
+        $sha256 = hash_file('sha256', $real_path) ?: '';
+        $md5 = md5_file($real_path) ?: '';
+
         return rest_ensure_response([
             'success'          => true,
             'filename'         => basename($real_path),
             'file_path'        => $rel_path,
             'full_path'        => $real_path,
+            'sha256'           => $sha256,
+            'md5'              => $md5,
             'size_bytes'       => $file_size,
             'size_formatted'   => size_format($file_size, 2),
             'permissions'      => $perms,
