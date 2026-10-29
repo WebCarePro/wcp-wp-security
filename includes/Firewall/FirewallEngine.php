@@ -619,6 +619,11 @@ class FirewallEngine {
      * Inspect Incoming Request
      */
     public static function inspect_incoming_request() {
+        // Emergency Override / Failsafe: Bypass all firewall inspection if WCPSCAN_DISABLE_WAF is defined in wp-config.php
+        if (defined('WCPSCAN_DISABLE_WAF') && WCPSCAN_DISABLE_WAF) {
+            return;
+        }
+
         // Skip CLI execution
         if (php_sapi_name() === 'cli' || (defined('WP_CLI') && WP_CLI)) {
             return;
