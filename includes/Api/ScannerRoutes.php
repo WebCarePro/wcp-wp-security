@@ -2213,23 +2213,27 @@ class ScannerRoutes {
                 // Full or plugins_themes: execute deep audit engines with heartbeat & fault isolation
                 try {
                     ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Core Integrity: Verifying WordPress core files against official WP.org API checksums...', 120);
                     $core_integrity = new CoreIntegrity();
                     $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'File Integrity: Checking critical system files (wp-config.php, .htaccess, index.php)...', 120);
                     $important_fim = new ImportantFileFIM();
                     $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Plugin Integrity: Verifying installed plugins against official WordPress.org checksums...', 120);
                     $plugin_integrity = new PluginIntegrity();
                     $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Theme Integrity: Verifying active and installed themes against repository checksums...', 120);
                     $theme_integrity = new ThemeIntegrity();
                     $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
@@ -2241,28 +2245,36 @@ class ScannerRoutes {
                 } catch (\Throwable $e) {}
 
                 try {
+                    ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Content & Post Scanner: Inspecting published posts and comments for hidden SEO spam and XSS...', 120);
                     $content_scanner = new ContentScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'User & Auth Sentinel: Auditing user accounts, administrator privileges, and password strength...', 120);
                     $wp_security = new WordPressSecurityScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
+                    ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Vulnerability Intelligence: Checking installed plugins, themes, and WP Core against CVE database...', 120);
                     $update_scanner = new UpdateScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
+                    ScanLock::heartbeat($scan_id);
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Media & Uploads Audit: Inspecting image metadata and attachments for embedded PHP code...', 120);
                     $uploads_scanner = new UploadsScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 // Quick reputation check (skips if non-responsive or local)
                 try {
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Reputation Intel: Verifying domain blocklists, Google Safe Browsing, and spamvertising...', 120);
                     $reputation_findings = self::audit_reputation_checks((string) $scan_id, [
                         'check_domain_blocklist' => true,
                         'check_spamvertised'     => true,
