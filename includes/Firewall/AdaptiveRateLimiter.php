@@ -192,6 +192,25 @@ class AdaptiveRateLimiter {
         $retry_after = $settings['retry_after_seconds'] ?? 30;
         self::record_throttle_incident($client_ip, $bucket, $count, $limit);
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $alert_lock = 'wcpscan_rl_alert_' . substr(md5($client_ip . $bucket), 0, 16);
+            if (!get_transient($alert_lock)) {
+                set_transient($alert_lock, 1, 300); // 1 alert per 5 minutes per IP/bucket
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('behavioral_rate_limit_exceeded', [
+                    'severity' => 'high',
+                    /* translators: 1: IP address, 2: bucket name, 3: request count, 4: request limit */
+                    'message'  => sprintf(__('Adaptive Rate Limiter throttled client IP "%1$s" on "%2$s" bucket (%3$d/%4$d reqs/min).', 'wcp-security-scanner'), $client_ip, $bucket, $count, $limit),
+                    'details'  => [
+                        'Offensive IP' => $client_ip,
+                        'Bucket'       => $bucket,
+                        'Requests'     => $count,
+                        'Limit'        => $limit . '/min',
+                        'Action'       => 'HTTP 429 Throttled',
+                    ],
+                ]);
+            }
+        }
+
         status_header(429);
         header('Retry-After: ' . $retry_after);
         header('X-WCP-Rate-Limit-Bucket: ' . rawurlencode($bucket));

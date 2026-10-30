@@ -9,6 +9,25 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
+// Dispatch plugin uninstallation security event notification before purging configuration
+$wcpscan_dispatcher_file = dirname(__FILE__) . '/includes/Notifications/NotificationDispatcher.php';
+$wcpscan_settings_mgr_file = dirname(__FILE__) . '/includes/System/SettingsManager.php';
+if (file_exists($wcpscan_dispatcher_file) && file_exists($wcpscan_settings_mgr_file)) {
+    require_once $wcpscan_settings_mgr_file;
+    require_once $wcpscan_dispatcher_file;
+    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_uninstall', [
+            'severity' => 'high',
+            'message'  => __('WCP Security Scanner is being uninstalled and deleted from WordPress plugins manager.', 'wcp-security-scanner'),
+            'details'  => [
+                'Event'        => 'Plugin Uninstallation',
+                'Triggered By' => function_exists('wp_get_current_user') && wp_get_current_user()->exists() ? wp_get_current_user()->user_login : 'admin',
+                'Timestamp'    => current_time('mysql'),
+            ],
+        ]);
+    }
+}
+
 $wcpscan_settings = get_option('wcpscan_settings', []);
 $wcpscan_delete_data = false; // Disabled by default to prevent loss of quarantine vault & settings on reinstallation
 

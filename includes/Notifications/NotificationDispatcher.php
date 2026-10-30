@@ -966,6 +966,21 @@ class NotificationDispatcher {
             'body'        => wp_json_encode($payload),
             'data_format' => 'body',
         ]);
-        return !is_wp_error($resp);
+        if (is_wp_error($resp)) {
+            if ($payload['event_key'] !== 'webhook_delivery_failed') {
+                self::trigger('webhook_delivery_failed', [
+                    'severity' => 'warning',
+                    /* translators: 1: webhook endpoint URL, 2: error message */
+                    'message'  => sprintf(__('Webhook delivery failed to destination "%1$s": %2$s', 'wcp-security-scanner'), esc_url($url), $resp->get_error_message()),
+                    'details'  => [
+                        'Destination URL' => esc_url($url),
+                        'Failed Event'    => $payload['event_key'] ?? 'unknown',
+                        'Error Message'   => $resp->get_error_message(),
+                    ],
+                ]);
+            }
+            return false;
+        }
+        return true;
     }
 }

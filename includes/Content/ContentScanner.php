@@ -51,7 +51,7 @@ class ContentScanner {
         $total_posts_scanned = 0;
 
         // Approximate count of publishable posts
-        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $approx_posts = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$posts_table}` WHERE post_status IN ('publish', 'future', 'draft', 'private')");
 
         while (true) {

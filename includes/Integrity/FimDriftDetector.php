@@ -334,6 +334,55 @@ class FimDriftDetector {
         $meta['last_verified_at'] = current_time('mysql');
         FimVaultManager::save_meta($meta);
 
+        // Dispatch granular FIM notifications if drift detected
+        if (!empty($drift_items) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $core_drifts = array_filter($drift_items, function($d) {
+                return in_array($d['category'] ?? '', ['core', 'core_root'], true);
+            });
+            $plugin_drifts = array_filter($drift_items, function($d) {
+                return in_array($d['category'] ?? '', ['plugins', 'themes'], true);
+            });
+            $upload_php = array_filter($drift_items, function($d) {
+                return ($d['category'] ?? '') === 'uploads' || preg_match('/\.(php[0-9]?|phtml|phar)$/i', $d['relative_path'] ?? '');
+            });
+
+            if (!empty($core_drifts)) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_core_file_modified', [
+                    'severity' => 'critical',
+                    /* translators: %d: count of modified core files */
+                    'message'  => sprintf(__('FIM Drift Alert: %d official WordPress core system file(s) have been modified or deleted.', 'wcp-security-scanner'), count($core_drifts)),
+                    'details'  => [
+                        'Core Drift Count' => count($core_drifts),
+                        'Sample Files'     => implode(', ', array_slice(array_column($core_drifts, 'relative_path'), 0, 3)),
+                    ],
+                ]);
+            }
+
+            if (!empty($plugin_drifts)) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_plugin_theme_modified', [
+                    'severity' => 'high',
+                    /* translators: %d: count of modified plugin/theme files */
+                    'message'  => sprintf(__('FIM Drift Alert: %d plugin or theme file(s) differ from calibrated baseline.', 'wcp-security-scanner'), count($plugin_drifts)),
+                    'details'  => [
+                        'Extension Drift Count' => count($plugin_drifts),
+                        'Sample Files'          => implode(', ', array_slice(array_column($plugin_drifts, 'relative_path'), 0, 3)),
+                    ],
+                ]);
+            }
+
+            if (!empty($upload_php)) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_suspicious_php_found', [
+                    'severity' => 'critical',
+                    /* translators: %d: count of suspicious executable files */
+                    'message'  => sprintf(__('FIM Alert: %d rogue PHP executable script(s) discovered in uploads or content directories.', 'wcp-security-scanner'), count($upload_php)),
+                    'details'  => [
+                        'Rogue PHP Count' => count($upload_php),
+                        'File Paths'      => implode(', ', array_slice(array_column($upload_php, 'relative_path'), 0, 3)),
+                    ],
+                ]);
+            }
+        }
+
         // Limit results if excessive
         if (count($drift_items) > $limit) {
             $drift_items = array_slice($drift_items, 0, $limit);

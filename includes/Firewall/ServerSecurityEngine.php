@@ -535,6 +535,17 @@ class ServerSecurityEngine {
             ];
         }
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_server_rules_updated', [
+                'severity' => 'info',
+                'message'  => __('Server security rules deployed directly into root .htaccess successfully.', 'wcp-security-scanner'),
+                'details'  => [
+                    'Target File' => $htaccess_path,
+                    'Server Type' => 'Apache / LiteSpeed',
+                ],
+            ]);
+        }
+
         return [
             'success'   => true,
             'message'   => __('Server security rules deployed directly into root .htaccess successfully.', 'wcp-security-scanner'),

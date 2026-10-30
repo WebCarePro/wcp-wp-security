@@ -800,9 +800,21 @@ class CloudflareService {
         $update_res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint", 'PUT', $payload);
 
         if (!empty($update_res['success'])) {
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
+                    'severity' => 'info',
+                    /* translators: %s: rule title */
+                    'message'  => sprintf(__('Cloudflare Edge Firewall Rule "%s" was successfully synchronized.', 'wcp-security-scanner'), $target_title),
+                    'details'  => [
+                        'Rule Title' => $target_title,
+                        'Rule Key'   => $rule_key,
+                        'State'      => $enable ? 'Enabled' : 'Disabled',
+                        'Zone ID'    => $zone_id,
+                    ],
+                ]);
+            }
             return [
                 'success' => true,
-                'message' => $enable
                     // translators: %s: rule title
                     ? sprintf(__('Successfully pushed rule "%s" to Cloudflare Edge.', 'wcp-security-scanner'), $target_title)
                     // translators: %s: rule title
@@ -900,6 +912,17 @@ class CloudflareService {
         );
 
         if (!empty($update_res['success'])) {
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
+                    'severity' => 'info',
+                    /* translators: %d: count of synced rules */
+                    'message'  => sprintf(__('%d Cloudflare Edge WAF rules were successfully deployed and synchronized.', 'wcp-security-scanner'), count($new_wcp_rules)),
+                    'details'  => [
+                        'Synced Rules Count' => count($new_wcp_rules),
+                        'Zone ID'            => $zone_id,
+                    ],
+                ]);
+            }
             return [
                 'success' => true,
                 'message' => sprintf(
@@ -1393,6 +1416,17 @@ class CloudflareService {
         $res = self::request("zones/{$zone_id}/firewall/access_rules/rules/{$rule_id}", 'DELETE');
 
         if (!empty($res['success'])) {
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_rule_deleted', [
+                    'severity' => 'warning',
+                    /* translators: %s: rule ID */
+                    'message'  => sprintf(__('Cloudflare Edge Access Rule #%s was unblocked/removed.', 'wcp-security-scanner'), $rule_id),
+                    'details'  => [
+                        'Rule ID' => $rule_id,
+                        'Zone ID' => $zone_id,
+                    ],
+                ]);
+            }
             return [
                 'success' => true,
                 'message' => __('IP successfully unbanned from Cloudflare Edge.', 'wcp-security-scanner'),

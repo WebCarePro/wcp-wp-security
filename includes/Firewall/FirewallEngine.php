@@ -4779,6 +4779,29 @@ class FirewallEngine {
         $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
         self::log_incident($rule, 'blocked', $incident_id);
 
+        // Surge detection: Check if blocked count in the last 60 seconds exceeds surge threshold (e.g. 15 blocks/min)
+        $surge_key = 'wcpscan_waf_block_surge_window';
+        $blocks = (int) get_transient($surge_key) + 1;
+        set_transient($surge_key, $blocks, 60);
+
+        if ($blocks === 15 || ($blocks > 15 && $blocks % 25 === 0)) {
+            $surge_alert_sent = get_transient('wcpscan_waf_block_surge_alerted');
+            if (!$surge_alert_sent && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                set_transient('wcpscan_waf_block_surge_alerted', 1, 300); // Throttle alerts to once per 5 minutes
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_block_surge', [
+                    'severity' => 'high',
+                    /* translators: 1: number of blocks */
+                    'message'  => sprintf(__('WAF Lite intercepted an abnormal surge of blocked attacks (%1$d blocks in under 60 seconds).', 'wcp-security-scanner'), $blocks),
+                    'details'  => [
+                        'Blocks in Window' => $blocks,
+                        'Latest Attacker'  => $client_ip,
+                        'Triggering Rule'  => $rule['title'] ?? ($rule['id'] ?? 'WAF Rule'),
+                        'Incident ID'      => $incident_id,
+                    ],
+                ]);
+            }
+        }
+
         if ($status_code !== 403) {
             status_header($status_code);
         }

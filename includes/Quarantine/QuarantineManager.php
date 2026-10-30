@@ -227,6 +227,21 @@ class QuarantineManager {
         // Trigger 72-Hour Reinfection Watchdog post-remediation surveillance
         do_action('wcpscan_file_quarantined', $real_path, $sha256);
 
+        // Dispatch scan_auto_quarantine notification event
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_auto_quarantine', [
+                'severity' => 'high',
+                /* translators: 1: original file basename */
+                'message'  => sprintf(__('Malicious file "%1$s" was neutralized and quarantined into the encrypted WCP Vault.', 'wcp-security-scanner'), basename($real_path)),
+                'details'  => [
+                    'File Path'      => $real_path,
+                    'SHA-256'        => $sha256,
+                    'File Size'      => size_format($file_size),
+                    'Quarantine ID'  => $quarantine_id,
+                ],
+            ]);
+        }
+
         return [
             'success'       => true,
             'message'       => 'File successfully quarantined and encrypted in vault.',

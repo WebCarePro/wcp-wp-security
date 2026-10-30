@@ -190,6 +190,20 @@ class ThreatIntelNetwork {
             )
         );
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('vuln_feed_synced', [
+                'severity' => 'info',
+                /* translators: 1: feed count, 2: IP count */
+                'message'  => sprintf(__('Threat Intelligence network synchronized (%1$d feeds, %2$d community malicious IPs indexed).', 'wcp-security-scanner'), count($synced_feeds), count($all_ips)),
+                'details'  => [
+                    'Feeds Synced'   => count($synced_feeds),
+                    'Active IPs'     => number_format(count($all_ips)),
+                    'Tor Exit Nodes' => number_format(count($tor_exits)),
+                    'Sync Time'      => current_time('mysql'),
+                ],
+            ]);
+        }
+
         return $meta;
     }
 

@@ -120,6 +120,21 @@ class InstallRiskAdvisor {
             $level = 'clean';
         }
 
+        if (($level === 'critical' || $level === 'high') && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_risk_advisor_alert', [
+                'severity' => $level,
+                /* translators: 1: component slug, 2: risk level */
+                'message'  => sprintf(__('Shift-Left Supply-Chain Risk Alert: Component "%1$s" flagged with %2$s risk level (Risk Score: %3$d/100).', 'wcp-security-scanner'), $slug ?: basename($real_dir), strtoupper($level), $score),
+                'details'  => [
+                    'Component Slug' => $slug ?: basename($real_dir),
+                    'Risk Level'     => strtoupper($level),
+                    'Risk Score'     => $score . '/100',
+                    'Findings Count' => count($findings),
+                    'Top Issue'      => !empty($findings[0]['title']) ? $findings[0]['title'] : 'Suspicious primitives',
+                ],
+            ]);
+        }
+
         return [
             'success'      => true,
             'slug'         => $slug ?: basename($real_dir),

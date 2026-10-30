@@ -166,6 +166,7 @@ class AttackSimulationEngine {
             $assertion = 'FAIL';
             if ($is_intercepted) {
                 $assertion = 'PASS';
+                $intercepted_count++;
             } elseif ($status_code >= 500 || $status_code === 0) {
                 $assertion = 'INCONCLUSIVE';
             }
@@ -234,6 +235,23 @@ class AttackSimulationEngine {
             'attack_simulation_drill',
             sprintf('Red Team Drill executed. Defensibility Score: %d%% (Grade %s). Intercepted %d/%d vectors in %.2f ms.', $score, $grade, $intercepted_count, $total_vectors, $report['duration_ms'])
         );
+
+        // Dispatch granular event notification
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('attack_drill_completed', [
+                'severity' => $score >= 80 ? 'info' : ($score >= 50 ? 'warning' : 'critical'),
+                /* translators: 1: defensibility score percentage, 2: letter grade, 3: intercepted vector count, 4: total vectors */
+                'message'  => sprintf(__('Red Team Security Drill completed with %1$d%% Defensibility Score (Grade %2$s). Intercepted %3$d of %4$d vectors.', 'wcp-security-scanner'), $score, $grade, $intercepted_count, $total_vectors),
+                'details'  => [
+                    'Score'             => $score . '%',
+                    'Grade'             => $grade,
+                    'Vectors Tested'    => $total_vectors,
+                    'Intercepted'       => $intercepted_count,
+                    'Bypassed'          => ($total_vectors - $intercepted_count),
+                    'Average Latency'   => $avg_latency . ' ms',
+                ],
+            ]);
+        }
 
         return $report;
     }

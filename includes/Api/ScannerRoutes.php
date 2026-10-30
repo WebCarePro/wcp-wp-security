@@ -2472,6 +2472,63 @@ class ScannerRoutes {
             // Release the scan lock upon completion
             ScanLock::release($scan_id);
 
+            // Dispatch granular event notifications via NotificationDispatcher
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                $is_targeted = ($target && !in_array($target, ['full', 'full_filesystem', 'plugins_themes', 'custom'], true));
+                if ($is_targeted) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_targeted_complete', [
+                        'severity' => ($open_issues_count > 0) ? 'high' : 'info',
+                        /* translators: 1: scan ID, 2: target name, 3: issues found, 4: risk score */
+                        'message'  => sprintf(__('Targeted scan #%1$d finished for target "%2$s". %3$d issue(s) identified (Risk Score: %4$d/100).', 'wcp-security-scanner'), $scan_id, $target, $open_issues_count, $summary['score']),
+                        'details'  => [
+                            'Scan ID'        => $scan_id,
+                            'Target'         => $target,
+                            'Scanned Files'  => number_format((int) ($completed_scan_row['scanned_files'] ?? 0)),
+                            'Issues Found'   => $open_issues_count,
+                            'Risk Score'     => $summary['score'] . '/100',
+                            'Duration'       => $duration_sec . 's',
+                        ],
+                    ]);
+                } else {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_manual_complete', [
+                        'severity' => ($open_issues_count > 0) ? 'high' : 'info',
+                        /* translators: 1: scan ID, 2: issues found, 3: risk score */
+                        'message'  => sprintf(__('Manual scan #%1$d finished. %2$d issue(s) identified (Risk Score: %3$d/100).', 'wcp-security-scanner'), $scan_id, $open_issues_count, $summary['score']),
+                        'details'  => [
+                            'Scan ID'        => $scan_id,
+                            'Target'         => $target,
+                            'Scanned Files'  => number_format((int) ($completed_scan_row['scanned_files'] ?? 0)),
+                            'Issues Found'   => $open_issues_count,
+                            'Risk Score'     => $summary['score'] . '/100',
+                            'Duration'       => $duration_sec . 's',
+                        ],
+                    ]);
+                }
+
+                // Critical or High threats event
+                $critical_or_high = array_filter($enriched_issues, function($iss) {
+                    $sev = is_array($iss) ? ($iss['severity'] ?? '') : ($iss->severity ?? '');
+                    return in_array($sev, ['critical', 'high'], true);
+                });
+                if (!empty($critical_or_high)) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
+                        'severity' => 'critical',
+                        /* translators: 1: scan ID, 2: threat count */
+                        'message'  => sprintf(__('Critical or high-priority security threats were detected during scan #%1$d (%2$d threats).', 'wcp-security-scanner'), $scan_id, count($critical_or_high)),
+                        'details'  => [
+                            'Scan ID'        => $scan_id,
+                            'Critical Threats' => count($critical_or_high),
+                            'Top Threats'    => implode(', ', array_slice(array_map(function($i) { return is_array($i) ? ($i['description'] ?? '') : ($i->description ?? ''); }, $critical_or_high), 0, 3)),
+                        ],
+                    ]);
+                }
+            }
+
+            // Dispatch DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Generic)
+            if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
+                \WcpScanner\Notifications\WebhookService::send_scan_alert($scan_id, $open_issues_count, $summary['score'], $target, $enriched_issues);
+            }
+
             return rest_ensure_response([
                 'success'     => true,
                 'summary'     => $summary,
@@ -5954,8 +6011,50 @@ class ScannerRoutes {
             $params = $request->get_body_params();
         }
 
+        $old_settings = \WcpScanner\System\SettingsManager::get_settings();
         $saved = \WcpScanner\System\SettingsManager::save_settings((array) $params);
         $time_info = self::build_schedule_time_info();
+
+        // Check toggles for Webhooks, AI Forensics, and MCP Service
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $old_webhook = !empty($old_settings['generic_webhook_enabled']) || !empty($old_settings['slack_enabled']) || !empty($old_settings['discord_enabled']);
+            $new_webhook = !empty($saved['generic_webhook_enabled']) || !empty($saved['slack_enabled']) || !empty($saved['discord_enabled']);
+            if ($old_webhook !== $new_webhook) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('webhook_status_toggled', [
+                    'severity' => 'info',
+                    /* translators: %s: status string */
+                    'message'  => sprintf(__('DevSecOps Webhook channels were %s.', 'wcp-security-scanner'), $new_webhook ? __('enabled', 'wcp-security-scanner') : __('disabled', 'wcp-security-scanner')),
+                    'details'  => [
+                        'State' => $new_webhook ? 'Enabled' : 'Disabled',
+                    ],
+                ]);
+            }
+
+            if (!empty($old_settings['ai_enabled']) !== !empty($saved['ai_enabled'])) {
+                $ai_on = !empty($saved['ai_enabled']);
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('ai_forensics_toggled', [
+                    'severity' => 'info',
+                    /* translators: %s: status string */
+                    'message'  => sprintf(__('AI Code Forensics engine was %s.', 'wcp-security-scanner'), $ai_on ? __('enabled', 'wcp-security-scanner') : __('disabled', 'wcp-security-scanner')),
+                    'details'  => [
+                        'State'    => $ai_on ? 'Enabled' : 'Disabled',
+                        'Provider' => $saved['ai_provider'] ?? 'gemini',
+                    ],
+                ]);
+            }
+
+            if (!empty($old_settings['mcp_enabled']) !== !empty($saved['mcp_enabled'])) {
+                $mcp_on = !empty($saved['mcp_enabled']);
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('mcp_service_toggled', [
+                    'severity' => 'info',
+                    /* translators: %s: status string */
+                    'message'  => sprintf(__('Model Context Protocol (MCP) Agent Service was %s.', 'wcp-security-scanner'), $mcp_on ? __('enabled', 'wcp-security-scanner') : __('disabled', 'wcp-security-scanner')),
+                    'details'  => [
+                        'State' => $mcp_on ? 'Enabled' : 'Disabled',
+                    ],
+                ]);
+            }
+        }
 
         return rest_ensure_response([
             'success'           => true,
@@ -6586,6 +6685,20 @@ class ScannerRoutes {
         }
         try {
             $result = \WcpScanner\Integrity\FimDriftDetector::calibrate_all();
+
+            if (!empty($result['success']) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_baseline_refreshed', [
+                    'severity' => 'info',
+                    /* translators: %d: count of files indexed */
+                    'message'  => sprintf(__('FIM Integrity Baseline snapshot refreshed (%d files indexed across all scopes).', 'wcp-security-scanner'), (int) ($result['total_files'] ?? 0)),
+                    'details'  => [
+                        'Indexed Files'   => number_format((int) ($result['total_files'] ?? 0)),
+                        'Duration'        => ($result['duration_sec'] ?? 0) . 's',
+                        'Calibrated At'   => current_time('mysql'),
+                    ],
+                ]);
+            }
+
             return rest_ensure_response($result);
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -8974,6 +9087,18 @@ class ScannerRoutes {
         $commit = \WcpScanner\Security\VaultRotator::verify_and_commit();
         if (is_wp_error($commit)) {
             return $commit;
+        }
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_secrets_rotated', [
+                'severity' => 'high',
+                'message'  => __('Secrets Vault Master Key / Cryptographic Salt was successfully rotated and re-encrypted.', 'wcp-security-scanner'),
+                'details'  => [
+                    'Rotated At'     => current_time('mysql'),
+                    'Rotated By'     => wp_get_current_user()->user_login ?: 'admin',
+                    'Key Algorithm'  => 'AES-256-GCM',
+                ],
+            ]);
         }
 
         return rest_ensure_response([

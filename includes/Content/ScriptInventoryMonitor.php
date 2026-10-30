@@ -127,6 +127,20 @@ class ScriptInventoryMonitor {
                         'script_drift_detected',
                         sprintf('Unseen third-party script domain "%s" enqueued via handle "%s" (Severity: %s).', $host, $handle, strtoupper($severity))
                     );
+
+                    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                        \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_script_drift', [
+                            'severity' => $severity,
+                            /* translators: 1: domain host, 2: handle name */
+                            'message'  => sprintf(__('Supply-Chain Script Drift: Unapproved third-party JavaScript domain "%1$s" enqueued via handle "%2$s".', 'wcp-security-scanner'), $host, $handle),
+                            'details'  => [
+                                'Remote Domain'   => $host,
+                                'Script Handle'   => $handle,
+                                'Script Source'   => substr($src, 0, 100),
+                                'Sensitive Context' => $is_sensitive_page ? 'Yes (Checkout/Auth)' : 'No',
+                            ],
+                        ]);
+                    }
                 }
             } else {
                 $inventory[$key]['last_seen'] = current_time('mysql');

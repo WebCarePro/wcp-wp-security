@@ -277,6 +277,19 @@ class DatabaseRemediationManager {
             return ['success' => false, 'message' => "Failed to restore database row: {$wpdb->last_error}"];
         }
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_restored', [
+                'severity' => 'critical',
+                /* translators: 1: row ID, 2: table name */
+                'message'  => sprintf(__('Database snapshot restored: Row #%1$d in table "%2$s" restored to pre-remediation state.', 'wcp-security-scanner'), $row_id, $table),
+                'details'  => [
+                    'Table Name' => $table,
+                    'Row ID'     => $row_id,
+                    'Backup ID'  => $safe_id,
+                ],
+            ]);
+        }
+
         return [
             'success' => true,
             'message' => "Successfully restored row #{$row_id} in table '{$table}' from auto-backup snapshot.",

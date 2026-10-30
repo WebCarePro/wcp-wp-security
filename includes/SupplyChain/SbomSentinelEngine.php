@@ -692,6 +692,21 @@ class SbomSentinelEngine {
 
         $drift_count = count($added) + count($modified) + count($removed);
 
+        if ($drift_count > 0 && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $critical_drifts = array_merge($modified, array_filter($added, fn($a) => $a['risk_level'] === 'critical' || $a['type'] === 'dropin'));
+            if (!empty($critical_drifts)) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_anchor_tampered', [
+                    'severity' => 'critical',
+                    /* translators: %d: count of tampered runtime anchors */
+                    'message'  => sprintf(__('Supply-Chain Alert: %d runtime drop-in anchor(s) (object-cache, db.php, or mu-plugins) have been tampered or added.', 'wcp-security-scanner'), count($critical_drifts)),
+                    'details'  => [
+                        'Drift Count'   => $drift_count,
+                        'Tampered Items'=> implode(', ', array_slice(array_column($critical_drifts, 'rel_path'), 0, 3)),
+                    ],
+                ]);
+            }
+        }
+
         return [
             'has_baseline'  => true,
             'calibrated_at' => $baseline['calibrated_at'],

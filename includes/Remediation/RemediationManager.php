@@ -500,6 +500,20 @@ class RemediationManager {
         // Mark scan issues as repaired
         $this->mark_file_issues_repaired($real_path, $issue_id);
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_auto_cure_applied', [
+                'severity' => 'info',
+                /* translators: 1: relative file path, 2: WordPress version */
+                'message'  => sprintf(__('Auto-Cure restored "%1$s" to pristine official source (WP v%2$s).', 'wcp-security-scanner'), $rel_file, $clean_version),
+                'details'  => [
+                    'Restored File'   => $rel_file,
+                    'WordPress Version' => $clean_version,
+                    'Backup ID'       => $backup_result['backup_id'],
+                    'Bytes Restored'  => strlen($official_content),
+                ],
+            ]);
+        }
+
         return [
             'success'        => true,
             'message'        => sprintf(
@@ -1019,6 +1033,19 @@ class RemediationManager {
         // Atomically restore backup to original path, preventing symlink follower races
         if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
             return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
+        }
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('remediation_transaction_rollback', [
+                'severity' => 'warning',
+                /* translators: 1: original file basename */
+                'message'  => sprintf(__('Remediation rollback completed for "%1$s". File restored from snapshot.', 'wcp-security-scanner'), basename($original_path)),
+                'details'  => [
+                    'Target File' => $original_path,
+                    'Backup ID'   => $backup_id,
+                    'SHA-256'     => $record['sha256'] ?? 'N/A',
+                ],
+            ]);
         }
 
         return [

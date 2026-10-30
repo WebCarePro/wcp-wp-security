@@ -407,6 +407,21 @@ class TransactionalRemediation {
 
         $restored_summary = !empty($msg_parts) ? implode(', ', $msg_parts) : __('0 items', 'wcp-security-scanner');
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('remediation_transaction_rollback', [
+                'severity' => 'warning',
+                /* translators: 1: transaction ID, 2: restored summary details */
+                'message'  => sprintf(__('Remediation transaction %1$s reverted: restored %2$s.', 'wcp-security-scanner'), $tx_id, $restored_summary),
+                'details'  => [
+                    'Transaction ID'  => $tx_id,
+                    'Restored Files'  => $restored_files,
+                    'Restored DB'     => $restored_db,
+                    'Restored Users'  => $restored_users,
+                    'Rolled Back By'  => $author,
+                ],
+            ]);
+        }
+
         return [
             'success'        => empty($errors),
             'tx_id'          => $tx_id,

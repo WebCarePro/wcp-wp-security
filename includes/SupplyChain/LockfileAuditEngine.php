@@ -233,6 +233,20 @@ class LockfileAuditEngine {
             'anomalies'        => $anomalies,
         ];
 
+        if (!empty($vulnerabilities) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_lockfile_cve', [
+                'severity' => ($crit_count > 0) ? 'critical' : 'high',
+                /* translators: 1: total CVE count, 2: lockfile count */
+                'message'  => sprintf(__('Supply-Chain Advisory: %1$d known vulnerable package(s) detected across %2$d lockfile(s).', 'wcp-security-scanner'), count($vulnerabilities), count($discovered)),
+                'details'  => [
+                    'Vulnerabilities' => count($vulnerabilities),
+                    'Critical'        => $crit_count,
+                    'High'            => $high_count,
+                    'Top Advisory'    => !empty($vulnerabilities[0]['cve']) ? ($vulnerabilities[0]['package'] . ': ' . $vulnerabilities[0]['cve']) : 'Lockfile vulnerability',
+                ],
+            ]);
+        }
+
         set_transient(self::CACHE_OPTION, $report, 12 * HOUR_IN_SECONDS);
 
         return $report;

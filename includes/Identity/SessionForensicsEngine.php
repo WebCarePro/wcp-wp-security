@@ -204,6 +204,20 @@ class SessionForensicsEngine {
                     )
                 );
 
+                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_session_hijack_flag', [
+                        'severity' => 'high',
+                        /* translators: 1: username */
+                        'message'  => sprintf(__('Session IP/User-Agent shift detected on active session for user "%1$s". Session auto-terminated.', 'wcp-security-scanner'), $user->user_login),
+                        'details'  => [
+                            'Affected User'   => $user->user_login,
+                            'Original Agent'  => substr($fingerprints[$token_key]['user_agent'] ?? '', 0, 60),
+                            'Hijacker Agent'  => substr($user_agent, 0, 60),
+                            'Current IP'      => $client_ip,
+                        ],
+                    ]);
+                }
+
                 // Auto-terminate compromised session
                 wp_destroy_current_session();
                 unset($fingerprints[$token_key]);
@@ -262,6 +276,21 @@ class SessionForensicsEngine {
                 $alert_data['prev_ip'] ?? ''
             )
         );
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_impossible_travel_flag', [
+                'severity' => 'critical',
+                /* translators: 1: username, 2: new country, 3: previous country, 4: minutes */
+                'message'  => sprintf(__('Impossible Geo-Velocity Travel detected for user "%1$s": Authenticated from %2$s within %4$d minutes of session in %3$s.', 'wcp-security-scanner'), $alert_data['user_login'] ?? 'user', $alert_data['new_country'] ?? '', $alert_data['prev_country'] ?? '', (int) ($alert_data['delta_minutes'] ?? 0)),
+                'details'  => [
+                    'User Account'   => $alert_data['user_login'] ?? 'user',
+                    'Origin Location'=> ($alert_data['prev_country'] ?? 'Unknown') . ' (' . ($alert_data['prev_ip'] ?? '') . ')',
+                    'New Location'   => ($alert_data['new_country'] ?? 'Unknown') . ' (' . ($alert_data['new_ip'] ?? '') . ')',
+                    'Time Delta'     => ($alert_data['delta_minutes'] ?? 0) . ' minutes',
+                    'Estimated Speed'=> ($alert_data['speed_kmh'] ?? 0) . ' km/h',
+                ],
+            ]);
+        }
     }
 
     /**

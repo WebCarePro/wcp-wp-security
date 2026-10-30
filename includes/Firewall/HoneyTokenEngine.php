@@ -388,6 +388,21 @@ class HoneyTokenEngine {
         self::record_catch($catch_entry);
         self::ban_bot_ip($ip, $duration_hours);
 
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('behavioral_bot_trap_triggered', [
+                'severity' => 'high',
+                /* translators: 1: IP address, 2: trap type */
+                'message'  => sprintf(__('Behavioral Honeytoken tripped by offensive bot IP "%1$s" via %2$s.', 'wcp-security-scanner'), $ip, $trap_type),
+                'details'  => [
+                    'Offensive IP' => $ip,
+                    'Trap Type'    => $trap_type,
+                    'Target Decoy' => $target ?: 'Phantom Decoy',
+                    'User Agent'   => $user_agent ?: 'Automated Bot',
+                    'Ban Duration' => $duration_hours . ' hours',
+                ],
+            ]);
+        }
+
         AuditLogger::log(
             'honeytoken_bot_trapped',
             sprintf('Honey-Token Trapped Bot IP "%s" via %s (%s).', $ip, $trap_type, $target)

@@ -245,6 +245,17 @@ class ReinfectionWatchdog {
                 }
 
                 if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                    \WcpScanner\Notifications\NotificationDispatcher::trigger('forensics_reinfection_resurrection', [
+                        'severity' => 'critical',
+                        /* translators: 1: monitored file relative path, 2: trigger reason */
+                        'message'  => sprintf(__('CRITICAL 72-Hour Watchdog: Malware resurrection loop intercepted on "%1$s": %2$s', 'wcp-security-scanner'), $watch['rel_path'], $trigger_reason),
+                        'details'  => [
+                            'Monitored Path' => $watch['rel_path'],
+                            'Watch Reason'   => $watch['reason'] ?? 'remediated_malware',
+                            'Detected Loop'  => $trigger_reason,
+                            'Watch ID'       => $id,
+                        ],
+                    ]);
                     \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
                         'threat_count' => 1,
                         'message'      => sprintf('CRITICAL: 72-Hour Watchdog detected malware resurrection on %s: %s', $watch['rel_path'], $trigger_reason),

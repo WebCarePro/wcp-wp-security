@@ -237,6 +237,21 @@ class PromptInjectionGuard {
                 'user_agent'      => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
             ]);
         }
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('ai_defense_prompt_injection', [
+                'severity' => 'critical',
+                /* translators: 1: source channel, 2: findings summary */
+                'message'  => sprintf(__('AI Prompt Injection / Adversarial Jailbreak intercepted in %1$s: %2$s', 'wcp-security-scanner'), $source, implode(', ', $findings)),
+                'details'  => [
+                    'Source Channel'   => $source,
+                    'Interception IP'  => $ip,
+                    'Adversarial Findings' => implode(' | ', $findings),
+                    'Risk Score'       => $score . '/100',
+                    'Enforced Action'  => strtoupper($action),
+                ],
+            ]);
+        }
     }
 
     /**
