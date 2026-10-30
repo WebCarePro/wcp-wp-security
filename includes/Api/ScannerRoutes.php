@@ -3295,6 +3295,7 @@ class ScannerRoutes {
             $remaining = max(0, $total - $scanned);
         }
         $last_file = get_transient("wcpscan_active_scan_file_{$locked_id}") ?: '';
+        $db_progress = get_transient("wcpscan_scan_db_progress_{$locked_id}");
 
         $live_telemetry = get_transient("wcpscan_scan_live_telemetry_{$locked_id}");
         if (!$live_telemetry || !is_array($live_telemetry)) {
@@ -3311,6 +3312,7 @@ class ScannerRoutes {
             'total_files'    => $total,
             'remaining'      => $remaining,
             'last_file'      => $last_file,
+            'db_progress'    => is_array($db_progress) ? $db_progress : null,
             'issues_found'   => (int) $running_scan['issues_found'],
             'telemetry'      => $live_telemetry,
             'phase'          => ($trigger_type === 'scheduled') 

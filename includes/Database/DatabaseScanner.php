@@ -33,17 +33,25 @@ class DatabaseScanner {
         $adaptive_row_batch = $monitor->get_adaptive_batch_size($batch_size);
 
         // 1. Audit wp_options first
+        if (!empty($scan_id)) {
+            set_transient("wcpscan_active_scan_file_{$scan_id}", 'MySQL Database: Scanning wp_options & core settings...', 120);
+        }
         $option_findings = $this->option_scanner->scan_options($scan_id);
         $findings = array_merge($findings, $option_findings);
 
         // 2. Audit Rogue Administrators & Database Micro-Anomalies
+        if (!empty($scan_id)) {
+            set_transient("wcpscan_active_scan_file_{$scan_id}", 'MySQL Database: Inspecting rogue administrators & user meta anomalies...', 120);
+        }
         $rogue_findings = $this->rogue_admin_detector->scan((string) $scan_id);
         $findings = array_merge($findings, $rogue_findings);
 
         // 3. Discover all tables
         $tables = $this->table_scanner->get_tables();
+        $total_tables = count($tables);
+        $total_rows_scanned = 0;
 
-        foreach ($tables as $table) {
+        foreach ($tables as $table_idx => $table) {
             if ($monitor->is_nearing_limits()) {
                 break; // Stop early to prevent server strain
             }
@@ -51,6 +59,30 @@ class DatabaseScanner {
             $meta = $this->table_scanner->get_table_metadata($table);
             if (empty($meta['columns'])) {
                 continue;
+            }
+
+            $table_num = $table_idx + 1;
+            $table_rows_scanned = 0;
+            $table_approx_rows = $this->get_table_row_count($table);
+
+            if (!empty($scan_id)) {
+                $status_msg = sprintf(
+                    'MySQL Table: %s [%d/%d] (Row %s%s)',
+                    $table,
+                    $table_num,
+                    $total_tables,
+                    number_format($table_rows_scanned),
+                    $table_approx_rows > 0 ? ' / ' . number_format($table_approx_rows) : ''
+                );
+                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                set_transient("wcpscan_scan_db_progress_{$scan_id}", [
+                    'current_table'      => $table,
+                    'table_index'        => $table_num,
+                    'total_tables'       => $total_tables,
+                    'table_rows_scanned' => $table_rows_scanned,
+                    'table_approx_rows'  => $table_approx_rows,
+                    'total_rows_scanned' => $total_rows_scanned,
+                ], 120);
             }
 
             $cursor = 0;
@@ -68,6 +100,30 @@ class DatabaseScanner {
                     $scan_id
                 );
 
+                $batch_rows = (int) ($batch_res['rows_scanned'] ?? 0);
+                $table_rows_scanned += $batch_rows;
+                $total_rows_scanned += $batch_rows;
+
+                if (!empty($scan_id)) {
+                    $status_msg = sprintf(
+                        'MySQL Table: %s [%d/%d] (Row %s%s)',
+                        $table,
+                        $table_num,
+                        $total_tables,
+                        number_format($table_rows_scanned),
+                        $table_approx_rows > 0 ? ' / ' . number_format($table_approx_rows) : ''
+                    );
+                    set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                    set_transient("wcpscan_scan_db_progress_{$scan_id}", [
+                        'current_table'      => $table,
+                        'table_index'        => $table_num,
+                        'total_tables'       => $total_tables,
+                        'table_rows_scanned' => $table_rows_scanned,
+                        'table_approx_rows'  => $table_approx_rows,
+                        'total_rows_scanned' => $total_rows_scanned,
+                    ], 120);
+                }
+
                 if (!empty($batch_res['findings'])) {
                     $findings = array_merge($findings, $batch_res['findings']);
                 }
@@ -76,7 +132,33 @@ class DatabaseScanner {
             }
         }
 
+        if (!empty($scan_id)) {
+            delete_transient("wcpscan_scan_db_progress_{$scan_id}");
+        }
+
         return $findings;
+    }
+
+    /**
+     * Get fast approximate row count for a table without table-locking.
+     *
+     * @param string $table
+     * @return int
+     */
+    private function get_table_row_count(string $table): int {
+        global $wpdb;
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            return 0;
+        }
+
+        // Fast table status check via SHOW TABLE STATUS
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $status = $wpdb->get_row($wpdb->prepare("SHOW TABLE STATUS LIKE %s", $table), ARRAY_A);
+        if (!empty($status['Rows'])) {
+            return (int) $status['Rows'];
+        }
+
+        return 0;
     }
 
     public function get_table_scanner() {

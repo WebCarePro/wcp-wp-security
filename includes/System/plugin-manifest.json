@@ -1,6 +1,6 @@
 {
   "version": "1.30.0",
-  "generated_at": "2026-10-30T04:14:17.107Z",
+  "generated_at": "2026-10-30T04:34:16.016Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,7 +36,7 @@
       "size": 541244
     },
     "build/index.asset.php": {
-      "sha256": "bbd821f8a9302f855b9f632584fe066f778a2aaf35549ad48625e9efa1736da7",
+      "sha256": "24554261e74a4c2417648ac14bc966aa5426c97f98678673a9e05b802e2fdaf2",
       "size": 121
     },
     "build/index.css": {
@@ -44,8 +44,8 @@
       "size": 541100
     },
     "build/index.js": {
-      "sha256": "0106bc67fd994d0f9d3392cb2ff362354b86557c89197b426531367f547b5278",
-      "size": 2021566
+      "sha256": "db9630f0f94cc56e2a1eddc885c44ee011bc38f0e1287e5b6917bf2ac9d28a02",
+      "size": 2025369
     },
     "composer.json": {
       "sha256": "f9de07353cfbbbe781198ca157fc4531a200c91758b9efb59e25e372908478f2",
@@ -60,8 +60,8 @@
       "size": 73681
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "6af7e932ed4bbd82b81737fab6199bbb7b99e94be7398dc949aaa2f645e0acff",
-      "size": 480668
+      "sha256": "841f50b84c1082c7450cfe2a353aa4cd38b4d79394780f220f4c286c6313efdc",
+      "size": 480825
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "8a1338e34f3c62ba87ccb55b20296ef73e534c0f30f984af8973c6150e296146",
@@ -92,8 +92,8 @@
       "size": 46456
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "84a249b8b10c5ec7a8fb0ad8da3f7dd45d22ebe4b5e042f49a9ed7ab62b314c6",
-      "size": 82920
+      "sha256": "2547df8db5373c4be00f18f8f76a68dbed8e7dbd794526dec7ada0a62d50e5a1",
+      "size": 82845
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "052f1c1ace4ee77084cbc8f74b3dbcbd2c347aa719f640d6225b46224a358bae",
@@ -124,8 +124,8 @@
       "size": 12369
     },
     "includes/Database/DatabaseScanner.php": {
-      "sha256": "bcee93ae2d89869db67a8cac00cd5f77222a6ab6c517e2f7f054d1862cfb907e",
-      "size": 2679
+      "sha256": "3735926daa8a59095f2bf7116735126aa422a5ef5c7cc6397d3da6f531098a00",
+      "size": 6211
     },
     "includes/Database/Migration.php": {
       "sha256": "8a7d0dc550c7d9ee38756d932fbcf79d8657782f97f6004ec7ff31098defbe3b",

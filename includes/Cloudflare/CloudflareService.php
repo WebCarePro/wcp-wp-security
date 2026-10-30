@@ -1269,8 +1269,7 @@ class CloudflareService {
             ];
         }
 
-        $tag_encoded = urlencode(self::WCP_RULE_TAG);
-        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?notes={$tag_encoded}&mode=block&page={$page}&per_page={$per_page}");
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?mode=block&page={$page}&per_page={$per_page}");
 
         if (!empty($res['success']) && isset($res['result'])) {
             $rules = [];
