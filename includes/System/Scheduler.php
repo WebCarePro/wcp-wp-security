@@ -312,11 +312,19 @@ class Scheduler {
 
          } catch (\Throwable $e) {
              \WcpScanner\Scan\ScanLock::release($scan_id);
+             $last_file = get_transient("wcpscan_active_scan_file_{$scan_id}") ?: '';
              delete_transient("wcpscan_active_scan_file_{$scan_id}");
              delete_transient("wcpscan_scan_start_micro_{$scan_id}");
              $calc_sec = microtime(true) - $start_time;
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
+
+             // Record deep forensic interruption dossier
+             \WcpScanner\Scan\ScanInterruptionForensics::record($scan_id, \WcpScanner\Scan\ScanInterruptionForensics::REASON_EXCEPTION_CAUGHT, [
+                 'exception' => $e,
+                 'last_file' => $last_file,
+             ]);
+
              // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
              $wpdb->update($table_scans, [
                  'status'       => 'interrupted',

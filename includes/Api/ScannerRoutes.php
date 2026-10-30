@@ -1791,6 +1791,9 @@ class ScannerRoutes {
                 break;
             }
 
+            // Update live heartbeat and last active file path
+            set_transient("wcpscan_active_scan_file_{$scan_id}", $filepath, 120);
+
             // Factor in file complexity weight
             $weight = \WcpScanner\Resource\ResourceMonitor::get_file_weight($filepath);
             $accumulated_weight += $weight;
@@ -2737,6 +2740,11 @@ class ScannerRoutes {
                 $row['risk_score'] = (int) ($row['risk_score'] ?? 0);
                 $row['duration'] = is_numeric($row['duration'] ?? null) ? (float) $row['duration'] : 0.0;
                 $row = self::enrich_scan_row_timestamps($row);
+
+                if (in_array($row['status'], ['interrupted', 'aborted', 'failed'], true)) {
+                    $row['interruption'] = \WcpScanner\Scan\ScanInterruptionForensics::get($row['id']);
+                }
+
                 $scans[] = $row;
             }
         }
@@ -2870,13 +2878,19 @@ class ScannerRoutes {
         $summary = $scorer->calculate($issues);
         $diagnostics = self::build_scan_diagnostics($scan);
 
+        $interruption = null;
+        if (in_array($scan['status'], ['interrupted', 'aborted', 'failed'], true)) {
+            $interruption = \WcpScanner\Scan\ScanInterruptionForensics::get($scan_id);
+        }
+
         return rest_ensure_response([
-            'success'     => true,
-            'scan'        => $scan,
-            'summary'     => $summary,
-            'issues'      => $issues,
-            'files_count' => $files_count,
-            'diagnostics' => $diagnostics,
+            'success'      => true,
+            'scan'         => $scan,
+            'summary'      => $summary,
+            'issues'       => $issues,
+            'files_count'  => $files_count,
+            'diagnostics'  => $diagnostics,
+            'interruption' => $interruption,
         ]);
     }
 
@@ -3226,6 +3240,17 @@ class ScannerRoutes {
 
         // If no lock option exists, check if there is an active scan record in the DB created recently
         if (!$locked_id) {
+            // Find and record any stale scans marked 'running' older than 10 minutes
+            $stale_scans_sql = "SELECT id, scanned_files, total_files FROM `{$table_scans}` WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $stale_scans = $wpdb->get_results($stale_scans_sql, ARRAY_A);
+            if (!empty($stale_scans)) {
+                foreach ($stale_scans as $stale_row) {
+                    $stale_id = (int) $stale_row['id'];
+                    \WcpScanner\Scan\ScanInterruptionForensics::record($stale_id, \WcpScanner\Scan\ScanInterruptionForensics::REASON_STALE_HEARTBEAT);
+                }
+            }
+
             // Clean up any stale scans marked 'running' older than 10 minutes
             $cleanup_stale = "UPDATE `{$table_scans}` SET status = 'interrupted', completed_at = NOW() WHERE status = 'running' AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -3355,7 +3380,13 @@ class ScannerRoutes {
                     $duration_sec = max(1, (int) round($calc_diff));
                 }
             }
+            $last_file = get_transient("wcpscan_active_scan_file_{$scan_id}") ?: '';
             delete_transient("wcpscan_scan_start_micro_{$scan_id}");
+
+            // Record manual abort forensic details
+            \WcpScanner\Scan\ScanInterruptionForensics::record($scan_id, \WcpScanner\Scan\ScanInterruptionForensics::REASON_MANUAL_ABORT, [
+                'last_file' => $last_file,
+            ]);
 
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_scans, [
