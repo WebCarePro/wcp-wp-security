@@ -667,8 +667,14 @@ class UserRemediationManager {
 
         $deleted = wp_delete_file($target['filepath']);
         if (!$deleted && file_exists($target['filepath'])) {
-            // phpcs:ignore WordPress.WP.AlternativeFileSystem.Unlink
-            @unlink($target['filepath']);
+            global $wp_filesystem;
+            if (empty($wp_filesystem)) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+            if ($wp_filesystem) {
+                $wp_filesystem->delete($target['filepath']);
+            }
         }
 
         // Also clean up from dismissed registry if present

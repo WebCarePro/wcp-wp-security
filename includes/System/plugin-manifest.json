@@ -1,6 +1,6 @@
 {
   "version": "1.30.0",
-  "generated_at": "2026-10-30T01:12:20.338Z",
+  "generated_at": "2026-10-30T01:15:40.664Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -92,8 +92,8 @@
       "size": 46456
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "63f9bcd047501e1f7ec6c8fa93e8bd3d5cbab33a3b737cabd19c738a22d79b6a",
-      "size": 83044
+      "sha256": "84a249b8b10c5ec7a8fb0ad8da3f7dd45d22ebe4b5e042f49a9ed7ab62b314c6",
+      "size": 82920
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "052f1c1ace4ee77084cbc8f74b3dbcbd2c347aa719f640d6225b46224a358bae",
@@ -532,8 +532,8 @@
       "size": 44544
     },
     "includes/WordPress/UserRemediationManager.php": {
-      "sha256": "dc055981af27a4deffa81a288d146da7a6be4957164cd27d1e883b68c333cffc",
-      "size": 34208
+      "sha256": "3cf97e09c1360f6c6fcf163f722fdb1133af95d444bb0124478cf45af48d7962",
+      "size": 34397
     },
     "includes/WordPress/UserScanner.php": {
       "sha256": "f782d8845027308a32b6457f1e1bda60bb810cf48bff0889c2e442e8ae00b878",

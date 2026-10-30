@@ -1545,11 +1545,7 @@ class CloudflareService {
         $file = self::get_vault_events_filepath();
 
         if (file_exists($file)) {
-            if (function_exists('wp_delete_file')) {
-                wp_delete_file($file);
-            } else {
-                @unlink($file);
-            }
+            wp_delete_file($file);
         }
 
         return [
