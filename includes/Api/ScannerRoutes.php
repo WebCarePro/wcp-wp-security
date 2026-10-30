@@ -2971,17 +2971,55 @@ class ScannerRoutes {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# ====================================================================\r\n");
 
-            $headers = ['ID', 'Severity', 'Engine', 'Threat Type', 'File / Target', 'Line Number', 'Status', 'Description'];
+            $headers = [
+                'ID',
+                'Severity',
+                'Engine',
+                'Threat Type',
+                'File / Target',
+                'Line Number',
+                'SHA-256 Hash',
+                'File Permissions',
+                'Owner:Group',
+                'File Size',
+                'Created Time (ctime)',
+                'Last Edited (mtime)',
+                'Last Accessed (atime)',
+                'MIME Type',
+                'Is Writable',
+                'Status',
+                'Description & Remediation',
+            ];
             fputcsv($output, $headers);
 
             foreach ($issues as $issue) {
+                $fs = $issue['fs_forensics'] ?? [];
+                $sha256 = $issue['sha256'] ?? ($issue['file_sha256'] ?? ($fs['sha256'] ?? ''));
+                $perms = !empty($fs['current_permissions']) ? $fs['current_permissions'] . ' (' . ($fs['symbolic_permissions'] ?? '') . ')' : '';
+                $owner_group = (!empty($fs['owner']) || !empty($fs['group'])) ? ($fs['owner'] ?? 'unknown') . ':' . ($fs['group'] ?? 'unknown') : '';
+                $size = $fs['file_size_formatted'] ?? (!empty($fs['file_size']) ? $fs['file_size'] . ' B' : '');
+                $ctime = $fs['created_time'] ?? '';
+                $mtime = $fs['modified_time'] ?? '';
+                $atime = $fs['accessed_time'] ?? '';
+                $mime = $fs['mime_type'] ?? '';
+                $writable = isset($fs['is_writable']) ? ($fs['is_writable'] ? 'Yes' : 'No') : '';
+
                 fputcsv($output, [
                     $issue['id'] ?? '',
                     strtoupper($issue['severity'] ?? 'low'),
                     $issue['engine'] ?? '',
-                    $issue['type'] ?? '',
+                    $issue['display_title'] ?? ($issue['type'] ?? ''),
                     $issue['file_path'] ?? '',
                     $issue['line_number'] ?? '',
+                    $sha256,
+                    $perms,
+                    $owner_group,
+                    $size,
+                    $ctime,
+                    $mtime,
+                    $atime,
+                    $mime,
+                    $writable,
                     $issue['status'] ?? 'open',
                     $issue['description'] ?? '',
                 ]);

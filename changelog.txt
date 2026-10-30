@@ -1,4 +1,13 @@
 v:1.30.0 - 2026-10-30
+- Deep Forensic Telemetry & Multi-Format Scan Audit Export Engine (exportUtils.ts, ScannerRoutes.php, ExportResultsDropdown.tsx):
+  * Comprehensive Filesystem Forensics in All Exports: Upgraded JSON, CSV, Microsoft Excel (.xls), and Executive Printable PDF audit exports with complete forensic telemetry for every physical file finding, giving developers and security analysts immediate deep-dive visibility:
+    - Cryptographic SHA-256 Hashes: Calculated and formatted per-file for SIEM tracking, Incident Response triage, and threat intel lookup.
+    - Filesystem Access & Ownership: Numeric permissions (e.g. `0644`, `0755`), symbolic notation (e.g. `-rw-r--r--`, `drwxr-xr-x`), and Linux owner/group (`www-data:www-data`, POSIX UID/GID).
+    - File Timestamps: Content modification (`mtime`), inode attribute change (`ctime`), and last access (`atime`) in both exact UTC and human-readable relative time.
+    - File Integrity & Type: File size (formatted & bytes), accurate MIME type (`mime_content_type`), and security flags (`is_writable`, `is_executable`).
+    - Threat Context: Code snippets, evidence/signature pattern matches, associated CVEs with CVSS scores, and remediation recommendations.
+  * Excel Workbook (.xls) & CSV Audit Report Schema Expansion: Expanded spreadsheet column headers to 18 forensic attributes with styled metric cards, sysadmin environment diagnostics, and severity badge coloring.
+  * Backend REST Incident Report Serialization: Enhanced `ScannerRoutes::get_incident_report()` to include full `fs_forensics` and cryptographic hashes for external API consumers.
 - Visual Code Diff (FIM) & File Viewer Multi-Format Export Suite (VisualDiffModal.tsx, App.tsx, index.css):
   * Visual Code Diff High-Contrast Header & Filename Polish: Styled the modal header with `.wcp-file-viewer-title` and explicit high-contrast white text (`#ffffff !important`), displaying the prominent file name with a dedicated `Visual Code Diff (FIM)` tag and official baseline status pill, guaranteeing crisp legibility in both White / Light Mode and Dark Mode.
   * FIM Multi-Format Copy Dropdown: Added a comprehensive multi-format copy dropdown to the Visual Code Diff modal with instant clipboard confirmation:
