@@ -1,12 +1,14 @@
 v:1.30.0 - 2026-10-30
-- Code Viewer Advanced File Forensics & Multi-Format Copy Suite (ScannerRoutes.php, App.tsx, index.css):
-  * Deep Forensic Metadata Inspection: Enriched `ScannerRoutes::view_file_content()` with real-time filesystem stat telemetry, providing Created Time (`ctime`), Last Edited (`mtime`), Last Accessed (`atime`), File Ownership & Group (`owner:group` via POSIX lookup), Permissions (`0644` / `0755`), and accurate MIME Type (`mime_content_type` / `finfo`) displayed prominently across the modal inspection toolbar.
-  * Multi-Format Copy Dropdown: Replaced the basic copy button with a powerful multi-option export menu supporting:
-    - Normal Copy: Pure source code only.
-    - Forensic Text Copy: Complete ASCII audit ledger including file path, SHA-256/MD5 hashes, timestamps (ctime, mtime, atime), ownership, permissions, MIME type, flagged malware threat details, line numbers, and the source code.
-    - Markdown Copy: GitHub Flavored Markdown audit table with formatted property rows and fenced syntax-highlighted code block.
-    - HTML Copy: Standalone, styled, dark-mode ready HTML audit document for external ticket reporting and client presentations.
-    - CSV Style Copy: Comma-separated spreadsheet format for forensic data analysis and compliance archiving.
+- Visual Code Diff (FIM) & File Viewer Multi-Format Export Suite (VisualDiffModal.tsx, App.tsx, index.css):
+  * Visual Code Diff High-Contrast Header & Filename Polish: Styled the modal header with `.wcp-file-viewer-title` and explicit high-contrast white text (`#ffffff !important`), displaying the prominent file name with a dedicated `Visual Code Diff (FIM)` tag and official baseline status pill, guaranteeing crisp legibility in both White / Light Mode and Dark Mode.
+  * FIM Multi-Format Copy Dropdown: Added a comprehensive multi-format copy dropdown to the Visual Code Diff modal with instant clipboard confirmation:
+    - Forensic Report (Text + Diff): Complete plain text audit dossier including relative/full system path, component type, baseline comparison reference, additions/deletions stats, live/baseline SHA-256 hashes, file permissions, ownership & group, timestamps (ctime, mtime, atime), and full unified diff lines.
+    - Markdown Copy (GitHub Table + Diff): Markdown audit table paired with fenced `diff` block for issues, PRs, and client tickets.
+    - HTML Copy (Styled Standalone Doc): Standalone dark-mode HTML document with color-coded green additions and red deletions.
+    - CSV Style Copy (Spreadsheet Export): Comma-separated forensic ledger for compliance documentation.
+    - Normal Copy (Raw Patch Only): Clean unified diff patch snippet for Git apply workflows.
+  * Deep Forensic Metadata Inspection in File Viewer: Enriched `ScannerRoutes::view_file_content()` with real-time filesystem stat telemetry, providing Created Time (`ctime`), Last Edited (`mtime`), Last Accessed (`atime`), File Ownership & Group (`owner:group` via POSIX lookup), Permissions (`0644` / `0755`), and accurate MIME Type (`mime_content_type` / `finfo`) displayed prominently across the modal inspection toolbar.
+  * Multi-Format Copy Dropdown in View File Modal: Replaced the basic copy button with a powerful multi-option export menu supporting Normal Copy, Forensic Text Copy, Markdown Copy, HTML Copy, and CSV Style Copy.
   * Dark Mode High-Contrast File Viewer & Search Bar Polish: Styled the modal header with `.wcp-file-viewer-title` and explicit high-contrast white text so file names remain crisp in dark mode; redesigned the search input with dark background (`#090d16`), white text, and `#38bdf8` focus glow; enabled code line wrapping by default (`wordWrap: true`) to prevent horizontal overflow on obfuscated payloads; and added a quick floating "Copy Code" button in the upper-right corner of the code view pane.
 - Readme Metadata Refinement (readme.txt):
   * Removed extraneous `Donate link` header from WordPress.org manifest to reflect individual solo freelancer status with zero open donation requests.
