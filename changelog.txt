@@ -1,5 +1,5 @@
 v:1.30.0 - 2026-10-30
-- Code Viewer Advanced File Forensics & Multi-Format Copy Suite (ScannerRoutes.php, App.tsx):
+- Code Viewer Advanced File Forensics & Multi-Format Copy Suite (ScannerRoutes.php, App.tsx, index.css):
   * Deep Forensic Metadata Inspection: Enriched `ScannerRoutes::view_file_content()` with real-time filesystem stat telemetry, providing Created Time (`ctime`), Last Edited (`mtime`), Last Accessed (`atime`), File Ownership & Group (`owner:group` via POSIX lookup), Permissions (`0644` / `0755`), and accurate MIME Type (`mime_content_type` / `finfo`) displayed prominently across the modal inspection toolbar.
   * Multi-Format Copy Dropdown: Replaced the basic copy button with a powerful multi-option export menu supporting:
     - Normal Copy: Pure source code only.
@@ -7,6 +7,7 @@ v:1.30.0 - 2026-10-30
     - Markdown Copy: GitHub Flavored Markdown audit table with formatted property rows and fenced syntax-highlighted code block.
     - HTML Copy: Standalone, styled, dark-mode ready HTML audit document for external ticket reporting and client presentations.
     - CSV Style Copy: Comma-separated spreadsheet format for forensic data analysis and compliance archiving.
+  * Dark Mode High-Contrast File Viewer & Search Bar Polish: Styled the modal header with `.wcp-file-viewer-title` and explicit high-contrast white text so file names remain crisp in dark mode; redesigned the search input with dark background (`#090d16`), white text, and `#38bdf8` focus glow; enabled code line wrapping by default (`wordWrap: true`) to prevent horizontal overflow on obfuscated payloads; and added a quick floating "Copy Code" button in the upper-right corner of the code view pane.
 - Readme Metadata Refinement (readme.txt):
   * Removed extraneous `Donate link` header from WordPress.org manifest to reflect individual solo freelancer status with zero open donation requests.
 - All Security Modules Mega Menu Visual Polish & Dark Mode High-Contrast Enhancement (MegaMenuModal.tsx, index.css):
