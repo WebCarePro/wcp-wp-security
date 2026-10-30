@@ -46,10 +46,19 @@ class DatabaseScanner {
         $rogue_findings = $this->rogue_admin_detector->scan((string) $scan_id);
         $findings = array_merge($findings, $rogue_findings);
 
-        // 3. Discover all tables
+        // 3. Discover all tables and calculate grand total row estimate upfront
         $tables = $this->table_scanner->get_tables();
         $total_tables = count($tables);
         $total_rows_scanned = 0;
+
+        // Pre-calculate approximate grand total rows across all tables for accurate remaining counter
+        $grand_total_rows = 0;
+        $table_row_estimates = [];
+        foreach ($tables as $t) {
+            $est = $this->get_table_row_count($t);
+            $table_row_estimates[$t] = $est;
+            $grand_total_rows += $est;
+        }
 
         foreach ($tables as $table_idx => $table) {
             if ($monitor->is_nearing_limits()) {
@@ -63,7 +72,7 @@ class DatabaseScanner {
 
             $table_num = $table_idx + 1;
             $table_rows_scanned = 0;
-            $table_approx_rows = $this->get_table_row_count($table);
+            $table_approx_rows = $table_row_estimates[$table] ?? $this->get_table_row_count($table);
 
             if (!empty($scan_id)) {
                 $status_msg = sprintf(
@@ -74,14 +83,18 @@ class DatabaseScanner {
                     number_format($table_rows_scanned),
                     $table_approx_rows > 0 ? ' / ' . number_format($table_approx_rows) : ''
                 );
+                $rows_left = max(0, $grand_total_rows - $total_rows_scanned);
                 set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
                 set_transient("wcpscan_scan_db_progress_{$scan_id}", [
-                    'current_table'      => $table,
-                    'table_index'        => $table_num,
-                    'total_tables'       => $total_tables,
-                    'table_rows_scanned' => $table_rows_scanned,
-                    'table_approx_rows'  => $table_approx_rows,
-                    'total_rows_scanned' => $total_rows_scanned,
+                    'current_table'        => $table,
+                    'table_index'          => $table_num,
+                    'total_tables'         => $total_tables,
+                    'table_rows_scanned'   => $table_rows_scanned,
+                    'table_approx_rows'    => $table_approx_rows,
+                    'overall_rows_scanned' => $total_rows_scanned,
+                    'overall_total_rows'   => $grand_total_rows,
+                    'overall_rows_left'    => $rows_left,
+                    'completed'            => false,
                 ], 120);
             }
 
@@ -113,14 +126,18 @@ class DatabaseScanner {
                         number_format($table_rows_scanned),
                         $table_approx_rows > 0 ? ' / ' . number_format($table_approx_rows) : ''
                     );
+                    $rows_left = max(0, $grand_total_rows - $total_rows_scanned);
                     set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
                     set_transient("wcpscan_scan_db_progress_{$scan_id}", [
-                        'current_table'      => $table,
-                        'table_index'        => $table_num,
-                        'total_tables'       => $total_tables,
-                        'table_rows_scanned' => $table_rows_scanned,
-                        'table_approx_rows'  => $table_approx_rows,
-                        'total_rows_scanned' => $total_rows_scanned,
+                        'current_table'        => $table,
+                        'table_index'          => $table_num,
+                        'total_tables'         => $total_tables,
+                        'table_rows_scanned'   => $table_rows_scanned,
+                        'table_approx_rows'    => $table_approx_rows,
+                        'overall_rows_scanned' => $total_rows_scanned,
+                        'overall_total_rows'   => $grand_total_rows,
+                        'overall_rows_left'    => $rows_left,
+                        'completed'            => false,
                     ], 120);
                 }
 
@@ -133,7 +150,18 @@ class DatabaseScanner {
         }
 
         if (!empty($scan_id)) {
-            delete_transient("wcpscan_scan_db_progress_{$scan_id}");
+            // Retain the final completion summary for 120 seconds so frontend poller never misses it
+            set_transient("wcpscan_scan_db_progress_{$scan_id}", [
+                'current_table'        => 'All MySQL Tables',
+                'table_index'          => $total_tables,
+                'total_tables'         => $total_tables,
+                'table_rows_scanned'   => $total_rows_scanned,
+                'table_approx_rows'    => $total_rows_scanned,
+                'overall_rows_scanned' => $total_rows_scanned,
+                'overall_total_rows'   => max($grand_total_rows, $total_rows_scanned),
+                'overall_rows_left'    => 0,
+                'completed'            => true,
+            ], 120);
         }
 
         return $findings;

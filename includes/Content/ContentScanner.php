@@ -48,6 +48,11 @@ class ContentScanner {
         // 1. Scan Posts & Pages
         $posts_table = $wpdb->prefix . 'posts';
         $last_id = 0;
+        $total_posts_scanned = 0;
+
+        // Approximate count of publishable posts
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $approx_posts = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$posts_table}` WHERE post_status IN ('publish', 'future', 'draft', 'private')");
 
         while (true) {
             if ($monitor->is_nearing_limits()) {
@@ -67,6 +72,18 @@ class ContentScanner {
 
             if (empty($posts)) {
                 break;
+            }
+
+            $total_posts_scanned += count($posts);
+
+            if (!empty($scan_id)) {
+                $status_msg = sprintf(
+                    'Content & Posts: Inspecting Post #%d (%s%s posts audited)',
+                    (int) ($posts[0]['ID'] ?? $last_id),
+                    number_format($total_posts_scanned),
+                    $approx_posts > 0 ? ' / ~' . number_format($approx_posts) : ''
+                );
+                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
             }
 
             foreach ($posts as $post) {
