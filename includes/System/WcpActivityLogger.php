@@ -543,7 +543,7 @@ class WcpActivityLogger {
             return;
         }
 
-        // Ignore internal high-frequency operational / ledger / telemetry pointers
+        // Ignore internal high-frequency operational / ledger / telemetry / volatile lock pointers
         $ignored_patterns = [
             'wcpscan_activity_',
             'wcpscan_install_hash',
@@ -555,6 +555,32 @@ class WcpActivityLogger {
             'wcpscan_scan_checkpoint',
             'wcpscan_session_forensics_active_tokens',
             'wcpscan_db_last_audit',
+            'wcpscan_active_scan_lock',
+            'wcpscan_learning_route_profiles',
+            'wcpscan_quarantine_manifest',
+            'wcpscan_quarantine_remediation_journal',
+            'wcpscan_circuit_breaker_archive',
+            'wcpscan_crashguard_last_incident',
+            'wcpscan_crash_history',
+            'wcpscan_tor_exit_nodes',
+            'wcpscan_threat_intel_network_meta',
+            'wcpscan_threat_intel_consensus_ring',
+            'wcpscan_threat_intel_reputation_log',
+            'wcpscan_server_security_state',
+            'wcpscan_gatekeeper_snapshots',
+            'wcpscan_gatekeeper_audit_logs',
+            'wcpscan_outbound_egress_events',
+            'wcpscan_prompt_injection_catches',
+            'wcpscan_ghost_route_catches',
+            'wcpscan_honeytoken_catches',
+            'wcpscan_login_lockouts',
+            'wcpscan_script_inventory_alerts',
+            'wcpscan_script_inventory',
+            'wcpscan_domain_reputation_report',
+            'wcpscan_form_spam_stats',
+            'wcpscan_form_spam_session_salt',
+            'wcpscan_mcp_agent_audit',
+            'wcpscan_mcp_staged_actions',
         ];
 
         foreach ($ignored_patterns as $pattern) {
@@ -609,7 +635,7 @@ class WcpActivityLogger {
             'option'        => $option,
             'changed_count' => $count,
             'diff'          => $diff,
-            'description'   => sprintf('Configuration updated for %s (%d parameter%s changed).', $option, $count, $count === 1 ? '' : 's'),
+            'description'   => self::build_option_friendly_description($option, $count, $diff),
         ];
 
         self::notice($action, $category, $details);
@@ -664,9 +690,46 @@ class WcpActivityLogger {
         if (str_contains($option, 'whitelist')) {
             return 'whitelist_policy_modified';
         }
+        if (str_contains($option, 'cloudflare_rate_limit')) {
+            return 'cloudflare_rate_limit_modified';
+        }
+        if (str_contains($option, 'cloudflare_deployed')) {
+            return 'cloudflare_rules_modified';
+        }
         if (str_contains($option, 'settings')) {
             return 'settings_updated';
         }
         return 'policy_updated';
+    }
+
+    /**
+     * Build non-technical friendly summary description for changed options.
+     *
+     * @param string $option
+     * @param int    $count
+     * @param array  $diff
+     * @return string
+     */
+    private static function build_option_friendly_description(string $option, int $count, array $diff): string {
+        $keys = array_keys($diff);
+        $keys_summary = implode(', ', array_slice($keys, 0, 3));
+        if (count($keys) > 3) {
+            $keys_summary .= ' +' . (count($keys) - 3) . ' more';
+        }
+
+        if (str_contains($option, 'virtual_patches')) {
+            return sprintf('Updated active virtual exploit shields (%d rule definition%s altered).', $count, $count === 1 ? '' : 's');
+        }
+        if (str_contains($option, 'whitelist')) {
+            return sprintf('Modified false positive suppression rules (%d rule%s adjusted: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
+        }
+        if (str_contains($option, 'cloudflare')) {
+            return sprintf('Synchronized Cloudflare Edge configuration (%d setting%s: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
+        }
+        if (str_contains($option, 'settings')) {
+            return sprintf('Updated plugin security parameters (%d setting%s: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
+        }
+
+        return sprintf('Configuration adjusted for %s (%d parameter%s: %s).', str_replace('wcpscan_', '', $option), $count, $count === 1 ? '' : 's', $keys_summary);
     }
 }
