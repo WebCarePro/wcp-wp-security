@@ -931,45 +931,60 @@ class SettingsManager {
 
         // Audit Trail: Log settings change if diff is non-empty
         if (!empty($diff)) {
-            // Check if changes are firewall/WAF related
-            $diff_keys = array_keys($diff);
-            $waf_keys = array_filter($diff_keys, function($k) {
-                return strpos($k, 'waf_') === 0 || strpos($k, 'threat_intel_') === 0 || strpos($k, 'cloudflare_') === 0;
-            });
+            // Exclude automated bot-banned IP list updates from settings audit trail
+            // (Automated bot traps belong in WAF logs, not admin configuration logs)
+            if (isset($diff['waf_blocked_ips']) && !current_user_can('manage_options')) {
+                unset($diff['waf_blocked_ips']);
+            }
 
-            $is_firewall = !empty($waf_keys) && count($waf_keys) >= (count($diff_keys) / 2);
+            if (!empty($diff)) {
+                // Check if changes are firewall/WAF related
+                $diff_keys = array_keys($diff);
+                $waf_keys = array_filter($diff_keys, function($k) {
+                    return strpos($k, 'waf_') === 0 || strpos($k, 'threat_intel_') === 0 || strpos($k, 'cloudflare_') === 0;
+                });
 
-            if ($is_firewall) {
-                // Determine user-friendly description if single rule was toggled
-                $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s).', count($diff));
-                if (count($diff) === 1) {
-                    $single_key = array_key_first($diff);
-                    $new_val = $diff[$single_key]['new'] ?? null;
-                    $state_text = ($new_val === true || $new_val === 'enabled' || $new_val === 1 || $new_val === '1') ? 'turned on' : 'turned off';
-                    $rule_name = self::get_rule_friendly_name($single_key);
-                    $friendly_desc = sprintf('%s %s from Firewall Settings.', $rule_name, $state_text);
+                $is_firewall = !empty($waf_keys) && count($waf_keys) >= (count($diff_keys) / 2);
+
+                if ($is_firewall) {
+                    // Determine user-friendly description if single rule was toggled
+                    $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s).', count($diff));
+                    if (count($diff) === 1) {
+                        $single_key = array_key_first($diff);
+                        $new_val = $diff[$single_key]['new'] ?? null;
+                        $rule_name = self::get_rule_friendly_name($single_key);
+
+                        if ($single_key === 'waf_blocked_ips') {
+                            $friendly_desc = 'Firewall Custom Blocked IP List updated by Administrator.';
+                        } elseif ($single_key === 'waf_mode') {
+                            $friendly_desc = sprintf('Firewall Operating Mode set to "%s".', esc_html((string) $new_val));
+                        } else {
+                            $state_text = ($new_val === true || $new_val === 'enabled' || $new_val === 1 || $new_val === '1') ? 'turned on' : 'turned off';
+                            $friendly_desc = sprintf('%s %s from Firewall Settings.', $rule_name, $state_text);
+                        }
+                    }
+
+                    \WcpScanner\System\WcpActivityLogger::notice(
+                        'firewall_ruleset_modified',
+                        'firewall',
+                        [
+                            'changed_count' => count($diff),
+                            'description'   => $friendly_desc,
+                            'rules'         => array_values($waf_keys),
+                            'diff'          => $diff,
+                        ]
+                    );
+                } else {
+                    \WcpScanner\System\WcpActivityLogger::notice(
+                        'settings_updated',
+                        'settings',
+                        [
+                            'changed_count' => count($diff),
+                            'description'   => sprintf('Updated %d plugin configuration setting(s).', count($diff)),
+                            'diff'          => $diff,
+                        ]
+                    );
                 }
-
-                \WcpScanner\System\WcpActivityLogger::notice(
-                    'firewall_ruleset_modified',
-                    'firewall',
-                    [
-                        'changed_count' => count($diff),
-                        'description'   => $friendly_desc,
-                        'rules'         => array_values($waf_keys),
-                        'diff'          => $diff,
-                    ]
-                );
-            } else {
-                \WcpScanner\System\WcpActivityLogger::notice(
-                    'settings_updated',
-                    'settings',
-                    [
-                        'changed_count' => count($diff),
-                        'description'   => sprintf('Updated %d plugin configuration setting(s).', count($diff)),
-                        'diff'          => $diff,
-                    ]
-                );
             }
         }
 

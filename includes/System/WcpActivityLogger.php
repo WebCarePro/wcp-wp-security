@@ -610,6 +610,15 @@ class WcpActivityLogger {
             'wcpscan_welcome_dismissed',
             'wcpscan_db_version',
             'wcpscan_activity_log_settings',
+            'wcpscan_bot_ban_',
+            'wcpscan_active_scan_lock',
+            'wcpscan_learning_route_profiles',
+            'wcpscan_learning_mode_profiles',
+            'wcpscan_active_scan_lock_pid',
+            'wcpscan_scan_progress',
+            'wcpscan_live_scan_status',
+            'wcpscan_waf_events',
+            'wcpscan_waf_blocked_ips',
 
             // Subsystems that manage their own rich activity log emissions (prevent duplicate option watcher events)
             'wcpscan_settings',

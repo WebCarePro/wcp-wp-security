@@ -92,6 +92,9 @@ class AuditLogger {
 
     /**
      * Bridge legacy and subsystem audit events into WcpActivityLogger.
+     * Note: Pure WAF packet drops, runtime rate limits, and bot traps are EXCLUDED
+     * to keep Plugin Activity & Audit Logs strictly focused on plugin configuration
+     * and intentional administrator actions.
      *
      * @param string $event_type
      * @param mixed  $message
@@ -102,6 +105,30 @@ class AuditLogger {
         }
 
         $clean_action = sanitize_key(strtolower((string) $event_type));
+
+        // Filter out transient runtime attacks, automated bot traps, and WAF drops (handled in WAF logs)
+        $traffic_actions = [
+            'rate_limit_ban',
+            'rate_limit_escalated_ban',
+            'bot_trapped',
+            'bot_trap_triggered',
+            'honeytoken_triggered',
+            'honeytoken_trapped',
+            'ghost_route_triggered',
+            'ghost_route_trapped',
+            'form_spam_neutralized',
+            'waf_block',
+            'ip_blocked',
+            'waf_incident',
+            'learning_mode_route_learned',
+        ];
+
+        foreach ($traffic_actions as $ta) {
+            if (str_contains($clean_action, $ta)) {
+                return;
+            }
+        }
+
         $category = self::map_event_to_category($clean_action);
         $severity = self::map_event_to_severity($clean_action);
 
