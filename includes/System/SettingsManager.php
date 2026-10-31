@@ -874,12 +874,73 @@ class SettingsManager {
             $clean['notification_events'] = self::get_default_notification_events();
         }
 
+        // 18. Activity & Audit Logs Configuration
+        if (isset($input['activity_log_settings']) && is_array($input['activity_log_settings'])) {
+            $ret_days = isset($input['activity_log_settings']['retention_days']) ? (int) $input['activity_log_settings']['retention_days'] : 30;
+            if ($ret_days !== 0 && $ret_days < 7) {
+                $ret_days = 7; // Minimum 7-day forensic immutability
+            }
+            $clean_act_settings = [
+                'retention_days'      => $ret_days,
+                'tamper_webhook_url'  => isset($input['activity_log_settings']['tamper_webhook_url']) ? esc_url_raw($input['activity_log_settings']['tamper_webhook_url']) : '',
+            ];
+            update_option('wcpscan_activity_log_settings', $clean_act_settings, false);
+        }
+
+        // Compute settings diff before persisting
+        $diff = self::compute_settings_diff($current, $clean);
+
         update_option(self::OPTION_KEY, $clean);
 
         // Synchronize Cron Schedule
         self::sync_cron_schedule($clean);
 
+        // Audit Trail: Log settings change if diff is non-empty
+        if (!empty($diff)) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'settings_updated',
+                'settings',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Updated %d plugin configuration setting(s).', count($diff)),
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
         return self::get_settings();
+    }
+
+    /**
+     * Compute clean before/after diff of changed settings with redacted secrets.
+     *
+     * @param array $old_settings
+     * @param array $new_settings
+     * @return array
+     */
+    public static function compute_settings_diff(array $old_settings, array $new_settings): array {
+        $diff = [];
+        $keys = array_unique(array_merge(array_keys($old_settings), array_keys($new_settings)));
+
+        foreach ($keys as $k) {
+            $old_val = $old_settings[$k] ?? null;
+            $new_val = $new_settings[$k] ?? null;
+
+            // Treat null and empty string as equivalent for optional fields
+            if ($old_val === null && $new_val === '') {
+                continue;
+            }
+
+            if ($old_val !== $new_val) {
+                $diff[$k] = [
+                    'new' => \WcpScanner\System\ActivityLogs\ActivityRedactor::redact($new_val),
+                    'old' => \WcpScanner\System\ActivityLogs\ActivityRedactor::redact($old_val),
+                ];
+            }
+        }
+
+        return $diff;
+    }
     }
 
     /**

@@ -97,6 +97,27 @@ class Scheduler {
          ScanLock::acquire($scan_id);
          set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
 
+         // Audit Trail: Log scheduled scan started (Attributed to System WP-Cron)
+         \WcpScanner\System\WcpActivityLogger::info(
+             'scheduled_scan_started',
+             'scan',
+             [
+                 'description' => sprintf('Automated scheduled scan #%d started.', $scan_id),
+                 'scan_id'     => (int) $scan_id,
+                 'target'      => (string) $target,
+                 'total_files' => count($files),
+             ],
+             [
+                 'display_name' => 'System (WP-Cron)',
+                 'id'           => 0,
+                 'ip'           => '127.0.0.1',
+                 'role'         => 'system',
+                 'type'         => 'system',
+                 'user_agent'   => 'WordPress/' . get_bloginfo('version') . '; Cron',
+                 'user_login'   => 'System',
+             ]
+         );
+
          try {
              $scanned_count = 0;
              $file_scanner = new \WcpScanner\Filesystem\FileScanner();
@@ -309,6 +330,30 @@ class Scheduler {
 
              // 5. Send Alerts & Notifications
              self::send_scan_notification($scan_id, $open_issues_count, $risk_score, $target);
+
+             // Audit Trail: Log scheduled scan completed
+             \WcpScanner\System\WcpActivityLogger::info(
+                 'scheduled_scan_completed',
+                 'scan',
+                 [
+                     'description'   => sprintf('Scheduled scan #%d completed in %d ms with %d finding(s).', $scan_id, $duration_ms, $open_issues_count),
+                     'duration_ms'   => (int) $duration_ms,
+                     'issues_found'  => (int) $open_issues_count,
+                     'risk_score'    => (int) $risk_score,
+                     'scan_id'       => (int) $scan_id,
+                     'scanned_files' => (int) $scanned_count,
+                     'target'        => (string) $target,
+                 ],
+                 [
+                     'display_name' => 'System (WP-Cron)',
+                     'id'           => 0,
+                     'ip'           => '127.0.0.1',
+                     'role'         => 'system',
+                     'type'         => 'system',
+                     'user_agent'   => 'WordPress/' . get_bloginfo('version') . '; Cron',
+                     'user_login'   => 'System',
+                 ]
+             );
 
          } catch (\Throwable $e) {
              \WcpScanner\Scan\ScanLock::release($scan_id);

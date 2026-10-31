@@ -1587,6 +1587,39 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'get_caddy_server_config'],
             'permission_callback' => $permission,
         ]);
+
+        // ==========================================
+        // 21. Activity & Forensic Audit Log Engine
+        // ==========================================
+        register_rest_route(self::NAMESPACE, '/activity-logs', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_activity_logs'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/activity-logs/verify', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'verify_activity_logs_integrity'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/activity-logs/export', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'export_activity_logs'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/activity-logs/prune', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'prune_activity_logs'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/activity-logs/acknowledge-tamper', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'acknowledge_activity_tamper_alert'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
@@ -10073,6 +10106,109 @@ class ScannerRoutes {
             'success'   => true,
             'config'    => $config,
             'file_info' => \WcpScanner\Firewall\ServerSecurityEngine::get_file_info(),
+        ]);
+    }
+
+    // ==========================================
+    // 21. Activity & Forensic Audit Log Handlers
+    // ==========================================
+
+    public static function get_activity_logs(\WP_REST_Request $request) {
+        $limit      = max(1, min(100, intval($request->get_param('limit') ?: 50)));
+        $category   = sanitize_key($request->get_param('category') ?: '');
+        $actor_type = sanitize_key($request->get_param('actor_type') ?: '');
+        $severity   = sanitize_key($request->get_param('severity') ?: '');
+        $search     = sanitize_text_field($request->get_param('search') ?: '');
+
+        $result = \WcpScanner\System\WcpActivityLogger::query_records([
+            'actor_type' => $actor_type,
+            'category'   => $category,
+            'limit'      => $limit,
+            'search'     => $search,
+            'severity'   => $severity,
+        ]);
+
+        $settings = get_option('wcpscan_activity_log_settings', []);
+        $tamper_alert = get_option('wcpscan_activity_tamper_active', null);
+
+        return rest_ensure_response([
+            'records'        => $result['records'],
+            'settings'       => [
+                'retention_days'     => isset($settings['retention_days']) ? (int) $settings['retention_days'] : 30,
+                'tamper_webhook_url' => $settings['tamper_webhook_url'] ?? '',
+            ],
+            'success'        => true,
+            'tamper_alert'   => $tamper_alert,
+            'total_read'     => $result['total_read'],
+        ]);
+    }
+
+    public static function verify_activity_logs_integrity(\WP_REST_Request $request) {
+        $report = \WcpScanner\System\WcpActivityLogger::verify_integrity();
+        return rest_ensure_response([
+            'report'  => $report,
+            'success' => true,
+        ]);
+    }
+
+    public static function export_activity_logs(\WP_REST_Request $request) {
+        $format = sanitize_key($request->get_param('format') ?: 'csv');
+        $category   = sanitize_key($request->get_param('category') ?: '');
+        $actor_type = sanitize_key($request->get_param('actor_type') ?: '');
+        $severity   = sanitize_key($request->get_param('severity') ?: '');
+        $search     = sanitize_text_field($request->get_param('search') ?: '');
+
+        $result = \WcpScanner\System\WcpActivityLogger::query_records([
+            'actor_type' => $actor_type,
+            'category'   => $category,
+            'limit'      => 1000,
+            'search'     => $search,
+            'severity'   => $severity,
+        ]);
+
+        $timestamp = gmdate('Ymd_His');
+        if ($format === 'json') {
+            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], "wcp-activity-logs-{$timestamp}.json");
+        } else {
+            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], "wcp-activity-logs-{$timestamp}.csv");
+        }
+        exit;
+    }
+
+    public static function prune_activity_logs(\WP_REST_Request $request) {
+        $results = \WcpScanner\System\ActivityLogs\ActivityRetention::prune_expired_partitions();
+
+        // Audit Trail: Log manual partition prune execution
+        \WcpScanner\System\WcpActivityLogger::notice(
+            'logs_pruned',
+            'retention',
+            [
+                'description'  => sprintf('Pruned %d expired partition file(s) beyond 7-day minimum immutability.', $results['pruned_count']),
+                'pruned_count' => (int) $results['pruned_count'],
+                'pruned_files' => $results['files'],
+            ]
+        );
+
+        /* translators: %d: Number of pruned partitions */
+        $message = sprintf(__('Pruned %d expired partition(s).', 'wcp-security-scanner'), $results['pruned_count']);
+
+        return rest_ensure_response([
+            'message'      => $message,
+            'pruned_count' => $results['pruned_count'],
+            'pruned_files' => $results['files'],
+            'success'      => true,
+        ]);
+    }
+
+    public static function acknowledge_activity_tamper_alert(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $incident_id = sanitize_key($params['incident_id'] ?? '');
+
+        \WcpScanner\System\ActivityLogs\ActivityTamperNotifier::acknowledge_alert($incident_id);
+
+        return rest_ensure_response([
+            'message' => __('Tamper security incident acknowledged and dismissed.', 'wcp-security-scanner'),
+            'success' => true,
         ]);
     }
 }

@@ -1,5 +1,5 @@
 {
-  "version": "1.31.0",
+  "version": "2.1.0",
   "requires_wp": "7.0",
   "requires_php": "8.3",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip",

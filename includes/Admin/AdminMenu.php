@@ -251,6 +251,16 @@ class AdminMenu {
             'wcp-scanner-notifications',
             [__CLASS__, 'render_app_container']
         );
+
+        // Sub-Page: Activity & Audit Logs
+        add_submenu_page(
+            null,
+            __('Plugin Activity & Audit Logs', 'wcp-security-scanner'),
+            __('Activity Logs', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-activity-logs',
+            [__CLASS__, 'render_app_container']
+        );
     }
 
     /**
@@ -280,6 +290,7 @@ class AdminMenu {
                 'wcp-scanner-server'         => __('Server & Host Infrastructure Telemetry', 'wcp-security-scanner'),
                 'wcp-scanner-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
                 'wcp-scanner-notifications'  => __('Notifications & Security Alerts', 'wcp-security-scanner'),
+                'wcp-scanner-activity-logs'   => __('Plugin Activity & Audit Logs', 'wcp-security-scanner'),
             ];
 
             if (isset($title_map[$page])) {
@@ -312,6 +323,7 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-fim',
             'wcp-security-scanner_page_wcp-scanner-auth',
             'wcp-security-scanner_page_wcp-scanner-notifications',
+            'wcp-security-scanner_page_wcp-scanner-activity-logs',
             'wcp-security-scanner_page_wcp-scanner-settings',
             'wcp-security-scanner_page_wcp-scanner-about',
             'security-scanner_page_wcp-scanner-scan',
@@ -329,6 +341,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-fim',
             'security-scanner_page_wcp-scanner-auth',
             'security-scanner_page_wcp-scanner-notifications',
+            'security-scanner_page_wcp-scanner-activity-logs',
             'security-scanner_page_wcp-scanner-settings',
             'security-scanner_page_wcp-scanner-about',
         ];

@@ -1,6 +1,6 @@
 {
-  "version": "1.31.0",
-  "generated_at": "2026-10-31T18:32:14.850Z",
+  "version": "2.1.0",
+  "generated_at": "2026-10-31T19:40:49.713Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,7 +36,7 @@
       "size": 552723
     },
     "build/index.asset.php": {
-      "sha256": "df1c74bc1f71c5d0469a066fd5dfa65824994256aaac90838ea229e8f7c2a277",
+      "sha256": "1bb0301fe4c70513a5129250f5b8b57fa24445e4295fbe5ad9a9b39a0e753207",
       "size": 121
     },
     "build/index.css": {
@@ -44,24 +44,24 @@
       "size": 552568
     },
     "build/index.js": {
-      "sha256": "dad123d6f6195c8f3bf17a1ce0b69ecf41c7f43c15b0b957ad29b2cde1d600cd",
-      "size": 2030386
+      "sha256": "18f81fac0f001ac28fff7c4599f22cc22c721c2653ac264f19018662dfb2da25",
+      "size": 2042808
     },
     "composer.json": {
       "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
       "size": 324
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "73d3285ff98545db06edcb1b99c7a0ea7b939ce905344666a838b23b3711b559",
-      "size": 43008
+      "sha256": "a94a551d3dc71bf79dbb41c7032553896b04a7d99558be827ed9f9cd0de9c375",
+      "size": 43594
     },
     "includes/Api/MCPAgentService.php": {
       "sha256": "2811123e6e53da07d4bf7ef263f583ac7d2f1ddcf177bd5fbb2e47e6718a25ac",
       "size": 73681
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "6b4d93154559f04f5bfd2aad57ad27440efa27b50cb12aa57b702f80d61d050e",
-      "size": 490746
+      "sha256": "3a9d02a1e20b47fa7a8f5f9f9941a4b7b392ef26a0f5f1f1fc9c6c0c7475229d",
+      "size": 496701
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "8a1338e34f3c62ba87ccb55b20296ef73e534c0f30f984af8973c6150e296146",
@@ -483,6 +483,46 @@
       "sha256": "fd7a084c9eeee865c9038f1c044c474fb018ecc627826ecc6ed40b3674ee722c",
       "size": 19194
     },
+    "includes/System/ActivityLogs/ActivityCanonicalizer.php": {
+      "sha256": "e4089c16903ec1790edcba2caeda49c97a61c6115ae6fa5b615588aebb472e3e",
+      "size": 4986
+    },
+    "includes/System/ActivityLogs/ActivityEventSchema.php": {
+      "sha256": "a31239c946f16c926ddece99032629d931345ab39cb6e0c709f93a0b3f1d3148",
+      "size": 8067
+    },
+    "includes/System/ActivityLogs/ActivityExporter.php": {
+      "sha256": "97a40c0e62679b6e6271b759a9c35f989ca5c7685cfa2795e9f13381bfe602eb",
+      "size": 4440
+    },
+    "includes/System/ActivityLogs/ActivityHashChain.php": {
+      "sha256": "d69c0ff1f7c06fb11ea75010ecef831d5f641b3e8b8c4ffc7497334cfadacf60",
+      "size": 8930
+    },
+    "includes/System/ActivityLogs/ActivityRateLimiter.php": {
+      "sha256": "25d8281afd6d02d1d5463c10e1b1fe0f252939b6b7f460a557713c4369bdae31",
+      "size": 6284
+    },
+    "includes/System/ActivityLogs/ActivityRecovery.php": {
+      "sha256": "5ad0c06a71c1e6173b21f67a747ff1dfc4cb82283c6215156279b16e2594aeb5",
+      "size": 7795
+    },
+    "includes/System/ActivityLogs/ActivityRedactor.php": {
+      "sha256": "571f2ee33a0fc4dbf9e7e9a7a636dbeb35061c20792d26f4e4b1c3aaf19a1670",
+      "size": 6681
+    },
+    "includes/System/ActivityLogs/ActivityRetention.php": {
+      "sha256": "78170081c1ffe7223e24dedc9eed900b55f9f17b318266f8ba3710230cbba223",
+      "size": 9330
+    },
+    "includes/System/ActivityLogs/ActivityStorage.php": {
+      "sha256": "0f36869edf03bf9a05cc03c6339b31520b399b6d7866382e57a3c1b1919fc5fa",
+      "size": 10425
+    },
+    "includes/System/ActivityLogs/ActivityTamperNotifier.php": {
+      "sha256": "55325ae93f6a0979b9f095f419532127e154b60eb79740d406da25af92ad9e6c",
+      "size": 8056
+    },
     "includes/System/AIService.php": {
       "sha256": "0428d114bacb8669567ddc18d01fd39af7233b136b275eb4776de16176f82c43",
       "size": 44018
@@ -496,20 +536,24 @@
       "size": 31726
     },
     "includes/System/Scheduler.php": {
-      "sha256": "1376ed2e228f68ff71c75f4ca0e00410636031b6ea3bbe34e1c01ed7f6a3e132",
-      "size": 36880
+      "sha256": "e6e4b4dddd6c2e2bcb0ab117b0bb98a1cc8101ace338eae636912747711aaf0c",
+      "size": 38941
     },
     "includes/System/ServerInfo.php": {
       "sha256": "472d2c96ca6dce6d9806df1a44005d6584679394cf0de78001f8afe0647ca04e",
       "size": 22995
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "cbc256cb704c92abdd4647e82587603df75c11dffc7fc1949a90fe81a9163a5b",
-      "size": 74195
+      "sha256": "6f0fe1b635a8290fbc399440fe1b07bde8bea6b46db05143099db1915634efc3",
+      "size": 76669
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "166d9705dac653ea076209d111b27d4e3c468fac4f24d788d432bdafa82e824e",
       "size": 25930
+    },
+    "includes/System/WcpActivityLogger.php": {
+      "sha256": "d7cc3c97afa91b5eb76f3e4a3e4798e9ecf348942f2f105fa08b4d3ed4c0ef80",
+      "size": 21039
     },
     "includes/WordPress/ConfigScanner.php": {
       "sha256": "c4052e3b084f32debe99412545cb3ebd125d87f2a9ce18b21c88b427d621ba5c",
@@ -552,24 +596,24 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "18ab4b8e4abfcae439553d1f246820d4d315b5ab584a0e184b72c2922577e017",
-      "size": 430
+      "sha256": "a916f972265cc77fc018d5238531572cdbcf39618180280b75c7b329b3cd1bf3",
+      "size": 429
     },
     "README.md": {
-      "sha256": "c55fee0d51285e223df212cffd79d2460a5f88d9405999c5ea3810556d2c7302",
-      "size": 45484
+      "sha256": "e50648b679a5e4acc3dbff08bceb689233d5d4c09e5a777ff8bdb094ce126128",
+      "size": 45483
     },
     "readme.txt": {
-      "sha256": "e3573fae321b0d59d10365a79525255a7f42b52dfc2f1c42318b31bf375e4e58",
-      "size": 23698
+      "sha256": "b66b3c341c9ed3ef4f3a46bee8848d02855fe58706658fddf3029d6a8e11c239",
+      "size": 23697
     },
     "uninstall.php": {
       "sha256": "49c7a7772c79e5d8f70bfea8e7ead34a2e5bc3fd6667586a234003fddc456f7e",
       "size": 7650
     },
     "wcp-wp-scanner.php": {
-      "sha256": "cca0a8cfd9ca720ffeb69074c6f4ae0574704f2933fea26f3d6d1e6febd78587",
-      "size": 6499
+      "sha256": "e64f0f91f1bf9f529d18eddf3189cb801e3af93de1a6d23fe0c4f48bc5d24e13",
+      "size": 6497
     }
   }
 }
