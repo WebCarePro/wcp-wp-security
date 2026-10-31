@@ -213,7 +213,36 @@ class VirtualPatchManager {
         $active[$patch_id] = $patch;
         update_option(self::OPTION_PATCHES, $active, false);
 
-        // Record Audit Log
+        // Record Audit Log with Rich Details
+        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice('virtual_patch_applied', 'firewall', [
+                'patch_id'   => $patch_id,
+                'title'      => $patch['title'] ?? $patch_id,
+                'cve_id'     => $patch['cve_id'] ?? $patch_id,
+                'severity'   => $patch['severity'] ?? 'high',
+                'target'     => $patch['target'] ?? 'core',
+                'cloudflare' => $cf_deployed,
+                'diff'       => [
+                    $patch_id => [
+                        'old' => null,
+                        'new' => [
+                            'status'     => 'active',
+                            'title'      => $patch['title'] ?? $patch_id,
+                            'cve_id'     => $patch['cve_id'] ?? $patch_id,
+                            'cloudflare' => $cf_deployed,
+                        ],
+                    ],
+                ],
+                'description' => sprintf(
+                    /* translators: 1: patch title, 2: patch ID, 3: deployment message */
+                    __('Activated Virtual Shield "%1$s" (%2$s)%3$s', 'wcp-security-scanner'),
+                    $patch['title'],
+                    $patch_id,
+                    $cf_msg
+                ),
+            ]);
+        }
+
         AuditLogger::log_event(
             'virtual_patch_applied',
             sprintf(
@@ -259,6 +288,29 @@ class VirtualPatchManager {
 
         unset($active[$patch_id]);
         update_option(self::OPTION_PATCHES, $active, false);
+
+        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice('virtual_patch_deactivated', 'firewall', [
+                'patch_id'   => $patch_id,
+                'title'      => $patch['title'] ?? $patch_id,
+                'cve_id'     => $patch['cve_id'] ?? $patch_id,
+                'diff'       => [
+                    $patch_id => [
+                        'old' => [
+                            'status' => 'active',
+                            'title'  => $patch['title'] ?? $patch_id,
+                        ],
+                        'new' => null,
+                    ],
+                ],
+                'description' => sprintf(
+                    /* translators: 1: patch title, 2: patch ID */
+                    __('Deactivated Virtual Shield "%1$s" (%2$s)', 'wcp-security-scanner'),
+                    $patch['title'],
+                    $patch_id
+                ),
+            ]);
+        }
 
         AuditLogger::log_event(
             'virtual_patch_removed',

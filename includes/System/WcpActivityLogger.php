@@ -32,6 +32,20 @@ class WcpActivityLogger {
     private static bool $is_logging = false;
 
     /**
+     * Deduplication registry for option watcher within single request lifecycle.
+     */
+    private static array $logged_options_in_request = [];
+
+    /**
+     * Initialize listeners and hooks.
+     */
+    public static function init(): void {
+        // Universal WordPress Option Watcher for all wcpscan_* plugin state changes
+        add_action('updated_option', [__CLASS__, 'on_option_updated'], 10, 3);
+        add_action('added_option', [__CLASS__, 'on_option_added'], 10, 2);
+    }
+
+    /**
      * Primary public logging method.
      *
      * @param string      $action         Stable action key (e.g. 'settings_updated', 'scan_started').
@@ -515,5 +529,144 @@ class WcpActivityLogger {
             'details'         => sprintf('All %d records and retained checkpoints verified unbroken.', $total_checked),
             'status'          => 'verified',
         ];
+    }
+
+    /**
+     * Universal hook listener for updated_option.
+     *
+     * @param string $option
+     * @param mixed  $old_value
+     * @param mixed  $value
+     */
+    public static function on_option_updated($option, $old_value, $value): void {
+        if (!is_string($option) || !str_starts_with($option, 'wcpscan_')) {
+            return;
+        }
+
+        // Ignore internal high-frequency operational / ledger / telemetry pointers
+        $ignored_patterns = [
+            'wcpscan_activity_',
+            'wcpscan_install_hash',
+            'wcpscan_transient_',
+            'wcpscan_rate_limit_',
+            '_transient_',
+            'wcpscan_active_visitor_',
+            'wcpscan_last_scan_state',
+            'wcpscan_scan_checkpoint',
+            'wcpscan_session_forensics_active_tokens',
+            'wcpscan_db_last_audit',
+        ];
+
+        foreach ($ignored_patterns as $pattern) {
+            if (str_contains($option, $pattern)) {
+                return;
+            }
+        }
+
+        // Normalize comparison
+        if ($old_value === $value) {
+            return;
+        }
+
+        $req_sig = $option . '_' . md5(serialize($value));
+        if (isset(self::$logged_options_in_request[$req_sig])) {
+            return;
+        }
+        self::$logged_options_in_request[$req_sig] = true;
+
+        // Determine category and human-readable action
+        $category = self::resolve_option_category($option);
+        $action = self::resolve_option_action($option);
+
+        // Build diff structure
+        $diff = [];
+        if (is_array($old_value) && is_array($value)) {
+            $all_keys = array_unique(array_merge(array_keys($old_value), array_keys($value)));
+            foreach ($all_keys as $k) {
+                $val_old = $old_value[$k] ?? null;
+                $val_new = $value[$k] ?? null;
+                if ($val_old !== $val_new) {
+                    $diff[(string) $k] = [
+                        'old' => $val_old,
+                        'new' => $val_new,
+                    ];
+                }
+            }
+        } else {
+            $diff[$option] = [
+                'old' => $old_value,
+                'new' => $value,
+            ];
+        }
+
+        // If diff was already explicitly captured in this request, avoid duplicate noise
+        $count = count($diff);
+        if ($count === 0) {
+            return;
+        }
+
+        $details = [
+            'option'        => $option,
+            'changed_count' => $count,
+            'diff'          => $diff,
+            'description'   => sprintf('Configuration updated for %s (%d parameter%s changed).', $option, $count, $count === 1 ? '' : 's'),
+        ];
+
+        self::notice($action, $category, $details);
+    }
+
+    /**
+     * Universal hook listener for added_option.
+     *
+     * @param string $option
+     * @param mixed  $value
+     */
+    public static function on_option_added($option, $value): void {
+        if (!is_string($option) || !str_starts_with($option, 'wcpscan_')) {
+            return;
+        }
+
+        self::on_option_updated($option, null, $value);
+    }
+
+    /**
+     * Resolve option name to activity category.
+     *
+     * @param string $option
+     * @return string
+     */
+    private static function resolve_option_category(string $option): string {
+        if (str_contains($option, 'firewall') || str_contains($option, 'waf') || str_contains($option, 'patch') || str_contains($option, 'trap') || str_contains($option, 'honey') || str_contains($option, 'egress') || str_contains($option, 'cloudflare')) {
+            return 'firewall';
+        }
+        if (str_contains($option, 'auth') || str_contains($option, 'login') || str_contains($option, '2fa') || str_contains($option, 'webauthn') || str_contains($option, 'passkey')) {
+            return 'auth';
+        }
+        if (str_contains($option, 'quarantine') || str_contains($option, 'reinfection')) {
+            return 'quarantine';
+        }
+        if (str_contains($option, 'scan') || str_contains($option, 'schedule')) {
+            return 'scan';
+        }
+        return 'settings';
+    }
+
+    /**
+     * Resolve option name to clean action key.
+     *
+     * @param string $option
+     * @return string
+     */
+    private static function resolve_option_action(string $option): string {
+        if (str_contains($option, 'virtual_patches') || str_contains($option, 'synthesized_virtual_patches')) {
+            return 'virtual_patch_rules_modified';
+        }
+        if (str_contains($option, 'whitelist')) {
+            return 'whitelist_policy_modified';
+        }
+        if (str_contains($option, 'settings')) {
+            return 'settings_updated';
+        }
+        return 'policy_updated';
     }
 }

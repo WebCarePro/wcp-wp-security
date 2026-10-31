@@ -74,7 +74,7 @@ class AuditLogger {
         $username = ($current_user && $current_user->exists()) ? sanitize_user($current_user->user_login) : 'System/Guest';
 
         $clean_event = sanitize_key($event_type);
-        $clean_message = str_replace(["\r", "\n"], ' ', sanitize_text_field($message));
+        $clean_message = is_array($message) ? wp_json_encode($message) : str_replace(["\r", "\n"], ' ', sanitize_text_field((string) $message));
 
         // Format: [TIMESTAMP] [IP] [USER] [EVENT] Message
         $log_entry = sprintf("[%s] [IP: %s] [User: %s] [%s] %s" . PHP_EOL, $timestamp, $ip_address, $username, $clean_event, $clean_message);
@@ -85,6 +85,96 @@ class AuditLogger {
         }
 
         @file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
+
+        // Enterprise Activity Log Bridge: Forward into cryptographic hash-chained activity log ledger
+        self::bridge_to_wcp_activity_logger($event_type, $message);
+    }
+
+    /**
+     * Bridge legacy and subsystem audit events into WcpActivityLogger.
+     *
+     * @param string $event_type
+     * @param mixed  $message
+     */
+    public static function bridge_to_wcp_activity_logger($event_type, $message): void {
+        if (!class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            return;
+        }
+
+        $clean_action = sanitize_key(strtolower((string) $event_type));
+        $category = self::map_event_to_category($clean_action);
+        $severity = self::map_event_to_severity($clean_action);
+
+        $details = [];
+        if (is_array($message)) {
+            $details = $message;
+            if (!isset($details['description'])) {
+                $details['description'] = sprintf('Event %s recorded with structured payload.', $clean_action);
+            }
+        } else {
+            $details = [
+                'description' => (string) $message,
+                'raw_event'   => (string) $event_type,
+            ];
+        }
+
+        \WcpScanner\System\WcpActivityLogger::log($clean_action, $category, $severity, $details);
+    }
+
+    /**
+     * Map audit event action name to valid WcpActivityLogger category.
+     *
+     * @param string $action
+     * @return string
+     */
+    private static function map_event_to_category(string $action): string {
+        if (str_contains($action, 'vpatch') || str_contains($action, 'virtual_patch') || str_contains($action, 'firewall') || str_contains($action, 'micro_waf') || str_contains($action, 'rate_limit') || str_contains($action, 'honey') || str_contains($action, 'ghost_route') || str_contains($action, 'spam')) {
+            return 'firewall';
+        }
+
+        if (str_contains($action, 'auth') || str_contains($action, 'login') || str_contains($action, 'webauthn') || str_contains($action, 'session') || str_contains($action, 'ephemeral') || str_contains($action, 'user') || str_contains($action, 'breach')) {
+            return 'auth';
+        }
+
+        if (str_contains($action, 'quarantine') || str_contains($action, 'reinfection')) {
+            return 'quarantine';
+        }
+
+        if (str_contains($action, 'scan') || str_contains($action, 'monitor') || str_contains($action, 'simulation') || str_contains($action, 'exposure')) {
+            return 'scan';
+        }
+
+        if (str_contains($action, 'setting') || str_contains($action, 'whitelist') || str_contains($action, 'policy') || str_contains($action, 'containment')) {
+            return 'settings';
+        }
+
+        if (str_contains($action, 'crash') || str_contains($action, 'safe_mode')) {
+            return 'crashguard';
+        }
+
+        return 'system';
+    }
+
+    /**
+     * Map audit event action name to valid WcpActivityLogger severity level.
+     *
+     * @param string $action
+     * @return string
+     */
+    private static function map_event_to_severity(string $action): string {
+        if (str_contains($action, 'failed') || str_contains($action, 'breach') || str_contains($action, 'quarantine') || str_contains($action, 'blocked') || str_contains($action, 'lockout') || str_contains($action, 'containment')) {
+            return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_WARNING;
+        }
+
+        if (str_contains($action, 'tamper') || str_contains($action, 'compromise') || str_contains($action, 'critical')) {
+            return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_CRITICAL;
+        }
+
+        if (str_contains($action, 'applied') || str_contains($action, 'removed') || str_contains($action, 'updated') || str_contains($action, 'switched') || str_contains($action, 'activated') || str_contains($action, 'deactivated') || str_contains($action, 'created') || str_contains($action, 'deleted')) {
+            return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_NOTICE;
+        }
+
+        return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_INFO;
     }
 
     public function log_user_login($user_login, $user) {

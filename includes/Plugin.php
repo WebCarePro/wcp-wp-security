@@ -43,6 +43,10 @@ class Plugin {
             \WcpScanner\WordPress\UserRemediationManager::init();
         }
 
+        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::init();
+        }
+
         $audit_logger = new \WcpScanner\System\AuditLogger();
         $audit_logger->init();
 
