@@ -1,6 +1,6 @@
 {
   "version": "2.1.0",
-  "generated_at": "2026-10-31T22:14:57.443Z",
+  "generated_at": "2026-10-31T22:39:00.399Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -92,8 +92,8 @@
       "size": 46456
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "6ad24770fce3ca186287756e18bd733de3e4fd45739cf5aa8b68275801f8fab2",
-      "size": 84904
+      "sha256": "f6812b7e4b2d6bb9ca1936cfab4f313f1e899a12d81af639c8cc631eab38e985",
+      "size": 85676
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "80a9763e6f4f8feaaa37b696490e2e19ad60cadf669e51c5819181c9c6c5d016",
@@ -544,16 +544,16 @@
       "size": 22995
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "9b087717c9fcf33307415846aa64039ab5aaa7791ad12a933b9596ae4bf660a6",
-      "size": 81279
+      "sha256": "717db76ca2a42793e923ea488d5def9f0759f3c5831d1b2ad2f56f4a9dffb49d",
+      "size": 84100
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "166d9705dac653ea076209d111b27d4e3c468fac4f24d788d432bdafa82e824e",
       "size": 25930
     },
     "includes/System/WcpActivityLogger.php": {
-      "sha256": "3e0bc371d30084d3c6c847900e7041a88246a8268aae6cbf509022094872bbda",
-      "size": 30660
+      "sha256": "eddd322f160eb6f99f8f51c84d331698d56cc51517d0a75a5517c90c32dd68ac",
+      "size": 31135
     },
     "includes/WordPress/ConfigScanner.php": {
       "sha256": "c4052e3b084f32debe99412545cb3ebd125d87f2a9ce18b21c88b427d621ba5c",

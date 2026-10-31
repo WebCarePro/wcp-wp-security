@@ -579,8 +579,29 @@ class CloudflareService {
             }
         }
 
-        // Persist the verified deployed rules to WordPress database options for instant retrieval
-        update_option(self::DEPLOYED_RULES_OPTION, $deployed, false);
+        // Only update WordPress database option if actual rule definitions changed (ignoring last_synced)
+        $rules_changed = false;
+        if (count($deployed) !== count($cached_db_rules)) {
+            $rules_changed = true;
+        } else {
+            foreach ($deployed as $dk => $dval) {
+                if (!isset($cached_db_rules[$dk])) {
+                    $rules_changed = true;
+                    break;
+                }
+                $cval = $cached_db_rules[$dk];
+                if (($dval['id'] ?? '') !== ($cval['id'] ?? '') ||
+                    ($dval['enabled'] ?? false) !== ($cval['enabled'] ?? false) ||
+                    ($dval['action'] ?? '') !== ($cval['action'] ?? '')) {
+                    $rules_changed = true;
+                    break;
+                }
+            }
+        }
+
+        if ($rules_changed) {
+            update_option(self::DEPLOYED_RULES_OPTION, $deployed, false);
+        }
 
         return $deployed;
     }

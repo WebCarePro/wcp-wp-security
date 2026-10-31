@@ -582,6 +582,17 @@ class WcpActivityLogger {
             'wcpscan_form_spam_session_salt',
             'wcpscan_mcp_agent_audit',
             'wcpscan_mcp_staged_actions',
+            'wcpscan_cf_deployed_edge_rules',
+            'wcpscan_cloudflare_rate_limit_config',
+            'wcpscan_remediation_backups',
+            'wcpscan_vault_salt',
+            'wcpscan_micro_waf_bypass_token',
+            'wcpscan_micro_waf_chained_file',
+            'wcpscan_ephemeral_admin_history',
+            'wcpscan_dismissed_backups',
+            'wcpscan_welcome_dismissed',
+            'wcpscan_db_version',
+            'wcpscan_activity_log_settings',
 
             // Subsystems that manage their own rich activity log emissions (prevent duplicate option watcher events)
             'wcpscan_settings',
