@@ -950,7 +950,9 @@ class SettingsManager {
                     // Determine user-friendly description if single rule was toggled
                     $current_user = wp_get_current_user();
                     $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-                    $ip = \WcpScanner\Security\SecurityUtils::get_client_ip();
+                    $ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                        ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                        : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
                     $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s) by %s from IP %s.', count($diff), $user_login, $ip);
                     if (count($diff) === 1) {

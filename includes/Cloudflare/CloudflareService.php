@@ -1292,6 +1292,11 @@ class CloudflareService {
         if (stripos($err, 'Authentication error') !== false || stripos($err, 'actor does not have permission') !== false) {
             $err .= ' ' . __('Ensure your Cloudflare API Token has "Zone > Firewall Services: Edit" permission.', 'wcp-security-scanner');
         }
+
+        return [
+            'success' => false,
+            'message' => $err,
+        ];
     }
 
     /**
