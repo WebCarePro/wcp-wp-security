@@ -67,6 +67,22 @@ class SessionForensicsEngine {
             'notify_admin_on_suspicious'    => !empty($new_settings['notify_admin_on_suspicious']),
         ];
         update_option(self::OPTION_SETTINGS, $updated);
+
+        // Audit Trail: Log Session Sentinel policy change
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'session_forensics_settings_updated',
+                'auth',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Zero-Trust Session Forensics & Impossible Travel policy updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'session_forensics',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
         return $updated;
     }
 

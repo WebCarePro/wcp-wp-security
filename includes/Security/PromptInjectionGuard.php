@@ -90,7 +90,25 @@ class PromptInjectionGuard {
             'block_secret_leaks'    => !empty($settings['block_secret_leaks']),
             'action'                => in_array($settings['action'] ?? '', ['block', 'sanitize', 'moderate'], true) ? $settings['action'] : 'moderate',
         ];
-        return update_option(self::OPTION_SETTINGS, array_merge($current, $updated), false);
+        $final = array_merge($current, $updated);
+        $res = update_option(self::OPTION_SETTINGS, $final, false);
+
+        // Audit Trail: Log AI Prompt Injection Guard settings change
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $final);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'prompt_injection_settings_updated',
+                'firewall',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('AI Prompt Injection & Decoy Shield settings updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'prompt_injection',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
+        return $res;
     }
 
     /**

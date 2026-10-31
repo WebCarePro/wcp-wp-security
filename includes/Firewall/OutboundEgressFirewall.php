@@ -134,7 +134,25 @@ class OutboundEgressFirewall {
             'allowed_hosts'        => array_values(array_unique($allowed_hosts)),
         ];
 
-        return update_option(self::OPTION_SETTINGS, array_merge($current, $updated), false);
+        $final = array_merge($current, $updated);
+        $res = update_option(self::OPTION_SETTINGS, $final, false);
+
+        // Audit Trail: Log Outbound Egress policy changes
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $final);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'egress_firewall_settings_updated',
+                'firewall',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Outbound Egress & SSRF Firewall policy updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'egress_firewall',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
+        return $res;
     }
 
     /**

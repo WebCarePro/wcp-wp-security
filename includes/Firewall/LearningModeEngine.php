@@ -66,6 +66,22 @@ class LearningModeEngine {
             'graduation_confidence'     => max(50, min(99, intval($new_settings['graduation_confidence'] ?? 85))),
         ];
         update_option(self::OPTION_SETTINGS, $updated);
+
+        // Audit Trail: Log behavioral learning settings change
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'behavioral_learning_updated',
+                'firewall',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Behavioral Learning Mode policy updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'behavioral_waf',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
         return $updated;
     }
 

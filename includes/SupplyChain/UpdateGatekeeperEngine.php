@@ -60,6 +60,22 @@ class UpdateGatekeeperEngine {
             'max_snapshots'          => max(3, min(30, intval($new_settings['max_snapshots'] ?? 10))),
         ];
         update_option(self::OPTION_SETTINGS, $updated);
+
+        // Audit Trail: Log Update Gatekeeper settings change
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'gatekeeper_settings_updated',
+                'settings',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Supply-Chain Gatekeeper policy updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'update_gatekeeper',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
         return $updated;
     }
 

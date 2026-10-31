@@ -90,7 +90,25 @@ class GhostRouteTrap {
             'sync_cloudflare_edge' => !empty($settings['sync_cloudflare_edge']),
             'tarpit_duration'      => isset($settings['tarpit_duration']) ? min(10, max(0, (int) $settings['tarpit_duration'])) : 0,
         ];
-        return update_option(self::OPTION_SETTINGS, array_merge($current, $updated), false);
+        $final = array_merge($current, $updated);
+        $res = update_option(self::OPTION_SETTINGS, $final, false);
+
+        // Audit Trail: Log Ghost Route Decoy changes
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $final);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'ghost_route_settings_updated',
+                'firewall',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Ghost Route Decoys & Phantom Traps updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'ghost_routes',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
+        return $res;
     }
 
     /**

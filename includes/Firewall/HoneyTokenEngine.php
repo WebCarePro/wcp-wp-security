@@ -124,6 +124,22 @@ class HoneyTokenEngine {
             'enable_phantom_endpoints' => $phantom_traps,
         ];
         update_option(self::OPTION_SETTINGS, $updated);
+
+        // Audit Trail: Log Honey-Token bot trap policy modification
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'honeytoken_settings_updated',
+                'firewall',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Honey-Token Bot Trap settings modified (%d parameter(s)).', count($diff)),
+                    'module'        => 'honeytoken_traps',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
         return $updated;
     }
 

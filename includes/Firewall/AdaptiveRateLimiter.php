@@ -121,6 +121,22 @@ class AdaptiveRateLimiter {
             'enable_auto_escalation' => $escalate,
         ];
         update_option(self::OPTION_SETTINGS, $updated);
+
+        // Audit Trail: Log Adaptive Rate Limiter policy modification
+        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'rate_limiter_settings_updated',
+                'firewall',
+                [
+                    'changed_count' => count($diff),
+                    'description'   => sprintf('Adaptive Rate Limiting thresholds updated (%d parameter(s)).', count($diff)),
+                    'module'        => 'rate_limiter',
+                    'diff'          => $diff,
+                ]
+            );
+        }
+
         return $updated;
     }
 
