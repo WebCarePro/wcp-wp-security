@@ -1604,7 +1604,7 @@ class ScannerRoutes {
         ]);
 
         register_rest_route(self::NAMESPACE, '/activity-logs/export', [
-            'methods'             => 'POST',
+            'methods'             => ['GET', 'POST'],
             'callback'            => [__CLASS__, 'export_activity_logs'],
             'permission_callback' => $permission,
         ]);
