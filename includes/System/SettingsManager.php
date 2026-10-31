@@ -486,6 +486,10 @@ class SettingsManager {
         $merged['has_asana_webhook']       = !empty($merged['asana_webhook_url']);
         $merged['has_generic_webhook']     = !empty($merged['generic_webhook_url']);
 
+        // Activity log options
+        $act_settings = get_option('wcpscan_activity_log_settings', []);
+        $merged['activity_log_settings']   = is_array($act_settings) ? $act_settings : [];
+
         return $merged;
     }
 
@@ -897,15 +901,36 @@ class SettingsManager {
 
         // Audit Trail: Log settings change if diff is non-empty
         if (!empty($diff)) {
-            \WcpScanner\System\WcpActivityLogger::notice(
-                'settings_updated',
-                'settings',
-                [
-                    'changed_count' => count($diff),
-                    'description'   => sprintf('Updated %d plugin configuration setting(s).', count($diff)),
-                    'diff'          => $diff,
-                ]
-            );
+            // Check if changes are firewall/WAF related
+            $diff_keys = array_keys($diff);
+            $waf_keys = array_filter($diff_keys, function($k) {
+                return strpos($k, 'waf_') === 0 || strpos($k, 'threat_intel_') === 0 || strpos($k, 'cloudflare_') === 0;
+            });
+
+            $is_firewall = !empty($waf_keys) && count($waf_keys) >= (count($diff_keys) / 2);
+
+            if ($is_firewall) {
+                \WcpScanner\System\WcpActivityLogger::notice(
+                    'firewall_ruleset_modified',
+                    'firewall',
+                    [
+                        'changed_count' => count($diff),
+                        'description'   => sprintf('Firewall rule modification: updated %d security policy parameter(s).', count($diff)),
+                        'rules'         => array_values($waf_keys),
+                        'diff'          => $diff,
+                    ]
+                );
+            } else {
+                \WcpScanner\System\WcpActivityLogger::notice(
+                    'settings_updated',
+                    'settings',
+                    [
+                        'changed_count' => count($diff),
+                        'description'   => sprintf('Updated %d plugin configuration setting(s).', count($diff)),
+                        'diff'          => $diff,
+                    ]
+                );
+            }
         }
 
         return self::get_settings();

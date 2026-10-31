@@ -302,8 +302,23 @@ class WcpActivityLogger {
                 }
 
                 // Filter Category
-                if ($category && ($record['category'] ?? '') !== $category) {
-                    continue;
+                if ($category) {
+                    $rec_cat = $record['category'] ?? '';
+                    $matches_cat = ($rec_cat === $category);
+
+                    // Dual-matching: If filtering for 'firewall', also include legacy records whose diff touches waf_ keys
+                    if (!$matches_cat && $category === 'firewall' && !empty($record['details']['diff'])) {
+                        foreach (array_keys($record['details']['diff']) as $diff_k) {
+                            if (strpos($diff_k, 'waf_') === 0 || strpos($diff_k, 'threat_intel_') === 0 || strpos($diff_k, 'cloudflare_') === 0) {
+                                $matches_cat = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!$matches_cat) {
+                        continue;
+                    }
                 }
 
                 // Filter Severity
