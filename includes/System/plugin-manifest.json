@@ -1,6 +1,6 @@
 {
   "version": "1.31.0",
-  "generated_at": "2026-10-31T16:04:51.228Z",
+  "generated_at": "2026-10-31T16:17:14.691Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -452,8 +452,8 @@
       "size": 20740
     },
     "includes/Security/PluginSelfDefense.php": {
-      "sha256": "fa59e446e1e522fea249dc67c041bd3135430c97ec16a6502ae50361d8c40064",
-      "size": 26242
+      "sha256": "a3fcd7306893d62d31bd5043ada0af932d4c3a8ce56c605a3837726ce8c672d5",
+      "size": 26238
     },
     "includes/Security/PromptInjectionGuard.php": {
       "sha256": "bfa7c964ee72cee0b5f496579cc38d3fdb47a4940e70d73fb347618404414729",
@@ -492,8 +492,8 @@
       "size": 5934
     },
     "includes/System/CrashGuard.php": {
-      "sha256": "211e92de5c95ba2a83254238b7574f6f21aeb3b245b19bc133531d74b4cb7166",
-      "size": 13343
+      "sha256": "ecb8958917594bb3f4fcf240eaf0bf77a771e5ff6ca99fa78d2a2b0bdcf909e3",
+      "size": 31459
     },
     "includes/System/Scheduler.php": {
       "sha256": "1376ed2e228f68ff71c75f4ca0e00410636031b6ea3bbe34e1c01ed7f6a3e132",
@@ -564,8 +564,8 @@
       "size": 23698
     },
     "uninstall.php": {
-      "sha256": "36799a55cda6d98ce0014019d7a35cd0e01e45f07ef73229778581587484f462",
-      "size": 7454
+      "sha256": "49c7a7772c79e5d8f70bfea8e7ead34a2e5bc3fd6667586a234003fddc456f7e",
+      "size": 7650
     },
     "wcp-wp-scanner.php": {
       "sha256": "cca0a8cfd9ca720ffeb69074c6f4ae0574704f2933fea26f3d6d1e6febd78587",

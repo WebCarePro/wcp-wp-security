@@ -90,6 +90,10 @@ if ($wcpscan_delete_data) {
             'wcpscan_vault_old_key_blob',
             'wcpscan_vault_new_key_blob',
             'wcpscan_scan_lock',
+            'wcpscan_circuit_breaker_safe_mode',
+            'wcpscan_circuit_breaker_last_incident',
+            'wcpscan_circuit_breaker_archive',
+            'wcpscan_circuit_breaker_history',
             'wcpscan_cloudflare_rate_limit_config',
         ];
         foreach ($wcpscan_plugin_options as $wcpscan_opt) {

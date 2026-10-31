@@ -73,7 +73,7 @@ class PluginSelfDefense {
             update_option(self::DB_LAST_AUDIT_OPTION, $audit_result, false);
 
             if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('defense_tamper_detected', [
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
                     'severity' => 'critical',
                     'message'  => __('CRITICAL: Authoritative plugin self-defense manifest is missing or unreadable.', 'wcp-security-scanner'),
                     'details'  => ['file' => 'includes/System/plugin-manifest.json'],
