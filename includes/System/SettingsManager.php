@@ -910,12 +910,22 @@ class SettingsManager {
             $is_firewall = !empty($waf_keys) && count($waf_keys) >= (count($diff_keys) / 2);
 
             if ($is_firewall) {
+                // Determine user-friendly description if single rule was toggled
+                $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s).', count($diff));
+                if (count($diff) === 1) {
+                    $single_key = array_key_first($diff);
+                    $new_val = $diff[$single_key]['new'] ?? null;
+                    $state_text = ($new_val === true || $new_val === 'enabled' || $new_val === 1 || $new_val === '1') ? 'turned on' : 'turned off';
+                    $rule_name = self::get_rule_friendly_name($single_key);
+                    $friendly_desc = sprintf('%s %s from Firewall Settings.', $rule_name, $state_text);
+                }
+
                 \WcpScanner\System\WcpActivityLogger::notice(
                     'firewall_ruleset_modified',
                     'firewall',
                     [
                         'changed_count' => count($diff),
-                        'description'   => sprintf('Firewall rule modification: updated %d security policy parameter(s).', count($diff)),
+                        'description'   => $friendly_desc,
                         'rules'         => array_values($waf_keys),
                         'diff'          => $diff,
                     ]
@@ -934,6 +944,55 @@ class SettingsManager {
         }
 
         return self::get_settings();
+    }
+
+    /**
+     * Compute clean before/after diff of changed settings with redacted secrets.
+     *
+     * @param array $old_settings
+     * @param array $new_settings
+     * @return array
+     */
+    /**
+     * Get a human-readable title for a firewall rule or setting key.
+     *
+     * @param string $key
+     * @return string
+     */
+    public static function get_rule_friendly_name(string $key): string {
+        $map = [
+            'waf_block_sqli'                   => 'SQL Injection (SQLi) Defense',
+            'waf_block_xss'                    => 'Cross-Site Scripting (XSS) Defense',
+            'waf_block_traversal'              => 'Directory Traversal & LFI Defense',
+            'waf_block_php_injection'          => 'Remote Code Execution & PHP Injection Defense',
+            'waf_block_fake_bots'              => 'Fake Search Engine Bots Defense',
+            'waf_block_ai_scrapers'            => 'AI Scrapers & LLM Crawler Blocker',
+            'waf_block_404_scanners'           => 'Aggressive 404 Scanner Protection',
+            'waf_block_empty_post_ua_referer'  => 'Empty User-Agent / Referer POST Protection',
+            'waf_block_forbidden_usernames'    => 'Forbidden Default Admin Usernames Shield',
+            'waf_block_malicious_uploads'      => 'Malicious File Upload Inspection',
+            'waf_block_unsafe_http_methods'    => 'Unsafe HTTP Methods Filter',
+            'waf_block_null_byte_attacks'      => 'Null Byte Poisoning Defense',
+            'waf_block_sensitive_file_probes'  => 'Sensitive System File Probes Shield',
+            'waf_block_uploads_php_exec'       => 'Uploads PHP Execution Blocker',
+            'waf_block_external_cron'          => 'External WP-Cron Protection',
+            'waf_block_open_redirects'         => 'Open Redirect Defense',
+            'waf_block_ssrf_metadata'          => 'SSRF & Cloud Metadata Protection',
+            'waf_block_install_php'            => 'Direct install.php / setup-config.php Blocker',
+            'waf_block_rest_user_enum'         => 'REST API User Enumeration Shield',
+            'waf_block_author_scan'            => 'Author Query String User Enumeration Shield',
+            'waf_block_oversized_requests'     => 'Oversized Request Payload Guard',
+            'waf_block_ai_prompt_injection'    => 'AI Prompt Injection Defense',
+            'waf_enabled'                      => 'Web Application Firewall (WAF) Master Switch',
+            'waf_mode'                         => 'Web Application Firewall (WAF) Mode',
+        ];
+
+        if (isset($map[$key])) {
+            return $map[$key];
+        }
+
+        $clean = str_replace(['waf_block_', 'waf_', 'threat_intel_'], '', $key);
+        return ucwords(str_replace('_', ' ', $clean));
     }
 
     /**

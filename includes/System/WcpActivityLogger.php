@@ -544,6 +544,7 @@ class WcpActivityLogger {
         }
 
         // Ignore internal high-frequency operational / ledger / telemetry / volatile lock pointers
+        // Also ignore options already explicitly instrumented with rich before/after activity logging
         $ignored_patterns = [
             'wcpscan_activity_',
             'wcpscan_install_hash',
@@ -581,6 +582,19 @@ class WcpActivityLogger {
             'wcpscan_form_spam_session_salt',
             'wcpscan_mcp_agent_audit',
             'wcpscan_mcp_staged_actions',
+
+            // Subsystems that manage their own rich activity log emissions (prevent duplicate option watcher events)
+            'wcpscan_settings',
+            'wcpscan_rate_limiter_settings',
+            'wcpscan_ghost_trap_settings',
+            'wcpscan_honeytoken_settings',
+            'wcpscan_learning_settings',
+            'wcpscan_egress_settings',
+            'wcpscan_prompt_guard_settings',
+            'wcpscan_identity_forensics_settings',
+            'wcpscan_gatekeeper_settings',
+            'wcpscan_attack_surface_settings',
+            'wcpscan_virtual_patches',
         ];
 
         foreach ($ignored_patterns as $pattern) {
@@ -671,7 +685,7 @@ class WcpActivityLogger {
         if (str_contains($option, 'quarantine') || str_contains($option, 'reinfection')) {
             return 'quarantine';
         }
-        if (str_contains($option, 'scan') || str_contains($option, 'schedule')) {
+        if (str_contains($option, 'custom_scan') || str_contains($option, 'scan_schedule') || str_contains($option, 'scheduled_scan')) {
             return 'scan';
         }
         return 'settings';
