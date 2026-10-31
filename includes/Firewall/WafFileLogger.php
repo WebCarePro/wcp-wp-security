@@ -493,7 +493,16 @@ class WafFileLogger {
 
         if ($range === 'today' || $range === 'recent') {
             $today_file = $dir . '/' . self::get_daily_filename();
-            return file_exists($today_file) ? [$today_file] : [];
+            if (file_exists($today_file)) {
+                return [$today_file];
+            }
+            // Seamless fallback: If no attacks have arrived today yet, display the most recent partition file
+            $available = self::get_available_files();
+            if (!empty($available)) {
+                $latest = $dir . '/' . $available[0]['filename'];
+                return file_exists($latest) ? [$latest] : [];
+            }
+            return [];
         }
 
         if ($range === 'daily') {

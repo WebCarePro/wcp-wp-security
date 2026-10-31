@@ -2714,8 +2714,83 @@ class FirewallEngine {
         $blocks_24h = 0;
         $top_rules = [];
 
+        // 1. Fetch aggregate metrics from primary WAF filesystem log engine (WafFileLogger)
+        $file_stats = WafFileLogger::get_log_stats('all');
+        $file_total = (int) ($file_stats['blocked_24h'] ?? 0); // In WafFileLogger, 'blocked_24h' key stores total blocked count across the queried range
+        $top_rules  = array_slice($file_stats['top_categories'] ?? [], 0, 5);
+
+        // Calculate accurate past 24-hour blocked count across active rolling log window
+        $now = time();
+        $cutoff_24h = $now - 86400;
+        $file_24h = 0;
+        $today_file = WafFileLogger::get_storage_dir() . DIRECTORY_SEPARATOR . WafFileLogger::get_daily_filename();
+        $today_exists = file_exists($today_file);
+        $all_available_files = WafFileLogger::get_available_files();
+
+        // Inspect log files from the past 48 hours for precise 24-hour timestamp evaluation
+        foreach ($all_available_files as $finfo) {
+            $fdate_ts = strtotime((string) ($finfo['date'] ?? ''));
+            if ($fdate_ts !== false && $fdate_ts < ($now - 172800)) {
+                continue;
+            }
+            $fpath = WafFileLogger::get_storage_dir() . DIRECTORY_SEPARATOR . $finfo['filename'];
+            if (!file_exists($fpath) || !is_readable($fpath)) {
+                continue;
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Low-memory progressive streaming of partitioned JSONL log files
+            $handle = @fopen($fpath, 'r');
+            if (!$handle) {
+                continue;
+            }
+            while (($line = fgets($handle)) !== false) {
+                $line = trim($line);
+                if ($line === '' || $line[0] !== '{') {
+                    continue;
+                }
+                $rec = json_decode($line, true);
+                if (!is_array($rec)) {
+                    continue;
+                }
+                $rec_ts = (int) ($rec['timestamp'] ?? (isset($rec['created_at']) ? strtotime($rec['created_at']) : 0));
+                if ($rec_ts >= $cutoff_24h && ($rec['action_taken'] ?? '') === 'blocked') {
+                    $file_24h++;
+                }
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($handle);
+        }
+
+        // If no attacks have arrived today yet and today's file does not exist, fall back to the most recent day file
+        if ($file_24h === 0 && !$today_exists && !empty($all_available_files)) {
+            $latest_path = WafFileLogger::get_storage_dir() . DIRECTORY_SEPARATOR . $all_available_files[0]['filename'];
+            if (file_exists($latest_path) && is_readable($latest_path)) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+                $handle = @fopen($latest_path, 'r');
+                if ($handle) {
+                    while (($line = fgets($handle)) !== false) {
+                        $line = trim($line);
+                        if ($line === '' || $line[0] !== '{') {
+                            continue;
+                        }
+                        $rec = json_decode($line, true);
+                        if (!is_array($rec)) {
+                            continue;
+                        }
+                        if (($rec['action_taken'] ?? '') === 'blocked') {
+                            $file_24h++;
+                        }
+                    }
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                    fclose($handle);
+                }
+            }
+        }
+
+        $total_blocks = $file_total;
+        $blocks_24h   = $file_24h;
+
+        // 2. Fallback / merge legacy SQL database table if existing records are present
         // Check if table exists
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if ($table_exists) {
@@ -2723,12 +2798,18 @@ class FirewallEngine {
             $blocks_24h_sql = "SELECT COUNT(*) FROM `{$table}` WHERE action_taken = 'blocked' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)";
             $top_rules_sql = "SELECT rule_category, COUNT(*) as count FROM `{$table}` WHERE action_taken = 'blocked' GROUP BY rule_category ORDER BY count DESC LIMIT 5";
             // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
-            $total_blocks = (int) $wpdb->get_var($total_sql);
-            $blocks_24h   = (int) $wpdb->get_var($blocks_24h_sql);
-            $top_rules    = $wpdb->get_results(
-                $top_rules_sql,
-                ARRAY_A
-            ) ?: [];
+            $db_total = (int) $wpdb->get_var($total_sql);
+            $db_24h   = (int) $wpdb->get_var($blocks_24h_sql);
+            if ($db_total > 0) {
+                $total_blocks += $db_total;
+                $blocks_24h   += $db_24h;
+                if (empty($top_rules)) {
+                    $top_rules = $wpdb->get_results(
+                        $top_rules_sql,
+                        ARRAY_A
+                    ) ?: [];
+                }
+            }
             // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
         }
 
