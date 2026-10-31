@@ -36,6 +36,9 @@ class Plugin {
             \WcpScanner\Database\Migration::install();
         }
 
+        // Ensure root uploads/wcp-security-scanner storage directory has an index.php directory silence guard
+        self::ensure_uploads_storage_protected();
+
         AdminMenu::register();
         \WcpScanner\System\Scheduler::register();
         
@@ -123,5 +126,20 @@ class Plugin {
         add_action('rest_api_init', function () {
             ScannerRoutes::register();
         });
+    }
+
+    /**
+     * Ensure root uploads/wcp-security-scanner storage directory has an index.php directory silence guard.
+     */
+    public static function ensure_uploads_storage_protected(): void {
+        $upload_dir = wp_upload_dir();
+        $dir = $upload_dir['basedir'] . '/wcp-security-scanner';
+        if (!file_exists($dir)) {
+            wp_mkdir_p($dir);
+        }
+        $index_file = $dir . '/index.php';
+        if (!file_exists($index_file)) {
+            @file_put_contents($index_file, "<?php\n// Silence is golden.\nhttp_response_code(403);\nexit;\n");
+        }
     }
 }
