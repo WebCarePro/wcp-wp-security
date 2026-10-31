@@ -948,19 +948,23 @@ class SettingsManager {
 
                 if ($is_firewall) {
                     // Determine user-friendly description if single rule was toggled
-                    $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s).', count($diff));
+                    $current_user = wp_get_current_user();
+                    $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+                    $ip = \WcpScanner\Security\SecurityUtils::get_client_ip();
+
+                    $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s) by %s from IP %s.', count($diff), $user_login, $ip);
                     if (count($diff) === 1) {
                         $single_key = array_key_first($diff);
                         $new_val = $diff[$single_key]['new'] ?? null;
                         $rule_name = self::get_rule_friendly_name($single_key);
 
                         if ($single_key === 'waf_blocked_ips') {
-                            $friendly_desc = 'Firewall Custom Blocked IP List updated by Administrator.';
+                            $friendly_desc = sprintf('Firewall Custom Blocked IP List updated by %s from IP %s.', $user_login, $ip);
                         } elseif ($single_key === 'waf_mode') {
-                            $friendly_desc = sprintf('Firewall Operating Mode set to "%s".', esc_html((string) $new_val));
+                            $friendly_desc = sprintf('Firewall Operating Mode set to "%s" by %s from IP %s.', esc_html((string) $new_val), $user_login, $ip);
                         } else {
                             $state_text = ($new_val === true || $new_val === 'enabled' || $new_val === 1 || $new_val === '1') ? 'turned on' : 'turned off';
-                            $friendly_desc = sprintf('%s %s from Firewall Settings.', $rule_name, $state_text);
+                            $friendly_desc = sprintf('%s is %s by %s with IP %s.', $rule_name, $state_text, $user_login, $ip);
                         }
                     }
 
@@ -1028,15 +1032,18 @@ class SettingsManager {
             'waf_block_author_scan'            => 'Author Query String User Enumeration Shield',
             'waf_block_oversized_requests'     => 'Oversized Request Payload Guard',
             'waf_block_ai_prompt_injection'    => 'AI Prompt Injection Defense',
+            'waf_disable_xmlrpc'               => 'Disable XML-RPC API',
             'waf_enabled'                      => 'Web Application Firewall (WAF) Master Switch',
             'waf_mode'                         => 'Web Application Firewall (WAF) Mode',
+            'waf_blocked_ips'                  => 'Custom Blocked IP List',
         ];
 
         if (isset($map[$key])) {
             return $map[$key];
         }
 
-        $clean = str_replace(['waf_block_', 'waf_', 'threat_intel_'], '', $key);
+        $clean = str_replace(['waf_block_', 'waf_', 'threat_intel_', 'wcpscan_'], '', $key);
+        $clean = str_replace('xmlrpc', 'XML-RPC', $clean);
         return ucwords(str_replace('_', ' ', $clean));
     }
 
