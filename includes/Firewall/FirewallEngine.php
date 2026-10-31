@@ -665,6 +665,29 @@ class FirewallEngine {
             return;
         }
 
+        // Fast-path: Check custom user IP blocklist immediately to drop hostile banned bots
+        // and prevent redundant downstream processing / repeated rate-limit escalations
+        if (!empty($settings['waf_blocked_ips']) && self::is_ip_blocked($client_ip, $settings['waf_blocked_ips'])) {
+            $rule_triggered = [
+                'id'          => 'USER-CUSTOM-IP-BLOCK',
+                'name'        => 'Custom Administrator IP Blocklist',
+                'category'    => 'Custom IP Blocklist',
+                'description' => 'Connection blocked by administrator-defined custom IP rule.',
+                'match_type'  => 'Custom Blocklist',
+                'match_value' => $client_ip,
+                'payload'     => $client_ip,
+            ];
+
+            $mode = $settings['waf_mode'] ?? 'enabled';
+            if ($mode === 'learning') {
+                self::log_incident($rule_triggered, 'detected');
+            } else {
+                self::log_incident($rule_triggered, 'blocked');
+                self::render_block_page($rule_triggered, $client_ip);
+                exit;
+            }
+        }
+
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
 
         // Check Allowlisted URLs / URI paths (bypasses all subsequent firewall rules)

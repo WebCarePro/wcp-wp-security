@@ -10115,6 +10115,7 @@ class ScannerRoutes {
 
     public static function get_activity_logs(\WP_REST_Request $request) {
         $limit      = max(1, min(100, intval($request->get_param('limit') ?: 50)));
+        $page       = max(1, intval($request->get_param('page') ?: 1));
         $category   = sanitize_key($request->get_param('category') ?: '');
         $actor_type = sanitize_key($request->get_param('actor_type') ?: '');
         $severity   = sanitize_key($request->get_param('severity') ?: '');
@@ -10124,6 +10125,7 @@ class ScannerRoutes {
             'actor_type' => $actor_type,
             'category'   => $category,
             'limit'      => $limit,
+            'page'       => $page,
             'search'     => $search,
             'severity'   => $severity,
         ]);
@@ -10132,6 +10134,10 @@ class ScannerRoutes {
         $tamper_alert = get_option('wcpscan_activity_tamper_active', null);
 
         return rest_ensure_response([
+            'current_page'   => $result['current_page'] ?? $page,
+            'has_next'       => $result['has_next'] ?? false,
+            'has_prev'       => $result['has_prev'] ?? false,
+            'per_page'       => $result['per_page'] ?? $limit,
             'records'        => $result['records'],
             'settings'       => [
                 'retention_days'     => isset($settings['retention_days']) ? (int) $settings['retention_days'] : 30,
@@ -10139,6 +10145,8 @@ class ScannerRoutes {
             ],
             'success'        => true,
             'tamper_alert'   => $tamper_alert,
+            'total'          => $result['total'] ?? count($result['records']),
+            'total_pages'    => $result['total_pages'] ?? 1,
             'total_read'     => $result['total_read'],
         ]);
     }

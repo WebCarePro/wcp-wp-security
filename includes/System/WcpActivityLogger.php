@@ -269,23 +269,34 @@ class WcpActivityLogger {
      * @return array ['records' => array, 'next_cursor' => ?string, 'total_read' => int]
      */
     public static function query_records(array $args = []): array {
-        $limit = isset($args['limit']) ? min(100, max(1, (int) $args['limit'])) : 50;
-        $category = !empty($args['category']) ? sanitize_key($args['category']) : null;
+        $limit      = isset($args['limit']) ? min(100, max(1, (int) $args['limit'])) : 50;
+        $page       = isset($args['page']) ? max(1, (int) $args['page']) : 1;
+        $offset     = ($page - 1) * $limit;
+        $category   = !empty($args['category']) ? sanitize_key($args['category']) : null;
         $actor_type = !empty($args['actor_type']) ? sanitize_key($args['actor_type']) : null;
-        $severity = !empty($args['severity']) ? sanitize_key($args['severity']) : null;
-        $search = !empty($args['search']) ? strtolower(sanitize_text_field($args['search'])) : null;
+        $severity   = !empty($args['severity']) ? sanitize_key($args['severity']) : null;
+        $search     = !empty($args['search']) ? strtolower(sanitize_text_field($args['search'])) : null;
 
         $dir = ActivityStorage::get_log_dir();
         $files = glob($dir . '/activity-*-*.json.php');
         if (empty($files)) {
-            return ['next_cursor' => null, 'records' => [], 'total_read' => 0];
+            return [
+                'current_page' => $page,
+                'has_next'     => false,
+                'has_prev'     => false,
+                'per_page'     => $limit,
+                'records'      => [],
+                'total'        => 0,
+                'total_pages'  => 0,
+                'total_read'   => 0,
+            ];
         }
 
         // Sort descending to read newest records first
         rsort($files);
 
         $matched_records = [];
-        $total_examined = 0;
+        $total_matched = 0;
 
         foreach ($files as $file_path) {
             $lines = @file($file_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -306,8 +317,6 @@ class WcpActivityLogger {
                 if (!is_array($envelope) || !isset($envelope['c'])) {
                     continue;
                 }
-
-                $total_examined++;
 
                 try {
                     $record = ActivityHashChain::decrypt_envelope($envelope);
@@ -356,17 +365,25 @@ class WcpActivityLogger {
                     }
                 }
 
-                $matched_records[] = $record;
-                if (count($matched_records) >= $limit) {
-                    break 2;
+                // This record matches all criteria
+                if ($total_matched >= $offset && count($matched_records) < $limit) {
+                    $matched_records[] = $record;
                 }
+                $total_matched++;
             }
         }
 
+        $total_pages = $total_matched > 0 ? (int) ceil($total_matched / $limit) : 0;
+
         return [
-            'next_cursor' => null, // Cursor pagination will be refined in Phase 3
-            'records'     => $matched_records,
-            'total_read'  => count($matched_records),
+            'current_page' => $page,
+            'has_next'     => $page < $total_pages,
+            'has_prev'     => $page > 1,
+            'per_page'     => $limit,
+            'records'      => $matched_records,
+            'total'        => $total_matched,
+            'total_pages'  => $total_pages,
+            'total_read'   => count($matched_records),
         ];
     }
 

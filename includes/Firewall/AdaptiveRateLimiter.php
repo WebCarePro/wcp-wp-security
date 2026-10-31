@@ -192,10 +192,15 @@ class AdaptiveRateLimiter {
 
         // 4. Escalation to Temporary Ban if aggressively blasting server (> 2.5x threshold)
         if (!empty($settings['escalate_to_ban']) && $count > ($limit * 2.5)) {
-            AuditLogger::log(
-                'rate_limit_escalated_ban',
-                sprintf('Adaptive Rate Limiter: Client IP "%s" exceeded 2.5x %s limit (%d hits). Temporary ban applied.', $client_ip, strtoupper($bucket), $count)
-            );
+            // Rate limit logging for escalated ban: only log to Activity Logs ONCE per IP per 30 minutes
+            $ban_lock = 'wcpscan_rl_ban_log_' . md5($client_ip);
+            if (!get_transient($ban_lock)) {
+                set_transient($ban_lock, 1, 1800);
+                AuditLogger::log(
+                    'rate_limit_escalated_ban',
+                    sprintf('Adaptive Rate Limiter: Client IP "%s" exceeded 2.5x %s limit (%d hits). Temporary ban applied.', $client_ip, strtoupper($bucket), $count)
+                );
+            }
 
             HoneyTokenEngine::ban_bot_ip($client_ip, 1); // 1-hour ban
             status_header(403);
