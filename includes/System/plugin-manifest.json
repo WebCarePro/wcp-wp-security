@@ -1,6 +1,6 @@
 {
   "version": "1.31.0",
-  "generated_at": "2026-10-31T16:17:14.691Z",
+  "generated_at": "2026-10-31T17:05:51.764Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -492,8 +492,8 @@
       "size": 5934
     },
     "includes/System/CrashGuard.php": {
-      "sha256": "ecb8958917594bb3f4fcf240eaf0bf77a771e5ff6ca99fa78d2a2b0bdcf909e3",
-      "size": 31459
+      "sha256": "8e5b213d7d1e2612fc9880054ca7f0684c1c1c01d9e78f66906cf5a3fa893b02",
+      "size": 31726
     },
     "includes/System/Scheduler.php": {
       "sha256": "1376ed2e228f68ff71c75f4ca0e00410636031b6ea3bbe34e1c01ed7f6a3e132",

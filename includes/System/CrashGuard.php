@@ -254,8 +254,9 @@ class CrashGuard {
 
         // 5. Sanitize request parameters (mask passwords, tokens, keys)
         $sanitized_params = [];
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        // phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Ambient request parameters are inspected only for forensic diagnostics during crash interception.
         $raw_params = !empty($_POST) ? wp_unslash($_POST) : (!empty($_GET) ? wp_unslash($_GET) : []);
+        // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
         if (is_array($raw_params)) {
             foreach ($raw_params as $pk => $pv) {
                 if (preg_match('/(pass|token|secret|key|auth|cookie|nonce)/i', (string) $pk)) {
