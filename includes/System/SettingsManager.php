@@ -941,7 +941,6 @@ class SettingsManager {
 
         return $diff;
     }
-    }
 
     /**
      * Set a single setting by key and save.
