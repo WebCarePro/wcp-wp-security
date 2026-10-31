@@ -1,10 +1,10 @@
 {
-  "version": "1.30.0",
+  "version": "1.31.0",
   "requires_wp": "7.0",
   "requires_php": "8.3",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/wcp-security-scanner.zip",
   "manifest_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json",
-  "released_at": "2026-10-30",
+  "released_at": "2026-10-31",
   "author": "Mir Alamin (WebCare Pro)",
   "author_homepage": "https://profiles.wordpress.org/webcarepro/",
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",

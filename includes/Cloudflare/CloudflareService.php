@@ -815,6 +815,7 @@ class CloudflareService {
             }
             return [
                 'success' => true,
+                'message' => $enable
                     // translators: %s: rule title
                     ? sprintf(__('Successfully pushed rule "%s" to Cloudflare Edge.', 'wcp-security-scanner'), $target_title)
                     // translators: %s: rule title
