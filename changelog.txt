@@ -1,4 +1,8 @@
 v:2.2.0 - 2026-11-02
+- WooCommerce & Storefront Smart Action Whitelisting & Monitored Status Code Fix (FirewallEngine.php, WafFileLogger.php):
+  * Built-in Compliance & Tax Action Whitelist: Added `eascompliance_status_ajax`, `eas_compliance_ajax`, `eas_tax_calculation`, and `woocommerce_calc_line_taxes` to Rule #36's Tier 1 allowed guest action matrix.
+  * E-Commerce Checkout Heuristic: Enabled smart auto-pass for guest actions prefixed with `eascompliance_`, `eas_`, `wc_`, or `woocommerce_`, as well as requests originating from active cart/checkout referers or active shopper sessions (`has_active_shopper_session()`).
+  * Monitored Action HTTP Status Alignment: Fixed `WafFileLogger::log_incident()` and `FirewallEngine::log_incident()` to record HTTP 200 OK for `monitored` actions (since monitored requests are permitted through to WordPress rather than dropped with HTTP 403).
 - WAF Authentication Stream Integration & Forensic Category Filters (LoginHardening.php, WafFileLogger.php, WafLogsPage.tsx):
   * Streaming Authentication Events to WAF Logs: Hooked individual failed login attempts (`WAF-AUTH-FAILED`) and successful user authentications (`WAF-AUTH-SUCCESS`) into `WafFileLogger`. Failed attempts are logged with HTTP 403 status and sanitized username targeting, while successful logins are recorded as `allowed` HTTP 200 events capturing authenticated user ID and role.
   * Rapid Auth Deduplication Optimization: Updated `WafFileLogger` deduplication cache to apply a specialized 3-second per-user cache key for `authentication` events instead of the standard 60-second block, ensuring rapid brute-force probes and legitimate consecutive logins are captured accurately without socket drops.

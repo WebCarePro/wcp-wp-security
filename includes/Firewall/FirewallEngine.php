@@ -2593,7 +2593,7 @@ class FirewallEngine {
 
         // Determine HTTP Status Code
         $status_code = 403;
-        if ($action === 'detected') {
+        if ($action === 'detected' || $action === 'bypassed' || $action === 'allowed' || $action === 'monitored') {
             $status_code = 200;
         } elseif (isset($rule['category']) && $rule['category'] === '404 Scanner Rate Limit') {
             $status_code = 404;
@@ -5950,11 +5950,31 @@ class FirewallEngine {
                 'search_autocomplete',
                 'ajax_search',
                 'wp_ajax_nopriv_search',
+                // WooCommerce Compliance, Tax & VAT Gateways (EAS EU Compliance, Avalara, TaxJar)
+                'eascompliance_status_ajax',
+                'eas_compliance_ajax',
+                'eas_tax_calculation',
+                'woocommerce_calc_line_taxes',
             ], true);
         }
 
         if (isset($tier1_actions[$action])) {
             return; // Legitimate Tier 1 guest action permitted
+        }
+
+        // Smart E-Commerce & Checkout Context Heuristic:
+        // If the request originates from an active WooCommerce checkout/cart session or referer
+        // and uses a known storefront prefix (e.g. eascompliance_, wc_, woocommerce_), permit smoothly
+        $action_lower = strtolower($action);
+        if (str_starts_with($action_lower, 'eascompliance_') || str_starts_with($action_lower, 'eas_')) {
+            return;
+        }
+
+        $referer_raw = isset($_SERVER['HTTP_REFERER']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']))) : '';
+        if (self::has_active_shopper_session() || (!empty($referer_raw) && (strpos($referer_raw, '/checkout') !== false || strpos($referer_raw, '/cart') !== false))) {
+            if (str_starts_with($action_lower, 'wc_') || str_starts_with($action_lower, 'woocommerce_') || strpos($action_lower, 'tax') !== false || strpos($action_lower, 'vat') !== false || strpos($action_lower, 'shipping') !== false) {
+                return; // Auto-pass benign cart/checkout companion plugin actions
+            }
         }
 
         // 3. Custom Administrator Allowlist Lookup (Case-Insensitive)
