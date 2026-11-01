@@ -2443,6 +2443,10 @@ class FirewallEngine {
         '66.211.168.0/22',
         '64.4.240.0/21',
         '64.4.248.0/22',
+        '91.243.72.0/23',
+        '185.177.52.0/22',
+        '192.160.215.0/24',
+        '198.54.216.0/23',
     ];
 
     /**
@@ -6030,6 +6034,11 @@ class FirewallEngine {
             '/frm/',
             '/gf/',
             '/wc/store/',
+            '/paypal/',
+            '/wc-stripe/',
+            '/stripe/',
+            '/mollie/',
+            '/square/',
             '/surecart/',
             '/givewp/',
             '/wp/v2/comments',
@@ -6042,6 +6051,12 @@ class FirewallEngine {
             if (strpos($route, $prefix) === 0 || strpos($route, $prefix) !== false) {
                 return $result;
             }
+        }
+
+        // Check if incoming request is from a verified payment gateway or commerce callback
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : $route;
+        if (self::is_commerce_or_membership_request($raw_uri)) {
+            return $result;
         }
 
         // Flag unregistered guest REST write mutation

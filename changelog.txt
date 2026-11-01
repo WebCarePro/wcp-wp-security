@@ -1,4 +1,7 @@
 v:2.2.0 - 2026-11-02
+- Payment Gateway & PayPal REST Mutation Whitelisting (FirewallEngine.php):
+  * Synchronized Official PayPal CIDR Subnets: Expanded `FirewallEngine::PAYPAL_WEBHOOK_CIDRS` to include all official PayPal live IP ranges (`173.0.80.0/20`, `66.211.168.0/22`, `64.4.240.0/21`, `64.4.248.0/22`, `91.243.72.0/23`, `185.177.52.0/22`, `192.160.215.0/24`, `198.54.216.0/23`).
+  * Guest REST Mutation Guard Bypass for Payment Webhooks: Updated `inspect_guest_rest_dispatch` (Rule #37) to explicitly recognize payment gateway webhook routes (`/paypal/`, `/wc-stripe/`, `/stripe/`, `/mollie/`, `/square/`) and verify `is_commerce_or_membership_request()` against official gateway CIDRs and cryptographic signatures, preventing benign IPN and shipping callbacks (such as `notify.paypal.com` / `173.0.81.140`) from triggering telemetry alerts.
 - Blocked IP Addresses & Subnets Table Pagination & Density Controls (FirewallPage.tsx):
   * Integrated Interactive Pagination: Added multi-page navigation controls (`Prev` / `Next` with current page and total pages indicators) to the "Blocked IP Addresses & Subnets" forensic table in the Firewall tab.
   * Configurable Page Density: Added a per-page selector (10, 25, 50, 100 entries per page) with automatic page-1 reset upon changing page size or applying search query filters.
