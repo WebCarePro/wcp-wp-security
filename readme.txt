@@ -216,6 +216,30 @@ To compile the React admin application from source:
 
 == Changelog ==
 
+= 2.1.0 =
+* Cryptographic Plugin Activity & Tamper-Evident Forensic Audit Ledger with unbroken SHA-256 hash chains and AES-256-GCM envelope encryption.
+* Write-Ahead Logging (WAL) state machine with crash recovery and forensic journal quarantine.
+* Model Context Protocol (MCP) agent token encryption in SecretVault with authenticated REST permissions.
+* Strict fail-closed WebAuthn cryptographic assertion verification (openssl_verify) supporting SPKI PEM and COSE key extraction.
+* Monotonic authenticator signature counter verification (sign_count) to detect cloned passkeys.
+* Timing-safe indexed WebAuthn credential lookup resolving O(1) user identification.
+* Anti-enumeration resident key challenge generation preventing account presence leakage.
+* Fail-closed SecretVault key derivation removing weak fallback seeds.
+* Next-Gen WAF Track B: Guest admin-ajax.php / admin-post.php and REST action matrix guard (Rules #36 and #37) with O(1) WooCommerce and form allowlists.
+* Interactive tables for Blocked and Whitelisted IPs replacing multi-line textareas with live subnet validation.
+* Active Lockouts & Central Blocklist modal redesign featuring expandable recent attack payload drawers and live countdown timers.
+* SHA-512 8-digit TOTP cryptographic algorithm support with dynamic inline SVG QR code provisioning.
+* Unified WAF incident stream routing for Supply-Chain Gatekeeper update and install intercepts.
+* Full WordPress.org Plugin Check (PCP) compliance in QRCodeGenerator.php with 100% clean passes.
+* Expanded forensic Activity Log exports up to 5,000 records in streaming CSV and JSON.
+
+= 1.31.0 =
+* Web Application Firewall (WAF) Attack Counters & Accurate Daily Partition Aggregation.
+* Zero-SQL WAF incident daily JSON Lines storage with atomic appending.
+* Pre-Install Supply-Chain Gatekeeper & Update Risk Advisor AST heuristic inspection.
+* CrashGuard zero-downtime circuit breaker and safe mode self-healing recovery.
+* Enterprise 59-event notification center matrix across email and webhooks.
+
 = 1.29.0 =
 * WordPress.org Plugin Check & I18n Compliance.
 * WordPress Admin Sidebar Authentic Logo SVG Embedding.
