@@ -2550,9 +2550,9 @@ class FirewallEngine {
     }
 
     /**
-     * Log firewall incident to database
+     * Log firewall incident to database or partitioned JSON storage
      */
-    private static function log_incident(array $rule, string $action, ?string $incident_id = null): ?string {
+    public static function log_incident(array $rule, string $action, ?string $incident_id = null): ?string {
         global $wpdb;
         $table = $wpdb->prefix . 'wcpscan_firewall_logs';
 

@@ -170,6 +170,19 @@ class UpdateGatekeeperEngine {
                     ? $analysis['findings'][0]['title'] . ' (' . ($analysis['findings'][0]['file'] ?? '') . ')'
                     : 'Critical supply-chain security anomaly detected.';
 
+                // Log incident to centralized WAF Incident Stream
+                if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+                    \WcpScanner\Firewall\FirewallEngine::log_incident([
+                        'id'          => 'WAF-SUPPLY-CHAIN-GATEKEEPER',
+                        'name'        => 'Supply-Chain Update Gatekeeper Intercept',
+                        'category'    => 'Supply-Chain Defense',
+                        'description' => sprintf('Update of plugin "%s" blocked due to critical supply-chain security risk: %s', esc_html($folder_name), esc_html($reason)),
+                        'match_type'  => 'Supply-Chain Risk',
+                        'match_value' => $folder_name,
+                        'payload'     => sprintf('Plugin: %s | Risk: %d/100 | Finding: %s', $folder_name, $analysis['score'], substr($reason, 0, 150)),
+                    ], 'blocked');
+                }
+
                 return new \WP_Error(
                     'wcp_gatekeeper_update_blocked',
                     sprintf(
@@ -217,6 +230,34 @@ class UpdateGatekeeperEngine {
                     'gatekeeper_install_blocked',
                     sprintf('WCP Gatekeeper BLOCKED fresh install of "%s" (Risk Score: %d/100).', $folder_name, $analysis['score'])
                 );
+
+                $reason = !empty($analysis['findings'][0]['title'])
+                    ? $analysis['findings'][0]['title'] . ' (' . ($analysis['findings'][0]['file'] ?? '') . ')'
+                    : 'Critical security risk patterns detected';
+
+                // Log incident to centralized WAF Incident Stream
+                if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+                    \WcpScanner\Firewall\FirewallEngine::log_incident([
+                        'id'          => 'WAF-SUPPLY-CHAIN-GATEKEEPER',
+                        'name'        => 'Supply-Chain Update Gatekeeper Intercept',
+                        'category'    => 'Supply-Chain Defense',
+                        'description' => sprintf('Installation of plugin "%s" blocked due to critical security risk patterns: %s', esc_html($folder_name), esc_html($reason)),
+                        'match_type'  => 'Supply-Chain Risk',
+                        'match_value' => $folder_name,
+                        'payload'     => sprintf('Plugin: %s | Risk: %d/100 | Finding: %s', $folder_name, $analysis['score'], substr($reason, 0, 150)),
+                    ], 'blocked');
+                }
+
+                NotificationDispatcher::trigger('supply_chain_gatekeeper_blocked', [
+                    'title'   => __('Hostile Plugin Installation Intercepted by Gatekeeper', 'wcp-security-scanner'),
+                    /* translators: 1%$s: plugin slug, 2%$d: risk score out of 100 */
+                    'message' => sprintf(__('Hostile installation intercepted for "%1$s" (Risk Score: %2$d/100). System protected.', 'wcp-security-scanner'), $folder_name, $analysis['score']),
+                    'details' => [
+                        'plugin_slug'     => $folder_name,
+                        'risk_score'      => $analysis['score'] . '/100',
+                        'findings_sample' => !empty($analysis['findings'][0]['title']) ? $analysis['findings'][0]['title'] : 'Critical anomalies detected',
+                    ],
+                ]);
 
                 return new \WP_Error(
                     'wcp_gatekeeper_install_blocked',

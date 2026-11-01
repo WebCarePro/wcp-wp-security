@@ -1,5 +1,10 @@
 v:2.1.0 - 2026-11-01
 - Cryptographic Plugin Activity & Forensic Audit Logging Engine (WcpActivityLogger.php, AuditLogger.php, ActivityLogs/*, ScannerRoutes.php, SettingsManager.php, Scheduler.php, ActivityLogsPage.tsx, MegaMenuModal.tsx, SettingsPage.tsx, VirtualPatchManager.php, VirtualPatchSynthesizer.php):
+  * Unified WAF Incident Logging for Supply-Chain Gatekeeper Intercepts (UpdateGatekeeperEngine.php, FirewallEngine.php):
+    - Made `FirewallEngine::log_incident()` publicly accessible for cross-subsystem security alerts.
+    - Connected `UpdateGatekeeperEngine::inspect_unpacked_source()` directly to the centralized WAF Incident Stream when critical risks block a package installation or update.
+    - Blocked supply-chain packages now immediately emit first-class WAF incident records under category `'Supply-Chain Defense'` with rule ID `'WAF-SUPPLY-CHAIN-GATEKEEPER'`, risk score, detected vulnerability title, and plugin slug.
+    - Dispatched instant notification alerts (`supply_chain_gatekeeper_blocked`) for intercepted installations matching the existing update alert pipeline.
   * Next-Gen WAF Track B: Guest admin-ajax.php / admin-post.php & REST Action Matrix Guard (Rule #36 & Rule #37):
     - Engineered high-precision behavioral request inspection in `FirewallEngine.php`, `SettingsManager.php`, and `FirewallPage.tsx` stopping unauthenticated backend exploitation without inflating static regex patterns.
     - Tier 1 Default Allowlist (O(1) Hash Set): Unauthenticated visitors are always permitted to run legitimate WooCommerce customer actions (`woocommerce_get_refreshed_fragments`, `woocommerce_add_to_cart`, `woocommerce_checkout`, etc.) regardless of shopper session cookie presence, core heartbeat, supported contact form submissions (CF7, WPForms, Fluent Forms, Gravity Forms, Ninja Forms, Formidable, WS Form, HappyForms, Everest), and frontend pagination/search loaders (`load_more_posts`, `search_autocomplete`, `ajax_search`).
