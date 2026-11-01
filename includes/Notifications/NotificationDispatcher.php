@@ -733,23 +733,23 @@ class NotificationDispatcher {
         $html .= '  .wcp-footer { padding: 22px 18px !important; }';
         $html .= '}';
         $html .= '</style>';
-        $html .= '</head><body style="margin: 0; padding: 24px 8px; background-color: #050811; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #f1f5f9;">';
+        $html .= '</head><body style="margin: 0; padding: 24px 8px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a;">';
 
         // Hidden AI & Email Client Preheader (Zero visible footprint, ingested by Gemini / Gmail AI)
-        $html .= '<div style="display:none;font-size:1px;color:#050811;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">';
+        $html .= '<div style="display:none;font-size:1px;color:#f1f5f9;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">';
         $html .= esc_html($ai_overview_summary);
         $html .= ' &zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;';
         $html .= '</div>';
 
-        $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #050811;">';
+        $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f1f5f9;">';
         $html .= '<tr><td align="center">';
-        $html .= '<table role="presentation" class="wcp-container" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #0b1120; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.6);">';
+        $html .= '<table role="presentation" class="wcp-container" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);">';
 
         // Top Accent Gradient Bar
         $html .= '<tr><td style="height: 4px; background: linear-gradient(90deg, #4f46e5 0%, #38bdf8 50%, ' . esc_attr($severity_color) . ' 100%);"></td></tr>';
 
         // Header: Deep Obsidian (#0f172a), high-contrast badges, logo, and title
-        $html .= '<tr><td class="wcp-header" style="padding: 32px 32px 24px 32px; background: #0f172a; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">';
+        $html .= '<tr><td class="wcp-header" style="padding: 30px 32px; background: #0f172a; text-align: left; border-bottom: 3px solid ' . esc_attr($severity_color) . ';">';
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>';
 
         // Severity Status Pill Badge
@@ -774,7 +774,7 @@ class NotificationDispatcher {
             $badge_icon = '⚡';
         }
 
-        $html .= '<div style="display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; background: ' . esc_attr($badge_bg) . '; color: ' . esc_attr($badge_color) . '; border: 1px solid ' . esc_attr($badge_border) . '; margin-bottom: 14px;">';
+        $html .= '<div style="display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; background: ' . esc_attr($badge_bg) . '; color: ' . esc_attr($badge_color) . '; border: 1px solid ' . esc_attr($badge_border) . '; margin-bottom: 12px;">';
         $html .= $badge_icon . ' ' . esc_html($severity) . ' PRIORITY ALERT';
         $html .= '</div>';
 
@@ -783,47 +783,47 @@ class NotificationDispatcher {
         $html .= '<div style="font-size: 13px; color: #94a3b8;">Target Site: <strong style="color: #38bdf8;">' . esc_html($site_name) . '</strong> (<a href="' . esc_url($site_url) . '" style="color: #38bdf8; text-decoration: none;">' . esc_html($site_url) . '</a>)</div>';
         $html .= '</td></tr></table></td></tr>';
 
-        // Content Body
-        $html .= '<tr><td class="wcp-content" style="padding: 28px 32px; background: #0b1120;">';
+        // Content Body: Clean White Surface
+        $html .= '<tr><td class="wcp-content" style="padding: 28px 32px; background: #ffffff;">';
 
-        // AI Summary Quick-Glance Callout
-        $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: rgba(79, 70, 229, 0.08); border-left: 3px solid #6366f1; border-radius: 8px; margin-bottom: 22px;">';
+        // AI Summary Quick-Glance Callout (Clean Blue Card)
+        $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; margin-bottom: 20px;">';
         $html .= '<tr><td style="padding: 14px 16px;">';
-        $html .= '<div style="font-size: 11px; font-weight: 800; color: #818cf8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">⚡ AI Executive Incident Brief</div>';
-        $html .= '<div style="font-size: 13px; color: #e2e8f0; line-height: 1.5; font-weight: 500;">' . esc_html($ai_overview_summary) . '</div>';
+        $html .= '<div style="font-size: 11px; font-weight: 800; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">⚡ AI Executive Incident Brief</div>';
+        $html .= '<div style="font-size: 13px; color: #1e3a8a; line-height: 1.5; font-weight: 500;">' . esc_html($ai_overview_summary) . '</div>';
         $html .= '</td></tr></table>';
 
-        $html .= '<p style="font-size: 14.5px; color: #cbd5e1; margin: 0 0 20px 0; line-height: 1.6;">' . nl2br(esc_html($message)) . '</p>';
+        $html .= '<p style="font-size: 14.5px; color: #334155; margin: 0 0 20px 0; line-height: 1.6;">' . nl2br(esc_html($message)) . '</p>';
 
-        // Diagnostic Details: Responsive Stacked Grid preventing 1-character wrapping
+        // Diagnostic Details: Clean Matrix (#f8fafc with #e2e8f0 border)
         if (!empty($payload['details']) && is_array($payload['details'])) {
-            $html .= '<div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 10px;">Forensic Event Dossier</div>';
-            $html .= '<table role="presentation" class="wcp-kv-table" width="100%" cellpadding="0" cellspacing="0" style="background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; overflow: hidden; margin-bottom: 26px;">';
+            $html .= '<div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 10px;">Forensic Event Dossier</div>';
+            $html .= '<table role="presentation" class="wcp-kv-table" width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 24px;">';
             $total_items = count($payload['details']);
             $curr = 0;
             foreach ($payload['details'] as $k => $v) {
                 $curr++;
                 $val = is_scalar($v) ? (string)$v : wp_json_encode($v);
                 $is_last = ($curr === $total_items);
-                $border_style = $is_last ? '' : 'border-bottom: 1px solid rgba(255, 255, 255, 0.05);';
+                $border_style = $is_last ? '' : 'border-bottom: 1px solid #e2e8f0;';
 
-                $val_color = '#f1f5f9';
+                $val_color = '#0f172a';
                 if (stripos((string)$k, 'code') !== false || stripos((string)$k, 'key') !== false) {
-                    $val_color = '#38bdf8';
+                    $val_color = '#0284c7';
                 } elseif (stripos((string)$k, 'status') !== false) {
-                    $val_color = '#fbbf24';
+                    $val_color = '#b45309';
                 }
 
                 $html .= '<tr><td style="padding: 12px 16px; ' . $border_style . '" class="wcp-kv-row">';
                 $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>';
-                $html .= '<td width="35%" class="wcp-kv-label" style="font-size: 12px; color: #94a3b8; font-weight: 600; vertical-align: top;">' . esc_html(ucwords(str_replace('_', ' ', (string)$k))) . '</td>';
+                $html .= '<td width="35%" class="wcp-kv-label" style="font-size: 12px; color: #64748b; font-weight: 600; vertical-align: top;">' . esc_html(ucwords(str_replace('_', ' ', (string)$k))) . '</td>';
                 $html .= '<td width="65%" class="wcp-kv-val" style="font-size: 13px; color: ' . esc_attr($val_color) . '; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; vertical-align: top;">' . esc_html((string)$val) . '</td>';
                 $html .= '</tr></table></td></tr>';
             }
             $html .= '</table>';
         }
 
-        // Action CTA Button (Responsive full-width on mobile)
+        // Action CTA Button
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">';
         $html .= '<tr><td align="center">';
         $html .= '<a href="' . esc_url($dash_url) . '" class="wcp-btn" style="display: inline-block; background: #4f46e5; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);">';
@@ -832,21 +832,19 @@ class NotificationDispatcher {
 
         $html .= '</td></tr>';
 
-        // Solo Freelancer Expert Footer: Mir Alamin / WebCare Pro
-        $html .= '<tr><td class="wcp-footer" style="background: #090d16; padding: 24px 32px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 12px; color: #94a3b8; line-height: 1.6;">';
+        // Sleek Dark Footer matching exact requested screenshot format
+        $html .= '<tr><td class="wcp-footer" style="background: #0b1120; padding: 28px 32px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; color: #94a3b8; line-height: 1.6;">';
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>';
-        $html .= '<div style="margin-bottom: 8px;">';
-        $html .= '<strong style="color: #ffffff; font-size: 13px;">WebCare Pro</strong>';
-        $html .= '<span style="color: #475569; margin: 0 6px;">•</span>';
-        $html .= '<span style="color: #cbd5e1;">Senior Linux SysAdmin &amp; WordPress Security Engineer</span>';
-        $html .= '<span style="color: #475569; margin: 0 6px;">•</span>';
-        $html .= '<a href="https://webcarespro.com" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">webcarespro.com</a>';
+        $html .= '<div style="margin-bottom: 12px;">';
+        $html .= '<strong style="color: #ffffff; font-size: 14px; letter-spacing: 0.2px;">About WebCare Pro</strong>';
+        $html .= '<span style="color: #475569; margin: 0 8px;">•</span>';
+        $html .= '<a href="https://webcarespro.com" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">https://webcarespro.com</a>';
         $html .= '</div>';
-        $html .= '<p style="margin: 0 0 12px 0; color: #64748b; font-size: 11.5px; line-height: 1.5;">';
-        $html .= 'Direct 1-on-1 assistance by Mir Alamin. High-performance infrastructure hardening, malware recovery, and autonomous WordPress defense.';
+        $html .= '<p style="margin: 0 0 16px 0; color: #cbd5e1; font-size: 12.5px; line-height: 1.6;">';
+        $html .= 'WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.';
         $html .= '</p>';
-        $html .= '<div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; font-size: 11px; color: #64748b; text-align: center; line-height: 1.5;">';
-        $html .= 'Dispatched by WCP Security Scanner on <span style="color: #cbd5e1; font-weight: 600;">' . esc_html($time) . '</span>. Manage granular notification preferences under <strong>WCP Scanner &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline;">Notifications</a></strong>.';
+        $html .= '<div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; font-size: 12px; color: #94a3b8; text-align: left; line-height: 1.6;">';
+        $html .= 'Dispatched by WCP Security Scanner on <strong style="color: #ffffff;">' . esc_html($time) . '</strong>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline;">Notifications</a></strong>.';
         $html .= '</div></td></tr></table></td></tr>';
 
         $html .= '</table></td></tr></table></body></html>';

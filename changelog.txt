@@ -1,10 +1,9 @@
 v:2.2.0 - 2026-11-02
-- Responsive Email Notification Overhaul & Mobile Layout Fixes (NotificationDispatcher.php):
-  * Modern Obsidian Cyber Design Architecture: Completely redesigned transactional and forensic security alert emails with a high-contrast dark palette (`#050811` / `#0b1120` / `#0f172a`), top indigo gradient accent bar, and dynamic priority pill badges (Critical, High, Moderate, Info).
-  * Responsive Mobile Layout & Squeezing Resolution: Added dedicated `@media only screen and (max-width: 540px)` email CSS rules and converted the Forensic Event Dossier table into fluid, mobile-stackable `.wcp-kv-row` blocks with `word-break: break-all` and `overflow-wrap: anywhere`. This permanently eliminates the single-character vertical text squishing bug (e.g. `auth_p/asskey/_revok/ed`) previously observed on mobile email clients (such as mobile Gmail).
-  * AI Incident Brief & Semantic Highlights: Integrated an AI overview callout card with monospace code styling for event codes and credential identifiers.
-  * Preserved Machine-Readable Standards: Retained zero-pixel hidden AI preheaders for lock-screen preview optimization and embedded Schema.org `SecurityIncident` JSON-LD microdata for mail user-agent forensic triage.
-  * Solo Freelancer Identity Realignment: Refactored email footer branding and support copy to highlight direct 1-on-1 assistance with Mir Alamin (WebCare Pro).
+- Sleek Hybrid Duo Email Notification Design & Responsive Architecture (NotificationDispatcher.php):
+  * Adopted Sleek Hybrid Duo layout: high-impact Obsidian cyber header (`#0f172a`), top gradient accent bar, and crisp white content body (`#ffffff` panel with `#eff6ff` blue AI incident brief card and `#f8fafc` structured forensic dossier).
+  * Retained Sleek Dark Brand Footer: Preserved the dark WebCare Pro overview card (`#0b1120`) with direct link to `https://webcarespro.com` and granular notification settings link (`WCP Scanner > Notifications`).
+  * Responsive Mobile Squeezing Resolution: Implemented `@media only screen and (max-width: 540px)` stackable `.wcp-kv-row` blocks with `word-break: break-all` and `overflow-wrap: anywhere`, permanently preventing 1-character vertical text wrapping in mobile email clients (e.g. mobile Gmail).
+  * Machine-Readable Standards: Retained hidden zero-pixel preheader for email preview snippets and embedded Schema.org `SecurityIncident` JSON-LD microdata envelope.
 
 v:2.1.0 - 2026-11-01
 - WordPress Plugin Check (PCP) & Security Sanitization Compliance (SessionForensicsEngine.php):

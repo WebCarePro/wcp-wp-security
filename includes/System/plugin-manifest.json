@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-01T21:15:15.989Z",
+  "generated_at": "2026-11-01T21:23:03.425Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -368,8 +368,8 @@
       "size": 6929
     },
     "includes/Notifications/NotificationDispatcher.php": {
-      "sha256": "3050f17a7ee57368baf0ffa52cd92069074b747c6a89692e2036b89fb40224a3",
-      "size": 60870
+      "sha256": "35cbcde421ab7da918f8d66e51fd2deb5162b8b28c3cb6a72c1640bb7abf2bcd",
+      "size": 60843
     },
     "includes/Notifications/WebhookService.php": {
       "sha256": "ca50f1c981d5db295fa5c50b50e148993f6080d558f19b56db0120fd78b3b882",
