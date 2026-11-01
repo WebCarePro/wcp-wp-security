@@ -1,4 +1,7 @@
 v:2.1.0 - 2026-11-01
+- WebAuthn Login Session Fix & Browser AbortController Protocol (WebAuthnManager.php):
+  * Normalized WebAuthn Challenge Session ID: Replaced mixed-case `wp_generate_password()` session tokens with uniform lowercase hex tokens (`auth_` . `bin2hex(random_bytes(16))`). This permanently resolves "Authentication challenge expired or invalid" failures caused by case mismatches on Redis/Memcached object cache backends and case-sensitive database collations when sanitized by `sanitize_key()`.
+  * Browser WebAuthn Ceremony AbortController: Added native `AbortController` cancellation to the login screen button. Aborts any prior pending ceremony before initiating a new one, cleanly eliminating the browser error `"A request is already pending"` during repeated or delayed clicks.
 - Documentation & Feature Catalog Expansion (README.md, features.md):
   * Synchronized and expanded the comprehensive features catalog across `README.md` and `features.md` to document all 58 specialized security subsystems.
   * Added detailed dual-level documentation (plain-English for site owners + deep engineering architecture for developers) for:

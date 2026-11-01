@@ -288,7 +288,7 @@ class WebAuthnManager {
 
         $challenge_bytes = random_bytes(32);
         $challenge_b64 = self::base64url_encode($challenge_bytes);
-        $session_id = 'auth_' . wp_generate_password(24, false, false);
+        $session_id = 'auth_' . bin2hex(random_bytes(16));
 
         set_transient(self::TRANSIENT_AUTH_PREFIX . $session_id, [
             'challenge'  => $challenge_b64,
@@ -839,6 +839,8 @@ class WebAuthnManager {
                 return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
             }
 
+            var activeAbortCtrl = null;
+
             btn.addEventListener('click', async function(e) {
                 e.preventDefault();
 
@@ -852,6 +854,15 @@ class WebAuthnManager {
                     return;
                 }
 
+                // Abort any prior pending ceremony to prevent "A request is already pending"
+                if (activeAbortCtrl) {
+                    try {
+                        activeAbortCtrl.abort();
+                    } catch (e) {}
+                    activeAbortCtrl = null;
+                }
+                activeAbortCtrl = new AbortController();
+
                 var origHtml = btn.innerHTML;
                 btn.disabled = true;
                 btn.innerHTML = '<span style="display: inline-block;">⏳</span> <?php echo esc_js(__('Connecting to Windows Hello / Passkey...', 'wcp-security-scanner')); ?>';
@@ -864,7 +875,8 @@ class WebAuthnManager {
                     var optRes = await fetch('<?php echo esc_url($options_url); ?>', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: username })
+                        body: JSON.stringify({ username: username }),
+                        signal: activeAbortCtrl.signal
                     });
                     var optData = await optRes.json();
 
@@ -888,7 +900,10 @@ class WebAuthnManager {
                     }
 
                     // 2. Prompt native Windows Hello / biometric authenticator
-                    var assertion = await navigator.credentials.get({ publicKey: opts });
+                    var assertion = await navigator.credentials.get({ 
+                        publicKey: opts,
+                        signal: activeAbortCtrl.signal
+                    });
                     if (!assertion) {
                         throw new Error('<?php echo esc_js(__('Authentication cancelled by user.', 'wcp-security-scanner')); ?>');
                     }
@@ -914,7 +929,8 @@ class WebAuthnManager {
                         body: JSON.stringify({
                             session_id: optData.session_id,
                             payload: assertionPayload
-                        })
+                        }),
+                        signal: activeAbortCtrl.signal
                     });
                     var verifyData = await verifyRes.json();
 
@@ -932,6 +948,13 @@ class WebAuthnManager {
                     window.location.href = redirectTo;
 
                 } catch (err) {
+                    if (err.name === 'AbortError') {
+                        // Suppress manual abort notifications
+                        btn.disabled = false;
+                        btn.innerHTML = origHtml;
+                        return;
+                    }
+
                     console.error('Passkey login error:', err);
                     btn.disabled = false;
                     btn.innerHTML = origHtml;
@@ -941,6 +964,8 @@ class WebAuthnManager {
                         msg = '<?php echo esc_js(__('Windows Hello / Passkey prompt was cancelled or timed out.', 'wcp-security-scanner')); ?>';
                     }
                     showNotice(msg, false);
+                } finally {
+                    activeAbortCtrl = null;
                 }
             });
         })();
