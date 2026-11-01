@@ -211,12 +211,15 @@ class SessionForensicsEngine {
 
         // Check for User-Agent mismatch (token theft / replay across different browsers)
         if (!empty($settings['detect_ua_hijack'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Low-level session forensic telemetry inspection hook before authentication actions
+            $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
+
             // Ignore background loopback, CLI, queue runners, or non-browser agents
             $is_background = (
                 wp_doing_cron() ||
                 (defined('DOING_CRON') && DOING_CRON) ||
                 (defined('WP_CLI') && WP_CLI) ||
-                (isset($_REQUEST['action']) && is_string($_REQUEST['action']) && strpos($_REQUEST['action'], 'queue_runner') !== false) ||
+                (strpos($req_action, 'queue_runner') !== false) ||
                 empty($user_agent) ||
                 $user_agent === 'Unknown' ||
                 strpos($user_agent, 'WordPress/') === 0 ||
