@@ -1,6 +1,6 @@
 {
   "version": "2.1.0",
-  "generated_at": "2026-11-01T03:39:26.844Z",
+  "generated_at": "2026-11-01T04:18:56.188Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -72,8 +72,8 @@
       "size": 31422
     },
     "includes/Auth/QRCodeGenerator.php": {
-      "sha256": "827b00efb51a59a0501d314dc6ecd037dd327726d1e5c348021a2cec64a31c16",
-      "size": 13108
+      "sha256": "1d9abc1f946816a51a632d67686e3a7394c86c49cc552600d2e28906dd6e60ac",
+      "size": 51897
     },
     "includes/Auth/SessionSentinel.php": {
       "sha256": "c3b54ae1b9b31a398770f747fbac91ce80cb698b3cac72b543345207c60eb494",
