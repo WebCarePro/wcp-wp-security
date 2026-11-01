@@ -155,6 +155,9 @@ class SettingsManager {
             'waf_admin_ajax_limit_per_min'      => 60,   // Max unauthenticated admin-ajax requests per minute per IP
             'waf_block_oversized_requests'      => true, // Rule #34: Oversized request URI, query string, & parameter count guard
             'waf_block_ai_prompt_injection'     => true, // Rule #35: AI Prompt Injection & Agent Poisoning Shield
+            'waf_guest_ajax_policy'             => 'monitor', // Rule #36: Guest admin-ajax.php & admin-post.php Action Matrix ('monitor' | 'block' | 'off')
+            'waf_guest_ajax_custom_allowlist'   => '',        // Newline-separated custom allowed action names
+            'waf_guest_rest_policy'             => 'monitor', // Rule #37: Guest REST API Mutation Guard ('monitor' | 'off')
             'waf_log_retention_days'            => 60,   // WAF incident JSON log retention on filesystem in days (default 60 days)
 
             // 9. Cloud Threat Intelligence & Community Blacklists
@@ -736,6 +739,13 @@ class SettingsManager {
         $clean['waf_admin_ajax_limit_per_min'] = max(10, min(300, (int) ($merged['waf_admin_ajax_limit_per_min'] ?? 60)));
         $clean['waf_block_oversized_requests'] = !empty($merged['waf_block_oversized_requests']);
         $clean['waf_block_ai_prompt_injection'] = !empty($merged['waf_block_ai_prompt_injection']);
+
+        // Rule #36 & #37: Guest admin-ajax.php / admin-post.php and REST Security Matrix
+        $in_ajax_policy = sanitize_key($merged['waf_guest_ajax_policy'] ?? 'monitor');
+        $clean['waf_guest_ajax_policy'] = in_array($in_ajax_policy, ['monitor', 'block', 'off'], true) ? $in_ajax_policy : 'monitor';
+        $clean['waf_guest_ajax_custom_allowlist'] = sanitize_textarea_field($merged['waf_guest_ajax_custom_allowlist'] ?? '');
+        $in_rest_policy = sanitize_key($merged['waf_guest_rest_policy'] ?? 'monitor');
+        $clean['waf_guest_rest_policy'] = in_array($in_rest_policy, ['monitor', 'off'], true) ? $in_rest_policy : 'monitor';
         $valid_retention = [7, 14, 30, 60, 90, 180, 365, 0];
         $retention_val = (int) ($merged['waf_log_retention_days'] ?? 60);
         $clean['waf_log_retention_days'] = in_array($retention_val, $valid_retention, true) ? $retention_val : 60;
@@ -1039,6 +1049,9 @@ class SettingsManager {
             'waf_block_author_scan'            => 'Author Query String User Enumeration Shield',
             'waf_block_oversized_requests'     => 'Oversized Request Payload Guard',
             'waf_block_ai_prompt_injection'    => 'AI Prompt Injection Defense',
+            'waf_guest_ajax_policy'            => 'Guest admin-ajax.php / admin-post.php Action Matrix',
+            'waf_guest_ajax_custom_allowlist'  => 'Guest AJAX Custom Allowlist',
+            'waf_guest_rest_policy'            => 'Guest REST API Mutation Guard',
             'waf_disable_xmlrpc'               => 'Disable XML-RPC API',
             'waf_enabled'                      => 'Web Application Firewall (WAF) Master Switch',
             'waf_mode'                         => 'Web Application Firewall (WAF) Mode',

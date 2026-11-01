@@ -73,6 +73,9 @@ class FirewallEngine {
         // Rule #30: Author Permalink Query Suppression (?author=N)
         add_action('template_redirect', [__CLASS__, 'check_author_scan_suppression'], 0);
 
+        // Rule #37: Guest REST API Mutation Guard
+        add_filter('rest_pre_dispatch', [__CLASS__, 'inspect_guest_rest_dispatch'], 10, 3);
+
         // Rule #31: Lost-Password Reset Burst Flooding Guard
         add_action('login_form_lostpassword', [__CLASS__, 'check_lostpassword_flood'], 0);
         add_action('lostpassword_post', [__CLASS__, 'check_lostpassword_submission'], 0);
@@ -921,6 +924,9 @@ class FirewallEngine {
                 }
             }
         }
+
+        // Rule #36: Guest admin-ajax.php & admin-post.php Action Matrix Guard
+        self::check_guest_ajax_policy($request_uri, $settings, $client_ip);
 
         // Check XML-RPC Disabled Guard early at plugins_loaded:0
         if (!empty($settings['waf_disable_xmlrpc']) && (strpos($request_uri, 'xmlrpc.php') !== false || (isset($_SERVER['SCRIPT_NAME']) && strpos(sanitize_text_field(wp_unslash($_SERVER['SCRIPT_NAME'])), 'xmlrpc.php') !== false))) {
@@ -5834,5 +5840,223 @@ class FirewallEngine {
                 exit;
             }
         }
+    }
+
+    /**
+     * Rule #36: Guest admin-ajax.php & admin-post.php Action Matrix Guard.
+     * Evaluates unauthenticated visitors invoking WordPress backend entrypoints.
+     * Enforces Tier 1 default allowed guest actions and custom administrator allowlist.
+     * In 'monitor' mode: logs unknown probes to WAF telemetry without blocking.
+     * In 'block' mode: terminates unregistered guest actions with HTTP 403 / 400.
+     *
+     * @param string $request_uri
+     * @param array $settings
+     * @param string $client_ip
+     * @return void
+     */
+    public static function check_guest_ajax_policy(string $request_uri, array $settings, string $client_ip): void {
+        $policy = $settings['waf_guest_ajax_policy'] ?? 'monitor';
+        if ($policy === 'off') {
+            return;
+        }
+
+        $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+        $is_ajax = strpos($clean_path, 'admin-ajax.php') !== false;
+        $is_post = strpos($clean_path, 'admin-post.php') !== false;
+
+        if (!$is_ajax && !$is_post) {
+            return;
+        }
+
+        // Apply policy strictly to unauthenticated visitors
+        $is_logged_in = (function_exists('is_user_logged_in') && is_user_logged_in())
+            || self::is_authenticated_administrator()
+            || self::is_authenticated_editor_or_builder();
+
+        if ($is_logged_in) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early guest action matrix inspection
+        $action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
+        $endpoint_name = $is_ajax ? 'admin-ajax.php' : 'admin-post.php';
+
+        // 1. Missing or Empty Action Handling
+        if ($action === '') {
+            $rule_triggered = [
+                'id'          => 'WAF-GUEST-AJAX-EMPTY',
+                'name'        => 'Guest Endpoint Missing Action Probe (Rule #36)',
+                'category'    => 'Protocol Defense',
+                'description' => sprintf('Unauthenticated hit to %s without an action parameter.', $endpoint_name),
+                'match_type'  => 'Missing Action Probe',
+                'match_value' => $endpoint_name,
+                'payload'     => "Endpoint: {$endpoint_name} IP: {$client_ip}",
+            ];
+
+            if ($policy === 'block') {
+                self::log_incident($rule_triggered, 'blocked');
+                status_header(400);
+                header('Content-Type: application/json; charset=utf-8');
+                echo wp_json_encode([
+                    'success' => false,
+                    'data'    => 'Missing or invalid action parameter.'
+                ]);
+                exit;
+            }
+
+            // In monitor mode, record telemetry and allow fall-through to core
+            self::log_incident($rule_triggered, 'monitored');
+            return;
+        }
+
+        // 2. Tier 1 Built-in Allowed Actions Hash Map (O(1) lookup)
+        static $tier1_actions = null;
+        if ($tier1_actions === null) {
+            $tier1_actions = array_fill_keys([
+                // WordPress Core & Heartbeat
+                'heartbeat',
+                // WooCommerce Customer & Cart Lifecycle (Always permitted for guests regardless of session)
+                'woocommerce_get_refreshed_fragments',
+                'woocommerce_add_to_cart',
+                'woocommerce_apply_coupon',
+                'woocommerce_remove_coupon',
+                'woocommerce_update_shipping_method',
+                'woocommerce_update_order_review',
+                'woocommerce_checkout',
+                'woocommerce_get_customer_location',
+                // Form Plugins (CF7, WPForms, Fluent Forms, Gravity Forms, Ninja Forms, Formidable, WS Form, HappyForms, Everest)
+                'wpforms_submit',
+                'wpforms_form_submit',
+                'wpforms_file_upload',
+                'fluentform_submit',
+                'fluentform_file_upload',
+                'fluentform_form_submit',
+                'ninja_forms_ajax_submit',
+                'nf_ajax_submit',
+                'frm_entries_create',
+                'frm_entries_update',
+                'gform_submit',
+                'gform_ajax',
+                'wsf_submit',
+                'happyforms_message',
+                'everest_forms_ajax_submit',
+                // Frontend Content Loaders & Live Search
+                'load_more_posts',
+                'infinite_scroll',
+                'search_autocomplete',
+                'ajax_search',
+                'wp_ajax_nopriv_search',
+            ], true);
+        }
+
+        if (isset($tier1_actions[$action])) {
+            return; // Legitimate Tier 1 guest action permitted
+        }
+
+        // 3. Custom Administrator Allowlist Lookup
+        $custom_allowlist_raw = $settings['waf_guest_ajax_custom_allowlist'] ?? '';
+        if (!empty($custom_allowlist_raw)) {
+            $custom_actions = array_filter(array_map('trim', explode("\n", $custom_allowlist_raw)));
+            if (in_array($action, $custom_actions, true)) {
+                return; // Custom permitted guest action
+            }
+        }
+
+        // 4. Unknown Guest Action Handling
+        $rule_triggered = [
+            'id'          => 'WAF-GUEST-AJAX-PROBE',
+            'name'        => 'Unregistered Guest Action Probe (Rule #36)',
+            'category'    => 'Behavioral Defense',
+            'description' => sprintf('Unregistered action "%s" invoked by guest on %s.', esc_html($action), $endpoint_name),
+            'match_type'  => 'Guest Action Policy',
+            'match_value' => $action,
+            'payload'     => "Action: {$action} Endpoint: {$endpoint_name} IP: {$client_ip}",
+        ];
+
+        if ($policy === 'block') {
+            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+            exit;
+        }
+
+        // In 'monitor' mode: log to WAF telemetry with status 'monitored' and permit execution
+        self::log_incident($rule_triggered, 'monitored');
+    }
+
+    /**
+     * Rule #37: Guest REST API Mutation Guard.
+     * Inspects REST API mutations (POST, PUT, PATCH, DELETE) from unauthenticated visitors.
+     * Whitelists safe public namespaces (contact forms, analytics, store carts).
+     * Flags anomalous unknown guest write mutations in WAF telemetry.
+     *
+     * @param mixed $result
+     * @param \WP_REST_Server $server
+     * @param \WP_REST_Request $request
+     * @return mixed
+     */
+    public static function inspect_guest_rest_dispatch($result, $server, $request) {
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        $settings = SettingsManager::get_settings();
+        $policy = $settings['waf_guest_rest_policy'] ?? 'monitor';
+        if ($policy === 'off') {
+            return $result;
+        }
+
+        // Only inspect mutating methods
+        $method = strtoupper($request->get_method());
+        if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            return $result;
+        }
+
+        // Authenticated users and verified administrators are completely permitted
+        $is_logged_in = (function_exists('is_user_logged_in') && is_user_logged_in())
+            || self::is_authenticated_administrator()
+            || self::is_authenticated_editor_or_builder();
+
+        if ($is_logged_in) {
+            return $result;
+        }
+
+        $route = strtolower($request->get_route());
+
+        // Whitelist recognized safe public mutating routes
+        $safe_prefixes = [
+            '/contact-form-7/',
+            '/wpforms/',
+            '/fluentform/',
+            '/ninja-forms/',
+            '/frm/',
+            '/gf/',
+            '/wc/store/',
+            '/surecart/',
+            '/givewp/',
+            '/wp/v2/comments',
+            '/akismet/',
+            '/jetpack/',
+            '/wcp-scanner/',
+        ];
+
+        foreach ($safe_prefixes as $prefix) {
+            if (strpos($route, $prefix) === 0 || strpos($route, $prefix) !== false) {
+                return $result;
+            }
+        }
+
+        // Flag unregistered guest REST write mutation
+        $client_ip = self::get_client_ip();
+        $rule_triggered = [
+            'id'          => 'WAF-GUEST-REST-MUTATION',
+            'name'        => 'Unauthenticated REST API Mutation Probe (Rule #37)',
+            'category'    => 'Behavioral Defense',
+            'description' => sprintf('Unauthenticated %s request targeted at REST route "%s".', $method, esc_html($route)),
+            'match_type'  => 'Guest REST Mutation',
+            'match_value' => $route,
+            'payload'     => "Method: {$method} Route: {$route} IP: {$client_ip}",
+        ];
+
+        self::log_incident($rule_triggered, 'monitored');
+        return $result;
     }
 }
