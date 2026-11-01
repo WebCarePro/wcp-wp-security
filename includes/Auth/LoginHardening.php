@@ -122,6 +122,24 @@ class LoginHardening {
         // Store failed count with a sliding 1-hour window
         set_transient($fail_key, $attempts, 3600);
 
+        // Stream individual failed login attempt to WAF Forensic Incident Log
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            \WcpScanner\Firewall\FirewallEngine::log_incident([
+                'id'               => 'WAF-AUTH-FAILED',
+                'name'             => 'Failed Authentication Attempt',
+                'category'         => 'authentication',
+                'description'      => sprintf(
+                    /* translators: 1: attempted username, 2: attempt count */
+                    __('Failed authentication attempt for username "%1$s" (attempt %2$d).', 'wcp-security-scanner'),
+                    sanitize_user($username),
+                    $attempts
+                ),
+                'payload'          => sprintf('User: %s (Attempt %d)', $username, $attempts),
+                'username'         => sanitize_user($username),
+                'is_authenticated' => false,
+            ], 'blocked');
+        }
+
         if ($attempts >= $max_retries) {
             // Lock out IP
             $lockouts = self::get_locked_ips();
@@ -216,12 +234,37 @@ class LoginHardening {
     }
 
     /**
-     * Reset attempt counter on valid login
+     * Reset attempt counter on valid login and record successful authentication in WAF logs
      */
     public static function record_successful_login(string $user_login, $user) {
         $ip = FirewallEngine::get_client_ip();
         $fail_key = self::TRANSIENT_FAIL_PREFIX . md5($ip);
         delete_transient($fail_key);
+
+        // Stream successful login to WAF Forensic Incident Log
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            $user_obj = ($user instanceof \WP_User) ? $user : get_user_by('login', $user_login);
+            $roles = ($user_obj instanceof \WP_User) ? (array) $user_obj->roles : [];
+            $role_label = !empty($roles) ? reset($roles) : 'user';
+            $user_id = ($user_obj instanceof \WP_User) ? (int) $user_obj->ID : 0;
+
+            \WcpScanner\Firewall\FirewallEngine::log_incident([
+                'id'               => 'WAF-AUTH-SUCCESS',
+                'name'             => 'Successful User Authentication',
+                'category'         => 'authentication',
+                'description'      => sprintf(
+                    /* translators: 1: username, 2: role */
+                    __('User "%1$s" (%2$s) authenticated successfully.', 'wcp-security-scanner'),
+                    sanitize_user($user_login),
+                    sanitize_key($role_label)
+                ),
+                'payload'          => sprintf('User: %s Role: %s ID: %d', $user_login, $role_label, $user_id),
+                'username'         => sanitize_user($user_login),
+                'user_role'        => sanitize_key($role_label),
+                'user_id'          => $user_id,
+                'is_authenticated' => true,
+            ], 'allowed');
+        }
     }
 
     /**

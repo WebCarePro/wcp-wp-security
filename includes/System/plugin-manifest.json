@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-01T21:50:46.788Z",
+  "generated_at": "2026-11-01T22:15:21.519Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,7 +36,7 @@
       "size": 554271
     },
     "build/index.asset.php": {
-      "sha256": "89c237dadda69a8d6ec4efe1b7d5f1b9beb73b1379c20b1b712944e95d43293b",
+      "sha256": "ab356dae77d98b78df42ab1842388a3e826ae9e0b9edb169a2c7995da6521c52",
       "size": 121
     },
     "build/index.css": {
@@ -44,8 +44,8 @@
       "size": 554116
     },
     "build/index.js": {
-      "sha256": "6e2ceb9fbd80f0980af75d4009b678d5de1af5d43692d321dfe7cd1fbb2469a6",
-      "size": 2134115
+      "sha256": "c2ffcb1b1c349ded994dc61a01740ef7a39986170b3185dd04290e01df7602b5",
+      "size": 2134646
     },
     "composer.json": {
       "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
@@ -64,8 +64,8 @@
       "size": 517223
     },
     "includes/Auth/LoginHardening.php": {
-      "sha256": "2b5758dd67b5cb89f5925dc066c052fa1d7e87aee2bc7c7aaada4b19b3d75021",
-      "size": 14108
+      "sha256": "184cd95e12fff6c680d2972b5f7110f7519ae700d3edd528bc5fa9268e332549",
+      "size": 16540
     },
     "includes/Auth/LoginHistoryManager.php": {
       "sha256": "fd5e53cd5b59c4fbc77764a6f8715ba82a3b6d1e8f1701b42fb5552db4f20a1f",
@@ -268,8 +268,8 @@
       "size": 20926
     },
     "includes/Firewall/WafFileLogger.php": {
-      "sha256": "1f34560e9f09822d6858b0006e62f01b975abdc0849f277e8425bfa53e87b87f",
-      "size": 30660
+      "sha256": "7bb11bfe49d47003a73e65ad748d24ad84a216aac73b8f4a75698b536756d325",
+      "size": 32517
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "0b281308f119113cce5785ce57357287909460142929d7a281b8872d1ccbf3cd",

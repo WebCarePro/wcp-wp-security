@@ -149,11 +149,20 @@ class WafFileLogger {
         $category = sanitize_key($rule['category'] ?? 'general_defense');
 
         // Zero-SQL Deduplication Cache: prevent logging identical IP + Category within 60 seconds
-        $cache_key = 'wcp_dedup_' . md5($ip . '_' . $category);
+        // Exception: For rapid authentication failures or logins, use a short 3-second window or include username
+        $dedup_ttl = 60;
+        if (strpos($category, 'auth') !== false) {
+            $dedup_username = sanitize_user($rule['username'] ?? ($_POST['log'] ?? ''));
+            $cache_key = 'wcp_dedup_' . md5($ip . '_' . $category . '_' . $dedup_username . '_' . ($rule['id'] ?? ''));
+            $dedup_ttl = 3;
+        } else {
+            $cache_key = 'wcp_dedup_' . md5($ip . '_' . $category);
+        }
+
         if (get_transient($cache_key)) {
             return $incident_id;
         }
-        set_transient($cache_key, 1, 60);
+        set_transient($cache_key, 1, $dedup_ttl);
 
         if (empty($incident_id)) {
             $incident_id = 'WCP-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
@@ -180,18 +189,18 @@ class WafFileLogger {
 
         // Rich User Identity Detection
         $user_id          = 0;
-        $username         = '';
-        $user_role        = '';
-        $is_authenticated = false;
+        $username         = !empty($rule['username']) ? sanitize_user($rule['username']) : '';
+        $user_role        = !empty($rule['user_role']) ? sanitize_key($rule['user_role']) : '';
+        $is_authenticated = isset($rule['is_authenticated']) ? (bool) $rule['is_authenticated'] : false;
 
-        if (function_exists('is_user_logged_in') && is_user_logged_in()) {
+        if (empty($username) && function_exists('is_user_logged_in') && is_user_logged_in()) {
             $current_user     = wp_get_current_user();
             $user_id          = (int) $current_user->ID;
             $username         = sanitize_user($current_user->user_login);
             $roles            = (array) $current_user->roles;
             $user_role        = !empty($roles) ? sanitize_key(reset($roles)) : 'subscriber';
             $is_authenticated = true;
-        } else {
+        } elseif (empty($username)) {
             // Check for unauthenticated login attempt usernames
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             if (!empty($_POST['log'])) {
@@ -452,7 +461,28 @@ class WafFileLogger {
         // Category filter
         if (!empty($filters['category']) && $filters['category'] !== 'all') {
             $cat = sanitize_key($filters['category']);
-            if (sanitize_key($record['rule_category'] ?? '') !== $cat) {
+            $record_cat = sanitize_key($record['rule_category'] ?? '');
+
+            // Grouped auth category matching
+            if ($cat === 'authentication' || $cat === 'auth_all') {
+                if ($record_cat !== 'authentication' && strpos($record_cat, 'auth') === false) {
+                    return false;
+                }
+            } elseif ($cat === 'auth_failed') {
+                if ($record_cat !== 'authentication' && $record_cat !== 'auth_failed' && strpos($record_cat, 'auth') === false) {
+                    return false;
+                }
+                if (($record['action_taken'] ?? '') !== 'blocked' && ($record['http_status_code'] ?? 0) !== 401 && ($record['http_status_code'] ?? 0) !== 403) {
+                    return false;
+                }
+            } elseif ($cat === 'auth_success') {
+                if ($record_cat !== 'authentication' && $record_cat !== 'auth_success' && strpos($record_cat, 'auth') === false) {
+                    return false;
+                }
+                if (($record['action_taken'] ?? '') !== 'allowed' && ($record['http_status_code'] ?? 0) !== 200) {
+                    return false;
+                }
+            } elseif ($record_cat !== $cat) {
                 return false;
             }
         }
