@@ -46,6 +46,33 @@ class WebAuthnManager {
     }
 
     /**
+     * Check if two credential IDs match, tolerating base64 vs base64url encoding and padding differences.
+     *
+     * @param string $id1
+     * @param string $id2
+     * @return bool
+     */
+    public static function credential_ids_match(string $id1, string $id2): bool {
+        if (hash_equals($id1, $id2)) {
+            return true;
+        }
+
+        // Normalize base64url to standard base64 without padding
+        $norm1 = rtrim(strtr($id1, '-_', '+/'), '=');
+        $norm2 = rtrim(strtr($id2, '-_', '+/'), '=');
+
+        if (hash_equals($norm1, $norm2)) {
+            return true;
+        }
+
+        // Decode to raw bytes comparison
+        $raw1 = self::base64url_decode($id1);
+        $raw2 = self::base64url_decode($id2);
+
+        return (!empty($raw1) && !empty($raw2) && hash_equals($raw1, $raw2));
+    }
+
+    /**
      * Base64URL encode string.
      *
      * @param string $data
@@ -296,10 +323,26 @@ class WebAuthnManager {
             'created_at' => time(),
         ], 180);
 
-        // Anti-Enumeration Defense: Always return empty allowCredentials for unauthenticated requests.
-        // This enables standard W3C discoverable credentials (resident keys) without leaking whether
-        // a targeted username or passkey exists on the system.
+        // If the user entered their username or email on the login form, populate allowCredentials
+        // to guide authenticators like Windows Hello and prevent cross-account assertion confusion.
         $allow_credentials = [];
+        if (!empty($login_hint)) {
+            $matched_user = get_user_by('login', $login_hint);
+            if (!$matched_user) {
+                $matched_user = get_user_by('email', $login_hint);
+            }
+            if ($matched_user && $matched_user->exists()) {
+                $creds = self::get_user_credentials($matched_user->ID);
+                foreach ($creds as $c) {
+                    if (!empty($c['credential_id'])) {
+                        $allow_credentials[] = [
+                            'id'   => $c['credential_id'],
+                            'type' => 'public-key',
+                        ];
+                    }
+                }
+            }
+        }
 
         return [
             'success'    => true,
@@ -392,7 +435,7 @@ class WebAuthnManager {
         if ($matched_user_id) {
             $user_creds = self::get_user_credentials($matched_user_id);
             foreach ($user_creds as $idx => $cred) {
-                if (isset($cred['credential_id']) && hash_equals((string) $cred['credential_id'], $credential_id)) {
+                if (isset($cred['credential_id']) && self::credential_ids_match((string) $cred['credential_id'], $credential_id)) {
                     $matched_cred_idx = $idx;
                     $matched_cred = $cred;
                     break;
@@ -629,6 +672,15 @@ class WebAuthnManager {
             return (int) $index[$key];
         }
 
+        // Also check raw bytes hash if base64url padding differed
+        $raw = self::base64url_decode($credential_id);
+        if (!empty($raw)) {
+            $raw_key = hash('sha256', $raw);
+            if (is_array($index) && isset($index[$raw_key])) {
+                return (int) $index[$raw_key];
+            }
+        }
+
         // Fallback: search usermeta and backfill the fast index
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -644,7 +696,7 @@ class WebAuthnManager {
             $creds = maybe_unserialize($row['meta_value']);
             if (is_array($creds)) {
                 foreach ($creds as $cred) {
-                    if (isset($cred['credential_id']) && hash_equals((string) $cred['credential_id'], $credential_id)) {
+                    if (isset($cred['credential_id']) && self::credential_ids_match((string) $cred['credential_id'], $credential_id)) {
                         $uid = (int) $row['user_id'];
                         self::index_credential($credential_id, $uid);
                         return $uid;
