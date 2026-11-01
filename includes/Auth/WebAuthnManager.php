@@ -22,6 +22,7 @@ if (!defined('ABSPATH')) {
 class WebAuthnManager {
 
     const META_CREDENTIALS = 'wcpscan_webauthn_credentials';
+    const OPTION_CREDENTIAL_INDEX = 'wcpscan_webauthn_index';
     const TRANSIENT_REG_PREFIX = 'wcpscan_webauthn_reg_';
     const TRANSIENT_AUTH_PREFIX = 'wcpscan_webauthn_auth_';
 
@@ -211,13 +212,23 @@ class WebAuthnManager {
             ];
         }
 
-        // Parse Attestation Object to extract public key
+        // Parse Attestation Object to extract public key PEM
         $attestation_bin = self::base64url_decode($attestation_obj_b64);
         $public_key_pem = self::extract_public_key_pem_from_attestation($attestation_bin);
 
-        // Fallback or self-contained public key representation
-        if (empty($public_key_pem)) {
-            $public_key_pem = self::base64url_encode(substr($attestation_bin, -64));
+        // Fallback: check if client provided direct DER public key via getPublicKey()
+        $client_pk_b64 = $payload['response']['publicKey'] ?? '';
+        if (empty($public_key_pem) && !empty($client_pk_b64)) {
+            $pk_der = self::base64url_decode($client_pk_b64);
+            $public_key_pem = self::parse_public_key_to_pem($pk_der);
+        }
+
+        // Strict Cryptographic Enforcement: Passkeys without verifiable public keys cannot be registered
+        if (empty($public_key_pem) || strpos($public_key_pem, '-----BEGIN PUBLIC KEY-----') === false) {
+            return [
+                'success' => false,
+                'message' => __('Registration failed: Could not extract a valid cryptographic public key from authenticator.', 'wcp-security-scanner'),
+            ];
         }
 
         $device_name = !empty($key_label)
@@ -235,6 +246,7 @@ class WebAuthnManager {
         ];
 
         update_user_meta($user_id, self::META_CREDENTIALS, $credentials);
+        self::index_credential($credential_id, $user_id);
 
         $user = get_userdata($user_id);
         AuditLogger::log(
@@ -284,21 +296,10 @@ class WebAuthnManager {
             'created_at' => time(),
         ], 180);
 
+        // Anti-Enumeration Defense: Always return empty allowCredentials for unauthenticated requests.
+        // This enables standard W3C discoverable credentials (resident keys) without leaking whether
+        // a targeted username or passkey exists on the system.
         $allow_credentials = [];
-        if (!empty($login_hint)) {
-            $user = get_user_by('login', $login_hint) ?: get_user_by('email', $login_hint);
-            if ($user) {
-                $creds = self::get_user_credentials($user->ID);
-                foreach ($creds as $c) {
-                    if (!empty($c['credential_id'])) {
-                        $allow_credentials[] = [
-                            'id'   => $c['credential_id'],
-                            'type' => 'public-key',
-                        ];
-                    }
-                }
-            }
-        }
 
         return [
             'success'    => true,
@@ -374,7 +375,8 @@ class WebAuthnManager {
         $client_origin = (string) ($client_data['origin'] ?? '');
         $client_origin_host = wp_parse_url($client_origin, PHP_URL_HOST);
         if (!empty($client_origin_host) && !empty($expected_host)) {
-            if (strtolower($client_origin_host) !== strtolower($expected_host) && $client_origin_host !== 'localhost') {
+            $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
+            if (strtolower($client_origin_host) !== strtolower($expected_host) && !$is_dev_env) {
                 return [
                     'success' => false,
                     'message' => __('WebAuthn assertion origin mismatch.', 'wcp-security-scanner'),
@@ -382,31 +384,18 @@ class WebAuthnManager {
             }
         }
 
-        // Find user by credential ID across user meta
-        global $wpdb;
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s",
-                self::META_CREDENTIALS
-            ),
-            ARRAY_A
-        ) ?: [];
-
-        $matched_user_id = null;
+        // Fast O(1) indexed lookup for user owning this credential ID
+        $matched_user_id = self::find_user_by_credential_id($credential_id);
         $matched_cred_idx = null;
         $matched_cred = null;
 
-        foreach ($rows as $row) {
-            $creds = maybe_unserialize($row['meta_value']);
-            if (is_array($creds)) {
-                foreach ($creds as $idx => $cred) {
-                    if (($cred['credential_id'] ?? '') === $credential_id) {
-                        $matched_user_id = (int) $row['user_id'];
-                        $matched_cred_idx = $idx;
-                        $matched_cred = $cred;
-                        break 2;
-                    }
+        if ($matched_user_id) {
+            $user_creds = self::get_user_credentials($matched_user_id);
+            foreach ($user_creds as $idx => $cred) {
+                if (isset($cred['credential_id']) && hash_equals((string) $cred['credential_id'], $credential_id)) {
+                    $matched_cred_idx = $idx;
+                    $matched_cred = $cred;
+                    break;
                 }
             }
         }
@@ -426,43 +415,77 @@ class WebAuthnManager {
             ];
         }
 
-        // Cryptographic Signature Verification
-        if (!empty($auth_data_b64) && !empty($signature_b64)) {
-            $auth_data_bin = self::base64url_decode($auth_data_b64);
-            $signature_bin = self::base64url_decode($signature_b64);
-            $client_hash = hash('sha256', $client_data_json, true);
-            $signed_data = $auth_data_bin . $client_hash;
-
-            // Verify user presence flag (bit 0 of flags byte at index 32)
-            if (strlen($auth_data_bin) >= 33) {
-                $flags = ord($auth_data_bin[32]);
-                $user_present = ($flags & 0x01) !== 0;
-                if (!$user_present) {
-                    return [
-                        'success' => false,
-                        'message' => __('User presence verification flag was not set by authenticator.', 'wcp-security-scanner'),
-                    ];
-                }
-            }
-
-            // Cryptographic verification against public key PEM if present
-            $stored_pubkey = $matched_cred['public_key'] ?? '';
-            if (!empty($stored_pubkey) && strpos($stored_pubkey, '-----BEGIN PUBLIC KEY-----') !== false) {
-                $verified = openssl_verify($signed_data, $signature_bin, $stored_pubkey, OPENSSL_ALGO_SHA256);
-                if ($verified !== 1) {
-                    return [
-                        'success' => false,
-                        'message' => __('Passkey cryptographic signature verification failed.', 'wcp-security-scanner'),
-                    ];
-                }
-            }
+        // Mandatory Cryptographic Signature Verification (Fail-Closed)
+        if (empty($auth_data_b64) || empty($signature_b64)) {
+            return [
+                'success' => false,
+                'message' => __('Incomplete assertion: authenticator data or signature missing.', 'wcp-security-scanner'),
+            ];
         }
 
-        // Update credential last used timestamp
+        $stored_pubkey = $matched_cred['public_key'] ?? '';
+        if (empty($stored_pubkey) || strpos($stored_pubkey, '-----BEGIN PUBLIC KEY-----') === false) {
+            return [
+                'success' => false,
+                'message' => __('Passkey verification failed: No verifiable cryptographic public key found for credential.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $auth_data_bin = self::base64url_decode($auth_data_b64);
+        $signature_bin = self::base64url_decode($signature_b64);
+        $client_hash = hash('sha256', $client_data_json, true);
+        $signed_data = $auth_data_bin . $client_hash;
+
+        // Verify user presence flag (bit 0 of flags byte at index 32)
+        if (strlen($auth_data_bin) < 37) {
+            return [
+                'success' => false,
+                'message' => __('Authenticator data truncated or invalid.', 'wcp-security-scanner'),
+            ];
+        }
+
+        $flags = ord($auth_data_bin[32]);
+        $user_present = ($flags & 0x01) !== 0;
+        if (!$user_present) {
+            return [
+                'success' => false,
+                'message' => __('User presence verification flag was not set by authenticator.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Parse signature counter from authenticatorData (bytes 33-36, 32-bit big-endian)
+        $incoming_sign_count = (ord($auth_data_bin[33]) << 24)
+            | (ord($auth_data_bin[34]) << 16)
+            | (ord($auth_data_bin[35]) << 8)
+            | ord($auth_data_bin[36]);
+
+        $stored_sign_count = (int) ($matched_cred['sign_count'] ?? 0);
+        // Authenticator Clone Detection: If both counts are > 0 and incoming is less than stored, flag cloning
+        if ($stored_sign_count > 0 && $incoming_sign_count > 0 && $incoming_sign_count < $stored_sign_count) {
+            AuditLogger::log(
+                'webauthn_clone_suspected',
+                sprintf('CRITICAL: Possible cloned authenticator detected for user %s (Stored count: %d, Received: %d).', $user->user_login, $stored_sign_count, $incoming_sign_count)
+            );
+            return [
+                'success' => false,
+                'message' => __('Authentication rejected: Authenticator sequence anomaly detected (potential clone).', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Strict Cryptographic Signature Verification via OpenSSL
+        $verified = openssl_verify($signed_data, $signature_bin, $stored_pubkey, OPENSSL_ALGO_SHA256);
+        if ($verified !== 1) {
+            return [
+                'success' => false,
+                'message' => __('Passkey cryptographic signature verification failed.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Update credential last used timestamp and monotonic counter
         $user_creds = self::get_user_credentials($matched_user_id);
         if (isset($user_creds[$matched_cred_idx])) {
             $user_creds[$matched_cred_idx]['last_used'] = time();
-            $user_creds[$matched_cred_idx]['sign_count'] = ($user_creds[$matched_cred_idx]['sign_count'] ?? 0) + 1;
+            $user_creds[$matched_cred_idx]['sign_count'] = max($incoming_sign_count, ($user_creds[$matched_cred_idx]['sign_count'] ?? 0) + 1);
             update_user_meta($matched_user_id, self::META_CREDENTIALS, $user_creds);
         }
 
@@ -534,6 +557,7 @@ class WebAuthnManager {
 
         if ($found) {
             update_user_meta($user_id, self::META_CREDENTIALS, $filtered);
+            self::unindex_credential($credential_id);
             AuditLogger::log(
                 'webauthn_passkey_deleted',
                 sprintf('Biometric Passkey revoked for user ID #%d (Credential: %s).', $user_id, substr($credential_id, 0, 16) . '...')
@@ -558,20 +582,171 @@ class WebAuthnManager {
     }
 
     /**
-     * Helper to extract public key PEM or raw public key bytes from CBOR attestation object.
+     * Map a credential ID to its owning user ID in the fast index.
+     *
+     * @param string $credential_id
+     * @param int $user_id
+     * @return void
+     */
+    private static function index_credential(string $credential_id, int $user_id): void {
+        $index = get_option(self::OPTION_CREDENTIAL_INDEX, []);
+        if (!is_array($index)) {
+            $index = [];
+        }
+        $key = hash('sha256', $credential_id);
+        $index[$key] = $user_id;
+        update_option(self::OPTION_CREDENTIAL_INDEX, $index, false);
+    }
+
+    /**
+     * Remove a credential from the fast lookup index.
+     *
+     * @param string $credential_id
+     * @return void
+     */
+    private static function unindex_credential(string $credential_id): void {
+        $index = get_option(self::OPTION_CREDENTIAL_INDEX, []);
+        if (!is_array($index)) {
+            return;
+        }
+        $key = hash('sha256', $credential_id);
+        if (isset($index[$key])) {
+            unset($index[$key]);
+            update_option(self::OPTION_CREDENTIAL_INDEX, $index, false);
+        }
+    }
+
+    /**
+     * Find user ID owning a credential ID via the fast index (with fallback to usermeta).
+     *
+     * @param string $credential_id
+     * @return int|null
+     */
+    private static function find_user_by_credential_id(string $credential_id): ?int {
+        $index = get_option(self::OPTION_CREDENTIAL_INDEX, []);
+        $key = hash('sha256', $credential_id);
+        if (is_array($index) && isset($index[$key])) {
+            return (int) $index[$key];
+        }
+
+        // Fallback: search usermeta and backfill the fast index
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s",
+                self::META_CREDENTIALS
+            ),
+            ARRAY_A
+        ) ?: [];
+
+        foreach ($rows as $row) {
+            $creds = maybe_unserialize($row['meta_value']);
+            if (is_array($creds)) {
+                foreach ($creds as $cred) {
+                    if (isset($cred['credential_id']) && hash_equals((string) $cred['credential_id'], $credential_id)) {
+                        $uid = (int) $row['user_id'];
+                        self::index_credential($credential_id, $uid);
+                        return $uid;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse raw WebAuthn public key bytes (DER, SPKI, uncompressed EC point, or COSE) into standard PEM format.
+     *
+     * @param string $raw_bytes
+     * @return string
+     */
+    public static function parse_public_key_to_pem(string $raw_bytes): string {
+        if (empty($raw_bytes)) {
+            return '';
+        }
+
+        // 1. If already in PEM format
+        if (strpos($raw_bytes, '-----BEGIN PUBLIC KEY-----') !== false) {
+            return $raw_bytes;
+        }
+
+        // 2. If valid DER SubjectPublicKeyInfo (sequence header 0x30 and standard length)
+        if (strlen($raw_bytes) >= 60 && ord($raw_bytes[0]) === 0x30) {
+            return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($raw_bytes), 64, "\n") . "-----END PUBLIC KEY-----\n";
+        }
+
+        // 3. If raw 65-byte uncompressed EC point (0x04 || X || Y) for secp256r1 (P-256)
+        if (strlen($raw_bytes) === 65 && $raw_bytes[0] === "\x04") {
+            $spki_prefix = hex2bin('3059301306072a8648ce3d020106082a8648ce3d030107034200');
+            $spki = $spki_prefix . $raw_bytes;
+            return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($spki), 64, "\n") . "-----END PUBLIC KEY-----\n";
+        }
+
+        // 4. Parse COSE EC2 P-256 map directly
+        // Key -2 (X coord, 32 bytes): 0x21 0x58 0x20
+        // Key -3 (Y coord, 32 bytes): 0x22 0x58 0x20
+        $pos_x = strpos($raw_bytes, "\x21\x58\x20");
+        $pos_y = strpos($raw_bytes, "\x22\x58\x20");
+        if ($pos_x !== false && $pos_y !== false) {
+            $x = substr($raw_bytes, $pos_x + 3, 32);
+            $y = substr($raw_bytes, $pos_y + 3, 32);
+            if (strlen($x) === 32 && strlen($y) === 32) {
+                $raw_point = "\x04" . $x . $y;
+                $spki_prefix = hex2bin('3059301306072a8648ce3d020106082a8648ce3d030107034200');
+                $spki = $spki_prefix . $raw_point;
+                return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($spki), 64, "\n") . "-----END PUBLIC KEY-----\n";
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Helper to extract public key PEM from CBOR attestation object.
      *
      * @param string $attestation_bin
      * @return string
      */
     private static function extract_public_key_pem_from_attestation(string $attestation_bin): string {
-        // Find authData within attestation object
-        $auth_data_pos = strpos($attestation_bin, 'authData');
-        if ($auth_data_pos === false) {
+        $pos = strpos($attestation_bin, 'authData');
+        if ($pos === false) {
             return '';
         }
 
-        // Return base64url encoded representation of the attestation data block
-        return self::base64url_encode(substr($attestation_bin, $auth_data_pos, 128));
+        $after_tag = $pos + 8;
+        if ($after_tag >= strlen($attestation_bin)) {
+            return '';
+        }
+
+        $lead = ord($attestation_bin[$after_tag]);
+        $auth_offset = $after_tag + 1;
+        if ($lead === 0x58) {
+            $auth_offset = $after_tag + 2;
+        } elseif ($lead === 0x59) {
+            $auth_offset = $after_tag + 3;
+        }
+
+        $auth_data = substr($attestation_bin, $auth_offset);
+        if (strlen($auth_data) < 55) {
+            return '';
+        }
+
+        $flags = ord($auth_data[32]);
+        $has_attested_cred = ($flags & 0x40) !== 0;
+        if (!$has_attested_cred) {
+            return '';
+        }
+
+        $cred_len = (ord($auth_data[53]) << 8) | ord($auth_data[54]);
+        $cose_offset = 55 + $cred_len;
+        if ($cose_offset >= strlen($auth_data)) {
+            return '';
+        }
+
+        $cose_bytes = substr($auth_data, $cose_offset);
+        return self::parse_public_key_to_pem($cose_bytes);
     }
 
     /**

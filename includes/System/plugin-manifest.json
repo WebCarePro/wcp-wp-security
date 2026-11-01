@@ -1,6 +1,6 @@
 {
   "version": "2.1.0",
-  "generated_at": "2026-11-01T07:03:48.639Z",
+  "generated_at": "2026-11-01T07:30:43.268Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,7 +36,7 @@
       "size": 554271
     },
     "build/index.asset.php": {
-      "sha256": "f6e0e1472189c194c4c723b631c27f15b6100705d84b1f21edba57734e7da53a",
+      "sha256": "48e93cc0eec4f16f02c584164c8c4857a4d4f138e9cd83dcbbd85b9a5e531e7a",
       "size": 121
     },
     "build/index.css": {
@@ -44,8 +44,8 @@
       "size": 554116
     },
     "build/index.js": {
-      "sha256": "63b33ad29bba9827491dca0b716b3f2966fed70d6cf8b203f92a8811ad88c3ab",
-      "size": 2131912
+      "sha256": "73cf642f10d11c4f030529efc8e3852d29d2b28cf0b20e74fa51c099a65f0068",
+      "size": 2132032
     },
     "composer.json": {
       "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
@@ -84,8 +84,8 @@
       "size": 52607
     },
     "includes/Auth/WebAuthnManager.php": {
-      "sha256": "6a297d927b651c6b5dbc44d7f778788e4ec768d749272b1dce6408335efdea18",
-      "size": 32876
+      "sha256": "c62ac36711bc6aff905f4fd8a79bb16cb133b86b81cab2b0f230ec3e3905fb4f",
+      "size": 40003
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "ee9cb8ff3436929d474dad7a6f112fe8e567dc7f68e357962d3987101eb7dbfb",
@@ -220,8 +220,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "ddf82aff931d1f56c9a196df57ae0b51491b1809258ba1115b135a3b63e7ac09",
-      "size": 285061
+      "sha256": "83a0a7981a0067a32e63936e92b03817e5798fa73c2a33dafb348375910b336e",
+      "size": 285117
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "c76eeec67afd45a5d704e4c35bb3263b374a7dfc6ae78792514f0cdcf877874e",
@@ -460,8 +460,8 @@
       "size": 12487
     },
     "includes/Security/SecretVault.php": {
-      "sha256": "380baa6a161bafed9060b07eed9aa9dd81cc54bfe636aece0b5389ec0b8a901a",
-      "size": 12703
+      "sha256": "ed17a1bcb0067f0275b11e6c94714dc48c1e0cb8fc0967c17425f713d8b81539",
+      "size": 12767
     },
     "includes/Security/VaultRotator.php": {
       "sha256": "d38311a4da3e3dcacdbf40331f62a48da8bfa9592832ea54c56c54b6f1f491e6",

@@ -1,4 +1,17 @@
 v:2.1.0 - 2026-11-01
+- Cryptographic Hardening, WebAuthn Fail-Closed Architecture & Security Enhancements:
+  * Strict Fail-Closed WebAuthn Cryptographic Verification (WebAuthnManager.php, WebAuthnPasskeyCard.tsx):
+    - Refactored `WebAuthnManager::verify_login()` to enforce strict fail-closed assertion verification: sessions are never established unless `openssl_verify === 1` against a verified public key in PEM SubjectPublicKeyInfo (SPKI) format. Credentials lacking a valid public key or failing signature checks are instantly rejected.
+    - Implemented `parse_public_key_to_pem()` supporting DER SubjectPublicKeyInfo sequences, raw 65-byte uncompressed elliptic curve points (`0x04 || X || Y`), and direct COSE P-256 (`-7` / `ES256`) byte maps.
+    - Updated `verify_registration()` and `WebAuthnPasskeyCard.tsx` to extract and transport DER public key bytes from `credential.response.getPublicKey()`, validating `-----BEGIN PUBLIC KEY-----` integrity prior to registration.
+    - Enforced Monotonic Authenticator Sequence Clone Detection: Added signature counter checks (`sign_count`) to verify authenticators increment signatures and detect cloned hardware keys.
+    - Mitigated Username / Passkey Enumeration: Updated `generate_login_options()` to return empty `allowCredentials: []` on unauthenticated requests, fully supporting W3C discoverable credentials (resident keys) without disclosing whether an account exists.
+    - Fast O(1) Credential Identification & Timing-Safe Comparison: Introduced indexed credential mapping option (`wcpscan_webauthn_index`) with timing-safe `hash_equals()` lookups, eliminating expensive full `usermeta` table scans during login attempts.
+    - Hardened Origin Validation: Restricted development-only origin bypasses (`localhost`, `127.0.0.1`) strictly to environments where `defined('WP_DEBUG') && WP_DEBUG`.
+  * Fail-Closed SecretVault Cryptographic Key Derivation (SecretVault.php):
+    - Eliminated weak static/DB_NAME fallbacks in `SecretVault::get_key()`. The vault now strictly throws a `\RuntimeException` and fails closed if no cryptographically secure salt or secret key can be derived from the environment.
+  * Case-Insensitive Guest AJAX Allowlist Matching (FirewallEngine.php):
+    - Updated `FirewallEngine::check_guest_ajax_policy()` to normalize both incoming action parameters and administrative custom allowlist entries with `strtolower()` for case-insensitive matching.
 - Cryptographic Plugin Activity & Forensic Audit Logging Engine (WcpActivityLogger.php, AuditLogger.php, ActivityLogs/*, ScannerRoutes.php, SettingsManager.php, Scheduler.php, ActivityLogsPage.tsx, MegaMenuModal.tsx, SettingsPage.tsx, VirtualPatchManager.php, VirtualPatchSynthesizer.php):
   * Official WordPress.org Plugin Check (PCP) Full Clean Audit Compliance (QRCodeGenerator.php):
     - Refactored `QRCodeGenerator.php` to achieve 100% clean passes on WordPress.org Plugin Check without a single error or warning.

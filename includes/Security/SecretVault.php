@@ -83,7 +83,7 @@ class SecretVault {
         }
 
         if (empty($salt)) {
-            $salt = 'wcp_default_safe_seed_' . (defined('DB_NAME') ? DB_NAME : 'wp_wcpscan');
+            throw new \RuntimeException('SecretVault Key Derivation Failed: No cryptographically secure salt or secret key found in WordPress environment.');
         }
 
         // Always returns a true 256-bit (32 raw bytes) binary key

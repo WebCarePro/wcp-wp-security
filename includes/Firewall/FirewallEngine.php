@@ -5953,11 +5953,11 @@ class FirewallEngine {
             return; // Legitimate Tier 1 guest action permitted
         }
 
-        // 3. Custom Administrator Allowlist Lookup
+        // 3. Custom Administrator Allowlist Lookup (Case-Insensitive)
         $custom_allowlist_raw = $settings['waf_guest_ajax_custom_allowlist'] ?? '';
         if (!empty($custom_allowlist_raw)) {
-            $custom_actions = array_filter(array_map('trim', explode("\n", $custom_allowlist_raw)));
-            if (in_array($action, $custom_actions, true)) {
+            $custom_actions = array_map('strtolower', array_filter(array_map('trim', explode("\n", $custom_allowlist_raw))));
+            if (in_array(strtolower($action), $custom_actions, true)) {
                 return; // Custom permitted guest action
             }
         }
