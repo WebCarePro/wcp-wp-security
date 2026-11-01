@@ -422,44 +422,21 @@ class TwoFactorAuth {
     /**
      * Verify a 6-digit TOTP code with clock drift tolerance
      */
-    public static function verify_code(string $secret, string $code, int $window = 1, ?string $algo = null, ?int $digits = null): bool {
-        $code = trim($code);
-        $len  = strlen($code);
-        if (!ctype_digit($code)) {
-            return false;
-        }
+    public static function verify_code(string $secret, string $code, int $window = 1, string $algo = 'sha1', int $digits = 6): bool {
+        $code   = trim($code);
+        $algo   = in_array(strtolower($algo), ['sha1', 'sha256', 'sha512'], true) ? strtolower($algo) : 'sha1';
+        $digits = ($digits === 8 || $algo === 'sha512') ? 8 : 6;
 
-        if ($digits !== null) {
-            if ($len !== $digits) {
-                return false;
-            }
-        } elseif ($len !== 6 && $len !== 8) {
+        if (strlen($code) !== $digits || !ctype_digit($code)) {
             return false;
-        }
-
-        // Determine algorithms & digit configurations to test
-        $attempts = [];
-        if ($algo !== null && $digits !== null) {
-            $attempts[] = [strtolower($algo), $digits];
-        } else {
-            if ($len === 8) {
-                $attempts[] = ['sha512', 8];
-                $attempts[] = ['sha1', 8];
-            } else {
-                $attempts[] = ['sha1', 6];
-                $attempts[] = ['sha512', 6];
-            }
         }
 
         $currentTime = time();
 
-        foreach ($attempts as $conf) {
-            list($a, $d) = $conf;
-            for ($i = -$window; $i <= $window; $i++) {
-                $checkTime = $currentTime + ($i * 30);
-                if (hash_equals(self::calculate_code($secret, $checkTime, $a, $d), $code)) {
-                    return true;
-                }
+        for ($i = -$window; $i <= $window; $i++) {
+            $checkTime = $currentTime + ($i * 30);
+            if (hash_equals(self::calculate_code($secret, $checkTime, $algo, $digits), $code)) {
+                return true;
             }
         }
 
