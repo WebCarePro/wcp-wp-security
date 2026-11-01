@@ -44,9 +44,8 @@ class AuditLogger {
      * Register hooks to monitor critical administrative events.
      */
     private function register_hooks() {
-        // User Logins
+        // User Logins - strictly administrator logins (general visitor/customer logins belong to standard WP/WooCommerce)
         add_action('wp_login', [$this, 'log_user_login'], 10, 2);
-        add_action('wp_login_failed', [$this, 'log_failed_login']);
         
         // Plugin Management
         add_action('activated_plugin', [$this, 'log_plugin_activation'], 10, 2);
@@ -55,7 +54,7 @@ class AuditLogger {
         // Theme Management
         add_action('switch_theme', [$this, 'log_theme_switch'], 10, 3);
         
-        // User Management
+        // User Management - strictly administrative / elevated roles
         add_action('user_register', [$this, 'log_user_registered']);
         add_action('delete_user', [$this, 'log_user_deleted']);
         
@@ -106,8 +105,10 @@ class AuditLogger {
 
         $clean_action = sanitize_key(strtolower((string) $event_type));
 
-        // Filter out transient runtime attacks, automated bot traps, and WAF drops (handled in WAF logs)
+        // Filter out transient runtime attacks, automated bot traps, visitor authentication attempts, and WAF drops (handled in WAF logs)
         $traffic_actions = [
+            'auth_failed',
+            'login_failed',
             'rate_limit_ban',
             'rate_limit_escalated_ban',
             'bot_trapped',
@@ -120,6 +121,7 @@ class AuditLogger {
             'waf_block',
             'ip_blocked',
             'waf_incident',
+            'route_graduated',
             'learning_mode_route_learned',
         ];
 
@@ -205,11 +207,33 @@ class AuditLogger {
     }
 
     public function log_user_login($user_login, $user) {
-        $this->write_log('AUTH_SUCCESS', "User '{$user_login}' logged in successfully.");
+        // Only audit administrator or elevated logins in the plugin Activity Log
+        // General subscriber / customer / visitor logins belong to application level logs
+        $is_admin = false;
+        if ($user instanceof \WP_User) {
+            $is_admin = in_array('administrator', (array) $user->roles, true) || is_super_admin($user->ID);
+        }
+        if ($is_admin) {
+            $this->write_log('AUTH_SUCCESS', "Administrator '{$user_login}' logged in successfully.");
+        }
     }
 
     public function log_failed_login($username) {
-        $this->write_log('AUTH_FAILED', "Failed login attempt for username: '{$username}'.");
+        // Failed logins are security/firewall traffic events handled by WAF & Identity Sentinel
+        // Write only to raw emergency audit.log if needed, but DO NOT bridge to WcpActivityLogger
+        $timestamp = gmdate('Y-m-d H:i:s');
+        $raw_ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
+            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
+        $ip_address = filter_var($raw_ip, FILTER_VALIDATE_IP) ? $raw_ip : 'UNKNOWN';
+
+        $clean_username = sanitize_user($username);
+        $log_entry = sprintf("[%s] [IP: %s] [User: %s] [AUTH_FAILED] Failed login attempt for username: '%s'." . PHP_EOL, $timestamp, $ip_address, $clean_username ?: 'Guest', $clean_username);
+
+        if (!file_exists($this->log_file)) {
+            @file_put_contents($this->log_file, "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); ?>\n", LOCK_EX);
+        }
+        @file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
     }
 
     public function log_plugin_activation($plugin, $network_wide) {
@@ -230,7 +254,13 @@ class AuditLogger {
     public function log_user_registered($user_id) {
         $user_info = get_userdata($user_id);
         if ($user_info) {
-            $this->write_log('USER_REGISTERED', "New user registered: '{$user_info->user_login}' (ID: {$user_id}, Role: " . implode(', ', $user_info->roles) . ").");
+            // Only audit accounts registered with elevated or administrator capabilities
+            // General customer/subscriber registrations belong to WordPress/WooCommerce
+            $roles = (array) $user_info->roles;
+            $has_elevated = array_intersect($roles, ['administrator', 'editor', 'shop_manager', 'author']);
+            if (!empty($has_elevated)) {
+                $this->write_log('USER_REGISTERED', "Elevated user account registered: '{$user_info->user_login}' (ID: {$user_id}, Role: " . implode(', ', $roles) . ").");
+            }
         }
     }
 

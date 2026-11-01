@@ -139,7 +139,24 @@ class LoginHardening {
             update_option(self::OPTION_LOCKOUTS, $lockouts, false);
             delete_transient($fail_key);
 
-            // Trigger audit log if available
+            // Log security incident to WAF Forensic incident log
+            if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+                \WcpScanner\Firewall\FirewallEngine::log_incident([
+                    'id'          => 'WAF-LOGIN-BRUTEFORCE',
+                    'name'        => 'Login Brute-Force Rate Limiter',
+                    'category'    => 'Brute Force & Auth Armor',
+                    'description' => sprintf(
+                        /* translators: 1: IP address, 2: attempt count, 3: username */
+                        __('IP %1$s locked out for %2$d failed login attempts targeting user "%3$s".', 'wcp-security-scanner'),
+                        $ip,
+                        $attempts,
+                        sanitize_user($username)
+                    ),
+                    'payload'     => "User: {$username} Attempts: {$attempts} IP: {$ip}",
+                ], 'blocked');
+            }
+
+            // Trigger audit log if available (internal audit log file)
             if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
                 \WcpScanner\System\AuditLogger::log_event(
                     'login_lockout',

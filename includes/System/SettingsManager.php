@@ -889,8 +889,13 @@ class SettingsManager {
             $sanitized_tok = sanitize_text_field($mcp_tok);
             $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($sanitized_tok);
         } else {
-            $new_mcp_plain = 'wcpscan_mcp_' . bin2hex(random_bytes(16));
-            $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($new_mcp_plain);
+            // Keep existing token if present in current settings
+            if (!empty($current['mcp_token'])) {
+                $clean['mcp_token'] = $current['mcp_token'];
+            } else {
+                $new_mcp_plain = 'wcpscan_mcp_' . bin2hex(random_bytes(16));
+                $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($new_mcp_plain);
+            }
         }
 
         $valid_scopes = ['read_only', 'read_write'];
@@ -953,11 +958,17 @@ class SettingsManager {
         self::sync_cron_schedule($clean);
 
         // Audit Trail: Log settings change if diff is non-empty
+        // Strictly record changes made by authorized administrators or explicit administrative processes
         if (!empty($diff)) {
             // Exclude automated bot-banned IP list updates from settings audit trail
             // (Automated bot traps belong in WAF logs, not admin configuration logs)
             if (isset($diff['waf_blocked_ips']) && !current_user_can('manage_options')) {
                 unset($diff['waf_blocked_ips']);
+            }
+
+            // Exclude background/bot-triggered settings modifications when not executed by an administrator
+            if (!current_user_can('manage_options') && !defined('WP_CLI')) {
+                $diff = [];
             }
 
             if (!empty($diff)) {
