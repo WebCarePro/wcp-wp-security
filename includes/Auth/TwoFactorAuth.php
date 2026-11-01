@@ -590,7 +590,8 @@ class TwoFactorAuth {
         $settings         = SettingsManager::get_settings();
         $algo             = !empty($settings['auth_2fa_algorithm']) ? (string) $settings['auth_2fa_algorithm'] : 'sha1';
         $digits           = (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8 || $algo === 'sha512') ? 8 : 6;
-        $secret           = self::generate_secret(16);
+        $secretLen        = ($algo === 'sha512') ? 64 : 16;
+        $secret           = self::generate_secret($secretLen);
         $provisioning_uri = self::get_provisioning_uri($secret, $user->user_login, $algo, $digits);
         $qr_data_uri      = self::get_qr_data_uri($provisioning_uri);
         $backup_bundle    = self::generate_backup_codes(8);

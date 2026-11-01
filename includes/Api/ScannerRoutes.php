@@ -7650,8 +7650,9 @@ class ScannerRoutes {
         $settings = \WcpScanner\System\SettingsManager::get_settings();
         $algo     = !empty($settings['auth_2fa_algorithm']) ? (string) $settings['auth_2fa_algorithm'] : 'sha1';
         $digits   = (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8 || $algo === 'sha512') ? 8 : 6;
+        $secretLen = ($algo === 'sha512') ? 64 : 16;
 
-        $secret           = \WcpScanner\Auth\TwoFactorAuth::generate_secret(16);
+        $secret           = \WcpScanner\Auth\TwoFactorAuth::generate_secret($secretLen);
         $provisioning_uri = \WcpScanner\Auth\TwoFactorAuth::get_provisioning_uri($secret, $user->user_login, $algo, $digits);
         $qr_data_uri      = \WcpScanner\Auth\TwoFactorAuth::get_qr_data_uri($provisioning_uri);
         $backup_bundle    = \WcpScanner\Auth\TwoFactorAuth::generate_backup_codes(8);
