@@ -87,6 +87,7 @@ class ActivityStorage {
                 'current_seq'    => 0,
                 'latest_hash'    => ActivityHashChain::get_genesis_hash(),
                 'updated_at'     => time(),
+                'state_valid'    => true,
             ];
         }
 
@@ -97,6 +98,8 @@ class ActivityStorage {
                 'current_seq'    => 0,
                 'latest_hash'    => ActivityHashChain::get_genesis_hash(),
                 'updated_at'     => time(),
+                'state_valid'    => false,
+                'error'          => 'Failed to read chain state file from disk.',
             ];
         }
 
@@ -106,15 +109,18 @@ class ActivityStorage {
         }
 
         $data = json_decode($content, true);
-        if (!is_array($data)) {
+        if (!is_array($data) || !isset($data['current_seq']) || !isset($data['latest_hash'])) {
             return [
                 'active_segment' => '',
                 'current_seq'    => 0,
                 'latest_hash'    => ActivityHashChain::get_genesis_hash(),
                 'updated_at'     => time(),
+                'state_valid'    => false,
+                'error'          => 'Corrupted or unparseable chain state JSON payload.',
             ];
         }
 
+        $data['state_valid'] = true;
         return $data;
     }
 

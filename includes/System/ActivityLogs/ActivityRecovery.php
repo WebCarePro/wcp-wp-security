@@ -44,8 +44,10 @@ class ActivityRecovery {
 
         $raw = @file_get_contents($journal_path);
         if (empty($raw)) {
-            wp_delete_file($journal_path);
-            return ['reconciled' => true, 'action' => 'empty_journal_cleared', 'error' => null];
+            // Quarantine empty journal file rather than silent deletion
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Low-level forensic transaction quarantine
+            @rename($journal_path, $journal_path . '.empty.' . time());
+            return ['reconciled' => true, 'action' => 'empty_journal_quarantined', 'error' => null];
         }
 
         // Strip PHP stub
@@ -55,8 +57,10 @@ class ActivityRecovery {
 
         $journal = json_decode($raw, true);
         if (!is_array($journal) || empty($journal['status'])) {
-            wp_delete_file($journal_path);
-            return ['reconciled' => true, 'action' => 'malformed_journal_cleared', 'error' => null];
+            // Preserve malformed journal for forensic inspection rather than discarding
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Low-level forensic transaction quarantine
+            @rename($journal_path, $journal_path . '.malformed.' . time());
+            return ['reconciled' => false, 'action' => 'malformed_journal_quarantined', 'error' => 'Malformed journal preserved for forensic review'];
         }
 
         // If journal transaction was already marked committed, clean it up
@@ -73,8 +77,9 @@ class ActivityRecovery {
             $envelope = $journal['envelope'] ?? [];
 
             if (empty($target_segment) || empty($envelope)) {
-                wp_delete_file($journal_path);
-                return ['reconciled' => false, 'action' => 'invalid_pending_journal_discarded', 'error' => 'Pending journal missing envelope or target segment'];
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Low-level forensic transaction quarantine
+                @rename($journal_path, $journal_path . '.invalid.' . time());
+                return ['reconciled' => false, 'action' => 'invalid_pending_journal_quarantined', 'error' => 'Pending journal missing envelope or target segment'];
             }
 
             $segment_path = ActivityStorage::get_log_dir() . '/' . $target_segment;

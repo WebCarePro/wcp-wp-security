@@ -1,5 +1,20 @@
 v:2.1.0 - 2026-11-01
-- Cryptographic Hardening, WebAuthn Fail-Closed Architecture & Security Enhancements:
+- Cryptographic Hardening, Activity Logger Durability, MCP Encryption & Forensic Architecture:
+  * Model Context Protocol (MCP) Bearer Token Encryption & Access Policy (SettingsManager.php, ScannerRoutes.php):
+    - Encrypted `mcp_token` in `wp_options` using `SecretVault` AES-256-GCM AEAD encryption rather than storing bearer credentials in plaintext.
+    - Updated `SettingsManager::get_settings()` to automatically decrypt `mcp_token` and emit `has_mcp_token` indicator.
+    - Masked token in REST settings output (`••••••••••••••••`) while safely preserving the encrypted secret when updates are submitted with empty or masked inputs.
+    - Enforced `mcp_enabled` requirement directly inside the REST permission callback for `/mcp/tools` and `/mcp/execute`.
+  * Activity Log WAL Durability, Chain-State Commit & Quarantine Integrity (WcpActivityLogger.php, ActivityStorage.php, ActivityRecovery.php, ActivityRetention.php):
+    - Added return checks to journal writes and `ActivityStorage::write_chain_state()`. Journals are now only deleted after confirmed state commits.
+    - Handled corrupted chain-state payloads in `ActivityStorage::read_chain_state()` by marking degraded state instead of silently resetting sequence numbers and genesis hashes.
+    - Preserved unparseable or damaged journals via forensic quarantine (`.journal.malformed.<time>`, `.journal.empty.<time>`) rather than deleting transaction evidence.
+    - Prevented partition loss in `ActivityRetention::prune_single_partition()`: source partitions are only deleted after `append_checkpoint()` has confirmed writing and synced the checkpoint to disk.
+    - Strengthened `WcpActivityLogger::verify_integrity()` to recompute the canonical SHA-256 hash of each checkpoint payload and verify self-integrity alongside chain-link pointers.
+  * VaultRotator Stale Timeout Realignment (VaultRotator.php):
+    - Extended the stale rotation recovery check from 20 seconds to `MAX_LOCK_TIME` (600 seconds) to prevent multi-batch key rotations from being prematurely aborted or losing transitional keys.
+  * Activity Log Export Capacity Expansion (ScannerRoutes.php, WcpActivityLogger.php):
+    - Expanded query capacity for log exports in `ScannerRoutes::export_activity_logs()` from 100 records to up to 5,000 records, allowing full forensic CSV/JSON downloads without memory exhaustion.
   * Strict Fail-Closed WebAuthn Cryptographic Verification (WebAuthnManager.php, WebAuthnPasskeyCard.tsx):
     - Refactored `WebAuthnManager::verify_login()` to enforce strict fail-closed assertion verification: sessions are never established unless `openssl_verify === 1` against a verified public key in PEM SubjectPublicKeyInfo (SPKI) format. Credentials lacking a valid public key or failing signature checks are instantly rejected.
     - Implemented `parse_public_key_to_pem()` supporting DER SubjectPublicKeyInfo sequences, raw 65-byte uncompressed elliptic curve points (`0x04 || X || Y`), and direct COSE P-256 (`-7` / `ES256`) byte maps.

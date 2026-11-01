@@ -187,7 +187,7 @@ class ActivityRetention {
 
         // If partition had valid records, commit checkpoint before deleting
         if ($record_count > 0 && $first_seq !== null && $last_seq !== null) {
-            self::append_checkpoint([
+            $chk_ok = self::append_checkpoint([
                 'closing_hash'          => (string) $closing_hash,
                 'first_prev_hash'       => (string) $first_prev_hash,
                 'first_seq'             => (int) $first_seq,
@@ -202,6 +202,11 @@ class ActivityRetention {
                 'retention_policy_days' => self::get_retention_days(),
                 'v'                     => 1,
             ]);
+
+            // Durability Guard: Never delete the source partition if checkpoint writing fails
+            if (!$chk_ok) {
+                return false;
+            }
         }
 
         // Delete file using WordPress filesystem wrapper
@@ -242,17 +247,27 @@ class ActivityRetention {
         }
 
         flock($fp, LOCK_EX);
+        $write_ok = true;
         if ($is_new) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            fwrite($fp, ActivityStorage::PHP_HEADER_STUB);
+            $header_bytes = fwrite($fp, ActivityStorage::PHP_HEADER_STUB);
+            if ($header_bytes === false) {
+                $write_ok = false;
+            }
         }
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-        fwrite($fp, $line);
+        $line_bytes = fwrite($fp, $line);
+        if ($line_bytes === false || $line_bytes === 0) {
+            $write_ok = false;
+        }
         fflush($fp);
+        if (function_exists('fsync')) {
+            @fsync($fp);
+        }
         flock($fp, LOCK_UN);
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
         fclose($fp);
 
-        return true;
+        return $write_ok;
     }
 }

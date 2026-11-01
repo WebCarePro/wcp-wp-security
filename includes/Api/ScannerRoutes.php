@@ -1074,6 +1074,10 @@ class ScannerRoutes {
 
         // 16. Model Context Protocol (MCP) Agent Service Surface
         $mcp_permission = function (\WP_REST_Request $request) {
+            $mcp_enabled = (bool) \WcpScanner\System\SettingsManager::get('mcp_enabled', false);
+            if (!$mcp_enabled) {
+                return false;
+            }
             if (current_user_can('manage_options')) {
                 return true;
             }
@@ -10554,7 +10558,8 @@ class ScannerRoutes {
         $result = \WcpScanner\System\WcpActivityLogger::query_records([
             'actor_type' => $actor_type,
             'category'   => $category,
-            'limit'      => 1000,
+            'is_export'  => true,
+            'limit'      => 5000,
             'search'     => $search,
             'severity'   => $severity,
         ]);

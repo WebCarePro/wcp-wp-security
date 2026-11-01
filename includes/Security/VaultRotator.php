@@ -35,8 +35,8 @@ class VaultRotator {
         $state = get_option(self::STATE_OPTION, []);
         $started = intval($state['started_at'] ?? 0);
 
-        // Auto-clear stale state and lock if previous rotation is older than 20 seconds or force requested
-        if ($force || $started === 0 || (time() - $started) > 20) {
+        // Auto-clear stale state and lock if previous rotation is older than MAX_LOCK_TIME (600s) or force requested
+        if ($force || $started === 0 || (time() - $started) > self::MAX_LOCK_TIME) {
             self::clear_transitional_keys();
             self::release_lock();
             if (!empty($state['status']) && in_array($state['status'], ['preparing', 'migrating', 'verifying'], true)) {

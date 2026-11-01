@@ -166,6 +166,13 @@ class WcpActivityLogger {
         try {
             // Read current committed chain state
             $state = ActivityStorage::read_chain_state();
+            if (isset($state['state_valid']) && !$state['state_valid']) {
+                ActivityStorage::release_lock($lock2_fp);
+                ActivityStorage::release_lock($lock1_fp);
+                self::mark_degraded_state('corrupt_chain_state', 'Chain state is unreadable or corrupted: ' . ($state['error'] ?? 'Unknown error'));
+                return false;
+            }
+
             $current_seq = (int) ($state['current_seq'] ?? 0);
             $latest_hash = (string) ($state['latest_hash'] ?? ActivityHashChain::get_genesis_hash());
             $active_segment = (string) ($state['active_segment'] ?? '');
@@ -186,7 +193,7 @@ class WcpActivityLogger {
             $record_hash = ActivityHashChain::compute_record_hash($prev_hash, $event_payload);
             $envelope = ActivityHashChain::encrypt_envelope($event_payload, $next_seq, $record_hash);
 
-            // Step 4: Write WAL pending journal transaction
+            // Step 4: Write WAL pending journal transaction and verify durable write
             $journal_payload = [
                 'envelope'       => $envelope,
                 'h'              => $record_hash,
@@ -196,7 +203,13 @@ class WcpActivityLogger {
                 'timestamp'      => time(),
             ];
             $journal_json = ActivityStorage::PHP_HEADER_STUB . json_encode($journal_payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            @file_put_contents(ActivityStorage::get_journal_path(), $journal_json, LOCK_EX);
+            $wal_bytes = @file_put_contents(ActivityStorage::get_journal_path(), $journal_json, LOCK_EX);
+            if ($wal_bytes === false || $wal_bytes === 0) {
+                ActivityStorage::release_lock($lock2_fp);
+                ActivityStorage::release_lock($lock1_fp);
+                self::mark_degraded_state('wal_journal_write_failure', 'Failed to write pending WAL journal transaction to disk.');
+                return false;
+            }
 
             // Step 5: Append complete envelope line to active segment using verified write loop
             $line = json_encode($envelope, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
@@ -210,10 +223,17 @@ class WcpActivityLogger {
                 return false;
             }
 
-            // Step 6: Commit new chain state
-            ActivityStorage::write_chain_state($next_seq, $record_hash, $target_segment);
+            // Step 6: Commit new chain state and verify commit
+            $commit_ok = ActivityStorage::write_chain_state($next_seq, $record_hash, $target_segment);
+            if (!$commit_ok) {
+                // If state commit failed, preserve journal for recovery; DO NOT delete journal
+                ActivityStorage::release_lock($lock2_fp);
+                ActivityStorage::release_lock($lock1_fp);
+                self::mark_degraded_state('chain_state_commit_failure', 'Appended record #' . $next_seq . ' but failed to commit chain state.');
+                return false;
+            }
 
-            // Step 7: Clear journal transaction
+            // Step 7: Clear journal transaction only after confirmed state commit
             wp_delete_file(ActivityStorage::get_journal_path());
 
             // Release locks in reverse order
@@ -269,7 +289,8 @@ class WcpActivityLogger {
      * @return array ['records' => array, 'next_cursor' => ?string, 'total_read' => int]
      */
     public static function query_records(array $args = []): array {
-        $limit      = isset($args['limit']) ? min(100, max(1, (int) $args['limit'])) : 50;
+        $max_allowed_limit = !empty($args['is_export']) ? 10000 : 100;
+        $limit      = isset($args['limit']) ? min($max_allowed_limit, max(1, (int) $args['limit'])) : 50;
         $page       = isset($args['page']) ? max(1, (int) $args['page']) : 1;
         $offset     = ($page - 1) * $limit;
         $category   = !empty($args['category']) ? sanitize_key($args['category']) : null;
@@ -394,7 +415,15 @@ class WcpActivityLogger {
      */
     public static function verify_integrity(): array {
         // Step 1: Reconcile any lingering WAL state
-        ActivityRecovery::reconcile_wal();
+        $rec_status = ActivityRecovery::reconcile_wal();
+        if (isset($rec_status['reconciled']) && !$rec_status['reconciled']) {
+            return [
+                'broken_at_seq'   => null,
+                'checked_records' => 0,
+                'details'         => 'Integrity check suspended: Unresolved WAL transaction: ' . ($rec_status['error'] ?? 'recovery pending'),
+                'status'          => 'degraded',
+            ];
+        }
 
         $dir = ActivityStorage::get_log_dir();
         $files = glob($dir . '/activity-*-*.json.php');
@@ -415,7 +444,7 @@ class WcpActivityLogger {
         $expected_prev_hash = ActivityHashChain::get_genesis_hash();
         $expected_seq = 1;
 
-        // If checkpoints exist, verify checkpoint chain
+        // If checkpoints exist, verify checkpoint chain and recompute canonical hash
         if (!empty($checkpoints)) {
             $prev_chk_hash = ActivityRetention::get_checkpoint_genesis_hash();
             foreach ($checkpoints as $chk) {
@@ -432,6 +461,28 @@ class WcpActivityLogger {
                         'status'        => 'tampering_detected',
                     ];
                 }
+
+                // Recompute canonical checkpoint hash from payload
+                $copy_chk = $chk;
+                $recorded_hash = $copy_chk['checkpoint_hash'] ?? '';
+                unset($copy_chk['checkpoint_hash']);
+                ksort($copy_chk, SORT_STRING);
+                $chk_json = json_encode($copy_chk, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                $recomputed_chk_hash = hash('sha256', $prev_chk_hash . $chk_json);
+
+                if (!hash_equals($recomputed_chk_hash, $recorded_hash)) {
+                    ActivityTamperNotifier::trigger('tampering_detected', [
+                        'file'   => '.checkpoints.json.php',
+                        'reason' => 'Checkpoint self-hash mismatch',
+                        'seq'    => $chk['checkpoint_seq'] ?? 0,
+                    ]);
+                    return [
+                        'broken_at_seq' => $chk['checkpoint_seq'] ?? 0,
+                        'details'       => 'Checkpoint payload hash corrupted at sequence ' . ($chk['checkpoint_seq'] ?? 0),
+                        'status'        => 'tampering_detected',
+                    ];
+                }
+
                 $prev_chk_hash = $chk['checkpoint_hash'] ?? '';
             }
 

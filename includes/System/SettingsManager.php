@@ -469,6 +469,7 @@ class SettingsManager {
             'clickup_webhook_url',
             'asana_webhook_url',
             'generic_webhook_url',
+            'mcp_token',
         ];
 
         foreach ($sensitive_keys as $k) {
@@ -490,6 +491,7 @@ class SettingsManager {
         $merged['has_clickup_webhook']     = !empty($merged['clickup_webhook_url']);
         $merged['has_asana_webhook']       = !empty($merged['asana_webhook_url']);
         $merged['has_generic_webhook']     = !empty($merged['generic_webhook_url']);
+        $merged['has_mcp_token']           = !empty($merged['mcp_token']);
 
         // Activity log options
         $act_settings = get_option('wcpscan_activity_log_settings', []);
@@ -877,12 +879,18 @@ class SettingsManager {
         // 14. Model Context Protocol (MCP) Agent Service Surface
         $clean['mcp_enabled'] = !empty($merged['mcp_enabled']);
         $mcp_tok = trim($input['mcp_token'] ?? '');
-        if (empty($mcp_tok) && !empty($current['mcp_token'])) {
-            $clean['mcp_token'] = $current['mcp_token'];
-        } elseif (!empty($mcp_tok)) {
-            $clean['mcp_token'] = sanitize_text_field($mcp_tok);
+        $is_masked_mcp = (strpos($mcp_tok, '••••') !== false);
+        if ((empty($mcp_tok) || $is_masked_mcp) && !empty($current['mcp_token'])) {
+            $raw_existing = $current['mcp_token'];
+            $clean['mcp_token'] = \WcpScanner\Security\SecretVault::is_encrypted($raw_existing)
+                ? $raw_existing
+                : \WcpScanner\Security\SecretVault::encrypt($raw_existing);
+        } elseif (!empty($mcp_tok) && !$is_masked_mcp) {
+            $sanitized_tok = sanitize_text_field($mcp_tok);
+            $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($sanitized_tok);
         } else {
-            $clean['mcp_token'] = $current['mcp_token'] ?? ('wcpscan_mcp_' . bin2hex(random_bytes(16)));
+            $new_mcp_plain = 'wcpscan_mcp_' . bin2hex(random_bytes(16));
+            $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($new_mcp_plain);
         }
 
         $valid_scopes = ['read_only', 'read_write'];
