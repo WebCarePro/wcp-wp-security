@@ -1573,6 +1573,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/login-options', [
+            'methods'             => ['GET', 'POST'],
+            'callback'            => [__CLASS__, 'webauthn_login_options'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/webauthn/login-verify', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'webauthn_login_verify'],
+            'permission_callback' => '__return_true',
+        ]);
+
 
 
         // Phase 6: Server Security Verification & Caddy
@@ -10349,6 +10361,28 @@ class ScannerRoutes {
             'message'     => $deleted ? __('Passkey removed successfully.', 'wcp-security-scanner') : __('Passkey not found.', 'wcp-security-scanner'),
             'credentials' => \WcpScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
         ]);
+    }
+
+    public static function webauthn_login_options(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $username = sanitize_text_field(wp_unslash($params['username'] ?? ''));
+        return rest_ensure_response(\WcpScanner\Auth\WebAuthnManager::generate_login_options($username));
+    }
+
+    public static function webauthn_login_verify(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $session_id = sanitize_key($params['session_id'] ?? '');
+        $payload = is_array($params['payload'] ?? null) ? $params['payload'] : [];
+
+        if (empty($session_id) || empty($payload)) {
+            return new \WP_Error('missing_params', __('Authentication session and payload required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $res = \WcpScanner\Auth\WebAuthnManager::verify_login($session_id, $payload);
+        if (empty($res['success'])) {
+            return new \WP_Error('login_failed', $res['message'] ?? __('Biometric login failed.', 'wcp-security-scanner'), ['status' => 401]);
+        }
+        return rest_ensure_response($res);
     }
 
     // ==========================================
