@@ -18,6 +18,8 @@ class TwoFactorAuth {
 
     const META_ENABLED         = '_wcpscan_2fa_enabled';
     const META_SECRET          = '_wcpscan_2fa_secret';
+    const META_ALGORITHM       = '_wcpscan_2fa_algorithm';
+    const META_DIGITS          = '_wcpscan_2fa_digits';
     const META_BACKUP_CODES    = '_wcpscan_2fa_backup_codes';
     const META_TRUSTED_DEVICES = '_wcpscan_2fa_trusted_devices';
     const META_GRACE_START     = '_wcpscan_2fa_grace_start';
@@ -285,6 +287,35 @@ class TwoFactorAuth {
     }
 
     /**
+     * Get user configured TOTP algorithm ('sha1' or 'sha512')
+     */
+    public static function get_user_algorithm(int $user_id): string {
+        $algo = (string) get_user_meta($user_id, self::META_ALGORITHM, true);
+        if (in_array(strtolower($algo), ['sha1', 'sha256', 'sha512'], true)) {
+            return strtolower($algo);
+        }
+        $settings = SettingsManager::get_settings();
+        $globalAlgo = !empty($settings['auth_2fa_algorithm']) ? strtolower((string) $settings['auth_2fa_algorithm']) : 'sha1';
+        return in_array($globalAlgo, ['sha1', 'sha256', 'sha512'], true) ? $globalAlgo : 'sha1';
+    }
+
+    /**
+     * Get user configured TOTP digits (6 or 8)
+     */
+    public static function get_user_digits(int $user_id): int {
+        $digits = (int) get_user_meta($user_id, self::META_DIGITS, true);
+        if ($digits === 6 || $digits === 8) {
+            return $digits;
+        }
+        $algo = self::get_user_algorithm($user_id);
+        if ($algo === 'sha512') {
+            return 8;
+        }
+        $settings = SettingsManager::get_settings();
+        return (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8) ? 8 : 6;
+    }
+
+    /**
      * Check if a specific user has 2FA enabled
      */
     public static function is_user_enabled(int $user_id): bool {
@@ -358,46 +389,77 @@ class TwoFactorAuth {
     /**
      * Calculate TOTP 6-digit code for a given timestamp
      */
-    public static function calculate_code(string $secret, ?int $timestamp = null): string {
+    public static function calculate_code(string $secret, ?int $timestamp = null, string $algo = 'sha1', int $digits = 6): string {
         if ($timestamp === null) {
             $timestamp = time();
         }
+
+        $algo   = in_array(strtolower($algo), ['sha1', 'sha256', 'sha512'], true) ? strtolower($algo) : 'sha1';
+        $digits = ($digits === 8) ? 8 : 6;
 
         $timeSlice    = (int) floor($timestamp / 30);
         $binarySecret = self::base32_decode($secret);
 
         // Pack 64-bit int into big-endian binary
         $binaryTime = pack('N*', 0) . pack('N*', $timeSlice);
-        $hash       = hash_hmac('sha1', $binaryTime, $binarySecret, true);
+        $hash       = hash_hmac($algo, $binaryTime, $binarySecret, true);
 
-        // Dynamic truncation (RFC 4226)
-        $offset = ord($hash[19]) & 0x0F;
-        $binary = (
+        // Dynamic truncation (RFC 4226 / RFC 6238)
+        $hashLen = strlen($hash);
+        $offset  = ord($hash[$hashLen - 1]) & 0x0F;
+        $binary  = (
             ((ord($hash[$offset]) & 0x7F) << 24) |
             ((ord($hash[$offset + 1]) & 0xFF) << 16) |
             ((ord($hash[$offset + 2]) & 0xFF) << 8) |
             (ord($hash[$offset + 3]) & 0xFF)
         );
 
-        $otp = $binary % 1000000;
-        return str_pad((string) $otp, 6, '0', STR_PAD_LEFT);
+        $modulo = (int) pow(10, $digits);
+        $otp    = $binary % $modulo;
+        return str_pad((string) $otp, $digits, '0', STR_PAD_LEFT);
     }
 
     /**
      * Verify a 6-digit TOTP code with clock drift tolerance
      */
-    public static function verify_code(string $secret, string $code, int $window = 1): bool {
+    public static function verify_code(string $secret, string $code, int $window = 1, ?string $algo = null, ?int $digits = null): bool {
         $code = trim($code);
-        if (strlen($code) !== 6 || !ctype_digit($code)) {
+        $len  = strlen($code);
+        if (!ctype_digit($code)) {
             return false;
+        }
+
+        if ($digits !== null) {
+            if ($len !== $digits) {
+                return false;
+            }
+        } elseif ($len !== 6 && $len !== 8) {
+            return false;
+        }
+
+        // Determine algorithms & digit configurations to test
+        $attempts = [];
+        if ($algo !== null && $digits !== null) {
+            $attempts[] = [strtolower($algo), $digits];
+        } else {
+            if ($len === 8) {
+                $attempts[] = ['sha512', 8];
+                $attempts[] = ['sha1', 8];
+            } else {
+                $attempts[] = ['sha1', 6];
+                $attempts[] = ['sha512', 6];
+            }
         }
 
         $currentTime = time();
 
-        for ($i = -$window; $i <= $window; $i++) {
-            $checkTime = $currentTime + ($i * 30);
-            if (hash_equals(self::calculate_code($secret, $checkTime), $code)) {
-                return true;
+        foreach ($attempts as $conf) {
+            list($a, $d) = $conf;
+            for ($i = -$window; $i <= $window; $i++) {
+                $checkTime = $currentTime + ($i * 30);
+                if (hash_equals(self::calculate_code($secret, $checkTime, $a, $d), $code)) {
+                    return true;
+                }
             }
         }
 
@@ -477,10 +539,12 @@ class TwoFactorAuth {
     /**
      * Enable 2FA for a user
      */
-    public static function enable_user(int $user_id, string $secret, array $hashed_backup_codes): bool {
+    public static function enable_user(int $user_id, string $secret, array $hashed_backup_codes, string $algo = 'sha1', int $digits = 6): bool {
         $encrypted_secret = SecretVault::encrypt($secret);
         update_user_meta($user_id, self::META_SECRET, $encrypted_secret);
         update_user_meta($user_id, self::META_BACKUP_CODES, $hashed_backup_codes);
+        update_user_meta($user_id, self::META_ALGORITHM, in_array(strtolower($algo), ['sha1', 'sha256', 'sha512'], true) ? strtolower($algo) : 'sha1');
+        update_user_meta($user_id, self::META_DIGITS, ($digits === 8 || strtolower($algo) === 'sha512') ? 8 : 6);
         update_user_meta($user_id, self::META_ENABLED, 1);
 
         if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
@@ -510,6 +574,8 @@ class TwoFactorAuth {
         delete_user_meta($user_id, self::META_ENABLED);
         delete_user_meta($user_id, self::META_SECRET);
         delete_user_meta($user_id, self::META_BACKUP_CODES);
+        delete_user_meta($user_id, self::META_ALGORITHM);
+        delete_user_meta($user_id, self::META_DIGITS);
         delete_user_meta($user_id, self::META_TRUSTED_DEVICES);
         delete_user_meta($user_id, self::META_GRACE_START);
         self::clear_trusted_device_cookie();
@@ -544,18 +610,23 @@ class TwoFactorAuth {
             throw new \Exception(esc_html__('User not found.', 'wcp-security-scanner'));
         }
 
+        $settings         = SettingsManager::get_settings();
+        $algo             = !empty($settings['auth_2fa_algorithm']) ? (string) $settings['auth_2fa_algorithm'] : 'sha1';
+        $digits           = (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8 || $algo === 'sha512') ? 8 : 6;
         $secret           = self::generate_secret(16);
-        $provisioning_uri = self::get_provisioning_uri($secret, $user->user_login);
+        $provisioning_uri = self::get_provisioning_uri($secret, $user->user_login, $algo, $digits);
         $qr_data_uri      = self::get_qr_data_uri($provisioning_uri);
         $backup_bundle    = self::generate_backup_codes(8);
 
         // Auto-enable with the generated secret and backup codes
-        self::enable_user($user_id, $secret, $backup_bundle['hashed']);
+        self::enable_user($user_id, $secret, $backup_bundle['hashed'], $algo, $digits);
 
         return [
             'user_id'          => $user_id,
             'user_login'       => $user->user_login,
             'secret'           => $secret,
+            'algorithm'        => $algo,
+            'digits'           => $digits,
             'provisioning_uri' => $provisioning_uri,
             'qr_code_url'      => $qr_data_uri,
             'backup_codes'     => $backup_bundle['plain'],
@@ -623,6 +694,8 @@ class TwoFactorAuth {
                 'avatar_url'       => get_avatar_url($user->user_email, ['size' => 64]),
                 'is_current_user'  => ($uid === $current_user_id),
                 'is_2fa_enabled'   => self::is_user_enabled($uid),
+                'two_fa_algorithm' => self::get_user_algorithm($uid),
+                'two_fa_digits'    => self::get_user_digits($uid),
                 'compliance'       => $compliance,
                 'trusted_devices'  => count($devices),
                 'backup_codes_count' => self::get_remaining_backup_codes_count($uid),
@@ -868,15 +941,22 @@ class TwoFactorAuth {
     /**
      * Build provisioning URI for QR code generators
      */
-    public static function get_provisioning_uri(string $secret, string $username): string {
+    public static function get_provisioning_uri(string $secret, string $username, string $algo = 'SHA1', int $digits = 6): string {
         $issuer = get_bloginfo('name') ?: 'WordPress';
         $issuer = sanitize_text_field($issuer);
+        $cleanAlgo = strtoupper(trim($algo));
+        if (!in_array($cleanAlgo, ['SHA1', 'SHA256', 'SHA512'], true)) {
+            $cleanAlgo = 'SHA1';
+        }
+        $cleanDigits = ($digits === 8 || $cleanAlgo === 'SHA512') ? 8 : 6;
         return sprintf(
-            'otpauth://totp/%s:%s?secret=%s&issuer=%s&algorithm=SHA1&digits=6&period=30',
+            'otpauth://totp/%s:%s?secret=%s&issuer=%s&algorithm=%s&digits=%d&period=30',
             rawurlencode($issuer),
             rawurlencode($username),
             $secret,
-            rawurlencode($issuer)
+            rawurlencode($issuer),
+            $cleanAlgo,
+            $cleanDigits
         );
     }
 
@@ -940,8 +1020,10 @@ class TwoFactorAuth {
         if (!empty($auth_code)) {
             $code_valid = false;
             $code_type  = 'totp';
+            $userAlgo   = self::get_user_algorithm($user->ID);
+            $userDigits = self::get_user_digits($user->ID);
             // Check TOTP code
-            if ($secret && self::verify_code($secret, $auth_code)) {
+            if ($secret && self::verify_code($secret, $auth_code, 1, $userAlgo, $userDigits)) {
                 $code_valid = true;
                 $code_type  = 'totp';
             } elseif (self::verify_and_consume_backup_code($user->ID, $auth_code)) {
@@ -1032,8 +1114,10 @@ class TwoFactorAuth {
             $secret = self::get_user_secret($user_id);
             $valid  = false;
 
-            $code_type = 'totp';
-            if ($secret && self::verify_code($secret, $code)) {
+            $code_type  = 'totp';
+            $userAlgo   = self::get_user_algorithm($user_id);
+            $userDigits = self::get_user_digits($user_id);
+            if ($secret && self::verify_code($secret, $code, 1, $userAlgo, $userDigits)) {
                 $valid = true;
                 $code_type = 'totp';
             } elseif (self::verify_and_consume_backup_code($user_id, $code)) {
@@ -1085,10 +1169,14 @@ class TwoFactorAuth {
             <h2 style="font-size: 18px; margin: 0 0 6px 0; color: #0f172a; font-weight: 700;">
                 <?php esc_html_e('Two-Factor Verification', 'wcp-security-scanner'); ?>
             </h2>
+            <?php
+            $userDigits = self::get_user_digits($user_id);
+            $userAlgo   = self::get_user_algorithm($user_id);
+            ?>
             <p style="font-size: 13px; color: #64748b; margin: 0;">
                 <?php
-                /* translators: %s: username wrapped in strong tags */
-                printf(esc_html__('Logged in as %s. Enter the 6-digit code from your authenticator app to complete sign-in.', 'wcp-security-scanner'), '<strong>' . esc_html($user->user_login) . '</strong>');
+                /* translators: 1: username in strong tags, 2: digit count */
+                printf(esc_html__('Logged in as %1$s. Enter the %2$d-digit code from your authenticator app to complete sign-in.', 'wcp-security-scanner'), '<strong>' . esc_html($user->user_login) . '</strong>', (int) $userDigits);
                 ?>
             </p>
         </div>
@@ -1105,7 +1193,7 @@ class TwoFactorAuth {
                 <label for="wcpscan_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
                     <?php esc_html_e('Security Code or Recovery Code', 'wcp-security-scanner'); ?>
                 </label>
-                <input type="text" name="wcpscan_2fa_code" id="wcpscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="numeric" placeholder="123456" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
+                <input type="text" name="wcpscan_2fa_code" id="wcpscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="numeric" placeholder="<?php echo esc_attr(str_repeat('0', (int) $userDigits)); ?>" maxlength="<?php echo esc_attr((string) $userDigits); ?>" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
             </p>
 
             <?php if ($remember_device_allowed): ?>

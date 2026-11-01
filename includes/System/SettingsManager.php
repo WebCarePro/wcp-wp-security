@@ -163,6 +163,8 @@ class SettingsManager {
 
             // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
             'auth_2fa_enabled'                   => true,
+            'auth_2fa_algorithm'                 => 'sha1', // 'sha1' (6 digits) | 'sha512' (8 digits)
+            'auth_2fa_digits'                    => 6,      // 6 | 8
             'auth_2fa_remember_device'           => true,
             'auth_2fa_remember_days'             => 7, // Days to remember trusted device (default 7 days)
             'auth_2fa_enforce_admins'            => false, // Force all administrator accounts to enable 2FA
@@ -745,6 +747,9 @@ class SettingsManager {
 
         // 10. Multi-Factor Authentication (2FA), Login Hardening & Session Sentinel
         $clean['auth_2fa_enabled']          = !empty($merged['auth_2fa_enabled']);
+        $raw_2fa_algo                       = strtolower(sanitize_key($merged['auth_2fa_algorithm'] ?? 'sha1'));
+        $clean['auth_2fa_algorithm']        = in_array($raw_2fa_algo, ['sha1', 'sha512'], true) ? $raw_2fa_algo : 'sha1';
+        $clean['auth_2fa_digits']           = ((int) ($merged['auth_2fa_digits'] ?? 6) === 8 || $clean['auth_2fa_algorithm'] === 'sha512') ? 8 : 6;
         $clean['auth_2fa_remember_device']  = !empty($merged['auth_2fa_remember_device']);
         $clean['auth_2fa_remember_days']    = max(1, min(90, (int) ($merged['auth_2fa_remember_days'] ?? 7)));
         $clean['auth_2fa_enforce_admins']   = !empty($merged['auth_2fa_enforce_admins']);

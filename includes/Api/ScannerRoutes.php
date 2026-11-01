@@ -7611,6 +7611,8 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'auth_2fa_enabled'          => !empty($settings['auth_2fa_enabled']),
+            'auth_2fa_algorithm'        => !empty($settings['auth_2fa_algorithm']) ? $settings['auth_2fa_algorithm'] : 'sha1',
+            'auth_2fa_digits'           => (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8) ? 8 : 6,
             'auth_2fa_remember_device'  => !empty($settings['auth_2fa_remember_device']),
             'auth_2fa_remember_days'    => (int) ($settings['auth_2fa_remember_days'] ?? 7),
             'auth_2fa_enforce_admins'   => !empty($settings['auth_2fa_enforce_admins']),
@@ -7623,6 +7625,8 @@ class ScannerRoutes {
             'session_sentinel_enabled'  => !empty($settings['session_sentinel_enabled']),
             'session_block_concurrent'  => !empty($settings['session_block_concurrent']),
             'user_2fa_enabled'          => \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
+            'user_2fa_algorithm'        => \WcpScanner\Auth\TwoFactorAuth::get_user_algorithm($user_id),
+            'user_2fa_digits'           => \WcpScanner\Auth\TwoFactorAuth::get_user_digits($user_id),
             'user_compliance'           => \WcpScanner\Auth\TwoFactorAuth::get_user_compliance_status($user_id),
             'user_login'                => $user ? $user->user_login : '',
             'user_email'                => $user ? $user->user_email : '',
@@ -7643,19 +7647,27 @@ class ScannerRoutes {
         $user_id = get_current_user_id();
         $user    = wp_get_current_user();
 
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $algo     = !empty($settings['auth_2fa_algorithm']) ? (string) $settings['auth_2fa_algorithm'] : 'sha1';
+        $digits   = (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8 || $algo === 'sha512') ? 8 : 6;
+
         $secret           = \WcpScanner\Auth\TwoFactorAuth::generate_secret(16);
-        $provisioning_uri = \WcpScanner\Auth\TwoFactorAuth::get_provisioning_uri($secret, $user->user_login);
+        $provisioning_uri = \WcpScanner\Auth\TwoFactorAuth::get_provisioning_uri($secret, $user->user_login, $algo, $digits);
         $qr_data_uri      = \WcpScanner\Auth\TwoFactorAuth::get_qr_data_uri($provisioning_uri);
         $backup_bundle    = \WcpScanner\Auth\TwoFactorAuth::generate_backup_codes(8);
 
         // Store setup state in transient for 10 minutes
         set_transient('wcpscan_2fa_setup_' . $user_id, [
             'secret'       => $secret,
+            'algorithm'    => $algo,
+            'digits'       => $digits,
             'hashed_codes' => $backup_bundle['hashed'],
         ], 600);
 
         return rest_ensure_response([
             'secret'           => $secret,
+            'algorithm'        => $algo,
+            'digits'           => $digits,
             'provisioning_uri' => $provisioning_uri,
             'qr_code_url'      => $qr_data_uri,
             'backup_codes'     => $backup_bundle['plain'],
@@ -7677,12 +7689,18 @@ class ScannerRoutes {
         }
 
         $active_secret = $secret ?: $setup_state['secret'];
+        $algo          = $setup_state['algorithm'] ?? 'sha1';
+        $digits        = (int) ($setup_state['digits'] ?? 6);
 
-        if (!\WcpScanner\Auth\TwoFactorAuth::verify_code($active_secret, $code)) {
-            return new \WP_Error('invalid_code', __('The 6-digit verification code you entered is invalid. Please check your authenticator clock and try again.', 'wcp-security-scanner'), ['status' => 400]);
+        if (!\WcpScanner\Auth\TwoFactorAuth::verify_code($active_secret, $code, 1, $algo, $digits)) {
+            return new \WP_Error('invalid_code', sprintf(
+                /* translators: %d: count of digits expected */
+                __('The %d-digit verification code you entered is invalid. Please check your authenticator clock and try again.', 'wcp-security-scanner'),
+                $digits
+            ), ['status' => 400]);
         }
 
-        \WcpScanner\Auth\TwoFactorAuth::enable_user($user_id, $active_secret, $setup_state['hashed_codes']);
+        \WcpScanner\Auth\TwoFactorAuth::enable_user($user_id, $active_secret, $setup_state['hashed_codes'], $algo, $digits);
         delete_transient('wcpscan_2fa_setup_' . $user_id);
 
         return rest_ensure_response([
