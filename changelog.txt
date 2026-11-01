@@ -1,4 +1,8 @@
 v:2.2.0 - 2026-11-02
+- Blocked IP Addresses & Subnets Table Pagination & Density Controls (FirewallPage.tsx):
+  * Integrated Interactive Pagination: Added multi-page navigation controls (`Prev` / `Next` with current page and total pages indicators) to the "Blocked IP Addresses & Subnets" forensic table in the Firewall tab.
+  * Configurable Page Density: Added a per-page selector (10, 25, 50, 100 entries per page) with automatic page-1 reset upon changing page size or applying search query filters.
+  * Real-Time Filter Sync: Pagination seamlessly recalculates total pages and slice ranges as administrators filter by IP, CIDR subnet, violation reason, or cryptographic incident tracking ID (`WCP-XXXXXXXX`).
 - Sleek Hybrid Duo Email Notification Design & Responsive Architecture (NotificationDispatcher.php):
   * Adopted Sleek Hybrid Duo layout: high-impact Obsidian cyber header (`#0f172a`), top gradient accent bar, and crisp white content body (`#ffffff` panel with `#eff6ff` blue AI incident brief card and `#f8fafc` structured forensic dossier).
   * Retained Sleek Dark Brand Footer: Preserved the dark WebCare Pro overview card (`#0b1120`) with direct link to `https://webcarespro.com` and granular notification settings link (`WCP Scanner > Notifications`).
