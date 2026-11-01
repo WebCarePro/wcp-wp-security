@@ -405,6 +405,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/firewall/whitelist', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_firewall_whitelist'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/whitelist/remove', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'remove_firewall_whitelisted_ip'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/firewall/clear-logs', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'clear_firewall_logs'],
@@ -6538,6 +6550,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => $added,
             'message' => $added ? sprintf('IP %s added to custom WAF blocklist.', $ip) : 'Failed to add IP.',
+            'locked_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips(),
         ]);
     }
 
@@ -6568,6 +6581,7 @@ class ScannerRoutes {
             'success' => $unblocked,
             /* translators: %s: unblocked IP address */
             'message' => sprintf(__('IP %s has been unblocked. Standard WAF protection remains active.', 'wcp-security-scanner'), $ip),
+            'locked_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips(),
         ]);
     }
 
@@ -6585,13 +6599,16 @@ class ScannerRoutes {
     public static function add_firewall_whitelisted_ip(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         $ip = sanitize_text_field(trim($params['ip'] ?? ''));
+        $reason = sanitize_text_field(trim($params['reason'] ?? ''));
         if (empty($ip)) {
-            return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
+            return new \WP_Error('invalid_ip', 'Valid IP address or CIDR range is required', ['status' => 400]);
         }
-        $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip);
+
+        $current_user = wp_get_current_user();
+        $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+
+        $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip, $reason, $user_login);
         if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            $current_user = wp_get_current_user();
-            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
 
             \WcpScanner\System\WcpActivityLogger::notice(
@@ -6599,7 +6616,7 @@ class ScannerRoutes {
                 'firewall',
                 [
                     'ip'          => $ip,
-                    'description' => sprintf('IP %s added to trusted WAF allowlist by %s from IP %s.', $ip, $user_login, $client_ip),
+                    'description' => sprintf('IP %s added to trusted WAF allowlist by %s from IP %s (Reason: %s).', $ip, $user_login, $client_ip, $reason ?: 'Administrator policy'),
                 ]
             );
         }
@@ -6607,6 +6624,48 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => $added,
             'message' => $added ? sprintf('IP %s added to trusted WAF allowlist.', $ip) : 'Failed to whitelist IP.',
+            'whitelisted_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
+        ]);
+    }
+
+    public static function remove_firewall_whitelisted_ip(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field(trim($params['ip'] ?? ''));
+        if (empty($ip)) {
+            return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
+        }
+
+        $removed = \WcpScanner\Firewall\FirewallEngine::remove_whitelisted_ip($ip);
+        if ($removed && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'firewall_ip_whitelist_removed',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'description' => sprintf('IP %s removed from trusted WAF allowlist by %s from IP %s.', $ip, $user_login, $client_ip),
+                ]
+            );
+        }
+
+        return rest_ensure_response([
+            'success' => $removed,
+            'message' => sprintf('IP %s removed from trusted WAF allowlist.', $ip),
+            'whitelisted_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
+        ]);
+    }
+
+    public static function get_firewall_whitelist(\WP_REST_Request $request) {
+        $whitelisted_ips = \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips();
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        return rest_ensure_response([
+            'success'             => true,
+            'whitelisted_ips'     => $whitelisted_ips,
+            'total_whitelisted'   => count($whitelisted_ips),
+            'waf_whitelisted_ips' => $settings['waf_whitelisted_ips'] ?? '',
         ]);
     }
 

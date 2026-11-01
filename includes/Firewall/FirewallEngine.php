@@ -3934,9 +3934,52 @@ class FirewallEngine {
     }
 
     /**
-     * Add IP to custom whitelist
+     * Option key for storing structured metadata for whitelisted IPs
      */
-    public static function add_whitelisted_ip(string $ip): bool {
+    const OPTION_WHITELISTED_IPS_META = 'wcpscan_whitelisted_ips_meta';
+
+    /**
+     * Retrieve all persistent whitelist metadata for IPs
+     */
+    public static function get_all_whitelist_meta(): array {
+        $meta = get_option(self::OPTION_WHITELISTED_IPS_META, []);
+        return is_array($meta) ? $meta : [];
+    }
+
+    /**
+     * Get whitelist metadata for a specific IP
+     */
+    public static function get_ip_whitelist_meta(string $ip): ?array {
+        $meta = self::get_all_whitelist_meta();
+        return $meta[$ip] ?? null;
+    }
+
+    /**
+     * Store or update metadata for a whitelisted IP
+     */
+    public static function set_ip_whitelist_meta(string $ip, array $data): bool {
+        $meta = self::get_all_whitelist_meta();
+        $existing = $meta[$ip] ?? [];
+        $meta[$ip] = array_merge($existing, $data);
+        return update_option(self::OPTION_WHITELISTED_IPS_META, $meta, false);
+    }
+
+    /**
+     * Delete whitelist metadata for an un-whitelisted IP
+     */
+    public static function delete_ip_whitelist_meta(string $ip): bool {
+        $meta = self::get_all_whitelist_meta();
+        if (isset($meta[$ip])) {
+            unset($meta[$ip]);
+            return update_option(self::OPTION_WHITELISTED_IPS_META, $meta, false);
+        }
+        return false;
+    }
+
+    /**
+     * Add IP to custom whitelist with structured metadata
+     */
+    public static function add_whitelisted_ip(string $ip, string $reason = '', ?string $admin_user = null): bool {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP) && strpos($ip, '/') === false) {
             return false;
@@ -3951,7 +3994,81 @@ class FirewallEngine {
             $settings['waf_whitelisted_ips'] = implode("\n", $lines);
             SettingsManager::save_settings($settings);
         }
+
+        $now = time();
+        self::set_ip_whitelist_meta($ip, [
+            'ip'         => $ip,
+            'reason'     => !empty($reason) ? $reason : 'Trusted access policy approved by administrator',
+            'added_at'   => $now,
+            'added_by'   => !empty($admin_user) ? $admin_user : 'admin',
+            'type'       => !empty($admin_user) ? 'manual_admin' : 'custom_whitelist',
+        ]);
+
         return true;
+    }
+
+    /**
+     * Remove IP from custom whitelist
+     */
+    public static function remove_whitelisted_ip(string $ip): bool {
+        $ip = trim($ip);
+        if (empty($ip)) {
+            return false;
+        }
+
+        $settings = SettingsManager::get_settings();
+        $current = trim($settings['waf_whitelisted_ips'] ?? '');
+        $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $current))));
+
+        $new_lines = [];
+        $removed = false;
+        foreach ($lines as $line) {
+            if ($line === $ip) {
+                $removed = true;
+                continue;
+            }
+            $new_lines[] = $line;
+        }
+
+        if ($removed) {
+            $settings['waf_whitelisted_ips'] = implode("\n", $new_lines);
+            SettingsManager::save_settings($settings);
+        }
+
+        self::delete_ip_whitelist_meta($ip);
+        return true;
+    }
+
+    /**
+     * Get all whitelisted IPs with rich forensic metadata
+     */
+    public static function get_all_whitelisted_ips(): array {
+        $settings = SettingsManager::get_settings();
+        $current = trim($settings['waf_whitelisted_ips'] ?? '');
+        $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $current))));
+        $all_meta = self::get_all_whitelist_meta();
+        $now = time();
+
+        $results = [];
+        foreach ($lines as $ip) {
+            $meta = $all_meta[$ip] ?? null;
+            $added_at_ts = $meta['added_at'] ?? null;
+            $added_at_formatted = $added_at_ts ? gmdate('M j, Y, g:i a \U\T\C', $added_at_ts) : 'Previously added';
+            $added_ago = $added_at_ts ? self::format_seconds_human(max(0, $now - $added_at_ts)) . ' ago' : 'active';
+
+            $results[] = [
+                'ip'                 => $ip,
+                'reason'             => !empty($meta['reason']) ? $meta['reason'] : 'Trusted administrative access policy',
+                'added_at'           => $added_at_formatted,
+                'added_at_raw'       => $added_at_ts,
+                'added_ago'          => $added_ago,
+                'added_by'           => !empty($meta['added_by']) ? $meta['added_by'] : 'administrator',
+                'type'               => !empty($meta['type']) ? $meta['type'] : 'manual_admin',
+                'require_admin'      => !empty($settings['waf_whitelist_require_admin']),
+            ];
+        }
+
+        return $results;
     }
     /**
      * Check if a given request URI is whitelisted

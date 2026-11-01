@@ -1,5 +1,12 @@
 v:2.1.0 - 2026-11-01
 - Cryptographic Plugin Activity & Forensic Audit Logging Engine (WcpActivityLogger.php, AuditLogger.php, ActivityLogs/*, ScannerRoutes.php, SettingsManager.php, Scheduler.php, ActivityLogsPage.tsx, MegaMenuModal.tsx, SettingsPage.tsx, VirtualPatchManager.php, VirtualPatchSynthesizer.php):
+  * Interactive Table Redesign for Blocked & Whitelisted IPs: Completely phased out the multi-line `<textarea>` fields in the WAF Firewall settings (`FirewallEngine.php`, `ScannerRoutes.php`, `FirewallPage.tsx`) and replaced them with structured, high-contrast interactive tables:
+    - Dedicated Add Forms: Provided two explicit inputs ("IP Address or CIDR Subnet" and "Reason / Usage Description") followed by an action button ("+ Block IP" in Red, "+ Whitelist IP" in Emerald) with live format validation.
+    - Blocked IPs Table: Displays IP/Subnet with 1-click clipboard copy, violation reason & rule attribution, incident tracking badge (`WCP-XXXXXXXX`), ban timing/countdown, and 1-click `Unblock` action.
+    - Whitelisted IPs Table: Displays IP/Subnet with 1-click clipboard copy, trusted usage description, administrative creator & date, trust badge, and 1-click `Remove` action.
+    - Strict Administrator Access & Security: All modifications require verified logged-in administrator permissions (`manage_options`). Actions are cryptographically recorded in the Activity Log stream with actor identity and forensic justification.
+    - Instant Live Filtering: Both tables feature dedicated search filter bars to quickly find specific IPs, subnets, or reasons.
+    - Cloudflare Edge & Zero-Trust Integration: Fully preserved 1-click Cloudflare Edge synchronization and Zero-Trust tiered administrator verification toggles.
   * Active Lockouts & Central Blocklist Modal Redesign & Forensics Enrichment: Completely overhauled the "Active Lockouts & Central Blocklist" management experience (`FirewallEngine.php`, `ScannerRoutes.php`, `FirewallPage.tsx`, `index.css`). Replaced the generic "Permanently blocked by administrator policy" display with deep forensic attribution:
     - Dedicated Rule & Action Attribution: Distinctly identifies whether an IP was banned automatically by a specific WAF rule (e.g. Forbidden Honeypot Username Trap, SQL Injection Shield) or manually added by an administrator (`Custom block by {admin_user}: {reason}`).
     - Incident Tracking ID (`WCP-XXXXXXXX`): Every active lockout now displays its authoritative cryptographic Incident ID with a 1-click clipboard copy button.
