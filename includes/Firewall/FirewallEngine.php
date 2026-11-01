@@ -3386,9 +3386,71 @@ class FirewallEngine {
     }
 
     /**
-     * Add IP to custom blocklist
+     * Option key for storing structured metadata for blocked IPs
      */
-    public static function add_blocked_ip(string $ip): bool {
+    const OPTION_BLOCKED_IPS_META = 'wcpscan_blocked_ips_meta';
+
+    /**
+     * Retrieve all persistent block metadata for IPs
+     */
+    public static function get_all_block_meta(): array {
+        $meta = get_option(self::OPTION_BLOCKED_IPS_META, []);
+        return is_array($meta) ? $meta : [];
+    }
+
+    /**
+     * Get block metadata for a specific IP
+     */
+    public static function get_ip_block_meta(string $ip): ?array {
+        $meta = self::get_all_block_meta();
+        return $meta[$ip] ?? null;
+    }
+
+    /**
+     * Store or update metadata for a blocked IP
+     */
+    public static function set_ip_block_meta(string $ip, array $data): bool {
+        $meta = self::get_all_block_meta();
+        $existing = $meta[$ip] ?? [];
+        $meta[$ip] = array_merge($existing, $data);
+        return update_option(self::OPTION_BLOCKED_IPS_META, $meta, false);
+    }
+
+    /**
+     * Delete block metadata for an unblocked IP
+     */
+    public static function delete_ip_block_meta(string $ip): bool {
+        $meta = self::get_all_block_meta();
+        if (isset($meta[$ip])) {
+            unset($meta[$ip]);
+            return update_option(self::OPTION_BLOCKED_IPS_META, $meta, false);
+        }
+        return false;
+    }
+
+    /**
+     * Add IP to custom blocklist with rich metadata
+     *
+     * @param string $ip IP address or CIDR subnet
+     * @param string $reason Human-readable explanation or rule violation note
+     * @param int $duration_seconds Ban duration in seconds (0 = permanent)
+     * @param string|null $rule_id Unique rule identifier (e.g. 'WAF-FORBIDDEN-USERNAME')
+     * @param string|null $rule_name Rule title
+     * @param string|null $rule_category Rule category
+     * @param string|null $incident_id Incident tracking ID (e.g. 'WCP-80458BF3')
+     * @param string|null $admin_user Username of administrator who added manual block
+     * @return bool
+     */
+    public static function add_blocked_ip(
+        string $ip,
+        string $reason = '',
+        int $duration_seconds = 0,
+        ?string $rule_id = null,
+        ?string $rule_name = null,
+        ?string $rule_category = null,
+        ?string $incident_id = null,
+        ?string $admin_user = null
+    ): bool {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP) && strpos($ip, '/') === false) {
             return false;
@@ -3414,6 +3476,26 @@ class FirewallEngine {
             $settings['waf_blocked_ips'] = implode("\n", $lines);
             SettingsManager::save_settings($settings);
         }
+
+        // Persist structured metadata
+        $now = time();
+        $source = !empty($admin_user) ? 'manual_admin' : (!empty($rule_id) ? 'rule_auto_ban' : 'custom_blocklist');
+        $expires_at = $duration_seconds > 0 ? ($now + $duration_seconds) : 0;
+
+        self::set_ip_block_meta($ip, [
+            'ip'               => $ip,
+            'source'           => $source,
+            'reason'           => !empty($reason) ? $reason : 'Blocked by security firewall policy',
+            'duration_seconds' => $duration_seconds,
+            'blocked_at'       => $now,
+            'expires_at'       => $expires_at,
+            'rule_id'          => $rule_id,
+            'rule_name'        => $rule_name,
+            'rule_category'    => $rule_category,
+            'incident_id'      => $incident_id,
+            'admin_user'       => $admin_user,
+        ]);
+
         return true;
     }
 
@@ -3426,7 +3508,7 @@ class FirewallEngine {
      * @return bool
      */
     public static function block_ip(string $ip, string $reason = '', int $duration_seconds = 0): bool {
-        return self::add_blocked_ip($ip);
+        return self::add_blocked_ip($ip, $reason, $duration_seconds);
     }
 
     /**
@@ -3471,31 +3553,118 @@ class FirewallEngine {
         delete_transient('wcpscan_404_lock_' . md5($ip));
         delete_transient('wcpscan_404_cnt_' . md5($ip));
 
+        // 4. Clean up block metadata
+        self::delete_ip_block_meta($ip);
+
         return true;
     }
 
     /**
-     * Retrieve aggregated list of all currently locked or custom-blocked IPs across engines.
+     * Retrieve aggregated list of all currently locked or custom-blocked IPs across engines with rich forensics.
      *
      * @return array
      */
     public static function get_all_locked_ips(): array {
         $results = [];
         $settings = SettingsManager::get_settings();
+        $all_meta = self::get_all_block_meta();
+        $now = time();
 
         // 1. Custom WAF Blocklisted IPs
         $blocked_raw = trim($settings['waf_blocked_ips'] ?? '');
+        $seen_ips = [];
+
         if (!empty($blocked_raw)) {
             $lines = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $blocked_raw))));
             foreach ($lines as $ip) {
+                $seen_ips[$ip] = true;
+                $meta = $all_meta[$ip] ?? null;
+
+                // Correlate with recent WAF logs if incident ID or detailed reason is missing
+                $recent_logs = [];
+                $last_incident_id = $meta['incident_id'] ?? null;
+                $detected_rule = $meta['rule_name'] ?? null;
+                $detected_cat = $meta['rule_category'] ?? null;
+                $detected_desc = null;
+                $log_first_seen = null;
+                $log_last_seen = null;
+
+                if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+                    $log_query = WafFileLogger::query_logs(['ip' => $ip], 3);
+                    if (!empty($log_query['logs'])) {
+                        $recent_logs = array_map(function($l) {
+                            return [
+                                'incident_id' => $l['incident_id'] ?? null,
+                                'created_at'  => $l['created_at'] ?? null,
+                                'category'    => $l['rule_category'] ?? null,
+                                'description' => $l['rule_description'] ?? null,
+                                'uri'         => $l['request_uri'] ?? null,
+                                'method'      => $l['request_method'] ?? 'GET',
+                                'status'      => $l['http_status_code'] ?? 403,
+                                'user_agent'  => $l['user_agent'] ?? null,
+                                'payload'     => $l['payload_sample'] ?? null,
+                            ];
+                        }, $log_query['logs']);
+
+                        $top_log = $log_query['logs'][0];
+                        if (empty($last_incident_id)) {
+                            $last_incident_id = $top_log['incident_id'] ?? null;
+                        }
+                        if (empty($detected_rule)) {
+                            $detected_rule = $top_log['rule_description'] ?? 'Malicious Request';
+                        }
+                        if (empty($detected_cat)) {
+                            $detected_cat = $top_log['rule_category'] ?? 'Security Firewall';
+                        }
+                        $detected_desc = $top_log['rule_description'] ?? null;
+                        $log_last_seen = $top_log['created_at'] ?? null;
+                    }
+                }
+
+                $blocked_ts = !empty($meta['blocked_at']) ? (int) $meta['blocked_at'] : null;
+                $expires_ts = !empty($meta['expires_at']) ? (int) $meta['expires_at'] : 0;
+                $duration_secs = !empty($meta['duration_seconds']) ? (int) $meta['duration_seconds'] : 0;
+                $admin_user = $meta['admin_user'] ?? null;
+                $source = $meta['source'] ?? (!empty($admin_user) ? 'manual_admin' : 'custom_blocklist');
+
+                // Determine Badge & Human-Readable Reason
+                if ($source === 'manual_admin') {
+                    $badge = 'Custom Admin Block';
+                    $reason = !empty($meta['reason']) ? $meta['reason'] : sprintf('Blocked manually by administrator "%s"', $admin_user ?: 'admin');
+                } elseif (!empty($detected_rule)) {
+                    $badge = !empty($meta['rule_name']) ? $meta['rule_name'] : 'Firewall Violation';
+                    $reason = !empty($meta['reason']) ? $meta['reason'] : ($detected_desc ?: 'Malicious activity blocked by security firewall policy');
+                } else {
+                    $badge = 'Custom Blocklist';
+                    $reason = !empty($meta['reason']) ? $meta['reason'] : 'Permanently blocked by administrator policy';
+                }
+
+                // Timing & Duration Breakdown
+                $timing = self::calculate_ban_timing($blocked_ts, $expires_ts, $duration_secs, $log_last_seen);
+
                 $results[] = [
-                    'ip'         => $ip,
-                    'type'       => 'custom_blocklist',
-                    'badge'      => 'Custom Blocklist',
-                    'reason'     => 'Permanently blocked by administrator policy',
-                    'blocked_at' => null,
-                    'expires_at' => 'Permanent',
-                    'is_expired' => false,
+                    'ip'               => $ip,
+                    'incident_id'      => $last_incident_id,
+                    'type'             => $source,
+                    'badge'            => $badge,
+                    'rule_id'          => $meta['rule_id'] ?? null,
+                    'rule_name'        => $detected_rule,
+                    'rule_category'    => $detected_cat,
+                    'reason'           => $reason,
+                    'admin_user'       => $admin_user,
+                    'admin_note'       => $meta['admin_note'] ?? null,
+                    'blocked_at'       => $timing['ban_time'],
+                    'blocked_at_raw'   => $blocked_ts,
+                    'ban_ago'          => $timing['ban_ago'],
+                    'duration'         => $timing['duration'],
+                    'duration_seconds' => $duration_secs,
+                    'expires_at'       => $timing['unban_time'],
+                    'expires_at_raw'   => $expires_ts,
+                    'time_remaining'   => $timing['time_remaining'],
+                    'countdown'        => $timing['countdown'],
+                    'is_expired'       => $timing['is_expired'],
+                    'is_permanent'     => $timing['is_permanent'],
+                    'recent_history'   => $recent_logs,
                 ];
             }
         }
@@ -3503,23 +3672,265 @@ class FirewallEngine {
         // 2. Brute-Force Login Hardening Lockouts
         if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
             $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
-            $now = time();
             foreach ($lockouts as $ip => $data) {
                 $expires_ts = $data['expires_at'] ?? 0;
-                $rem_mins = max(1, (int) ceil(($expires_ts - $now) / 60));
-                $results[] = [
-                    'ip'         => $ip,
-                    'type'       => 'login_bruteforce',
-                    'badge'      => 'Login Hardening',
-                    'reason'     => sprintf('Failed %d password attempts (user: %s)', $data['attempts'] ?? 0, $data['username'] ?? 'unknown'),
-                    'blocked_at' => $data['blocked_at'] ?? null,
-                    'expires_at' => "Expires in {$rem_mins}m",
-                    'is_expired' => ($expires_ts <= $now),
+                $blocked_raw = $data['blocked_at'] ?? null;
+                $blocked_ts = !empty($blocked_raw) ? strtotime($blocked_raw) : null;
+                $duration_secs = ($expires_ts > $blocked_ts && $blocked_ts > 0) ? ($expires_ts - $blocked_ts) : 900;
+
+                // Correlate recent log history for brute-force IP
+                $recent_logs = [];
+                $last_incident_id = null;
+                if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+                    $log_query = WafFileLogger::query_logs(['ip' => $ip], 3);
+                    if (!empty($log_query['logs'])) {
+                        $recent_logs = array_map(function($l) {
+                            return [
+                                'incident_id' => $l['incident_id'] ?? null,
+                                'created_at'  => $l['created_at'] ?? null,
+                                'category'    => $l['rule_category'] ?? null,
+                                'description' => $l['rule_description'] ?? null,
+                                'uri'         => $l['request_uri'] ?? null,
+                                'method'      => $l['request_method'] ?? 'POST',
+                                'status'      => $l['http_status_code'] ?? 403,
+                                'user_agent'  => $l['user_agent'] ?? null,
+                                'payload'     => $l['payload_sample'] ?? null,
+                            ];
+                        }, $log_query['logs']);
+                        $last_incident_id = $log_query['logs'][0]['incident_id'] ?? null;
+                    }
+                }
+
+                $timing = self::calculate_ban_timing($blocked_ts, $expires_ts, $duration_secs);
+
+                // If already listed under custom blocklist, merge brute-force details
+                $exists_idx = null;
+                foreach ($results as $idx => $r) {
+                    if ($r['ip'] === $ip) {
+                        $exists_idx = $idx;
+                        break;
+                    }
+                }
+
+                $bf_item = [
+                    'ip'               => $ip,
+                    'incident_id'      => $last_incident_id,
+                    'type'             => 'login_bruteforce',
+                    'badge'            => 'Login Hardening',
+                    'rule_id'          => 'WAF-LOGIN-BRUTEFORCE',
+                    'rule_name'        => 'Login Brute-Force Rate Limiter',
+                    'rule_category'    => 'Authentication Defense',
+                    'reason'           => sprintf('Failed %d password attempts (user: "%s")', $data['attempts'] ?? 0, esc_html($data['username'] ?? 'unknown')),
+                    'admin_user'       => null,
+                    'admin_note'       => null,
+                    'blocked_at'       => $timing['ban_time'],
+                    'blocked_at_raw'   => $blocked_ts,
+                    'ban_ago'          => $timing['ban_ago'],
+                    'duration'         => $timing['duration'],
+                    'duration_seconds' => $duration_secs,
+                    'expires_at'       => $timing['unban_time'],
+                    'expires_at_raw'   => $expires_ts,
+                    'time_remaining'   => $timing['time_remaining'],
+                    'countdown'        => $timing['countdown'],
+                    'is_expired'       => $timing['is_expired'],
+                    'is_permanent'     => $timing['is_permanent'],
+                    'recent_history'   => $recent_logs,
                 ];
+
+                if ($exists_idx !== null) {
+                    // Update the custom blocklist card with incident details & brute-force note if higher severity
+                    if (!empty($last_incident_id) && empty($results[$exists_idx]['incident_id'])) {
+                        $results[$exists_idx]['incident_id'] = $last_incident_id;
+                    }
+                    if (!empty($recent_logs) && empty($results[$exists_idx]['recent_history'])) {
+                        $results[$exists_idx]['recent_history'] = $recent_logs;
+                    }
+                } else {
+                    $results[] = $bf_item;
+                }
             }
         }
 
         return $results;
+    }
+
+    /**
+     * Compute comprehensive human-readable ban timing, countdown, and duration breakdown.
+     *
+     * @param int|null $blocked_ts
+     * @param int $expires_ts
+     * @param int $duration_secs
+     * @param string|null $fallback_last_seen
+     * @return array
+     */
+    public static function calculate_ban_timing(?int $blocked_ts, int $expires_ts, int $duration_secs, ?string $fallback_last_seen = null): array {
+        $now = time();
+
+        // 1. Ban Time
+        if ($blocked_ts && $blocked_ts > 0) {
+            $ban_time = gmdate('M j, Y, g:i a \U\T\C', $blocked_ts);
+            $seconds_ago = max(0, $now - $blocked_ts);
+            $ban_ago = self::format_seconds_human($seconds_ago) . ' ago';
+        } elseif ($fallback_last_seen) {
+            $ts = strtotime($fallback_last_seen);
+            $ban_time = gmdate('M j, Y, g:i a \U\T\C', $ts);
+            $ban_ago = self::format_seconds_human(max(0, $now - $ts)) . ' ago';
+        } else {
+            $ban_time = 'Unknown (Active Policy)';
+            $ban_ago = 'Previously Recorded';
+        }
+
+        // 2. Duration & Expiration
+        $is_permanent = ($expires_ts <= 0 || $duration_secs === 0);
+        if ($is_permanent) {
+            $duration = 'Permanent';
+            $unban_time = 'Never (Permanent)';
+            $time_remaining = 'Permanent Policy';
+            $is_expired = false;
+            $countdown = [
+                'years'   => 0,
+                'months'  => 0,
+                'days'    => 0,
+                'hours'   => 0,
+                'minutes' => 0,
+                'seconds' => 0,
+            ];
+        } else {
+            $duration = self::format_duration_label($duration_secs);
+            $unban_time = gmdate('M j, Y, g:i a \U\T\C', $expires_ts);
+            $diff = $expires_ts - $now;
+
+            if ($diff <= 0) {
+                $is_expired = true;
+                $time_remaining = 'Expired';
+                $countdown = [
+                    'years'   => 0,
+                    'months'  => 0,
+                    'days'    => 0,
+                    'hours'   => 0,
+                    'minutes' => 0,
+                    'seconds' => 0,
+                ];
+            } else {
+                $is_expired = false;
+                $countdown = self::breakdown_seconds($diff);
+                $time_remaining = self::format_countdown_human($countdown);
+            }
+        }
+
+        return [
+            'ban_time'       => $ban_time,
+            'ban_ago'        => $ban_ago,
+            'duration'       => $duration,
+            'unban_time'     => $unban_time,
+            'time_remaining' => $time_remaining,
+            'countdown'      => $countdown,
+            'is_expired'     => $is_expired,
+            'is_permanent'   => $is_permanent,
+        ];
+    }
+
+    /**
+     * Break down seconds into years, months, days, hours, minutes, seconds.
+     *
+     * @param int $seconds
+     * @return array
+     */
+    public static function breakdown_seconds(int $seconds): array {
+        $seconds = max(0, $seconds);
+        $years   = (int) floor($seconds / (365 * 86400));
+        $seconds %= (365 * 86400);
+
+        $months  = (int) floor($seconds / (30 * 86400));
+        $seconds %= (30 * 86400);
+
+        $days    = (int) floor($seconds / 86400);
+        $seconds %= 86400;
+
+        $hours   = (int) floor($seconds / 3600);
+        $seconds %= 3600;
+
+        $minutes = (int) floor($seconds / 60);
+        $sec     = $seconds % 60;
+
+        return [
+            'years'   => $years,
+            'months'  => $months,
+            'days'    => $days,
+            'hours'   => $hours,
+            'minutes' => $minutes,
+            'seconds' => $sec,
+        ];
+    }
+
+    /**
+     * Format structured countdown into clear human words (e.g. "1 year, 2 months, 5 days, 4 hours, 10 mins").
+     */
+    public static function format_countdown_human(array $c): string {
+        $parts = [];
+        if (!empty($c['years'])) {
+            $parts[] = $c['years'] . ($c['years'] === 1 ? ' yr' : ' yrs');
+        }
+        if (!empty($c['months'])) {
+            $parts[] = $c['months'] . ($c['months'] === 1 ? ' mo' : ' mos');
+        }
+        if (!empty($c['days'])) {
+            $parts[] = $c['days'] . ($c['days'] === 1 ? ' day' : ' days');
+        }
+        if (!empty($c['hours'])) {
+            $parts[] = $c['hours'] . ($c['hours'] === 1 ? ' hr' : ' hrs');
+        }
+        if (!empty($c['minutes'])) {
+            $parts[] = $c['minutes'] . ' mins';
+        }
+        if (empty($parts)) {
+            $parts[] = max(1, $c['seconds'] ?? 0) . ' secs';
+        }
+
+        return implode(', ', $parts) . ' left';
+    }
+
+    /**
+     * Format duration into standard human label.
+     */
+    public static function format_duration_label(int $seconds): string {
+        if ($seconds >= 365 * 86400) {
+            $y = (int) round($seconds / (365 * 86400));
+            return $y . ($y === 1 ? ' Year' : ' Years');
+        }
+        if ($seconds >= 30 * 86400) {
+            $m = (int) round($seconds / (30 * 86400));
+            return $m . ($m === 1 ? ' Month' : ' Months');
+        }
+        if ($seconds >= 86400) {
+            $d = (int) round($seconds / 86400);
+            return $d . ($d === 1 ? ' Day' : ' Days');
+        }
+        if ($seconds >= 3600) {
+            $h = (int) round($seconds / 3600);
+            return $h . ($h === 1 ? ' Hour' : ' Hours');
+        }
+        $mins = (int) round($seconds / 60);
+        return $mins . ($mins === 1 ? ' Minute' : ' Minutes');
+    }
+
+    /**
+     * Format elapsed seconds into human string (e.g. "5 mins", "2 hours", "4 days").
+     */
+    public static function format_seconds_human(int $seconds): string {
+        if ($seconds < 60) {
+            return $seconds . ' secs';
+        }
+        if ($seconds < 3600) {
+            $m = (int) floor($seconds / 60);
+            return $m . ($m === 1 ? ' min' : ' mins');
+        }
+        if ($seconds < 86400) {
+            $h = (int) floor($seconds / 3600);
+            return $h . ($h === 1 ? ' hr' : ' hrs');
+        }
+        $d = (int) floor($seconds / 86400);
+        return $d . ($d === 1 ? ' day' : ' days');
     }
 
     /**
@@ -4534,8 +4945,17 @@ class FirewallEngine {
                 return $user;
             }
 
-            // Immediately permanently block IP
-            self::add_blocked_ip($client_ip);
+            // Immediately permanently block IP with full metadata
+            $honeypot_incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
+            self::add_blocked_ip(
+                $client_ip,
+                sprintf('Attacker tried to log in using forbidden honeypot username "%s". Permanently blocked.', esc_html($username)),
+                0,
+                'WAF-FORBIDDEN-USERNAME-TRAP',
+                'Forbidden Honeypot Username Trap',
+                'Identity Defense',
+                $honeypot_incident_id
+            );
 
             // Log incident
             self::log_incident([
@@ -4546,7 +4966,7 @@ class FirewallEngine {
                 'match_type'  => 'Honeypot Username',
                 'match_value' => $username,
                 'payload'     => "User: {$username} IP: {$client_ip}",
-            ], 'blocked');
+            ], 'blocked', $honeypot_incident_id);
 
             // Also lock in LoginHardening
             if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {

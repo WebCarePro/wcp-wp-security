@@ -6506,10 +6506,23 @@ class ScannerRoutes {
             );
         }
 
-        $added = \WcpScanner\Firewall\FirewallEngine::add_blocked_ip($ip);
+        $reason = isset($params['reason']) ? sanitize_text_field(trim($params['reason'])) : '';
+        $duration_seconds = isset($params['duration_seconds']) ? max(0, (int) $params['duration_seconds']) : 0;
+        $current_user = wp_get_current_user();
+        $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+
+        $added = \WcpScanner\Firewall\FirewallEngine::add_blocked_ip(
+            $ip,
+            !empty($reason) ? $reason : sprintf('Blocked manually by administrator "%s"', $user_login),
+            $duration_seconds,
+            null,
+            'Custom Administrator Block',
+            'Manual Blocklist',
+            null,
+            $user_login
+        );
+
         if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            $current_user = wp_get_current_user();
-            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
 
             \WcpScanner\System\WcpActivityLogger::notice(
@@ -6517,7 +6530,7 @@ class ScannerRoutes {
                 'firewall',
                 [
                     'ip'          => $ip,
-                    'description' => sprintf('IP %s manually added to WAF blocklist by %s from IP %s.', $ip, $user_login, $client_ip),
+                    'description' => sprintf('IP %s manually added to WAF blocklist by %s from IP %s (Reason: %s).', $ip, $user_login, $client_ip, $reason ?: 'Administrator policy'),
                 ]
             );
         }
