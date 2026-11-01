@@ -8456,6 +8456,7 @@ class ScannerRoutes {
         }
         $params  = $request->get_json_params() ?: [];
         $rule_id = sanitize_text_field($params['rule_id'] ?? '');
+        $target_ip = sanitize_text_field(trim($params['ip'] ?? ''));
 
         $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
 
@@ -8466,12 +8467,18 @@ class ScannerRoutes {
                 ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
+            $ip_text = !empty($target_ip) ? sprintf('IP %s', $target_ip) : sprintf('Rule %s', $rule_id);
+            $desc = !empty($target_ip)
+                ? sprintf('Cloudflare Edge block rule for IP %s removed by %s from IP %s (Rule ID: %s).', $target_ip, $user_login, $client_ip, $rule_id)
+                : sprintf('Cloudflare Edge block rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip);
+
             \WcpScanner\System\WcpActivityLogger::notice(
                 'cloudflare_ip_unblocked',
                 'firewall',
                 [
+                    'ip'          => $target_ip,
                     'rule_id'     => $rule_id,
-                    'description' => sprintf('Cloudflare Edge block rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip),
+                    'description' => $desc,
                 ]
             );
         }
@@ -8536,6 +8543,7 @@ class ScannerRoutes {
         }
         $params  = $request->get_json_params() ?: [];
         $rule_id = sanitize_text_field($params['rule_id'] ?? '');
+        $target_ip = sanitize_text_field(trim($params['ip'] ?? ''));
 
         $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
         if (!empty($result['success'])) {
@@ -8548,12 +8556,17 @@ class ScannerRoutes {
                     ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
                     : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
+                $desc = !empty($target_ip)
+                    ? sprintf('Cloudflare Edge allowlist rule for IP %s removed by %s from IP %s (Rule ID: %s).', $target_ip, $user_login, $client_ip, $rule_id)
+                    : sprintf('Cloudflare Edge allowlist rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip);
+
                 \WcpScanner\System\WcpActivityLogger::notice(
                     'cloudflare_whitelist_removed',
                     'firewall',
                     [
+                        'ip'          => $target_ip,
                         'rule_id'     => $rule_id,
-                        'description' => sprintf('Cloudflare Edge allowlist rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip),
+                        'description' => $desc,
                     ]
                 );
             }
