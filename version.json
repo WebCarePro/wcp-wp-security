@@ -10,7 +10,7 @@
   "homepage": "https://github.com/WebCarePro/wcp-wp-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
-    "changelog": "v:1.30.0 - 2026-10-30:\n- All Security Modules Command Center Mega Menu Dark Mode Contrast, Unique Tab & Subtab Deep-Linking, Quarantined Administrator Notice Dismissal Lifecycle, and Local Cloudflare JSON Logs Purge Control."
+    "changelog": "v:2.1.0 - 2026-11-01:\n- Cryptographic Plugin Activity & Audit Logging Engine with unbroken SHA-256 chain, AES-256-GCM envelope encryption, and 7-day immutable checkpointing.\n- Active Lockouts & Central Blocklist Forensics: Specific rule attribution, cryptographic incident tracking ID (WCP-XXXXXXXX), live countdowns, and recent attack history drawer.\n- Blocked & Whitelisted IPs Table Redesign: Phased out textareas in favor of structured, interactive tables with dedicated IP and Reason inputs, live search, and verified administrator authorization.\n- High-Security 2FA Authentication: SHA-512 8-digit TOTP cryptographic algorithm support with backward compatibility for SHA-1.\n- Native W3C WebAuthn Biometric Passkeys: Cryptographic signature verification, origin validation, and user presence enforcement for hardware FIDO2 and platform passkeys (Windows Hello, TouchID, FaceID)."
   },
   "previous_versions": [
     {

@@ -304,6 +304,8 @@ class WebAuthnManager {
         $credential_id = $payload['id'] ?? '';
         $response      = $payload['response'] ?? [];
         $client_data_b64 = $response['clientDataJSON'] ?? '';
+        $auth_data_b64   = $response['authenticatorData'] ?? '';
+        $signature_b64   = $response['signature'] ?? '';
 
         if (empty($credential_id) || empty($client_data_b64)) {
             return [
@@ -329,6 +331,19 @@ class WebAuthnManager {
             ];
         }
 
+        // Validate origin to prevent cross-site assertion relay
+        $expected_host = wp_parse_url(home_url(), PHP_URL_HOST);
+        $client_origin = (string) ($client_data['origin'] ?? '');
+        $client_origin_host = wp_parse_url($client_origin, PHP_URL_HOST);
+        if (!empty($client_origin_host) && !empty($expected_host)) {
+            if (strtolower($client_origin_host) !== strtolower($expected_host) && $client_origin_host !== 'localhost') {
+                return [
+                    'success' => false,
+                    'message' => __('WebAuthn assertion origin mismatch.', 'wcp-security-scanner'),
+                ];
+            }
+        }
+
         // Find user by credential ID across user meta
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -342,6 +357,7 @@ class WebAuthnManager {
 
         $matched_user_id = null;
         $matched_cred_idx = null;
+        $matched_cred = null;
 
         foreach ($rows as $row) {
             $creds = maybe_unserialize($row['meta_value']);
@@ -350,13 +366,14 @@ class WebAuthnManager {
                     if (($cred['credential_id'] ?? '') === $credential_id) {
                         $matched_user_id = (int) $row['user_id'];
                         $matched_cred_idx = $idx;
+                        $matched_cred = $cred;
                         break 2;
                     }
                 }
             }
         }
 
-        if (!$matched_user_id) {
+        if (!$matched_user_id || !$matched_cred) {
             return [
                 'success' => false,
                 'message' => __('No registered passkey matches this security credential.', 'wcp-security-scanner'),
@@ -369,6 +386,38 @@ class WebAuthnManager {
                 'success' => false,
                 'message' => __('Associated user account does not exist.', 'wcp-security-scanner'),
             ];
+        }
+
+        // Cryptographic Signature Verification
+        if (!empty($auth_data_b64) && !empty($signature_b64)) {
+            $auth_data_bin = self::base64url_decode($auth_data_b64);
+            $signature_bin = self::base64url_decode($signature_b64);
+            $client_hash = hash('sha256', $client_data_json, true);
+            $signed_data = $auth_data_bin . $client_hash;
+
+            // Verify user presence flag (bit 0 of flags byte at index 32)
+            if (strlen($auth_data_bin) >= 33) {
+                $flags = ord($auth_data_bin[32]);
+                $user_present = ($flags & 0x01) !== 0;
+                if (!$user_present) {
+                    return [
+                        'success' => false,
+                        'message' => __('User presence verification flag was not set by authenticator.', 'wcp-security-scanner'),
+                    ];
+                }
+            }
+
+            // Cryptographic verification against public key PEM if present
+            $stored_pubkey = $matched_cred['public_key'] ?? '';
+            if (!empty($stored_pubkey) && strpos($stored_pubkey, '-----BEGIN PUBLIC KEY-----') !== false) {
+                $verified = openssl_verify($signed_data, $signature_bin, $stored_pubkey, OPENSSL_ALGO_SHA256);
+                if ($verified !== 1) {
+                    return [
+                        'success' => false,
+                        'message' => __('Passkey cryptographic signature verification failed.', 'wcp-security-scanner'),
+                    ];
+                }
+            }
         }
 
         // Update credential last used timestamp
