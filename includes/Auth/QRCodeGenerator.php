@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 class QRCodeGenerator {
 
     public static function generate_svg(string $text, int $size = 200, int $margin = 4): string {
-        $qr = \WcpScanner\Auth\QRCode::getMinimumQRCode($text, QR_ERROR_CORRECT_LEVEL_M);
+        $qr = \WcpScanner\Auth\QRCode::getMinimumQRCode($text, WCPSCAN_QR_ERROR_CORRECT_LEVEL_M);
         $count = $qr->getModuleCount();
         $full_dim = $count + ($margin * 2);
 
@@ -72,24 +72,24 @@ class QRCodeGenerator {
 // QRCode
 //---------------------------------------------------------------
 
-define("QR_PAD0", 0xEC);
-define("QR_PAD1", 0x11);
+define("WCPSCAN_QR_PAD0", 0xEC);
+define("WCPSCAN_QR_PAD1", 0x11);
 
 class QRCode {
 
-    var $typeNumber;
+    public $typeNumber;
 
-    var $modules;
+    public $modules;
 
-    var $moduleCount;
+    public $moduleCount;
 
-    var $errorCorrectLevel;
+    public $errorCorrectLevel;
 
-    var $qrDataList;
+    public $qrDataList;
 
     function __construct() {
         $this->typeNumber = 1;
-        $this->errorCorrectLevel = QR_ERROR_CORRECT_LEVEL_H;
+        $this->errorCorrectLevel = WCPSCAN_QR_ERROR_CORRECT_LEVEL_H;
         $this->qrDataList = array();
     }
 
@@ -117,24 +117,24 @@ class QRCode {
 
         switch($mode) {
 
-        case QR_MODE_NUMBER :
+        case WCPSCAN_QR_MODE_NUMBER :
             $this->addDataImpl(new QRNumber($data) );
             break;
 
-        case QR_MODE_ALPHA_NUM :
+        case WCPSCAN_QR_MODE_ALPHA_NUM :
             $this->addDataImpl(new QRAlphaNum($data) );
             break;
 
-        case QR_MODE_8BIT_BYTE :
+        case WCPSCAN_QR_MODE_8BIT_BYTE :
             $this->addDataImpl(new QR8BitByte($data) );
             break;
 
-        case QR_MODE_KANJI :
+        case WCPSCAN_QR_MODE_KANJI :
             $this->addDataImpl(new QRKanji($data) );
             break;
 
         default :
-            trigger_error("mode:$mode", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("mode:$mode"));
         }
     }
 
@@ -403,11 +403,11 @@ class QRCode {
         }
 
         if ($buffer->getLengthInBits() > $totalDataCount * 8) {
-            trigger_error("code length overflow. ("
+            throw new \InvalidArgumentException(esc_html("code length overflow. ("
                 . $buffer->getLengthInBits()
                 . ">"
                 .  $totalDataCount * 8
-                . ")", E_USER_ERROR);
+                . ")"));
         }
 
         // end code.
@@ -426,12 +426,12 @@ class QRCode {
             if ($buffer->getLengthInBits() >= $totalDataCount * 8) {
                 break;
             }
-            $buffer->put(QR_PAD0, 8);
+            $buffer->put(WCPSCAN_QR_PAD0, 8);
 
             if ($buffer->getLengthInBits() >= $totalDataCount * 8) {
                 break;
             }
-            $buffer->put(QR_PAD1, 8);
+            $buffer->put(WCPSCAN_QR_PAD1, 8);
         }
 
         return QRCode::createBytes($buffer, $rsBlocks);
@@ -583,41 +583,39 @@ class QRCode {
         return $image;
     }
 
-    function printHTML($size = "2px") {
-
+    public function printHTML($size = "2px") {
         $style = "border-style:none;border-collapse:collapse;margin:0px;padding:0px;";
-
-        print("<table style='$style'>");
+        $safe_size = esc_attr($size);
+        echo '<table style="border-style:none;border-collapse:collapse;margin:0px;padding:0px;">';
 
         for ($r = 0; $r < $this->getModuleCount(); $r++) {
-
-            print("<tr style='$style'>");
+            echo '<tr style="border-style:none;border-collapse:collapse;margin:0px;padding:0px;">';
 
             for ($c = 0; $c < $this->getModuleCount(); $c++) {
-                $color = $this->isDark($r, $c)? "#000000" : "#ffffff";
-                print("<td style='$style;width:$size;height:$size;background-color:$color'></td>");
+                $color = $this->isDark($r, $c) ? "#000000" : "#ffffff";
+                echo '<td style="border-style:none;border-collapse:collapse;margin:0px;padding:0px;width:' . esc_attr($safe_size) . ';height:' . esc_attr($safe_size) . ';background-color:' . esc_attr($color) . '"></td>';
             }
 
-            print("</tr>");
+            echo '</tr>';
         }
 
-        print("</table>");
+        echo '</table>';
     }
 
-    public function printSVG($size = 2)
-    {
-        $width = $this->getModuleCount() * $size;
+    public function printSVG($size = 2) {
+        $size_int = absint($size);
+        $width = absint($this->getModuleCount() * $size_int);
         $height = $width;
-        print('<svg width="' . $width . '" height="' . $height . '" viewBox="0 0 ' . $width . ' ' . $height . '" xmlns="http://www.w3.org/2000/svg">');
+        echo '<svg width="' . esc_attr((string) $width) . '" height="' . esc_attr((string) $height) . '" viewBox="0 0 ' . esc_attr((string) $width) . ' ' . esc_attr((string) $height) . '" xmlns="http://www.w3.org/2000/svg">';
 
         for ($r = 0; $r < $this->getModuleCount(); $r++) {
             for ($c = 0; $c < $this->getModuleCount(); $c++) {
                 $color = $this->isDark($r, $c) ? "#000000" : "#ffffff";
-                print('<rect x="' . ($c * $size) . '" y="' . ($r * $size) . '" width="' . $size . '" height="' . $size . '" fill="' . $color . '" shape-rendering="crispEdges"/>');
+                echo '<rect x="' . esc_attr((string) ($c * $size_int)) . '" y="' . esc_attr((string) ($r * $size_int)) . '" width="' . esc_attr((string) $size_int) . '" height="' . esc_attr((string) $size_int) . '" fill="' . esc_attr($color) . '" shape-rendering="crispEdges"/>';
             }
         }
 
-        print("</svg>");
+        echo '</svg>';
     }
 }
 
@@ -625,13 +623,13 @@ class QRCode {
 // QRUtil
 //---------------------------------------------------------------
 
-define("QR_G15", (1 << 10) | (1 << 8) | (1 << 5)
+define("WCPSCAN_QR_G15", (1 << 10) | (1 << 8) | (1 << 5)
     | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0) );
 
-define("QR_G18", (1 << 12) | (1 << 11) | (1 << 10)
+define("WCPSCAN_QR_G18", (1 << 12) | (1 << 11) | (1 << 10)
     | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0) );
 
-define("QR_G15_MASK", (1 << 14) | (1 << 12) | (1 << 10)
+define("WCPSCAN_QR_G15_MASK", (1 << 14) | (1 << 12) | (1 << 10)
     | (1 << 4) | (1 << 1) );
 
 class QRUtil {
@@ -703,21 +701,21 @@ class QRUtil {
         $m = 0;
 
         switch($errorCorrectLevel) {
-        case QR_ERROR_CORRECT_LEVEL_L : $e = 0; break;
-        case QR_ERROR_CORRECT_LEVEL_M : $e = 1; break;
-        case QR_ERROR_CORRECT_LEVEL_Q : $e = 2; break;
-        case QR_ERROR_CORRECT_LEVEL_H : $e = 3; break;
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_L : $e = 0; break;
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_M : $e = 1; break;
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_Q : $e = 2; break;
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_H : $e = 3; break;
         default :
-            trigger_error("e:$errorCorrectLevel", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("e:$errorCorrectLevel"));
         }
 
         switch($mode) {
-        case QR_MODE_NUMBER    : $m = 0; break;
-        case QR_MODE_ALPHA_NUM : $m = 1; break;
-        case QR_MODE_8BIT_BYTE : $m = 2; break;
-        case QR_MODE_KANJI     : $m = 3; break;
+        case WCPSCAN_QR_MODE_NUMBER    : $m = 0; break;
+        case WCPSCAN_QR_MODE_ALPHA_NUM : $m = 1; break;
+        case WCPSCAN_QR_MODE_8BIT_BYTE : $m = 2; break;
+        case WCPSCAN_QR_MODE_KANJI     : $m = 3; break;
         default :
-            trigger_error("m:$mode", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("m:$mode"));
         }
 
         return self::$QR_MAX_LENGTH[$t][$e][$m];
@@ -738,17 +736,17 @@ class QRUtil {
 
         switch ($maskPattern) {
 
-        case QR_MASK_PATTERN000 : return ($i + $j) % 2 == 0;
-        case QR_MASK_PATTERN001 : return $i % 2 == 0;
-        case QR_MASK_PATTERN010 : return $j % 3 == 0;
-        case QR_MASK_PATTERN011 : return ($i + $j) % 3 == 0;
-        case QR_MASK_PATTERN100 : return (floor($i / 2) + floor($j / 3) ) % 2 == 0;
-        case QR_MASK_PATTERN101 : return ($i * $j) % 2 + ($i * $j) % 3 == 0;
-        case QR_MASK_PATTERN110 : return ( ($i * $j) % 2 + ($i * $j) % 3) % 2 == 0;
-        case QR_MASK_PATTERN111 : return ( ($i * $j) % 3 + ($i + $j) % 2) % 2 == 0;
+        case WCPSCAN_QR_MASK_PATTERN000 : return ($i + $j) % 2 == 0;
+        case WCPSCAN_QR_MASK_PATTERN001 : return $i % 2 == 0;
+        case WCPSCAN_QR_MASK_PATTERN010 : return $j % 3 == 0;
+        case WCPSCAN_QR_MASK_PATTERN011 : return ($i + $j) % 3 == 0;
+        case WCPSCAN_QR_MASK_PATTERN100 : return (floor($i / 2) + floor($j / 3) ) % 2 == 0;
+        case WCPSCAN_QR_MASK_PATTERN101 : return ($i * $j) % 2 + ($i * $j) % 3 == 0;
+        case WCPSCAN_QR_MASK_PATTERN110 : return ( ($i * $j) % 2 + ($i * $j) % 3) % 2 == 0;
+        case WCPSCAN_QR_MASK_PATTERN111 : return ( ($i * $j) % 3 + ($i + $j) % 2) % 2 == 0;
 
         default :
-            trigger_error("mask:$maskPattern", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("mask:$maskPattern"));
         }
     }
 
@@ -863,13 +861,13 @@ class QRUtil {
     static function getMode($s) {
         if (QRUtil::isAlphaNum($s) ) {
             if (QRUtil::isNumber($s) ) {
-                return QR_MODE_NUMBER;
+                return WCPSCAN_QR_MODE_NUMBER;
             }
-            return QR_MODE_ALPHA_NUM;
+            return WCPSCAN_QR_MODE_ALPHA_NUM;
         } else if (QRUtil::isKanji($s) ) {
-            return QR_MODE_KANJI;
+            return WCPSCAN_QR_MODE_KANJI;
         } else {
-            return QR_MODE_8BIT_BYTE;
+            return WCPSCAN_QR_MODE_8BIT_BYTE;
         }
     }
 
@@ -925,16 +923,16 @@ class QRUtil {
 
     static function getBCHTypeInfo($data) {
         $d = $data << 10;
-        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(QR_G15) >= 0) {
-            $d ^= (QR_G15 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(QR_G15) ) );
+        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G15) >= 0) {
+            $d ^= (WCPSCAN_QR_G15 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G15) ) );
         }
-        return ( ($data << 10) | $d) ^ QR_G15_MASK;
+        return ( ($data << 10) | $d) ^ WCPSCAN_QR_G15_MASK;
     }
 
     static function getBCHTypeNumber($data) {
         $d = $data << 12;
-        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(QR_G18) >= 0) {
-            $d ^= (QR_G18 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(QR_G18) ) );
+        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G18) >= 0) {
+            $d ^= (WCPSCAN_QR_G18 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G18) ) );
         }
         return ($data << 12) | $d;
     }
@@ -958,8 +956,8 @@ class QRUtil {
 
 class QRRSBlock {
 
-    var $totalCount;
-    var $dataCount;
+    public $totalCount;
+    public $dataCount;
 
     static $QR_RS_BLOCK_TABLE = array(
 
@@ -1247,16 +1245,16 @@ class QRRSBlock {
     static function getRsBlockTable($typeNumber, $errorCorrectLevel) {
 
         switch($errorCorrectLevel) {
-        case QR_ERROR_CORRECT_LEVEL_L :
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_L :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 0];
-        case QR_ERROR_CORRECT_LEVEL_M :
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_M :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 1];
-        case QR_ERROR_CORRECT_LEVEL_Q :
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_Q :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 2];
-        case QR_ERROR_CORRECT_LEVEL_H :
+        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_H :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 3];
         default :
-            trigger_error("tn:$typeNumber/ecl:$errorCorrectLevel", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("tn:$typeNumber/ecl:$errorCorrectLevel"));
         }
     }
 }
@@ -1268,7 +1266,7 @@ class QRRSBlock {
 class QRNumber extends QRData {
 
     function __construct($data) {
-        parent::__construct(QR_MODE_NUMBER, $data);
+        parent::__construct(WCPSCAN_QR_MODE_NUMBER, $data);
     }
 
     function write(&$buffer) {
@@ -1310,7 +1308,7 @@ class QRNumber extends QRData {
             return $c - QRUtil::toCharCode('0');
         }
 
-        trigger_error("illegal char : $c", E_USER_ERROR);
+        throw new \InvalidArgumentException(esc_html("illegal char : $c"));
     }
 }
 
@@ -1321,7 +1319,7 @@ class QRNumber extends QRData {
 class QRKanji extends QRData {
 
     function __construct($data) {
-        parent::__construct(QR_MODE_KANJI, $data);
+        parent::__construct(WCPSCAN_QR_MODE_KANJI, $data);
     }
 
     function write(&$buffer) {
@@ -1339,7 +1337,7 @@ class QRKanji extends QRData {
             } else if (0xE040 <= $c && $c <= 0xEBBF) {
                 $c -= 0xC140;
             } else {
-                trigger_error("illegal char at " . ($i + 1) . "/$c", E_USER_ERROR);
+                throw new \InvalidArgumentException(esc_html("illegal char at " . ($i + 1) . "/$c"));
             }
 
             $c = ( ($c >> 8) & 0xff) * 0xC0 + ($c & 0xff);
@@ -1350,7 +1348,7 @@ class QRKanji extends QRData {
         }
 
         if ($i < strlen($data) ) {
-            trigger_error("illegal char at " . ($i + 1), E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("illegal char at " . ($i + 1)));
         }
     }
 
@@ -1366,7 +1364,7 @@ class QRKanji extends QRData {
 class QRAlphaNum extends QRData {
 
     function __construct($data) {
-        parent::__construct(QR_MODE_ALPHA_NUM, $data);
+        parent::__construct(WCPSCAN_QR_MODE_ALPHA_NUM, $data);
     }
 
     function write(&$buffer) {
@@ -1405,7 +1403,7 @@ class QRAlphaNum extends QRData {
             case QRUtil::toCharCode('/') : return 43;
             case QRUtil::toCharCode(':') : return 44;
             default :
-                trigger_error("illegal char : $c", E_USER_ERROR);
+                throw new \InvalidArgumentException(esc_html("illegal char : $c"));
             }
         }
 
@@ -1419,7 +1417,7 @@ class QRAlphaNum extends QRData {
 class QR8BitByte extends QRData {
 
     function __construct($data) {
-        parent::__construct(QR_MODE_8BIT_BYTE, $data);
+        parent::__construct(WCPSCAN_QR_MODE_8BIT_BYTE, $data);
     }
 
     function write(&$buffer) {
@@ -1438,9 +1436,9 @@ class QR8BitByte extends QRData {
 
 abstract class QRData {
 
-    var $mode;
+    public $mode;
 
-    var $data;
+    public $data;
 
     function __construct($mode, $data) {
         $this->mode = $mode;
@@ -1474,12 +1472,12 @@ abstract class QRData {
             // 1 - 9
 
             switch($this->mode) {
-            case QR_MODE_NUMBER     : return 10;
-            case QR_MODE_ALPHA_NUM     : return 9;
-            case QR_MODE_8BIT_BYTE    : return 8;
-            case QR_MODE_KANJI      : return 8;
+            case WCPSCAN_QR_MODE_NUMBER     : return 10;
+            case WCPSCAN_QR_MODE_ALPHA_NUM     : return 9;
+            case WCPSCAN_QR_MODE_8BIT_BYTE    : return 8;
+            case WCPSCAN_QR_MODE_KANJI      : return 8;
             default :
-                trigger_error("mode:$this->mode", E_USER_ERROR);
+                throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
             }
 
         } else if ($type < 27) {
@@ -1487,12 +1485,12 @@ abstract class QRData {
             // 10 - 26
 
             switch($this->mode) {
-            case QR_MODE_NUMBER     : return 12;
-            case QR_MODE_ALPHA_NUM     : return 11;
-            case QR_MODE_8BIT_BYTE    : return 16;
-            case QR_MODE_KANJI      : return 10;
+            case WCPSCAN_QR_MODE_NUMBER     : return 12;
+            case WCPSCAN_QR_MODE_ALPHA_NUM     : return 11;
+            case WCPSCAN_QR_MODE_8BIT_BYTE    : return 16;
+            case WCPSCAN_QR_MODE_KANJI      : return 10;
             default :
-                trigger_error("mode:$this->mode", E_USER_ERROR);
+                throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
             }
 
         } else if ($type < 41) {
@@ -1500,16 +1498,16 @@ abstract class QRData {
             // 27 - 40
 
             switch($this->mode) {
-            case QR_MODE_NUMBER     : return 14;
-            case QR_MODE_ALPHA_NUM    : return 13;
-            case QR_MODE_8BIT_BYTE    : return 16;
-            case QR_MODE_KANJI      : return 12;
+            case WCPSCAN_QR_MODE_NUMBER     : return 14;
+            case WCPSCAN_QR_MODE_ALPHA_NUM    : return 13;
+            case WCPSCAN_QR_MODE_8BIT_BYTE    : return 16;
+            case WCPSCAN_QR_MODE_KANJI      : return 12;
             default :
-                trigger_error("mode:$this->mode", E_USER_ERROR);
+                throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
             }
 
         } else {
-            trigger_error("mode:$this->mode", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
         }
     }
 
@@ -1557,7 +1555,7 @@ class QRMath {
     static function glog($n) {
 
         if ($n < 1) {
-            trigger_error("log($n)", E_USER_ERROR);
+            throw new \InvalidArgumentException(esc_html("log($n)"));
         }
 
         return self::$QR_MATH_LOG_TABLE[$n];
@@ -1586,7 +1584,7 @@ QRMath::init();
 
 class QRPolynomial {
 
-    var $num;
+    public $num;
 
     function __construct($num, $shift = 0) {
 
@@ -1694,35 +1692,35 @@ class QRPolynomial {
 // Mode
 //---------------------------------------------------------------
 
-define("QR_MODE_NUMBER", 1 << 0);
-define("QR_MODE_ALPHA_NUM", 1 << 1);
-define("QR_MODE_8BIT_BYTE", 1 << 2);
-define("QR_MODE_KANJI", 1 << 3);
+define("WCPSCAN_QR_MODE_NUMBER", 1 << 0);
+define("WCPSCAN_QR_MODE_ALPHA_NUM", 1 << 1);
+define("WCPSCAN_QR_MODE_8BIT_BYTE", 1 << 2);
+define("WCPSCAN_QR_MODE_KANJI", 1 << 3);
 
 //---------------------------------------------------------------
 // MaskPattern
 //---------------------------------------------------------------
 
-define("QR_MASK_PATTERN000", 0);
-define("QR_MASK_PATTERN001", 1);
-define("QR_MASK_PATTERN010", 2);
-define("QR_MASK_PATTERN011", 3);
-define("QR_MASK_PATTERN100", 4);
-define("QR_MASK_PATTERN101", 5);
-define("QR_MASK_PATTERN110", 6);
-define("QR_MASK_PATTERN111", 7);
+define("WCPSCAN_QR_MASK_PATTERN000", 0);
+define("WCPSCAN_QR_MASK_PATTERN001", 1);
+define("WCPSCAN_QR_MASK_PATTERN010", 2);
+define("WCPSCAN_QR_MASK_PATTERN011", 3);
+define("WCPSCAN_QR_MASK_PATTERN100", 4);
+define("WCPSCAN_QR_MASK_PATTERN101", 5);
+define("WCPSCAN_QR_MASK_PATTERN110", 6);
+define("WCPSCAN_QR_MASK_PATTERN111", 7);
 
 //---------------------------------------------------------------
 // ErrorCorrectLevel
 
 // 7%.
-define("QR_ERROR_CORRECT_LEVEL_L", 1);
+define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_L", 1);
 // 15%.
-define("QR_ERROR_CORRECT_LEVEL_M", 0);
+define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_M", 0);
 // 25%.
-define("QR_ERROR_CORRECT_LEVEL_Q", 3);
+define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_Q", 3);
 // 30%.
-define("QR_ERROR_CORRECT_LEVEL_H", 2);
+define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_H", 2);
 
 
 //---------------------------------------------------------------
@@ -1731,8 +1729,8 @@ define("QR_ERROR_CORRECT_LEVEL_H", 2);
 
 class QRBitBuffer {
 
-    var $buffer;
-    var $length;
+    public $buffer;
+    public $length;
 
     function __construct() {
         $this->buffer = array();

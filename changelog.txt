@@ -1,5 +1,12 @@
 v:2.1.0 - 2026-11-01
 - Cryptographic Plugin Activity & Forensic Audit Logging Engine (WcpActivityLogger.php, AuditLogger.php, ActivityLogs/*, ScannerRoutes.php, SettingsManager.php, Scheduler.php, ActivityLogsPage.tsx, MegaMenuModal.tsx, SettingsPage.tsx, VirtualPatchManager.php, VirtualPatchSynthesizer.php):
+  * Official WordPress.org Plugin Check (PCP) Full Clean Audit Compliance (QRCodeGenerator.php):
+    - Refactored `QRCodeGenerator.php` to achieve 100% clean passes on WordPress.org Plugin Check without a single error or warning.
+    - Eliminated obsolete `var $prop` declarations with standardized `public $prop` properties.
+    - Replaced all raw `trigger_error()` calls with standard `\InvalidArgumentException` and `\RuntimeException` instances with escaped contextual payloads.
+    - Prefixed all global QR algorithmic constants with the plugin's registered prefix (`WCPSCAN_`): `WCPSCAN_QR_PAD0`, `WCPSCAN_QR_PAD1`, `WCPSCAN_QR_G15`, `WCPSCAN_QR_G18`, `WCPSCAN_QR_G15_MASK`, `WCPSCAN_QR_MODE_*`, `WCPSCAN_QR_MASK_PATTERN*`, and `WCPSCAN_QR_ERROR_CORRECT_LEVEL_*`.
+    - Rewrote `printHTML()` and `printSVG()` methods with strict output escaping (`esc_attr()`, `absint()`) and removed unescaped inline markup.
+    - Normalized line endings to clean standard LF formatting.
   * Unified WAF Incident Logging for Supply-Chain Gatekeeper Intercepts (UpdateGatekeeperEngine.php, FirewallEngine.php):
     - Made `FirewallEngine::log_incident()` publicly accessible for cross-subsystem security alerts.
     - Connected `UpdateGatekeeperEngine::inspect_unpacked_source()` directly to the centralized WAF Incident Stream when critical risks block a package installation or update.
