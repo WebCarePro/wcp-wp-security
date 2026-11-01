@@ -70,6 +70,30 @@ class WebAuthnManager {
     }
 
     /**
+     * Rate limit client IP for WebAuthn authentication attempts.
+     *
+     * @param string $action 'options' or 'verify'
+     * @param int $max_attempts Maximum attempts allowed within window
+     * @param int $window_seconds Time window in seconds
+     * @return bool True if within rate limit, false if exceeded
+     */
+    public static function check_ip_rate_limit(string $action = 'verify', int $max_attempts = 15, int $window_seconds = 300): bool {
+        $ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
+            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+        $transient_key = 'wcpscan_wa_rl_' . md5($action . '_' . $ip);
+        $attempts = (int) get_transient($transient_key);
+
+        if ($attempts >= $max_attempts) {
+            return false;
+        }
+
+        set_transient($transient_key, $attempts + 1, $window_seconds);
+        return true;
+    }
+
+    /**
      * Generate WebAuthn passkey registration options for an administrator.
      *
      * @param int $user_id
@@ -243,6 +267,13 @@ class WebAuthnManager {
      * @return array
      */
     public static function generate_login_options(string $login_hint = ''): array {
+        if (!self::check_ip_rate_limit('options', 25, 300)) {
+            return [
+                'success' => false,
+                'message' => __('Too many passkey requests. Please wait a few minutes.', 'wcp-security-scanner'),
+            ];
+        }
+
         $challenge_bytes = random_bytes(32);
         $challenge_b64 = self::base64url_encode($challenge_bytes);
         $session_id = 'auth_' . wp_generate_password(24, false, false);
@@ -290,6 +321,13 @@ class WebAuthnManager {
      * @return array
      */
     public static function verify_login(string $session_id, array $payload): array {
+        if (!self::check_ip_rate_limit('verify', 10, 300)) {
+            return [
+                'success' => false,
+                'message' => __('Too many failed authentication attempts. Please try again in 5 minutes.', 'wcp-security-scanner'),
+            ];
+        }
+
         $transient_key = self::TRANSIENT_AUTH_PREFIX . sanitize_key($session_id);
         $stored = get_transient($transient_key);
         delete_transient($transient_key);
@@ -324,10 +362,10 @@ class WebAuthnManager {
             ];
         }
 
-        if (($client_data['challenge'] ?? '') !== $stored['challenge']) {
+        if (!hash_equals((string) $stored['challenge'], (string) ($client_data['challenge'] ?? ''))) {
             return [
                 'success' => false,
-                'message' => __('Authentication challenge signature mismatch.', 'wcp-security-scanner'),
+                'message' => __('Authentication challenge verification failed.', 'wcp-security-scanner'),
             ];
         }
 
@@ -376,7 +414,7 @@ class WebAuthnManager {
         if (!$matched_user_id || !$matched_cred) {
             return [
                 'success' => false,
-                'message' => __('No registered passkey matches this security credential.', 'wcp-security-scanner'),
+                'message' => __('Passkey verification failed. Credential not recognized.', 'wcp-security-scanner'),
             ];
         }
 
@@ -384,7 +422,7 @@ class WebAuthnManager {
         if (!$user || !$user->exists()) {
             return [
                 'success' => false,
-                'message' => __('Associated user account does not exist.', 'wcp-security-scanner'),
+                'message' => __('Passkey verification failed. Account not accessible.', 'wcp-security-scanner'),
             ];
         }
 
