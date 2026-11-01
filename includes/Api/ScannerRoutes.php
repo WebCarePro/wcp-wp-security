@@ -6495,6 +6495,21 @@ class ScannerRoutes {
         }
 
         $added = \WcpScanner\Firewall\FirewallEngine::add_blocked_ip($ip);
+        if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'firewall_ip_blocked',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'description' => sprintf('IP %s manually added to WAF blocklist by %s from IP %s.', $ip, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response([
             'success' => $added,
             'message' => $added ? sprintf('IP %s added to custom WAF blocklist.', $ip) : 'Failed to add IP.',
@@ -6509,6 +6524,21 @@ class ScannerRoutes {
         }
 
         $unblocked = \WcpScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
+        if ($unblocked && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'firewall_ip_unblocked',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'description' => sprintf('IP %s unblocked from firewall by %s from IP %s.', $ip, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response([
             'success' => $unblocked,
             /* translators: %s: unblocked IP address */
@@ -6534,6 +6564,21 @@ class ScannerRoutes {
             return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
         }
         $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip);
+        if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'firewall_ip_whitelisted',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'description' => sprintf('IP %s added to trusted WAF allowlist by %s from IP %s.', $ip, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response([
             'success' => $added,
             'message' => $added ? sprintf('IP %s added to trusted WAF allowlist.', $ip) : 'Failed to whitelist IP.',
@@ -6542,6 +6587,22 @@ class ScannerRoutes {
 
     public static function clear_firewall_logs() {
         $cleared = \WcpScanner\Firewall\FirewallEngine::clear_logs();
+        if ($cleared && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'firewall_logs_cleared',
+                'firewall',
+                [
+                    'description' => sprintf('Firewall incident logs purged by %s from IP %s.', $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response([
             'success' => $cleared,
             'message' => 'Firewall incident logs cleared successfully.',
@@ -6630,6 +6691,24 @@ class ScannerRoutes {
         $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
 
         $result = \WcpScanner\Firewall\ServerSecurityEngine::save_config_file($server_type, $options);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'server_security_saved',
+                'firewall',
+                [
+                    'server_type' => $server_type,
+                    'description' => sprintf('Web server armor configuration for %s updated by %s from IP %s.', strtoupper($server_type), $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -6644,6 +6723,23 @@ class ScannerRoutes {
         $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
 
         $result = \WcpScanner\Firewall\ServerSecurityEngine::deploy_to_htaccess($options);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'server_security_htaccess_deployed',
+                'firewall',
+                [
+                    'description' => sprintf('Web server armor rules deployed directly to root .htaccess by %s from IP %s.', $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8226,6 +8322,24 @@ class ScannerRoutes {
         $rules  = is_array($params['rules'] ?? null) ? $params['rules'] : [];
 
         $result = \WcpScanner\Cloudflare\CloudflareService::deploy_custom_rules($rules);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_rules_deployed',
+                'firewall',
+                [
+                    'rules_count' => count($rules),
+                    'description' => sprintf('Cloudflare Edge WAF rules deployed (%d rules configured) by %s from IP %s.', count($rules), $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8239,6 +8353,26 @@ class ScannerRoutes {
         $enable   = !isset($params['enabled']) || !empty($params['enabled']);
 
         $result = \WcpScanner\Cloudflare\CloudflareService::deploy_single_rule($rule_key, $config, $enable);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            $action_state = $enable ? 'enabled' : 'disabled';
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_rule_modified',
+                'firewall',
+                [
+                    'rule_key'    => $rule_key,
+                    'enabled'     => $enable,
+                    'description' => sprintf('Cloudflare Edge rule "%s" was %s by %s from IP %s.', $rule_key, $action_state, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8251,6 +8385,25 @@ class ScannerRoutes {
         $options = is_array($params['options'] ?? null) ? $params['options'] : [];
 
         $result = \WcpScanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable, $options);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            $state_text = $enable ? 'activated' : 'paused';
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_rate_limiting_toggled',
+                'firewall',
+                [
+                    'enabled'     => $enable,
+                    'description' => sprintf('Cloudflare Edge rate limiting was %s by %s from IP %s.', $state_text, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8263,6 +8416,26 @@ class ScannerRoutes {
         $reason = sanitize_text_field($params['reason'] ?? 'Manual block via Security Scanner');
 
         $result = \WcpScanner\Cloudflare\CloudflareService::block_ip($ip, $reason);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_ip_blocked',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'reason'      => $reason,
+                    'rule_id'     => $result['rule_id'] ?? '',
+                    'description' => sprintf('IP %s manually blocked at Cloudflare Edge by %s from IP %s. Reason: %s', $ip, $user_login, $client_ip, $reason),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8285,6 +8458,24 @@ class ScannerRoutes {
         $rule_id = sanitize_text_field($params['rule_id'] ?? '');
 
         $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_ip_unblocked',
+                'firewall',
+                [
+                    'rule_id'     => $rule_id,
+                    'description' => sprintf('Cloudflare Edge block rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8296,6 +8487,25 @@ class ScannerRoutes {
         $files  = !empty($params['files']) && is_array($params['files']) ? array_map('esc_url_raw', $params['files']) : null;
 
         $result = \WcpScanner\Cloudflare\CloudflareService::purge_cache($files);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            $target_desc = !empty($files) ? sprintf('%d specific file(s)', count($files)) : 'all cached assets (Everything)';
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_cache_purged',
+                'firewall',
+                [
+                    'target'      => $target_desc,
+                    'description' => sprintf('Cloudflare Edge cache purged (%s) by %s from IP %s.', $target_desc, $user_login, $client_ip),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
@@ -8330,6 +8540,23 @@ class ScannerRoutes {
         $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
         if (!empty($result['success'])) {
             $result['message'] = __('Whitelisted IP rule successfully removed from Cloudflare Edge.', 'wcp-security-scanner');
+
+            if (class_exists('\WcpScanner\System\WcpActivityLogger')) {
+                $current_user = wp_get_current_user();
+                $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+                $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                    ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                    : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+                \WcpScanner\System\WcpActivityLogger::notice(
+                    'cloudflare_whitelist_removed',
+                    'firewall',
+                    [
+                        'rule_id'     => $rule_id,
+                        'description' => sprintf('Cloudflare Edge allowlist rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip),
+                    ]
+                );
+            }
         }
         return rest_ensure_response($result);
     }
@@ -8343,6 +8570,26 @@ class ScannerRoutes {
         $notes  = sanitize_text_field($params['notes'] ?? 'Administrator / Developer Whitelist via WCP');
 
         $result = \WcpScanner\Cloudflare\CloudflareService::whitelist_ip($ip, $notes);
+
+        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
+                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'cloudflare_ip_whitelisted',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'notes'       => $notes,
+                    'rule_id'     => $result['rule_id'] ?? '',
+                    'description' => sprintf('IP %s added to Cloudflare Edge Allowlist by %s from IP %s. Notes: %s', $ip, $user_login, $client_ip, $notes),
+                ]
+            );
+        }
+
         return rest_ensure_response($result);
     }
 
