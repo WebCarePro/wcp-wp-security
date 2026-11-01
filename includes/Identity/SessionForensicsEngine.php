@@ -204,46 +204,65 @@ class SessionForensicsEngine {
         $client_ip = self::get_client_ip();
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
 
+        // Skip during automated background, queue, cron, or internal loopback requests
+        if (wp_doing_cron() || (defined('DOING_CRON') && DOING_CRON)) {
+            return;
+        }
+
         // Check for User-Agent mismatch (token theft / replay across different browsers)
         if (!empty($settings['detect_ua_hijack'])) {
-            $recorded_ua_hash = $fingerprints[$token_key]['ua_hash'] ?? '';
-            $current_ua_hash  = md5($user_agent);
+            // Ignore background loopback, CLI, queue runners, or non-browser agents
+            $is_background = (
+                wp_doing_cron() ||
+                (defined('DOING_CRON') && DOING_CRON) ||
+                (defined('WP_CLI') && WP_CLI) ||
+                (isset($_REQUEST['action']) && is_string($_REQUEST['action']) && strpos($_REQUEST['action'], 'queue_runner') !== false) ||
+                empty($user_agent) ||
+                $user_agent === 'Unknown' ||
+                strpos($user_agent, 'WordPress/') === 0 ||
+                strpos($user_agent, 'WCP-') === 0
+            );
 
-            if (!empty($recorded_ua_hash) && !hash_equals($recorded_ua_hash, $current_ua_hash)) {
-                AuditLogger::log(
-                    'session_hijack_detected',
-                    sprintf(
-                        'Session Hijacking Alert: User-Agent shift detected on active token for user "%s". Original: %s | Current: %s',
-                        $user->user_login,
-                        substr($fingerprints[$token_key]['user_agent'] ?? '', 0, 50),
-                        substr($user_agent, 0, 50)
-                    )
-                );
+            if (!$is_background) {
+                $recorded_ua_hash = $fingerprints[$token_key]['ua_hash'] ?? '';
+                $current_ua_hash  = md5($user_agent);
 
-                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_session_hijack_flag', [
-                        'severity' => 'high',
-                        /* translators: 1: username */
-                        'message'  => sprintf(__('Session IP/User-Agent shift detected on active session for user "%1$s". Session auto-terminated.', 'wcp-security-scanner'), $user->user_login),
-                        'details'  => [
-                            'Affected User'   => $user->user_login,
-                            'Original Agent'  => substr($fingerprints[$token_key]['user_agent'] ?? '', 0, 60),
-                            'Hijacker Agent'  => substr($user_agent, 0, 60),
-                            'Current IP'      => $client_ip,
-                        ],
-                    ]);
+                if (!empty($recorded_ua_hash) && !hash_equals($recorded_ua_hash, $current_ua_hash)) {
+                    AuditLogger::log(
+                        'session_hijack_detected',
+                        sprintf(
+                            'Session Hijacking Alert: User-Agent shift detected on active token for user "%s". Original: %s | Current: %s',
+                            $user->user_login,
+                            substr($fingerprints[$token_key]['user_agent'] ?? '', 0, 50),
+                            substr($user_agent, 0, 50)
+                        )
+                    );
+
+                    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                        \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_session_hijack_flag', [
+                            'severity' => 'high',
+                            /* translators: 1: username */
+                            'message'  => sprintf(__('Session IP/User-Agent shift detected on active session for user "%1$s". Session auto-terminated.', 'wcp-security-scanner'), $user->user_login),
+                            'details'  => [
+                                'Affected User'   => $user->user_login,
+                                'Original Agent'  => substr($fingerprints[$token_key]['user_agent'] ?? '', 0, 60),
+                                'Hijacker Agent'  => substr($user_agent, 0, 60),
+                                'Current IP'      => $client_ip,
+                            ],
+                        ]);
+                    }
+
+                    // Auto-terminate compromised session
+                    wp_destroy_current_session();
+                    unset($fingerprints[$token_key]);
+                    update_user_meta($user->ID, self::META_SESSION_FINGERPRINTS, $fingerprints);
+
+                    wp_die(
+                        '<h1>Session Terminated for Security</h1><p>Your session signature changed unexpectedly. Please log in again to confirm your identity.</p>',
+                        'Security Warning',
+                        ['response' => 403]
+                    );
                 }
-
-                // Auto-terminate compromised session
-                wp_destroy_current_session();
-                unset($fingerprints[$token_key]);
-                update_user_meta($user->ID, self::META_SESSION_FINGERPRINTS, $fingerprints);
-
-                wp_die(
-                    '<h1>Session Terminated for Security</h1><p>Your session signature changed unexpectedly. Please log in again to confirm your identity.</p>',
-                    'Security Warning',
-                    ['response' => 403]
-                );
             }
         }
 
@@ -568,9 +587,12 @@ class SessionForensicsEngine {
     }
 
     /**
-     * Safe client IP resolution.
+     * Safe client IP resolution with FirewallEngine proxy awareness.
      */
     private static function get_client_ip(): string {
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            return \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        }
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
             return sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
         }
