@@ -57,7 +57,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (53 Specialized Security Engines & Subsystems)
+## 🌟 Comprehensive Feature Catalog (58 Specialized Security Engines & Subsystems)
 
 > 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
@@ -154,13 +154,17 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Strict Decrypted Origin IP Fidelity**: Inspects the authentic user's decrypted login IP recorded at authentication time (`$data['ip']`), preventing Cloudflare Anycast edge proxies from colliding with remote administrator IPs.
 
 ### 17. Multi-Factor Authentication (2FA) & Login Hardening
-- **Pure PHP RFC 6238 TOTP Engine**: Compatible with Google Authenticator, Authy, 1Password, Bitwarden, and Microsoft Authenticator without external libraries.
-- **Native `wp-login.php` Interception**: Displays a responsive, branded two-factor verification challenge screen supporting rotating 6-digit TOTP codes and single-use emergency backup recovery codes.
+- **Pure PHP RFC 6238 TOTP Engine**: Compatible with Aegis, 1Password, YubiKey, Bitwarden, 2FAS, Google Authenticator, and Authy without external libraries.
+- **SHA-512 & SHA-1 Algorithm Agility**: Supports high-security HMAC-SHA-512 with 8-digit verification codes alongside standard 6-digit HMAC-SHA-1 with dynamic inline SVG QR code rendering and single-use emergency recovery codes.
+- **Native `wp-login.php` Interception**: Displays a responsive, branded two-factor verification challenge screen supporting rotating TOTP codes and single-use emergency backup recovery codes.
 - **AES-256-GCM AEAD Encrypted User Secrets**: Encrypts user TOTP secrets (`_wcp_2fa_secret`) at rest in `wp_usermeta` via the Secret Vault with 128-bit authentication integrity tags.
 
 ### 18. WebAuthn Passwordless Biometric Login & Native Windows Hello Ceremony
-- **Complete Native WebAuthn Ceremony (`WebAuthnManager.php`)**: Implements the official W3C WebAuthn Level 3 protocol directly inside the WordPress core login lifecycle (`wp-login.php`).
+- **Complete Native WebAuthn Ceremony (`WebAuthnManager.php`)**: Implements official W3C WebAuthn protocol directly inside the WordPress core login lifecycle (`wp-login.php`) and Security Console.
+- **Strict Fail-Closed Cryptographic Verification**: Sessions are never issued unless OpenSSL successfully verifies the cryptographic signature (`openssl_verify === 1`) against a validated SubjectPublicKeyInfo (SPKI) PEM public key.
 - **Native Windows Hello & Biometric Integration**: Supports platform authenticators (Windows Hello PIN/Fingerprint, Apple Touch ID/Face ID, Android Biometrics, and USB FIDO2 security keys) for instant, 100% phishing-immune login.
+- **Anti-Enumeration & Hardware Clone Detection**: Unconditionally returns empty `allowCredentials: []` on unauthenticated requests to support discoverable resident keys without disclosing username existence; verifies monotonic authenticator signature counters (`sign_count`) to detect cloned keys.
+- **Fast $O(1)$ Indexed Credential Map**: Eliminates expensive full-table `usermeta` scans using dedicated timing-safe (`hash_equals`) indexed lookups (`wcpscan_webauthn_index`).
 
 ### 19. Dedicated Notification Center & Granular 32+ Event Alert Matrix
 - **Dedicated Administrative Notification Hub (`admin.php?page=wcp-scanner-notifications`)**: Full-page notification operations hub accessible via direct deep-link.
@@ -186,11 +190,13 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ### 24. Model Context Protocol (MCP) Agentic Surface (AI SecOps Automation)
 - **Native JSON-RPC 2.0 Agentic Integration**: Bridges external AI coding agents (Claude Desktop, Cursor IDE, Antigravity) with WordPress security operations over standard JSON-RPC 2.0.
+- **AES-256-GCM Encrypted Bearer Credentials**: `mcp_token` bearer authorization tokens are encrypted at rest with AEAD encryption in `SecretVault`, masked in settings views (`••••••••`), and strictly enforced by the REST permission callback.
 - **Granular Permission Scopes & Rate Limiting**: Enforce Read-Only or Full Remediation mode with per-token rate-limiting and persistent 150-event ring-buffer execution logging (`wcpscan_mcp_audit_log`).
 
 ### 25. Cryptographic Secret Vault (Pure AES-256-GCM AEAD & Two-Phase Key Rotation)
-- **Pure AES-256-GCM Authenticated Encryption (AEAD)**: Encrypts all sensitive credentials (webhooks, Cloudflare tokens, AI keys, 2FA TOTP secrets) before writing to `wp_options`.
-- **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`)**: Zero-downtime state machine with dual-key background decrypt fallback and atomic snapshot rollbacks.
+- **Pure AES-256-GCM Authenticated Encryption (AEAD)**: Encrypts all sensitive credentials (webhooks, Cloudflare tokens, AI keys, MCP bearer tokens, 2FA TOTP secrets) before writing to `wp_options`.
+- **Fail-Closed Key Derivation**: Derives keys securely from WordPress salts or isolated `WCP_VAULT_KEY` server constants; strictly fails closed with `\RuntimeException` rather than falling back to weak static seeds or database names.
+- **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`)**: Zero-downtime state machine with dual-key background decrypt fallback, resilient 600-second lock leases, and atomic snapshot rollbacks.
 
 ### 26. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
 - **Centralized Security Vault Page (`wcp-vault`)**: Consolidates File Quarantine, Database Snapshots, Pre-Cure Safety Rollbacks, and Secret Vault metrics into one unified screen.
@@ -276,12 +282,43 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ### 51. Zero-SQL Partitioned WAF Incident Filesystem Engine
 - **High-Throughput Filesystem Incident Telemetry**: Streams blocked attack telemetry and Layer 7 incidents directly to partitioned daily JSON Lines logs (`WafFileLogger.php`) with atomic appending (`LOCK_EX`), eliminating MySQL database overhead under high-volume botnet attacks with Fail2ban and CrowdSec native ingestion.
+- **Supply-Chain Gatekeeper Intercept Integration**: Automatically records intercepted hostile plugin updates and installations into the centralized WAF incident stream (`WAF-SUPPLY-CHAIN-GATEKEEPER`).
 
 ### 52. Enterprise Granular Notification Center & DevSecOps Webhooks
 - **59-Event Security Alert Matrix & Webhook Integrations**: Full-page interactive notification center (`?page=wcp-scanner-notifications`) with granular event toggles across 10 security categories and independent channels for Email, Slack, Discord, ClickUp, Asana, and custom DevSecOps webhooks with AES-256-GCM encrypted secrets.
 
 ### 53. Turbo Scan Engine Optimization, In-Memory Caching & Bulk Ingestion
 - **320+ Files/Sec Audit Throughput**: In-memory WordPress.org checksum caching with negative transient caches (`ChecksumProvider.php`), automatic test suite and vendor sample directory exclusions (`Engine.php`), and multi-row batched atomic SQL staging (`ScannerRoutes.php`) delivering lightning-fast, zero-overhead malware scans.
+
+### 54. Cryptographic Plugin Activity & Tamper-Evident Forensic Audit Ledger
+- **Unbroken SHA-256 Hash Chain**: Links every administrative setting change, firewall reconfiguration, and automated maintenance task into an immutable SHA-256 cryptographic chain ($H_n = \text{SHA256}(H_{n-1} + \text{CanonicalJSON}(n))$) with a permanent installation genesis hash.
+- **AES-256-GCM Envelope Encryption with AAD**: Stores all activity records encrypted at rest in daily partitioned `.json.php` files with direct web execution prevention. Critical envelope metadata (`v`, `k_ver`, `seq`, `event_id`, `h`) is bound to Additional Authenticated Data (AAD) before encryption to block ciphertext transplantation.
+- **Write-Ahead Logging (WAL) & Quarantined Crash Recovery**: Multi-level locked transaction state machine (`.journal.json.php`) verifying journal writes and chain-state commits before journal removal. Damaged or interrupted journals are safely quarantined for forensic review.
+- **7-Day Immutability Window & Chained Checkpoints**: Preserves unbroken historical audit continuity across pruned partitions with recomputed canonical checkpoint hashes (`.checkpoints.json.php`) and streaming exports of up to 5,000 records.
+- **Interactive Before/After Diffs & KPI Dashboard**: Comprehensive UI (`ActivityLogsPage.tsx`) featuring color-coded setting diffs, plain-English parameter explanations, actor vs executor separation (`System (WP-Cron)`), and 1-click clipboard exports.
+
+### 55. Next-Gen WAF Track B: Guest admin-ajax.php / admin-post.php & REST Action Matrix Guard (Rule #36 & #37)
+- **High-Precision Behavioral Inspection**: Eliminates backend probe attacks on `admin-ajax.php`, `admin-post.php`, and `rest_route` without inflating CPU-heavy static regex lists.
+- **Tier 1 Default Guest Allowlist ($O(1)$ Hash Set)**: Automatically permits unauthenticated visitors to execute legitimate WooCommerce customer actions (`woocommerce_get_refreshed_fragments`, `woocommerce_add_to_cart`, `woocommerce_checkout`, etc.) regardless of session cookies, core heartbeats, contact form submissions (CF7, WPForms, Fluent Forms, Gravity Forms, Ninja Forms, Formidable, WS Form, HappyForms, Everest), and frontend pagination/search loaders.
+- **Probe Interception**: Intercepts empty or missing actions (`WAF-GUEST-AJAX-EMPTY`) and unregistered guest actions (`WAF-GUEST-AJAX-PROBE`) with configurable `monitor` (default safe baselining) and `block` (strict HTTP 400/403) modes.
+- **Custom Administrator Action Allowlist**: Dedicated case-insensitive configuration enabling administrators to allow bespoke theme or plugin actions with zero code changes.
+- **Guest REST API Mutation Guard (Rule #37)**: Monitors and restricts unauthenticated `POST`, `PUT`, `PATCH`, and `DELETE` requests against non-public REST routes.
+
+### 56. Interactive Forensic Tables for Blocked & Whitelisted IPs
+- **Structured Interactive IP Tables**: Replaced legacy multi-line textareas in WAF settings with high-contrast, searchable tables featuring format validation for IPv4, IPv6, and CIDR subnets.
+- **Blocked IPs Table**: Displays IP/Subnet with 1-click clipboard copy, violation rule attribution, cryptographic incident tracking badge (`WCP-XXXXXXXX`), ban duration countdowns, and 1-click unblock.
+- **Whitelisted IPs Table**: Displays trusted IP/Subnet with usage descriptions, administrative creator details, trust badges, and 1-click removal.
+- **Cryptographic Audit Attribution**: Every IP block or whitelist modification is recorded in the Activity Log stream with administrator identity and justification.
+
+### 57. Active Lockouts & Central Blocklist Forensic Hub
+- **Deep Forensic Attribution**: Distinguishes automated WAF rule bans (e.g. Honeypot traps, SQLi shields) from manual administrator blocks (`Custom block by {admin}: {reason}`).
+- **Authoritative Incident Tracking**: Displays cryptographic Incident IDs (`WCP-XXXXXXXX`) with 1-click copy buttons and ban timing countdown grids (Permanent, 24 Hours, 7 Days, or relative elapsed time).
+- **Expandable Recent Attack History Accordion**: Each locked IP card expands to reveal its last 1–3 captured attacks (incident ID, timestamp, WAF category, attack description, request URI, HTTP method, and malicious payload sample).
+- **In-Modal Manual Block Creator & Live Filter**: Allows immediate IP blocking with customizable ban durations and instant filtering across IPs, Incident IDs, and violation reasons.
+
+### 58. Welcome Guide & Deep Feature Educational Hub
+- **In-Console Welcome Guide**: Instant header wizard and walkthrough modal guiding administrators through on-premise privacy guarantees, zero-telemetry architecture, and essential hardening steps.
+- **Deep Educational Hyperlinks**: Direct links to official technical breakdowns, architecture guides, and solo engineering consultations with Mir Alamin.
 
 ---
 

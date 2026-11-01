@@ -61,6 +61,11 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 51. [Zero-SQL Partitioned WAF Incident Filesystem Engine](#51-zero-sql-partitioned-waf-incident-filesystem-engine)
 52. [Enterprise Granular Notification Center & DevSecOps Webhooks](#52-enterprise-granular-notification-center--devsecops-webhooks)
 53. [Turbo Scan Engine Optimization, In-Memory Caching & Bulk Ingestion](#53-turbo-scan-engine-optimization-in-memory-caching--bulk-ingestion)
+54. [Cryptographic Plugin Activity & Tamper-Evident Forensic Audit Ledger](#54-cryptographic-plugin-activity--tamper-evident-forensic-audit-ledger)
+55. [Next-Gen WAF Track B: Guest admin-ajax.php / admin-post.php & REST Action Matrix Guard](#55-next-gen-waf-track-b-guest-admin-ajaxphp--admin-postphp--rest-action-matrix-guard)
+56. [Interactive Forensic Tables for Blocked & Whitelisted IPs](#56-interactive-forensic-tables-for-blocked--whitelisted-ips)
+57. [Active Lockouts & Central Blocklist Forensic Hub](#57-active-lockouts--central-blocklist-forensic-hub)
+58. [Welcome Guide & Deep Feature Educational Hub](#58-welcome-guide--deep-feature-educational-hub)
 
 ---
 
@@ -811,6 +816,71 @@ Scanning tens of thousands of files on a busy WordPress website can often cause 
 
 ---
 
+## 54. Cryptographic Plugin Activity & Tamper-Evident Forensic Audit Ledger
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Think of this as the unbreakable flight data recorder (black box) for your security settings. Every time an administrator changes a firewall rule, saves a setting, or an automated task runs, it is sealed with high-grade cryptography into an unbroken digital chain. If anyone—even an attacker with temporary database access—tries to alter or delete past log entries, the system immediately sounds the alarm. In the dashboard, you see clear Before vs. After diff tables and plain-English summaries so you always know who changed what, when, and from which IP address.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Unbroken SHA-256 Hash Chain (`WcpActivityLogger.php`):** Links every administrative event and security reconfiguration into an immutable cryptographic chain where $H_n = \text{SHA256}(H_{n-1} + \text{CanonicalJSON}(n))$ anchored to an authoritative site-specific genesis hash.
+- **Pure AES-256-GCM Envelope Encryption with AAD Binding:** All activity entries are encrypted at rest in daily partitioned `.json.php` files. Critical envelope headers (`seq`, `h`, `event_id`, `k_ver`) are bound as Additional Authenticated Data (AAD), completely preventing ciphertext transplantation or replay tampering.
+- **Write-Ahead Transaction Logging (WAL) & Resilient Crash Recovery:** Implements a multi-phase locked transaction pipeline (`.journal.json.php`). Pending transactions and chain-state commits are verified before clearing journal files. Corrupted or interrupted journals are automatically quarantined into forensic review files (`.journal.malformed.<time>`) rather than deleted.
+- **7-Day Immutability Window & Checkpoint Ledger (`ActivityRetention.php`):** Log partitions are strictly locked for a minimum of 7 days. Expired archives are pruned only after computing and syncing an immutable cryptographic checkpoint in `.checkpoints.json.php`, preserving complete historical continuity across pruned archives.
+- **Interactive UI, Before/After Diffs & Streaming Exporter:** Dedicated dashboard (`ActivityLogsPage.tsx`) featuring color-coded visual parameter diffs, plain-English summaries, separate actor vs executor attribution (`System (WP-Cron)`), and formula-injection-safe streaming exports of up to 5,000 records in CSV and JSON formats.
+
+---
+
+## 55. Next-Gen WAF Track B: Guest admin-ajax.php / admin-post.php & REST Action Matrix Guard
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Hackers frequently probe WordPress by sending random, malicious requests to backend controllers like `admin-ajax.php`. Traditional firewalls try to catch them by adding hundreds of complex patterns that slow down your server and can break legitimate online stores. The Next-Gen WAF Matrix works differently: it knows the exact legitimate guest actions used by WooCommerce (like adding items to the cart or updating checkout totals) and trusted form plugins, allowing real shoppers to pass instantly while logging or blocking unknown probe requests from bots.
+
+### 55. ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **High-Precision Behavioral Inspection (`FirewallEngine.php`):** Enforces strict behavioral guest action policies on `admin-ajax.php`, `admin-post.php`, and `rest_route` without CPU-heavy static regex bloat.
+- **Tier 1 Default Guest Allowlist ($O(1)$ Hash Set):** Unauthenticated visitors are always permitted to run legitimate WooCommerce customer actions (`woocommerce_get_refreshed_fragments`, `woocommerce_add_to_cart`, `woocommerce_checkout`, etc.) regardless of shopper session cookie presence, core heartbeat, supported contact form submissions (CF7, WPForms, Fluent Forms, Gravity Forms, Ninja Forms, Formidable, WS Form, HappyForms, Everest), and frontend pagination/search loaders.
+- **Probe Interception & Anomaly Defense:** Detects empty or missing action invocations as anomalous probes (`WAF-GUEST-AJAX-EMPTY`) and intercepts unregistered guest action calls (`WAF-GUEST-AJAX-PROBE`).
+- **Dynamic Policy Modes:** Configurable between `monitor` (default safe baselining: records telemetry without dropping traffic), `block` (strict mode: terminates unauthorized guest probes with HTTP 403 and empty actions with HTTP 400), and `off`.
+- **Custom Administrative Allowlist:** Provides case-insensitive textarea configuration allowing administrators to permit bespoke theme or third-party plugin guest AJAX actions without touching code.
+- **Guest REST API Mutation Guard (Rule #37):** Monitors and restricts unauthenticated `POST`, `PUT`, `PATCH`, and `DELETE` requests against non-public REST routes.
+
+---
+
+## 56. Interactive Forensic Tables for Blocked & Whitelisted IPs
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Managing blocked and trusted IP addresses is no longer done through messy, error-prone text boxes. Instead, you have dedicated, modern tables where you can add IPs or subnets with a clear reason (e.g., "Office VPN" or "Aggressive Brute-Force Bot"). You can easily search, view countdown timers for temporary bans, and remove or whitelist addresses with a single click.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Structured Interactive IP Tables (`FirewallPage.tsx`):** Phased out legacy multi-line textareas in favor of structured tables with real-time format validation for IPv4, IPv6, and CIDR subnets.
+- **Blocked IPs Table:** Displays IP/Subnet with 1-click clipboard copy, violation reason & rule attribution, incident tracking badge (`WCP-XXXXXXXX`), ban duration countdown, and 1-click `Unblock` action.
+- **Whitelisted IPs Table:** Displays trusted IP/Subnet with usage descriptions, administrative creator metadata, trust badge, and 1-click `Remove` action.
+- **Cryptographic Audit Attribution:** All manual IP additions, removals, and unbans require verified administrator privileges (`manage_options`) and are automatically recorded in the Activity Log stream with actor identity and forensic justification.
+
+---
+
+## 57. Active Lockouts & Central Blocklist Forensic Hub
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+When someone or something gets locked out of your website, you need to know why. The Active Lockouts Hub shows exactly who was banned, which specific rule caught them (like an SQL injection attempt or login brute force), and how much time remains on their ban. You can even click on any locked IP to see the exact malicious requests and payloads they sent before being blocked.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Deep Forensic Attribution (`FirewallEngine.php`):** Clearly distinguishes between automated WAF rule bans (e.g. Forbidden Honeypot Username Trap, SQL Injection Shield, Rate Limiter) and manual administrative blocks (`Custom block by {admin_user}: {reason}`).
+- **Authoritative Incident Tracking (`WCP-XXXXXXXX`):** Every active lockout card displays its cryptographic Incident ID with 1-click clipboard copy and precise ban timestamps (`blocked_at`, `ban_ago`, `duration`, `expires_at`, `time_remaining`).
+- **Expandable Recent Attack History Drawer:** Interactive accordion on each locked IP reveals its last 1–3 intercepted incidents (incident ID, timestamp, WAF category, attack description, request URI, HTTP method, and captured payload snippet).
+- **In-Modal Manual Block Creator & Live Filtering:** Expandable administrative block form directly inside the modal with customizable ban durations (Permanent, 1 Hour, 6 Hours, 24 Hours, 7 Days, 30 Days, 1 Year) and instant live search across IPs, Incident IDs, and violation reasons.
+
+---
+
+## 58. Welcome Guide & Deep Feature Educational Hub
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Getting started with enterprise website security shouldn't require reading hundreds of pages of documentation. The Welcome Guide pops up directly in the dashboard to walk you through the essential protection steps, explains how your privacy is protected with zero external data sharing, and links directly to in-depth technical guides and direct consultations with senior security engineer Mir Alamin.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **In-Console Welcome Wizard (`WelcomeModal.tsx`):** Modern setup modal guiding administrators through on-premise storage verifications, zero-telemetry architecture, and recommended baseline hardening toggles.
+- **Direct Educational Hyperlinks:** Features prominent links to the comprehensive feature breakdown on [webcarespro.com](https://webcarespro.com/blog/post/wcp-wordpress-security-scanner) and direct 1-on-1 contact channels with senior engineer Mir Alamin.
+
+---
 
 ## 👨‍💻 Author & Engineering
 

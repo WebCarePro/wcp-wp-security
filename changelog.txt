@@ -1,4 +1,13 @@
 v:2.1.0 - 2026-11-01
+- Documentation & Feature Catalog Expansion (README.md, features.md):
+  * Synchronized and expanded the comprehensive features catalog across `README.md` and `features.md` to document all 58 specialized security subsystems.
+  * Added detailed dual-level documentation (plain-English for site owners + deep engineering architecture for developers) for:
+    - Feature 54: Cryptographic Plugin Activity & Tamper-Evident Forensic Audit Ledger (`WcpActivityLogger.php`).
+    - Feature 55: Next-Gen WAF Track B: Guest `admin-ajax.php` / `admin-post.php` & REST Action Matrix Guard (`FirewallEngine.php`).
+    - Feature 56: Interactive Forensic Tables for Blocked & Whitelisted IPs (`FirewallPage.tsx`).
+    - Feature 57: Active Lockouts & Central Blocklist Forensic Hub with Expandable Attack History Drawer.
+    - Feature 58: In-Console Welcome Guide & Deep Feature Educational Hub (`WelcomeModal.tsx`).
+  * Updated WebAuthn, 2FA TOTP (SHA-512 8-digit support), MCP encrypted bearer tokens, and SecretVault fail-closed key derivation documentation across all catalogs.
 - Cryptographic Hardening, Activity Logger Durability, MCP Encryption & Forensic Architecture:
   * Model Context Protocol (MCP) Bearer Token Encryption & Access Policy (SettingsManager.php, ScannerRoutes.php):
     - Encrypted `mcp_token` in `wp_options` using `SecretVault` AES-256-GCM AEAD encryption rather than storing bearer credentials in plaintext.
