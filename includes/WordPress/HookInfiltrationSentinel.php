@@ -41,6 +41,9 @@ class HookInfiltrationSentinel {
         'xmlrpc_methods'            => 'XML-RPC Custom Method Infiltration',
         'rest_pre_serve_request'    => 'REST API Interception & Response Tampering',
         'send_headers'              => 'HTTP Header Tampering',
+        'all_plugins'               => 'Plugin List Manipulation & Stealth Backdoor Concealment',
+        'pre_current_active_plugins'=> 'Active Plugin List Manipulation',
+        'pre_user_query'            => 'Rogue Administrator User List Suppression',
     ];
 
     /**

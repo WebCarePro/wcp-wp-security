@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T06:22:33.036Z",
+  "generated_at": "2026-11-02T06:36:39.268Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -388,8 +388,8 @@
       "size": 4313
     },
     "includes/Malware/WebshellDetector.php": {
-      "sha256": "f056976efc6e379c170b3ca66b5fabff1062c1117d00a42a89855c18cb1b133f",
-      "size": 10808
+      "sha256": "418ae35b5edd25ad2d79580fb7ad230dac61396f37617993628d5f11cb4eb226",
+      "size": 13613
     },
     "includes/Notifications/NotificationDispatcher.php": {
       "sha256": "35cbcde421ab7da918f8d66e51fd2deb5162b8b28c3cb6a72c1640bb7abf2bcd",
@@ -588,8 +588,8 @@
       "size": 8703
     },
     "includes/WordPress/HookInfiltrationSentinel.php": {
-      "sha256": "205df07dcf7f18f741724faf74f873069ca4d476f56b04c78ecef596cc8d6855",
-      "size": 11324
+      "sha256": "68243b1059319aa6db3d8cfecf93fbe6196c782338872993f46ee5a8f20cffbb",
+      "size": 11580
     },
     "includes/WordPress/PersistenceScanner.php": {
       "sha256": "f03b6d4eb8c36a6b802b5cbd91498968d2faf4aef45c3d73f3ceef0a0d9fe1f9",
