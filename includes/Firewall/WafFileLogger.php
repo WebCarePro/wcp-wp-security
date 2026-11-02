@@ -152,7 +152,9 @@ class WafFileLogger {
         // Exception: For rapid authentication failures or logins, use a short 3-second window or include username
         $dedup_ttl = 60;
         if (strpos($category, 'auth') !== false) {
-            $dedup_username = sanitize_user($rule['username'] ?? ($_POST['log'] ?? ''));
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection of incoming authentication attempt parameter for deduplication keying
+            $raw_log = isset($_POST['log']) ? sanitize_user(wp_unslash($_POST['log'])) : '';
+            $dedup_username = !empty($rule['username']) ? sanitize_user($rule['username']) : $raw_log;
             $cache_key = 'wcp_dedup_' . md5($ip . '_' . $category . '_' . $dedup_username . '_' . ($rule['id'] ?? ''));
             $dedup_ttl = 3;
         } else {

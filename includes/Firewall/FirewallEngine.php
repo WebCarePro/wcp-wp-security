@@ -6484,7 +6484,9 @@ class FirewallEngine {
 
         // Record invalid coupon attempt (coupon doesn't exist, invalid code, expired)
         $coupon_code = ($coupon instanceof \WC_Coupon) ? $coupon->get_code() : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Low-level packet inspection of failed coupon attempt in filter
         if (empty($coupon_code) && !empty($_POST['coupon_code'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $coupon_code = sanitize_text_field(wp_unslash($_POST['coupon_code']));
         }
 
@@ -6913,7 +6915,7 @@ class FirewallEngine {
                 ),
                 'match_type'  => 'Catalog Scraping Velocity',
                 'match_value' => $client_ip,
-                'payload'     => "IP: {$client_ip} URI: " . ($_SERVER['REQUEST_URI'] ?? ''),
+                'payload'     => "IP: {$client_ip} URI: " . (isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : ''),
             ];
             self::log_incident($rule_triggered, 'blocked');
             wp_die(
@@ -6952,7 +6954,7 @@ class FirewallEngine {
         }
 
         // Exempt genuine search engine crawlers (Google, Bing) and uptime monitors
-        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
             if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($client_ip, $user_agent)) {
                 return false;

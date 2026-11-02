@@ -1,4 +1,7 @@
 v:2.2.0 - 2026-11-02
+- WordPress.org Plugin Check (PCP) Compliance Cleanliness (WafFileLogger.php, FirewallEngine.php):
+  * Unslashing & Input Sanitization: Properly unslashed and sanitized `$_SERVER['REQUEST_URI']` and `$_SERVER['HTTP_USER_AGENT']` before logging and reverse-DNS verification.
+  * Nonce Verification Annotations: Added documented `phpcs:ignore WordPress.Security.NonceVerification.Missing` tags for low-level incoming authentication deduction keying (`$_POST['log']`) and WooCommerce coupon filter inspection (`$_POST['coupon_code']`).
 - Next-Gen Runtime RASP & Deep Upload Armor: Rules #44 & #47 (FirewallEngine.php, SettingsManager.php, PolicyRegistry.php, FirewallPage.tsx):
   * Rule #44 Runtime Privilege Escalation Guard (In-Memory RASP): Intercepts unauthenticated and non-admin calls attempting to modify core registration options (`users_can_register`, `default_role`, `siteurl`, `active_plugins`) or elevate user accounts to administrator via zero-day form/booking plugin exploits before database commit.
   * Rule #47 Deep MIME & Zip-Slip Polyglot Upload Armor: Rejects file uploads containing path traversal (`../`) or null-bytes (`\0`) in filenames, deep inspects binary magic bytes, and defeats disguised PHP polyglots and Phar deserialization headers (`__HALT_COMPILER()`) inside uploaded media.
