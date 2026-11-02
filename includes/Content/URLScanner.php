@@ -49,13 +49,30 @@ class URLScanner {
 
             // 1. Raw IP address in external URL
             if (preg_match('/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/', $host)) {
-                $findings[] = [
-                    'url'        => $url,
-                    'type'       => 'ip_based_external_url',
-                    'desc'       => "Suspicious external URL using direct IP address: {$url}",
-                    'severity'   => 'high',
-                    'confidence' => 85
-                ];
+                $url_path = isset($parsed['path']) ? $parsed['path'] : '';
+
+                // Contextual Disambiguation: Staging / Migration URLs in Local WP Paths
+                // If the IP URL points to standard WordPress media/upload paths (e.g. /wp-content/uploads/...),
+                // it is an unmigrated staging media asset or legacy upload URL, NOT an external malware C2 beacon.
+                $is_local_wp_path = (bool) preg_match('#^/(?:wp-content/(?:uploads|plugins|themes)|wp-includes)/#i', $url_path);
+
+                if ($is_local_wp_path) {
+                    $findings[] = [
+                        'url'        => $url,
+                        'type'       => 'ip_based_external_url',
+                        'desc'       => "Unmigrated staging IP address in WordPress content URL: {$url}",
+                        'severity'   => 'low',
+                        'confidence' => 50
+                    ];
+                } else {
+                    $findings[] = [
+                        'url'        => $url,
+                        'type'       => 'ip_based_external_url',
+                        'desc'       => "Suspicious external URL using direct IP address: {$url}",
+                        'severity'   => 'high',
+                        'confidence' => 85
+                    ];
+                }
                 continue;
             }
 
