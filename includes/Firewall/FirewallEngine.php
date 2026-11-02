@@ -99,6 +99,11 @@ class FirewallEngine {
 
         // Rule #42: WooCommerce Catalog & Price Scraping Mitigation
         add_action('template_redirect', [__CLASS__, 'inspect_woo_catalog_scraping'], 1);
+
+        // Rule #44: Runtime Privilege Escalation Guard (In-Memory RASP Hook Firewall)
+        add_filter('pre_update_option', [__CLASS__, 'rasp_guard_critical_options'], 1, 3);
+        add_action('set_user_role', [__CLASS__, 'rasp_guard_user_role_assignment'], 1, 3);
+        add_action('user_register', [__CLASS__, 'rasp_guard_user_registration'], 1, 1);
     }
 
     /**
@@ -4563,9 +4568,29 @@ class FirewallEngine {
             return $file;
         }
 
-        $filename = strtolower(basename($file['name']));
+        $raw_filename = (string) $file['name'];
+        $filename = strtolower(basename($raw_filename));
         $tmp_path = $file['tmp_name'];
         $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        // Rule #47: Zip-Slip & Path Traversal / Null-Byte Armor
+        if (!empty($settings['waf_upload_deep_mime_sanitizer'])) {
+            if (
+                strpos($raw_filename, '..') !== false ||
+                strpos($raw_filename, "\0") !== false ||
+                strpos($raw_filename, '/') !== false ||
+                strpos($raw_filename, '\\') !== false
+            ) {
+                self::log_incident([
+                    'category'    => 'Malicious File Upload',
+                    'description' => sprintf('Upload with Zip-Slip path traversal or null-byte characters "%s" was blocked by firewall.', esc_html($raw_filename)),
+                    'payload'     => "Filename: {$raw_filename}",
+                ], 'blocked');
+
+                $file['error'] = __('Security Firewall: Path traversal or invalid characters detected in uploaded filename.', 'wcp-security-scanner');
+                return $file;
+            }
+        }
 
         // 1. Prohibited executable extensions
         $prohibited_exts = [
@@ -4651,13 +4676,13 @@ class FirewallEngine {
                 }
             }
 
-            // 5. Embedded PHP Polyglots in Media
+            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media
             $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf'];
             if (in_array($ext, $image_exts, true)) {
                 $head = @file_get_contents($tmp_path, false, null, 0, 8192);
                 $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
-                if (!empty($head) && preg_match($php_pattern, $head)) {
-                    $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell detected inside image headers.', 'wcp-security-scanner');
+                if (!empty($head) && (preg_match($php_pattern, $head) || stripos($head, '__HALT_COMPILER()') !== false)) {
+                    $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'wcp-security-scanner');
                     return $file;
                 }
             }
@@ -6990,5 +7015,169 @@ class FirewallEngine {
 
         set_transient($velocity_key, $new_hits, 60);
         return false;
+    }
+
+    /**
+     * Rule #44: In-Memory RASP Hook Firewall - Intercept unauthenticated / unauthorized core option tampering.
+     *
+     * Aborts guest requests attempting to modify critical WordPress authentication & registration options
+     * (e.g. users_can_register, default_role, siteurl, active_plugins) via 0-day form or booking exploits.
+     *
+     * @param mixed  $value     New option value
+     * @param string $option    Option name being updated
+     * @param mixed  $old_value Old option value
+     * @return mixed Original or reverted value
+     */
+    public static function rasp_guard_critical_options($value, $option, $old_value) {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_runtime_rasp_privilege_guard'])) {
+            return $value;
+        }
+
+        // Allow WP-CLI, background crons, and verified administrators
+        if (defined('WP_CLI') && WP_CLI) {
+            return $value;
+        }
+        if (wp_doing_cron()) {
+            return $value;
+        }
+        if (is_user_logged_in() && current_user_can('manage_options')) {
+            return $value;
+        }
+
+        $guarded_options = [
+            'users_can_register',
+            'default_role',
+            'siteurl',
+            'home',
+            'active_plugins',
+            'admin_email',
+        ];
+
+        if (in_array($option, $guarded_options, true)) {
+            $client_ip = self::get_client_ip();
+
+            self::log_incident([
+                'id'          => 'WAF-RASP-OPTION-TAMPER',
+                'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
+                'category'    => 'Runtime RASP Hook Defense',
+                'description' => sprintf(
+                    /* translators: 1: Option name, 2: Client IP */
+                    __('Unauthenticated request from %2$s attempted unauthorized runtime tampering with core option "%1$s".', 'wcp-security-scanner'),
+                    $option,
+                    $client_ip
+                ),
+                'match_type'  => 'Unauthorized Option Mutation',
+                'match_value' => $option,
+                'payload'     => "Option: {$option} Attempted Value: " . substr(wp_json_encode($value), 0, 100),
+            ], 'blocked');
+
+            // Hard Inviolable Revert: return the old value immediately
+            return $old_value;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Rule #44: In-Memory RASP Hook Firewall - Abort guest or unprivileged role escalation to administrator.
+     *
+     * @param int    $user_id   User ID
+     * @param string $role      Assigned role
+     * @param array  $old_roles Previous roles
+     * @return void
+     */
+    public static function rasp_guard_user_role_assignment(int $user_id, string $role, array $old_roles): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_runtime_rasp_privilege_guard'])) {
+            return;
+        }
+
+        // Allow WP-CLI and automated core upgrades
+        if (defined('WP_CLI') && WP_CLI) {
+            return;
+        }
+
+        // If assigning elevated role (administrator or editor)
+        if (in_array(strtolower($role), ['administrator', 'editor'], true)) {
+            // Verified logged-in administrator with manage_options is legitimate
+            if (is_user_logged_in() && current_user_can('manage_options')) {
+                return;
+            }
+
+            // JIT Ephemeral support user activation check (if active)
+            if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
+                $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+                if (isset($support_users[$user_id])) {
+                    return; // Authorized JIT elevation
+                }
+            }
+
+            $client_ip = self::get_client_ip();
+
+            self::log_incident([
+                'id'          => 'WAF-RASP-ROLE-ESCALATION',
+                'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
+                'category'    => 'Runtime RASP Hook Defense',
+                'description' => sprintf(
+                    /* translators: 1: Role, 2: User ID, 3: Client IP */
+                    __('Unauthorized session from %3$s attempted to assign "%1$s" role to user #%2$d without manage_options capability.', 'wcp-security-scanner'),
+                    $role,
+                    $user_id,
+                    $client_ip
+                ),
+                'match_type'  => 'Privilege Escalation Intercept',
+                'match_value' => $role,
+                'payload'     => "User ID: {$user_id} Target Role: {$role} Caller: Guest / Non-Admin",
+            ], 'blocked');
+
+            wp_die(
+                esc_html__('Security Violation: Unauthorized role escalation intercepted by WCP Runtime RASP.', 'wcp-security-scanner'),
+                esc_html__('Forbidden', 'wcp-security-scanner'),
+                ['response' => 403]
+            );
+        }
+    }
+
+    /**
+     * Rule #44: In-Memory RASP Hook Firewall - Abort guest registration creating administrator or editor users.
+     *
+     * @param int $user_id
+     * @return void
+     */
+    public static function rasp_guard_user_registration(int $user_id): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_runtime_rasp_privilege_guard'])) {
+            return;
+        }
+
+        if (defined('WP_CLI') && WP_CLI) {
+            return;
+        }
+
+        // If user was created by an unauthenticated guest
+        if (!is_user_logged_in() || !current_user_can('manage_options')) {
+            $user = get_userdata($user_id);
+            if ($user && array_intersect(['administrator', 'editor'], array_map('strtolower', (array) $user->roles))) {
+                // Instantly demote or strip roles
+                $user->set_role('subscriber');
+
+                $client_ip = self::get_client_ip();
+                self::log_incident([
+                    'id'          => 'WAF-RASP-ADMIN-REG-BLOCKED',
+                    'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
+                    'category'    => 'Runtime RASP Hook Defense',
+                    'description' => sprintf(
+                        /* translators: 1: User ID, 2: Client IP */
+                        __('Unauthenticated guest from %2$s registered new account (#%1$d) with elevated administrator privileges. Account was demoted to subscriber.', 'wcp-security-scanner'),
+                        $user_id,
+                        $client_ip
+                    ),
+                    'match_type'  => 'Guest Admin Registration',
+                    'match_value' => (string) $user_id,
+                    'payload'     => "User: {$user->user_login} ID: {$user_id}",
+                ], 'blocked');
+            }
+        }
     }
 }

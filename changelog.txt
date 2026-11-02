@@ -1,4 +1,8 @@
 v:2.2.0 - 2026-11-02
+- Next-Gen Runtime RASP & Deep Upload Armor: Rules #44 & #47 (FirewallEngine.php, SettingsManager.php, PolicyRegistry.php, FirewallPage.tsx):
+  * Rule #44 Runtime Privilege Escalation Guard (In-Memory RASP): Intercepts unauthenticated and non-admin calls attempting to modify core registration options (`users_can_register`, `default_role`, `siteurl`, `active_plugins`) or elevate user accounts to administrator via zero-day form/booking plugin exploits before database commit.
+  * Rule #47 Deep MIME & Zip-Slip Polyglot Upload Armor: Rejects file uploads containing path traversal (`../`) or null-bytes (`\0`) in filenames, deep inspects binary magic bytes, and defeats disguised PHP polyglots and Phar deserialization headers (`__HALT_COMPILER()`) inside uploaded media.
+  * Advisor Policy Registry Integration: Mapped Rules #44 and #47 to the Site Archetype Intelligence Advisor with instant single-rule toggles and 1-click saving in Firewall Controls.
 - WAF Custom Blocklist Forensic Ban Reason & Subnet Tracking (FirewallEngine.php, WafFileLogger.php, WafLogsPage.tsx):
   * Ban Reason & Origin Enrichment: Updated `FirewallEngine` blocklist checking to automatically query `wcpscan_blocked_ips_meta` for matching IPs and CIDR subnets, logging explicit ban reasons (`ban_reason`), rule sources (`ban_source`), and matched subnet entries (`matching_entry`).
   * Enhanced Forensic Drawer Display: Updated `WafLogsPage.tsx` to display styled **Ban Reason** badges and target identifiers (Manual Admin Block, Automated Rule Ban, or Custom Blocklist) inside the incident breakdown drawer.

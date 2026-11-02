@@ -189,6 +189,30 @@ class PolicyRegistry {
                 'security_benefit'    => __('Protects administrator and customer credentials from credential-stuffing dictionary attacks.', 'wcp-security-scanner'),
                 'compatibility_risk'  => 'low',
             ],
+            'waf_runtime_rasp_privilege_guard' => [
+                'type'                => self::TYPE_PROTECTION,
+                'trigger_capability'  => [], // Universal
+                'target_value'        => true,
+                'action_mode'         => self::ACTION_ENFORCE,
+                'stale_when_absent'   => false,
+                'requires_ip_trust'   => false,
+                'title'               => __('Runtime Privilege Escalation Guard (In-Memory RASP)', 'wcp-security-scanner'),
+                'description'         => __('In-Memory RASP hook firewall aborting unauthenticated attempts to assign administrator roles or mutate core options.', 'wcp-security-scanner'),
+                'security_benefit'    => __('Stops zero-day form, booking, and membership plugin privilege escalations before database commits.', 'wcp-security-scanner'),
+                'compatibility_risk'  => 'low',
+            ],
+            'waf_upload_deep_mime_sanitizer' => [
+                'type'                => self::TYPE_PROTECTION,
+                'trigger_capability'  => [], // Universal
+                'target_value'        => true,
+                'action_mode'         => self::ACTION_ENFORCE,
+                'stale_when_absent'   => false,
+                'requires_ip_trust'   => false,
+                'title'               => __('Deep MIME & Zip-Slip Polyglot Upload Armor', 'wcp-security-scanner'),
+                'description'         => __('Enforces path-traversal sanitization (Zip-Slip), binary magic bytes inspection, and polyglot detection on file uploads.', 'wcp-security-scanner'),
+                'security_benefit'    => __('Renders polyglot web shells, Phar deserialization triggers, and traversal filenames inert.', 'wcp-security-scanner'),
+                'compatibility_risk'  => 'low',
+            ],
 
             // ==========================================
             // 4. OBSERVATION FIRST / SENSITIVE POLICIES

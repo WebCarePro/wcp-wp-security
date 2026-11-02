@@ -174,6 +174,8 @@ class SettingsManager {
             'waf_guest_ajax_policy'             => 'monitor', // Rule #36: Guest admin-ajax.php & admin-post.php Action Matrix ('monitor' | 'block' | 'off')
             'waf_guest_ajax_custom_allowlist'   => '',        // Newline-separated custom allowed action names
             'waf_guest_rest_policy'             => 'monitor', // Rule #37: Guest REST API Mutation Guard ('monitor' | 'off')
+            'waf_runtime_rasp_privilege_guard'  => true,      // Rule #44: Runtime Privilege Escalation Guard (In-Memory RASP Hook Firewall)
+            'waf_upload_deep_mime_sanitizer'    => true,      // Rule #47: Deep MIME & Zip-Slip Polyglot Upload Armor
             'waf_log_retention_days'            => 60,   // WAF incident JSON log retention on filesystem in days (default 60 days)
 
             // 9. Cloud Threat Intelligence & Community Blacklists
@@ -780,6 +782,8 @@ class SettingsManager {
         $clean['waf_guest_ajax_custom_allowlist'] = sanitize_textarea_field($merged['waf_guest_ajax_custom_allowlist'] ?? '');
         $in_rest_policy = sanitize_key($merged['waf_guest_rest_policy'] ?? 'monitor');
         $clean['waf_guest_rest_policy'] = in_array($in_rest_policy, ['monitor', 'off'], true) ? $in_rest_policy : 'monitor';
+        $clean['waf_runtime_rasp_privilege_guard'] = !empty($merged['waf_runtime_rasp_privilege_guard']);
+        $clean['waf_upload_deep_mime_sanitizer']   = !empty($merged['waf_upload_deep_mime_sanitizer']);
         $valid_retention = [7, 14, 30, 60, 90, 180, 365, 0];
         $retention_val = (int) ($merged['waf_log_retention_days'] ?? 60);
         $clean['waf_log_retention_days'] = in_array($retention_val, $valid_retention, true) ? $retention_val : 60;
@@ -1108,6 +1112,8 @@ class SettingsManager {
             'waf_guest_ajax_policy'            => 'Guest admin-ajax.php / admin-post.php Action Matrix',
             'waf_guest_ajax_custom_allowlist'  => 'Guest AJAX Custom Allowlist',
             'waf_guest_rest_policy'            => 'Guest REST API Mutation Guard',
+            'waf_runtime_rasp_privilege_guard' => 'Runtime Privilege Escalation Guard (In-Memory RASP Hook Firewall)',
+            'waf_upload_deep_mime_sanitizer'   => 'Deep MIME & Zip-Slip Polyglot Upload Armor',
             'waf_disable_xmlrpc'               => 'Disable XML-RPC API',
             'waf_enabled'                      => 'Web Application Firewall (WAF) Master Switch',
             'waf_mode'                         => 'Web Application Firewall (WAF) Mode',
