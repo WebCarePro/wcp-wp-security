@@ -73,7 +73,7 @@ class SessionForensicsEngine {
         if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
             \WcpScanner\System\WcpActivityLogger::notice(
                 'session_forensics_settings_updated',
-                'auth',
+                'settings',
                 [
                     'changed_count' => count($diff),
                     'description'   => sprintf('Zero-Trust Session Forensics & Impossible Travel policy updated (%d parameter(s)).', count($diff)),

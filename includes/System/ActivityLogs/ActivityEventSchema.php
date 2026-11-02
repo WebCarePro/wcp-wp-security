@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
  * Enforces:
  * - Dual attribution: Actor (originating human or system) vs. Executor (execution context).
  * - Standardized severity enum ('info', 'notice', 'warning', 'error', 'critical').
- * - Standardized categories ('settings', 'scan', 'quarantine', 'firewall', 'crashguard', 'retention', 'auth', 'system').
+ * - Standardized categories ('settings', 'scan', 'quarantine', 'firewall', 'crashguard', 'retention', 'system').
  * - Microsecond integer durations and integer timestamps (strictly no floats).
  */
 class ActivityEventSchema {
@@ -37,7 +37,6 @@ class ActivityEventSchema {
         'firewall',
         'crashguard',
         'retention',
-        'auth',
         'system',
     ];
 

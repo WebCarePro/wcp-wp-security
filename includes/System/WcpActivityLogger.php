@@ -774,9 +774,6 @@ class WcpActivityLogger {
         if (str_contains($option, 'firewall') || str_contains($option, 'waf') || str_contains($option, 'patch') || str_contains($option, 'trap') || str_contains($option, 'honey') || str_contains($option, 'egress') || str_contains($option, 'cloudflare')) {
             return 'firewall';
         }
-        if (str_contains($option, 'auth') || str_contains($option, 'login') || str_contains($option, '2fa') || str_contains($option, 'webauthn') || str_contains($option, 'passkey')) {
-            return 'auth';
-        }
         if (str_contains($option, 'quarantine') || str_contains($option, 'reinfection')) {
             return 'quarantine';
         }

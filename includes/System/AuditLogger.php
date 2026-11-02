@@ -44,19 +44,12 @@ class AuditLogger {
      * Register hooks to monitor critical administrative events.
      */
     private function register_hooks() {
-        // User Logins - strictly administrator logins (general visitor/customer logins belong to standard WP/WooCommerce)
-        add_action('wp_login', [$this, 'log_user_login'], 10, 2);
-        
         // Plugin Management
         add_action('activated_plugin', [$this, 'log_plugin_activation'], 10, 2);
         add_action('deactivated_plugin', [$this, 'log_plugin_deactivation'], 10, 2);
         
         // Theme Management
         add_action('switch_theme', [$this, 'log_theme_switch'], 10, 3);
-        
-        // User Management - strictly administrative / elevated roles
-        add_action('user_register', [$this, 'log_user_registered']);
-        add_action('delete_user', [$this, 'log_user_deleted']);
         
         // Core Updates
         add_action('_core_updated_successfully', [$this, 'log_core_update']);
@@ -159,10 +152,6 @@ class AuditLogger {
     private static function map_event_to_category(string $action): string {
         if (str_contains($action, 'vpatch') || str_contains($action, 'virtual_patch') || str_contains($action, 'firewall') || str_contains($action, 'micro_waf') || str_contains($action, 'rate_limit') || str_contains($action, 'honey') || str_contains($action, 'ghost_route') || str_contains($action, 'spam')) {
             return 'firewall';
-        }
-
-        if (str_contains($action, 'auth') || str_contains($action, 'login') || str_contains($action, 'webauthn') || str_contains($action, 'session') || str_contains($action, 'ephemeral') || str_contains($action, 'user') || str_contains($action, 'breach')) {
-            return 'auth';
         }
 
         if (str_contains($action, 'quarantine') || str_contains($action, 'reinfection')) {
