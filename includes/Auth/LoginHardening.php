@@ -26,8 +26,8 @@ class LoginHardening {
         // Enforce lockout check early in authentication
         add_filter('authenticate', [__CLASS__, 'check_ip_lockout'], 25, 3);
 
-        // Record failed attempt
-        add_action('wp_login_failed', [__CLASS__, 'record_failed_attempt']);
+        // Record failed attempt with failure context ($error)
+        add_action('wp_login_failed', [__CLASS__, 'record_failed_attempt'], 10, 2);
 
         // Reset failed attempt count on successful login
         add_action('wp_login', [__CLASS__, 'record_successful_login'], 10, 2);
@@ -85,8 +85,11 @@ class LoginHardening {
 
     /**
      * Record a failed login attempt
+     *
+     * @param string                $username The attempted username or email.
+     * @param \WP_Error|mixed|null  $error    The authentication failure error object if passed by core/plugins.
      */
-    public static function record_failed_attempt(string $username) {
+    public static function record_failed_attempt(string $username, $error = null) {
         $settings = SettingsManager::get_settings();
         if (empty($settings['login_hardening_enabled'])) {
             return;
@@ -126,6 +129,45 @@ class LoginHardening {
         // Store failed count with a sliding 1-hour window
         set_transient($fail_key, $attempts, 3600);
 
+        // Determine specific failure diagnosis (wrong password vs non-existent account)
+        $reason_label = __('Unknown failure reason', 'wcp-security-scanner');
+        $error_code   = '';
+        if ($error instanceof \WP_Error) {
+            $error_code = (string) $error->get_error_code();
+            switch ($error_code) {
+                case 'incorrect_password':
+                    $reason_label = __('Incorrect password (account exists)', 'wcp-security-scanner');
+                    break;
+                case 'invalid_username':
+                    $reason_label = __('Unknown username (account does not exist)', 'wcp-security-scanner');
+                    break;
+                case 'invalid_email':
+                    $reason_label = __('Unknown email address (account does not exist)', 'wcp-security-scanner');
+                    break;
+                case 'empty_password':
+                    $reason_label = __('Empty password submitted', 'wcp-security-scanner');
+                    break;
+                case 'empty_username':
+                    $reason_label = __('Empty username submitted', 'wcp-security-scanner');
+                    break;
+                default:
+                    $custom_msg   = sanitize_text_field($error->get_error_message());
+                    $reason_label = !empty($custom_msg) ? $custom_msg : $error_code;
+                    break;
+            }
+        } else {
+            // Fallback user existence check when caller does not provide WP_Error
+            $user_exists = is_email($username) ? (bool) get_user_by('email', $username) : (bool) get_user_by('login', $username);
+            if ($user_exists) {
+                $reason_label = __('Incorrect credentials (account exists)', 'wcp-security-scanner');
+            } else {
+                $reason_label = __('Unknown identity (account does not exist)', 'wcp-security-scanner');
+            }
+        }
+
+        // Action taken: failed attempt monitored vs locked out threshold
+        $action_taken = ($attempts >= $max_retries) ? 'blocked' : 'failed';
+
         // Stream individual failed login attempt to WAF Forensic Incident Log
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
             \WcpScanner\Firewall\FirewallEngine::log_incident([
@@ -133,15 +175,16 @@ class LoginHardening {
                 'name'             => 'Failed Authentication Attempt',
                 'category'         => 'authentication',
                 'description'      => sprintf(
-                    /* translators: 1: attempted username, 2: attempt count */
-                    __('Failed authentication attempt for username "%1$s" (attempt %2$d).', 'wcp-security-scanner'),
+                    /* translators: 1: attempted username, 2: attempt count, 3: specific failure reason */
+                    __('Failed authentication for "%1$s" (attempt %2$d): %3$s.', 'wcp-security-scanner'),
                     sanitize_user($username),
-                    $attempts
+                    $attempts,
+                    $reason_label
                 ),
-                'payload'          => sprintf('User: %s (Attempt %d)', $username, $attempts),
+                'payload'          => sprintf('User: %s (Attempt %d) | Reason: %s', $username, $attempts, $reason_label),
                 'username'         => sanitize_user($username),
                 'is_authenticated' => false,
-            ], 'blocked');
+            ], $action_taken);
         }
 
         if ($attempts >= $max_retries) {
