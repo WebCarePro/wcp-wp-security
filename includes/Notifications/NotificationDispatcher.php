@@ -134,6 +134,20 @@ class NotificationDispatcher {
             ],
 
             // Category: Authentication & 2FA
+            'auth_admin_login' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('Administrator Login Successful', 'wcp-security-scanner'),
+                'description' => __('Dispatches an immediate alert whenever an administrator user logs in to WordPress.', 'wcp-security-scanner'),
+                'severity'    => 'info',
+            ],
+            'auth_admin_password_reset' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('Admin Password Changed / Reset', 'wcp-security-scanner'),
+                'description' => __('Alerts when an administrator password is reset or updated via profile, recovery link, or REST API.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
             'auth_2fa_enabled' => [
                 'category'    => 'auth',
                 'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
@@ -146,13 +160,6 @@ class NotificationDispatcher {
                 'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
                 'title'       => __('2FA Deactivated / Emergency Code Used', 'wcp-security-scanner'),
                 'description' => __('Fires when 2FA is removed from an administrator profile or an emergency recovery code is spent.', 'wcp-security-scanner'),
-                'severity'    => 'high',
-            ],
-            'auth_admin_password_reset' => [
-                'category'    => 'auth',
-                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
-                'title'       => __('Admin Password Changed / Reset', 'wcp-security-scanner'),
-                'description' => __('Alerts when an administrator password is changed or a recovery email link is requested.', 'wcp-security-scanner'),
                 'severity'    => 'high',
             ],
             'auth_bruteforce_lockout' => [

@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T08:59:08.868Z",
+  "generated_at": "2026-11-02T09:13:35.818Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -76,8 +76,8 @@
       "size": 519952
     },
     "includes/Auth/LoginHardening.php": {
-      "sha256": "184cd95e12fff6c680d2972b5f7110f7519ae700d3edd528bc5fa9268e332549",
-      "size": 16540
+      "sha256": "53be5bff590da180c2530c527e9155af388798977ac07a6deb02a304f7f20b69",
+      "size": 21933
     },
     "includes/Auth/LoginHistoryManager.php": {
       "sha256": "fd5e53cd5b59c4fbc77764a6f8715ba82a3b6d1e8f1701b42fb5552db4f20a1f",
@@ -392,8 +392,8 @@
       "size": 13613
     },
     "includes/Notifications/NotificationDispatcher.php": {
-      "sha256": "35cbcde421ab7da918f8d66e51fd2deb5162b8b28c3cb6a72c1640bb7abf2bcd",
-      "size": 60843
+      "sha256": "6b545725a426bc58c5787b5132a569cf5f28ec58be9787d2630f707cf0797f00",
+      "size": 61329
     },
     "includes/Notifications/WebhookService.php": {
       "sha256": "ca50f1c981d5db295fa5c50b50e148993f6080d558f19b56db0120fd78b3b882",
@@ -568,8 +568,8 @@
       "size": 22995
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "934c82cb5025479810d75ef8a4e9d5a2a0d3f2742b71d28e5b23a166ee0c83c7",
-      "size": 97681
+      "sha256": "4b1689b07b47adea634ca05d65e16332e21991c0131f0b5d0a3568d959f9e65e",
+      "size": 97764
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "166d9705dac653ea076209d111b27d4e3c468fac4f24d788d432bdafa82e824e",

@@ -35,6 +35,10 @@ class LoginHardening {
         // Real-time Rogue Admin & Elevated Privilege Monitor
         add_action('user_register', [__CLASS__, 'on_user_registered']);
         add_action('set_user_role', [__CLASS__, 'on_user_role_changed'], 10, 3);
+
+        // Administrator Password Reset & Profile Password Change Monitor
+        add_action('password_reset', [__CLASS__, 'on_password_reset'], 10, 2);
+        add_action('profile_update', [__CLASS__, 'on_profile_update'], 10, 2);
     }
 
     /**
@@ -264,6 +268,28 @@ class LoginHardening {
                 'user_id'          => $user_id,
                 'is_authenticated' => true,
             ], 'allowed');
+
+            // Granular Alert: If an administrator authenticated, trigger immediate notification
+            if (in_array('administrator', $roles, true) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_login', [
+                    'severity' => 'info',
+                    'message'  => sprintf(
+                        /* translators: 1: admin username, 2: client IP address */
+                        __('Administrator user "%1$s" logged in successfully from IP %2$s.', 'wcp-security-scanner'),
+                        sanitize_user($user_login),
+                        $ip
+                    ),
+                    'details'  => [
+                        'username'     => sanitize_user($user_login),
+                        'role'         => 'Administrator',
+                        'user_id'      => $user_id,
+                        'ip_address'   => $ip,
+                        'user_agent'   => substr($user_agent, 0, 160),
+                        'login_time'   => current_time('mysql'),
+                    ],
+                ]);
+            }
         }
     }
 
@@ -379,6 +405,91 @@ class LoginHardening {
                         'new_role'   => $role,
                         'promoted_at'=> current_time('mysql'),
                         'ip_address' => FirewallEngine::get_client_ip(),
+                    ],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Hook: Detect password resets initiated via recovery link or WP-CLI/REST
+     *
+     * @param \WP_User|mixed $user
+     * @param string $new_pass
+     */
+    public static function on_password_reset($user, $new_pass = ''): void {
+        if (!($user instanceof \WP_User)) {
+            return;
+        }
+
+        $is_admin = in_array('administrator', (array) $user->roles, true);
+        if (!$is_admin) {
+            return;
+        }
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            $ip = FirewallEngine::get_client_ip();
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
+
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
+                'severity' => 'high',
+                'message'  => sprintf(
+                    /* translators: 1: admin username, 2: client IP address */
+                    __('Administrator password was successfully reset for user "%1$s" from IP %2$s.', 'wcp-security-scanner'),
+                    $user->user_login,
+                    $ip
+                ),
+                'details'  => [
+                    'admin_user' => $user->user_login,
+                    'user_email' => $user->user_email,
+                    'user_id'    => $user->ID,
+                    'action'     => 'Password Reset (Recovery Flow)',
+                    'ip_address' => $ip,
+                    'user_agent' => substr($user_agent, 0, 160),
+                    'reset_at'   => current_time('mysql'),
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Hook: Detect password changes made directly inside wp-admin user profile edit screen
+     *
+     * @param int $user_id
+     * @param \WP_User|null $old_user_data
+     */
+    public static function on_profile_update(int $user_id, $old_user_data = null): void {
+        $user = get_userdata($user_id);
+        if (!$user || !in_array('administrator', (array) $user->roles, true)) {
+            return;
+        }
+
+        // Check if user_pass hash changed between updates
+        if ($old_user_data && isset($old_user_data->user_pass) && $old_user_data->user_pass !== $user->user_pass) {
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                $ip = FirewallEngine::get_client_ip();
+                $current_user = wp_get_current_user();
+                $editor_name = ($current_user && $current_user->ID) ? $current_user->user_login : 'system/external';
+                $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
+
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
+                    'severity' => 'high',
+                    'message'  => sprintf(
+                        /* translators: 1: admin username, 2: editor username, 3: client IP address */
+                        __('Administrator password for "%1$s" was updated by "%2$s" from IP %3$s.', 'wcp-security-scanner'),
+                        $user->user_login,
+                        $editor_name,
+                        $ip
+                    ),
+                    'details'  => [
+                        'admin_user' => $user->user_login,
+                        'user_email' => $user->user_email,
+                        'user_id'    => $user->ID,
+                        'updated_by' => $editor_name,
+                        'action'     => 'Profile Password Update',
+                        'ip_address' => $ip,
+                        'user_agent' => substr($user_agent, 0, 160),
+                        'updated_at' => current_time('mysql'),
                     ],
                 ]);
             }
