@@ -1,4 +1,10 @@
 v:2.2.0 - 2026-11-02
+- Site Archetype Intelligence & Adaptive Firewall Advisor (SiteCapabilityProfiler.php, PolicyRegistry.php, SiteAdvisorEngine.php, ScannerRoutes.php, SiteAdvisorCard.tsx):
+  * Zero-Network Local Capability Profiler: Inspects active plugins and active/parent themes locally (0ms network delay) to detect site archetypes (E-Commerce, Contact Forms, Visual Page Builders, LMS/Course platforms, Membership communities) and reverse-proxy topology.
+  * Authoritative Firewall Policy Registry: Systematically maps 14 verified WAF policies, strictly distinguishing True Protections from Compatibility Exemptions (`waf_ecommerce_safe_mode`, `waf_forms_safe_mode`, `waf_allow_page_builders`) to ensure transparency without marketing exemptions as extra armor.
+  * Conflict-Aware Reversible Rollback Engine: Creates a versioned snapshot (`autoload = false`) upon applying recommendations. Reverts safely without overwriting subsequent manual admin overrides.
+  * Stale Exemption Decay Detection: Automatically flags active compatibility exemptions whose underlying plugins or themes have been deleted or deactivated, recommending deactivation to eliminate unneeded attack surface.
+  * Interactive React Dashboard Card: Embedded inside Firewall Controls with detected stack badges, metrics strip, a comprehensive "Review Recommendations" Diff Modal, and 1-click snapshot rollback.
 - CrashGuard & Firewall Whitelist Argument Count Fix (FirewallEngine.php):
   * Made `$whitelist_str` parameter optional with fallback to stored settings in `FirewallEngine::is_ip_whitelisted($ip, ?string $whitelist_str = null)`. Resolves `ArgumentCountError` when invoked with a single argument during WooCommerce Rule #38–#42 checks and catalog inspections.
 - WooCommerce Security & Anti-Fraud Smart Rules Hub (FirewallPage.tsx):

@@ -460,6 +460,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Site Archetype Intelligence & Adaptive Firewall Advisor Endpoints
+        register_rest_route(self::NAMESPACE, '/site-advisor', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_site_advisor_evaluation'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/site-advisor/apply', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'apply_site_advisor_recommendations'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/site-advisor/rollback', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rollback_site_advisor_snapshot'],
+            'permission_callback' => $permission,
+        ]);
+
         // Preload Micro-WAF (Zero-Latency Early Execution) Endpoints
         register_rest_route(self::NAMESPACE, '/firewall/micro-waf/status', [
             'methods'             => 'GET',
@@ -10608,6 +10627,49 @@ class ScannerRoutes {
             'message' => __('Tamper security incident acknowledged and dismissed.', 'wcp-security-scanner'),
             'success' => true,
         ]);
+    }
+
+    /**
+     * Get Site Archetype Intelligence evaluation & recommendation matrix.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function get_site_advisor_evaluation(\WP_REST_Request $request) {
+        $evaluation = \WcpScanner\Advisor\SiteAdvisorEngine::evaluate();
+        return rest_ensure_response($evaluation);
+    }
+
+    /**
+     * Atomically apply approved recommendations with a versioned snapshot.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function apply_site_advisor_recommendations(\WP_REST_Request $request) {
+        $params   = $request->get_json_params() ?: [];
+        $approved = $params['approved'] ?? [];
+
+        if (!is_array($approved)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Invalid approved recommendations payload.', 'wcp-security-scanner'),
+            ], 400);
+        }
+
+        $result = \WcpScanner\Advisor\SiteAdvisorEngine::apply_recommendations($approved);
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Rollback the last Site Advisor snapshot with conflict awareness.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function rollback_site_advisor_snapshot(\WP_REST_Request $request) {
+        $result = \WcpScanner\Advisor\SiteAdvisorEngine::rollback();
+        return rest_ensure_response($result);
     }
 }
 
