@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T03:48:58.793Z",
+  "generated_at": "2026-11-02T03:54:47.314Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -316,8 +316,8 @@
       "size": 20668
     },
     "includes/Integrity/ChecksumProvider.php": {
-      "sha256": "43b14960618da46b56d4f573603748c0f8166d7eb19dd01b6d55b4f22afc7897",
-      "size": 36101
+      "sha256": "f64ff1e349a8798c88c766b231be4725cd104e8e2c47378e5ae4e88f7e9a3176",
+      "size": 36406
     },
     "includes/Integrity/CoreIntegrity.php": {
       "sha256": "6650cc96372b57105b0855142172b78348949cd72478d7dd11cb2608df6d490f",
@@ -338,6 +338,10 @@
     "includes/Integrity/ImportantFileFIM.php": {
       "sha256": "47d393f3e91d3c92f7416704876cf4580ba4ad7429c1276b959d71b2c09fefed",
       "size": 3516
+    },
+    "includes/Integrity/KnownVendorManifest.php": {
+      "sha256": "13e0f06274578fe34a7d773d44c5a6f7edfb0c63ed6807f16fdefb6f5b328ec4",
+      "size": 5011
     },
     "includes/Integrity/LocalSnapshotManager.php": {
       "sha256": "6ab1e140ee8143674a5e87cdeb6fcccf030b195599449677e8f9d1ed1f7f1b2f",

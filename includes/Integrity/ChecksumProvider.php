@@ -499,6 +499,13 @@ class ChecksumProvider {
             return true;
         }
 
+        // 2. High-Speed 128-bit Truncated SHA-256 Micro-Manifest for Known Upstream Vendors
+        if (class_exists('\WcpScanner\Integrity\KnownVendorManifest')) {
+            if (KnownVendorManifest::match_known_hash($file_path) !== null) {
+                return true;
+            }
+        }
+
         // Fast hash verification (O(1) dictionary lookup)
         $sha256 = hash_file('sha256', $file_path);
         $whitelisted_hashes = self::get_whitelisted_vendor_hashes();
