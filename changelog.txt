@@ -1,4 +1,8 @@
 v:2.2.0 - 2026-11-02
+- Search Crawler Immunity & False-Positive Ban Auto-Healing (BotReconDefense.php, FirewallEngine.php):
+  * Official Crawler CIDR Authoritative Fallback (BotReconDefense.php): Integrated official Googlebot and Bingbot IPv4 and IPv6 CIDR subnets (e.g. `66.249.64.0/19`, `64.233.160.0/19`, `72.14.192.0/18`, `209.85.128.0/17`, `2001:4860::/32`) into `BotReconDefense`. Guarantees immediate, authentic crawler verification even in containerized (Docker), NAT, or restricted environments where reverse DNS PTR lookups (`gethostbyaddr`) fail, time out, or are unavailable.
+  * Search Engine Auto-Ban Immunity Guard (FirewallEngine.php): Added safety checks in `FirewallEngine::add_blocked_ip()` to permanently refuse automated bans on verified search crawlers (Googlebot, Bingbot).
+  * Fast-Path Blocklist Auto-Healing (FirewallEngine.php): Updated fast-path custom blocklist checks to verify crawler authenticity; if an IP in the blocklist is confirmed as a genuine Googlebot or Bingbot, the false-positive ban is automatically pruned and forgiven in real time without dropping crawler traffic.
 - Firewall & Virtual Patch Architecture Unification (App.tsx, FirewallPage.tsx, AdminMenu.php):
   * Integrated Virtual Patching as Sub-Page of Firewall: Transitioned "Virtual Patching & 0-Day Shield" (`vpatch`) to seamlessly live as a native sub-tab inside the Firewall (`admin.php?page=wcp-scanner-firewall&tab=vpatch`), eliminating navigational fragmentation while maintaining backward-compatible URL mapping for `wcp-scanner-vpatch`.
 - UI Design System & Dark Mode Contrast Hardening (SiteAdvisorCard.tsx, index.css):

@@ -698,39 +698,55 @@ class FirewallEngine {
         if (!empty($settings['waf_blocked_ips'])) {
             $matching_entry = self::get_matching_blocked_entry($client_ip, $settings['waf_blocked_ips']);
             if ($matching_entry !== null) {
-                $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
-                $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
-                $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
-                $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
-
-                $description = 'Connection blocked by administrator-defined custom IP rule.';
-                if (!empty($ban_reason)) {
-                    $description = sprintf('Connection blocked: %s', $ban_reason);
-                } elseif (!empty($ban_rule)) {
-                    $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                // Immunity check: Ensure legitimate search engine crawlers (Googlebot, Bingbot)
+                // that may have been erroneously or transitively added are automatically pardoned and unblocked.
+                $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+                $is_legit_crawler = false;
+                if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+                    $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua) ||
+                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'googlebot') ||
+                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'bingbot');
                 }
 
-                $rule_triggered = [
-                    'id'             => 'USER-CUSTOM-IP-BLOCK',
-                    'name'           => 'Custom Administrator IP Blocklist',
-                    'category'       => 'Custom IP Blocklist',
-                    'description'    => $description,
-                    'match_type'     => 'Custom Blocklist',
-                    'match_value'    => $matching_entry,
-                    'payload'        => $client_ip,
-                    'ban_reason'     => $ban_reason,
-                    'ban_source'     => $ban_source,
-                    'matching_entry' => $matching_entry,
-                    'expires_at'     => $block_meta['expires_at'] ?? 0,
-                ];
-
-                $mode = $settings['waf_mode'] ?? 'enabled';
-                if ($mode === 'learning') {
-                    self::log_incident($rule_triggered, 'detected');
+                if ($is_legit_crawler) {
+                    // Auto-heal blocklist: Remove false-positive ban for verified search crawler
+                    self::remove_blocked_ip($matching_entry);
+                    self::remove_blocked_ip($client_ip);
                 } else {
-                    self::log_incident($rule_triggered, 'blocked');
-                    self::render_block_page($rule_triggered, $client_ip);
-                    exit;
+                    $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
+                    $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
+                    $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
+                    $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
+
+                    $description = 'Connection blocked by administrator-defined custom IP rule.';
+                    if (!empty($ban_reason)) {
+                        $description = sprintf('Connection blocked: %s', $ban_reason);
+                    } elseif (!empty($ban_rule)) {
+                        $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                    }
+
+                    $rule_triggered = [
+                        'id'             => 'USER-CUSTOM-IP-BLOCK',
+                        'name'           => 'Custom Administrator IP Blocklist',
+                        'category'       => 'Custom IP Blocklist',
+                        'description'    => $description,
+                        'match_type'     => 'Custom Blocklist',
+                        'match_value'    => $matching_entry,
+                        'payload'        => $client_ip,
+                        'ban_reason'     => $ban_reason,
+                        'ban_source'     => $ban_source,
+                        'matching_entry' => $matching_entry,
+                        'expires_at'     => $block_meta['expires_at'] ?? 0,
+                    ];
+
+                    $mode = $settings['waf_mode'] ?? 'enabled';
+                    if ($mode === 'learning') {
+                        self::log_incident($rule_triggered, 'detected');
+                    } else {
+                        self::log_incident($rule_triggered, 'blocked');
+                        self::render_block_page($rule_triggered, $client_ip);
+                        exit;
+                    }
                 }
             }
         }
@@ -1259,39 +1275,55 @@ class FirewallEngine {
         if (!empty($settings['waf_blocked_ips'])) {
             $matching_entry = self::get_matching_blocked_entry($client_ip, $settings['waf_blocked_ips']);
             if ($matching_entry !== null) {
-                $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
-                $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
-                $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
-                $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
-
-                $description = 'Connection blocked by administrator-defined custom IP rule.';
-                if (!empty($ban_reason)) {
-                    $description = sprintf('Connection blocked: %s', $ban_reason);
-                } elseif (!empty($ban_rule)) {
-                    $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                // Immunity check: Ensure legitimate search engine crawlers (Googlebot, Bingbot)
+                // that may have been erroneously or transitively added are automatically pardoned and unblocked.
+                $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+                $is_legit_crawler = false;
+                if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+                    $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua) ||
+                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'googlebot') ||
+                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'bingbot');
                 }
 
-                $rule_triggered = [
-                    'id'             => 'USER-CUSTOM-IP-BLOCK',
-                    'name'           => 'Custom Administrator IP Blocklist',
-                    'category'       => 'Custom IP Blocklist',
-                    'description'    => $description,
-                    'match_type'     => 'Custom Blocklist',
-                    'match_value'    => $matching_entry,
-                    'payload'        => $client_ip,
-                    'ban_reason'     => $ban_reason,
-                    'ban_source'     => $ban_source,
-                    'matching_entry' => $matching_entry,
-                    'expires_at'     => $block_meta['expires_at'] ?? 0,
-                ];
-
-                $mode = $settings['waf_mode'] ?? 'enabled';
-                if ($mode === 'learning') {
-                    self::log_incident($rule_triggered, 'detected');
+                if ($is_legit_crawler) {
+                    // Auto-heal blocklist: Remove false-positive ban for verified search crawler
+                    self::remove_blocked_ip($matching_entry);
+                    self::remove_blocked_ip($client_ip);
                 } else {
-                    self::log_incident($rule_triggered, 'blocked');
-                    self::render_block_page($rule_triggered, $client_ip);
-                    exit;
+                    $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
+                    $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
+                    $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
+                    $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
+
+                    $description = 'Connection blocked by administrator-defined custom IP rule.';
+                    if (!empty($ban_reason)) {
+                        $description = sprintf('Connection blocked: %s', $ban_reason);
+                    } elseif (!empty($ban_rule)) {
+                        $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                    }
+
+                    $rule_triggered = [
+                        'id'             => 'USER-CUSTOM-IP-BLOCK',
+                        'name'           => 'Custom Administrator IP Blocklist',
+                        'category'       => 'Custom IP Blocklist',
+                        'description'    => $description,
+                        'match_type'     => 'Custom Blocklist',
+                        'match_value'    => $matching_entry,
+                        'payload'        => $client_ip,
+                        'ban_reason'     => $ban_reason,
+                        'ban_source'     => $ban_source,
+                        'matching_entry' => $matching_entry,
+                        'expires_at'     => $block_meta['expires_at'] ?? 0,
+                    ];
+
+                    $mode = $settings['waf_mode'] ?? 'enabled';
+                    if ($mode === 'learning') {
+                        self::log_incident($rule_triggered, 'detected');
+                    } else {
+                        self::log_incident($rule_triggered, 'blocked');
+                        self::render_block_page($rule_triggered, $client_ip);
+                        exit;
+                    }
                 }
             }
         }
@@ -3554,6 +3586,17 @@ class FirewallEngine {
         $current_client_ip = self::get_client_ip();
         if ($ip === $current_client_ip && self::is_authenticated_administrator()) {
             return false;
+        }
+
+        // Safety Guard 3: Immutable immunity for genuine search crawlers & uptime monitors.
+        // Never allow automated honeypots or rules to inadvertently ban Googlebot, Bingbot, or verified monitors.
+        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+            if (BotReconDefense::is_genuine_search_engine($ip, $user_agent) ||
+                BotReconDefense::is_search_bot_in_official_cidrs($ip, 'googlebot') ||
+                BotReconDefense::is_search_bot_in_official_cidrs($ip, 'bingbot')) {
+                return false;
+            }
         }
 
         $settings = SettingsManager::get_settings();

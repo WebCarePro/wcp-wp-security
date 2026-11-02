@@ -38,6 +38,49 @@ class BotReconDefense {
     ];
 
     /**
+     * Official Verified Search Crawler Network CIDR Ranges (IPv4 & IPv6).
+     * High-speed authoritative fallback when reverse DNS PTR queries fail, time out,
+     * or are blocked by container network resolvers (e.g. Docker, NAT environments).
+     */
+    private const CRAWLER_CIDR_RANGES = [
+        'googlebot' => [
+            // Googlebot Primary IPv4 Subnets
+            '66.249.64.0/19',
+            '64.233.160.0/19',
+            '72.14.192.0/18',
+            '209.85.128.0/17',
+            '108.177.8.0/21',
+            '172.217.0.0/16',
+            '216.58.192.0/19',
+            '173.194.0.0/16',
+            '74.125.0.0/16',
+            '34.22.85.0/27',
+            '35.247.243.240/28',
+            '192.178.4.0/22',
+            // Googlebot Primary IPv6 Subnets
+            '2001:4860::/32',
+            '2404:6800::/32',
+            '2607:f8b0::/32',
+            '2800:3f0::/32',
+            '2a00:1450::/32',
+            '2c0f:fb50::/32',
+        ],
+        'bingbot' => [
+            // Bingbot Primary IPv4 Subnets
+            '157.55.39.0/24',
+            '207.46.13.0/24',
+            '40.77.167.0/24',
+            '13.66.139.0/24',
+            '13.66.144.0/24',
+            '52.167.144.0/24',
+            // Bingbot Primary IPv6 Subnets
+            '2603:1030::/32',
+            '2603:1040::/32',
+            '2603:1050::/32',
+        ],
+    ];
+
+    /**
      * Map of verified uptime & performance monitoring services and their authorized reverse DNS host suffixes.
      */
     private const MONITORING_BOTS = [
@@ -147,6 +190,7 @@ class BotReconDefense {
 
     /**
      * Validate genuine search crawler via Reverse DNS (PTR) + Forward DNS (A)
+     * with high-speed authoritative CIDR fallback for containerized/NAT environments.
      * Caches verification status for 24 hours (86400s) to keep latency minimal.
      */
     public static function verify_search_bot_reverse_dns(string $ip, string $bot_key): bool {
@@ -159,6 +203,13 @@ class BotReconDefense {
         $cached = get_transient($transient_key);
         if ($cached !== false) {
             return ($cached === 'genuine');
+        }
+
+        // Fast-path CIDR check: If the IP falls strictly into the search engine's official published subnets,
+        // it is verified authentic immediately, bypassing external DNS PTR resolution timeouts or docker limitations.
+        if (self::is_search_bot_in_official_cidrs($ip, $bot_key)) {
+            set_transient($transient_key, 'genuine', DAY_IN_SECONDS);
+            return true;
         }
 
         $allowed_domains = self::SEARCH_BOTS[$bot_key] ?? [];
@@ -195,6 +246,24 @@ class BotReconDefense {
         set_transient($transient_key, $is_genuine ? 'genuine' : 'fake', DAY_IN_SECONDS);
 
         return $is_genuine;
+    }
+
+    /**
+     * Check if client IP belongs to official verified search crawler CIDR ranges.
+     */
+    public static function is_search_bot_in_official_cidrs(string $ip, string $bot_key): bool {
+        $cidrs = self::CRAWLER_CIDR_RANGES[$bot_key] ?? [];
+        if (empty($cidrs)) {
+            return false;
+        }
+
+        foreach ($cidrs as $cidr) {
+            if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::ip_in_range($ip, $cidr)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
