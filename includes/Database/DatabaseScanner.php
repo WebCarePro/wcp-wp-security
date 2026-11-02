@@ -13,11 +13,15 @@ class DatabaseScanner {
     private $table_scanner;
     private $option_scanner;
     private $rogue_admin_detector;
+    private $cron_persistence_scanner;
+    private $snippet_code_auditor;
 
     public function __construct() {
         $this->table_scanner = new TableScanner();
         $this->option_scanner = new OptionScanner();
         $this->rogue_admin_detector = new RogueAdminAnomalyDetector();
+        $this->cron_persistence_scanner = new CronPersistenceScanner();
+        $this->snippet_code_auditor = new SnippetCodeAuditor();
     }
 
     /**
@@ -53,7 +57,25 @@ class DatabaseScanner {
         $trigger_findings = $this->scan_rogue_triggers((string) $scan_id);
         $findings = array_merge($findings, $trigger_findings);
 
-        // 4. Discover all tables and calculate grand total row estimate upfront
+        // 4. Audit WP-Cron & Scheduled Hook Persistence
+        if (!empty($scan_id)) {
+            set_transient("wcpscan_active_scan_file_{$scan_id}", 'WP-Cron Sentinel: Auditing scheduled hooks & persistence backdoors...', 120);
+        }
+        try {
+            $cron_findings = $this->cron_persistence_scanner->scan((string) $scan_id);
+            $findings = array_merge($findings, $cron_findings);
+        } catch (\Throwable $e) {}
+
+        // 5. Audit Database-Stored Code Snippets & Custom Headers/Footers
+        if (!empty($scan_id)) {
+            set_transient("wcpscan_active_scan_file_{$scan_id}", 'Database Snippet Auditor: Inspecting Code Snippets & header/footer scripts...', 120);
+        }
+        try {
+            $snippet_findings = $this->snippet_code_auditor->scan((string) $scan_id);
+            $findings = array_merge($findings, $snippet_findings);
+        } catch (\Throwable $e) {}
+
+        // 6. Discover all tables and calculate grand total row estimate upfront
         $tables = $this->table_scanner->get_tables();
         $total_tables = count($tables);
         $total_rows_scanned = 0;

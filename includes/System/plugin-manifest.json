@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T05:59:09.852Z",
+  "generated_at": "2026-11-02T06:22:33.036Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -131,13 +131,17 @@
       "sha256": "d68d3b8a0fc92a1dbeffc132232dd9f3548dc6ee7c33173bcc70b6f1beb393f7",
       "size": 3651
     },
+    "includes/Database/CronPersistenceScanner.php": {
+      "sha256": "aad0cb626b74c993e547eb5b849d3cd4a1df265895c23976b374d155b9f6346c",
+      "size": 19069
+    },
     "includes/Database/DatabaseRemediationManager.php": {
       "sha256": "8d09866a29308e8d87b6a4122698ffb193f1142e1b4188d848f9e7d236f17535",
       "size": 12750
     },
     "includes/Database/DatabaseScanner.php": {
-      "sha256": "c89780cc1546a91e81bd7229a34e84178dfd6e8b66e17acebb38ad809ee2875d",
-      "size": 13026
+      "sha256": "0d77d085e2443dffea723b7364b93db60f17f002f878d853d56e2c57de988137",
+      "size": 14152
     },
     "includes/Database/Migration.php": {
       "sha256": "165f00879c48de008d7a4547dfeedb98c96d8a02e08f39996882d1e23323f137",
@@ -154,6 +158,10 @@
     "includes/Database/SerializedDataScanner.php": {
       "sha256": "13e18466ae007cede953e3d3a5930811589bdb884c349ed1234b22e75ab60651",
       "size": 3466
+    },
+    "includes/Database/SnippetCodeAuditor.php": {
+      "sha256": "a204e99d5edffb4db3a066136f1d7911de2fbb0594a953ed5a6d7030a86696f8",
+      "size": 11144
     },
     "includes/Database/TableScanner.php": {
       "sha256": "58b28cf048014136479f6f6bbd7275d52f724c757c087244c111e9f9e8c2dae7",
@@ -364,8 +372,8 @@
       "size": 5813
     },
     "includes/Malware/JavaScriptSecurityScanner.php": {
-      "sha256": "ee77c430ebbf27a5bed7eebb9decee94e7c2ef989c9617439d0274ef58419a71",
-      "size": 9501
+      "sha256": "0e75c5042248ce224ecd6c11ddf653a450507e5c9506043c1b3ab5700e21999f",
+      "size": 8977
     },
     "includes/Malware/KnownHashDetector.php": {
       "sha256": "1287e72a12ae7b68418d223e94440a2d6b135d1543c41ed7eb0742606011418f",
