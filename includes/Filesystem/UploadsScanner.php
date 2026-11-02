@@ -60,7 +60,10 @@ class UploadsScanner {
 
             $normalized_uploads = str_replace('\\', '/', rtrim($uploads_path, '/\\') . '/');
             $files_inspected = 0;
-            $max_files_limit = 5000; // Safeguard against runaway memory/execution time in enormous media libraries
+            $uploads_mode = class_exists('\\WcpScanner\\System\\SettingsManager')
+                ? \WcpScanner\System\SettingsManager::get('scan_uploads_mode', 'smart_executable')
+                : 'smart_executable';
+            $max_files_limit = ($uploads_mode === 'deep_raster') ? 25000 : 5000;
             $monitor = new \WcpScanner\Resource\ResourceMonitor(70, 20, 'balanced');
 
             foreach ($iterator as $item) {

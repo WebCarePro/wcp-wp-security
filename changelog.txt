@@ -1,4 +1,12 @@
 v:2.2.0 - 2026-11-02
+- Scanner Engine & Performance Developer Hardening Suite (SettingsPage.tsx, SettingsManager.php, Engine.php, DatabaseScanner.php, UploadsScanner.php):
+  * Inter-Batch CPU Throttle Delay (`scan_batch_delay_ms`): Added configurable rest micro-pauses (0ms, 50ms, 150ms, 300ms, 500ms) between REST batches to keep CPU utilization low on shared hosting and avoid cPanel/CloudLinux LVE throttling.
+  * Background Execution Strategy Selection (`scan_execution_strategy`): Added selectable worker strategies for scheduled scans (`ajax_client` interactive polling vs. autonomous `wp_cli_cron` vs. non-blocking `background_worker`).
+  * Media Library Scan Depth Modes (`scan_uploads_mode`): Added Smart Executable & Stager mode (skips millions of benign raster images for 10x faster audits) vs. Deep Raster & EXIF Polyglot Audit mode.
+  * Symlink Traversal Policy (`scan_symlink_policy`): Added granular symlink traversal controls (`ignore`, `follow_intree`, `follow_all`) to prevent infinite recursion and safely support Bedrock, Roots, and Composer setups.
+  * Fast-Skip Toggles for VCS, Vendors & Caches: Added 1-click developer bypasses for `.git`/`.svn`, `node_modules`, and cache directories (`wp-content/cache/*`, `elementor/css/*`).
+  * Database Table Exclusions & Custom Batch Sizing: Added developer table exclusion textarea (`scan_excluded_tables`) and selectable cursor row batch sizes (100, 250, 500, 1000 rows/chunk) to prevent database timeouts on bulky analytics tables.
+  * Developer Profiling & Dry-Run Testing: Added scan benchmarking/engine profiling toggle (`scan_profiling_enabled`) and non-destructive dry-run audit mode (`scan_dry_run_mode`) for CI/CD pipelines and staging environments.
 - Scanner Navigation & Quick-Access Shortcuts (App.tsx):
   * Scan Options Direct Navigation: Added a dedicated "Scan Options" quick-access button to the primary scan launcher bar in `App.tsx` directly linking to `admin.php?page=wcp-scanner-settings&tab=performance`, giving administrators instant 1-click access to batch sizing, memory envelope limits, file size heuristics, and excluded path configurations.
 - Plugin Activity & Audit Logs Category Streamlining (ActivityEventSchema.php, AuditLogger.php, WcpActivityLogger.php, SessionForensicsEngine.php, ActivityLogsPage.tsx):

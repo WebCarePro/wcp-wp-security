@@ -34,7 +34,8 @@ class DatabaseScanner {
     public function scan($scan_id, $batch_size = 100) {
         $findings = [];
         $monitor = new ResourceMonitor(70, 20, 'balanced');
-        $adaptive_row_batch = $monitor->get_adaptive_batch_size($batch_size);
+        $configured_db_batch = (int) (\WcpScanner\System\SettingsManager::get('scan_db_batch_size', 500) ?: $batch_size);
+        $adaptive_row_batch = $monitor->get_adaptive_batch_size($configured_db_batch);
 
         // 1. Audit wp_options first
         if (!empty($scan_id)) {
@@ -92,6 +93,11 @@ class DatabaseScanner {
         foreach ($tables as $table_idx => $table) {
             if ($monitor->is_nearing_limits()) {
                 break; // Stop early to prevent server strain
+            }
+
+            // Respect developer table exclusion list
+            if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_table_excluded($table)) {
+                continue;
             }
 
             $meta = $this->table_scanner->get_table_metadata($table);

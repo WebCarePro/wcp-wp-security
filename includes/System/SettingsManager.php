@@ -45,6 +45,17 @@ class SettingsManager {
             'scan_batch_size'                => 50, // 25, 50, 100, 200
             'scan_memory_safety_envelope'    => 'balanced', // strict (60%), balanced (70%), performance (80%)
             'scan_adaptive_throttling'       => true, // Dynamically throttle batch size and pace micro-sleeps for visitors
+            'scan_batch_delay_ms'            => 0, // 0, 50, 100, 200, 500ms delay between REST batches
+            'scan_execution_strategy'        => 'ajax_client', // 'ajax_client' | 'wp_cli_cron' | 'background_worker'
+            'scan_uploads_mode'              => 'smart_executable', // 'smart_executable' | 'deep_raster'
+            'scan_symlink_policy'            => 'ignore', // 'ignore' | 'follow_intree' | 'follow_all'
+            'scan_skip_vcs'                  => true, // Skip .git, .svn, .hg
+            'scan_skip_vendor'               => true, // Skip node_modules, third-party vendor dirs
+            'scan_skip_cache'                => true, // Skip wp-content/cache, elementor/css, etc.
+            'scan_db_batch_size'             => 500, // 100, 250, 500, 1000 rows
+            'scan_excluded_tables'           => '', // Custom DB tables to skip
+            'scan_profiling_enabled'         => false, // Benchmarking & millisecond per-engine profiling
+            'scan_dry_run_mode'              => false, // Dry-run mode without saving risk scores
             'memory_limit_override'          => '512M',
             'max_file_size_kb'               => 1024, // Skip files larger than 1MB from heuristic scanning
             'auto_quarantine_critical'       => false, // Safeguard off by default
@@ -602,6 +613,25 @@ class SettingsManager {
         // 4. Scanner Performance & Throttle
         $batch = intval($merged['scan_batch_size'] ?? 50);
         $clean['scan_batch_size']          = ($batch >= 10 && $batch <= 300) ? $batch : 50;
+        $valid_envelopes                   = ['strict', 'balanced', 'performance'];
+        $clean['scan_memory_safety_envelope'] = in_array($merged['scan_memory_safety_envelope'] ?? '', $valid_envelopes, true) ? $merged['scan_memory_safety_envelope'] : 'balanced';
+        $clean['scan_adaptive_throttling'] = !empty($merged['scan_adaptive_throttling']);
+        $delay = intval($merged['scan_batch_delay_ms'] ?? 0);
+        $clean['scan_batch_delay_ms']      = ($delay >= 0 && $delay <= 2000) ? $delay : 0;
+        $valid_strategies                  = ['ajax_client', 'wp_cli_cron', 'background_worker'];
+        $clean['scan_execution_strategy']  = in_array($merged['scan_execution_strategy'] ?? '', $valid_strategies, true) ? $merged['scan_execution_strategy'] : 'ajax_client';
+        $valid_uploads_mode                = ['smart_executable', 'deep_raster'];
+        $clean['scan_uploads_mode']        = in_array($merged['scan_uploads_mode'] ?? '', $valid_uploads_mode, true) ? $merged['scan_uploads_mode'] : 'smart_executable';
+        $valid_symlinks                    = ['ignore', 'follow_intree', 'follow_all'];
+        $clean['scan_symlink_policy']      = in_array($merged['scan_symlink_policy'] ?? '', $valid_symlinks, true) ? $merged['scan_symlink_policy'] : 'ignore';
+        $clean['scan_skip_vcs']            = isset($merged['scan_skip_vcs']) ? !empty($merged['scan_skip_vcs']) : true;
+        $clean['scan_skip_vendor']         = isset($merged['scan_skip_vendor']) ? !empty($merged['scan_skip_vendor']) : true;
+        $clean['scan_skip_cache']          = isset($merged['scan_skip_cache']) ? !empty($merged['scan_skip_cache']) : true;
+        $db_batch = intval($merged['scan_db_batch_size'] ?? 500);
+        $clean['scan_db_batch_size']       = ($db_batch >= 50 && $db_batch <= 2000) ? $db_batch : 500;
+        $clean['scan_excluded_tables']     = sanitize_textarea_field($merged['scan_excluded_tables'] ?? '');
+        $clean['scan_profiling_enabled']   = !empty($merged['scan_profiling_enabled']);
+        $clean['scan_dry_run_mode']        = !empty($merged['scan_dry_run_mode']);
         $clean['memory_limit_override']    = sanitize_text_field($merged['memory_limit_override'] ?? '512M');
         $clean['max_file_size_kb']         = max(100, intval($merged['max_file_size_kb'] ?? 1024));
         $clean['auto_quarantine_critical'] = !empty($merged['auto_quarantine_critical']);
@@ -1296,6 +1326,34 @@ class SettingsManager {
         update_option(self::OPTION_KEY, $defaults);
         self::sync_cron_schedule($defaults);
         return self::get_settings();
+    }
+
+    /**
+     * Test if a database table matches user-configured excluded tables.
+     *
+     * @param string $table_name
+     * @return bool
+     */
+    public static function is_table_excluded(string $table_name): bool {
+        $raw = self::get('scan_excluded_tables');
+        if (empty($raw)) {
+            return false;
+        }
+
+        $lines = explode("\n", $raw);
+        $clean_table = strtolower(trim($table_name));
+
+        foreach ($lines as $line) {
+            $pattern = strtolower(trim($line));
+            if (empty($pattern) || strpos($pattern, '#') === 0) {
+                continue;
+            }
+            if ($pattern === $clean_table || fnmatch($pattern, $clean_table) || fnmatch("*{$pattern}*", $clean_table)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -86,18 +86,44 @@ class Engine {
         $count = 0;
 
         try {
-            $dir_iterator = new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS);
+            $flags = \FilesystemIterator::SKIP_DOTS;
+            $symlink_policy = class_exists('\\WcpScanner\\System\\SettingsManager')
+                ? \WcpScanner\System\SettingsManager::get('scan_symlink_policy', 'ignore')
+                : 'ignore';
+            if ($symlink_policy === 'follow_all' || $symlink_policy === 'follow_intree') {
+                $flags |= \FilesystemIterator::FOLLOW_SYMLINKS;
+            }
+
+            $dir_iterator = new \RecursiveDirectoryIterator($dir, $flags);
+            $has_settings_manager = class_exists('\\WcpScanner\\System\\SettingsManager');
+            $skip_vcs = $has_settings_manager ? (bool) \WcpScanner\System\SettingsManager::get('scan_skip_vcs', true) : true;
+            $skip_vendor = $has_settings_manager ? (bool) \WcpScanner\System\SettingsManager::get('scan_skip_vendor', true) : true;
+            $skip_cache = $has_settings_manager ? (bool) \WcpScanner\System\SettingsManager::get('scan_skip_cache', true) : true;
 
             // Skip heavy non-code and runtime directories
-            $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) {
+            $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) use ($has_settings_manager, $skip_vcs, $skip_vendor, $skip_cache) {
                 $pathname = str_replace('\\', '/', $current->getPathname());
                 if ($current->isDir()) {
-                    $name = $current->getFilename();
-                    // System VCS and internal plugin storage exclusions
-                    if (in_array(strtolower($name), ['.git', '.svn', '.hg', 'node_modules', 'cache', 'wfcache', '.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', 'tests', 'test', 'testing', 'spec', 'specs', 'phpunit', '.github', 'docs', 'documentation', 'examples', 'fixtures', '.vscode', '.idea'], true)) {
+                    $name = strtolower($current->getFilename());
+
+                    // System VCS exclusions
+                    if ($skip_vcs && in_array($name, ['.git', '.svn', '.hg', '.github', '.gitlab'], true)) {
                         return false;
                     }
-                    if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
+                    // Heavy vendor/dependency folders
+                    if ($skip_vendor && in_array($name, ['node_modules', 'bower_components'], true)) {
+                        return false;
+                    }
+                    // Cache and backup folders
+                    if ($skip_cache && in_array($name, ['cache', 'wfcache', 'w3tc-cache', 'et-cache', 'wpo-cache'], true)) {
+                        return false;
+                    }
+
+                    // Internal plugin storage exclusions
+                    if (in_array($name, ['.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', 'tests', 'test', 'testing', 'spec', 'specs', 'phpunit', 'docs', 'documentation', 'examples', 'fixtures', '.vscode', '.idea'], true)) {
+                        return false;
+                    }
+                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
                         return false;
                     }
                 }
@@ -106,7 +132,6 @@ class Engine {
 
             $iterator = new \RecursiveIteratorIterator($filter_iterator, \RecursiveIteratorIterator::SELF_FIRST);
             $allowed_exts = ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phar', 'inc', 'suspected', 'js', 'sh', 'pl', 'cgi'];
-            $has_settings_manager = class_exists('\\WcpScanner\\System\\SettingsManager');
 
             foreach ($iterator as $item) {
                 if ($item->isFile()) {
@@ -157,4 +182,3 @@ class Engine {
         return $files;
     }
 }
-
