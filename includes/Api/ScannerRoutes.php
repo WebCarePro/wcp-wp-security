@@ -3128,7 +3128,7 @@ class ScannerRoutes {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Database: {$db_info}\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            fwrite($output, "# Active Engines: " . ($diagnostics['engines_active'] ?? 10) . " Core Security Engines\r\n");
+            fwrite($output, "# Active Engines: " . ($diagnostics['engines_active'] ?? 23) . " Core Security Engines\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Exported: " . current_time('mysql') . "\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
@@ -3235,7 +3235,7 @@ class ScannerRoutes {
                 'wordpress_version'      => $diagnostics['wordpress_version'] ?? 'N/A',
                 'ssl_active'             => !empty($diagnostics['ssl_active']) ? 'Active (HTTPS)' : 'Inactive (HTTP)',
                 'opcache'                => $diagnostics['opcache_status'] ?? 'Disabled',
-                'active_engines'         => $diagnostics['engines_active'] ?? 10,
+                'active_engines'         => $diagnostics['engines_active'] ?? 23,
             ],
             'findings_count'     => count($issues),
             'findings'           => $issues,
@@ -5482,7 +5482,7 @@ class ScannerRoutes {
             'wordpress_version'      => get_bloginfo('version'),
             'ssl_active'             => is_ssl(),
             'opcache_status'         => $opcache_status,
-            'engines_active'         => 10,
+            'engines_active'         => 23,
         ];
     }
 
