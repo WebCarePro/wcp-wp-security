@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T19:58:32.857Z",
+  "generated_at": "2026-11-02T21:36:43.391Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -92,8 +92,8 @@
       "size": 47998
     },
     "includes/Auth/TwoFactorAuth.php": {
-      "sha256": "004cadcd7ec7589d550d9766e1466e516af9aee790f9ad1842af651b9f73e698",
-      "size": 52607
+      "sha256": "3e23617a820bd6c3bd62a579519aa64949e3d5b1415c279273acf00e156e9f17",
+      "size": 51403
     },
     "includes/Auth/WebAuthnManager.php": {
       "sha256": "699a8997314596df072b2787e85ee1432d7d26b50ac1f485430eeac1a079d238",
@@ -132,8 +132,8 @@
       "size": 3651
     },
     "includes/Database/CronPersistenceScanner.php": {
-      "sha256": "3c9550e971cda316e8000b68040d8c8ee8cdfd6c6c453a8469a046293634b13a",
-      "size": 19084
+      "sha256": "c3365c0929a63ec8edfd3e27855d4fbb373e2179bb7a332c42a14a23fda0f722",
+      "size": 19391
     },
     "includes/Database/DatabaseRemediationManager.php": {
       "sha256": "8d09866a29308e8d87b6a4122698ffb193f1142e1b4188d848f9e7d236f17535",
@@ -160,16 +160,16 @@
       "size": 3466
     },
     "includes/Database/SnippetCodeAuditor.php": {
-      "sha256": "a9c2d916682c5956954312355c750fa5b86a3bd22c013228dc53560110f21054",
-      "size": 11159
+      "sha256": "8e3d7d016c50eed808f7ccab5c4cf88a8f7a99f540488bce004713a4ca816240",
+      "size": 11466
     },
     "includes/Database/TableScanner.php": {
       "sha256": "58b28cf048014136479f6f6bbd7275d52f724c757c087244c111e9f9e8c2dae7",
       "size": 14146
     },
     "includes/Filesystem/DirectoryWalker.php": {
-      "sha256": "74ef6e8d5351c83ffd08e71a52f5b29ddfb456c187972ffeeabfc0a175640017",
-      "size": 7106
+      "sha256": "59c1313c3f1130e0ca4bcec7b9cebeb084c84328fd9c590bd3311422cacda59f",
+      "size": 6891
     },
     "includes/Filesystem/FileHasher.php": {
       "sha256": "0ded09801821719333b1065c12a9b812875fb1aa33a20209b44c788f1ee59473",
@@ -180,8 +180,8 @@
       "size": 1029
     },
     "includes/Filesystem/FileScanner.php": {
-      "sha256": "61b4b5ca1219b2bba4d681f2042796518c72479ffb9103cf6e7cc0f1b1d2feea",
-      "size": 12684
+      "sha256": "678753f981339852dab6e1f16f3390f5714a32c1e1a389acaacaa70a032a3ca6",
+      "size": 12436
     },
     "includes/Filesystem/PathValidator.php": {
       "sha256": "456e6b259736bbdd5c7abed9d3733a0265d8d90e1221455d894cc1df684d76c4",
@@ -200,8 +200,8 @@
       "size": 23355
     },
     "includes/Findings/CorrelationEngine.php": {
-      "sha256": "4b8d13991a0196237a3bd0668c41083ff1887f5f758f18fc8e1224e6b9a03655",
-      "size": 24225
+      "sha256": "7060904604f6f66f0c63123277db7be76a5cf6da68cf56aa322afa95b3c3d608",
+      "size": 23750
     },
     "includes/Findings/Finding.php": {
       "sha256": "9cebbfb05230ad5dcbd081e8b73f66b5293d3d46a07523558dbfb1ad584cf7cc",
@@ -324,12 +324,12 @@
       "size": 20668
     },
     "includes/Integrity/ChecksumProvider.php": {
-      "sha256": "0d8a68bd5d9fc615c68ccf32bdea0f7667a4b81487b8d9adba2e0be6ed14bbdf",
-      "size": 37526
+      "sha256": "5b31a1c9babc416dadefa2f501ce749b7ea817049a3f9fddb5cf6177f083228e",
+      "size": 36607
     },
     "includes/Integrity/CoreIntegrity.php": {
-      "sha256": "6650cc96372b57105b0855142172b78348949cd72478d7dd11cb2608df6d490f",
-      "size": 13618
+      "sha256": "afe7e40a9a87ac76451705e2fd7d0a613e55980d49442e3aebd92105054ed2d4",
+      "size": 13347
     },
     "includes/Integrity/FileIntegrityMonitor.php": {
       "sha256": "39be8e8e7a1f5ed30035e845ebd9220a402eaa273ec1fed364c802706aeb23ee",
@@ -344,8 +344,8 @@
       "size": 12023
     },
     "includes/Integrity/ImportantFileFIM.php": {
-      "sha256": "47d393f3e91d3c92f7416704876cf4580ba4ad7429c1276b959d71b2c09fefed",
-      "size": 3516
+      "sha256": "996d166fa83148ec85e22596e017bc5f3e7f2bf8aa81752b6b57732dcf004ef1",
+      "size": 3434
     },
     "includes/Integrity/KnownVendorManifest.php": {
       "sha256": "2210d842fc2417f9ad65f0875434200a20c8b3288f7e15dd27f853ae5d36a0e7",
@@ -356,12 +356,12 @@
       "size": 20606
     },
     "includes/Integrity/PluginIntegrity.php": {
-      "sha256": "f48dd56a21146753fac6a85f03346c728d8f4466f7ada2cf5dd45a70ef06c5ee",
-      "size": 13929
+      "sha256": "ff768f64328e276dea75e422366e64962f8314fac72218ab86547f96e4342ea0",
+      "size": 13646
     },
     "includes/Integrity/ThemeIntegrity.php": {
-      "sha256": "6decfa539803798a888cde78552d8984530fd6d8a36a179d0870ec3a10dc6d1f",
-      "size": 10769
+      "sha256": "f1015399873ddab0d984d7ac1ce3571b4117975dddef72e81085e94869b5277a",
+      "size": 10548
     },
     "includes/Malware/DeobfuscationEngine.php": {
       "sha256": "fbac0c620847813ea56b1b0850400e4c22732c130959da8dda28c1e9d9143cff",
@@ -376,16 +376,16 @@
       "size": 8977
     },
     "includes/Malware/KnownHashDetector.php": {
-      "sha256": "1287e72a12ae7b68418d223e94440a2d6b135d1543c41ed7eb0742606011418f",
-      "size": 2020
+      "sha256": "bf5f77a2c7e77afa2ec03a9bae72a74899862843cf79ce16f689b41ca520bb45",
+      "size": 1959
     },
     "includes/Malware/ObfuscationDetector.php": {
-      "sha256": "26c04588313a8738cb11ee0888f1d4f2d842a724cf447d7c43106fbcb331594d",
-      "size": 7026
+      "sha256": "e45ee849916dc4555b0ccea27459921385e6a06fb3fbd41dd2e35870a4714ec2",
+      "size": 6882
     },
     "includes/Malware/SuspiciousStringDetector.php": {
-      "sha256": "7e4331ee888e4bc0a0c3de45f2b73a40ef48df6be803b851ce041577cde0ebbd",
-      "size": 4313
+      "sha256": "fb435a94b7fec6123f1a12e9ef6e262e466144849f4a850e3ae7c0436f92e818",
+      "size": 4215
     },
     "includes/Malware/WebshellDetector.php": {
       "sha256": "418ae35b5edd25ad2d79580fb7ad230dac61396f37617993628d5f11cb4eb226",
@@ -608,8 +608,8 @@
       "size": 34397
     },
     "includes/WordPress/UserScanner.php": {
-      "sha256": "f782d8845027308a32b6457f1e1bda60bb810cf48bff0889c2e442e8ae00b878",
-      "size": 23881
+      "sha256": "40135be81b0c01a0c274f35a85aec419877a43c79d496cc0de6b2622460b496b",
+      "size": 23462
     },
     "includes/WordPress/WordPressSecurityScanner.php": {
       "sha256": "2465ded26fb2f753db235fb449dcbdfaea059b1f898da2dbe1b2622091addd51",
