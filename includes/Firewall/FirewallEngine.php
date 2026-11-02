@@ -1383,12 +1383,16 @@ class FirewallEngine {
         }
 
         // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
-        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
-        $vpatch_rule = VirtualPatchManager::evaluate_request($client_ip, $request_uri);
-        if ($vpatch_rule !== null) {
-            ThreatIntelNetwork::record_consensus_beacon($client_ip, $vpatch_rule['name'] ?? 'Virtual Patch Violation', ['category' => 'Virtual Patch']);
-            self::handle_rule_violation($vpatch_rule, $settings, $client_ip, 403);
-            exit;
+        if (class_exists('\\WcpScanner\\Firewall\\VirtualPatchManager')) {
+            $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+            $vpatch_rule = VirtualPatchManager::evaluate_request($client_ip, $request_uri);
+            if ($vpatch_rule !== null) {
+                if (class_exists('\\WcpScanner\\Firewall\\ThreatIntelNetwork')) {
+                    ThreatIntelNetwork::record_consensus_beacon($client_ip, $vpatch_rule['name'] ?? 'Virtual Patch Violation', ['category' => 'Virtual Patch']);
+                }
+                self::handle_rule_violation($vpatch_rule, $settings, $client_ip, 403);
+                exit;
+            }
         }
 
         $env = self::detect_environment();

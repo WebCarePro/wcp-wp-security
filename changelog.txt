@@ -1,4 +1,7 @@
 v:2.2.0 - 2026-11-02
+- Virtual Patching & Threat Intel Network Defensive Class Guards (FirewallEngine.php):
+  * Graceful Autoload Boundary Protection: Wrapped `VirtualPatchManager::evaluate_request()` and `ThreatIntelNetwork::record_consensus_beacon()` invocations inside strict `class_exists()` boundary checks during early request inspection (`plugins_loaded:0`).
+  * Mid-Update Crash Elimination: Prevents intermittent fatal errors (`Class "WcpScanner\Firewall\VirtualPatchManager" not found`) when background webhooks or `wp-cron.php` hits strike during plugin file replacement, Git checkout, or OPcache invalidation cycles, allowing CrashGuard and the firewall pipeline to maintain uninterrupted uptime.
 - Documentation & Feature Catalog Modernization (README.md, features.md):
   * Expanded Comprehensive Catalog to 64 Enterprise Subsystems: Documented all recent architectural additions across dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
   * Cataloged Newly Integrated Security Modules: Added dedicated coverage for Sections 59–64: Unified Multi-Tier Log Export Engine & Domain-Stamped Archives (#59), Granular Authentication Diagnostics & Login Failure Reason Forensics (#60), Authoritative Search Crawler CIDR Fallback & Automated Ban Pruning (#61), ActionScheduler Persistence & Code Snippets Database Injection Armor (#62), Developer Performance Controls & Execution Throttling (#63), and Administrator Real-Time Access & Password Change Notification Matrix (#64).
