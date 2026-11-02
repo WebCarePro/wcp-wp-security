@@ -297,9 +297,14 @@ class WcpActivityLogger {
         $actor_type = !empty($args['actor_type']) ? sanitize_key($args['actor_type']) : null;
         $severity   = !empty($args['severity']) ? sanitize_key($args['severity']) : null;
         $search     = !empty($args['search']) ? strtolower(sanitize_text_field($args['search'])) : null;
+        $date       = !empty($args['date']) ? sanitize_text_field($args['date']) : null;
 
         $dir = ActivityStorage::get_log_dir();
-        $files = glob($dir . '/activity-*-*.json.php');
+        if ($date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $files = glob($dir . '/activity-' . $date . '-*.json.php');
+        } else {
+            $files = glob($dir . '/activity-*-*.json.php');
+        }
         if (empty($files)) {
             return [
                 'current_page' => $page,

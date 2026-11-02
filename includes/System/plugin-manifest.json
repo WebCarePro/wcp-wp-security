@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T09:25:44.225Z",
+  "generated_at": "2026-11-02T19:58:32.857Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,7 +36,7 @@
       "size": 560688
     },
     "build/index.asset.php": {
-      "sha256": "7dd3572d2b3130513332d145f52ff8a3cbcb485ab04bc8f42697a8742bce2b97",
+      "sha256": "325a3bb6e584950b3c1b5d869b52270b8444eb1af9a3087901b3896b4feff176",
       "size": 121
     },
     "build/index.css": {
@@ -44,8 +44,8 @@
       "size": 560531
     },
     "build/index.js": {
-      "sha256": "dda88649785f1278a208f4482f50b08eef77a51f2628507b88fcfa094c4c7d79",
-      "size": 2190670
+      "sha256": "71e66adb658af5f5c913c1a49f913caa8875211baf082859fa9ae8c0a05303f9",
+      "size": 2217501
     },
     "composer.json": {
       "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
@@ -72,8 +72,8 @@
       "size": 73681
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "ff08463113ca5e28df4cba6fc6bd82fea155db203835b7188e55e7b82713671a",
-      "size": 519952
+      "sha256": "1c0ba86c87f804aaa2c3b853f9da9693980efd3571f65cf8c33c659a974ba6cf",
+      "size": 521348
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "53be5bff590da180c2530c527e9155af388798977ac07a6deb02a304f7f20b69",
@@ -288,8 +288,8 @@
       "size": 20926
     },
     "includes/Firewall/WafFileLogger.php": {
-      "sha256": "d0805b6bb142e5b44503f07817fba11fc14c843c29793663d119982625b27002",
-      "size": 33148
+      "sha256": "1c511777051d709d3238ff2779e4162ac4701d89cc95f701bb9c7967d2b3f1ab",
+      "size": 33223
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "0b281308f119113cce5785ce57357287909460142929d7a281b8872d1ccbf3cd",
@@ -576,8 +576,8 @@
       "size": 25930
     },
     "includes/System/WcpActivityLogger.php": {
-      "sha256": "c7c609f9ebb6927621becf5690e1fa0488a70058d8225e5cb8a0220db8d2a2e9",
-      "size": 35245
+      "sha256": "786711717643d8c78e2471a8745e3394651450cd499b6a743960f58b07b1ddf3",
+      "size": 35504
     },
     "includes/WordPress/ConfigScanner.php": {
       "sha256": "c4052e3b084f32debe99412545cb3ebd125d87f2a9ce18b21c88b427d621ba5c",

@@ -3193,19 +3193,33 @@ class ScannerRoutes {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($output);
 
+            $host_raw   = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'site';
+            $domain     = strtolower(preg_replace('/[^a-z0-9]/i', '-', preg_replace('/^www\./i', '', $host_raw)));
+            $date_token = gmdate('Y-m-d');
+            $time_token = gmdate('His');
+            $rand_token = substr(wp_generate_password(8, false), 0, 5);
+            $filename   = "scan-report-{$date_token}-{$time_token}-{$domain}-{$rand_token}.csv";
+
             return rest_ensure_response([
                 'success'     => true,
                 'format'      => 'csv',
-                'filename'    => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.csv',
+                'filename'    => $filename,
                 'csv_data'    => $csv_data,
                 'diagnostics' => $diagnostics,
             ]);
         }
 
+        $host_raw   = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'site';
+        $domain     = strtolower(preg_replace('/[^a-z0-9]/i', '-', preg_replace('/^www\./i', '', $host_raw)));
+        $date_token = gmdate('Y-m-d');
+        $time_token = gmdate('His');
+        $rand_token = substr(wp_generate_password(8, false), 0, 5);
+        $filename   = "scan-report-{$date_token}-{$time_token}-{$domain}-{$rand_token}.json";
+
         return rest_ensure_response([
             'success'            => true,
             'format'             => 'json',
-            'filename'           => 'wcp-scan-' . $scan['id'] . '-' . gmdate('Ymd-His') . '.json',
+            'filename'           => $filename,
             'report_generator'   => 'WCP Security Scanner Pro',
             'specialist'         => 'Mir Alamin (WebCare Pro)',
             'specialist_role'    => 'Senior Linux SysAdmin & WordPress Security Engineer',
@@ -6420,6 +6434,7 @@ class ScannerRoutes {
         $status_code = sanitize_text_field((string) ($request->get_param('status_code') ?: ''));
         $sort_by     = sanitize_key((string) ($request->get_param('sort_by') ?: 'created_at'));
         $sort_order  = strtolower(sanitize_key((string) ($request->get_param('sort_order') ?: 'desc')));
+        $is_export   = !empty($request->get_param('is_export'));
 
         $filters = array_filter([
             'range'       => $range,
@@ -6432,6 +6447,7 @@ class ScannerRoutes {
             'status_code' => $status_code,
             'sort_by'     => $sort_by,
             'sort_order'  => $sort_order,
+            'is_export'   => $is_export,
         ]);
 
         $res = \WcpScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);
@@ -10574,26 +10590,34 @@ class ScannerRoutes {
     }
 
     public static function export_activity_logs(\WP_REST_Request $request) {
-        $format = sanitize_key($request->get_param('format') ?: 'csv');
+        $format     = sanitize_key($request->get_param('format') ?: 'csv');
         $category   = sanitize_key($request->get_param('category') ?: '');
         $actor_type = sanitize_key($request->get_param('actor_type') ?: '');
         $severity   = sanitize_key($request->get_param('severity') ?: '');
         $search     = sanitize_text_field($request->get_param('search') ?: '');
+        $date       = sanitize_text_field($request->get_param('date') ?: '');
 
         $result = \WcpScanner\System\WcpActivityLogger::query_records([
             'actor_type' => $actor_type,
             'category'   => $category,
             'is_export'  => true,
-            'limit'      => 5000,
+            'limit'      => 10000,
             'search'     => $search,
             'severity'   => $severity,
+            'date'       => $date,
         ]);
 
-        $timestamp = gmdate('Ymd_His');
+        $host_raw   = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'site';
+        $domain     = strtolower(preg_replace('/[^a-z0-9]/i', '-', preg_replace('/^www\./i', '', $host_raw)));
+        $date_token = $date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : gmdate('Y-m-d');
+        $time_token = gmdate('His');
+        $rand_token = substr(wp_generate_password(8, false), 0, 5);
+        $filename   = "activity-logs-{$date_token}-{$time_token}-{$domain}-{$rand_token}.{$format}";
+
         if ($format === 'json') {
-            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], "wcp-activity-logs-{$timestamp}.json");
+            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], $filename);
         } else {
-            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], "wcp-activity-logs-{$timestamp}.csv");
+            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], $filename);
         }
         exit;
     }

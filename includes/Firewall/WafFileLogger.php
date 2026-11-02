@@ -413,7 +413,8 @@ class WafFileLogger {
         });
 
         // Pagination
-        $limit       = max(1, min(500, $limit));
+        $max_limit   = !empty($filters['is_export']) ? 25000 : 500;
+        $limit       = max(1, min($max_limit, $limit));
         $offset      = max(0, $offset);
         $sliced_logs = array_slice($all_matched, $offset, $limit);
         $total_pages = max(1, (int) ceil($total / $limit));
