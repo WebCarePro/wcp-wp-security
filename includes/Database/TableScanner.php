@@ -236,17 +236,23 @@ class TableScanner {
                                 }
                             }
 
-                            // Whitelist check: Legitimate tracking scripts, popular CDNs, and non-executable data islands (Schema.org JSON-LD / JSON data)
+                            // Whitelist check: Legitimate tracking scripts, popular CDNs, email log transcripts, and non-executable data islands (Schema.org JSON-LD / JSON data)
                             if ($rule_key === 'script_tag_injection') {
-                                // Benign data script tags (e.g. Schema.org JSON-LD, structured data, state islands)
-                                if (preg_match('/<script[^>]*type\s*=\s*["\']application\/(ld\+json|json)["\']/i', $matches[0])) {
+                                // Exclude outgoing email activity logs (e.g. Post SMTP session transcripts storing alert emails)
+                                if (strpos($table, 'post_smtp_logs') !== false || strpos($table, 'actionscheduler_logs') !== false) {
+                                    continue;
+                                }
+
+                                // Benign data script tags (e.g. Schema.org JSON-LD, structured data, state islands, Quoted-Printable email logs)
+                                if (preg_match('/<script[^>]*type\s*=\s*["\']?(?:application\/(?:ld\+json|json)|applic=\s*nation\/ld\+json)/i', $matches[0])) {
                                     // Ensure it does not contain inline execution escapes or javascript URI droppers
                                     if (!preg_match('/(eval\s*\(|base64_decode\s*\(|document\.write|window\[|\bjavascript:)/i', $matches[0])) {
                                         continue; // Legitimate structured data / JSON-LD metadata
                                     }
                                 }
 
-                                if (preg_match('/(googletagmanager\.com|google-analytics\.com|clarity\.ms|connect\.facebook\.net|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|code\.jquery\.com|stripe\.com|recaptcha\.net|google\.com\/recaptcha)/i', $matches[0])) {
+                                // Reputable CDNs, verified analytics (Ahrefs, Google), and review/settings scripts (Judge.me, Ahrefs, Cloudflare)
+                                if (preg_match('/(googletagmanager\.com|google-analytics\.com|clarity\.ms|connect\.facebook\.net|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|code\.jquery\.com|stripe\.com|recaptcha\.net|google\.com\/recaptcha|ahrefs\.com|analytics\.ahrefs\.com|judge\.me|jdgm-settings-script|mutationobserver)/i', $matches[0])) {
                                     continue; // Legitimate analytics/marketing/library script
                                 }
                             }

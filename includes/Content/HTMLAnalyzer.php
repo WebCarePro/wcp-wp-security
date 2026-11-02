@@ -61,8 +61,8 @@ class HTMLAnalyzer {
         // 4. Suspicious remote script injections in content
         if (preg_match('/<script\s+[^>]*src\s*=\s*["\'](https?:[^"\']+)["\'][^>]*>/i', $html, $matches)) {
             $src = $matches[1];
-            // Whitelist common legitimate embed/library CDNs
-            $is_whitelisted_cdn = (bool) preg_match('/(youtube\.com|vimeo\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|code\.jquery\.com|platform\.twitter\.com|connect\.facebook\.net|googletagmanager\.com|google-analytics\.com|recaptcha\.net|google\.com\/recaptcha|stripe\.com)/i', $src);
+            // Whitelist common legitimate embed/library CDNs and reputable SaaS / e-commerce services
+            $is_whitelisted_cdn = (bool) preg_match('/(youtube\.com|vimeo\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|code\.jquery\.com|platform\.twitter\.com|connect\.facebook\.net|googletagmanager\.com|google-analytics\.com|recaptcha\.net|google\.com\/recaptcha|stripe\.com|reviews\.io|ordertracker\.com|logwork\.com|trustpilot\.com|yotpo\.com|klaviyo\.com|privy\.com|elfsight\.com|judge\.me|ahrefs\.com)/i', $src);
             if (!$is_whitelisted_cdn) {
                 $detections[] = [
                     'type'       => 'remote_script_injection',

@@ -575,9 +575,17 @@ class ChecksumProvider {
         $is_in_root     = (strpos($rel_file, '/') === false);
 
         if (!$is_in_core_dir && !$is_in_root) {
-            // 1. Exclude legitimate ACME / SSL Let's Encrypt validation folders and protective .htaccess
+            // 1. Exclude legitimate ACME / SSL Let's Encrypt validation and Apple Pay merchant domain association
             if (strpos($rel_file, '.well-known/') === 0) {
                 return ['status' => 'ignored', 'rel_file' => $rel_file];
+            }
+
+            // Web server configuration directories (e.g. conf/imagify.conf, conf/nginx.conf)
+            if (strpos($rel_file, 'conf/') === 0) {
+                $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+                if (in_array($ext, ['conf', 'ini'], true) || (filesize($file_path) === 0 && in_array($basename_lower, ['index.php', 'index.html'], true))) {
+                    return ['status' => 'ignored', 'rel_file' => $rel_file];
+                }
             }
 
             // 2. Ignore non-code files, images, or .htaccess access-control rules in non-standard root folders
@@ -646,15 +654,25 @@ class ChecksumProvider {
             return ['status' => 'ignored', 'rel_file' => $rel_file];
         }
 
-        // Standard root legitimate entries & recognized security/WAF files
+        // Standard root legitimate entries & recognized security/WAF/merchant files
         if ($is_in_root) {
             $standard_root = [
                 'wp-config.php', 'wp-config-sample.php', 'robots.txt', 'favicon.ico',
                 '.user.ini', 'php.ini', 'sitemap.xml', 'sitemap.xml.gz', 'ads.txt',
-                'app-ads.txt', 'security.txt', 'license.txt', 'readme.html'
+                'app-ads.txt', 'security.txt', 'license.txt', 'readme.html', 'llms.txt'
             ];
             if (in_array($basename_lower, $standard_root, true)) {
                 return ['status' => 'authentic', 'rel_file' => $rel_file];
+            }
+
+            // Google Search Console domain verification HTML files (google*.html)
+            if (preg_match('/^google[a-f0-9]{16}\.html$/i', $basename_lower)) {
+                return ['status' => 'authentic', 'rel_file' => $rel_file];
+            }
+
+            // Server maintenance backups of root configs (.htaccess.bk, .htaccess.old)
+            if (preg_match('/^\.htaccess\.(?:bk|bak|old|backup)$/i', $basename_lower)) {
+                return ['status' => 'ignored', 'rel_file' => $rel_file];
             }
 
             // Wordfence WAF preload bootstrap (wordfence-waf.php)
@@ -781,8 +799,8 @@ class ChecksumProvider {
             return ['status' => 'ignored', 'slug' => $slug, 'rel_file' => $file_inside_plugin];
         }
 
-        // Allow harmless non-executable runtime storage files (e.g. cache/logs)
-        $runtime_dirs = ['logs', 'storage', 'cache', 'caches', 'backups', 'temp', 'tmp'];
+        // Allow harmless non-executable runtime storage files (e.g. cache/logs, HTMLPurifier serializer cache)
+        $runtime_dirs = ['logs', 'storage', 'cache', 'caches', 'backups', 'temp', 'tmp', 'definitioncache', 'serializer'];
         $path_segments = explode('/', strtolower($file_inside_plugin));
         $is_in_runtime_dir = !empty(array_intersect($path_segments, $runtime_dirs));
         $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));

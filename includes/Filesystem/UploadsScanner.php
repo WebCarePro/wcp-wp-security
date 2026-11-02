@@ -381,10 +381,10 @@ class UploadsScanner {
             return null;
         }
 
-        // True PHP polyglot webshells in images MUST contain a valid PHP opening tag with executable tokens.
-        // Plain binary sequences in compressed PNG/WebP/JPEG can accidentally contain ASCII bytes for words like 'eval('
-        // but can never execute in PHP without opening PHP tags (<?php or <?=).
-        $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
+        // True PHP polyglot webshells in images MUST contain a valid PHP opening tag with printable ASCII executable tokens.
+        // Plain compressed raster data in PNG/WebP/JPEG can contain random bytes matching '<?=' followed by binary noise,
+        // which cannot execute in PHP. We require legitimate PHP syntax characters (printable ASCII) immediately following the tag.
+        $php_pattern = '/<\?(?:php\s+[\x20-\x7E\r\n\t]{0,500}?(?:\b(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|gzinflate)\b|\$_[A-Z]+|\$[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\b|\=\s*(?:\b(?:eval|assert|system|passthru|shell_exec|exec|base64_decode)\b|\$_[A-Z]+|\$[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\b)/i';
 
         // 1. Read header up to 8KB (covers image headers, EXIF Comment, IPTC, and head polyglots)
         $header = @file_get_contents($real_path, false, null, 0, 8192);
