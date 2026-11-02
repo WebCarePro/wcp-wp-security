@@ -8584,7 +8584,13 @@ class ScannerRoutes {
         $rule_id = sanitize_text_field($params['rule_id'] ?? '');
         $target_ip = sanitize_text_field(trim($params['ip'] ?? ''));
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
+        if (!empty($rule_id)) {
+            $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
+        } elseif (!empty($target_ip)) {
+            $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip_by_address($target_ip);
+        } else {
+            return new \WP_Error('invalid_param', __('Either rule_id or ip is required to unblock.', 'wcp-security-scanner'), ['status' => 400]);
+        }
 
         if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();

@@ -1465,6 +1465,58 @@ class CloudflareService {
     }
 
     /**
+     * Unblock an IP address directly at Cloudflare Edge by resolving its access rule ID
+     *
+     * @param string $ip IPv4 or IPv6 address
+     * @return array
+     */
+    public static function unblock_ip_by_address(string $ip): array {
+        $clean_ip = trim(explode('/', $ip)[0]);
+        if (empty($clean_ip) || !filter_var($clean_ip, FILTER_VALIDATE_IP)) {
+            return ['success' => false, 'message' => __('Invalid IP address provided.', 'wcp-security-scanner')];
+        }
+
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+        }
+
+        // Query Cloudflare for access rules matching this specific IP target value
+        $target_param = filter_var($clean_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?configuration.target={$target_param}&configuration.value=" . urlencode($clean_ip));
+
+        if (!empty($res['success']) && !empty($res['result']) && is_array($res['result'])) {
+            $deleted_count = 0;
+            foreach ($res['result'] as $rule) {
+                $r_id = $rule['id'] ?? '';
+                if (!empty($r_id)) {
+                    $del_res = self::unblock_ip($r_id);
+                    if (!empty($del_res['success'])) {
+                        $deleted_count++;
+                    }
+                }
+            }
+
+            if ($deleted_count > 0) {
+                return [
+                    'success' => true,
+                    /* translators: %s: unblocked IP address */
+                    'message' => sprintf(__('IP %s successfully unblocked from Cloudflare Edge.', 'wcp-security-scanner'), $clean_ip),
+                ];
+            }
+        }
+
+        // Fallback: If not found in active Cloudflare access rules, report clean notice
+        return [
+            'success' => true,
+            /* translators: %s: unblocked IP address */
+            'message' => sprintf(__('IP %s is not currently blocked at Cloudflare Edge.', 'wcp-security-scanner'), $clean_ip),
+        ];
+    }
+
+    /**
      * Purge Cloudflare CDN Cache
      *
      * @param array|null $files Specific URLs to purge or null for Purge Everything

@@ -3743,7 +3743,7 @@ class FirewallEngine {
                     'admin_user'       => $admin_user,
                     'admin_note'       => $meta['admin_note'] ?? null,
                     'blocked_at'       => $timing['ban_time'],
-                    'blocked_at_raw'   => $blocked_ts,
+                    'blocked_at_raw'   => $timing['effective_ts'],
                     'ban_ago'          => $timing['ban_ago'],
                     'duration'         => $timing['duration'],
                     'duration_seconds' => $duration_secs,
@@ -3813,7 +3813,7 @@ class FirewallEngine {
                     'admin_user'       => null,
                     'admin_note'       => null,
                     'blocked_at'       => $timing['ban_time'],
-                    'blocked_at_raw'   => $blocked_ts,
+                    'blocked_at_raw'   => $timing['effective_ts'],
                     'ban_ago'          => $timing['ban_ago'],
                     'duration'         => $timing['duration'],
                     'duration_seconds' => $duration_secs,
@@ -3840,6 +3840,13 @@ class FirewallEngine {
             }
         }
 
+        // 3. Sort all blocked & locked IPs descending by latest ban timestamp so the latest banned IP appears first
+        usort($results, function($a, $b) {
+            $ts_a = isset($a['blocked_at_raw']) && is_numeric($a['blocked_at_raw']) ? (int) $a['blocked_at_raw'] : 0;
+            $ts_b = isset($b['blocked_at_raw']) && is_numeric($b['blocked_at_raw']) ? (int) $b['blocked_at_raw'] : 0;
+            return $ts_b <=> $ts_a;
+        });
+
         return $results;
     }
 
@@ -3855,16 +3862,19 @@ class FirewallEngine {
     public static function calculate_ban_timing(?int $blocked_ts, int $expires_ts, int $duration_secs, ?string $fallback_last_seen = null): array {
         $now = time();
 
-        // 1. Ban Time
+        $effective_ts = 0;
         if ($blocked_ts && $blocked_ts > 0) {
+            $effective_ts = $blocked_ts;
             $ban_time = gmdate('M j, Y, g:i a \U\T\C', $blocked_ts);
             $seconds_ago = max(0, $now - $blocked_ts);
             $ban_ago = self::format_seconds_human($seconds_ago) . ' ago';
         } elseif ($fallback_last_seen) {
             $ts = strtotime($fallback_last_seen);
+            $effective_ts = $ts ?: 0;
             $ban_time = gmdate('M j, Y, g:i a \U\T\C', $ts);
             $ban_ago = self::format_seconds_human(max(0, $now - $ts)) . ' ago';
         } else {
+            $effective_ts = 0;
             $ban_time = 'Unknown (Active Policy)';
             $ban_ago = 'Previously Recorded';
         }
@@ -3908,6 +3918,7 @@ class FirewallEngine {
         }
 
         return [
+            'effective_ts'   => $effective_ts,
             'ban_time'       => $ban_time,
             'ban_ago'        => $ban_ago,
             'duration'       => $duration,
