@@ -50,6 +50,10 @@ class KnownVendorManifest {
         // DataTables vendor distribution
         '209a341af4d5e205ab38474dcbb0b555' => ['library' => 'datatables.net', 'file' => 'datatables.min.js'],
 
+        // Gravity Forms official build assets
+        '79d7416a759b6189cb3ab5b5378a7caa' => ['library' => 'gravityforms', 'file' => 'assets/js/dist/admin-components.min.js'],
+        'f6fd4615da04317356eec687ab65c786' => ['library' => 'gravityforms', 'file' => 'assets/js/dist/admin-components.min.js'],
+
         // Source maps & build artifacts
         '42534331b90ab33ea20504e0e010a30b' => ['library' => 'stellarwp/harbor', 'file' => 'index.js.map'],
     ];
