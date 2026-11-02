@@ -1,6 +1,6 @@
 {
   "version": "2.2.0",
-  "generated_at": "2026-11-02T09:13:35.818Z",
+  "generated_at": "2026-11-02T09:25:44.225Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -132,8 +132,8 @@
       "size": 3651
     },
     "includes/Database/CronPersistenceScanner.php": {
-      "sha256": "aad0cb626b74c993e547eb5b849d3cd4a1df265895c23976b374d155b9f6346c",
-      "size": 19069
+      "sha256": "3c9550e971cda316e8000b68040d8c8ee8cdfd6c6c453a8469a046293634b13a",
+      "size": 19084
     },
     "includes/Database/DatabaseRemediationManager.php": {
       "sha256": "8d09866a29308e8d87b6a4122698ffb193f1142e1b4188d848f9e7d236f17535",
@@ -160,8 +160,8 @@
       "size": 3466
     },
     "includes/Database/SnippetCodeAuditor.php": {
-      "sha256": "a204e99d5edffb4db3a066136f1d7911de2fbb0594a953ed5a6d7030a86696f8",
-      "size": 11144
+      "sha256": "a9c2d916682c5956954312355c750fa5b86a3bd22c013228dc53560110f21054",
+      "size": 11159
     },
     "includes/Database/TableScanner.php": {
       "sha256": "58b28cf048014136479f6f6bbd7275d52f724c757c087244c111e9f9e8c2dae7",
@@ -368,8 +368,8 @@
       "size": 10192
     },
     "includes/Malware/HeuristicEngine.php": {
-      "sha256": "d3ee77847efbf566e44c40ccd46d136229be6d4ec3996c92df86c5e9872d89ab",
-      "size": 5813
+      "sha256": "9b720d7e0b50cf050fc751081feac4b742310ee69e4307899f0e9803869f6948",
+      "size": 5681
     },
     "includes/Malware/JavaScriptSecurityScanner.php": {
       "sha256": "0e75c5042248ce224ecd6c11ddf653a450507e5c9506043c1b3ab5700e21999f",

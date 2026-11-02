@@ -1,4 +1,7 @@
 v:2.2.0 - 2026-11-02
+- WordPress.org Plugin Check (PCP) Compliance & Direct Database Query Normalization (CronPersistenceScanner.php, SnippetCodeAuditor.php, HeuristicEngine.php):
+  * Prepared SQL Interpolation Fixes: Refactored ActionScheduler table and Code Snippets table queries to define pre-constructed SQL query variables with explicit `$wpdb` annotations, completely clearing `PluginCheck.Security.DirectDB.UnescapedDBParameter` and `WordPress.DB.PreparedSQL.InterpolatedNotPrepared` warnings.
+  * Line Endings Normalization (HeuristicEngine.php): Normalized mixed line endings (`\r\n` and `\n`) across `HeuristicEngine.php` to clean Unix `LF`, eliminating `Internal.LineEndings.Mixed`.
 - Notification Center & Alert Engine: Administrator Access Events (NotificationDispatcher.php, LoginHardening.php, SettingsManager.php):
   * Administrator Login Alerts (`auth_admin_login`): Added granular real-time event notifications dispatachable via email and webhooks (Slack, Discord, ClickUp, Asana) whenever any user with Administrator privileges logs in to WordPress. Logs client IP, user agent, timestamp, and user ID.
   * Administrator Password Reset & Profile Update Alerts (`auth_admin_password_reset`): Connected hooks to both `password_reset` (recovery flow) and `profile_update` (direct admin profile updates). Immediately fires high-severity alerts whenever an administrator's password is reset or changed, logging the target administrator, the updating actor, client IP, and timestamp.

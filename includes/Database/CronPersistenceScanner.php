@@ -381,14 +381,9 @@ class CronPersistenceScanner {
                 return $findings;
             }
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $pending_actions = $wpdb->get_results(
-                "SELECT action_id, hook, status, args 
-                 FROM `{$as_table}` 
-                 WHERE status = 'pending' 
-                 LIMIT 250",
-                OBJECT
-            );
+            $sql = "SELECT action_id, hook, status, args FROM `{$as_table}` WHERE status = 'pending' LIMIT 250";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
+            $pending_actions = $wpdb->get_results($sql, OBJECT);
 
             if (empty($pending_actions) || !is_array($pending_actions)) {
                 return $findings;

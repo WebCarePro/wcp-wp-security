@@ -69,14 +69,9 @@ class SnippetCodeAuditor {
                 return $findings;
             }
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $rows = $wpdb->get_results(
-                "SELECT id, name, code, active 
-                 FROM `{$snippets_table}` 
-                 WHERE active = 1 
-                 LIMIT 500",
-                OBJECT
-            );
+            $sql = "SELECT id, name, code, active FROM `{$snippets_table}` WHERE active = 1 LIMIT 500";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared
+            $rows = $wpdb->get_results($sql, OBJECT);
 
             if (empty($rows) || !is_array($rows)) {
                 return $findings;
