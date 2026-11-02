@@ -1267,6 +1267,18 @@ class CloudflareService {
                 // translators: %s: IP address
                 return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to server origin, administrator, or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
             }
+
+            // CRITICAL SAFETY GUARD: Immutable protection for verified search engine crawlers (Googlebot, Bingbot).
+            // Never push legitimate search crawler IPs to Cloudflare Edge IP block rules.
+            if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+                $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+                if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($ip, $ua) ||
+                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($ip, 'googlebot') ||
+                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($ip, 'bingbot')) {
+                    // translators: %s: IP address
+                    return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s is a verified legitimate search crawler (Googlebot / Bingbot) and cannot be blocked.', 'wcp-security-scanner'), $ip)];
+                }
+            }
         }
 
         $payload = [
