@@ -84,6 +84,11 @@ class FirewallEngine {
         add_action('woocommerce_checkout_process', [__CLASS__, 'inspect_woo_checkout_attempt'], 0);
         add_action('woocommerce_after_checkout_validation', [__CLASS__, 'handle_woo_checkout_validation'], 999, 2);
         add_action('woocommerce_order_status_failed', [__CLASS__, 'handle_woo_payment_failure'], 10, 1);
+
+        // Rule #39: WooCommerce Coupon Enumeration & Brute-Force Shield
+        add_action('woocommerce_applied_coupon', [__CLASS__, 'handle_woo_coupon_success'], 10, 1);
+        add_filter('woocommerce_coupon_error', [__CLASS__, 'handle_woo_coupon_error'], 999, 3);
+        add_filter('rest_request_after_callbacks', [__CLASS__, 'handle_woo_store_api_coupon_response'], 10, 3);
     }
 
     /**
@@ -5964,6 +5969,22 @@ class FirewallEngine {
         }
 
         if (isset($tier1_actions[$action])) {
+            // Rule #39: Check coupon lockout for apply_coupon action
+            if ($action === 'apply_coupon' || $action === 'woocommerce_apply_coupon') {
+                $coupon_lock_error = self::check_woo_coupon_lockout();
+                if ($coupon_lock_error) {
+                    if (wp_doing_ajax()) {
+                        wp_send_json([
+                            'result'   => 'failure',
+                            'messages' => '<ul class="woocommerce-error" role="alert"><li>' . esc_html($coupon_lock_error->get_error_message()) . '</li></ul>',
+                        ]);
+                        exit;
+                    }
+                    if (function_exists('wc_add_notice')) {
+                        wc_add_notice($coupon_lock_error->get_error_message(), 'error');
+                    }
+                }
+            }
             return; // Legitimate Tier 1 guest action permitted
         }
 
@@ -6086,6 +6107,13 @@ class FirewallEngine {
                 $block_error = self::check_woo_carding_lockout();
                 if ($block_error) {
                     return $block_error;
+                }
+            }
+            // Rule #39 Check for Store API coupon application route
+            if (preg_match('#^/wc/store(?:/v\d+)?/cart/coupons#i', $route) && (strtoupper($method) === 'POST' || strtoupper($method) === 'PUT')) {
+                $coupon_lock_error = self::check_woo_coupon_lockout();
+                if ($coupon_lock_error) {
+                    return $coupon_lock_error;
                 }
             }
             return $result;
@@ -6283,6 +6311,214 @@ class FirewallEngine {
                 'match_type'  => 'Carding Velocity Exceeded',
                 'match_value' => $client_ip,
                 'payload'     => "IP: {$client_ip} Trigger: {$reason} Attempts: {$new_attempts} / Limit: {$max_attempts}",
+            ];
+
+            self::log_incident($rule_triggered, 'blocked');
+        } else {
+            set_transient($attempt_key, $new_attempts, $window_seconds);
+        }
+    }
+
+    /**
+     * Rule #39: Check if client IP is currently locked out by WooCommerce Coupon Enumeration Mitigation.
+     *
+     * @return \WP_Error|false Returns WP_Error if locked out, or false if clear.
+     */
+    public static function check_woo_coupon_lockout() {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_coupon_protection'])) {
+            return false;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return false;
+        }
+
+        $lock_key = 'wcpscan_cpn_lock_' . md5($client_ip);
+        $is_locked = get_transient($lock_key);
+        if (!$is_locked) {
+            return false;
+        }
+
+        $rule_triggered = [
+            'id'          => 'WAF-WOO-COUPON-BLOCKED',
+            'name'        => 'WooCommerce Coupon Enumeration & Brute-Force Shield (Rule #39)',
+            'category'    => 'Behavioral Defense',
+            'description' => sprintf(
+                /* translators: 1: Client IP address */
+                __('Blocked repeated coupon testing attempt from temporarily locked-out IP %1$s (Coupon Brute-Force Defense).', 'wcp-security-scanner'),
+                $client_ip
+            ),
+            'match_type'  => 'Coupon Velocity Threshold',
+            'match_value' => $client_ip,
+            'payload'     => "IP: {$client_ip} Locked due to excessive invalid coupon attempts",
+        ];
+
+        self::log_incident($rule_triggered, 'blocked');
+
+        return new \WP_Error(
+            'wcpscan_coupon_lockout',
+            esc_html__('Too many invalid coupon attempts detected from your connection. For security purposes, coupon redemption has been temporarily paused for 15 minutes. Please contact support if you need assistance.', 'wcp-security-scanner'),
+            ['status' => 429]
+        );
+    }
+
+    /**
+     * Rule #39: Intercept WooCommerce coupon application error filter (`woocommerce_coupon_error`).
+     *
+     * Tracks failed/invalid coupon attempts. If locked out, replaces error message with lockout notice.
+     *
+     * @param string $err
+     * @param int|string $err_code
+     * @param \WC_Coupon|null $coupon
+     * @return string
+     */
+    public static function handle_woo_coupon_error($err, $err_code, $coupon = null): string {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_coupon_protection'])) {
+            return $err;
+        }
+
+        // Check if currently locked out
+        $lock_error = self::check_woo_coupon_lockout();
+        if ($lock_error) {
+            return $lock_error->get_error_message();
+        }
+
+        // Record invalid coupon attempt (coupon doesn't exist, invalid code, expired)
+        $coupon_code = ($coupon instanceof \WC_Coupon) ? $coupon->get_code() : '';
+        if (empty($coupon_code) && !empty($_POST['coupon_code'])) {
+            $coupon_code = sanitize_text_field(wp_unslash($_POST['coupon_code']));
+        }
+
+        self::record_failed_coupon_attempt($coupon_code, is_numeric($err_code) ? (int) $err_code : 0);
+
+        // Re-check if this failure triggered a lockout
+        $recheck_lock = self::check_woo_coupon_lockout();
+        if ($recheck_lock) {
+            return $recheck_lock->get_error_message();
+        }
+
+        return $err;
+    }
+
+    /**
+     * Rule #39: Clear failed attempts when a valid coupon is successfully applied.
+     *
+     * Intercepts `woocommerce_applied_coupon` hook.
+     *
+     * @param string $coupon_code
+     * @return void
+     */
+    public static function handle_woo_coupon_success(string $coupon_code): void {
+        $client_ip = self::get_client_ip();
+        if (!empty($client_ip)) {
+            delete_transient('wcpscan_cpn_fail_' . md5($client_ip));
+        }
+    }
+
+    /**
+     * Rule #39: Intercept Store API coupon REST response to catch invalid coupon errors.
+     *
+     * @param \WP_REST_Response|\WP_Error|mixed $response
+     * @param array $handler
+     * @param \WP_REST_Request $request
+     * @return mixed
+     */
+    public static function handle_woo_store_api_coupon_response($response, $handler, $request) {
+        $route = $request->get_route();
+        if (!preg_match('#^/wc/store(?:/v\d+)?/cart/coupons#i', $route)) {
+            return $response;
+        }
+
+        // If it's an error on applying coupon
+        if (is_wp_error($response)) {
+            $code = $response->get_error_code();
+            if ($code === 'woocommerce_rest_cart_coupon_error' || $code === 'invalid_coupon') {
+                $coupon_code = $request->get_param('code') ?: '';
+                self::record_failed_coupon_attempt($coupon_code, 0);
+
+                $lock_error = self::check_woo_coupon_lockout();
+                if ($lock_error) {
+                    return $lock_error;
+                }
+            }
+        } elseif ($response instanceof \WP_REST_Response && $response->get_status() >= 400) {
+            $coupon_code = $request->get_param('code') ?: '';
+            self::record_failed_coupon_attempt($coupon_code, 0);
+
+            $lock_error = self::check_woo_coupon_lockout();
+            if ($lock_error) {
+                return $lock_error;
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Rule #39: Record a failed coupon attempt and trigger lockout if threshold is exceeded.
+     *
+     * @param string $coupon_code
+     * @param int $err_code
+     * @return void
+     */
+    public static function record_failed_coupon_attempt(string $coupon_code = '', int $err_code = 0): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_coupon_protection'])) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return;
+        }
+
+        // Whitelist check
+        if (self::is_ip_whitelisted($client_ip)) {
+            return;
+        }
+
+        $max_failures = (int) ($settings['waf_woo_coupon_max_failures'] ?? 5);
+        $lockout_duration_mins = (int) ($settings['waf_woo_coupon_lockout_duration'] ?? 15);
+        $window_seconds = 300; // 5-minute rolling window
+
+        $attempt_key = 'wcpscan_cpn_fail_' . md5($client_ip);
+        $lock_key    = 'wcpscan_cpn_lock_' . md5($client_ip);
+
+        if (get_transient($lock_key)) {
+            return;
+        }
+
+        $current_attempts = (int) get_transient($attempt_key);
+        $new_attempts = $current_attempts + 1;
+
+        if ($new_attempts >= $max_failures) {
+            set_transient($lock_key, [
+                'ip'         => $client_ip,
+                'attempts'   => $new_attempts,
+                'locked_at'  => time(),
+                'expires_at' => time() + ($lockout_duration_mins * MINUTE_IN_SECONDS),
+                'last_code'  => $coupon_code,
+            ], $lockout_duration_mins * MINUTE_IN_SECONDS);
+
+            delete_transient($attempt_key);
+
+            $rule_triggered = [
+                'id'          => 'WAF-WOO-COUPON-THRESHOLD',
+                'name'        => 'WooCommerce Coupon Enumeration Velocity Threshold Exceeded (Rule #39)',
+                'category'    => 'Behavioral Defense',
+                'description' => sprintf(
+                    /* translators: 1: Client IP address, 2: Number of failed attempts, 3: Lockout duration in minutes */
+                    __('IP %1$s exceeded coupon failure threshold (%2$d invalid attempts in 5 min) - locked out from coupon testing for %3$d minutes.', 'wcp-security-scanner'),
+                    $client_ip,
+                    $new_attempts,
+                    $lockout_duration_mins
+                ),
+                'match_type'  => 'Coupon Velocity Exceeded',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} Last Coupon: {$coupon_code} ErrorCode: {$err_code} Attempts: {$new_attempts} / Limit: {$max_failures}",
             ];
 
             self::log_incident($rule_triggered, 'blocked');

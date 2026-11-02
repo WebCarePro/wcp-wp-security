@@ -121,6 +121,9 @@ class SettingsManager {
             'waf_woo_carding_protection'        => true,  // WooCommerce Carding Attack & Checkout Velocity Shield (Rule #38)
             'waf_woo_checkout_max_attempts'     => 3,     // Max failed checkout attempts before lockout
             'waf_woo_carding_lockout_duration'  => 30,    // Lockout duration in minutes
+            'waf_woo_coupon_protection'         => true,  // WooCommerce Coupon Enumeration & Brute-Force Shield (Rule #39)
+            'waf_woo_coupon_max_failures'       => 5,     // Max failed coupon attempts before lockout
+            'waf_woo_coupon_lockout_duration'   => 15,    // Lockout duration in minutes (15 mins)
             'waf_allow_page_builders'           => false, // Visual Page Builder & Editor Smart Pass (off by default, recommended when Elementor/Divi active)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
             'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
@@ -665,6 +668,9 @@ class SettingsManager {
         $clean['waf_woo_carding_protection']       = !empty($merged['waf_woo_carding_protection']);
         $clean['waf_woo_checkout_max_attempts']    = max(2, min(20, (int) ($merged['waf_woo_checkout_max_attempts'] ?? 3)));
         $clean['waf_woo_carding_lockout_duration'] = max(5, min(1440, (int) ($merged['waf_woo_carding_lockout_duration'] ?? 30)));
+        $clean['waf_woo_coupon_protection']        = !empty($merged['waf_woo_coupon_protection']);
+        $clean['waf_woo_coupon_max_failures']      = max(2, min(30, (int) ($merged['waf_woo_coupon_max_failures'] ?? 5)));
+        $clean['waf_woo_coupon_lockout_duration']  = max(5, min(1440, (int) ($merged['waf_woo_coupon_lockout_duration'] ?? 15)));
         $clean['waf_block_empty_post_ua_referer'] = !empty($merged['waf_block_empty_post_ua_referer']);
         $clean['waf_whitelisted_urls']            = sanitize_textarea_field($merged['waf_whitelisted_urls'] ?? '');
 
@@ -1075,6 +1081,7 @@ class SettingsManager {
             'waf_block_oversized_requests'     => 'Oversized Request Payload Guard',
             'waf_block_ai_prompt_injection'    => 'AI Prompt Injection Defense',
             'waf_woo_carding_protection'        => 'WooCommerce Carding Attack & Checkout Velocity Shield',
+            'waf_woo_coupon_protection'         => 'WooCommerce Coupon Enumeration & Brute-Force Shield',
             'waf_guest_ajax_policy'            => 'Guest admin-ajax.php / admin-post.php Action Matrix',
             'waf_guest_ajax_custom_allowlist'  => 'Guest AJAX Custom Allowlist',
             'waf_guest_rest_policy'            => 'Guest REST API Mutation Guard',
