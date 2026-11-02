@@ -7036,17 +7036,6 @@ class FirewallEngine {
             return $value;
         }
 
-        // Allow WP-CLI, background crons, and verified administrators
-        if (defined('WP_CLI') && WP_CLI) {
-            return $value;
-        }
-        if (wp_doing_cron()) {
-            return $value;
-        }
-        if (is_user_logged_in() && current_user_can('manage_options')) {
-            return $value;
-        }
-
         $guarded_options = [
             'users_can_register',
             'default_role',
@@ -7056,29 +7045,44 @@ class FirewallEngine {
             'admin_email',
         ];
 
-        if (in_array($option, $guarded_options, true)) {
-            $client_ip = self::get_client_ip();
-
-            self::log_incident([
-                'id'          => 'WAF-RASP-OPTION-TAMPER',
-                'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
-                'category'    => 'Runtime RASP Hook Defense',
-                'description' => sprintf(
-                    /* translators: 1: Option name, 2: Client IP */
-                    __('Unauthenticated request from %2$s attempted unauthorized runtime tampering with core option "%1$s".', 'wcp-security-scanner'),
-                    $option,
-                    $client_ip
-                ),
-                'match_type'  => 'Unauthorized Option Mutation',
-                'match_value' => $option,
-                'payload'     => "Option: {$option} Attempted Value: " . substr(wp_json_encode($value), 0, 100),
-            ], 'blocked');
-
-            // Hard Inviolable Revert: return the old value immediately
-            return $old_value;
+        // Fast-path: Only inspect targeted critical privilege options
+        if (!in_array($option, $guarded_options, true)) {
+            return $value;
         }
 
-        return $value;
+        // Allow WP-CLI, background crons, and verified administrators
+        if (defined('WP_CLI') && WP_CLI) {
+            return $value;
+        }
+        if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+            return $value;
+        }
+        if (self::is_authenticated_administrator()) {
+            return $value;
+        }
+        if (function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('current_user_can') && current_user_can('manage_options')) {
+            return $value;
+        }
+
+        $client_ip = self::get_client_ip();
+
+        self::log_incident([
+            'id'          => 'WAF-RASP-OPTION-TAMPER',
+            'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
+            'category'    => 'Runtime RASP Hook Defense',
+            'description' => sprintf(
+                /* translators: 1: Option name, 2: Client IP */
+                __('Unauthenticated request from %2$s attempted unauthorized runtime tampering with core option "%1$s".', 'wcp-security-scanner'),
+                $option,
+                $client_ip
+            ),
+            'match_type'  => 'Unauthorized Option Mutation',
+            'match_value' => $option,
+            'payload'     => "Option: {$option} Attempted Value: " . substr(wp_json_encode($value), 0, 100),
+        ], 'blocked');
+
+        // Hard Inviolable Revert: return the old value immediately
+        return $old_value;
     }
 
     /**
@@ -7103,7 +7107,10 @@ class FirewallEngine {
         // If assigning elevated role (administrator or editor)
         if (in_array(strtolower($role), ['administrator', 'editor'], true)) {
             // Verified logged-in administrator with manage_options is legitimate
-            if (is_user_logged_in() && current_user_can('manage_options')) {
+            if (self::is_authenticated_administrator()) {
+                return;
+            }
+            if (function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('current_user_can') && current_user_can('manage_options')) {
                 return;
             }
 
@@ -7157,29 +7164,35 @@ class FirewallEngine {
             return;
         }
 
-        // If user was created by an unauthenticated guest
-        if (!is_user_logged_in() || !current_user_can('manage_options')) {
-            $user = get_userdata($user_id);
-            if ($user && array_intersect(['administrator', 'editor'], array_map('strtolower', (array) $user->roles))) {
-                // Instantly demote or strip roles
-                $user->set_role('subscriber');
+        // Allow verified administrators
+        if (self::is_authenticated_administrator()) {
+            return;
+        }
+        if (function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('current_user_can') && current_user_can('manage_options')) {
+            return;
+        }
 
-                $client_ip = self::get_client_ip();
-                self::log_incident([
-                    'id'          => 'WAF-RASP-ADMIN-REG-BLOCKED',
-                    'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
-                    'category'    => 'Runtime RASP Hook Defense',
-                    'description' => sprintf(
-                        /* translators: 1: User ID, 2: Client IP */
-                        __('Unauthenticated guest from %2$s registered new account (#%1$d) with elevated administrator privileges. Account was demoted to subscriber.', 'wcp-security-scanner'),
-                        $user_id,
-                        $client_ip
-                    ),
-                    'match_type'  => 'Guest Admin Registration',
-                    'match_value' => (string) $user_id,
-                    'payload'     => "User: {$user->user_login} ID: {$user_id}",
-                ], 'blocked');
-            }
+        // If user was created by an unauthenticated guest or non-admin session
+        $user = function_exists('get_userdata') ? get_userdata($user_id) : null;
+        if ($user && array_intersect(['administrator', 'editor'], array_map('strtolower', (array) $user->roles))) {
+            // Instantly demote or strip roles
+            $user->set_role('subscriber');
+
+            $client_ip = self::get_client_ip();
+            self::log_incident([
+                'id'          => 'WAF-RASP-ADMIN-REG-BLOCKED',
+                'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
+                'category'    => 'Runtime RASP Hook Defense',
+                'description' => sprintf(
+                    /* translators: 1: User ID, 2: Client IP */
+                    __('Unauthenticated guest from %2$s registered new account (#%1$d) with elevated administrator privileges. Account was demoted to subscriber.', 'wcp-security-scanner'),
+                    $user_id,
+                    $client_ip
+                ),
+                'match_type'  => 'Guest Admin Registration',
+                'match_value' => (string) $user_id,
+                'payload'     => "User: {$user->user_login} ID: {$user_id}",
+            ], 'blocked');
         }
     }
 }

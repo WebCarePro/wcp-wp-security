@@ -1,4 +1,7 @@
 v:2.2.0 - 2026-11-02
+- Rule #44 RASP Early Boot & Safe Execution Guard Hotfix (FirewallEngine.php):
+  * Option Fast-Path Check: Restructured `FirewallEngine::rasp_guard_critical_options()` so it immediately exits for arbitrary non-critical options (such as transient caches like `wpforms_existing_tables`) before performing any user authentication checks.
+  * Pluggable Function Guarding: Replaced direct early calls to `is_user_logged_in()` with `self::is_authenticated_administrator()` cookie decoding and defensive `function_exists('is_user_logged_in')` checks. Resolves fatal call errors when plugins trigger option mutations early during `wp-settings.php` plugin bootstrap before `pluggable.php` has loaded.
 - Server Security Configuration & Uploads Directory Protection (ServerSecurityEngine.php, ServerSecurityTab.tsx):
   * Web Server Perimeter Protection for Plugin Data: Added dedicated perimeter directives across Nginx, Apache (.htaccess), and Caddy v2 configurations to block direct HTTP web access to `wp-content/uploads/wcp-security-scanner/`. Prevents crawling or downloading of forensic WAF logs, activity telemetry, database backup dumps, quarantine vaults, and FIM snapshot manifests.
   * Server Security Matrix UI Integration: Added `protect_wcp_data_dir` toggle to Server Security & Firewall Rule Generator cockpit with live Nginx, Apache, and Caddy preview code synchronization.
