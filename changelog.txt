@@ -1,4 +1,8 @@
 v:2.2.0 - 2026-11-02
+- Server Security Configuration & Uploads Directory Protection (ServerSecurityEngine.php, ServerSecurityTab.tsx):
+  * Web Server Perimeter Protection for Plugin Data: Added dedicated perimeter directives across Nginx, Apache (.htaccess), and Caddy v2 configurations to block direct HTTP web access to `wp-content/uploads/wcp-security-scanner/`. Prevents crawling or downloading of forensic WAF logs, activity telemetry, database backup dumps, quarantine vaults, and FIM snapshot manifests.
+  * Server Security Matrix UI Integration: Added `protect_wcp_data_dir` toggle to Server Security & Firewall Rule Generator cockpit with live Nginx, Apache, and Caddy preview code synchronization.
+  * Loopback Perimeter Assertion Suite: Added active verification probe for `wp-content/uploads/wcp-security-scanner/waf-logs/` inside `verify_rule_enforcement()`, accurately testing and asserting perimeter rule containment across web servers.
 - WordPress.org Plugin Check (PCP) Compliance Cleanliness (WafFileLogger.php, FirewallEngine.php):
   * Unslashing & Input Sanitization: Properly unslashed and sanitized `$_SERVER['REQUEST_URI']` and `$_SERVER['HTTP_USER_AGENT']` before logging and reverse-DNS verification.
   * Nonce Verification Annotations: Added documented `phpcs:ignore WordPress.Security.NonceVerification.Missing` tags for low-level incoming authentication deduction keying (`$_POST['log']`) and WooCommerce coupon filter inspection (`$_POST['coupon_code']`).

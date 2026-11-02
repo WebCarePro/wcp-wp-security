@@ -30,6 +30,7 @@ class ServerSecurityEngine {
         return [
             // Core Perimeter Security (Checkboxes)
             'block_uploads_php'       => true,
+            'protect_wcp_data_dir'    => true,
             'block_sensitive_files'   => true,
             'block_xmlrpc'            => true,
             'block_author_scans'      => true,
@@ -195,6 +196,16 @@ class ServerSecurityEngine {
             $c .= "}\n\n";
         }
 
+        // Protect WCP Security Scanner Vault, Logs & Database Backups
+        if (!empty($opts['protect_wcp_data_dir'])) {
+            $c .= "# --- 5b. Shield WCP Security Scanner Data Directory (Logs, Vault, DB Backups) ---\n";
+            $c .= "location ^~ /wp-content/uploads/wcp-security-scanner/ {\n";
+            $c .= "    deny all;\n";
+            $c .= "    access_log off;\n";
+            $c .= "    log_not_found off;\n";
+            $c .= "}\n\n";
+        }
+
         // Block Sensitive & Hidden Files
         if (!empty($opts['block_sensitive_files'])) {
             $c .= "# --- 6. Block Sensitive Files, Backups, and Git/SVN Probes ---\n";
@@ -354,6 +365,12 @@ class ServerSecurityEngine {
         if (!empty($opts['block_uploads_php'])) {
             $c .= "    # Block direct PHP script execution in uploads\n";
             $c .= "    RewriteRule ^wp-content/uploads/.*\\.(php|phtml|phar|sh|pl|py|exe)$ - [F,L,NC]\n\n";
+        }
+
+        // Protect WCP Security Scanner Vault, Logs & Database Backups
+        if (!empty($opts['protect_wcp_data_dir'])) {
+            $c .= "    # Protect WCP Security Scanner Vault, Logs & Database Backups\n";
+            $c .= "    RewriteRule ^wp-content/uploads/wcp-security-scanner/ - [F,L,NC]\n\n";
         }
 
         // Block Author Scans
@@ -578,6 +595,12 @@ class ServerSecurityEngine {
             $c .= "    respond @wcp_uploads_php 403\n\n";
         }
 
+        if (!empty($opts['protect_wcp_data_dir'])) {
+            $c .= "    # Shield WCP Security Scanner Vault, Logs & Database Backups\n";
+            $c .= "    @wcp_data_vault path /wp-content/uploads/wcp-security-scanner/*\n";
+            $c .= "    respond @wcp_data_vault 403\n\n";
+        }
+
         if (!empty($opts['block_sensitive_files'])) {
             $c .= "    # Block access to hidden dotfiles, git repositories, and env files\n";
             $c .= "    @wcp_sensitive_files path /.git* /.env* /.user.ini /wp-config.php*\n";
@@ -630,8 +653,6 @@ class ServerSecurityEngine {
     public static function verify_rule_enforcement(): array {
         $server_software = isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown';
 
-        // Probe 1: Uploads Executable Probe
-        $probe_url = home_url('/wp-content/uploads/wcp_server_enforcement_test.php');
         $args = [
             'timeout'     => 8,
             'redirection' => 0,
@@ -639,7 +660,9 @@ class ServerSecurityEngine {
             'user-agent'  => 'WCP-Server-Verifier/1.0',
         ];
 
-        $uploads_res = wp_remote_get($probe_url, $args);
+        // Probe 1: Uploads Executable Probe
+        $uploads_probe_url = home_url('/wp-content/uploads/wcp_server_enforcement_test.php');
+        $uploads_res = wp_remote_get($uploads_probe_url, $args);
         $uploads_code = !is_wp_error($uploads_res) ? (int) wp_remote_retrieve_response_code($uploads_res) : 0;
         $uploads_blocked = in_array($uploads_code, [400, 403, 404, 410], true);
 
@@ -649,16 +672,41 @@ class ServerSecurityEngine {
         $env_code = !is_wp_error($env_res) ? (int) wp_remote_retrieve_response_code($env_res) : 0;
         $env_blocked = in_array($env_code, [400, 403, 404, 410], true);
 
-        $is_enforced = ($uploads_blocked && $env_blocked);
+        // Probe 3: WCP Plugin Data & Vault Directory Probe (waf-logs/activity-logs)
+        $wcp_vault_url = home_url('/wp-content/uploads/wcp-security-scanner/waf-logs/');
+        $wcp_vault_res = wp_remote_get($wcp_vault_url, $args);
+        $wcp_vault_code = !is_wp_error($wcp_vault_res) ? (int) wp_remote_retrieve_response_code($wcp_vault_res) : 0;
+        $wcp_vault_blocked = in_array($wcp_vault_code, [400, 403, 404, 410], true);
+
+        $is_enforced = ($uploads_blocked && $env_blocked && $wcp_vault_blocked);
+        $overall_status = $is_enforced ? 'protected' : 'partial';
 
         return [
             'success'            => true,
             'server_software'    => $server_software,
-            'uploads_code'       => $uploads_code,
-            'uploads_blocked'    => $uploads_blocked,
-            'env_code'           => $env_code,
-            'env_blocked'        => $env_blocked,
             'active_enforcement' => $is_enforced,
+            'overall_status'     => $overall_status,
+            'verified_at'        => gmdate('Y-m-d H:i:s \U\T\C'),
+            'results'            => [
+                'uploads_php' => [
+                    'label'       => __('Uploads PHP Execution', 'wcp-security-scanner'),
+                    'url'         => $uploads_probe_url,
+                    'status_code' => $uploads_code,
+                    'enforced'    => $uploads_blocked,
+                ],
+                'sensitive_env' => [
+                    'label'       => __('Sensitive Dotfiles (.env)', 'wcp-security-scanner'),
+                    'url'         => $env_url,
+                    'status_code' => $env_code,
+                    'enforced'    => $env_blocked,
+                ],
+                'wcp_data_vault' => [
+                    'label'       => __('WCP Plugin Data & Vault', 'wcp-security-scanner'),
+                    'url'         => $wcp_vault_url,
+                    'status_code' => $wcp_vault_code,
+                    'enforced'    => $wcp_vault_blocked,
+                ],
+            ],
             'message'            => $is_enforced
                 ? __('Web server security rules are actively enforced at the perimeter (HTTP 403/404 responses confirmed).', 'wcp-security-scanner')
                 : __('Perimeter enforcement test inconclusive. Ensure the generated server config has been included in your Nginx, Apache, or Caddy configuration.', 'wcp-security-scanner'),
