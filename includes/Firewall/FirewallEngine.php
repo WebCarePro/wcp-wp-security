@@ -96,6 +96,9 @@ class FirewallEngine {
 
         // Rule #41: WooCommerce Cart Flooding & Denial of Inventory (DoI) Defense
         add_filter('woocommerce_add_to_cart_validation', [__CLASS__, 'validate_woo_add_to_cart'], 10, 5);
+
+        // Rule #42: WooCommerce Catalog & Price Scraping Mitigation
+        add_action('template_redirect', [__CLASS__, 'inspect_woo_catalog_scraping'], 1);
     }
 
     /**
@@ -6123,6 +6126,13 @@ class FirewallEngine {
                     return $coupon_lock_error;
                 }
             }
+            // Rule #42 Check for Store API products scraping
+            if (preg_match('#^/wc/store(?:/v\d+)?/products#i', $route)) {
+                $scrape_lock_error = self::check_and_track_catalog_scraping('Store API Products Endpoint');
+                if ($scrape_lock_error) {
+                    return $scrape_lock_error;
+                }
+            }
             return $result;
         }
 
@@ -6781,5 +6791,150 @@ class FirewallEngine {
         }
 
         return $passed;
+    }
+
+    /**
+     * Rule #42: Inspect incoming storefront requests on `template_redirect` for aggressive catalog scraping.
+     *
+     * Monitors shop, product category, product tag, and single product views.
+     * Exempts genuine search engine crawlers (Googlebot, Bingbot) and verified uptime monitors.
+     *
+     * @return void
+     */
+    public static function inspect_woo_catalog_scraping(): void {
+        if (!function_exists('is_woocommerce') && !function_exists('is_product')) {
+            return;
+        }
+
+        // Check if viewing product catalog pages
+        $is_catalog_page = (function_exists('is_shop') && is_shop())
+            || (function_exists('is_product_taxonomy') && is_product_taxonomy())
+            || (function_exists('is_product_category') && is_product_category())
+            || (function_exists('is_product_tag') && is_product_tag())
+            || (function_exists('is_product') && is_product());
+
+        if (!$is_catalog_page) {
+            return;
+        }
+
+        $lock_error = self::check_and_track_catalog_scraping('Storefront Catalog Page');
+        if ($lock_error) {
+            status_header(429);
+            header('Retry-After: 900');
+            $settings = SettingsManager::get_settings();
+            $client_ip = self::get_client_ip();
+            $rule_triggered = [
+                'id'          => 'WAF-WOO-SCRAPING-BLOCKED',
+                'name'        => 'WooCommerce Catalog & Price Scraping Mitigation (Rule #42)',
+                'category'    => 'Behavioral Defense',
+                'description' => sprintf(
+                    /* translators: 1: Client IP address */
+                    __('Catalog request blocked from IP %1$s due to aggressive price/inventory scraping velocity.', 'wcp-security-scanner'),
+                    $client_ip
+                ),
+                'match_type'  => 'Catalog Scraping Velocity',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} URI: " . ($_SERVER['REQUEST_URI'] ?? ''),
+            ];
+            self::log_incident($rule_triggered, 'blocked');
+            wp_die(
+                esc_html__('Too many requests. Automated catalog scraping has been temporarily restricted for your connection. Please wait 15 minutes before browsing again.', 'wcp-security-scanner'),
+                esc_html__('Too Many Requests', 'wcp-security-scanner'),
+                ['response' => 429]
+            );
+        }
+    }
+
+    /**
+     * Rule #42: Check if client IP is locked out or increments catalog hit velocity.
+     *
+     * @param string $source
+     * @return \WP_Error|false
+     */
+    public static function check_and_track_catalog_scraping(string $source = '') {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_scraping_protection'])) {
+            return false;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return false;
+        }
+
+        // Whitelist check
+        if (self::is_ip_whitelisted($client_ip)) {
+            return false;
+        }
+
+        // Exempt logged-in store administrators & shop managers
+        if (is_user_logged_in() && (current_user_can('manage_woocommerce') || current_user_can('manage_options'))) {
+            return false;
+        }
+
+        // Exempt genuine search engine crawlers (Google, Bing) and uptime monitors
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+            if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($client_ip, $user_agent)) {
+                return false;
+            }
+            if (\WcpScanner\Firewall\BotReconDefense::is_genuine_uptime_monitor($client_ip, $user_agent, $settings)) {
+                return false;
+            }
+        }
+
+        $lock_key = 'wcpscan_scrape_lock_' . md5($client_ip);
+        if (get_transient($lock_key)) {
+            return new \WP_Error(
+                'wcpscan_catalog_scrape_lockout',
+                esc_html__('Catalog and pricing access temporarily restricted due to high-frequency scraping. Please try again later.', 'wcp-security-scanner'),
+                ['status' => 429]
+            );
+        }
+
+        $max_requests = (int) ($settings['waf_woo_scraping_max_requests'] ?? 60);
+        $lockout_mins = (int) ($settings['waf_woo_scraping_lockout_duration'] ?? 15);
+        $velocity_key = 'wcpscan_scrape_vel_' . md5($client_ip);
+        $current_hits = (int) get_transient($velocity_key);
+        $new_hits = $current_hits + 1;
+
+        if ($new_hits > $max_requests) {
+            set_transient($lock_key, [
+                'ip'         => $client_ip,
+                'hits'       => $new_hits,
+                'locked_at'  => time(),
+                'expires_at' => time() + ($lockout_mins * MINUTE_IN_SECONDS),
+                'source'     => $source,
+            ], $lockout_mins * MINUTE_IN_SECONDS);
+
+            delete_transient($velocity_key);
+
+            $rule_triggered = [
+                'id'          => 'WAF-WOO-SCRAPING-THRESHOLD',
+                'name'        => 'WooCommerce Catalog Scraping Threshold Exceeded (Rule #42)',
+                'category'    => 'Behavioral Defense',
+                'description' => sprintf(
+                    /* translators: 1: Client IP, 2: Hit count, 3: Lockout duration in minutes */
+                    __('IP %1$s exceeded catalog scraping threshold (%2$d requests in 1 min) - locked out for %3$d minutes.', 'wcp-security-scanner'),
+                    $client_ip,
+                    $new_hits,
+                    $lockout_mins
+                ),
+                'match_type'  => 'Scraping Threshold Exceeded',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} Source: {$source} Hits: {$new_hits} / Limit: {$max_requests}",
+            ];
+
+            self::log_incident($rule_triggered, 'blocked');
+
+            return new \WP_Error(
+                'wcpscan_catalog_scrape_lockout',
+                esc_html__('Catalog and pricing access temporarily restricted due to high-frequency scraping. Please try again later.', 'wcp-security-scanner'),
+                ['status' => 429]
+            );
+        }
+
+        set_transient($velocity_key, $new_hits, 60);
+        return false;
     }
 }

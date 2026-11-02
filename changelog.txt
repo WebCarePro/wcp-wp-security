@@ -1,4 +1,9 @@
 v:2.2.0 - 2026-11-02
+- WooCommerce Catalog & Price Scraping Mitigation (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
+  * Rule #42 Enforcement Engine: Defends against automated competitor scrapers, price monitoring spiders, and bot crawlers harvesting catalog data, inventory levels, and product variations across storefront catalog pages (`is_shop`, `is_product_category`, `is_product_tag`, `is_product`) and modern Store API endpoints (`/wp-json/wc/store/v1/products`).
+  * Intelligent Search Engine & Admin Immunity: Automatically exempts authenticated store managers (`manage_woocommerce`) and genuine reverse-DNS verified search engine crawlers (Googlebot, Bingbot, Yahoo) and uptime monitors from scraping limits.
+  * Rapid Catalog Rate Throttle: Enforces a configurable per-minute catalog request rate limit (default: 60 requests/min per IP). Rogue scrapers exceeding the threshold are locked out for 15 minutes with HTTP 429 response, preventing origin database exhaustion.
+  * Interactive Firewall Controls: Added Rule #42 settings card with configurable rate limits (`waf_woo_scraping_max_requests`, `waf_woo_scraping_lockout_duration`) and instant single-rule saving in Firewall Controls.
 - WooCommerce Cart Flooding & Denial of Inventory (DoI) Defense (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
   * Rule #41 Enforcement Engine: Mitigates inventory exhaustion attacks, automated cart flooding bots, and scalper reservation scripts across WooCommerce Classic AJAX (`woocommerce_add_to_cart`), single product buttons, and modern Store API blocks.
   * Rapid Add-to-Cart Velocity Throttle: Monitors add-to-cart operations per client IP in 60-second sliding windows (default limit: 15 additions per minute), returning user-friendly pause notices and logging `WAF-WOO-CART-VELOCITY-BLOCKED` when exceeded.
