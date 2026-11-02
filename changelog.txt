@@ -1,4 +1,8 @@
 v:2.2.0 - 2026-11-02
+- WooCommerce Security & Anti-Fraud Smart Rules Hub (FirewallPage.tsx):
+  * Nested Drawer Architecture: Reorganized Rules #38 through #42 into an interactive, context-aware nested hub beneath the E-Commerce & Membership Safe Mode card.
+  * Adaptive Visibility: Automatically reveals the WooCommerce anti-fraud suite when WooCommerce is active (`status?.commerce_telemetry?.is_active`), keeping the general firewall controls streamlined and clean for non-commerce sites.
+  * Live Suite Status & Collapsible Drawer: Added a real-time status pill (e.g. `5/5 Rules Active`) with one-click collapse/expand toggling, preserving granular per-rule controls, configurable thresholds, and single-rule instant saving.
 - WooCommerce Catalog & Price Scraping Mitigation (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
   * Rule #42 Enforcement Engine: Defends against automated competitor scrapers, price monitoring spiders, and bot crawlers harvesting catalog data, inventory levels, and product variations across storefront catalog pages (`is_shop`, `is_product_category`, `is_product_tag`, `is_product`) and modern Store API endpoints (`/wp-json/wc/store/v1/products`).
   * Intelligent Search Engine & Admin Immunity: Automatically exempts authenticated store managers (`manage_woocommerce`) and genuine reverse-DNS verified search engine crawlers (Googlebot, Bingbot, Yahoo) and uptime monitors from scraping limits.
