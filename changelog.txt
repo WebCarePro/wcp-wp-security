@@ -1,4 +1,6 @@
 v:2.2.0 - 2026-11-02
+- UI Design System & Dark Mode Contrast Hardening (SiteAdvisorCard.tsx, index.css):
+  * Smart Site Advisor & Stack Archetype Dark Mode Fix: Eliminated hardcoded inline light backgrounds (`linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)`, `#f1f5f9`, and `#ffffff` cards) in `SiteAdvisorCard.tsx`. Replaced with dedicated `.wcp-site-advisor-*` CSS classes and semantic design tokens (`var(--wcp-bg-card)`, `var(--wcp-bg-surface)`). Ensures high-contrast obsidian backgrounds, crisp borders, and legible typography in Dark Mode while preserving clean indigo/emerald aesthetics in Light Mode.
 - Scanner Engine & Performance Developer Hardening Suite (SettingsPage.tsx, SettingsManager.php, Engine.php, DatabaseScanner.php, UploadsScanner.php):
   * Inter-Batch CPU Throttle Delay (`scan_batch_delay_ms`): Added configurable rest micro-pauses (0ms, 50ms, 150ms, 300ms, 500ms) between REST batches to keep CPU utilization low on shared hosting and avoid cPanel/CloudLinux LVE throttling.
   * Background Execution Strategy Selection (`scan_execution_strategy`): Added selectable worker strategies for scheduled scans (`ajax_client` interactive polling vs. autonomous `wp_cli_cron` vs. non-blocking `background_worker`).
