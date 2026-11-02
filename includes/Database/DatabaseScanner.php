@@ -46,7 +46,14 @@ class DatabaseScanner {
         $rogue_findings = $this->rogue_admin_detector->scan((string) $scan_id);
         $findings = array_merge($findings, $rogue_findings);
 
-        // 3. Discover all tables and calculate grand total row estimate upfront
+        // 3. Audit Rogue MySQL Triggers (Ultimate Database-Level Persistence)
+        if (!empty($scan_id)) {
+            set_transient("wcpscan_active_scan_file_{$scan_id}", 'MySQL Database: Auditing engine triggers for database-level persistence...', 120);
+        }
+        $trigger_findings = $this->scan_rogue_triggers((string) $scan_id);
+        $findings = array_merge($findings, $trigger_findings);
+
+        // 4. Discover all tables and calculate grand total row estimate upfront
         $tables = $this->table_scanner->get_tables();
         $total_tables = count($tables);
         $total_rows_scanned = 0;
@@ -187,6 +194,95 @@ class DatabaseScanner {
         }
 
         return 0;
+    }
+
+    /**
+     * Audit MySQL INFORMATION_SCHEMA.TRIGGERS for rogue database-level triggers.
+     *
+     * Standard WordPress core, WooCommerce, and orthodox plugins NEVER create database
+     * triggers. Attackers use MySQL triggers (AFTER UPDATE, BEFORE INSERT) on authentication
+     * and options tables to automatically resurrect backdoors and rogue admin users even after
+     * all PHP files are completely cleaned.
+     *
+     * @param string $scan_id
+     * @return Finding[]
+     */
+    public function scan_rogue_triggers(string $scan_id): array {
+        global $wpdb;
+        $findings = [];
+
+        try {
+            // Query in-memory INFORMATION_SCHEMA metadata (<2ms execution, 0 table locks)
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $triggers = $wpdb->get_results(
+                "SELECT TRIGGER_NAME, EVENT_MANIPULATION, EVENT_OBJECT_TABLE, ACTION_STATEMENT 
+                 FROM information_schema.TRIGGERS 
+                 WHERE TRIGGER_SCHEMA = DATABASE()",
+                OBJECT
+            );
+
+            if (empty($triggers) || !is_array($triggers)) {
+                return $findings;
+            }
+
+            $base_prefix = !empty($wpdb->base_prefix) ? $wpdb->base_prefix : $wpdb->prefix;
+            $quoted_base = preg_quote($base_prefix, '/');
+
+            foreach ($triggers as $trigger) {
+                $trigger_name = sanitize_text_field($trigger->TRIGGER_NAME ?? 'unknown_trigger');
+                $target_table = sanitize_text_field($trigger->EVENT_OBJECT_TABLE ?? 'unknown_table');
+                $event_manip  = sanitize_text_field($trigger->EVENT_MANIPULATION ?? '');
+                $action_stmt  = (string) ($trigger->ACTION_STATEMENT ?? '');
+
+                // Exclude verified non-malicious third-party integration schemas (e.g. CiviCRM)
+                if (stripos($target_table, 'civicrm_') === 0) {
+                    continue;
+                }
+
+                // Check 1: Multisite & custom prefix aware matching for core authentication and configuration tables
+                $is_core_auth_or_config = (bool) preg_match(
+                    '/^' . $quoted_base . '(?:\d+_)?(?:users|usermeta|options|posts)$/i',
+                    $target_table
+                );
+
+                if ($is_core_auth_or_config) {
+                    $preview_statement = substr(trim($action_stmt), 0, 150);
+                    $findings[] = new Finding([
+                        'engine'      => 'database-persistence',
+                        'type'        => 'rogue_database_trigger',
+                        'severity'    => 'critical',
+                        'confidence'  => 98,
+                        'file_path'   => "MySQL Trigger: {$trigger_name} on `{$target_table}`",
+                        'description' => "Rogue MySQL trigger detected on core WordPress table `{$target_table}` ({$event_manip}). Standard WordPress never creates database triggers; attackers use triggers to automatically resurrect admin users or backdoors at the database engine level.",
+                        'evidence'    => "Trigger: {$trigger_name} | Event: {$event_manip} on `{$target_table}` | Statement: {$preview_statement}",
+                    ]);
+                    continue;
+                }
+
+                // Check 2: Non-core table triggers with suspicious database modification, exfiltration, or hex primitives
+                $has_suspicious_payload = (bool) preg_match(
+                    '/\b(INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|INTO\s+OUTFILE|LOAD_FILE)\b|0x[0-9a-fA-F]{4,}/i',
+                    $action_stmt
+                );
+
+                if ($has_suspicious_payload) {
+                    $preview_statement = substr(trim($action_stmt), 0, 150);
+                    $findings[] = new Finding([
+                        'engine'      => 'database-persistence',
+                        'type'        => 'suspicious_database_trigger',
+                        'severity'    => 'high',
+                        'confidence'  => 85,
+                        'file_path'   => "MySQL Trigger: {$trigger_name} on `{$target_table}`",
+                        'description' => "Suspicious MySQL trigger detected on table `{$target_table}` executing dynamic data modification or file primitives. Verify whether this trigger was authorized.",
+                        'evidence'    => "Trigger: {$trigger_name} | Event: {$event_manip} on `{$target_table}` | Statement: {$preview_statement}",
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Guard against hosting environments where INFORMATION_SCHEMA.TRIGGERS access is restricted
+        }
+
+        return $findings;
     }
 
     public function get_table_scanner() {
