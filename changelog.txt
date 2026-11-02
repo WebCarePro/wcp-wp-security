@@ -1,4 +1,6 @@
 v:2.2.0 - 2026-11-02
+- Scanner Navigation & Quick-Access Shortcuts (App.tsx):
+  * Scan Options Direct Navigation: Added a dedicated "Scan Options" quick-access button to the primary scan launcher bar in `App.tsx` directly linking to `admin.php?page=wcp-scanner-settings&tab=performance`, giving administrators instant 1-click access to batch sizing, memory envelope limits, file size heuristics, and excluded path configurations.
 - Plugin Activity & Audit Logs Category Streamlining (ActivityEventSchema.php, AuditLogger.php, WcpActivityLogger.php, SessionForensicsEngine.php, ActivityLogsPage.tsx):
   * Decoupled Authentication Events from Audit Ledger: Removed the `auth` category from Plugin Activity & Audit Logs. Authentication failures, brute-force attempts, and credential attacks are handled by the dedicated WAF Incident Logs and Login Hardening engine. Reassigned policy changes (e.g. Session Forensics) to `settings`, unhooked noisy login/registration hooks from bridging to the activity ledger, and removed the redundant `auth` filter option from the UI.
 - Blocked IP Addresses & Subnets Enhancements & Cloudflare Edge Actions (FirewallPage.tsx, FirewallEngine.php, ScannerRoutes.php, CloudflareService.php):
