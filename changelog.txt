@@ -1,4 +1,7 @@
 v:2.2.0 - 2026-11-02
+- WAF Custom Blocklist Forensic Ban Reason & Subnet Tracking (FirewallEngine.php, WafFileLogger.php, WafLogsPage.tsx):
+  * Ban Reason & Origin Enrichment: Updated `FirewallEngine` blocklist checking to automatically query `wcpscan_blocked_ips_meta` for matching IPs and CIDR subnets, logging explicit ban reasons (`ban_reason`), rule sources (`ban_source`), and matched subnet entries (`matching_entry`).
+  * Enhanced Forensic Drawer Display: Updated `WafLogsPage.tsx` to display styled **Ban Reason** badges and target identifiers (Manual Admin Block, Automated Rule Ban, or Custom Blocklist) inside the incident breakdown drawer.
 - Site Archetype Intelligence & Adaptive Firewall Advisor (SiteCapabilityProfiler.php, PolicyRegistry.php, SiteAdvisorEngine.php, ScannerRoutes.php, SiteAdvisorCard.tsx):
   * Zero-Network Local Capability Profiler: Inspects active plugins and active/parent themes locally (0ms network delay) to detect site archetypes (E-Commerce, Contact Forms, Visual Page Builders, LMS/Course platforms, Membership communities) and reverse-proxy topology.
   * Authoritative Firewall Policy Registry: Systematically maps 14 verified WAF policies, strictly distinguishing True Protections from Compatibility Exemptions (`waf_ecommerce_safe_mode`, `waf_forms_safe_mode`, `waf_allow_page_builders`) to ensure transparency without marketing exemptions as extra armor.

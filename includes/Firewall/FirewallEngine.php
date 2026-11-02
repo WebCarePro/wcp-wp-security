@@ -690,24 +690,43 @@ class FirewallEngine {
 
         // Fast-path: Check custom user IP blocklist immediately to drop hostile banned bots
         // and prevent redundant downstream processing / repeated rate-limit escalations
-        if (!empty($settings['waf_blocked_ips']) && self::is_ip_blocked($client_ip, $settings['waf_blocked_ips'])) {
-            $rule_triggered = [
-                'id'          => 'USER-CUSTOM-IP-BLOCK',
-                'name'        => 'Custom Administrator IP Blocklist',
-                'category'    => 'Custom IP Blocklist',
-                'description' => 'Connection blocked by administrator-defined custom IP rule.',
-                'match_type'  => 'Custom Blocklist',
-                'match_value' => $client_ip,
-                'payload'     => $client_ip,
-            ];
+        if (!empty($settings['waf_blocked_ips'])) {
+            $matching_entry = self::get_matching_blocked_entry($client_ip, $settings['waf_blocked_ips']);
+            if ($matching_entry !== null) {
+                $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
+                $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
+                $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
+                $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
 
-            $mode = $settings['waf_mode'] ?? 'enabled';
-            if ($mode === 'learning') {
-                self::log_incident($rule_triggered, 'detected');
-            } else {
-                self::log_incident($rule_triggered, 'blocked');
-                self::render_block_page($rule_triggered, $client_ip);
-                exit;
+                $description = 'Connection blocked by administrator-defined custom IP rule.';
+                if (!empty($ban_reason)) {
+                    $description = sprintf('Connection blocked: %s', $ban_reason);
+                } elseif (!empty($ban_rule)) {
+                    $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                }
+
+                $rule_triggered = [
+                    'id'             => 'USER-CUSTOM-IP-BLOCK',
+                    'name'           => 'Custom Administrator IP Blocklist',
+                    'category'       => 'Custom IP Blocklist',
+                    'description'    => $description,
+                    'match_type'     => 'Custom Blocklist',
+                    'match_value'    => $matching_entry,
+                    'payload'        => $client_ip,
+                    'ban_reason'     => $ban_reason,
+                    'ban_source'     => $ban_source,
+                    'matching_entry' => $matching_entry,
+                    'expires_at'     => $block_meta['expires_at'] ?? 0,
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                }
             }
         }
 
@@ -1232,24 +1251,43 @@ class FirewallEngine {
         }
 
         // Check custom user IP blocklist
-        if (!empty($settings['waf_blocked_ips']) && self::is_ip_blocked($client_ip, $settings['waf_blocked_ips'])) {
-            $rule_triggered = [
-                'id'          => 'USER-CUSTOM-IP-BLOCK',
-                'name'        => 'Custom Administrator IP Blocklist',
-                'category'    => 'Custom IP Blocklist',
-                'description' => 'Connection blocked by administrator-defined custom IP rule.',
-                'match_type'  => 'Custom Blocklist',
-                'match_value' => $client_ip,
-                'payload'     => $client_ip,
-            ];
+        if (!empty($settings['waf_blocked_ips'])) {
+            $matching_entry = self::get_matching_blocked_entry($client_ip, $settings['waf_blocked_ips']);
+            if ($matching_entry !== null) {
+                $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
+                $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
+                $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
+                $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
 
-            $mode = $settings['waf_mode'] ?? 'enabled';
-            if ($mode === 'learning') {
-                self::log_incident($rule_triggered, 'detected');
-            } else {
-                self::log_incident($rule_triggered, 'blocked');
-                self::render_block_page($rule_triggered, $client_ip);
-                exit;
+                $description = 'Connection blocked by administrator-defined custom IP rule.';
+                if (!empty($ban_reason)) {
+                    $description = sprintf('Connection blocked: %s', $ban_reason);
+                } elseif (!empty($ban_rule)) {
+                    $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                }
+
+                $rule_triggered = [
+                    'id'             => 'USER-CUSTOM-IP-BLOCK',
+                    'name'           => 'Custom Administrator IP Blocklist',
+                    'category'       => 'Custom IP Blocklist',
+                    'description'    => $description,
+                    'match_type'     => 'Custom Blocklist',
+                    'match_value'    => $matching_entry,
+                    'payload'        => $client_ip,
+                    'ban_reason'     => $ban_reason,
+                    'ban_source'     => $ban_source,
+                    'matching_entry' => $matching_entry,
+                    'expires_at'     => $block_meta['expires_at'] ?? 0,
+                ];
+
+                $mode = $settings['waf_mode'] ?? 'enabled';
+                if ($mode === 'learning') {
+                    self::log_incident($rule_triggered, 'detected');
+                } else {
+                    self::log_incident($rule_triggered, 'blocked');
+                    self::render_block_page($rule_triggered, $client_ip);
+                    exit;
+                }
             }
         }
 
@@ -2323,13 +2361,24 @@ class FirewallEngine {
      * Check if an IP is in the user-defined blocklist
      */
     public static function is_ip_blocked(string $ip, string $blocklist_str): bool {
+        return self::get_matching_blocked_entry($ip, $blocklist_str) !== null;
+    }
+
+    /**
+     * Find the exact blocklist entry (IP or CIDR subnet) matching a client IP.
+     *
+     * @param string $ip
+     * @param string $blocklist_str
+     * @return string|null Matching line string or null if not blocked
+     */
+    public static function get_matching_blocked_entry(string $ip, string $blocklist_str): ?string {
         if (empty($blocklist_str)) {
-            return false;
+            return null;
         }
 
         // Hard Guard: Local loopback can NEVER be blocked
         if (in_array($ip, ['127.0.0.1', '::1'], true)) {
-            return false;
+            return null;
         }
 
         $lines = explode("\n", str_replace("\r", "", $blocklist_str));
@@ -2339,15 +2388,15 @@ class FirewallEngine {
                 continue;
             }
             if ($clean === $ip) {
-                return true;
+                return $clean;
             }
             // Simple CIDR / subnet support
             if (strpos($clean, '/') !== false && self::ip_in_range($ip, $clean)) {
-                return true;
+                return $clean;
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
