@@ -89,6 +89,10 @@ class FirewallEngine {
         add_action('woocommerce_applied_coupon', [__CLASS__, 'handle_woo_coupon_success'], 10, 1);
         add_filter('woocommerce_coupon_error', [__CLASS__, 'handle_woo_coupon_error'], 999, 3);
         add_filter('rest_request_after_callbacks', [__CLASS__, 'handle_woo_store_api_coupon_response'], 10, 3);
+
+        // Rule #40: WooCommerce Fake Customer Registration & Bot Shield
+        add_filter('woocommerce_registration_errors', [__CLASS__, 'validate_woo_customer_registration'], 10, 3);
+        add_action('woocommerce_created_customer', [__CLASS__, 'handle_woo_customer_created'], 10, 3);
     }
 
     /**
@@ -6525,5 +6529,145 @@ class FirewallEngine {
         } else {
             set_transient($attempt_key, $new_attempts, $window_seconds);
         }
+    }
+
+    /**
+     * Common disposable, temporary, and throwaway email domains used by spam registration bots.
+     */
+    const DISPOSABLE_EMAIL_DOMAINS = [
+        'mailinator.com', 'guerrillamail.com', 'sharklasers.com', 'grr.la', 'guerrillamail.biz',
+        'tempmail.com', 'temp-mail.org', '10minutemail.com', '10minutemail.net', 'throwawaymail.com',
+        'getairmail.com', 'mohmal.com', 'dispostable.com', 'trashmail.com', 'yopmail.com',
+        'yopmail.fr', 'yopmail.net', 'mytemp.email', 'crazymailing.com', 'fakeinbox.com',
+        'generator.email', 'tempail.com', 'burnermail.io', 'mailnesia.com', 'inboxkitten.com',
+        'fakemailgenerator.com', 'getnada.com', 'abcvg.com', 'dropmail.me', 'emailondeck.com',
+        'tempr.email', 'discard.email', 'spambog.com', 'zoemail.org', 'bupmail.com',
+        'tmpmail.net', 'tmpmail.org', 'tmail.ws', 'tmailor.com', 'minuteinbox.com'
+    ];
+
+    /**
+     * Rule #40: Validate customer registration attempts across WooCommerce (my-account, checkout, Store API).
+     *
+     * Enforces velocity rate-limiting per IP and rejects disposable/temporary email providers.
+     *
+     * @param \WP_Error $errors
+     * @param string $username
+     * @param string $email
+     * @return \WP_Error
+     */
+    public static function validate_woo_customer_registration($errors, $username, $email) {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_registration_protection'])) {
+            return $errors;
+        }
+
+        if (!is_wp_error($errors)) {
+            $errors = new \WP_Error();
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return $errors;
+        }
+
+        // Whitelist check
+        if (self::is_ip_whitelisted($client_ip)) {
+            return $errors;
+        }
+
+        // 1. Disposable / Temporary Email Domain Filter
+        if (!empty($settings['waf_woo_reg_block_disposable_emails']) && !empty($email)) {
+            $parts = explode('@', $email);
+            if (count($parts) === 2) {
+                $domain = strtolower(trim($parts[1]));
+                if (in_array($domain, self::DISPOSABLE_EMAIL_DOMAINS, true)) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-WOO-REG-DISPOSABLE-EMAIL',
+                        'name'        => 'WooCommerce Disposable Email Registration Block (Rule #40)',
+                        'category'    => 'Behavioral Defense',
+                        'description' => sprintf(
+                            /* translators: 1: Client IP, 2: Disposable email domain */
+                            __('Blocked customer registration from IP %1$s using throwaway email domain "@%2$s".', 'wcp-security-scanner'),
+                            $client_ip,
+                            $domain
+                        ),
+                        'match_type'  => 'Disposable Email Domain',
+                        'match_value' => $domain,
+                        'payload'     => "IP: {$client_ip} Email: {$email} Domain: {$domain}",
+                    ];
+
+                    self::log_incident($rule_triggered, 'blocked');
+
+                    $errors->add(
+                        'wcpscan_disposable_email_blocked',
+                        esc_html__('Temporary and disposable email addresses are not permitted. Please register with a permanent, valid email address.', 'wcp-security-scanner')
+                    );
+                    return $errors;
+                }
+            }
+        }
+
+        // 2. IP Registration Velocity Rate-Limiting
+        $max_registrations = (int) ($settings['waf_woo_reg_max_per_ip'] ?? 3);
+        $window_hours = (int) ($settings['waf_woo_reg_window_hours'] ?? 1);
+        $window_seconds = $window_hours * HOUR_IN_SECONDS;
+
+        $reg_key = 'wcpscan_reg_ip_' . md5($client_ip);
+        $count = (int) get_transient($reg_key);
+
+        if ($count >= $max_registrations) {
+            $rule_triggered = [
+                'id'          => 'WAF-WOO-REG-VELOCITY-BLOCKED',
+                'name'        => 'WooCommerce Customer Registration Velocity Limit (Rule #40)',
+                'category'    => 'Behavioral Defense',
+                'description' => sprintf(
+                    /* translators: 1: Client IP, 2: Registration limit, 3: Window hours */
+                    __('Customer registration rate limit exceeded from IP %1$s (%2$d accounts created in %3$d hour(s)).', 'wcp-security-scanner'),
+                    $client_ip,
+                    $max_registrations,
+                    $window_hours
+                ),
+                'match_type'  => 'Registration Velocity Exceeded',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} Attempted Email: {$email} Count: {$count} / Limit: {$max_registrations}",
+            ];
+
+            self::log_incident($rule_triggered, 'blocked');
+
+            $errors->add(
+                'wcpscan_reg_velocity_limit',
+                esc_html__('Too many accounts have been created from your connection recently. Please wait before attempting to register another account or contact customer service.', 'wcp-security-scanner')
+            );
+            return $errors;
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Rule #40: Increment customer registration count for the client IP upon successful account creation.
+     *
+     * @param int $customer_id
+     * @param array $new_customer_data
+     * @param bool $password_generated
+     * @return void
+     */
+    public static function handle_woo_customer_created($customer_id, $new_customer_data = [], $password_generated = false): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_registration_protection'])) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return;
+        }
+
+        $window_hours = (int) ($settings['waf_woo_reg_window_hours'] ?? 1);
+        $window_seconds = $window_hours * HOUR_IN_SECONDS;
+
+        $reg_key = 'wcpscan_reg_ip_' . md5($client_ip);
+        $count = (int) get_transient($reg_key);
+        set_transient($reg_key, $count + 1, $window_seconds);
     }
 }

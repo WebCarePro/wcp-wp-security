@@ -1,4 +1,9 @@
 v:2.2.0 - 2026-11-02
+- WooCommerce Fake Customer Registration & Bot Shield (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
+  * Rule #40 Enforcement Engine: Implemented multi-layered defense against customer registration spam, fake shopper account flooding, and bot stuffing across WooCommerce `my-account`, checkout account creation, and modern Store API blocks.
+  * Disposable & Temporary Email Blocker: Heuristically verifies customer registration email domains against an extensive blacklist of known throwaway and temporary inbox providers (e.g., Mailinator, GuerrillaMail, TempMail, 10MinuteMail, Yopmail, TrashMail), blocking synthetic account setups before user database insertion.
+  * IP Registration Velocity Guard: Restricts the maximum number of new customer accounts an individual IP address can register within a configurable rolling window (default: 3 accounts per hour), preventing mass user registration attacks.
+  * Live Admin Configuration: Added Rule #40 settings card with configurable account limits, window duration (`waf_woo_reg_max_per_ip`, `waf_woo_reg_window_hours`), and disposable domain filtering toggle (`waf_woo_reg_block_disposable_emails`) in Firewall Controls.
 - WooCommerce Coupon Enumeration & Brute-Force Shield (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
   * Rule #39 Enforcement Engine: Added automated defense against coupon brute-force bots, scraper extensions, and dictionary guessing across WooCommerce Classic AJAX (`apply_coupon` / `woocommerce_apply_coupon`), standard form posts, and modern Store API endpoints (`/wp-json/wc/store/v1/cart/coupons`).
   * Failure & Success Tracking: Monitors invalid coupon errors via `woocommerce_coupon_error` and `rest_request_after_callbacks`. Automatically clears failed attempt counters upon applying a valid coupon code (`woocommerce_applied_coupon`).

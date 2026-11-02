@@ -124,6 +124,10 @@ class SettingsManager {
             'waf_woo_coupon_protection'         => true,  // WooCommerce Coupon Enumeration & Brute-Force Shield (Rule #39)
             'waf_woo_coupon_max_failures'       => 5,     // Max failed coupon attempts before lockout
             'waf_woo_coupon_lockout_duration'   => 15,    // Lockout duration in minutes (15 mins)
+            'waf_woo_registration_protection'   => true,  // WooCommerce Customer Registration & Bot Shield (Rule #40)
+            'waf_woo_reg_max_per_ip'            => 3,     // Max customer registrations per IP per window
+            'waf_woo_reg_window_hours'          => 1,     // Registration rate limit window in hours (1 hour)
+            'waf_woo_reg_block_disposable_emails' => true, // Block temporary / throwaway / disposable email domains
             'waf_allow_page_builders'           => false, // Visual Page Builder & Editor Smart Pass (off by default, recommended when Elementor/Divi active)
             'waf_block_empty_post_ua_referer'   => true, // Block IPs who send POST requests with blank User-Agent and Referer
             'waf_whitelisted_urls'              => '',   // Allowlisted URLs / URI paths (one per line)
@@ -671,6 +675,10 @@ class SettingsManager {
         $clean['waf_woo_coupon_protection']        = !empty($merged['waf_woo_coupon_protection']);
         $clean['waf_woo_coupon_max_failures']      = max(2, min(30, (int) ($merged['waf_woo_coupon_max_failures'] ?? 5)));
         $clean['waf_woo_coupon_lockout_duration']  = max(5, min(1440, (int) ($merged['waf_woo_coupon_lockout_duration'] ?? 15)));
+        $clean['waf_woo_registration_protection']  = !empty($merged['waf_woo_registration_protection']);
+        $clean['waf_woo_reg_max_per_ip']           = max(1, min(20, (int) ($merged['waf_woo_reg_max_per_ip'] ?? 3)));
+        $clean['waf_woo_reg_window_hours']         = max(1, min(24, (int) ($merged['waf_woo_reg_window_hours'] ?? 1)));
+        $clean['waf_woo_reg_block_disposable_emails'] = !empty($merged['waf_woo_reg_block_disposable_emails']);
         $clean['waf_block_empty_post_ua_referer'] = !empty($merged['waf_block_empty_post_ua_referer']);
         $clean['waf_whitelisted_urls']            = sanitize_textarea_field($merged['waf_whitelisted_urls'] ?? '');
 
@@ -1082,6 +1090,7 @@ class SettingsManager {
             'waf_block_ai_prompt_injection'    => 'AI Prompt Injection Defense',
             'waf_woo_carding_protection'        => 'WooCommerce Carding Attack & Checkout Velocity Shield',
             'waf_woo_coupon_protection'         => 'WooCommerce Coupon Enumeration & Brute-Force Shield',
+            'waf_woo_registration_protection'   => 'WooCommerce Fake Customer Registration & Bot Shield',
             'waf_guest_ajax_policy'            => 'Guest admin-ajax.php / admin-post.php Action Matrix',
             'waf_guest_ajax_custom_allowlist'  => 'Guest AJAX Custom Allowlist',
             'waf_guest_rest_policy'            => 'Guest REST API Mutation Guard',
