@@ -79,6 +79,11 @@ class FirewallEngine {
         // Rule #31: Lost-Password Reset Burst Flooding Guard
         add_action('login_form_lostpassword', [__CLASS__, 'check_lostpassword_flood'], 0);
         add_action('lostpassword_post', [__CLASS__, 'check_lostpassword_submission'], 0);
+
+        // Rule #38: WooCommerce Carding Attack & Checkout Velocity Shield
+        add_action('woocommerce_checkout_process', [__CLASS__, 'inspect_woo_checkout_attempt'], 0);
+        add_action('woocommerce_after_checkout_validation', [__CLASS__, 'handle_woo_checkout_validation'], 999, 2);
+        add_action('woocommerce_order_status_failed', [__CLASS__, 'handle_woo_payment_failure'], 10, 1);
     }
 
     /**
@@ -6076,6 +6081,13 @@ class FirewallEngine {
         // Check if incoming request is from a verified payment gateway or commerce callback
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : $route;
         if (self::is_commerce_or_membership_request($raw_uri)) {
+            // Rule #38 Check for Store API checkout route
+            if (preg_match('#^/wc/store(?:/v\d+)?/checkout#i', $route) && strtoupper($method) === 'POST') {
+                $block_error = self::check_woo_carding_lockout();
+                if ($block_error) {
+                    return $block_error;
+                }
+            }
             return $result;
         }
 
@@ -6093,5 +6105,189 @@ class FirewallEngine {
 
         self::log_incident($rule_triggered, 'monitored');
         return $result;
+    }
+
+    /**
+     * Rule #38: Check if client IP is currently locked out by WooCommerce Carding Attack Mitigation.
+     *
+     * @return \WP_Error|false Returns WP_Error if locked out, or false if clear.
+     */
+    public static function check_woo_carding_lockout() {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_carding_protection'])) {
+            return false;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return false;
+        }
+
+        $lock_key = 'wcpscan_chk_lock_' . md5($client_ip);
+        $is_locked = get_transient($lock_key);
+        if (!$is_locked) {
+            return false;
+        }
+
+        $rule_triggered = [
+            'id'          => 'WAF-WOO-CARDING-BLOCKED',
+            'name'        => 'WooCommerce Carding Attack & Checkout Velocity Mitigation (Rule #38)',
+            'category'    => 'Behavioral Defense',
+            'description' => sprintf(
+                /* translators: 1: Client IP address */
+                __('Blocked repeated checkout attempt from temporarily locked-out IP %1$s (Carding Velocity Defense).', 'wcp-security-scanner'),
+                $client_ip
+            ),
+            'match_type'  => 'Carding Velocity Threshold',
+            'match_value' => $client_ip,
+            'payload'     => "IP: {$client_ip} Locked due to excessive failed checkout attempts",
+        ];
+
+        self::log_incident($rule_triggered, 'blocked');
+
+        return new \WP_Error(
+            'wcpscan_carding_lockout',
+            esc_html__('Too many checkout attempts detected from your connection. For security purposes, checkout has been temporarily paused for 30 minutes. Please contact customer support if you need immediate assistance.', 'wcp-security-scanner'),
+            ['status' => 429]
+        );
+    }
+
+    /**
+     * Rule #38: Inspect early WooCommerce checkout attempts before validation/order processing.
+     *
+     * Intercepts `woocommerce_checkout_process` hook.
+     * If client IP is locked out, prevents order processing and displays notice or JSON error.
+     *
+     * @return void
+     */
+    public static function inspect_woo_checkout_attempt(): void {
+        $lock_error = self::check_woo_carding_lockout();
+        if (!$lock_error) {
+            return;
+        }
+
+        $error_message = $lock_error->get_error_message();
+
+        if (wp_doing_ajax()) {
+            wp_send_json([
+                'result'   => 'failure',
+                'messages' => '<ul class="woocommerce-error" role="alert"><li>' . esc_html($error_message) . '</li></ul>',
+                'refresh'  => false,
+                'reload'   => false,
+            ]);
+            exit;
+        }
+
+        if (function_exists('wc_add_notice')) {
+            wc_add_notice($error_message, 'error');
+        }
+    }
+
+    /**
+     * Rule #38: Track checkout failures from validation errors on checkout form.
+     *
+     * @param array $data
+     * @param \WP_Error $errors
+     * @return void
+     */
+    public static function handle_woo_checkout_validation($data, $errors): void {
+        if (!is_wp_error($errors) || empty($errors->errors)) {
+            return;
+        }
+
+        // Only count payment/critical checkout validation failures
+        $has_critical_failure = false;
+        foreach ($errors->errors as $code => $messages) {
+            $code_lower = strtolower((string) $code);
+            if (strpos($code_lower, 'payment') !== false || strpos($code_lower, 'card') !== false || strpos($code_lower, 'stripe') !== false || strpos($code_lower, 'paypal') !== false || strpos($code_lower, 'gateway') !== false) {
+                $has_critical_failure = true;
+                break;
+            }
+        }
+
+        if ($has_critical_failure) {
+            self::record_failed_checkout_attempt('Payment gateway validation error');
+        }
+    }
+
+    /**
+     * Rule #38: Track order payment status changing to 'failed'.
+     *
+     * @param int $order_id
+     * @return void
+     */
+    public static function handle_woo_payment_failure($order_id): void {
+        self::record_failed_checkout_attempt('Order status transitioned to failed');
+    }
+
+    /**
+     * Rule #38: Record a failed checkout attempt and trigger lockout if threshold is exceeded.
+     *
+     * @param string $reason
+     * @return void
+     */
+    public static function record_failed_checkout_attempt(string $reason = ''): void {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_carding_protection'])) {
+            return;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return;
+        }
+
+        // Whitelist check
+        if (self::is_ip_whitelisted($client_ip)) {
+            return;
+        }
+
+        $max_attempts = (int) ($settings['waf_woo_checkout_max_attempts'] ?? 3);
+        $lockout_duration_mins = (int) ($settings['waf_woo_carding_lockout_duration'] ?? 30);
+        $window_seconds = 300; // 5-minute rolling window for attempts
+
+        $attempt_key = 'wcpscan_chk_fail_' . md5($client_ip);
+        $lock_key    = 'wcpscan_chk_lock_' . md5($client_ip);
+
+        // Check if already locked
+        if (get_transient($lock_key)) {
+            return;
+        }
+
+        $current_attempts = (int) get_transient($attempt_key);
+        $new_attempts = $current_attempts + 1;
+
+        if ($new_attempts >= $max_attempts) {
+            // Lock out IP for configured lockout duration
+            set_transient($lock_key, [
+                'ip'         => $client_ip,
+                'attempts'   => $new_attempts,
+                'locked_at'  => time(),
+                'expires_at' => time() + ($lockout_duration_mins * MINUTE_IN_SECONDS),
+                'reason'     => $reason,
+            ], $lockout_duration_mins * MINUTE_IN_SECONDS);
+
+            delete_transient($attempt_key);
+
+            $rule_triggered = [
+                'id'          => 'WAF-WOO-CARDING-THRESHOLD',
+                'name'        => 'WooCommerce Carding Attack Velocity Threshold Exceeded (Rule #38)',
+                'category'    => 'Behavioral Defense',
+                'description' => sprintf(
+                    /* translators: 1: Client IP address, 2: Number of failed attempts, 3: Lockout duration in minutes */
+                    __('IP %1$s exceeded checkout failure threshold (%2$d attempts in 5 min) - locked out for %3$d minutes.', 'wcp-security-scanner'),
+                    $client_ip,
+                    $new_attempts,
+                    $lockout_duration_mins
+                ),
+                'match_type'  => 'Carding Velocity Exceeded',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} Trigger: {$reason} Attempts: {$new_attempts} / Limit: {$max_attempts}",
+            ];
+
+            self::log_incident($rule_triggered, 'blocked');
+        } else {
+            set_transient($attempt_key, $new_attempts, $window_seconds);
+        }
     }
 }
