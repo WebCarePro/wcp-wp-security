@@ -1,4 +1,6 @@
 v:2.2.0 - 2026-11-02
+- CrashGuard & Firewall Whitelist Argument Count Fix (FirewallEngine.php):
+  * Made `$whitelist_str` parameter optional with fallback to stored settings in `FirewallEngine::is_ip_whitelisted($ip, ?string $whitelist_str = null)`. Resolves `ArgumentCountError` when invoked with a single argument during WooCommerce Rule #38–#42 checks and catalog inspections.
 - WooCommerce Security & Anti-Fraud Smart Rules Hub (FirewallPage.tsx):
   * Nested Drawer Architecture: Reorganized Rules #38 through #42 into an interactive, context-aware nested hub beneath the E-Commerce & Membership Safe Mode card.
   * Adaptive Visibility: Automatically reveals the WooCommerce anti-fraud suite when WooCommerce is active (`status?.commerce_telemetry?.is_active`), keeping the general firewall controls streamlined and clean for non-commerce sites.

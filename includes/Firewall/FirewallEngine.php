@@ -2268,10 +2268,15 @@ class FirewallEngine {
         return false;
     }
 
-    public static function is_ip_whitelisted(string $ip, string $whitelist_str): bool {
+    public static function is_ip_whitelisted(string $ip, ?string $whitelist_str = null): bool {
         $ip = trim($ip);
         if (empty($ip)) {
             return false;
+        }
+
+        if ($whitelist_str === null) {
+            $settings = SettingsManager::get_settings();
+            $whitelist_str = $settings['waf_whitelisted_ips'] ?? '';
         }
 
         // 0. Auto-accept server's own origin IP (IPv4 and IPv6) and loopback addresses across all sites
