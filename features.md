@@ -66,6 +66,12 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 56. [Interactive Forensic Tables for Blocked & Whitelisted IPs](#56-interactive-forensic-tables-for-blocked--whitelisted-ips)
 57. [Active Lockouts & Central Blocklist Forensic Hub](#57-active-lockouts--central-blocklist-forensic-hub)
 58. [Welcome Guide & Deep Feature Educational Hub](#58-welcome-guide--deep-feature-educational-hub)
+59. [Unified Multi-Tier Log Export Engine & Domain-Stamped Forensic Archives](#59-unified-multi-tier-log-export-engine--domain-stamped-forensic-archives)
+60. [Granular Authentication Diagnostics & Login Failure Reason Forensics](#60-granular-authentication-diagnostics--login-failure-reason-forensics)
+61. [Authoritative Search Crawler CIDR Fallback & Automated False-Positive Ban Pruning](#61-authoritative-search-crawler-cidr-fallback--automated-false-positive-ban-pruning)
+62. [ActionScheduler Persistence & Code Snippets Database Injection Armor](#62-actionscheduler-persistence--code-snippets-database-injection-armor)
+63. [Developer Performance Controls, Throttling & Background Worker Strategies](#63-developer-performance-controls-throttling--background-worker-strategies)
+64. [Administrator Real-Time Access & Password Change Notification Matrix](#64-administrator-real-time-access--password-change-notification-matrix)
 
 ---
 
@@ -835,7 +841,7 @@ Think of this as the unbreakable flight data recorder (black box) for your secur
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
 Hackers frequently probe WordPress by sending random, malicious requests to backend controllers like `admin-ajax.php`. Traditional firewalls try to catch them by adding hundreds of complex patterns that slow down your server and can break legitimate online stores. The Next-Gen WAF Matrix works differently: it knows the exact legitimate guest actions used by WooCommerce (like adding items to the cart or updating checkout totals) and trusted form plugins, allowing real shoppers to pass instantly while logging or blocking unknown probe requests from bots.
 
-### 55. ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **High-Precision Behavioral Inspection (`FirewallEngine.php`):** Enforces strict behavioral guest action policies on `admin-ajax.php`, `admin-post.php`, and `rest_route` without CPU-heavy static regex bloat.
 - **Tier 1 Default Guest Allowlist ($O(1)$ Hash Set):** Unauthenticated visitors are always permitted to run legitimate WooCommerce customer actions (`woocommerce_get_refreshed_fragments`, `woocommerce_add_to_cart`, `woocommerce_checkout`, etc.) regardless of shopper session cookie presence, core heartbeat, supported contact form submissions (CF7, WPForms, Fluent Forms, Gravity Forms, Ninja Forms, Formidable, WS Form, HappyForms, Everest), and frontend pagination/search loaders.
 - **Probe Interception & Anomaly Defense:** Detects empty or missing action invocations as anomalous probes (`WAF-GUEST-AJAX-EMPTY`) and intercepts unregistered guest action calls (`WAF-GUEST-AJAX-PROBE`).
@@ -879,6 +885,93 @@ Getting started with enterprise website security shouldn't require reading hundr
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **In-Console Welcome Wizard (`WelcomeModal.tsx`):** Modern setup modal guiding administrators through on-premise storage verifications, zero-telemetry architecture, and recommended baseline hardening toggles.
 - **Direct Educational Hyperlinks:** Features prominent links to the comprehensive feature breakdown on [webcarespro.com](https://webcarespro.com/blog/post/wcp-wordpress-security-scanner) and direct 1-on-1 contact channels with senior engineer Mir Alamin.
+
+---
+
+---
+
+## 59. Unified Multi-Tier Log Export Engine & Domain-Stamped Forensic Archives
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+When you need to analyze attacks or keep records for compliance, downloading raw logs shouldn't be confusing or clutter your downloads folder with generic files like `logs.json`. WCP Security Scanner includes an interactive Export Modal across all three primary log ledgers (Firewall Incident Logs, Plugin Activity Logs, and Scan History). You can download everything, pick a specific calendar date, or export just the filtered records you are currently viewing. Even better, every downloaded file automatically stamps the website domain name, current date, and time right into the filename (e.g., `waf-logs-2026-11-03-031843-stealthformen-com-u9ohy.json`), making multi-site security management seamless.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Universal Interactive Export Modal (`exportUtils.ts`, `WafLogsPage.tsx`, `ActivityLogsPage.tsx`, `ScanLogsPage.tsx`):** Upgraded static in-memory exports to full interactive scope and calendar date selectors across all log engines.
+- **Domain-Stamped Filename Convention:** Standardized automated filename creation across formats (JSON, CSV):
+  `{log_type}-logs-YYYY-MM-DD-HHmmss-{sanitized_domain}-{random_entropy}.{ext}`
+- **High-Capacity Server Paging (`ScannerRoutes.php`):** Implemented `is_export=1` query param allowing forensic exports to bypass standard 50-row pagination and stream complete historical partitions without browser memory exhaustion.
+- **Daily Partition Date Targeting (`WafFileLogger.php`, `WcpActivityLogger.php`):** Enables direct extraction of discrete daily JSONL log files (e.g. `waf-incidents-2026-11-03.jsonl`) for targeted single-day incident investigations.
+- **Spreadsheet Security & UTF-8 BOM:** Automatically injects UTF-8 Byte Order Mark (BOM) for seamless Microsoft Excel rendering and prepends apostrophes to formula symbols (`=`, `+`, `-`, `@`) to neutralize CSV injection vulnerabilities (CWE-1236).
+
+---
+
+## 60. Granular Authentication Diagnostics & Login Failure Reason Forensics
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+When someone fails to log in, you need to know why: did a legitimate customer just mistype their password, or is an attacker guessing random usernames? WCP Security Scanner connects directly to WordPress's internal error engine to capture the exact failure reason in real-time. In your Firewall Incident Logs, you can instantly see whether the user entered an incorrect password for an existing account or if they tried an unknown username that doesn't exist on your site.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Two-Argument `wp_login_failed` Capture (`LoginHardening.php`):** Subscribes to WordPress core's dual-argument failure hook:
+  `add_action('wp_login_failed', [LoginHardening::class, 'record_failed_attempt'], 10, 2)`
+- **`\WP_Error` Code Deconstruction:** Directly parses core authentication error codes:
+  - `incorrect_password`: Telemetry explicitly records `Incorrect password (account exists)`.
+  - `invalid_username` / `invalid_email`: Telemetry explicitly records `Unknown username/email (account does not exist)`.
+  - `empty_password` / `empty_username`: Telemetry records empty credential submissions.
+- **Safe Fallback Existence Resolution:** When third-party membership, e-commerce, or affiliate login plugins fire `wp_login_failed` without providing a `\WP_Error` instance, the engine runs a non-destructive user existence check (`get_user_by('email'/'login')`) to distinguish credential mismatches from username enumeration.
+- **Semantic Action State Disambiguation:** Individual failed login attempts below the brute-force lockout threshold are classified with `action_taken: "failed"` instead of `"blocked"`, preventing benign login typos from skewing WAF threat analytics while still enforcing hard IP bans (`action_taken: "blocked"`) once the retry threshold is reached.
+
+---
+
+## 61. Authoritative Search Crawler CIDR Fallback & Automated False-Positive Ban Pruning
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Search engines like Google and Bing constantly crawl your website to keep your SEO rankings updated. Some web hosts or cloud firewalls block reverse-DNS lookups, which can cause security plugins to mistake Googlebot for a fake bot and accidentally ban it. WCP Security Scanner embeds official network IP ranges for Google and Bing directly into the plugin. Even if reverse DNS lookups fail, legitimate search engine crawlers are never banned, and if a crawler was mistakenly restricted earlier, the system automatically detects it and forgives the ban instantly.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Authoritative Subnet Range Ingestion (`BotReconDefense.php`):** Embedded official Googlebot (`66.249.64.0/19`, `64.233.160.0/19`, `72.14.192.0/18`, `209.85.128.0/17`, `2001:4860::/32`) and Bingbot IPv4/IPv6 CIDR ranges directly into memory.
+- **Zero-Dependency FCrDNS Fallback:** Provides instant crawler verification in environments where reverse DNS PTR lookups (`gethostbyaddr()`) are disabled, timed out, or restricted by Docker NAT boundaries.
+- **Auto-Ban Immunity Guard (`FirewallEngine.php`):** Intercepts automated ban triggers in `FirewallEngine::add_blocked_ip()` and blocks any automated lockout from being placed on genuine search crawlers.
+- **Cloudflare Edge Protection Guard (`CloudflareService.php`):** Prevents pushing verified crawler IPs to Cloudflare Edge IP Access Rules, protecting global SEO indexing across the entire Anycast edge network.
+- **Fast-Path Custom Blocklist Pruning:** When requests arrive from an IP present in the legacy custom blocklist, the engine validates whether the IP belongs to a genuine crawler. If confirmed authentic, the ban entry is pruned and forgiven in real time without dropping traffic.
+
+---
+
+## 62. ActionScheduler Persistence & Code Snippets Database Injection Armor
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Modern malware doesn't always hide in PHP files; attackers frequently inject malicious code directly into your WordPress database—especially inside custom code snippet plugins (like WPCode or Code Snippets) or scheduled WooCommerce background tasks (ActionScheduler). WCP Security Scanner scans these database tables directly, uncovering hidden PHP code, malicious terminal commands, and dangerous background jobs before they can harm your site.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **ActionScheduler Persistence Trojan Scanner (`CronPersistenceScanner.php`):** Scans the WooCommerce `actionscheduler_actions` table for pending actions directly invoking dangerous PHP sinks (`system`, `exec`, `assert`, `eval`, `passthru`) or weaponized serialized payloads (`weaponized_cron_args`).
+- **PHP Opening Tag AST Normalization (`SnippetCodeAuditor.php`):** Neutralizes the AST tokenizer bypass where plugins like *Code Snippets* (`wp_snippets`) strip opening `<?php` tags, previously tricking PHP tokenizers into parsing raw code as benign `T_INLINE_HTML`. Automatically normalizes opening tags prior to deep AST analysis.
+- **Zero-Disk-Write In-Memory Client Scanning (`JavaScriptSecurityScanner.php`):** Audits script snippets entirely in memory without writing temporary files to disk, eliminating filesystem permission errors and host-level AV alerts.
+- **WordPress.org Prepared SQL Compliance:** All database existence checks and dynamic table queries utilize explicit `$wpdb` parameterization and compliant PHPCS suppression annotations.
+
+---
+
+## 63. Developer Performance Controls, Throttling & Background Worker Strategies
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Every web hosting environment is different. Shared hosting accounts often have strict CPU limits, while dedicated servers have plenty of power. WCP Security Scanner gives you complete control over scan speed and resource usage. You can slow down scans with micro-pauses to keep CPU usage low, choose between interactive or background scanning, skip bulky image files, and exclude huge database tables with a few clicks.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Configurable Inter-Batch CPU Throttling (`scan_batch_delay_ms`):** Introduces selectable rest pauses (0ms, 50ms, 150ms, 300ms, 500ms) between REST batches to keep CPU load low and prevent cPanel/CloudLinux LVE throttling.
+- **Flexible Execution Worker Strategies (`scan_execution_strategy`):** Switch between interactive client-side polling (`ajax_client`), autonomous cron (`wp_cli_cron`), and non-blocking background workers (`background_worker`).
+- **Media Uploads Scan Depth Modes (`scan_uploads_mode`):** Offers *Smart Executable & Stager Mode* (skips benign raster images for 10x faster scans) vs *Deep Raster & EXIF Polyglot Audit Mode*.
+- **Symlink Traversal Policy Controls (`scan_symlink_policy`):** Granular controls (`ignore`, `follow_intree`, `follow_all`) prevent recursive loops and safely accommodate Roots Bedrock and Composer installations.
+- **Developer Profiling & Dry-Run Mode:** Built-in engine profiling (`scan_profiling_enabled`) and non-destructive dry-run audits (`scan_dry_run_mode`) tailored for CI/CD staging environments.
+
+---
+
+## 64. Administrator Real-Time Access & Password Change Notification Matrix
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Account takeovers are the most dangerous security risk for any website. The moment any administrator logs in or has their password changed, you should know immediately. WCP Security Scanner sends instant alerts to your email or team chat channels (Slack, Discord, ClickUp, Asana) whenever an administrator signs in or updates their password, including the exact IP address, device, and timestamp.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Admin Authentication Alert Dispatch (`auth_admin_login`):** Automatically detects successful logins by accounts holding administrator privileges (`manage_options`). Dispatches instant notifications recording user ID, username, IP address, user agent, and timestamp.
+- **Password Reset & Profile Change Hooking (`auth_admin_password_reset`):** Bridges both `password_reset` (recovery flow) and `profile_update` (direct profile changes). Immediately triggers high-priority alerts when an administrator's password is reset or modified, logging the target administrator, updating actor, client IP, and timestamp.
+- **Pure AES-256-GCM AEAD Webhook Encryption:** All destination webhook URLs and notification keys are encrypted at rest inside the Cryptographic Secret Vault, ensuring credentials are never exposed in plaintext database exports.
 
 ---
 

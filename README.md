@@ -57,7 +57,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (58 Specialized Security Engines & Subsystems)
+## 🌟 Comprehensive Feature Catalog (64 Specialized Security Engines & Subsystems)
 
 > 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
@@ -319,6 +319,37 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 ### 58. Welcome Guide & Deep Feature Educational Hub
 - **In-Console Welcome Guide**: Instant header wizard and walkthrough modal guiding administrators through on-premise privacy guarantees, zero-telemetry architecture, and essential hardening steps.
 - **Deep Educational Hyperlinks**: Direct links to official technical breakdowns, architecture guides, and solo engineering consultations with Mir Alamin.
+
+### 59. Unified Multi-Tier Log Export Engine & Domain-Stamped Forensic Archives
+- **Interactive Scope & Date Selection Modal**: Upgrades exports across all three primary log ledgers (WAF Incidents, Plugin Activity, and Scan History) with interactive scope options (all partitions, specific single date, or active filtered table view).
+- **Standardized Domain-Stamped Filenames**: Automatically embeds the site domain name, date, time, and entropy token (`{type}-logs-YYYY-MM-DD-HHmmss-{domain}-{entropy}.json/csv`).
+- **High-Capacity Server Paging & Spreadsheet Security**: Streams complete historical partitions with `is_export=1` paging, UTF-8 BOM encoding for Microsoft Excel, and strict CSV formula injection neutralization (CWE-1236).
+
+### 60. Granular Authentication Diagnostics & Login Failure Reason Forensics
+- **Dual-Parameter `wp_login_failed` Capture**: Hooks into WordPress core's error dispatcher to inspect the authentic `\WP_Error` failure instance.
+- **Root Cause Categorization**: Accurately distinguishes between `incorrect_password` (user exists, password mistyped) and `invalid_username` / `invalid_email` (account enumeration / non-existent user).
+- **Accurate Action State Labeling**: Marks individual failed login attempts below the lockout threshold with `action_taken: "failed"` instead of hard `"blocked"`, preventing skewed threat analytics while enforcing hard bans upon threshold breach.
+
+### 61. Authoritative Search Crawler CIDR Fallback & Automated False-Positive Ban Pruning
+- **Official Embedded Crawler Subnets**: Embedded official Googlebot (`66.249.64.0/19`, `64.233.160.0/19`, `72.14.192.0/18`, `209.85.128.0/17`, `2001:4860::/32`) and Bingbot IPv4/IPv6 CIDR ranges directly into memory.
+- **Zero-Dependency FCrDNS Fallback**: Guarantees instant crawler verification in environments where reverse DNS PTR lookups fail or time out (Docker, NAT, shared hosting).
+- **Auto-Ban Immunity & Real-Time Healing**: Rejects automated bans on verified search crawlers across both local WAF and Cloudflare Edge IP Access Rules, and dynamically prunes/forgives legacy false-positive blocks in real time.
+
+### 62. ActionScheduler Persistence & Code Snippets Database Injection Armor
+- **ActionScheduler Persistence Trojan Scanner**: Scans WooCommerce `actionscheduler_actions` for pending actions directly targeting dangerous PHP sinks (`system`, `exec`, `assert`, `eval`) or weaponized serialized command arguments.
+- **PHP Opening Tag AST Normalization**: Neutralizes AST tokenizer bypasses where plugins like *Code Snippets* (`wp_snippets`) strip opening `<?php` tags, enabling full AST analysis on active database snippets.
+- **Zero-Disk-Write In-Memory Scanning**: Recursively audits database snippets with in-memory AST tokenization and regex evaluation without generating temporary files on disk.
+
+### 63. Developer Performance Controls, Throttling & Background Worker Strategies
+- **Configurable Inter-Batch Rest Throttling**: Micro-pauses (0ms, 50ms, 150ms, 300ms, 500ms) between scan batches prevent CPU throttling on shared hosting and CloudLinux LVE limits.
+- **Execution Worker Selection**: Choose between client-side interactive polling (`ajax_client`), autonomous cron (`wp_cli_cron`), and non-blocking background workers (`background_worker`).
+- **Media Uploads Scan Depth Modes**: Fast *Smart Executable & Stager Mode* skips millions of benign raster images for 10x faster scans vs *Deep Raster & EXIF Polyglot Audit Mode*.
+- **Developer Profiling & Dry-Run Mode**: In-engine performance profiling and non-destructive dry-run audit toggles for CI/CD staging verification.
+
+### 64. Administrator Real-Time Access & Password Change Notification Matrix
+- **Admin Authentication Alert Dispatch (`auth_admin_login`)**: Immediately detects when any user with administrator privileges logs in, dispatching real-time notifications with user ID, IP address, user agent, and timestamp.
+- **Password Reset & Profile Change Hooking (`auth_admin_password_reset`)**: Connects to both `password_reset` and `profile_update`, immediately firing high-priority alerts to email and webhooks (Slack, Discord, ClickUp, Asana) when an admin's password is reset or modified.
+- **Encrypted Credential Dispatch**: Webhook URLs and dispatch credentials remain encrypted at rest via the AES-256-GCM AEAD Secret Vault.
 
 ---
 
