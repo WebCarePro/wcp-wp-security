@@ -93,6 +93,9 @@ class FirewallEngine {
         // Rule #40: WooCommerce Fake Customer Registration & Bot Shield
         add_filter('woocommerce_registration_errors', [__CLASS__, 'validate_woo_customer_registration'], 10, 3);
         add_action('woocommerce_created_customer', [__CLASS__, 'handle_woo_customer_created'], 10, 3);
+
+        // Rule #41: WooCommerce Cart Flooding & Denial of Inventory (DoI) Defense
+        add_filter('woocommerce_add_to_cart_validation', [__CLASS__, 'validate_woo_add_to_cart'], 10, 5);
     }
 
     /**
@@ -6669,5 +6672,114 @@ class FirewallEngine {
         $reg_key = 'wcpscan_reg_ip_' . md5($client_ip);
         $count = (int) get_transient($reg_key);
         set_transient($reg_key, $count + 1, $window_seconds);
+    }
+
+    /**
+     * Rule #41: Validate WooCommerce add-to-cart operations against cart flooding and inventory exhaustion.
+     *
+     * Intercepts `woocommerce_add_to_cart_validation` hook across Classic AJAX, single product forms, and Store API.
+     *
+     * @param bool $passed
+     * @param int $product_id
+     * @param int $quantity
+     * @param int $variation_id
+     * @param array $variations
+     * @return bool
+     */
+    public static function validate_woo_add_to_cart($passed, $product_id, $quantity, $variation_id = 0, $variations = []): bool {
+        if (!$passed) {
+            return false;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_woo_cart_flood_protection'])) {
+            return $passed;
+        }
+
+        $client_ip = self::get_client_ip();
+        if (empty($client_ip)) {
+            return $passed;
+        }
+
+        // Whitelist check
+        if (self::is_ip_whitelisted($client_ip)) {
+            return $passed;
+        }
+
+        // 1. Add-to-Cart Velocity Rate-Limiting (per minute per IP)
+        $rate_limit = (int) ($settings['waf_woo_add_to_cart_rate_limit'] ?? 15);
+        $velocity_key = 'wcpscan_cart_vel_' . md5($client_ip);
+        $current_hits = (int) get_transient($velocity_key);
+
+        if ($current_hits >= $rate_limit) {
+            $rule_triggered = [
+                'id'          => 'WAF-WOO-CART-VELOCITY-BLOCKED',
+                'name'        => 'WooCommerce Cart Flooding Velocity Limit (Rule #41)',
+                'category'    => 'Behavioral Defense',
+                'description' => sprintf(
+                    /* translators: 1: Client IP, 2: Rate limit count */
+                    __('Blocked rapid add-to-cart flood from IP %1$s (exceeded %2$d additions per minute).', 'wcp-security-scanner'),
+                    $client_ip,
+                    $rate_limit
+                ),
+                'match_type'  => 'Cart Addition Velocity',
+                'match_value' => $client_ip,
+                'payload'     => "IP: {$client_ip} Product: {$product_id} Hits: {$current_hits} / Limit: {$rate_limit}",
+            ];
+
+            self::log_incident($rule_triggered, 'blocked');
+
+            if (function_exists('wc_add_notice')) {
+                wc_add_notice(
+                    esc_html__('You are adding items too quickly. Please pause for a moment before adding more items to your cart.', 'wcp-security-scanner'),
+                    'error'
+                );
+            }
+            return false;
+        }
+
+        // Increment velocity counter (60-second window)
+        set_transient($velocity_key, $current_hits + 1, 60);
+
+        // 2. Maximum Cumulative Cart Items Check (Denial of Inventory defense)
+        if (function_exists('WC') && WC()->cart) {
+            $max_cart_items = (int) ($settings['waf_woo_max_cart_items'] ?? 50);
+            $current_cart_count = (int) WC()->cart->get_cart_contents_count();
+            $target_count = $current_cart_count + max(1, (int) $quantity);
+
+            if ($target_count > $max_cart_items) {
+                $rule_triggered = [
+                    'id'          => 'WAF-WOO-INVENTORY-HOARDING',
+                    'name'        => 'WooCommerce Denial of Inventory Cap Exceeded (Rule #41)',
+                    'category'    => 'Behavioral Defense',
+                    'description' => sprintf(
+                        /* translators: 1: Client IP, 2: Target item count, 3: Max allowed items */
+                        __('Blocked inventory hoarding attempt from IP %1$s (cart item count %2$d would exceed cap %3$d).', 'wcp-security-scanner'),
+                        $client_ip,
+                        $target_count,
+                        $max_cart_items
+                    ),
+                    'match_type'  => 'Cart Volume Cap',
+                    'match_value' => $client_ip,
+                    'payload'     => "IP: {$client_ip} Current: {$current_cart_count} Adding: {$quantity} Cap: {$max_cart_items}",
+                ];
+
+                self::log_incident($rule_triggered, 'blocked');
+
+                if (function_exists('wc_add_notice')) {
+                    wc_add_notice(
+                        sprintf(
+                            /* translators: %d: Maximum allowed items in cart */
+                            esc_html__('Your shopping cart has reached the maximum permitted volume of %d items. Please proceed to checkout or remove unused items.', 'wcp-security-scanner'),
+                            $max_cart_items
+                        ),
+                        'error'
+                    );
+                }
+                return false;
+            }
+        }
+
+        return $passed;
     }
 }

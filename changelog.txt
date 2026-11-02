@@ -1,4 +1,9 @@
 v:2.2.0 - 2026-11-02
+- WooCommerce Cart Flooding & Denial of Inventory (DoI) Defense (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
+  * Rule #41 Enforcement Engine: Mitigates inventory exhaustion attacks, automated cart flooding bots, and scalper reservation scripts across WooCommerce Classic AJAX (`woocommerce_add_to_cart`), single product buttons, and modern Store API blocks.
+  * Rapid Add-to-Cart Velocity Throttle: Monitors add-to-cart operations per client IP in 60-second sliding windows (default limit: 15 additions per minute), returning user-friendly pause notices and logging `WAF-WOO-CART-VELOCITY-BLOCKED` when exceeded.
+  * Maximum Cumulative Cart Items Cap: Enforces a configurable ceiling on the total quantity of items allowed in a single visitor cart session (default: 50 items), thwarting competitor hoarding scripts from holding stock out of reach of real shoppers.
+  * Interactive Firewall Controls: Added Rule #41 settings card with granular quantity cap and rate limit inputs (`waf_woo_cart_flood_protection`, `waf_woo_max_cart_items`, `waf_woo_add_to_cart_rate_limit`) with instant single-rule saving.
 - WooCommerce Fake Customer Registration & Bot Shield (FirewallEngine.php, SettingsManager.php, FirewallPage.tsx):
   * Rule #40 Enforcement Engine: Implemented multi-layered defense against customer registration spam, fake shopper account flooding, and bot stuffing across WooCommerce `my-account`, checkout account creation, and modern Store API blocks.
   * Disposable & Temporary Email Blocker: Heuristically verifies customer registration email domains against an extensive blacklist of known throwaway and temporary inbox providers (e.g., Mailinator, GuerrillaMail, TempMail, 10MinuteMail, Yopmail, TrashMail), blocking synthetic account setups before user database insertion.
