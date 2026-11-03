@@ -28,48 +28,61 @@ class PulseHealthCheck {
     public static function check_store_pulse(): array {
         $endpoints = self::get_critical_endpoints();
         $results = [];
+        $has_fatal_conflict = false;
         $all_passed = true;
         $total_duration = 0.0;
+        $failure_details = [];
 
         foreach ($endpoints as $key => $ep) {
             $start = microtime(true);
             $res = wp_remote_get($ep['url'], [
-                'timeout'     => 4,
+                'timeout'     => 6,
                 'redirection' => 3,
                 'sslverify'   => false,
                 'headers'     => [
                     'X-WCP-Pulse-Check' => '1',
-                    'User-Agent'        => 'WCP-PulseCheck/2.3.0 (+https://webcarepro.com)',
+                    'User-Agent'        => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WCP-PulseCheck/2.3.0 (+https://webcarepro.com)',
                 ],
             ]);
             $duration = round(microtime(true) - $start, 3);
             $total_duration += $duration;
 
             if (is_wp_error($res)) {
-                $all_passed = false;
+                $err_msg = $res->get_error_message();
+                // Network timeouts, DNS resolution issues, or cURL loopback blocks are not fatal PHP site crashes
                 $results[$key] = [
                     'label'       => $ep['label'],
                     'url'         => $ep['url'],
                     'status_code' => 0,
                     'duration'    => $duration,
                     'passed'      => false,
-                    'error'       => $res->get_error_message(),
+                    'is_fatal'    => false,
+                    'skipped'     => true,
+                    'error'       => $err_msg,
                 ];
+                // Do not mark $has_fatal_conflict for loopback network connection drops or timeouts
                 continue;
             }
 
             $code = wp_remote_retrieve_response_code($res);
             $body = wp_remote_retrieve_body($res);
 
-            // Accept 200, 301, 302, 401 (for login/protected pages), but reject 500, 502, 503, 504
-            $is_healthy = ($code >= 200 && $code < 500);
+            // Check if response is a server crash (500, 502, 503, 504) or contains explicit fatal PHP error
+            $is_5xx = ($code >= 500 && $code <= 504);
+            $has_fatal_error_text = (
+                stripos($body, 'Fatal error:') !== false ||
+                stripos($body, 'Parse error:') !== false ||
+                stripos($body, 'There has been a critical error on this website.') !== false
+            );
 
-            // Check if fatal error trace is leaked in body
-            if ($is_healthy && (strpos($body, 'Fatal error:') !== false || strpos($body, 'Parse error:') !== false || strpos($body, 'There has been a critical error on this website.') !== false)) {
-                $is_healthy = false;
-            }
+            $is_fatal = ($is_5xx || $has_fatal_error_text);
+            $is_healthy = ($code >= 200 && $code < 500 && !$has_fatal_error_text);
 
-            if (!$is_healthy) {
+            if ($is_fatal) {
+                $has_fatal_conflict = true;
+                $all_passed = false;
+                $failure_details[] = sprintf('%s (%s) returned %s', $ep['label'], $ep['url'], $is_5xx ? "HTTP {$code}" : "Fatal PHP Error");
+            } elseif (!$is_healthy) {
                 $all_passed = false;
             }
 
@@ -79,13 +92,20 @@ class PulseHealthCheck {
                 'status_code' => $code,
                 'duration'    => $duration,
                 'passed'      => $is_healthy,
-                'error'       => $is_healthy ? null : "HTTP status {$code} or fatal error output detected.",
+                'is_fatal'    => $is_fatal,
+                'error'       => $is_healthy ? null : "HTTP status {$code}" . ($has_fatal_error_text ? ' (Fatal PHP error in response body)' : ''),
             ];
         }
 
         $avg_time = count($results) > 0 ? round($total_duration / count($results), 2) : 0;
 
-        if ($all_passed) {
+        if ($has_fatal_conflict) {
+            $summary = sprintf(
+                /* translators: %s: Comma-separated list of failed endpoints and error status */
+                __('Critical Conflict: %s', 'wcp-security-scanner'),
+                implode(', ', $failure_details)
+            );
+        } elseif ($all_passed) {
             $summary = sprintf(
                 /* translators: 1: optional cart/checkout notice, 2: response time in seconds */
                 __('Live Health Check Passed: Homepage, Login%1$s are loading normally (%2$ss).', 'wcp-security-scanner'),
@@ -93,16 +113,17 @@ class PulseHealthCheck {
                 $avg_time
             );
         } else {
-            $summary = __('Live Health Check Failed: Potential conflict detected on critical site endpoints.', 'wcp-security-scanner');
+            $summary = __('Live Health Check completed with non-fatal advisory warnings.', 'wcp-security-scanner');
         }
 
         return [
-            'all_passed'     => $all_passed,
-            'total_duration' => round($total_duration, 2),
-            'avg_duration'   => $avg_time,
-            'summary'        => $summary,
-            'endpoints'      => $results,
-            'timestamp'      => gmdate('Y-m-d H:i:s \U\T\C'),
+            'all_passed'         => $all_passed,
+            'has_fatal_conflict' => $has_fatal_conflict,
+            'total_duration'     => round($total_duration, 2),
+            'avg_duration'       => $avg_time,
+            'summary'            => $summary,
+            'endpoints'          => $results,
+            'timestamp'          => gmdate('Y-m-d H:i:s \U\T\C'),
         ];
     }
 

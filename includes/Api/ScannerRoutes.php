@@ -116,6 +116,13 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Diagnostic & Environmental Telemetry Snapshot for Log Analysis
+        register_rest_route(self::NAMESPACE, '/telemetry/snapshot', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_telemetry_snapshot'],
+            'permission_callback' => $permission,
+        ]);
+
         // System Readiness & Pre-Flight Compatibility Report
         register_rest_route(self::NAMESPACE, '/readiness', [
             'methods'             => 'GET',
@@ -3098,31 +3105,69 @@ class ScannerRoutes {
         $summary = $scorer->calculate($issues);
         $diagnostics = self::build_scan_diagnostics($scan);
 
+        $include_system_info = !empty($request->get_param('include_system_info'));
+
         if ($format === 'csv') {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Writing to in-memory temporary stream for REST CSV export
             $output  = fopen('php://temp', 'r+');
             // Sysadmin Telemetry & Environment comments header
             $site_url = get_site_url();
             $site_name = get_bloginfo('name');
-            $peak_ram = $diagnostics['peak_memory_fmt'] . ' / ' . $diagnostics['memory_limit_raw'] . ' (' . $diagnostics['memory_percent'] . '%)';
-            $throughput = $diagnostics['files_per_second'] . ' files/sec';
-            $cpu_str = !empty($diagnostics['cpu_load'])
-                ? '1m: ' . ($diagnostics['cpu_load']['1m'] ?? '-') . ', 5m: ' . ($diagnostics['cpu_load']['5m'] ?? '-') . ', 15m: ' . ($diagnostics['cpu_load']['15m'] ?? '-')
-                : 'N/A';
-            if (!empty($diagnostics['cpu_cores'])) {
-                $cpu_str .= ' (' . $diagnostics['cpu_cores'] . ' Cores)';
-            }
-            $server_soft = $diagnostics['server_software'] ?? 'Unknown';
-            $server_os = $diagnostics['server_os'] . ' (' . ($diagnostics['server_arch'] ?? 'x86_64') . ')';
-            $php_info = 'PHP ' . $diagnostics['php_version'] . ' (' . $diagnostics['php_sapi'] . ') | Max Execution: ' . ($diagnostics['php_max_execution_time'] ?? '30') . 's';
-            $db_info = 'MySQL ' . ($diagnostics['database_version'] ?? 'N/A');
 
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            fwrite($output, "# ====================================================================\r\n");
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            fwrite($output, "# WCP Security Scanner Pro - Audit Findings Report\r\n");
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            fwrite($output, "# Auditor: Mir Alamin (WebCare Pro) - Senior Linux SysAdmin & WordPress Security Engineer\r\n");
+            if ($include_system_info) {
+                $peak_ram = $diagnostics['peak_memory_fmt'] . ' / ' . $diagnostics['memory_limit_raw'] . ' (' . $diagnostics['memory_percent'] . '%)';
+                $throughput = $diagnostics['files_per_second'] . ' files/sec';
+                $cpu_str = !empty($diagnostics['cpu_load'])
+                    ? '1m: ' . ($diagnostics['cpu_load']['1m'] ?? '-') . ', 5m: ' . ($diagnostics['cpu_load']['5m'] ?? '-') . ', 15m: ' . ($diagnostics['cpu_load']['15m'] ?? '-')
+                    : 'N/A';
+                if (!empty($diagnostics['cpu_cores'])) {
+                    $cpu_str .= ' (' . $diagnostics['cpu_cores'] . ' Cores)';
+                }
+                $server_soft = $diagnostics['server_software'] ?? 'Unknown';
+                $server_os = $diagnostics['server_os'] . ' (' . ($diagnostics['server_arch'] ?? 'x86_64') . ')';
+                $php_info = 'PHP ' . $diagnostics['php_version'] . ' (' . $diagnostics['php_sapi'] . ') | Max Execution: ' . ($diagnostics['php_max_execution_time'] ?? '30') . 's';
+                $db_info = 'MySQL ' . ($diagnostics['database_version'] ?? 'N/A');
+
+                $telemetry = class_exists('\\WcpScanner\\System\\TelemetrySnapshot') ? \WcpScanner\System\TelemetrySnapshot::get_snapshot() : null;
+                $cf_text = !empty($telemetry['edge_network']['powered_by_cloudflare']) ? 'YES (' . ($telemetry['edge_network']['cloudflare_status'] ?? 'Cloudflare Edge') . ')' : 'NO (Direct Origin)';
+                $act_plugins = !empty($telemetry['plugins']['active_plugins']) ? array_column($telemetry['plugins']['active_plugins'], 'name') : [];
+                $act_plugins_str = implode(', ', array_slice($act_plugins, 0, 15)) . (count($act_plugins) > 15 ? sprintf(' ... (+%d more)', count($act_plugins) - 15) : '');
+
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# ====================================================================\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# WCP Security Scanner Pro - Audit Findings Report\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Auditor: Mir Alamin (WebCare Pro) - Senior Linux SysAdmin & WordPress Security Engineer\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Target: {$site_name} ({$site_url})\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Real Server IP: " . ($telemetry['server']['real_ip'] ?? 'Unknown') . " | Cloudflare: {$cf_text}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Peak RAM: {$peak_ram}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Throughput: {$throughput}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# CPU Load: {$cpu_str}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Server Software: {$server_soft}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Platform & OS: {$server_os}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# PHP Environment: {$php_info}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Database: {$db_info}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Active Theme: " . ($telemetry['theme']['active_theme']['name'] ?? 'Unknown') . " (v" . ($telemetry['theme']['active_theme']['version'] ?? 'Unknown') . ")\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Active Plugins (" . count($act_plugins) . "): {$act_plugins_str}\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Active Engines: " . ($diagnostics['engines_active'] ?? 23) . " Core Security Engines\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# Exported: " . current_time('mysql') . "\r\n");
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+                fwrite($output, "# ====================================================================\r\n");
+            }
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($output, "# Target: {$site_name} ({$site_url})\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
@@ -3228,7 +3273,7 @@ class ScannerRoutes {
         $rand_token = substr(wp_generate_password(8, false), 0, 5);
         $filename   = "scan-report-{$date_token}-{$time_token}-{$domain}-{$rand_token}.json";
 
-        return rest_ensure_response([
+        $response_data = [
             'success'            => true,
             'format'             => 'json',
             'filename'           => $filename,
@@ -3265,7 +3310,13 @@ class ScannerRoutes {
             ],
             'findings_count'     => count($issues),
             'findings'           => $issues,
-        ]);
+        ];
+
+        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
+            $response_data['environment_snapshot'] = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        }
+
+        return rest_ensure_response($response_data);
     }
 
     public static function get_server_info(\WP_REST_Request $request) {
@@ -3276,6 +3327,20 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             'info'    => ServerInfo::get_info(true),
+        ]);
+    }
+
+    /**
+     * Get diagnostic telemetry snapshot for log export & incident triage.
+     */
+    public static function get_telemetry_snapshot(\WP_REST_Request $request): \WP_REST_Response {
+        $snapshot = class_exists('\\WcpScanner\\System\\TelemetrySnapshot')
+            ? \WcpScanner\System\TelemetrySnapshot::get_snapshot()
+            : [];
+
+        return rest_ensure_response([
+            'success'  => true,
+            'snapshot' => $snapshot,
         ]);
     }
 
@@ -6452,6 +6517,7 @@ class ScannerRoutes {
         $sort_by     = sanitize_key((string) ($request->get_param('sort_by') ?: 'created_at'));
         $sort_order  = strtolower(sanitize_key((string) ($request->get_param('sort_order') ?: 'desc')));
         $is_export   = !empty($request->get_param('is_export'));
+        $include_system_info = !empty($request->get_param('include_system_info'));
 
         $filters = array_filter([
             'range'       => $range,
@@ -6471,6 +6537,11 @@ class ScannerRoutes {
         $res['current_client_ip'] = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
         $res['retention_days']    = \WcpScanner\Firewall\WafFileLogger::get_retention_days();
         $res['active_range']      = $range;
+
+        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
+            $res['environment_snapshot'] = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        }
+
         return rest_ensure_response($res);
     }
 
@@ -10739,12 +10810,13 @@ class ScannerRoutes {
     }
 
     public static function export_activity_logs(\WP_REST_Request $request) {
-        $format     = sanitize_key($request->get_param('format') ?: 'csv');
-        $category   = sanitize_key($request->get_param('category') ?: '');
-        $actor_type = sanitize_key($request->get_param('actor_type') ?: '');
-        $severity   = sanitize_key($request->get_param('severity') ?: '');
-        $search     = sanitize_text_field($request->get_param('search') ?: '');
-        $date       = sanitize_text_field($request->get_param('date') ?: '');
+        $format              = sanitize_key($request->get_param('format') ?: 'csv');
+        $category            = sanitize_key($request->get_param('category') ?: '');
+        $actor_type          = sanitize_key($request->get_param('actor_type') ?: '');
+        $severity            = sanitize_key($request->get_param('severity') ?: '');
+        $search              = sanitize_text_field($request->get_param('search') ?: '');
+        $date                = sanitize_text_field($request->get_param('date') ?: '');
+        $include_system_info = !empty($request->get_param('include_system_info'));
 
         $result = \WcpScanner\System\WcpActivityLogger::query_records([
             'actor_type' => $actor_type,
@@ -10764,9 +10836,9 @@ class ScannerRoutes {
         $filename   = "activity-logs-{$date_token}-{$time_token}-{$domain}-{$rand_token}.{$format}";
 
         if ($format === 'json') {
-            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], $filename);
+            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], $filename, $include_system_info);
         } else {
-            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], $filename);
+            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], $filename, $include_system_info);
         }
         exit;
     }

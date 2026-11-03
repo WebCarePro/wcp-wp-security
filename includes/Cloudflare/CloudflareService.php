@@ -710,15 +710,49 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
         }
 
-        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+        $ip = trim($ip);
+        $is_cidr = strpos($ip, '/') !== false;
+        $target = 'ip';
+        $target_value = $ip;
+
+        if ($is_cidr) {
+            $parts = explode('/', $ip);
+            $subnet_ip = trim($parts[0]);
+            $prefix = isset($parts[1]) ? (int) $parts[1] : 0;
+
+            if (filter_var($subnet_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                if ($prefix !== 16 && $prefix !== 24) {
+                    return [
+                        'success' => false,
+                        // translators: %s: requested CIDR
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv4 ranges of /16 or /24 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                    ];
+                }
+                $target = 'ip_range';
+            } elseif (filter_var($subnet_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                if ($prefix !== 32 && $prefix !== 48 && $prefix !== 64) {
+                    return [
+                        'success' => false,
+                        // translators: %s: requested CIDR
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv6 ranges of /32, /48, or /64 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                    ];
+                }
+                $target = 'ip_range';
+            } else {
+                return ['success' => false, 'message' => __('Invalid CIDR subnet address.', 'wcp-security-scanner')];
+            }
+        } else {
+            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+                return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+            }
+            $target = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
         }
 
         $payload = [
             'mode'          => 'whitelist',
             'configuration' => [
-                'target' => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip',
-                'value'  => $ip,
+                'target' => $target,
+                'value'  => $target_value,
             ],
             'notes'         => self::WCP_RULE_TAG . ' ' . substr($notes, 0, 70),
         ];
@@ -1247,23 +1281,60 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
         }
 
-        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+        $ip = trim($ip);
+        $is_cidr = strpos($ip, '/') !== false;
+        $target = 'ip';
+        $target_value = $ip;
+
+        if ($is_cidr) {
+            $parts = explode('/', $ip);
+            $subnet_ip = trim($parts[0]);
+            $prefix = isset($parts[1]) ? (int) $parts[1] : 0;
+
+            if (filter_var($subnet_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                // Cloudflare IP Access Rules ONLY allow /16 and /24 for IPv4 CIDR ranges
+                if ($prefix !== 16 && $prefix !== 24) {
+                    return [
+                        'success' => false,
+                        // translators: %s: requested CIDR
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv4 ranges of /16 or /24 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                    ];
+                }
+                $target = 'ip_range';
+            } elseif (filter_var($subnet_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                // Cloudflare IP Access Rules allow /32, /48, /64 for IPv6 CIDR ranges
+                if ($prefix !== 32 && $prefix !== 48 && $prefix !== 64) {
+                    return [
+                        'success' => false,
+                        // translators: %s: requested CIDR
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv6 ranges of /32, /48, or /64 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                    ];
+                }
+                $target = 'ip_range';
+            } else {
+                return ['success' => false, 'message' => __('Invalid CIDR subnet address.', 'wcp-security-scanner')];
+            }
+        } else {
+            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+                return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+            }
+            $target = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
         }
 
         // ABSOLUTE SAFETY GUARD: Never ban local, current admin, or whitelisted IPs
-        $is_loopback = in_array($ip, ['127.0.0.1', '::1'], true) || !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        $check_ip = $is_cidr ? explode('/', $ip)[0] : $ip;
+        $is_loopback = in_array($check_ip, ['127.0.0.1', '::1'], true) || !filter_var($check_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
         if ($is_loopback) {
-            return ['success' => false, 'message' => __('Cannot ban private/loopback IP address.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cannot ban private/loopback IP address or subnet.', 'wcp-security-scanner')];
         }
 
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
             $current_client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
             $is_admin = \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator();
-            $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
+            $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($check_ip, $settings['waf_whitelisted_ips'] ?? '');
             $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
 
-            if ($ip === $current_client_ip || ($is_admin && $ip === $current_client_ip) || $is_whitelisted || (!empty($server_ip) && $ip === $server_ip)) {
+            if ($check_ip === $current_client_ip || ($is_admin && $check_ip === $current_client_ip) || $is_whitelisted || (!empty($server_ip) && $check_ip === $server_ip)) {
                 // translators: %s: IP address
                 return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to server origin, administrator, or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
             }
@@ -1272,9 +1343,9 @@ class CloudflareService {
             // Never push legitimate search crawler IPs to Cloudflare Edge IP block rules.
             if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
                 $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-                if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($ip, $ua) ||
-                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($ip, 'googlebot') ||
-                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($ip, 'bingbot')) {
+                if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($check_ip, $ua) ||
+                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($check_ip, 'googlebot') ||
+                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($check_ip, 'bingbot')) {
                     // translators: %s: IP address
                     return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s is a verified legitimate search crawler (Googlebot / Bingbot) and cannot be blocked.', 'wcp-security-scanner'), $ip)];
                 }
@@ -1284,8 +1355,8 @@ class CloudflareService {
         $payload = [
             'mode'          => 'block',
             'configuration' => [
-                'target' => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip',
-                'value'  => $ip,
+                'target' => $target,
+                'value'  => $target_value,
             ],
             'notes'         => self::WCP_RULE_TAG . ' ' . substr($reason, 0, 70),
         ];
@@ -1477,15 +1548,31 @@ class CloudflareService {
     }
 
     /**
-     * Unblock an IP address directly at Cloudflare Edge by resolving its access rule ID
+     * Unblock an IP address or CIDR range directly at Cloudflare Edge by resolving its access rule ID
      *
-     * @param string $ip IPv4 or IPv6 address
+     * @param string $ip IPv4, IPv6 address, or CIDR range
      * @return array
      */
     public static function unblock_ip_by_address(string $ip): array {
-        $clean_ip = trim(explode('/', $ip)[0]);
-        if (empty($clean_ip) || !filter_var($clean_ip, FILTER_VALIDATE_IP)) {
-            return ['success' => false, 'message' => __('Invalid IP address provided.', 'wcp-security-scanner')];
+        $ip = trim($ip);
+        $is_cidr = strpos($ip, '/') !== false;
+        $target_param = 'ip';
+        $target_val = $ip;
+
+        if ($is_cidr) {
+            $parts = explode('/', $ip);
+            $subnet_ip = trim($parts[0]);
+            if (!filter_var($subnet_ip, FILTER_VALIDATE_IP)) {
+                return ['success' => false, 'message' => __('Invalid CIDR range provided.', 'wcp-security-scanner')];
+            }
+            $target_param = 'ip_range';
+            $target_val = $ip;
+        } else {
+            if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
+                return ['success' => false, 'message' => __('Invalid IP address provided.', 'wcp-security-scanner')];
+            }
+            $target_param = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
+            $target_val = $ip;
         }
 
         $settings = SettingsManager::get_settings();
@@ -1495,9 +1582,8 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
         }
 
-        // Query Cloudflare for access rules matching this specific IP target value
-        $target_param = filter_var($clean_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
-        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?configuration.target={$target_param}&configuration.value=" . urlencode($clean_ip));
+        // Query Cloudflare for access rules matching this specific target value
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?configuration.target={$target_param}&configuration.value=" . urlencode($target_val));
 
         if (!empty($res['success']) && !empty($res['result']) && is_array($res['result'])) {
             $deleted_count = 0;
@@ -1514,8 +1600,8 @@ class CloudflareService {
             if ($deleted_count > 0) {
                 return [
                     'success' => true,
-                    /* translators: %s: unblocked IP address */
-                    'message' => sprintf(__('IP %s successfully unblocked from Cloudflare Edge.', 'wcp-security-scanner'), $clean_ip),
+                    /* translators: %s: unblocked IP or CIDR */
+                    'message' => sprintf(__('IP/Range %s successfully unblocked from Cloudflare Edge.', 'wcp-security-scanner'), $target_val),
                 ];
             }
         }
@@ -1523,8 +1609,8 @@ class CloudflareService {
         // Fallback: If not found in active Cloudflare access rules, report clean notice
         return [
             'success' => true,
-            /* translators: %s: unblocked IP address */
-            'message' => sprintf(__('IP %s is not currently blocked at Cloudflare Edge.', 'wcp-security-scanner'), $clean_ip),
+            /* translators: %s: unblocked IP or CIDR */
+            'message' => sprintf(__('IP/Range %s is not currently blocked at Cloudflare Edge.', 'wcp-security-scanner'), $target_val),
         ];
     }
 

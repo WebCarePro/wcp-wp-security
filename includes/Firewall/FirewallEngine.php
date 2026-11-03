@@ -7367,7 +7367,117 @@ class FirewallEngine {
             }
         }
 
-        // 3. Special handling for _application_passwords:
+        // 3. Allow standard, benign user registration and role assignment
+        // During frontend registration (e.g. WooCommerce, LMS student registration, core registration),
+        // WordPress core (wp_insert_user) or legitimate registration plugins assign default low-privileged roles
+        // (subscriber, customer, student) while the client is still an unauthenticated guest (is_user_logged_in() === false).
+        // We verify that the mutation is:
+        // A) Assigning a safe, non-administrative role/capability from registered WordPress roles, OR
+        // B) Executed within an authentic registration or user creation lifecycle.
+        if ($meta_key === $prefix . 'capabilities' || $meta_key === $prefix . 'user_level') {
+            $is_safe_registration_mutation = false;
+
+            // Check if this metadata update is assigning a safe, non-admin role
+            if ($meta_key === $prefix . 'capabilities' && is_array($meta_value)) {
+                $requested_roles = array_keys(array_filter($meta_value));
+                $has_admin_privilege = false;
+
+                // Dangerous capabilities and roles that guests should NEVER be granted
+                $prohibited_privileges = [
+                    'administrator',
+                    'editor',
+                    'manage_options',
+                    'edit_users',
+                    'promote_users',
+                    'activate_plugins',
+                    'edit_plugins',
+                    'edit_themes',
+                    'switch_themes',
+                    'unfiltered_html',
+                    'unfiltered_upload',
+                ];
+
+                foreach ($requested_roles as $role_or_cap) {
+                    $lower_role = strtolower((string) $role_or_cap);
+                    if (in_array($lower_role, $prohibited_privileges, true)) {
+                        $has_admin_privilege = true;
+                        break;
+                    }
+
+                    // Check if role has manage_options capability in global role registry
+                    if (function_exists('get_role')) {
+                        $role_obj = get_role($lower_role);
+                        if ($role_obj && $role_obj->has_cap('manage_options')) {
+                            $has_admin_privilege = true;
+                            break;
+                        }
+                    }
+                }
+
+                // If no elevated privileges are being assigned, verify the user was created recently or in current registration request
+                if (!$has_admin_privilege) {
+                    $user_obj = function_exists('get_userdata') ? get_userdata($object_id) : null;
+                    if ($user_obj) {
+                        $registered_time = strtotime($user_obj->user_registered);
+                        // Allow if user registered within the last 120 seconds (standard new account registration window)
+                        if ($registered_time && (time() - $registered_time) <= 120) {
+                            $is_safe_registration_mutation = true;
+                        }
+                    } else {
+                        // Brand-new insertion where user row was just created in wp_users
+                        $is_safe_registration_mutation = true;
+                    }
+                }
+            } elseif ($meta_key === $prefix . 'user_level') {
+                // User levels 0, 1, 2 correspond to Subscriber/Contributor/Author (level 10 is Administrator)
+                $level = (int) $meta_value;
+                if ($level < 7) {
+                    $user_obj = function_exists('get_userdata') ? get_userdata($object_id) : null;
+                    if ($user_obj) {
+                        $registered_time = strtotime($user_obj->user_registered);
+                        if ($registered_time && (time() - $registered_time) <= 120) {
+                            $is_safe_registration_mutation = true;
+                        }
+                    } else {
+                        $is_safe_registration_mutation = true;
+                    }
+                }
+            }
+
+            // Also inspect stack trace: if originated from core WP_User::set_role / wp_insert_user / register_new_user
+            if (!$is_safe_registration_mutation && function_exists('debug_backtrace')) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection required to distinguish legitimate WordPress core registration from raw unauthenticated SQL/HTTP privilege injections.
+                $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 15);
+                foreach ($trace as $frame) {
+                    $fn = $frame['function'] ?? '';
+                    $cls = $frame['class'] ?? '';
+                    if (
+                        $fn === 'wp_insert_user' ||
+                        $fn === 'wp_create_user' ||
+                        $fn === 'register_new_user' ||
+                        ($cls === 'WP_User' && $fn === 'set_role')
+                    ) {
+                        // Double check that we are not assigning administrator
+                        if ($meta_key === $prefix . 'capabilities' && is_array($meta_value)) {
+                            $has_admin = !empty($meta_value['administrator']) || !empty($meta_value['manage_options']);
+                            if (!$has_admin) {
+                                $is_safe_registration_mutation = true;
+                                break;
+                            }
+                        } elseif ($meta_key === $prefix . 'user_level' && (int) $meta_value < 7) {
+                            $is_safe_registration_mutation = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ($is_safe_registration_mutation) {
+                return $check; // Safe legitimate registration: Allow core to write user roles/capabilities
+            }
+        }
+
+        // 4. Special handling for _application_passwords:
         // When WordPress Core validates an Application Password during REST API determine_current_user,
         // it calls WP_Application_Passwords::record_application_password_usage() to update 'last_used' and 'last_ip'.
         // At that millisecond, is_user_logged_in() is still false.
