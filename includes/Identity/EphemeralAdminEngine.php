@@ -49,6 +49,120 @@ class EphemeralAdminEngine {
         add_filter('plugin_action_links_' . plugin_basename(WCPSCAN_FILE), [__CLASS__, 'filter_plugin_action_links'], 20);
         add_action('admin_init', [__CLASS__, 'intercept_unauthorized_plugin_actions'], 1);
         add_filter('map_meta_cap', [__CLASS__, 'restrict_elevated_admin_capabilities'], 10, 4);
+
+        // Cache busting hooks for primary admin resolution
+        add_action('user_register', [__CLASS__, 'clear_primary_admin_cache']);
+        add_action('deleted_user', [__CLASS__, 'clear_primary_admin_cache']);
+        add_action('set_user_role', [__CLASS__, 'clear_primary_admin_cache']);
+        add_action('remove_user_role', [__CLASS__, 'clear_primary_admin_cache']);
+        add_action('update_option_admin_email', [__CLASS__, 'clear_primary_admin_cache']);
+    }
+
+    /**
+     * Clear cached first registered administrator ID on user or role mutations.
+     */
+    public static function clear_primary_admin_cache() {
+        delete_transient('wcpscan_first_admin_id');
+    }
+
+    /**
+     * Determine if a user is a primary site owner / root administrator.
+     * Evaluates multi-signal hierarchy to prevent lockouts even if user ID 1 was reassigned (e.g. Solid Security).
+     *
+     * Order of evaluation:
+     * 1. Multisite Super Admin check (is_super_admin)
+     * 2. WordPress site settings match: get_option('admin_email')
+     * 3. Oldest registered administrator in wp_users
+     * 4. User ID 1 fallback (only if the account actively possesses manage_options)
+     *
+     * @param int $user_id
+     * @return bool
+     */
+    public static function is_primary_admin(int $user_id): bool {
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        // 1. Multisite Super Admin protection
+        if (is_multisite() && function_exists('is_super_admin') && is_super_admin($user_id)) {
+            return true;
+        }
+
+        $user = get_userdata($user_id);
+        if (!$user) {
+            return false;
+        }
+
+        // 2. Exact match with site admin_email option
+        $site_admin_email = (string) get_option('admin_email');
+        if (!empty($site_admin_email) && !empty($user->user_email) && strcasecmp($user->user_email, $site_admin_email) === 0) {
+            return true;
+        }
+
+        // 3. Oldest registered administrator in database
+        $first_admin_id = self::get_first_registered_admin_id();
+        if ($first_admin_id > 0 && $user_id === $first_admin_id) {
+            return true;
+        }
+
+        // 4. User ID 1 fallback, guarded by active capability check
+        if ($user_id === 1 && (user_can($user, 'manage_options') || in_array('administrator', (array) $user->roles, true))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve the ID of the oldest registered administrator account.
+     * Cached via memory and transient to eliminate redundant SQL overhead.
+     *
+     * @return int
+     */
+    public static function get_first_registered_admin_id(): int {
+        static $memory_cache = null;
+        if ($memory_cache !== null) {
+            return $memory_cache;
+        }
+
+        $transient_key = 'wcpscan_first_admin_id';
+        $stored = get_transient($transient_key);
+        if ($stored !== false && is_numeric($stored)) {
+            $memory_cache = (int) $stored;
+            return $memory_cache;
+        }
+
+        global $wpdb;
+        $cap_key = $wpdb->get_blog_prefix() . 'capabilities';
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $admin_candidates = $wpdb->get_results($wpdb->prepare(
+            "SELECT u.ID, m.meta_value FROM {$wpdb->users} u
+             INNER JOIN {$wpdb->usermeta} m ON u.ID = m.user_id
+             WHERE m.meta_key = %s
+             ORDER BY u.user_registered ASC, u.ID ASC
+             LIMIT 50",
+            $cap_key
+        ));
+
+        $found_id = 0;
+        if (!empty($admin_candidates)) {
+            foreach ($admin_candidates as $cand) {
+                $caps = maybe_unserialize($cand->meta_value);
+                if (is_array($caps) && !empty($caps['administrator'])) {
+                    $found_id = (int) $cand->ID;
+                    break;
+                }
+            }
+        }
+
+        if ($found_id === 0) {
+            $found_id = 1;
+        }
+
+        $memory_cache = $found_id;
+        set_transient($transient_key, $found_id, HOUR_IN_SECONDS * 12);
+        return $found_id;
     }
 
     /**
@@ -172,12 +286,11 @@ class EphemeralAdminEngine {
         $current_roles = (array) $user->roles;
         $baseline_role = reset($current_roles) ?: 'subscriber';
 
-        // Safety Guardrail: User ID 1 and site administrator email are immune from capability demotion or JIT restriction
-        $site_admin_email = get_option('admin_email');
-        if ($user_id === 1 || ($user && strcasecmp($user->user_email, (string) $site_admin_email) === 0)) {
+        // Safety Guardrail: Primary site administrators are permanently immune from JIT restriction or demotion
+        if (self::is_primary_admin($user_id)) {
             return [
                 'success' => false,
-                'message' => __('Primary site administrator (User ID 1 / admin_email) is permanently immune from JIT restriction or demotion.', 'wcp-security-scanner'),
+                'message' => __('Primary site administrator / site owner is permanently immune from JIT restriction or demotion.', 'wcp-security-scanner'),
             ];
         }
 
@@ -282,13 +395,12 @@ class EphemeralAdminEngine {
         $baseline_role = $entry['baseline_role'] ?? 'subscriber';
 
         $user = get_userdata($user_id);
-        $site_admin_email = get_option('admin_email');
-        if ($user_id === 1 || ($user && strcasecmp($user->user_email, (string) $site_admin_email) === 0)) {
+        if (self::is_primary_admin($user_id)) {
             unset($elevations[$user_id]);
             update_option(self::OPTION_EPHEMERAL_ADMINS, $elevations);
             return [
                 'success' => false,
-                'message' => __('Cannot alter role for User ID 1 or primary site admin email.', 'wcp-security-scanner'),
+                'message' => __('Cannot alter role for primary site administrator or site owner.', 'wcp-security-scanner'),
             ];
         }
 
@@ -351,13 +463,12 @@ class EphemeralAdminEngine {
         $baseline_role = $entry['baseline_role'] ?? 'subscriber';
 
         $user = get_userdata($user_id);
-        $site_admin_email = get_option('admin_email');
-        if ($user_id === 1 || ($user && strcasecmp($user->user_email, (string) $site_admin_email) === 0)) {
+        if (self::is_primary_admin($user_id)) {
             unset($elevations[$user_id]);
             update_option(self::OPTION_EPHEMERAL_ADMINS, $elevations);
             return [
                 'success' => false,
-                'message' => __('Cannot alter role for User ID 1 or primary site admin email.', 'wcp-security-scanner'),
+                'message' => __('Cannot alter role for primary site administrator or site owner.', 'wcp-security-scanner'),
             ];
         }
 
@@ -515,10 +626,10 @@ class EphemeralAdminEngine {
             $roles = (array) $user->roles;
             $primary_role = reset($roles) ?: 'subscriber';
 
-            // Filter out permanent administrators unless currently elevated via JIT
+            // Filter out permanent administrators and protected primary owners
             $is_elevated = isset($active_elevations[$user->ID]);
-            if (in_array('administrator', $roles, true) && !$is_elevated) {
-                continue; // Permanent administrator, cannot elevate
+            if (self::is_primary_admin((int) $user->ID) || (in_array('administrator', $roles, true) && !$is_elevated)) {
+                continue; // Permanent administrator / primary site owner, cannot elevate
             }
 
             $candidates[] = [

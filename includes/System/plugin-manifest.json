@@ -1,6 +1,6 @@
 {
   "version": "2.3.0",
-  "generated_at": "2026-11-03T01:07:08.948Z",
+  "generated_at": "2026-11-03T01:17:47.331Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -300,8 +300,8 @@
       "size": 13780
     },
     "includes/Identity/EphemeralAdminEngine.php": {
-      "sha256": "766a060659d805c9e1a6f72eab2308d00300118783e1db4ac4ada3d1cdf50c83",
-      "size": 21396
+      "sha256": "3f3360dd2fe45e7ef4851e27e6deb21ee3362759f1075dbd1009f934c2f78a2c",
+      "size": 25240
     },
     "includes/Identity/HIBPBreachAuditor.php": {
       "sha256": "7ad0f60894908a6f0abe2aec26170a86e22001ecc4343d403c2999e999852b92",
