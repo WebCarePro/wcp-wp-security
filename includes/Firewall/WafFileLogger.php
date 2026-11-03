@@ -266,11 +266,13 @@ class WafFileLogger {
             for ($i = 3; $i >= 1; $i--) {
                 $old_rot = $filepath . '.' . $i;
                 if ($i === 3 && file_exists($old_rot)) {
-                    @unlink($old_rot);
+                    wp_delete_file($old_rot);
                 } elseif (file_exists($old_rot)) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- High-speed local log rotation before file append
                     @rename($old_rot, $filepath . '.' . ($i + 1));
                 }
             }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- High-speed local log rotation before file append
             @rename($filepath, $filepath . '.1');
         }
 

@@ -243,10 +243,10 @@ class HoneyTokenEngine {
 
         // 0. Prefetch Immunity Check (Chrome Speculation Rules / Link Pre-loaders)
         $purpose_headers = [
-            $_SERVER['HTTP_SEC_PURPOSE'] ?? '',
-            $_SERVER['HTTP_PURPOSE'] ?? '',
-            $_SERVER['HTTP_X_PURPOSE'] ?? '',
-            $_SERVER['HTTP_X_MOZ'] ?? '',
+            isset($_SERVER['HTTP_SEC_PURPOSE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_SEC_PURPOSE'])) : '',
+            isset($_SERVER['HTTP_PURPOSE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_PURPOSE'])) : '',
+            isset($_SERVER['HTTP_X_PURPOSE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_PURPOSE'])) : '',
+            isset($_SERVER['HTTP_X_MOZ']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_MOZ'])) : '',
         ];
         foreach ($purpose_headers as $h) {
             if (!empty($h) && (stripos((string) $h, 'prefetch') !== false || stripos((string) $h, 'preview') !== false)) {

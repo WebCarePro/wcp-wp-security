@@ -1,6 +1,6 @@
 {
   "version": "2.3.0",
-  "generated_at": "2026-11-03T01:20:13.616Z",
+  "generated_at": "2026-11-03T01:33:19.334Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -244,12 +244,12 @@
       "size": 28458
     },
     "includes/Firewall/GhostRouteTrap.php": {
-      "sha256": "f261613277b5165248e47bb9e1d7edfe0724f4ab338881de337b0b94f343ce4c",
-      "size": 13545
+      "sha256": "1264cffcbaaaaa6080c17ac028131a0649b766d1378ed4a819f1b8f476c393e8",
+      "size": 13813
     },
     "includes/Firewall/HoneyTokenEngine.php": {
-      "sha256": "4aea892f25c7c4c457716f6b0944e01a4e1082300ba4d819b37e90e39cd3e17a",
-      "size": 20822
+      "sha256": "e4066255644753f9e1d1097140ca67ccccdf5b125396a22b37ac7af878213881",
+      "size": 21090
     },
     "includes/Firewall/LearningModeEngine.php": {
       "sha256": "ed7c387035b0706f728339a8351bfa3c42cc0621ee303ed95772d5ec855d4987",
@@ -284,8 +284,8 @@
       "size": 20926
     },
     "includes/Firewall/WafFileLogger.php": {
-      "sha256": "31f3eadc5ac5581a4a50ffcd03448ac81fecab05ff8a4edb1b86ffb9451d5709",
-      "size": 33896
+      "sha256": "a42da36042907ae0df17db276b1ef1d8b4e85d25cacb3e010c2afc11b828f1e7",
+      "size": 34167
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "0b281308f119113cce5785ce57357287909460142929d7a281b8872d1ccbf3cd",

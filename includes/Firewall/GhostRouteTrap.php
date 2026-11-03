@@ -163,10 +163,10 @@ class GhostRouteTrap {
         // Modern browser speculative prefetching (Chrome Speculation Rules, WP Rocket prefetch, etc.),
         // genuine search crawlers (Googlebot, Bingbot, etc.), and verified uptime monitors must NEVER be banned or blocked.
         $purpose_headers = [
-            $_SERVER['HTTP_SEC_PURPOSE'] ?? '',
-            $_SERVER['HTTP_PURPOSE'] ?? '',
-            $_SERVER['HTTP_X_PURPOSE'] ?? '',
-            $_SERVER['HTTP_X_MOZ'] ?? '',
+            isset($_SERVER['HTTP_SEC_PURPOSE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_SEC_PURPOSE'])) : '',
+            isset($_SERVER['HTTP_PURPOSE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_PURPOSE'])) : '',
+            isset($_SERVER['HTTP_X_PURPOSE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_PURPOSE'])) : '',
+            isset($_SERVER['HTTP_X_MOZ']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_MOZ'])) : '',
         ];
         $is_prefetch = false;
         foreach ($purpose_headers as $h) {
