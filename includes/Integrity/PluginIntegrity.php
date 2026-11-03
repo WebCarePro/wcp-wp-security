@@ -218,7 +218,7 @@ class PluginIntegrity {
                     '.htaccess', 'web.config', 'error_log', '.ds_store', 'thumbs.db',
                     '.gitignore', 'license', 'license.txt', 'readme.md', 'changelog.txt'
                 ];
-                $runtime_dirs = ['logs', 'storage', 'cache', 'caches', 'backups', 'temp', 'tmp'];
+                $runtime_dirs = ['logs', 'storage', 'cache', 'caches', 'backups', 'temp', 'tmp', 'definitioncache', 'serializer', 'wfcache', 'htmlpurifier'];
 
                 try {
                     $iterator = new \RecursiveIteratorIterator(

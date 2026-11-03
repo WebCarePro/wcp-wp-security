@@ -174,6 +174,8 @@ class CoreIntegrity {
                     'xmlrpc.php', 'index.php', 'license.txt', 'readme.html',
                     '.htaccess', 'web.config', 'robots.txt', 'favicon.ico', '.user.ini', 'php.ini',
                     'error_log', '.ds_store', 'thumbs.db', 'sitemap.xml', 'sitemap.xml.gz',
+                    'llms.txt', 'llms-full.txt', '.htaccess.bk', '.htaccess.bak', '.htaccess.old',
+                    'humans.txt', 'ads.txt', 'app-ads.txt', 'security.txt'
                 ];
 
                 foreach ($root_items as $item_name) {
@@ -198,7 +200,10 @@ class CoreIntegrity {
                     if (is_file($full_item_path)) {
                         // Check if file is recognized in official root checksums or standard legitimate root list
                         $rel_file = $item_name;
-                        if (!isset($checksums[$rel_file]) && !in_array($item_name_lower, $known_root_standard_entries, true)) {
+                        $is_google_verify = (bool) preg_match('/^google[a-f0-9]{16,}\.html$/i', $item_name);
+                        $is_standard_entry = in_array($item_name_lower, $known_root_standard_entries, true) || $is_google_verify;
+
+                        if (!isset($checksums[$rel_file]) && !$is_standard_entry) {
                             $ext = strtolower(pathinfo($item_name, PATHINFO_EXTENSION));
                             $is_hidden_file = str_starts_with($item_name, '.');
                             $is_executable = in_array($ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl', 'py', 'rb'], true);
@@ -217,6 +222,7 @@ class CoreIntegrity {
                         }
                     } elseif (is_dir($full_item_path)) {
                         // Unknown directory or hidden .dot directory on WordPress root
+                        // Note: Standard root directories include wp-admin, wp-includes, wp-content, and .well-known (RFC 5785 / ACME / Apple Pay)
                         if (!in_array($item_name_lower, ['wp-admin', 'wp-includes', 'wp-content'], true)) {
                             $is_dot_dir = str_starts_with($item_name, '.');
 
@@ -242,6 +248,11 @@ class CoreIntegrity {
                                     $child_rel = str_replace($normalized_abs, '', $normalized_child);
                                     $child_ext = strtolower($child_item->getExtension());
                                     $child_executable = in_array($child_ext, ['php', 'phtml', 'php5', 'php7', 'phar', 'inc', 'cgi', 'sh', 'pl'], true);
+
+                                    // Whitelist recognized .well-known RFC 5785 tokens (e.g. apple-developer-merchantid-domain-association, pki-validation)
+                                    if ($item_name_lower === '.well-known' && !$child_executable) {
+                                        continue;
+                                    }
 
                                     $findings[] = new Finding([
                                         'engine'      => 'integrity-core',
