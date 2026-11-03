@@ -2917,6 +2917,7 @@ class FirewallEngine {
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
 
         // 1. E-Commerce & Checkout AJAX handler (WooCommerce, SureCart, EDD)
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Low-level firewall intercept inspects query parameters to determine structured JSON error formatting
         $is_wc_ajax = !empty($_GET['wc-ajax']) || !empty($_GET['wc-api']);
         if ($is_wc_ajax || (wp_doing_ajax() && self::is_commerce_or_membership_request($raw_uri))) {
             status_header(403);
