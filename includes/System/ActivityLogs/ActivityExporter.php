@@ -37,8 +37,9 @@ class ActivityExporter {
      *
      * @param array $records Decrypted event records.
      * @param string $filename Download filename.
+     * @param bool $include_system_info Whether to prepend environmental snapshot preamble.
      */
-    public static function stream_csv(array $records, string $filename = 'wcp-activity-logs.csv'): void {
+    public static function stream_csv(array $records, string $filename = 'wcp-activity-logs.csv', bool $include_system_info = false): void {
         if (ob_get_level()) {
             ob_end_clean();
         }
@@ -53,6 +54,33 @@ class ActivityExporter {
         // UTF-8 BOM for Excel compatibility
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
         fwrite($out, "\xEF\xBB\xBF");
+
+        // Optional System Diagnostic & Environmental Preheader
+        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
+            $telemetry = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+            $cf_text   = !empty($telemetry['edge_network']['powered_by_cloudflare']) ? 'YES (' . ($telemetry['edge_network']['cloudflare_status'] ?? 'Cloudflare Edge') . ')' : 'NO (Direct Origin)';
+            $act_plugins = !empty($telemetry['plugins']['active_plugins']) ? array_column($telemetry['plugins']['active_plugins'], 'name') : [];
+            $act_plugins_str = implode(', ', array_slice($act_plugins, 0, 15)) . (count($act_plugins) > 15 ? sprintf(' ... (+%d more)', count($act_plugins) - 15) : '');
+
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# =============================================================================\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# WCP SECURITY SCANNER - AUDIT & ACTIVITY LOG EXPORT\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# Site Domain: " . ($telemetry['site']['domain'] ?? 'Unknown') . " | Real Server IP: " . ($telemetry['server']['real_ip'] ?? 'Unknown') . "\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# Cloudflare Edge: " . $cf_text . "\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# Server Software: " . ($telemetry['server']['software'] ?? 'Unknown') . " | PHP: " . ($telemetry['server']['php_version'] ?? 'Unknown') . " | WP Core: " . ($telemetry['wordpress']['core_version'] ?? 'Unknown') . "\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# Active Theme: " . ($telemetry['theme']['active_theme']['name'] ?? 'Unknown') . " (v" . ($telemetry['theme']['active_theme']['version'] ?? 'Unknown') . ")\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# Active Plugins (" . count($act_plugins) . "): " . $act_plugins_str . "\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# Exported At (UTC): " . ($telemetry['exported_at_utc'] ?? gmdate('Y-m-d\TH:i:s\Z')) . "\r\n");
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            fwrite($out, "# =============================================================================\r\n");
+        }
 
         // CSV Header
         fputcsv($out, [
@@ -108,8 +136,9 @@ class ActivityExporter {
      *
      * @param array $records
      * @param string $filename
+     * @param bool $include_system_info Whether to embed environmental snapshot.
      */
-    public static function stream_json(array $records, string $filename = 'wcp-activity-logs.json'): void {
+    public static function stream_json(array $records, string $filename = 'wcp-activity-logs.json', bool $include_system_info = false): void {
         if (ob_get_level()) {
             ob_end_clean();
         }
@@ -119,11 +148,17 @@ class ActivityExporter {
         header('Pragma: no-cache');
         header('Expires: 0');
 
-        echo json_encode([
+        $payload = [
             'exported_at_utc' => gmdate('Y-m-d\TH:i:s\Z'),
             'records'         => $records,
             'total_count'     => count($records),
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        ];
+
+        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
+            $payload['environment_snapshot'] = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        }
+
+        echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         exit;
     }
 }

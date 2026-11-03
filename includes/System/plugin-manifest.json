@@ -1,6 +1,6 @@
 {
   "version": "2.3.0",
-  "generated_at": "2026-11-03T20:38:50.977Z",
+  "generated_at": "2026-11-03T21:11:36.350Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,7 +36,7 @@
       "size": 572466
     },
     "build/index.asset.php": {
-      "sha256": "b14493f37c318f1313249938008e1cafa6659df82a49a540e882ce29a29ea5a5",
+      "sha256": "b0051cb5d7c07b4ca3090d6152eca6607394cf9d49142f3e683b592dbd20b0ec",
       "size": 121
     },
     "build/index.css": {
@@ -44,8 +44,8 @@
       "size": 572297
     },
     "build/index.js": {
-      "sha256": "ffd138bf8cca967b8a6cd63d01463be52800e5a9aa1aa47c33a084b66d433298",
-      "size": 2231045
+      "sha256": "b24bff27163011698854bebbcf9b9d9919eb5b156340c8ef4f1ebbc42f7e207e",
+      "size": 2239078
     },
     "composer.json": {
       "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
@@ -72,8 +72,8 @@
       "size": 73681
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "9d7edb517a40331faf91d7135ad70df92b11030eec32616d22b2a73ddbb3576e",
-      "size": 528841
+      "sha256": "26ea74cc32c53bb44cd5cf1e968abed6fc04d885270e4b982fc6fff6f8fc5816",
+      "size": 533905
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "9e97b8abc045ca309fcb211443214328b6b9a5d1e5e04612d2d097e972b0d99d",
@@ -520,8 +520,8 @@
       "size": 8043
     },
     "includes/System/ActivityLogs/ActivityExporter.php": {
-      "sha256": "97a40c0e62679b6e6271b759a9c35f989ca5c7685cfa2795e9f13381bfe602eb",
-      "size": 4440
+      "sha256": "97b0bc3f47768048fc847c3e499066ab8236bdc119198d5e502c7e4f6d2c6a6e",
+      "size": 7729
     },
     "includes/System/ActivityLogs/ActivityHashChain.php": {
       "sha256": "d69c0ff1f7c06fb11ea75010ecef831d5f641b3e8b8c4ffc7497334cfadacf60",
@@ -582,6 +582,10 @@
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "166d9705dac653ea076209d111b27d4e3c468fac4f24d788d432bdafa82e824e",
       "size": 25930
+    },
+    "includes/System/TelemetrySnapshot.php": {
+      "sha256": "91382b85a10158348eef7b72540e62f985838ae623761fdeb620c2ea9be9e26e",
+      "size": 8562
     },
     "includes/System/WcpActivityLogger.php": {
       "sha256": "786711717643d8c78e2471a8745e3394651450cd499b6a743960f58b07b1ddf3",
