@@ -257,6 +257,27 @@ export const FirewallPage = ({
   const [copiedIp, setCopiedIp] = useState<string | null>(null);
   const [showDevTelemetry, setShowDevTelemetry] = useState<boolean>(false);
 
+  // In-Page Notification Toast / Alert Banner State
+  const [firewallNotice, setFirewallNotice] = useState<{
+    type: 'success' | 'error' | 'warning' | 'info';
+    text: string;
+    title?: string;
+  } | null>(null);
+
+  const showFirewallNotice = (
+    type: 'success' | 'error' | 'warning' | 'info',
+    text: string,
+    title?: string,
+    duration: number = 6000
+  ) => {
+    setFirewallNotice({ type, text, title });
+    if (duration > 0) {
+      setTimeout(() => {
+        setFirewallNotice((prev) => (prev && prev.text === text ? null : prev));
+      }, duration);
+    }
+  };
+
   // In-App Confirm Dialog State
   const [firewallConfirmDialog, setFirewallConfirmDialog] = useState<{
     isOpen: boolean;
@@ -470,11 +491,12 @@ export const FirewallPage = ({
             setCfWhitelistList(prev => prev.filter(r => r.id !== ruleId));
             setCfWhitelistTotal(prev => Math.max(0, prev - 1));
             loadCloudflareData();
+            showFirewallNotice('success', `Cloudflare Edge whitelist rule for ${ip} was removed.`);
           } else {
-            alert(res?.message || 'Failed to remove whitelist rule.');
+            showFirewallNotice('error', res?.message || 'Failed to remove whitelist rule.');
           }
         } catch (err: any) {
-          alert('Error removing whitelist rule: ' + (err?.message || 'Network error'));
+          showFirewallNotice('error', 'Error removing whitelist rule: ' + (err?.message || 'Network error'));
         } finally {
           setRemovingCfWhitelistId(null);
         }
@@ -533,11 +555,12 @@ export const FirewallPage = ({
             setBannedIpsList(prev => prev.filter(r => r.id !== ruleId));
             setBannedIpsTotal(prev => Math.max(0, prev - 1));
             loadCloudflareData();
+            showFirewallNotice('success', `IP ${ip} was successfully unbanned from Cloudflare Edge.`);
           } else {
-            alert(res?.message || 'Failed to unban IP.');
+            showFirewallNotice('error', res?.message || 'Failed to unban IP.');
           }
         } catch (err: any) {
-          alert('Error unbanning IP: ' + (err?.message || 'Network error'));
+          showFirewallNotice('error', 'Error unbanning IP: ' + (err?.message || 'Network error'));
         } finally {
           setUnbanningRuleId(null);
         }
@@ -563,12 +586,12 @@ export const FirewallPage = ({
   const handleSyncWhitelistToCloudflare = async () => {
     const rawIps = wafSettings.waf_whitelisted_ips.trim();
     if (!rawIps) {
-      alert('Your Whitelisted IP list is currently empty. Please enter at least one IP address.');
+      showFirewallNotice('warning', 'Your Whitelisted IP list is currently empty. Please enter at least one IP address.');
       return;
     }
     const ipList = rawIps.split(/[\r\n,]+/).map(i => i.trim()).filter(Boolean);
     if (ipList.length === 0) {
-      alert('No valid IP addresses found in the whitelist box.');
+      showFirewallNotice('warning', 'No valid IP addresses found in the whitelist box.');
       return;
     }
 
@@ -603,18 +626,21 @@ export const FirewallPage = ({
           success: true,
           message: `Successfully synchronized ${successCount} IP(s) to Cloudflare Edge as 'Allow' IP Access Rules! Edge rules will never challenge or block your IP.`
         });
+        showFirewallNotice('success', `Synchronized ${successCount} IP(s) to Cloudflare Edge Whitelist.`);
         loadCloudflareData();
       } else {
         setWhitelistSyncResult({
           success: false,
           message: errorMsgs.join('; ') || 'Failed to sync whitelist to Cloudflare Edge.'
         });
+        showFirewallNotice('error', errorMsgs.join('; ') || 'Failed to sync whitelist to Cloudflare Edge.');
       }
     } catch (err: any) {
       setWhitelistSyncResult({
         success: false,
         message: err?.message || 'Error occurred during Edge Whitelist sync.'
       });
+      showFirewallNotice('error', err?.message || 'Error occurred during Edge Whitelist sync.');
     } finally {
       setSyncingWhitelistToCf(false);
       setTimeout(() => setWhitelistSyncResult(null), 8000);
@@ -624,12 +650,12 @@ export const FirewallPage = ({
   const handleSyncBlocklistToCloudflare = async () => {
     const rawIps = wafSettings.waf_blocked_ips.trim();
     if (!rawIps) {
-      alert('Your Blocked IP list is currently empty. Please enter at least one IP address.');
+      showFirewallNotice('warning', 'Your Blocked IP list is currently empty. Please enter at least one IP address.');
       return;
     }
     const ipList = rawIps.split(/[\r\n,]+/).map(i => i.trim()).filter(Boolean);
     if (ipList.length === 0) {
-      alert('No valid IP addresses found in the blocklist box.');
+      showFirewallNotice('warning', 'No valid IP addresses found in the blocklist box.');
       return;
     }
 
@@ -811,7 +837,7 @@ export const FirewallPage = ({
     e.preventDefault();
     const cleanIp = modalNewBlockIp.trim();
     if (!cleanIp) {
-      alert('Please enter a valid IP address or CIDR range.');
+      showFirewallNotice('warning', 'Please enter a valid IP address or CIDR range.');
       return;
     }
     try {
@@ -831,11 +857,12 @@ export const FirewallPage = ({
         setModalNewBlockDuration(0);
         setShowManualBlockForm(false);
         await fetchBlocklistData();
+        showFirewallNotice('success', `IP ${cleanIp} was added to the firewall blocklist.`);
       } else {
-        alert(res?.message || 'Failed to add IP to blocklist.');
+        showFirewallNotice('error', res?.message || 'Failed to add IP to blocklist.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Error adding IP to blocklist.');
+      showFirewallNotice('error', err?.message || 'Error adding IP to blocklist.');
     } finally {
       setSavingManualBlock(false);
     }
@@ -918,7 +945,7 @@ export const FirewallPage = ({
     e.preventDefault();
     const cleanIp = newWhitelistIp.trim();
     if (!cleanIp) {
-      alert('Please enter a valid IP address or CIDR range.');
+      showFirewallNotice('warning', 'Please enter a valid IP address or CIDR range.');
       return;
     }
     try {
@@ -939,11 +966,12 @@ export const FirewallPage = ({
         } else {
           await fetchWhitelistData();
         }
+        showFirewallNotice('success', `IP ${cleanIp} added to whitelist.`);
       } else {
-        alert(res?.message || 'Failed to add IP to whitelist.');
+        showFirewallNotice('error', res?.message || 'Failed to add IP to whitelist.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Error adding IP to whitelist.');
+      showFirewallNotice('error', err?.message || 'Error adding IP to whitelist.');
     } finally {
       setAddingWhitelistIp(false);
     }
@@ -962,11 +990,12 @@ export const FirewallPage = ({
         const currentWhitelisted = wafSettings.waf_whitelisted_ips || '';
         const lines = currentWhitelisted.split('\n').map(l => l.trim()).filter(l => l && l !== ip);
         setWafSettings(prev => ({ ...prev, waf_whitelisted_ips: lines.join('\n') }));
+        showFirewallNotice('success', `IP ${ip} removed from whitelist.`);
       } else {
-        alert(res?.message || 'Failed to remove IP from whitelist.');
+        showFirewallNotice('error', res?.message || 'Failed to remove IP from whitelist.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Error removing IP from whitelist.');
+      showFirewallNotice('error', err?.message || 'Error removing IP from whitelist.');
     } finally {
       setRemovingWhitelistIp(null);
     }
@@ -976,7 +1005,7 @@ export const FirewallPage = ({
     e.preventDefault();
     const cleanIp = newBlockIp.trim();
     if (!cleanIp) {
-      alert('Please enter a valid IP address or CIDR range.');
+      showFirewallNotice('warning', 'Please enter a valid IP address or CIDR range.');
       return;
     }
     try {
@@ -994,11 +1023,12 @@ export const FirewallPage = ({
         setNewBlockIp('');
         setNewBlockReason('');
         await fetchBlocklistData();
+        showFirewallNotice('success', `IP ${cleanIp} added to blocklist.`);
       } else {
-        alert(res?.message || 'Failed to add IP to blocklist.');
+        showFirewallNotice('error', res?.message || 'Failed to add IP to blocklist.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Error adding IP to blocklist.');
+      showFirewallNotice('error', err?.message || 'Error adding IP to blocklist.');
     } finally {
       setAddingBlockIp(false);
     }
@@ -1018,9 +1048,12 @@ export const FirewallPage = ({
         const currentBlocked = wafSettings.waf_blocked_ips || '';
         const lines = currentBlocked.split('\n').map(l => l.trim()).filter(l => l && l !== ip);
         setWafSettings(prev => ({ ...prev, waf_blocked_ips: lines.join('\n') }));
+        showFirewallNotice('success', `IP ${ip} was unblocked.`);
+      } else {
+        showFirewallNotice('error', res?.message || 'Failed to unblock IP');
       }
     } catch (e: any) {
-      alert(e?.message || 'Failed to unblock IP');
+      showFirewallNotice('error', e?.message || 'Failed to unblock IP');
     } finally {
       setUnblockingIp(null);
     }
@@ -1037,12 +1070,20 @@ export const FirewallPage = ({
       const isIpv6 = parts[0].includes(':');
       if (!isIpv6) {
         if (prefix !== 16 && prefix !== 24) {
-          alert(`Cloudflare IP Access Rules only allows IPv4 ranges of /16 or /24.\n\nSubnet ${ip} (/` + prefix + `) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules or block specific /24 subnets instead.`);
+          showFirewallNotice(
+            'error',
+            `Cloudflare IP Access Rules only allows IPv4 ranges of /16 or /24.\n\nSubnet ${ip} (/${prefix}) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules or block specific /24 subnets instead.`,
+            'Cloudflare CIDR Limitation'
+          );
           return;
         }
       } else {
         if (prefix !== 32 && prefix !== 48 && prefix !== 64) {
-          alert(`Cloudflare IP Access Rules only allows IPv6 ranges of /32, /48, or /64.\n\nSubnet ${ip} (/` + prefix + `) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules instead.`);
+          showFirewallNotice(
+            'error',
+            `Cloudflare IP Access Rules only allows IPv6 ranges of /32, /48, or /64.\n\nSubnet ${ip} (/${prefix}) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules instead.`,
+            'Cloudflare CIDR Limitation'
+          );
           return;
         }
       }
@@ -1059,7 +1100,7 @@ export const FirewallPage = ({
         }
       });
       if (res && res.success) {
-        alert(res.message || `IP/Subnet ${ip} was successfully pushed to Cloudflare Edge (Mode: Block).`);
+        showFirewallNotice('success', res.message || `IP/Subnet ${ip} was successfully pushed to Cloudflare Edge (Mode: Block).`);
         if (typeof loadCloudflareData === 'function') {
           loadCloudflareData();
         }
@@ -1067,10 +1108,10 @@ export const FirewallPage = ({
           loadBannedIps();
         }
       } else {
-        alert(res?.message || `Failed to push ${ip} to Cloudflare Edge.`);
+        showFirewallNotice('error', res?.message || `Failed to push ${ip} to Cloudflare Edge.`);
       }
     } catch (err: any) {
-      alert(`Error pushing IP to Cloudflare Edge: ${err?.message || 'Network error'}`);
+      showFirewallNotice('error', `Error pushing IP to Cloudflare Edge: ${err?.message || 'Network error'}`);
     } finally {
       setCfActionIp(null);
     }
@@ -1094,7 +1135,7 @@ export const FirewallPage = ({
         }
       });
       if (res && res.success) {
-        alert(res.message || `IP/Subnet ${ip} was successfully unblocked from Cloudflare Edge.`);
+        showFirewallNotice('success', res.message || `IP/Subnet ${ip} was successfully unblocked from Cloudflare Edge.`);
         if (ruleId) {
           setBannedIpsList(prev => prev.filter(r => r.id !== ruleId));
           setBannedIpsTotal(prev => Math.max(0, prev - 1));
@@ -1106,10 +1147,10 @@ export const FirewallPage = ({
           loadBannedIps();
         }
       } else {
-        alert(res?.message || `Failed to unblock ${ip} from Cloudflare Edge.`);
+        showFirewallNotice('error', res?.message || `Failed to unblock ${ip} from Cloudflare Edge.`);
       }
     } catch (err: any) {
-      alert(`Error unblocking from Cloudflare Edge: ${err?.message || 'Network error'}`);
+      showFirewallNotice('error', `Error unblocking from Cloudflare Edge: ${err?.message || 'Network error'}`);
     } finally {
       setCfActionIp(null);
     }
@@ -1589,11 +1630,12 @@ export const FirewallPage = ({
             setCfDeployMessage(null);
             loadCloudflareData();
             loadStatus(true);
+            showFirewallNotice('success', 'Cloudflare integration successfully disconnected.');
           } else {
-            alert(res?.message || 'Failed to disconnect Cloudflare.');
+            showFirewallNotice('error', res?.message || 'Failed to disconnect Cloudflare.');
           }
         } catch (err: any) {
-          alert('Error disconnecting: ' + (err?.message || 'Network error'));
+          showFirewallNotice('error', 'Error disconnecting: ' + (err?.message || 'Network error'));
         } finally {
           setDisconnectingCf(false);
         }
@@ -1721,12 +1763,13 @@ export const FirewallPage = ({
           const res = await apiRequest({ path: '/cloudflare/purge-cache', method: 'POST' });
           if (res && res.success) {
             setCfPurgeMessage(res.message || 'Cache purged successfully!');
+            showFirewallNotice('success', res.message || 'Cloudflare Edge CDN cache purged successfully!');
             setTimeout(() => setCfPurgeMessage(null), 5000);
           } else {
-            alert(res?.message || 'Failed to purge cache.');
+            showFirewallNotice('error', res?.message || 'Failed to purge cache.');
           }
         } catch (err: any) {
-          alert('Error purging cache: ' + (err?.message || 'Network error'));
+          showFirewallNotice('error', 'Error purging cache: ' + (err?.message || 'Network error'));
         } finally {
           setCfPurging(false);
         }
@@ -1744,12 +1787,20 @@ export const FirewallPage = ({
       const isIpv6 = parts[0].includes(':');
       if (!isIpv6) {
         if (prefix !== 16 && prefix !== 24) {
-          alert(`Cloudflare IP Access Rules only allows IPv4 ranges of /16 or /24.\n\nSubnet ${ip} (/` + prefix + `) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules instead.`);
+          showFirewallNotice(
+            'error',
+            `Cloudflare IP Access Rules only allows IPv4 ranges of /16 or /24.\n\nSubnet ${ip} (/${prefix}) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules instead.`,
+            'Cloudflare CIDR Limitation'
+          );
           return;
         }
       } else {
         if (prefix !== 32 && prefix !== 48 && prefix !== 64) {
-          alert(`Cloudflare IP Access Rules only allows IPv6 ranges of /32, /48, or /64.\n\nSubnet ${ip} (/` + prefix + `) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules instead.`);
+          showFirewallNotice(
+            'error',
+            `Cloudflare IP Access Rules only allows IPv6 ranges of /32, /48, or /64.\n\nSubnet ${ip} (/${prefix}) cannot be added to IP Access Rules. Please use Cloudflare WAF Custom Rules instead.`,
+            'Cloudflare CIDR Limitation'
+          );
           return;
         }
       }
@@ -1766,15 +1817,15 @@ export const FirewallPage = ({
         }
       });
       if (res && res.success) {
-        alert(res.message);
+        showFirewallNotice('success', res.message || `IP/Subnet ${ip} blocked at Cloudflare Edge.`);
         setManualBlockIp('');
         setManualBlockReason('');
         loadCloudflareData();
       } else {
-        alert(res?.message || 'Failed to block IP at Cloudflare Edge.');
+        showFirewallNotice('error', res?.message || 'Failed to block IP at Cloudflare Edge.');
       }
     } catch (err: any) {
-      alert('Error: ' + (err?.message || 'Network error'));
+      showFirewallNotice('error', 'Error: ' + (err?.message || 'Network error'));
     } finally {
       setManualBlocking(false);
     }
@@ -1825,9 +1876,10 @@ export const FirewallPage = ({
           waf_mode: enable ? (prev.waf_mode === 'disabled' ? 'enabled' : prev.waf_mode) : 'disabled'
         }));
         setStatus(res.status);
+        showFirewallNotice('success', `Firewall ${enable ? 'activated' : 'disabled'} successfully.`);
       }
     } catch (err: any) {
-      alert('Failed to toggle firewall: ' + (err?.message || 'Error'));
+      showFirewallNotice('error', 'Failed to toggle firewall: ' + (err?.message || 'Error'));
     }
   };
 
@@ -1845,9 +1897,10 @@ export const FirewallPage = ({
             if (status) {
               setStatus({ ...status, total_blocks: 0, blocks_24h: 0, top_rules: [] });
             }
+            showFirewallNotice('success', 'Firewall incident logs cleared successfully.');
           }
         } catch (err: any) {
-          alert('Failed to clear logs: ' + (err?.message || 'Error'));
+          showFirewallNotice('error', 'Failed to clear logs: ' + (err?.message || 'Error'));
         }
       },
     });
@@ -1902,6 +1955,7 @@ export const FirewallPage = ({
 
       if (res && res.success) {
         setSavedSingleRuleSuccess(prev => ({ ...prev, [key]: true }));
+        showFirewallNotice('success', `Rule "${key}" updated successfully.`);
         setTimeout(() => {
           setSavedSingleRuleSuccess(prev => {
             const next = { ...prev };
@@ -1910,10 +1964,10 @@ export const FirewallPage = ({
           });
         }, 3000);
       } else {
-        alert(res?.message || `Failed to save rule "${key}".`);
+        showFirewallNotice('error', res?.message || `Failed to save rule "${key}".`);
       }
     } catch (err: any) {
-      alert(`Error saving rule "${key}": ` + (err?.message || 'Network error'));
+      showFirewallNotice('error', `Error saving rule "${key}": ` + (err?.message || 'Network error'));
     } finally {
       setSavingSingleRuleKey(null);
     }
@@ -1922,7 +1976,7 @@ export const FirewallPage = ({
   const handleWhitelistCurrentIp = async () => {
     const clientIp = status?.client_ip?.trim();
     if (!clientIp) {
-      alert('Unable to detect current IP address.');
+      showFirewallNotice('warning', 'Unable to detect current IP address.');
       return;
     }
 
@@ -1951,12 +2005,12 @@ export const FirewallPage = ({
           setWafSettings(prev => ({ ...prev, waf_whitelisted_ips: lines.join('\n') }));
         }
 
-        alert(`Successfully whitelisted your IP (${clientIp})! It is now permanently allowed through all firewall rules.`);
+        showFirewallNotice('success', `Successfully whitelisted your IP (${clientIp})! It is now permanently allowed through all firewall rules.`);
       } else {
-        alert(res?.message || 'Failed to whitelist IP.');
+        showFirewallNotice('error', res?.message || 'Failed to whitelist IP.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Error whitelisting your IP address.');
+      showFirewallNotice('error', err?.message || 'Error whitelisting your IP address.');
     } finally {
       setWhitelistingCurrentIp(false);
     }
@@ -1980,6 +2034,94 @@ export const FirewallPage = ({
 
   return (
     <div className="wcp-page-container" style={{ width: '100%', maxWidth: '100%', margin: '0' }}>
+      {/* Floating In-Page Notification Banner */}
+      {firewallNotice && (
+        <div
+          role="alert"
+          style={{
+            position: 'sticky',
+            top: '32px',
+            zIndex: 9999,
+            marginBottom: '16px',
+            padding: '12px 18px',
+            borderRadius: '10px',
+            boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.15), 0 2px 6px -1px rgba(0, 0, 0, 0.1)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '12px',
+            background:
+              firewallNotice.type === 'error'
+                ? '#fef2f2'
+                : firewallNotice.type === 'success'
+                ? '#ecfdf5'
+                : firewallNotice.type === 'warning'
+                ? '#fffbeb'
+                : '#eff6ff',
+            border: `1px solid ${
+              firewallNotice.type === 'error'
+                ? '#fca5a5'
+                : firewallNotice.type === 'success'
+                ? '#6ee7b7'
+                : firewallNotice.type === 'warning'
+                ? '#fde68a'
+                : '#93c5fd'
+            }`,
+            color:
+              firewallNotice.type === 'error'
+                ? '#991b1b'
+                : firewallNotice.type === 'success'
+                ? '#065f46'
+                : firewallNotice.type === 'warning'
+                ? '#92400e'
+                : '#1e40af',
+            animation: 'wcpFadeSlideDown 0.25s ease-out'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
+            {firewallNotice.type === 'error' ? (
+              <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+            ) : firewallNotice.type === 'success' ? (
+              <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#16a34a' }} />
+            ) : firewallNotice.type === 'warning' ? (
+              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#d97706' }} />
+            ) : (
+              <Info size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#2563eb' }} />
+            )}
+            <div style={{ flex: 1, fontSize: '13px', lineHeight: 1.5 }}>
+              {firewallNotice.title && (
+                <div style={{ fontWeight: 700, fontSize: '13.5px', marginBottom: '2px' }}>
+                  {firewallNotice.title}
+                </div>
+              )}
+              <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-line', fontWeight: 500 }}>
+                {firewallNotice.text}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFirewallNotice(null)}
+            title="Dismiss notice"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'inherit',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+              opacity: 0.75,
+              transition: 'opacity 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.75')}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Top Hero Banner */}
       <div className="wcp-firewall-hero">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
