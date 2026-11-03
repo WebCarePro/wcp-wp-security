@@ -1,6 +1,6 @@
 {
-  "version": "2.3.0",
-  "generated_at": "2026-11-03T21:11:36.350Z",
+  "version": "2.4.0",
+  "generated_at": "2026-11-03T21:40:45.292Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -104,8 +104,8 @@
       "size": 46922
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "33c7ee290d49549c2a4f288cda2034b0c98b09057700b097e6356bba1969cda0",
-      "size": 93335
+      "sha256": "10395db49226bd2ac43f20eb673c092e6a2edd8808a4d0deaeb4dfcf1f3aa8dd",
+      "size": 93677
     },
     "includes/Content/CommentScanner.php": {
       "sha256": "80a9763e6f4f8feaaa37b696490e2e19ad60cadf669e51c5819181c9c6c5d016",
@@ -484,8 +484,8 @@
       "size": 26238
     },
     "includes/Security/PromptInjectionGuard.php": {
-      "sha256": "2b99cea9353343317fcc7ee71bf2a503b6f21a797f097f41b4f406487ad283b3",
-      "size": 12487
+      "sha256": "e55c3c770d41e1bc836319fac605608bd6917e735e7cb18d4d9a18ccb08d8d0f",
+      "size": 12507
     },
     "includes/Security/SecretVault.php": {
       "sha256": "ed17a1bcb0067f0275b11e6c94714dc48c1e0cb8fc0967c17425f713d8b81539",
@@ -584,8 +584,8 @@
       "size": 25930
     },
     "includes/System/TelemetrySnapshot.php": {
-      "sha256": "91382b85a10158348eef7b72540e62f985838ae623761fdeb620c2ea9be9e26e",
-      "size": 8562
+      "sha256": "6dd575029e27ae23c9b08ba2b1c205d6353ccf3dc01c1df2a1ac3d9570ff19cb",
+      "size": 8926
     },
     "includes/System/WcpActivityLogger.php": {
       "sha256": "786711717643d8c78e2471a8745e3394651450cd499b6a743960f58b07b1ddf3",
@@ -632,15 +632,15 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "fe057d27f29860a4e9f964938ca54b77b15e4cebe299c52b6b84dbb7a25e858b",
+      "sha256": "1c829f30ae61f541293128148cb670ed2f90ff71893d0f201f2b2bfe63fd637d",
       "size": 429
     },
     "README.md": {
-      "sha256": "077d3dbe48196b8e8234862bf6a3a5e8e6dee49f4c9e85fe9101582636ef66a1",
+      "sha256": "3467ea34c12c173fa12f531723844458dd8142f5201500e0da76b396ddc40a04",
       "size": 56362
     },
     "readme.txt": {
-      "sha256": "27f33f08eaca0a923dc7774ec81e9d9a68ffa8b09b79b73a445ebc0e23685339",
+      "sha256": "b6751230dbe4d0ba3a12611a29b21e3c85104d4c36c8a8560274c6d6733a40d9",
       "size": 25720
     },
     "uninstall.php": {
@@ -648,7 +648,7 @@
       "size": 9018
     },
     "wcp-wp-scanner.php": {
-      "sha256": "80bb8e4405a903c3ff0408c37ee131db6b700a414d13e5f9fc7e477db1c9b40a",
+      "sha256": "32db08076d4a457d1c220eadcdd2663079611882d135442d1d4abdf1c9b9fd28",
       "size": 6497
     }
   }

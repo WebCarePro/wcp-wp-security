@@ -1,6 +1,10 @@
 <?php
 namespace WcpScanner\System;
 
+use WcpScanner\Firewall\FirewallEngine;
+use WcpScanner\Cloudflare\CloudflareService;
+use WcpScanner\System\SettingsManager;
+
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -52,10 +56,13 @@ class TelemetrySnapshot {
         $has_cf_ip_header   = !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
         $has_cf_ray         = !empty($_SERVER['HTTP_CF_RAY']);
         $remote_ip          = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
-        $is_cf_ip           = class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_cloudflare_ip($remote_ip);
+        $is_cf_ip           = class_exists(FirewallEngine::class) && FirewallEngine::is_cloudflare_ip($remote_ip);
         $is_cf_configured   = false;
-        if (class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-            $is_cf_configured = \WcpScanner\Cloudflare\CloudflareService::is_configured();
+        if (class_exists(CloudflareService::class) && method_exists(CloudflareService::class, 'is_configured')) {
+            $is_cf_configured = CloudflareService::is_configured();
+        } elseif (class_exists(SettingsManager::class)) {
+            $cf_settings = SettingsManager::get_settings();
+            $is_cf_configured = !empty($cf_settings['cloudflare_api_token']) && !empty($cf_settings['cloudflare_zone_id']);
         }
 
         $powered_by_cf = $has_cf_ip_header || $has_cf_ray || $is_cf_ip || $is_cf_configured;

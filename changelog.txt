@@ -1,3 +1,9 @@
+v:2.4.0 - 2026-11-04
+- Diagnostics Telemetry & Cloudflare Edge Verification Hardening (TelemetrySnapshot.php, CloudflareService.php, PromptInjectionGuard.php):
+  * Resolved Autoloading Namespace Mismatch in Telemetry Provider (`TelemetrySnapshot.php`): Imported `FirewallEngine` and `CloudflareService` into the `WcpScanner\System` namespace, resolving a fatal `Class "WcpScanner\System\FirewallEngine" not found` error during WAF log exports with system diagnostics enabled.
+  * Native Cloudflare Configuration State Checker (`CloudflareService.php`, `TelemetrySnapshot.php`): Implemented static `CloudflareService::is_configured()` to cleanly evaluate API token and zone ID presence. Added defensive `method_exists()` and `SettingsManager` fallbacks in `TelemetrySnapshot.php` to prevent undefined method fatal errors during edge proxy environment reporting.
+  * Cross-Namespace Security Logging Hardening (`PromptInjectionGuard.php`): Added explicit import and namespace resolution for `WafFileLogger` within the `WcpScanner\Security` namespace, ensuring prompt injection incidents log smoothly without missing class exceptions.
+
 v:2.3.0 - 2026-11-03
 - Non-Technical Site Owner & Merchant Empowerment Suite (CustomerLockoutCard.tsx, PulseHealthCheck.php, FindingTranslator.php, WeeklyDigestEngine.php):
   * Customer Lockout Finder & 6-Digit Support Code (`FirewallEngine.php`, `ScannerRoutes.php`, `CustomerLockoutCard.tsx`): Overhauled WAF block templates to display a clear, reassuring support screen with a human-readable 6-character reference code (e.g., `#WCP-492A`). Store owners can enter the code or customer IP directly in the Firewall tab to inspect why a customer was held (e.g. coupon brute force or checkout refresh velocity) and unblock them with 1-click 24-hour bypass immunity.

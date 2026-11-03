@@ -2,6 +2,7 @@
 namespace WcpScanner\Security;
 
 use WcpScanner\System\AuditLogger;
+use WcpScanner\Firewall\WafFileLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -242,7 +243,7 @@ class PromptInjectionGuard {
         }
         update_option(self::OPTION_CATCHES, $catches, false);
 
-        if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+        if (class_exists(WafFileLogger::class)) {
             WafFileLogger::log_incident([
                 'ip'              => $ip,
                 'category'        => 'prompt_injection_guard',

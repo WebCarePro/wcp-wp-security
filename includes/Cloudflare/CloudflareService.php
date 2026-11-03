@@ -231,6 +231,16 @@ class CloudflareService {
     }
 
     /**
+     * Check if Cloudflare integration credentials (token and zone ID) are configured.
+     *
+     * @return bool
+     */
+    public static function is_configured(): bool {
+        $settings = SettingsManager::get_settings();
+        return !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
+    }
+
+    /**
      * Get Comprehensive Cloudflare Edge Status
      *
      * @return array
