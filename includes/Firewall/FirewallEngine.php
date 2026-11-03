@@ -3814,7 +3814,9 @@ class FirewallEngine {
         if (!in_array($ip, $lines, true)) {
             $lines[] = $ip;
             $settings['waf_blocked_ips'] = implode("\n", $lines);
+            SettingsManager::$suppress_firewall_ruleset_log = true;
             SettingsManager::save_settings($settings);
+            SettingsManager::$suppress_firewall_ruleset_log = false;
         }
 
         // Persist structured metadata
@@ -3881,7 +3883,9 @@ class FirewallEngine {
 
         if ($changed) {
             $settings['waf_blocked_ips'] = implode("\n", $new_lines);
+            SettingsManager::$suppress_firewall_ruleset_log = true;
             SettingsManager::save_settings($settings);
+            SettingsManager::$suppress_firewall_ruleset_log = false;
         }
 
         // 2. Unlock from Login Hardening if locked

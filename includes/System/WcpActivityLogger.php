@@ -4,6 +4,7 @@ namespace WcpScanner\System;
 use WcpScanner\System\ActivityLogs\ActivityCanonicalizer;
 use WcpScanner\System\ActivityLogs\ActivityEventSchema;
 use WcpScanner\System\ActivityLogs\ActivityHashChain;
+use WcpScanner\System\ActivityLogs\ActivityHumanizer;
 use WcpScanner\System\ActivityLogs\ActivityRateLimiter;
 use WcpScanner\System\ActivityLogs\ActivityRecovery;
 use WcpScanner\System\ActivityLogs\ActivityRetention;
@@ -35,6 +36,11 @@ class WcpActivityLogger {
      * Deduplication registry for option watcher within single request lifecycle.
      */
     private static array $logged_options_in_request = [];
+
+    /**
+     * Registry of distinct actions logged within this request lifecycle.
+     */
+    public static array $logged_actions_in_request = [];
 
     /**
      * Initialize listeners and hooks.
@@ -88,6 +94,9 @@ class WcpActivityLogger {
                 $actor_override,
                 $correlation_id
             );
+
+            // Track action in current request registry
+            self::$logged_actions_in_request[$action] = true;
 
             // Execute transaction under 3-tier lock
             $success = self::execute_wal_transaction($event_payload);
@@ -283,6 +292,22 @@ class WcpActivityLogger {
     }
 
     /**
+     * Check if specific actions were already committed in the current request.
+     * Useful for preventing secondary duplicate setting/option diff logs.
+     *
+     * @param string ...$actions
+     * @return bool
+     */
+    public static function has_action_logged(string ...$actions): bool {
+        foreach ($actions as $act) {
+            if (!empty(self::$logged_actions_in_request[$act])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Read records with cursor pagination and filters.
      *
      * @param array $args ['cursor' => string, 'limit' => int, 'category' => string, 'actor_type' => string, 'severity' => string, 'search' => string]
@@ -393,7 +418,7 @@ class WcpActivityLogger {
 
                 // This record matches all criteria
                 if ($total_matched >= $offset && count($matched_records) < $limit) {
-                    $matched_records[] = $record;
+                    $matched_records[] = ActivityHumanizer::humanize_record($record);
                 }
                 $total_matched++;
             }
@@ -633,7 +658,7 @@ class WcpActivityLogger {
             'wcpscan_learning_route_profiles',
             'wcpscan_quarantine_manifest',
             'wcpscan_quarantine_remediation_journal',
-            'wcpscan_circuit_breaker_archive',
+            'wcpscan_circuit_breaker_',
             'wcpscan_crashguard_last_incident',
             'wcpscan_crash_history',
             'wcpscan_tor_exit_nodes',
@@ -642,12 +667,15 @@ class WcpActivityLogger {
             'wcpscan_threat_intel_reputation_log',
             'wcpscan_server_security_state',
             'wcpscan_gatekeeper_snapshots',
+            'wcpscan_gatekeeper_logs',
             'wcpscan_gatekeeper_audit_logs',
             'wcpscan_outbound_egress_events',
             'wcpscan_prompt_injection_catches',
             'wcpscan_ghost_route_catches',
             'wcpscan_ghost_trap_catches',
             'wcpscan_blocked_ips_meta',
+            'wcpscan_whitelisted_ips_meta',
+            'wcpscan_webauthn_index',
             'wcpscan_threat_intel_ips',
             'wcpscan_threat_intel_meta',
             'wcpscan_threat_intel_cves',

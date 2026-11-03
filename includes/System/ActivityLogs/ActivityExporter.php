@@ -89,16 +89,22 @@ class ActivityExporter {
             'UTC Datetime',
             'Category',
             'Severity',
-            'Action',
+            'Event Title',
+            'Explanation',
+            'Action Key',
             'Actor Type',
             'Actor Login',
             'Actor Role',
             'Actor IP',
             'Executor',
-            'Details Summary',
+            'Raw Details JSON',
         ]);
 
         foreach ($records as $rec) {
+            if (class_exists('\\WcpScanner\\System\\ActivityLogs\\ActivityHumanizer')) {
+                $rec = ActivityHumanizer::humanize_record($rec);
+            }
+
             $actor = $rec['actor'] ?? [];
             $executor = $rec['executor'] ?? [];
             $details = $rec['details'] ?? [];
@@ -114,6 +120,8 @@ class ActivityExporter {
                 self::sanitize_csv_cell((string) ($rec['datetime'] ?? '')),
                 self::sanitize_csv_cell((string) ($rec['category'] ?? '')),
                 self::sanitize_csv_cell((string) ($rec['severity'] ?? '')),
+                self::sanitize_csv_cell((string) ($rec['friendly_title'] ?? $rec['action'] ?? '')),
+                self::sanitize_csv_cell((string) ($rec['friendly_description'] ?? $details_summary)),
                 self::sanitize_csv_cell((string) ($rec['action'] ?? '')),
                 self::sanitize_csv_cell((string) ($actor['type'] ?? '')),
                 self::sanitize_csv_cell((string) ($actor['user_login'] ?? '')),

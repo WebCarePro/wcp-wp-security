@@ -10,6 +10,11 @@ class SettingsManager {
     const CRON_HOOK = 'wcpscan_scheduled_scan_event';
 
     /**
+     * Suppression flag for noisy secondary firewall_ruleset_modified logs during dedicated IP actions.
+     */
+    public static bool $suppress_firewall_ruleset_log = false;
+
+    /**
      * Default configuration options
      */
     public static function get_defaults(): array {
@@ -1030,6 +1035,9 @@ class SettingsManager {
         // Audit Trail: Log settings change if diff is non-empty
         // Strictly record changes made by authorized administrators or explicit administrative processes
         if (!empty($diff)) {
+            // Ignore internal machine tokens from admin activity diff
+            unset($diff['mcp_token']);
+
             // Exclude automated bot-banned IP list updates from settings audit trail
             // (Automated bot traps belong in WAF logs, not admin configuration logs)
             if (isset($diff['waf_blocked_ips']) && !current_user_can('manage_options')) {
@@ -1039,6 +1047,15 @@ class SettingsManager {
             // Exclude background/bot-triggered settings modifications when not executed by an administrator
             if (!current_user_can('manage_options') && !defined('WP_CLI')) {
                 $diff = [];
+            }
+
+            // Suppress secondary generic firewall_ruleset_modified when an explicit IP action is logged or suppressed
+            if (!empty($diff) && (self::$suppress_firewall_ruleset_log || (class_exists('\WcpScanner\System\WcpActivityLogger') && \WcpScanner\System\WcpActivityLogger::has_action_logged('firewall_ip_unblocked', 'firewall_ip_blocked', 'firewall_ip_whitelisted', 'firewall_ip_whitelist_removed')))) {
+                $diff_keys_check = array_keys($diff);
+                $substantive_keys = array_diff($diff_keys_check, ['waf_blocked_ips', 'waf_whitelisted_ips']);
+                if (empty($substantive_keys)) {
+                    $diff = [];
+                }
             }
 
             if (!empty($diff)) {
