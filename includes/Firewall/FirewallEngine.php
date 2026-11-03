@@ -2398,6 +2398,11 @@ class FirewallEngine {
             }
         }
 
+        // Check active temporary customer/merchant bypass allowlists (e.g. 24-hour customer unblock)
+        if (get_transient('wcpscan_temp_allow_' . md5($ip))) {
+            return true;
+        }
+
         return false;
     }
 
@@ -2811,36 +2816,81 @@ class FirewallEngine {
         if (empty($incident_id)) {
             $incident_id = self::$last_incident_id ?: ('WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8)));
         }
+
+        // Generate friendly, unambiguous 6-character Customer Support Reference Code (Base32 Crockford-style)
+        $charset = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+        $ref_code = 'WCP-';
+        $rand_bytes = wp_rand(0, 33554431); // 32^5
+        for ($i = 0; $i < 4; $i++) {
+            $ref_code .= $charset[($rand_bytes >> ($i * 5)) & 31];
+        }
+
+        // Fast transient lookup for non-technical site owners to unblock paying customers in 1 click
+        $transient_data = [
+            'ref_code'      => $ref_code,
+            'incident_id'   => $incident_id,
+            'client_ip'     => $client_ip,
+            'rule_id'       => $rule['id'] ?? 'WAF-BLOCK',
+            'rule_name'     => $rule['name'] ?? ($rule['category'] ?? 'Security Shield'),
+            'rule_category' => $rule['category'] ?? 'Security Shield',
+            'description'   => $rule['description'] ?? 'Automated defense rule triggered.',
+            'request_uri'   => substr(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/')), 0, 255),
+            'timestamp'     => time(),
+            'formatted_time'=> gmdate('Y-m-d H:i:s \U\T\C'),
+        ];
+        set_transient('wcpscan_lockout_' . $ref_code, $transient_data, 2 * DAY_IN_SECONDS);
+        // Also index by md5(IP) for instant customer unblocking via IP search
+        set_transient('wcpscan_lockout_ip_' . md5($client_ip), $transient_data, 2 * DAY_IN_SECONDS);
+
         $site_name   = get_bloginfo('name');
         $rule_cat    = esc_html($rule['category'] ?? 'Security Shield');
 
         $message = sprintf(
-            '<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 580px; margin: 0 auto; line-height: 1.6;">' .
-            '<h2 style="color: #dc2626; margin-top: 0;">%s</h2>' .
-            '<p>%s</p>' .
-            '<div style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 13px;">' .
-            '<p style="margin: 4px 0;"><strong>%s:</strong> <code>%s</code></p>' .
-            '<p style="margin: 4px 0;"><strong>%s:</strong> <code>%s</code></p>' .
-            '<p style="margin: 4px 0;"><strong>%s:</strong> <span>%s</span></p>' .
-            '<p style="margin: 4px 0;"><strong>%s:</strong> <span>%s</span></p>' .
+            '<div style="font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Oxygen-Sans, Ubuntu, Cantarell, \"Helvetica Neue\", sans-serif; max-width: 620px; margin: 40px auto; line-height: 1.6; color: #1e293b; background: #ffffff; padding: 36px; border-radius: 14px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">' .
+            '<div style="display: flex; align-items: center; margin-bottom: 20px;">' .
+            '<div style="width: 44px; height: 44px; border-radius: 10px; background: #fee2e2; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-right: 14px; text-align: center; line-height: 44px;">🛡️</div>' .
+            '<div>' .
+            '<h2 style="color: #0f172a; margin: 0; font-size: 22px; font-weight: 700;">%s</h2>' .
+            '<p style="margin: 3px 0 0; color: #64748b; font-size: 13px;">%s</p>' .
             '</div>' .
-            '<p style="font-size: 13px; color: #64748b;">%s</p>' .
+            '</div>' .
+            '<p style="font-size: 14px; color: #334155; margin-bottom: 20px;">%s</p>' .
+            '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; padding: 16px 20px; border-radius: 8px; margin: 20px 0;">' .
+            '<p style="margin: 0 0 6px; font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; color: #64748b;">%s</p>' .
+            '<div style="display: flex; align-items: baseline; gap: 10px;">' .
+            '<span style="font-family: SFMono-Regular, Consolas, monospace; font-size: 24px; font-weight: 800; color: #1e40af; letter-spacing: 1px;">%s</span>' .
+            '<span style="font-size: 12px; color: #64748b;">(%s)</span>' .
+            '</div>' .
+            '<p style="margin: 8px 0 0; font-size: 12px; color: #475569;">%s</p>' .
+            '</div>' .
+            '<div style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 12px 16px; border-radius: 8px; margin: 18px 0; font-size: 12px; color: #475569;">' .
+            '<p style="margin: 3px 0;"><strong>%s:</strong> <code>%s</code></p>' .
+            '<p style="margin: 3px 0;"><strong>%s:</strong> <code>%s</code></p>' .
+            '<p style="margin: 3px 0;"><strong>%s:</strong> <span>%s</span></p>' .
+            '<p style="margin: 3px 0;"><strong>%s:</strong> <span>%s</span></p>' .
+            '</div>' .
+            '<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">%s</p>' .
             '</div>',
-            esc_html__('Access Denied by Security Shield', 'wcp-security-scanner'),
+            esc_html__('Protected by WebCare Pro Security', 'wcp-security-scanner'),
             sprintf(
                 /* translators: %s: site name */
-                esc_html__('Your request was blocked because it triggered an automated threat defense rule on %s.', 'wcp-security-scanner'),
-                '<strong>' . esc_html($site_name) . '</strong>'
+                esc_html__('Automated safety checkpoint on %s', 'wcp-security-scanner'),
+                esc_html($site_name)
             ),
+            esc_html__('Your connection was temporarily held to protect this website against automated abusive traffic or repeated invalid requests.', 'wcp-security-scanner'),
+            esc_html__('Customer Support Reference Code', 'wcp-security-scanner'),
+            esc_html($ref_code),
+            esc_html__('Share with Store Owner', 'wcp-security-scanner'),
+            esc_html__('Are you a legitimate customer having trouble checking out or logging in? Share this code with the site owner or support team to restore access in 1 click.', 'wcp-security-scanner'),
             esc_html__('Incident ID', 'wcp-security-scanner'),
             esc_html($incident_id),
             esc_html__('Client IP', 'wcp-security-scanner'),
             esc_html($client_ip),
-            esc_html__('Violation Type', 'wcp-security-scanner'),
+            esc_html__('Defense Category', 'wcp-security-scanner'),
             $rule_cat,
             esc_html__('Timestamp', 'wcp-security-scanner'),
             esc_html(gmdate('Y-m-d H:i:s \U\T\C')),
-            esc_html__('If you believe this is a false positive, please contact the site administrator and provide the Incident ID above.', 'wcp-security-scanner')
+            esc_html__('WebCare Pro Security Suite • Zero-Trust Perimeter Defense', 'wcp-security-scanner')
         );
 
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -3688,12 +3738,20 @@ class FirewallEngine {
             \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
         }
 
-        // 3. Clear any active 404 lockout transients
+        // 3. Clear any active 404 lockout transients and WooCommerce checkout/coupon rate locks
         delete_transient('wcpscan_404_lock_' . md5($ip));
         delete_transient('wcpscan_404_cnt_' . md5($ip));
+        delete_transient('wcpscan_cpn_lock_' . md5($ip));
+        delete_transient('wcpscan_cpn_fail_' . md5($ip));
+        delete_transient('wcpscan_chk_lock_' . md5($ip));
+        delete_transient('wcpscan_chk_fail_' . md5($ip));
+        delete_transient('wcpscan_scrape_lock_' . md5($ip));
+        delete_transient('wcpscan_scrape_vel_' . md5($ip));
+        delete_transient('wcpscan_bot_ban_' . md5($ip));
 
-        // 4. Clean up block metadata
+        // 4. Clean up block metadata & lockout references
         self::delete_ip_block_meta($ip);
+        delete_transient('wcpscan_lockout_ip_' . md5($ip));
 
         return true;
     }

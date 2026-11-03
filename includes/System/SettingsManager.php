@@ -349,6 +349,9 @@ class SettingsManager {
             // Emergency Containment Protocol
             'containment_mode_activated'        => ['email' => true,  'webhook' => true],
             'containment_mode_deactivated'      => ['email' => true,  'webhook' => true],
+
+            // Executive Reports & Non-Technical Digests
+            'weekly_peace_of_mind_digest'       => ['email' => false, 'webhook' => false],
         ];
     }
 

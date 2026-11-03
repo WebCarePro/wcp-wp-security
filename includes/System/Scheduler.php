@@ -12,9 +12,20 @@ if (!defined('ABSPATH')) {
 
 class Scheduler {
     const CRON_HOOK = 'wcpscan_scheduled_scan_event';
+    const DIGEST_HOOK = 'wcpscan_weekly_digest_event';
 
     public static function register() {
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_scan']);
+        add_action(self::DIGEST_HOOK, [__CLASS__, 'run_weekly_digest']);
+
+        // Schedule recurring Monday morning digest cron if not yet registered
+        if (!wp_next_scheduled(self::DIGEST_HOOK)) {
+            // Find next Monday 08:00 AM local site time
+            $next_monday = strtotime('next monday 08:00:00');
+            if ($next_monday !== false) {
+                wp_schedule_event($next_monday, 'weekly', self::DIGEST_HOOK);
+            }
+        }
 
         // Custom cron intervals (e.g., weekly)
         add_filter('cron_schedules', function ($schedules) {
@@ -26,6 +37,37 @@ class Scheduler {
             }
             return $schedules;
         });
+    }
+
+    /**
+     * Executes the Monday Morning Peace-of-Mind security digest
+     */
+    public static function run_weekly_digest() {
+        if (!class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher') || !class_exists('\\WcpScanner\\Reports\\WeeklyDigestEngine')) {
+            return;
+        }
+
+        // Strict Policy: Only proceed if administrator explicitly enabled the event in Notification Center
+        $is_email_on = \WcpScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'email');
+        $is_webhook_on = \WcpScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'webhook');
+
+        if (!$is_email_on && !$is_webhook_on) {
+            // Silently abort if disabled by user (the default state)
+            return;
+        }
+
+        $telemetry = \WcpScanner\Reports\WeeklyDigestEngine::compile_weekly_telemetry();
+        $email_html = \WcpScanner\Reports\WeeklyDigestEngine::render_email_html($telemetry);
+
+        \WcpScanner\Notifications\NotificationDispatcher::trigger('weekly_peace_of_mind_digest', [
+            /* translators: %s: site name */
+            'title'     => sprintf(__('Your Site Had a Safe Week • %s', 'wcp-security-scanner'), $telemetry['site_name']),
+            /* translators: 1: total blocked threats, 2: bot logins stopped, 3: verified files count */
+            'message'   => sprintf(__('WebCare Pro blocked %1$s automated threats, stopped %2$s bot logins, and verified %3$s files intact this week. No action needed.', 'wcp-security-scanner'), number_format($telemetry['total_blocked']), number_format($telemetry['login_blocks']), number_format($telemetry['verified_files'])),
+            'severity'  => 'info',
+            'html_body' => $email_html,
+            'details'   => $telemetry,
+        ]);
     }
 
     /**

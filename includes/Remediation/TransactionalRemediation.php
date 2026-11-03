@@ -226,10 +226,29 @@ class TransactionalRemediation {
 
         file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
 
+        // Post-Fix Store & Checkout Pulse Check
+        $pulse = class_exists('\\WcpScanner\\System\\PulseHealthCheck')
+            ? \WcpScanner\System\PulseHealthCheck::check_store_pulse()
+            : ['all_passed' => true, 'summary' => ''];
+
+        // If any critical endpoint failed, automatically trigger safety rollback
+        if (!$pulse['all_passed']) {
+            self::rollback_transaction($tx_id);
+            return [
+                'success'        => false,
+                'rollback'       => true,
+                'tx_id'          => $tx_id,
+                'items_count'    => $manifest['total_items'],
+                'pulse'          => $pulse,
+                'message'        => __('Safety Rollback Triggered: A 500 error or site conflict was detected immediately following remediation. Your files were automatically restored to their original state.', 'wcp-security-scanner'),
+            ];
+        }
+
         return [
             'success'     => true,
             'tx_id'       => $tx_id,
             'items_count' => $manifest['total_items'],
+            'pulse'       => $pulse,
             /* translators: 1: transaction ID, 2: number of items */
             'message'     => sprintf(__('Remediation transaction %1$s committed with %2$d items snapshotted.', 'wcp-security-scanner'), $tx_id, $manifest['total_items']),
         ];

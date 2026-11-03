@@ -480,6 +480,15 @@ class NotificationDispatcher {
                 'description' => __('Notifies when emergency containment lockdown is lifted and normal platform operations resume.', 'wcp-security-scanner'),
                 'severity'    => 'high',
             ],
+
+            // Category: Executive Digests
+            'weekly_peace_of_mind_digest' => [
+                'category'       => 'executive_digests',
+                'category_label' => __('Executive Reports & Digests', 'wcp-security-scanner'),
+                'title'          => __('Monday Morning Peace-of-Mind Digest', 'wcp-security-scanner'),
+                'description'    => __('Calm weekly Monday summary of blocked threats, WooCommerce checkout defenses, and verified clean files. Disabled by default.', 'wcp-security-scanner'),
+                'severity'       => 'info',
+            ],
         ];
     }
 

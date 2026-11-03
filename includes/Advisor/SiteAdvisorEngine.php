@@ -249,6 +249,23 @@ class SiteAdvisorEngine {
             ]);
         }
 
+        // Post-Fix Store & Checkout Pulse Check
+        $pulse = class_exists('\\WcpScanner\\System\\PulseHealthCheck')
+            ? \WcpScanner\System\PulseHealthCheck::check_store_pulse()
+            : ['all_passed' => true, 'summary' => ''];
+
+        // If any critical endpoint returned 500 error, trigger automatic safety rollback immediately
+        if (!$pulse['all_passed']) {
+            self::rollback();
+            return [
+                'success'        => false,
+                'rollback'       => true,
+                'message'        => __('Safety Rollback Triggered: We noticed a potential site conflict immediately after applying recommendations, so we automatically undid the changes to keep your site and checkout online.', 'wcp-security-scanner'),
+                'pulse'          => $pulse,
+                'changed'        => 0,
+            ];
+        }
+
         return [
             'success'     => true,
             'message'     => sprintf(
@@ -258,6 +275,7 @@ class SiteAdvisorEngine {
             ),
             'changed'     => count($changes),
             'snapshot_id' => $snapshot['snapshot_id'],
+            'pulse'       => $pulse,
         ];
     }
 

@@ -393,6 +393,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/firewall/customer/lookup-block', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'lookup_customer_lockout'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/customer/unblock', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'unblock_customer_lockout'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/firewall/blocklist', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_firewall_blocklist'],
@@ -4241,6 +4253,11 @@ class ScannerRoutes {
             } elseif (!empty($item['created_at'])) {
                 $item['created_at_gmt'] = get_gmt_from_date($item['created_at'], 'Y-m-d\TH:i:s\Z');
             }
+
+            // Non-Technical Owner Suite: Plain-English Translation Schema
+            if (class_exists('\\WcpScanner\\Findings\\FindingTranslator')) {
+                $item['plain_english'] = \WcpScanner\Findings\FindingTranslator::translate($item);
+            }
         }
         unset($item);
 
@@ -6621,6 +6638,138 @@ class ScannerRoutes {
             /* translators: %s: unblocked IP address */
             'message' => sprintf(__('IP %s has been unblocked. Standard WAF protection remains active.', 'wcp-security-scanner'), $ip),
             'locked_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips(),
+        ]);
+    }
+
+    /**
+     * Customer Lockout Finder: Look up blocked customer by 6-digit Support Code (#WCP-XXXX) or IP address
+     */
+    public static function lookup_customer_lockout(\WP_REST_Request $request) {
+        $query = strtoupper(trim($request->get_param('code') ?? ''));
+        if (empty($query)) {
+            return new \WP_Error('missing_code', __('Support Code or IP address is required.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        // Clean code formatting: allow #WCP-492A, WCP-492A, or 492A
+        $clean_code = ltrim($query, '#');
+        if (!str_starts_with($clean_code, 'WCP-') && strlen($clean_code) === 4) {
+            $clean_code = 'WCP-' . $clean_code;
+        }
+
+        // 1. Try finding by support reference code
+        $data = get_transient('wcpscan_lockout_' . $clean_code);
+
+        // 2. Fallback: Try finding by IP address if user entered an IP
+        if (!$data && filter_var($query, FILTER_VALIDATE_IP)) {
+            $data = get_transient('wcpscan_lockout_ip_' . md5($query));
+        }
+
+        // 3. Fallback: Search recent filesystem logs if transient expired
+        if (!$data && class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+            $file_query = \WcpScanner\Firewall\WafFileLogger::query_logs([
+                'search' => $query,
+                'action' => 'blocked',
+            ], 1);
+            if (!empty($file_query['logs'][0])) {
+                $top = $file_query['logs'][0];
+                $data = [
+                    'ref_code'       => $query,
+                    'incident_id'    => $top['incident_id'] ?? 'WCP-LOG',
+                    'client_ip'      => $top['ip_address'] ?? '',
+                    'rule_id'        => $top['rule_id'] ?? 'WAF-BLOCK',
+                    'rule_name'      => $top['rule_name'] ?? ($top['rule_category'] ?? 'Security Shield'),
+                    'rule_category'  => $top['rule_category'] ?? 'Security Shield',
+                    'description'    => $top['rule_description'] ?? 'Automated defense rule triggered.',
+                    'request_uri'    => $top['request_uri'] ?? '/',
+                    'timestamp'      => strtotime($top['timestamp'] ?? 'now'),
+                    'formatted_time' => $top['timestamp'] ?? gmdate('Y-m-d H:i:s \U\T\C'),
+                ];
+            }
+        }
+
+        if (!$data) {
+            return rest_ensure_response([
+                'found'   => false,
+                'message' => __('No active lockout record found for this Support Reference Code or IP. The visitor may already be unblocked or the block event expired.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        // Translate reason into customer-friendly plain English
+        $friendly_reason = __('Security shield temporarily held the request due to suspicious request signatures.', 'wcp-security-scanner');
+        $cat = strtolower($data['rule_category'] ?? '');
+        $desc = strtolower($data['description'] ?? '');
+
+        if (strpos($cat, 'coupon') !== false || strpos($desc, 'coupon') !== false) {
+            $friendly_reason = __('Customer was temporarily held because invalid discount coupon codes were attempted multiple times in a short window.', 'wcp-security-scanner');
+        } elseif (strpos($cat, 'checkout') !== false || strpos($desc, 'checkout') !== false) {
+            $friendly_reason = __('Customer was rate-limited during checkout due to rapid order submissions or repeated card payment verification attempts.', 'wcp-security-scanner');
+        } elseif (strpos($cat, 'login') !== false || strpos($desc, 'login') !== false) {
+            $friendly_reason = __('Customer was held because an account password was entered incorrectly multiple times.', 'wcp-security-scanner');
+        } elseif (strpos($cat, 'rate') !== false || strpos($desc, 'rate') !== false) {
+            $friendly_reason = __('Customer refreshed or requested store pages faster than normal browsing velocity.', 'wcp-security-scanner');
+        }
+
+        return rest_ensure_response([
+            'found'           => true,
+            'lockout'         => $data,
+            'friendly_reason' => $friendly_reason,
+            'client_ip'       => $data['client_ip'],
+            'ref_code'        => $data['ref_code'],
+            'formatted_time'  => $data['formatted_time'],
+        ]);
+    }
+
+    /**
+     * Unblock customer in 1 click and grant temporary 24-hour bypass immunity
+     */
+    public static function unblock_customer_lockout(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = sanitize_text_field(trim($params['ip'] ?? ''));
+        $code = sanitize_text_field(trim($params['code'] ?? ''));
+
+        if (empty($ip) && !empty($code)) {
+            $clean_code = ltrim($code, '#');
+            if (!str_starts_with($clean_code, 'WCP-') && strlen($clean_code) === 4) {
+                $clean_code = 'WCP-' . $clean_code;
+            }
+            $t = get_transient('wcpscan_lockout_' . $clean_code);
+            if (!empty($t['client_ip'])) {
+                $ip = $t['client_ip'];
+            }
+        }
+
+        if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            return new \WP_Error('invalid_ip', __('Valid client IP is required to unblock.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        // 1. Remove all active rate limiters and blocklists
+        \WcpScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
+
+        // 2. Grant temporary 24-hour bypass allowlist
+        set_transient('wcpscan_temp_allow_' . md5($ip), 1, 24 * HOUR_IN_SECONDS);
+
+        // 3. Log audit event
+        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            $current_user = wp_get_current_user();
+            $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'customer_lockout_unblocked',
+                'firewall',
+                [
+                    'ip'          => $ip,
+                    'code'        => $code,
+                    'unblocked_by'=> $user_login,
+                    'duration'    => '24 hours',
+                    'description' => sprintf('Customer IP %s was unblocked and granted 24-hour store access by %s.', $ip, $user_login),
+                ]
+            );
+        }
+
+        return rest_ensure_response([
+            'success' => true,
+            /* translators: %s: customer IP address */
+            'message' => sprintf(__('Customer IP %s has been successfully unblocked and granted 24-hour checkout access.', 'wcp-security-scanner'), $ip),
+            'client_ip' => $ip,
         ]);
     }
 

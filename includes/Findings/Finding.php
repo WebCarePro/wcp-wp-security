@@ -29,7 +29,7 @@ class Finding {
     }
 
     public function to_array() {
-        return [
+        $data = [
             'engine' => $this->engine,
             'type' => $this->type,
             'severity' => $this->severity,
@@ -40,5 +40,11 @@ class Finding {
             'evidence' => $this->evidence,
             'description' => $this->description,
         ];
+
+        if (class_exists('\\WcpScanner\\Findings\\FindingTranslator')) {
+            $data['plain_english'] = \WcpScanner\Findings\FindingTranslator::translate($data);
+        }
+
+        return $data;
     }
 }
