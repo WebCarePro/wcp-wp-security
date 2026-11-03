@@ -252,10 +252,10 @@ class SiteAdvisorEngine {
         // Post-Fix Store & Checkout Pulse Check
         $pulse = class_exists('\\WcpScanner\\System\\PulseHealthCheck')
             ? \WcpScanner\System\PulseHealthCheck::check_store_pulse()
-            : ['all_passed' => true, 'summary' => ''];
+            : ['all_passed' => true, 'has_fatal_conflict' => false, 'summary' => ''];
 
-        // If any critical endpoint returned 500 error, trigger automatic safety rollback immediately
-        if (!$pulse['all_passed']) {
+        // Only trigger automatic safety rollback if an endpoint verified a genuine fatal server crash (HTTP 500-504 or fatal PHP error)
+        if (!empty($pulse['has_fatal_conflict'])) {
             self::rollback();
             return [
                 'success'        => false,
