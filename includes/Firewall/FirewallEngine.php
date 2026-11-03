@@ -717,38 +717,74 @@ class FirewallEngine {
                     self::remove_blocked_ip($client_ip);
                 } else {
                     $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
-                    $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
-                    $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
-                    $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
+                    $expires_at = !empty($block_meta['expires_at']) ? (int) $block_meta['expires_at'] : 0;
 
-                    $description = 'Connection blocked by administrator-defined custom IP rule.';
-                    if (!empty($ban_reason)) {
-                        $description = sprintf('Connection blocked: %s', $ban_reason);
-                    } elseif (!empty($ban_rule)) {
-                        $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                    // Auto-heal expired temporary ban: unblock if duration has elapsed
+                    if ($expires_at > 0 && time() >= $expires_at) {
+                        self::remove_blocked_ip($matching_entry);
+                        self::remove_blocked_ip($client_ip);
+                        $matching_entry = null;
                     }
 
-                    $rule_triggered = [
-                        'id'             => 'USER-CUSTOM-IP-BLOCK',
-                        'name'           => 'Custom Administrator IP Blocklist',
-                        'category'       => 'Custom IP Blocklist',
-                        'description'    => $description,
-                        'match_type'     => 'Custom Blocklist',
-                        'match_value'    => $matching_entry,
-                        'payload'        => $client_ip,
-                        'ban_reason'     => $ban_reason,
-                        'ban_source'     => $ban_source,
-                        'matching_entry' => $matching_entry,
-                        'expires_at'     => $block_meta['expires_at'] ?? 0,
-                    ];
+                    if ($matching_entry !== null) {
+                        $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
+                        $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
+                        $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
 
-                    $mode = $settings['waf_mode'] ?? 'enabled';
-                    if ($mode === 'learning') {
-                        self::log_incident($rule_triggered, 'detected');
-                    } else {
-                        self::log_incident($rule_triggered, 'blocked');
-                        self::render_block_page($rule_triggered, $client_ip);
-                        exit;
+                        // Shopper & E-Commerce Session Protection:
+                        // If the visitor has an active e-commerce / membership cart session (e.g. WooCommerce cart cookies, EDD, SureCart)
+                        // or is requesting checkout / payment gateway endpoints (wc-ajax, paypal, stripe),
+                        // ensure legitimate paying customers are NOT permanently locked out by automated or non-admin bans.
+                        $is_manual_admin_ban = ($ban_source === 'manual_admin') || (!empty($block_meta['admin_user']));
+                        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+                        $is_commerce_action = self::has_active_shopper_session() || self::is_commerce_or_membership_request($request_uri);
+
+                        if (!$is_manual_admin_ban && $is_commerce_action) {
+                            $rule_triggered = [
+                                'id'             => 'USER-CUSTOM-IP-BLOCK',
+                                'name'           => 'Custom Administrator IP Blocklist',
+                                'category'       => 'Custom IP Blocklist',
+                                'description'    => 'Active verified e-commerce cart/checkout session granted safe pass through non-admin custom block.',
+                                'match_type'     => 'Custom Blocklist',
+                                'match_value'    => $matching_entry,
+                                'payload'        => $client_ip,
+                                'ban_reason'     => $ban_reason,
+                                'ban_source'     => $ban_source,
+                                'matching_entry' => $matching_entry,
+                                'expires_at'     => $expires_at,
+                            ];
+                            self::log_incident($rule_triggered, 'monitored');
+                        } else {
+                            $description = 'Connection blocked by administrator-defined custom IP rule.';
+                            if (!empty($ban_reason)) {
+                                $description = sprintf('Connection blocked: %s', $ban_reason);
+                            } elseif (!empty($ban_rule)) {
+                                $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                            }
+
+                            $rule_triggered = [
+                                'id'             => 'USER-CUSTOM-IP-BLOCK',
+                                'name'           => 'Custom Administrator IP Blocklist',
+                                'category'       => 'Custom IP Blocklist',
+                                'description'    => $description,
+                                'match_type'     => 'Custom Blocklist',
+                                'match_value'    => $matching_entry,
+                                'payload'        => $client_ip,
+                                'ban_reason'     => $ban_reason,
+                                'ban_source'     => $ban_source,
+                                'matching_entry' => $matching_entry,
+                                'expires_at'     => $expires_at,
+                            ];
+
+                            $mode = $settings['waf_mode'] ?? 'enabled';
+                            if ($mode === 'learning') {
+                                self::log_incident($rule_triggered, 'detected');
+                            } else {
+                                self::log_incident($rule_triggered, 'blocked');
+                                self::render_block_page($rule_triggered, $client_ip);
+                                exit;
+                            }
+                        }
                     }
                 }
             }
@@ -1294,38 +1330,74 @@ class FirewallEngine {
                     self::remove_blocked_ip($client_ip);
                 } else {
                     $block_meta = self::get_ip_block_meta($matching_entry) ?: self::get_ip_block_meta($client_ip);
-                    $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
-                    $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
-                    $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
+                    $expires_at = !empty($block_meta['expires_at']) ? (int) $block_meta['expires_at'] : 0;
 
-                    $description = 'Connection blocked by administrator-defined custom IP rule.';
-                    if (!empty($ban_reason)) {
-                        $description = sprintf('Connection blocked: %s', $ban_reason);
-                    } elseif (!empty($ban_rule)) {
-                        $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                    // Auto-heal expired temporary ban: unblock if duration has elapsed
+                    if ($expires_at > 0 && time() >= $expires_at) {
+                        self::remove_blocked_ip($matching_entry);
+                        self::remove_blocked_ip($client_ip);
+                        $matching_entry = null;
                     }
 
-                    $rule_triggered = [
-                        'id'             => 'USER-CUSTOM-IP-BLOCK',
-                        'name'           => 'Custom Administrator IP Blocklist',
-                        'category'       => 'Custom IP Blocklist',
-                        'description'    => $description,
-                        'match_type'     => 'Custom Blocklist',
-                        'match_value'    => $matching_entry,
-                        'payload'        => $client_ip,
-                        'ban_reason'     => $ban_reason,
-                        'ban_source'     => $ban_source,
-                        'matching_entry' => $matching_entry,
-                        'expires_at'     => $block_meta['expires_at'] ?? 0,
-                    ];
+                    if ($matching_entry !== null) {
+                        $ban_reason = !empty($block_meta['reason']) ? trim((string) $block_meta['reason']) : '';
+                        $ban_source = !empty($block_meta['source']) ? trim((string) $block_meta['source']) : 'custom_blocklist';
+                        $ban_rule   = !empty($block_meta['rule_name']) ? trim((string) $block_meta['rule_name']) : '';
 
-                    $mode = $settings['waf_mode'] ?? 'enabled';
-                    if ($mode === 'learning') {
-                        self::log_incident($rule_triggered, 'detected');
-                    } else {
-                        self::log_incident($rule_triggered, 'blocked');
-                        self::render_block_page($rule_triggered, $client_ip);
-                        exit;
+                        // Shopper & E-Commerce Session Protection:
+                        // If the visitor has an active e-commerce / membership cart session (e.g. WooCommerce cart cookies, EDD, SureCart)
+                        // or is requesting checkout / payment gateway endpoints (wc-ajax, paypal, stripe),
+                        // ensure legitimate paying customers are NOT permanently locked out by automated or non-admin bans.
+                        $is_manual_admin_ban = ($ban_source === 'manual_admin') || (!empty($block_meta['admin_user']));
+                        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+                        $is_commerce_action = self::has_active_shopper_session() || self::is_commerce_or_membership_request($request_uri);
+
+                        if (!$is_manual_admin_ban && $is_commerce_action) {
+                            $rule_triggered = [
+                                'id'             => 'USER-CUSTOM-IP-BLOCK',
+                                'name'           => 'Custom Administrator IP Blocklist',
+                                'category'       => 'Custom IP Blocklist',
+                                'description'    => 'Active verified e-commerce cart/checkout session granted safe pass through non-admin custom block.',
+                                'match_type'     => 'Custom Blocklist',
+                                'match_value'    => $matching_entry,
+                                'payload'        => $client_ip,
+                                'ban_reason'     => $ban_reason,
+                                'ban_source'     => $ban_source,
+                                'matching_entry' => $matching_entry,
+                                'expires_at'     => $expires_at,
+                            ];
+                            self::log_incident($rule_triggered, 'monitored');
+                        } else {
+                            $description = 'Connection blocked by administrator-defined custom IP rule.';
+                            if (!empty($ban_reason)) {
+                                $description = sprintf('Connection blocked: %s', $ban_reason);
+                            } elseif (!empty($ban_rule)) {
+                                $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                            }
+
+                            $rule_triggered = [
+                                'id'             => 'USER-CUSTOM-IP-BLOCK',
+                                'name'           => 'Custom Administrator IP Blocklist',
+                                'category'       => 'Custom IP Blocklist',
+                                'description'    => $description,
+                                'match_type'     => 'Custom Blocklist',
+                                'match_value'    => $matching_entry,
+                                'payload'        => $client_ip,
+                                'ban_reason'     => $ban_reason,
+                                'ban_source'     => $ban_source,
+                                'matching_entry' => $matching_entry,
+                                'expires_at'     => $expires_at,
+                            ];
+
+                            $mode = $settings['waf_mode'] ?? 'enabled';
+                            if ($mode === 'learning') {
+                                self::log_incident($rule_triggered, 'detected');
+                            } else {
+                                self::log_incident($rule_triggered, 'blocked');
+                                self::render_block_page($rule_triggered, $client_ip);
+                                exit;
+                            }
+                        }
                     }
                 }
             }
@@ -2841,6 +2913,49 @@ class FirewallEngine {
         set_transient('wcpscan_lockout_' . $ref_code, $transient_data, 2 * DAY_IN_SECONDS);
         // Also index by md5(IP) for instant customer unblocking via IP search
         set_transient('wcpscan_lockout_ip_' . md5($client_ip), $transient_data, 2 * DAY_IN_SECONDS);
+
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+
+        // 1. E-Commerce & Checkout AJAX handler (WooCommerce, SureCart, EDD)
+        $is_wc_ajax = !empty($_GET['wc-ajax']) || !empty($_GET['wc-api']);
+        if ($is_wc_ajax || (wp_doing_ajax() && self::is_commerce_or_membership_request($raw_uri))) {
+            status_header(403);
+            header('Content-Type: application/json; charset=utf-8');
+            /* translators: 1: Security notice label, 2: Security explanation, 3: Support reference code label, 4: Support reference code */
+            $ajax_msg = sprintf(
+                '<div class="woocommerce-error" role="alert"><strong>%1$s</strong> %2$s<br/><span style="font-size:12px;opacity:0.9;">%3$s <strong>%4$s</strong></span></div>',
+                esc_html__('Security Notice:', 'wcp-security-scanner'),
+                esc_html__('Your connection was temporarily held to protect this site.', 'wcp-security-scanner'),
+                esc_html__('Customer Support Reference Code:', 'wcp-security-scanner'),
+                esc_html($ref_code)
+            );
+            echo wp_json_encode([
+                'result'        => 'failure',
+                'messages'      => $ajax_msg,
+                'reload'        => false,
+                'refresh'       => false,
+                'incident_id'   => $incident_id,
+                'ref_code'      => $ref_code,
+                'error'         => esc_html__('Security checkpoint active. Please quote reference code to support.', 'wcp-security-scanner'),
+            ]);
+            exit;
+        }
+
+        // 2. Generic REST API structured JSON error
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            status_header(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo wp_json_encode([
+                'code'          => 'wcpscan_access_denied',
+                'message'       => esc_html__('Your connection was temporarily held to protect this website against automated abusive traffic or invalid requests.', 'wcp-security-scanner'),
+                'data'          => [
+                    'status'      => 403,
+                    'incident_id' => $incident_id,
+                    'ref_code'    => $ref_code,
+                ],
+            ]);
+            exit;
+        }
 
         $site_name   = get_bloginfo('name');
         $rule_cat    = esc_html($rule['category'] ?? 'Security Shield');
@@ -6173,6 +6288,17 @@ class FirewallEngine {
                 'eas_compliance_ajax',
                 'eas_tax_calculation',
                 'woocommerce_calc_line_taxes',
+                // AffiliateWP Guest Referral Tracking & Nonces
+                'affwp_track_visit',
+                'affwp_get_affiliate_id',
+                // Ninja Forms Guest File Upload Nonce Fetcher
+                'nf_fu_get_new_nonce',
+                // WooCommerce Payment Gateway Handshakes (PayPal Payments & Stripe Checkout AJAX)
+                'ppc-sdk-v6-client-token',
+                'ppc_create_order',
+                'ppc_approve_order',
+                'wc_stripe_create_order',
+                'wc_stripe_get_cart_details',
             ], true);
         }
 

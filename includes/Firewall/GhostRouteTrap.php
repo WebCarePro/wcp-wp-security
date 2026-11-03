@@ -230,7 +230,15 @@ class GhostRouteTrap {
 
         // 3. Block client IP if enabled
         if (!empty($settings['block_client_ip']) && class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            FirewallEngine::add_blocked_ip($ip);
+            FirewallEngine::add_blocked_ip(
+                $ip,
+                sprintf('Decoy canary trap probed: %s', $target_surface),
+                24 * HOUR_IN_SECONDS,
+                null,
+                'GHOST-CANARY-TRAP',
+                'Ghost Route Canary Trap',
+                'Canary Bot Trap'
+            );
         }
 
         // 4. Sync to Cloudflare Edge IP Lists if configured

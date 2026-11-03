@@ -335,13 +335,25 @@ class HoneyTokenEngine {
      * @param int $duration_hours
      */
     public static function ban_bot_ip(string $ip, int $duration_hours = 24) {
-        $waf_settings = SettingsManager::get_settings();
-        $blocked_ips = $waf_settings['waf_blocked_ips'] ?? '';
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            FirewallEngine::add_blocked_ip(
+                $ip,
+                'Honeytoken trap triggered',
+                $duration_hours * 3600,
+                null,
+                'HONEYTOKEN-TRAP',
+                'Honeytoken Trap',
+                'Bot Trap'
+            );
+        } else {
+            $waf_settings = SettingsManager::get_settings();
+            $blocked_ips = $waf_settings['waf_blocked_ips'] ?? '';
 
-        $ip_list = array_filter(array_map('trim', explode("\n", str_replace("\r", '', $blocked_ips))));
-        if (!in_array($ip, $ip_list, true)) {
-            $ip_list[] = $ip;
-            SettingsManager::save_settings(['waf_blocked_ips' => implode("\n", $ip_list)]);
+            $ip_list = array_filter(array_map('trim', explode("\n", str_replace("\r", '', $blocked_ips))));
+            if (!in_array($ip, $ip_list, true)) {
+                $ip_list[] = $ip;
+                SettingsManager::save_settings(['waf_blocked_ips' => implode("\n", $ip_list)]);
+            }
         }
 
         // Set transient with expiration for telemetry
@@ -359,12 +371,16 @@ class HoneyTokenEngine {
      * @return array
      */
     public static function unban_bot_ip(string $ip): array {
-        $waf_settings = SettingsManager::get_settings();
-        $blocked_ips = $waf_settings['waf_blocked_ips'] ?? '';
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            FirewallEngine::remove_blocked_ip($ip);
+        } else {
+            $waf_settings = SettingsManager::get_settings();
+            $blocked_ips = $waf_settings['waf_blocked_ips'] ?? '';
 
-        $ip_list = array_filter(array_map('trim', explode("\n", str_replace("\r", '', $blocked_ips))));
-        $ip_list = array_values(array_filter($ip_list, fn($item) => $item !== $ip));
-        SettingsManager::save_settings(['waf_blocked_ips' => implode("\n", $ip_list)]);
+            $ip_list = array_filter(array_map('trim', explode("\n", str_replace("\r", '', $blocked_ips))));
+            $ip_list = array_values(array_filter($ip_list, fn($item) => $item !== $ip));
+            SettingsManager::save_settings(['waf_blocked_ips' => implode("\n", $ip_list)]);
+        }
         delete_transient('wcpscan_bot_ban_' . md5($ip));
 
         AuditLogger::log(
