@@ -26,6 +26,11 @@ class EphemeralAdminEngine {
      * Bootstrap Ephemeral Admin engine.
      */
     public static function init() {
+        // Emergency bypass constant: define('WCP_DISABLE_JIT', true); in wp-config.php completely disables JIT restrictions
+        if (defined('WCP_DISABLE_JIT') && WCP_DISABLE_JIT) {
+            return;
+        }
+
         // Auto-install / sync the Must-Use (MU) plugin watchdog
         if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
             WcpJitMuGuardian::ensure_installed();
@@ -167,6 +172,15 @@ class EphemeralAdminEngine {
         $current_roles = (array) $user->roles;
         $baseline_role = reset($current_roles) ?: 'subscriber';
 
+        // Safety Guardrail: User ID 1 and site administrator email are immune from capability demotion or JIT restriction
+        $site_admin_email = get_option('admin_email');
+        if ($user_id === 1 || ($user && strcasecmp($user->user_email, (string) $site_admin_email) === 0)) {
+            return [
+                'success' => false,
+                'message' => __('Primary site administrator (User ID 1 / admin_email) is permanently immune from JIT restriction or demotion.', 'wcp-security-scanner'),
+            ];
+        }
+
         if ($baseline_role === 'administrator') {
             return [
                 'success' => false,
@@ -268,6 +282,16 @@ class EphemeralAdminEngine {
         $baseline_role = $entry['baseline_role'] ?? 'subscriber';
 
         $user = get_userdata($user_id);
+        $site_admin_email = get_option('admin_email');
+        if ($user_id === 1 || ($user && strcasecmp($user->user_email, (string) $site_admin_email) === 0)) {
+            unset($elevations[$user_id]);
+            update_option(self::OPTION_EPHEMERAL_ADMINS, $elevations);
+            return [
+                'success' => false,
+                'message' => __('Cannot alter role for User ID 1 or primary site admin email.', 'wcp-security-scanner'),
+            ];
+        }
+
         if ($user) {
             $user->set_role($baseline_role);
         }
@@ -327,6 +351,16 @@ class EphemeralAdminEngine {
         $baseline_role = $entry['baseline_role'] ?? 'subscriber';
 
         $user = get_userdata($user_id);
+        $site_admin_email = get_option('admin_email');
+        if ($user_id === 1 || ($user && strcasecmp($user->user_email, (string) $site_admin_email) === 0)) {
+            unset($elevations[$user_id]);
+            update_option(self::OPTION_EPHEMERAL_ADMINS, $elevations);
+            return [
+                'success' => false,
+                'message' => __('Cannot alter role for User ID 1 or primary site admin email.', 'wcp-security-scanner'),
+            ];
+        }
+
         if ($user) {
             $user->set_role($baseline_role);
         }

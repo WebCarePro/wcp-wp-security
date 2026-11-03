@@ -47,6 +47,11 @@ class WcpJitMuGuardian {
      * @return bool
      */
     public static function ensure_installed(): bool {
+        // Emergency bypass constant: define('WCP_DISABLE_JIT', true);
+        if (defined('WCP_DISABLE_JIT') && WCP_DISABLE_JIT) {
+            return false;
+        }
+
         $mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
         $target_file = $mu_dir . '/' . self::MU_FILENAME;
 
@@ -234,6 +239,11 @@ class WcpJitMuGuardianRuntime {
     const OPTION_SUPPORT_USERS = 'wcpscan_support_active_users';
 
     public static function init() {
+        // Emergency bypass constant: define('WCP_DISABLE_JIT', true); in wp-config.php completely disables runtime restrictions
+        if (defined('WCP_DISABLE_JIT') && WCP_DISABLE_JIT) {
+            return;
+        }
+
         // Enforce expiration check once pluggable/user functions are available
         add_action('plugins_loaded', [__CLASS__, 'check_expirations'], 1);
         add_action('init', [__CLASS__, 'check_expirations'], 1);

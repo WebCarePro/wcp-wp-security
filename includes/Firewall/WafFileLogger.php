@@ -249,6 +249,7 @@ class WafFileLogger {
 
     /**
      * Atomically append a record to today's daily JSON file.
+     * Enforces rotation check BEFORE writing to guarantee file size limit (10MB) is never exceeded.
      *
      * @param array $record
      * @return bool
@@ -259,6 +260,19 @@ class WafFileLogger {
 
         $filename = self::get_daily_filename();
         $filepath = $dir . '/' . $filename;
+
+        // Rotation Guard: If single partition file exceeds 10MB, rotate it to .1, .2, .3
+        if (file_exists($filepath) && @filesize($filepath) >= (10 * 1024 * 1024)) {
+            for ($i = 3; $i >= 1; $i--) {
+                $old_rot = $filepath . '.' . $i;
+                if ($i === 3 && file_exists($old_rot)) {
+                    @unlink($old_rot);
+                } elseif (file_exists($old_rot)) {
+                    @rename($old_rot, $filepath . '.' . ($i + 1));
+                }
+            }
+            @rename($filepath, $filepath . '.1');
+        }
 
         $json_line = wp_json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($json_line === false) {

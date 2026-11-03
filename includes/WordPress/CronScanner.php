@@ -11,6 +11,7 @@ class CronScanner {
 
     /**
      * Inspect scheduled WordPress cron jobs and Linux system crontab for anomalies and malware persistence.
+     * Delegates deep in-database cron and action hook inspection to CronPersistenceScanner to prevent duplicate findings.
      *
      * @param string $scan_id
      * @return Finding[]
@@ -24,8 +25,18 @@ class CronScanner {
 
     /**
      * Inspect WordPress virtual cron array for dangerous hooks and orphaned actions.
+     * Delegates to CronPersistenceScanner if available to ensure unified detection rules and prevent finding ID collisions.
      */
     private function scan_wp_cron($scan_id) {
+        if (class_exists('\\WcpScanner\\Database\\CronPersistenceScanner')) {
+            try {
+                $persistence_scanner = new \WcpScanner\Database\CronPersistenceScanner();
+                return $persistence_scanner->scan((string) $scan_id);
+            } catch (\Throwable $e) {
+                // Fall through to lightweight virtual cron audit if persistence scanner fails
+            }
+        }
+
         $findings = [];
         $cron_jobs = _get_cron_array();
 

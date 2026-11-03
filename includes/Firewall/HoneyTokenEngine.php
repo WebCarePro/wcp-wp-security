@@ -241,6 +241,19 @@ class HoneyTokenEngine {
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown Bot';
         $settings = self::get_settings();
 
+        // 0. Prefetch Immunity Check (Chrome Speculation Rules / Link Pre-loaders)
+        $purpose_headers = [
+            $_SERVER['HTTP_SEC_PURPOSE'] ?? '',
+            $_SERVER['HTTP_PURPOSE'] ?? '',
+            $_SERVER['HTTP_X_PURPOSE'] ?? '',
+            $_SERVER['HTTP_X_MOZ'] ?? '',
+        ];
+        foreach ($purpose_headers as $h) {
+            if (!empty($h) && (stripos((string) $h, 'prefetch') !== false || stripos((string) $h, 'preview') !== false)) {
+                return; // Silently ignore speculative browser prefetch probes
+            }
+        }
+
         // Check if IP is in the central WAF Whitelist
         $is_whitelisted = false;
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {

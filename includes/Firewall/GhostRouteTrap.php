@@ -159,15 +159,30 @@ class GhostRouteTrap {
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
         $settings = self::get_settings();
 
-        // 0. Search Engine & Uptime Monitor Immunity:
-        // Genuine search crawlers (Googlebot, Bingbot, etc.) or verified uptime monitors must NEVER be banned or blocked.
+        // 0. Search Engine, Uptime Monitor & Browser Prefetch Immunity:
+        // Modern browser speculative prefetching (Chrome Speculation Rules, WP Rocket prefetch, etc.),
+        // genuine search crawlers (Googlebot, Bingbot, etc.), and verified uptime monitors must NEVER be banned or blocked.
+        $purpose_headers = [
+            $_SERVER['HTTP_SEC_PURPOSE'] ?? '',
+            $_SERVER['HTTP_PURPOSE'] ?? '',
+            $_SERVER['HTTP_X_PURPOSE'] ?? '',
+            $_SERVER['HTTP_X_MOZ'] ?? '',
+        ];
+        $is_prefetch = false;
+        foreach ($purpose_headers as $h) {
+            if (!empty($h) && (stripos((string) $h, 'prefetch') !== false || stripos((string) $h, 'preview') !== false)) {
+                $is_prefetch = true;
+                break;
+            }
+        }
+
         $is_genuine_crawler = false;
         if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
             $is_genuine_crawler = BotReconDefense::is_genuine_search_engine($ip, $user_agent)
                 || BotReconDefense::is_genuine_uptime_monitor($ip, $user_agent, $settings);
         }
 
-        if ($is_genuine_crawler) {
+        if ($is_prefetch || $is_genuine_crawler) {
             status_header(404);
             nocache_headers();
             header('X-Robots-Tag: noindex, nofollow, noarchive');

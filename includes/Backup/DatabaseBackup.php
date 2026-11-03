@@ -54,6 +54,13 @@ class DatabaseBackup {
             @file_put_contents($htaccess, $rules);
         }
 
+        // Lock with web.config (IIS)
+        $web_config = $this->backup_dir . '/web.config';
+        if (!file_exists($web_config) && wp_is_writable($this->backup_dir)) {
+            $iis_rules = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration>\n  <system.webServer>\n    <authorization>\n      <deny users=\"*\" />\n    </authorization>\n  </system.webServer>\n</configuration>\n";
+            @file_put_contents($web_config, $iis_rules);
+        }
+
         // Lock with index.php
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index) && wp_is_writable($this->backup_dir)) {
@@ -362,7 +369,7 @@ class DatabaseBackup {
         $date_str = gmdate('Y-m-d_H-i-s');
         $use_gzip = function_exists('gzopen');
         $ext = $use_gzip ? 'sql.gz' : 'sql';
-        $filename = "db_backup_{$date_str}_" . wp_generate_password(8, false) . ".{$ext}";
+        $filename = "db_backup_{$date_str}_" . wp_generate_password(32, false) . ".{$ext}";
         $filepath = $this->backup_dir . '/' . $filename;
 
         // Inspect each table's row count and primary key for optimized cursor pagination
