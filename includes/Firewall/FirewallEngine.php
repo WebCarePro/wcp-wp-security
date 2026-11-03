@@ -1077,6 +1077,32 @@ class FirewallEngine {
             }
         }
 
+        // HTTP PUT / Arbitrary Webshell Upload Hardening:
+        // Legitimate WordPress HTTP PUT mutations only occur within authenticated REST API routes.
+        // Direct unauthenticated PUT requests targeting PHP files, uploads, or static paths are blocked.
+        $raw_method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET');
+        if ($raw_method === 'PUT') {
+            $is_rest_put = (defined('REST_REQUEST') && REST_REQUEST) || (strpos($request_uri, '/wp-json/') !== false) || (strpos($request_uri, 'rest_route=') !== false);
+            if (!$is_rest_put && !self::is_authenticated_administrator() && !self::is_authenticated_editor_or_builder()) {
+                $rule_triggered = [
+                    'id'          => 'WAF-UNAUTHORIZED-PUT-UPLOAD',
+                    'name'        => 'Unauthorized HTTP PUT File Upload Guard',
+                    'category'    => 'Protocol Defense',
+                    'description' => sprintf(
+                        /* translators: %s: Request URI path */
+                        esc_html__('Unauthenticated HTTP PUT request rejected on non-REST endpoint "%s" to prevent arbitrary webshell upload.', 'wcp-security-scanner'),
+                        esc_html($request_uri)
+                    ),
+                    'match_type'  => 'HTTP Method',
+                    'match_value' => 'PUT',
+                    'payload'     => "Method: PUT URI: {$request_uri} IP: {$client_ip}",
+                ];
+
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 405);
+                exit;
+            }
+        }
+
         // Block IPs who send POST requests with blank User-Agent and Referer
         if (!empty($settings['waf_block_empty_post_ua_referer'])) {
             $is_post = (isset($_SERVER['REQUEST_METHOD']) && strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) === 'POST');
@@ -2411,11 +2437,20 @@ class FirewallEngine {
             return true;
         }
 
-        // 3. Compare against all resolved ServerInfo IPs (IPv4 and IPv6)
+        // 3. Compare against all resolved ServerInfo IPs (IPv4 and IPv6) with binary normalization
         if (class_exists('\\WcpScanner\\System\\ServerInfo')) {
             $all_server_ips = \WcpScanner\System\ServerInfo::get_all_server_ips();
             if (in_array($ip, $all_server_ips, true)) {
                 return true;
+            }
+            $ip_bin = @inet_pton($ip);
+            if ($ip_bin !== false) {
+                foreach ($all_server_ips as $sip) {
+                    $sip_bin = @inet_pton($sip);
+                    if ($sip_bin !== false && $sip_bin === $ip_bin) {
+                        return true;
+                    }
+                }
             }
         }
 
@@ -6215,6 +6250,13 @@ class FirewallEngine {
             return;
         }
 
+        // Server Origin & Host Loopback Immunity:
+        // Internal loopback requests originating from the server itself (e.g. Wordfence scan forks,
+        // Gravity Forms background tasks, local wp-cron) are trusted internal operations.
+        if (self::is_server_origin_or_loopback($client_ip)) {
+            return;
+        }
+
         // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early guest action matrix inspection
         $action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
         $endpoint_name = $is_ajax ? 'admin-ajax.php' : 'admin-post.php';
@@ -6289,6 +6331,12 @@ class FirewallEngine {
                 'eas_compliance_ajax',
                 'eas_tax_calculation',
                 'woocommerce_calc_line_taxes',
+                // Security & Audit Companion Plugins (Wordfence Security loopbacks & test AJAX)
+                'wordfence_doScan',
+                'wordfence_testAjax',
+                // Gravity Forms Personal Data & Upload Handlers
+                'wp_gf_personal_data',
+                'gf_ajax_upload',
                 // AffiliateWP Guest Referral Tracking & Nonces
                 'affwp_track_visit',
                 'affwp_get_affiliate_id',
@@ -6426,12 +6474,20 @@ class FirewallEngine {
             '/akismet/',
             '/jetpack/',
             '/wcp-scanner/',
+            '/batch/v1',
         ];
 
         foreach ($safe_prefixes as $prefix) {
             if (strpos($route, $prefix) === 0 || strpos($route, $prefix) !== false) {
                 return $result;
             }
+        }
+
+        // Server Origin & Host Loopback Immunity:
+        // Internal loopback requests originating from the server itself are trusted internal operations.
+        $client_ip = self::get_client_ip();
+        if (self::is_server_origin_or_loopback($client_ip)) {
+            return $result;
         }
 
         // Check if incoming request is from a verified payment gateway or commerce callback
