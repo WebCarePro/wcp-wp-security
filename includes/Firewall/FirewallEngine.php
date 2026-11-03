@@ -7446,6 +7446,7 @@ class FirewallEngine {
 
             // Also inspect stack trace: if originated from core WP_User::set_role / wp_insert_user / register_new_user
             if (!$is_safe_registration_mutation && function_exists('debug_backtrace')) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection required to distinguish legitimate WordPress core registration from raw unauthenticated SQL/HTTP privilege injections.
                 $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 15);
                 foreach ($trace as $frame) {
                     $fn = $frame['function'] ?? '';
