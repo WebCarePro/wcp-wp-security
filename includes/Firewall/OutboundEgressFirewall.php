@@ -83,6 +83,33 @@ class OutboundEgressFirewall {
 
         // Intercept all HTTP requests executed via wp_remote_get, wp_remote_post, Requests, etc.
         add_filter('pre_http_request', [__CLASS__, 'inspect_outbound_request'], 10, 3);
+
+        // Constrain cURL redirect protocols to prevent protocol switching & redirect-hop SSRF
+        add_action('http_api_curl', [__CLASS__, 'constrain_curl_transport'], 10, 3);
+    }
+
+    /**
+     * Constrain cURL transport to HTTP/HTTPS and prevent dangerous protocol hopping on redirects.
+     *
+     * @param resource $handle
+     * @param array    $parsed_args
+     * @param string   $url
+     * @return void
+     */
+    public static function constrain_curl_transport($handle, $parsed_args, $url): void {
+        if (!is_resource($handle) && !(is_object($handle) && $handle instanceof \CurlHandle)) {
+            return;
+        }
+
+        // Restrict allowed protocols and redirection protocols strictly to HTTP and HTTPS
+        if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
+            @curl_setopt($handle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        }
+        if (defined('CURLOPT_REDIR_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
+            @curl_setopt($handle, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        }
     }
 
     /**
@@ -185,24 +212,31 @@ class OutboundEgressFirewall {
         $threat = null;
         $reason = '';
 
-        // 2. SSRF & Internal Cloud Metadata Check (169.254.169.254, 127.0.0.1, internal RFC1918)
+        // 2. SSRF, Binary IP Normalization & Cloud Metadata Check
+        // Resolves hostnames and checks decimal/hex/IPv6 encodings, link-local, loopback, and cloud metadata
         if (!empty($settings['block_ssrf_metadata'])) {
             $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
             if ($host !== $site_host) {
-                if ($host === '169.254.169.254' || $host === 'instance-data') {
-                    $threat = 'ssrf_metadata';
-                    $reason = 'Cloud metadata service access attempted (AWS/GCP/Azure 169.254.169.254).';
-                } elseif ($host === '127.0.0.1' || $host === 'localhost' || $host === '::1') {
-                    $threat = 'ssrf_loopback';
-                    $reason = 'Unauthorized internal localhost/loopback connection attempted.';
-                } elseif (preg_match('/^(?:10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.|192\.168\.)/', $host)) {
-                    $threat = 'ssrf_private_network';
-                    $reason = 'Private internal network probe attempted (RFC1918 IP).';
+                $ssrf_eval = self::evaluate_ssrf_destination($host);
+                if ($ssrf_eval['threat']) {
+                    $threat = $ssrf_eval['threat'];
+                    $reason = $ssrf_eval['reason'];
                 }
             }
         }
 
-        // 3. Known Exfiltration Webhooks Check
+        // 3. Raw-IP Outbound Monitor (Catch unverified C2 callback beacons)
+        if (!$threat && empty($settings['block_suspicious_tld'])) {
+            if (filter_var($host, FILTER_VALIDATE_IP)) {
+                $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
+                if ($host !== $site_host && !self::is_host_approved($host, $settings)) {
+                    $threat = 'raw_ip_egress';
+                    $reason = sprintf('Outbound network request targeting raw IP address (%s).', $host);
+                }
+            }
+        }
+
+        // 4. Known Exfiltration Webhooks Check
         if (!$threat && !empty($settings['block_exfil_webhooks'])) {
             foreach (self::MALICIOUS_SINK_PATTERNS as $name => $pattern) {
                 if (preg_match($pattern, $url)) {
@@ -234,7 +268,11 @@ class OutboundEgressFirewall {
         }
 
         if ($threat) {
-            $is_enforced = ($settings['mode'] === 'enforce' || $is_containment);
+            // Cloud metadata and localhost SSRF are hard-blocked unconditionally even in monitor mode
+            $is_hard_block = ($threat === 'ssrf_metadata' || $threat === 'ssrf_loopback');
+            // Raw-IP egress defaults to monitor mode unless global mode is enforce
+            $is_enforced = $is_hard_block || ($settings['mode'] === 'enforce' && $threat !== 'raw_ip_egress') || $is_containment;
+
             self::record_egress_event($url, $host, $caller, $threat, $reason, $is_enforced ? 'blocked' : 'monitored');
 
             if ($is_enforced) {
@@ -299,6 +337,118 @@ class OutboundEgressFirewall {
         }
 
         return $caller;
+    }
+
+    /**
+     * Evaluate SSRF risks, binary IPv4/IPv6 ranges, and decimal/hex/link-local encodings.
+     *
+     * Defeats decimal integer IPs (e.g. 2852039166 -> 169.254.169.254), hex IPs, IPv6 AWS metadata (fd00:ec2::254),
+     * and IPv4-mapped IPv6 encodings (::ffff:169.254.169.254).
+     *
+     * @param string $host
+     * @return array ['threat' => string|null, 'reason' => string]
+     */
+    private static function evaluate_ssrf_destination(string $host): array {
+        $clean_host = trim($host, '[]');
+
+        // Check if host is decimal integer encoding (e.g. 2852039166 or 2130706433)
+        if (ctype_digit($clean_host)) {
+            $long_val = (float) $clean_host;
+            if ($long_val >= 0 && $long_val <= 4294967295) {
+                $decoded_ip = long2ip((int) $clean_host);
+                if ($decoded_ip) {
+                    $clean_host = $decoded_ip;
+                }
+            }
+        }
+
+        // Check if host is hex encoding (e.g. 0xa9feeea or 0x7f000001)
+        if (preg_match('/^0x[0-9a-f]+$/i', $clean_host)) {
+            $hex_val = hexdec($clean_host);
+            if ($hex_val >= 0 && $hex_val <= 4294967295) {
+                $decoded_ip = long2ip($hex_val);
+                if ($decoded_ip) {
+                    $clean_host = $decoded_ip;
+                }
+            }
+        }
+
+        // Direct Cloud Metadata & Link-Local checks
+        if ($clean_host === '169.254.169.254' || $clean_host === '100.100.100.200' || $clean_host === 'instance-data') {
+            return [
+                'threat' => 'ssrf_metadata',
+                'reason' => 'Cloud metadata service access attempted (AWS/GCP/Alibaba 169.254.169.254 / 100.100.100.200).',
+            ];
+        }
+
+        // IPv6 Cloud Metadata (AWS IMDSv2 fd00:ec2::254)
+        if (strtolower($clean_host) === 'fd00:ec2::254') {
+            return [
+                'threat' => 'ssrf_metadata',
+                'reason' => 'AWS IPv6 Cloud metadata service access attempted (fd00:ec2::254).',
+            ];
+        }
+
+        // Direct Localhost & Loopback checks
+        if ($clean_host === '127.0.0.1' || $clean_host === 'localhost' || $clean_host === '::1' || $clean_host === '0.0.0.0') {
+            return [
+                'threat' => 'ssrf_loopback',
+                'reason' => 'Unauthorized internal localhost/loopback connection attempted.',
+            ];
+        }
+
+        // Binary IP inspection using inet_pton if valid IP
+        $packed = @inet_pton($clean_host);
+        if ($packed !== false) {
+            // IPv4 Range Checks
+            if (strlen($packed) === 4) {
+                $ip_long = ip2long($clean_host);
+                if ($ip_long !== false) {
+                    // Loopback: 127.0.0.0/8 (0x7F000000)
+                    if (($ip_long & 0xFF000000) === 0x7F000000 || $ip_long === 0) {
+                        return [
+                            'threat' => 'ssrf_loopback',
+                            'reason' => 'Unauthorized loopback network connection attempted (127.0.0.0/8).',
+                        ];
+                    }
+                    // Link-Local / Cloud Metadata: 169.254.0.0/16 (0xA9FE0000)
+                    if (($ip_long & 0xFFFF0000) === (int) 0xA9FE0000) {
+                        return [
+                            'threat' => 'ssrf_metadata',
+                            'reason' => 'Cloud metadata/link-local address probe attempted (169.254.0.0/16).',
+                        ];
+                    }
+                    // Private RFC1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+                    if (($ip_long & 0xFF000000) === 0x0A000000 ||
+                        ($ip_long & 0xFFF00000) === (int) 0xAC100000 ||
+                        ($ip_long & 0xFFFF0000) === (int) 0xC0A80000) {
+                        return [
+                            'threat' => 'ssrf_private_network',
+                            'reason' => 'Private internal RFC1918 network connection attempted.',
+                        ];
+                    }
+                }
+            } elseif (strlen($packed) === 16) {
+                // IPv6 Range Checks: Link-Local fe80::/10
+                $first_byte = ord($packed[0]);
+                $second_byte = ord($packed[1]);
+                if ($first_byte === 0xfe && ($second_byte & 0xc0) === 0x80) {
+                    return [
+                        'threat' => 'ssrf_metadata',
+                        'reason' => 'IPv6 link-local network connection attempted (fe80::/10).',
+                    ];
+                }
+                // IPv4-mapped IPv6 (::ffff:169.254.169.254)
+                if (substr($packed, 0, 12) === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff") {
+                    $ipv4_part = inet_ntop(substr($packed, 12));
+                    if ($ipv4_part) {
+                        return self::evaluate_ssrf_destination($ipv4_part);
+                    }
+                }
+            }
+        }
+
+        return ['threat' => null, 'reason' => ''];
     }
 
     /**

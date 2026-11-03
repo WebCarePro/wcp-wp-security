@@ -148,6 +148,13 @@ class NotificationDispatcher {
                 'description' => __('Alerts when an administrator password is reset or updated via profile, recovery link, or REST API.', 'wcp-security-scanner'),
                 'severity'    => 'high',
             ],
+            'auth_application_password_created' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('New Application Password Created', 'wcp-security-scanner'),
+                'description' => __('Dispatches an immediate alert whenever a new WordPress Application Password is generated.', 'wcp-security-scanner'),
+                'severity'    => 'high',
+            ],
             'auth_2fa_enabled' => [
                 'category'    => 'auth',
                 'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),

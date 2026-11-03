@@ -164,7 +164,88 @@ class RogueAdminAnomalyDetector {
             }
         }
 
-        // 5. Audit all registered administrators and return live summary state
+        // 5. Audit WordPress Application Passwords (_application_passwords in wp_usermeta)
+        // Detect rogue API tokens, orphan app passwords, or suspicious external last_ip entries on privileged users
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $app_passwords = $wpdb->get_results(
+            "SELECT m.umeta_id, m.user_id, m.meta_value, u.user_login, u.user_email 
+             FROM `{$wpdb->usermeta}` m 
+             LEFT JOIN `{$wpdb->users}` u ON m.user_id = u.ID 
+             WHERE m.meta_key = '_application_passwords' 
+             LIMIT 100"
+        );
+
+        if (!empty($app_passwords)) {
+            foreach ($app_passwords as $row) {
+                // If user doesn't exist, orphaned app password
+                if (empty($row->user_login)) {
+                    $findings[] = new Finding([
+                        'engine'      => 'database-micro-anomaly',
+                        'type'        => 'orphaned_application_password',
+                        'severity'    => 'high',
+                        'confidence'  => 95,
+                        'file_path'   => "db:{$usermeta_table}:umeta_id_{$row->umeta_id}",
+                        'description' => "Orphaned Application Password found for deleted or non-existent user ID {$row->user_id}. Attacker may retain REST API access.",
+                        'evidence'    => "Umeta ID: {$row->umeta_id}, Ghost User ID: {$row->user_id}",
+                    ]);
+                    continue;
+                }
+
+                $passwords = @maybe_unserialize($row->meta_value);
+                if (!is_array($passwords)) {
+                    $findings[] = new Finding([
+                        'engine'      => 'database-micro-anomaly',
+                        'type'        => 'corrupted_application_passwords',
+                        'severity'    => 'medium',
+                        'confidence'  => 85,
+                        'file_path'   => "db:{$usermeta_table}:user_id_{$row->user_id}",
+                        'description' => "User '{$row->user_login}' has malformed _application_passwords metadata.",
+                        'evidence'    => "User: {$row->user_login}, Raw value: " . substr((string) $row->meta_value, 0, 100),
+                    ]);
+                    continue;
+                }
+
+                $is_admin = user_can((int) $row->user_id, 'manage_options') || user_can((int) $row->user_id, 'edit_posts');
+
+                foreach ($passwords as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+                    $app_name = sanitize_text_field($entry['name'] ?? 'Unnamed');
+                    $uuid     = $entry['uuid'] ?? '';
+                    $last_ip  = $entry['last_ip'] ?? '';
+                    $created  = isset($entry['created']) ? (int) $entry['created'] : 0;
+
+                    // Anomaly A: Malformed or missing UUID/App identifier
+                    if (empty($uuid)) {
+                        $findings[] = new Finding([
+                            'engine'      => 'database-micro-anomaly',
+                            'type'        => 'suspicious_app_password_structure',
+                            'severity'    => 'high',
+                            'confidence'  => 90,
+                            'file_path'   => "db:{$usermeta_table}:user_id_{$row->user_id}",
+                            'description' => "Application Password '{$app_name}' on user '{$row->user_login}' lacks valid UUID. Indicates manual database injection or backdoor token.",
+                            'evidence'    => "User: {$row->user_login}, App Name: {$app_name}, Created: " . ($created ? gmdate('Y-m-d H:i:s', $created) : 'Unknown'),
+                        ]);
+                    }
+
+                    // Anomaly B: Privileged user (admin/editor) with application password active
+                    if ($is_admin && empty($last_ip)) {
+                        $findings[] = new Finding([
+                            'engine'      => 'database-micro-anomaly',
+                            'type'        => 'unused_admin_app_password_risk',
+                            'severity'    => 'low',
+                            'confidence'  => 75,
+                            'file_path'   => "db:{$usermeta_table}:user_id_{$row->user_id}",
+                            'description' => "Privileged account '{$row->user_login}' possesses an active Application Password ('{$app_name}') that has never recorded usage. Review and revoke if unauthorized.",
+                            'evidence'    => "User: {$row->user_login}, App Name: {$app_name}, UUID: {$uuid}",
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // 6. Audit all registered administrators and return live summary state
         return $findings;
     }
 

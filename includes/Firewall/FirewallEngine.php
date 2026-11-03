@@ -104,6 +104,9 @@ class FirewallEngine {
         add_filter('pre_update_option', [__CLASS__, 'rasp_guard_critical_options'], 1, 3);
         add_action('set_user_role', [__CLASS__, 'rasp_guard_user_role_assignment'], 1, 3);
         add_action('user_register', [__CLASS__, 'rasp_guard_user_registration'], 1, 1);
+        add_filter('update_user_metadata', [__CLASS__, 'rasp_guard_user_metadata_injection'], 1, 5);
+        add_filter('add_user_metadata', [__CLASS__, 'rasp_guard_user_metadata_injection'], 1, 5);
+        add_action('wp_create_application_password', [__CLASS__, 'telemetry_on_application_password_created'], 10, 4);
     }
 
     /**
@@ -7251,6 +7254,154 @@ class FirewallEngine {
                 'match_value' => (string) $user_id,
                 'payload'     => "User: {$user->user_login} ID: {$user_id}",
             ], 'blocked');
+        }
+    }
+
+    /**
+     * Rule #44: In-Memory RASP Hook Firewall - Abort guest or unprivileged metadata injection into critical usermeta.
+     *
+     * Traps direct database usermeta injections targeting _application_passwords, wp_capabilities, or user_level
+     * that bypass high-level WordPress helper functions.
+     *
+     * Features zero-FP detection for legitimate WordPress Core REST API application password usage pings:
+     * When an existing Application Password authenticates, WP Core updates 'last_used' and 'last_ip' during
+     * determine_current_user before is_user_logged_in() is set. We verify the token count and password hashes
+     * match existing database entries, allowing telemetry updates while blocking rogue creations and hash alterations.
+     *
+     * @param null|bool $check      Whether to allow updating/adding metadata
+     * @param int       $object_id  User ID
+     * @param string    $meta_key   Metadata key
+     * @param mixed     $meta_value Metadata value
+     * @param mixed     $prev_value Previous value
+     * @return null|bool null to proceed with core update, false to abort
+     */
+    public static function rasp_guard_user_metadata_injection($check, int $object_id, string $meta_key, $meta_value, $prev_value = '') {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['waf_enabled']) || empty($settings['waf_runtime_rasp_privilege_guard'])) {
+            return $check;
+        }
+
+        // Fast-path: Only inspect targeted sensitive security metadata keys
+        $guarded_keys = [
+            '_application_passwords',
+        ];
+        global $wpdb;
+        $prefix = isset($wpdb->prefix) ? $wpdb->prefix : 'wp_';
+        $guarded_keys[] = $prefix . 'capabilities';
+        $guarded_keys[] = $prefix . 'user_level';
+
+        if (!in_array($meta_key, $guarded_keys, true)) {
+            return $check;
+        }
+
+        // 1. Always allow WP-CLI terminal commands (essential for automation and deployment)
+        if (defined('WP_CLI') && WP_CLI) {
+            return $check;
+        }
+
+        // 2. Allow authenticated administrators or authorized profile editors
+        if (function_exists('is_user_logged_in') && is_user_logged_in()) {
+            if (self::is_authenticated_administrator()) {
+                return $check;
+            }
+            if (function_exists('current_user_can') && (current_user_can('manage_options') || current_user_can('edit_user', $object_id))) {
+                return $check;
+            }
+        }
+
+        // 3. Special handling for _application_passwords:
+        // When WordPress Core validates an Application Password during REST API determine_current_user,
+        // it calls WP_Application_Passwords::record_application_password_usage() to update 'last_used' and 'last_ip'.
+        // At that millisecond, is_user_logged_in() is still false.
+        // We permit the write ONLY if the token count and password hashes exactly match existing entries.
+        if ($meta_key === '_application_passwords') {
+            $existing = get_user_meta($object_id, '_application_passwords', true);
+            if (is_array($existing) && is_array($meta_value) && count($existing) === count($meta_value)) {
+                $existing_map = [];
+                foreach ($existing as $item) {
+                    if (isset($item['uuid'], $item['password'])) {
+                        $existing_map[$item['uuid']] = $item['password'];
+                    }
+                }
+
+                $is_only_usage_ping = true;
+                foreach ($meta_value as $new_item) {
+                    $uuid = $new_item['uuid'] ?? '';
+                    $pass = $new_item['password'] ?? '';
+                    if (!isset($existing_map[$uuid]) || !hash_equals((string) $existing_map[$uuid], (string) $pass)) {
+                        $is_only_usage_ping = false;
+                        break;
+                    }
+                }
+
+                if ($is_only_usage_ping) {
+                    return $check; // Safe: Core recording last_used and last_ip on existing authentic token
+                }
+            }
+        }
+
+        $client_ip = self::get_client_ip();
+
+        self::log_incident([
+            'id'          => 'WAF-RASP-META-INJECTION',
+            'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
+            'category'    => 'Runtime RASP Hook Defense',
+            'description' => sprintf(
+                /* translators: 1: Meta key, 2: User ID, 3: Client IP */
+                __('Unauthenticated request from %3$s attempted unauthorized runtime usermeta injection into "%1$s" for user #%2$d.', 'wcp-security-scanner'),
+                $meta_key,
+                $object_id,
+                $client_ip
+            ),
+            'match_type'  => 'Unauthorized Usermeta Mutation',
+            'match_value' => $meta_key,
+            'payload'     => "User: {$object_id} Meta: {$meta_key}",
+        ], 'blocked');
+
+        // Returning false tells WordPress update_metadata/add_metadata to immediately abort without writing to DB
+        return false;
+    }
+
+    /**
+     * Dispatch instant telemetry alert whenever an Application Password is created.
+     *
+     * @param int    $user_id User ID
+     * @param array  $new_item Application password record
+     * @param string $new_password Plaintext password
+     * @param array  $args Creation arguments
+     * @return void
+     */
+    public static function telemetry_on_application_password_created(int $user_id, array $new_item, string $new_password, array $args): void {
+        $user = function_exists('get_userdata') ? get_userdata($user_id) : null;
+        $username = $user ? $user->user_login : "User #{$user_id}";
+        $app_name = sanitize_text_field($new_item['name'] ?? 'Unknown App');
+        $uuid     = sanitize_text_field($new_item['uuid'] ?? '');
+        $client_ip = self::get_client_ip();
+
+        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            \WcpScanner\System\WcpActivityLogger::notice(
+                'auth_application_password_created',
+                'auth',
+                [
+                    'user_id'     => $user_id,
+                    'username'    => $username,
+                    'app_name'    => $app_name,
+                    'uuid'        => $uuid,
+                    'ip'          => $client_ip,
+                    'description' => sprintf('New Application Password "%s" generated for user "%s" from IP %s.', $app_name, $username, $client_ip),
+                ]
+            );
+        }
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_application_password_created', [
+                'user_id'     => $user_id,
+                'username'    => $username,
+                'app_name'    => $app_name,
+                'uuid'        => $uuid,
+                'ip'          => $client_ip,
+                'timestamp'   => current_time('mysql'),
+            ]);
         }
     }
 }

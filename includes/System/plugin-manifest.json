@@ -1,6 +1,6 @@
 {
-  "version": "2.2.0",
-  "generated_at": "2026-11-02T23:01:41.805Z",
+  "version": "2.3.0",
+  "generated_at": "2026-11-03T00:32:31.092Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -152,8 +152,8 @@
       "size": 5112
     },
     "includes/Database/RogueAdminAnomalyDetector.php": {
-      "sha256": "add53fdc104084dcce4edcec020d710f6f770c171a99f582ada9e34a9a56d758",
-      "size": 11095
+      "sha256": "53146c322a22f91064085a3215f7640e1fae84bddf16b51e9128456f1a354200",
+      "size": 15904
     },
     "includes/Database/SerializedDataScanner.php": {
       "sha256": "13e18466ae007cede953e3d3a5930811589bdb884c349ed1234b22e75ab60651",
@@ -240,8 +240,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "563a62dc76af887f516452328955ecfd7d902d748c67120166ff3b4a5af80add",
-      "size": 339256
+      "sha256": "e0b1991050ee9f0926ce370a446d7099e6d5a88cffbd3d003d742c9aed372b8b",
+      "size": 346632
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "c76eeec67afd45a5d704e4c35bb3263b374a7dfc6ae78792514f0cdcf877874e",
@@ -264,8 +264,8 @@
       "size": 25035
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
-      "sha256": "c14f34080cc83be7576c5d9949805544791b20255ad79fdee821002bc02df0ff",
-      "size": 14217
+      "sha256": "b6f6ca9f51106385654045fb1e0164e5d9e546418d130ebf072bdf697890fffb",
+      "size": 21005
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "7f91a488c2f451697c30e7d047fb2d3b4277c40bdad478fa8ee4c0591deab281",
@@ -344,8 +344,8 @@
       "size": 12023
     },
     "includes/Integrity/ImportantFileFIM.php": {
-      "sha256": "996d166fa83148ec85e22596e017bc5f3e7f2bf8aa81752b6b57732dcf004ef1",
-      "size": 3434
+      "sha256": "92c8dd9fe4a0f9f92c91cb17356a74eb5b7b7969c72a99fa31db1f880c0a6b71",
+      "size": 10533
     },
     "includes/Integrity/KnownVendorManifest.php": {
       "sha256": "2210d842fc2417f9ad65f0875434200a20c8b3288f7e15dd27f853ae5d36a0e7",
@@ -376,8 +376,12 @@
       "size": 8977
     },
     "includes/Malware/KnownHashDetector.php": {
-      "sha256": "bf5f77a2c7e77afa2ec03a9bae72a74899862843cf79ce16f689b41ca520bb45",
-      "size": 1959
+      "sha256": "df41089d443f1952936c9e2b09eb9cd59ed5419f51985964328707837cfd348a",
+      "size": 2951
+    },
+    "includes/Malware/KnownMalwareManifest.php": {
+      "sha256": "b40c4946c91a06c408da53637595105bdd4289a0679a8d0e4fb618c97fb5e6b2",
+      "size": 5777
     },
     "includes/Malware/ObfuscationDetector.php": {
       "sha256": "e45ee849916dc4555b0ccea27459921385e6a06fb3fbd41dd2e35870a4714ec2",
@@ -392,8 +396,8 @@
       "size": 13613
     },
     "includes/Notifications/NotificationDispatcher.php": {
-      "sha256": "6b545725a426bc58c5787b5132a569cf5f28ec58be9787d2630f707cf0797f00",
-      "size": 61329
+      "sha256": "96178a3aa52e00e9def8681275bcf31957dfec2d7fd628d288b19301a7b7f4fa",
+      "size": 61830
     },
     "includes/Notifications/WebhookService.php": {
       "sha256": "ca50f1c981d5db295fa5c50b50e148993f6080d558f19b56db0120fd78b3b882",
@@ -620,15 +624,15 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "2d450ba985c78b5e8e0c0d35e958516739da7fbb764bab4de0ba978a33764e77",
+      "sha256": "fe057d27f29860a4e9f964938ca54b77b15e4cebe299c52b6b84dbb7a25e858b",
       "size": 429
     },
     "README.md": {
-      "sha256": "1841e22052194ac13c02a14169fe7a979f3de46de704900b7c334481c4ccb1f8",
+      "sha256": "077d3dbe48196b8e8234862bf6a3a5e8e6dee49f4c9e85fe9101582636ef66a1",
       "size": 56362
     },
     "readme.txt": {
-      "sha256": "44e2b47753d52cc5ded6d3e37b8942b7991e05a7e425e783a527032f1483e4fa",
+      "sha256": "27f33f08eaca0a923dc7774ec81e9d9a68ffa8b09b79b73a445ebc0e23685339",
       "size": 25720
     },
     "uninstall.php": {
@@ -636,7 +640,7 @@
       "size": 7650
     },
     "wcp-wp-scanner.php": {
-      "sha256": "9f465aa02157afeb169dc66829ab209563f21805c357896c61159f8967d12a00",
+      "sha256": "80bb8e4405a903c3ff0408c37ee131db6b700a414d13e5f9fc7e477db1c9b40a",
       "size": 6497
     }
   }

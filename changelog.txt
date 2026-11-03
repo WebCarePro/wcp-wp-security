@@ -1,3 +1,18 @@
+v:2.3.0 - 2026-11-03
+- Application Password In-Memory RASP Guard & Instant Telemetry (FirewallEngine.php):
+  * Direct Usermeta Injection Neutralization: Hooked `update_user_metadata` and `add_user_metadata` in Rule #44 RASP to abort guest or unauthorized mutations targeting `_application_passwords`, `wp_capabilities`, and `wp_user_level` in memory before hitting MySQL.
+  * Zero-FP REST Authentication Telemetry State Machine: Differentiates authentic WordPress Core REST authentication updates from rogue backdoors. Core's unauthenticated `last_used` and `last_ip` telemetry updates during `determine_current_user` are validated via timing-safe hash comparisons (`is_only_usage_ping`) and allowed through, while unauthorized token creations and password hash modifications are terminated immediately.
+  * Real-Time Telemetry Dispatch: Hooked `wp_create_application_password` to log high-visibility audit notices in WcpActivityLogger recording user ID, username, app label, UUID, client IP, and UTC timestamp.
+  * WP-CLI Administration Exemption: Preserved terminal command execution (`defined('WP_CLI') && WP_CLI`) to guarantee uninterrupted CLI automation and staging deployments.
+- Outbound SSRF & Cloud Metadata Egress Firewall (OutboundEgressFirewall.php):
+  * Binary IP Normalization & Obfuscation Defenses: Integrated decimal/integer IP resolution (`long2ip`), hexadecimal notation parsing, and binary subnet boundary checking (`inet_pton`) to defeat evasion techniques (e.g. `http://2852039166/` and IPv4-mapped IPv6 `::ffff:169.254.169.254`).
+  * Cloud Metadata Hard-Block: Unconditionally hard-blocks outbound egress targeting cloud instance metadata services across AWS, GCP, Azure, and Alibaba (`169.254.0.0/16`, `100.100.100.200`, `fd00:ec2::254`, `fe80::/10`) and localhost/loopback (`127.0.0.0/8`, `::1`).
+  * Transport-Level Redirect Hop Protection: Hooked `http_api_curl` to restrict `CURLOPT_PROTOCOLS` and `CURLOPT_REDIR_PROTOCOLS` strictly to `CURLPROTO_HTTP | CURLPROTO_HTTPS`, preventing protocol-switching exploits and 302-redirect hops to internal metadata.
+  * Safe Self-Loopback & Raw-IP Monitor Mode: Explicitly whitelists `home_url()` and `site_url()` destinations for WordPress loopback crons and Site Health diagnostics, and defaults external raw-IP calls to non-destructive Monitor Mode with zero-leak argument-free backtrace logging (`DEBUG_BACKTRACE_IGNORE_ARGS`).
+- Database Application Password Sentinel & Risk Auditor (RogueAdminAnomalyDetector.php):
+  * Orphan & Malformed Token Detection: Inspects `_application_passwords` in `wp_usermeta` to discover orphaned tokens left behind by deleted users or tokens missing valid UUID identifiers from manual database injection.
+  * Privileged Account Inactivity Audit: Identifies unused application passwords attached to administrator and editor accounts that have never recorded access, alerting administrators without destructive auto-revocation.
+
 v:2.2.0 - 2026-11-02
 - Virtual Patching & Threat Intel Network Defensive Class Guards (FirewallEngine.php):
   * Graceful Autoload Boundary Protection: Wrapped `VirtualPatchManager::evaluate_request()` and `ThreatIntelNetwork::record_consensus_beacon()` invocations inside strict `class_exists()` boundary checks during early request inspection (`plugins_loaded:0`).
