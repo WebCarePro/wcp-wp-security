@@ -9,6 +9,42 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
+// Register autoloader for WcpScanner namespace during uninstallation
+spl_autoload_register(function ($class) {
+    $prefix = 'WcpScanner\\';
+    $base_dir = dirname(__FILE__) . '/includes/';
+
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return;
+    }
+
+    $relative_class = substr($class, $len);
+    $rel_path = str_replace('\\', '/', $relative_class);
+    $file = $base_dir . $rel_path . '.php';
+
+    if (file_exists($file)) {
+        require_once $file;
+        return;
+    }
+
+    $dir = dirname($rel_path);
+    $base = basename($rel_path);
+    if ($dir !== '.' && $dir !== '') {
+        $lower_dir_file = $base_dir . strtolower($dir) . '/' . $base . '.php';
+        if (file_exists($lower_dir_file)) {
+            require_once $lower_dir_file;
+            return;
+        }
+    }
+
+    $all_lower_file = $base_dir . strtolower($rel_path) . '.php';
+    if (file_exists($all_lower_file)) {
+        require_once $all_lower_file;
+        return;
+    }
+});
+
 // Dispatch plugin uninstallation security event notification before purging configuration
 $wcpscan_dispatcher_file = dirname(__FILE__) . '/includes/Notifications/NotificationDispatcher.php';
 $wcpscan_settings_mgr_file = dirname(__FILE__) . '/includes/System/SettingsManager.php';
@@ -16,15 +52,19 @@ if (file_exists($wcpscan_dispatcher_file) && file_exists($wcpscan_settings_mgr_f
     require_once $wcpscan_settings_mgr_file;
     require_once $wcpscan_dispatcher_file;
     if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-        \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_uninstall', [
-            'severity' => 'high',
-            'message'  => __('WCP Security Scanner is being uninstalled and deleted from WordPress plugins manager.', 'wcp-security-scanner'),
-            'details'  => [
-                'Event'        => 'Plugin Uninstallation',
-                'Triggered By' => function_exists('wp_get_current_user') && wp_get_current_user()->exists() ? wp_get_current_user()->user_login : 'admin',
-                'Timestamp'    => current_time('mysql'),
-            ],
-        ]);
+        try {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_uninstall', [
+                'severity' => 'high',
+                'message'  => __('WCP Security Scanner is being uninstalled and deleted from WordPress plugins manager.', 'wcp-security-scanner'),
+                'details'  => [
+                    'Event'        => 'Plugin Uninstallation',
+                    'Triggered By' => function_exists('wp_get_current_user') && wp_get_current_user()->exists() ? wp_get_current_user()->user_login : 'admin',
+                    'Timestamp'    => current_time('mysql'),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            // Fail safely during uninstall without blocking deletion
+        }
     }
 }
 
@@ -146,8 +186,12 @@ if ($wcpscan_delete_data) {
                     require_once ABSPATH . 'wp-admin/includes/file.php';
                     WP_Filesystem();
                 }
-                if ($wp_filesystem) {
-                    $wp_filesystem->delete($wcpscan_storage_dir, true);
+                if ($wp_filesystem && is_object($wp_filesystem) && method_exists($wp_filesystem, 'delete')) {
+                    try {
+                        $wp_filesystem->delete($wcpscan_storage_dir, true);
+                    } catch (\Throwable $e) {
+                        // Fail safely
+                    }
                 }
             }
         }
