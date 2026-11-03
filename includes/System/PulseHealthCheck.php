@@ -101,6 +101,7 @@ class PulseHealthCheck {
 
         if ($has_fatal_conflict) {
             $summary = sprintf(
+                /* translators: %s: Comma-separated list of failed endpoints and error status */
                 __('Critical Conflict: %s', 'wcp-security-scanner'),
                 implode(', ', $failure_details)
             );
