@@ -341,6 +341,7 @@ class AdminMenu {
             'wcp-security-scanner_page_wcp-scanner-server',
             'wcp-security-scanner_page_wcp-scanner-vulnerabilities',
             'wcp-security-scanner_page_wcp-scanner-firewall',
+            'wcp-security-scanner_page_wcp-scanner-caf',
             'wcp-security-scanner_page_wcp-scanner-vpatch',
             'wcp-security-scanner_page_wcp-scanner-waf-logs',
             'wcp-security-scanner_page_wcp-scanner-fim',
@@ -359,6 +360,7 @@ class AdminMenu {
             'security-scanner_page_wcp-scanner-server',
             'security-scanner_page_wcp-scanner-vulnerabilities',
             'security-scanner_page_wcp-scanner-firewall',
+            'security-scanner_page_wcp-scanner-caf',
             'security-scanner_page_wcp-scanner-vpatch',
             'security-scanner_page_wcp-scanner-waf-logs',
             'security-scanner_page_wcp-scanner-fim',
@@ -390,7 +392,7 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-backup' || ($current_page === 'wcp-security-scanner' && $tab_param === 'backup')) $active_tab = 'backup';
         elseif ($current_page === 'wcp-scanner-server' || ($current_page === 'wcp-security-scanner' && $tab_param === 'server')) $active_tab = 'server';
         elseif ($current_page === 'wcp-scanner-vulnerabilities' || ($current_page === 'wcp-security-scanner' && $tab_param === 'vulnerabilities')) $active_tab = 'vulnerabilities';
-        elseif ($current_page === 'wcp-scanner-firewall' || ($current_page === 'wcp-security-scanner' && $tab_param === 'firewall') || $current_page === 'wcp-scanner-vpatch') $active_tab = 'firewall';
+        elseif ($current_page === 'wcp-scanner-firewall' || ($current_page === 'wcp-security-scanner' && $tab_param === 'firewall') || $current_page === 'wcp-scanner-vpatch' || $current_page === 'wcp-scanner-caf') $active_tab = 'firewall';
         elseif ($current_page === 'wcp-scanner-waf-logs' || ($current_page === 'wcp-security-scanner' && $tab_param === 'waf_logs')) $active_tab = 'waf_logs';
         elseif ($current_page === 'wcp-scanner-fim' || ($current_page === 'wcp-security-scanner' && $tab_param === 'fim')) $active_tab = 'fim';
         elseif ($current_page === 'wcp-scanner-auth' || ($current_page === 'wcp-security-scanner' && $tab_param === 'auth')) $active_tab = 'auth';

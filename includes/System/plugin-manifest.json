@@ -1,6 +1,6 @@
 {
   "version": "2.4.0",
-  "generated_at": "2026-11-04T10:10:09.737Z",
+  "generated_at": "2026-11-04T10:30:32.294Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -52,12 +52,12 @@
       "size": 324
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "5264f38670d654303d5e912e8e332a2b56961af5aacce8caac4ae8ee42bc52ce",
-      "size": 44426
+      "sha256": "6de0bad9b37ac27de2c4cbd0a3580368d201bfbd7c1a55b9a737c61820a20cb1",
+      "size": 44575
     },
     "includes/Admin/views/caf-page.php": {
-      "sha256": "0a410c6f0003865eba857f8d22fb4d0748b8195bcbfa2d054909ef9dc214866d",
-      "size": 34132
+      "sha256": "315bd75ba5190b8f75e60581a76f06b25fe353439e8c4b335d9556c1a444459d",
+      "size": 39437
     },
     "includes/Advisor/PolicyRegistry.php": {
       "sha256": "9ad4dcc4befa73d0f157d96e0917d1afab47540e84ec94567e022bfaa0b2711d",

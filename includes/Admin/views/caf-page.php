@@ -8,8 +8,10 @@
  * - Behavioral Intelligence, Proof-of-Work (PoW) & Dynamic Rate Limiting (Phase 3)
  *
  * Preserves the Scan Page UI 100% untouched by executing as an independent view.
+ * Fully integrates with the WCP Executive Design System (Light & Dark Theme adaptive).
  *
  * @package WcpScanner\Admin
+ * @author  Mir Alamin (WebCare Pro)
  */
 
 namespace WcpScanner\Admin;
@@ -102,110 +104,178 @@ $threat_summary = [
 
 $rest_url = esc_url_raw(rest_url('wcp-scanner/v1'));
 $rest_nonce = wp_create_nonce('wp_rest');
+$logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg' : '';
+$version  = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0';
 ?>
-<div class="wrap wcp-caf-standalone-wrap" style="max-width: 1300px; margin: 20px auto 40px auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
 
-    <!-- TOP HERO BANNER -->
-    <div style="background: linear-gradient(135deg, #090d16 0%, #0f172a 100%); border: 1px solid #1e293b; border-radius: 16px; padding: 28px 32px; color: #ffffff; margin-bottom: 24px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
-            <div style="max-width: 780px;">
-                <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #818cf8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
-                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
-                    <?php esc_html_e('Next-Gen Adaptive Perimeter Security (CAF)', 'wcp-security-scanner'); ?>
+<div class="wcp-page-container wcp-theme-light" id="wcp-caf-root">
+
+    <!-- FLOATING NOTICE BANNER -->
+    <div id="wcp-caf-notice" style="display: none; position: sticky; top: 32px; z-index: 9999; margin-bottom: 16px; padding: 12px 18px; border-radius: 10px; box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.15); font-size: 13px; font-weight: 600;"></div>
+
+    <!-- MAIN TWO-TIER EXECUTIVE HEADER -->
+    <header class="header-bar wcp-two-tier-header">
+        <div class="wcp-header-tier-top">
+            <div class="brand-section">
+                <div class="brand-logo-wrap" style="overflow: hidden; border-radius: 12px; border: 1.5px solid rgba(56, 189, 248, 0.45); box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;">
+                    <?php if (!empty($logo_url)): ?>
+                        <img src="<?php echo esc_url($logo_url); ?>" alt="WebCare Pro Logo" class="brand-3d-logo-img" style="width: 100%; height: 100%; object-fit: cover;" />
+                    <?php else: ?>
+                        <span style="font-size: 22px;">🛡️</span>
+                    <?php endif; ?>
                 </div>
-                <h1 style="font-size: 26px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0; line-height: 1.2;">
-                    <?php esc_html_e('Context-Adaptive Firewall (CAF) & StackGuard Cockpit', 'wcp-security-scanner'); ?>
-                </h1>
-                <p style="font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0;">
-                    <?php esc_html_e('Deeply inspects active WordPress components, dormant attack surfaces, and visitor velocity to generate zero-friction edge rules and early pre-boot defense.', 'wcp-security-scanner'); ?>
-                </p>
+                <div>
+                    <div class="brand-title">
+                        WebCare<span class="highlight">Pro</span> Security
+                    </div>
+                    <div class="brand-subtitle">
+                        <span class="pulse-dot"></span>
+                        <?php
+                        /* translators: %s: current plugin version string */
+                        printf(esc_html__('Context-Adaptive Perimeter Defense & StackGuard • v%s', 'wcp-security-scanner'), esc_html($version));
+                        ?>
+                    </div>
+                </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <button type="button" id="wcp-caf-reprofile-btn" class="button" style="background: #1e293b; border: 1px solid #334155; color: #f1f5f9; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
-                    🔄 <?php esc_html_e('Re-Profile Stack', 'wcp-security-scanner'); ?>
+            <div class="wcp-header-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <button type="button" id="wcp-theme-toggle-btn" class="wcp-theme-toggle-btn" title="Toggle Light / Dark Mode">
+                    <span id="wcp-theme-toggle-icon">🌙</span>
+                    <span id="wcp-theme-toggle-text">Dark Mode</span>
                 </button>
-                <button type="button" id="wcp-caf-killswitch-btn" class="button" style="background: <?php echo $is_killed ? '#dc2626' : '#334155'; ?>; border: 1px solid <?php echo $is_killed ? '#b91c1c' : '#475569'; ?>; color: #ffffff; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
-                    ⚡ <?php echo $is_killed ? esc_html__('Preload Bypassed (Click to Enable)', 'wcp-security-scanner') : esc_html__('Preload WAF Active', 'wcp-security-scanner'); ?>
-                </button>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-firewall')); ?>" class="wcp-btn wcp-btn-secondary" style="font-size: 13px; padding: 7px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                    ← <?php esc_html_e('WAF Rules', 'wcp-security-scanner'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-scan')); ?>" class="wcp-btn wcp-btn-secondary" style="font-size: 13px; padding: 7px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                    🔍 <?php esc_html_e('Scanner', 'wcp-security-scanner'); ?>
+                </a>
             </div>
         </div>
 
-        <!-- Notification Bar -->
-        <div id="wcp-caf-notice" style="display: none; margin-top: 16px; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;"></div>
+        <div class="wcp-header-tier-bottom">
+            <nav class="nav-tabs" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-security-scanner')); ?>" class="nav-tab-btn" style="text-decoration: none;">
+                    📊 <?php esc_html_e('Dashboard', 'wcp-security-scanner'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-scan')); ?>" class="nav-tab-btn" style="text-decoration: none;">
+                    🔍 <?php esc_html_e('Scanner', 'wcp-security-scanner'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-firewall')); ?>" class="nav-tab-btn" style="text-decoration: none;">
+                    🛡️ <?php esc_html_e('Firewall (WAF Lite)', 'wcp-security-scanner'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-caf')); ?>" class="nav-tab-btn active" style="text-decoration: none;">
+                    ⚡ <?php esc_html_e('Adaptive Firewall (CAF)', 'wcp-security-scanner'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-auth')); ?>" class="nav-tab-btn" style="text-decoration: none;">
+                    🔐 <?php esc_html_e('Identity & 2FA', 'wcp-security-scanner'); ?>
+                </a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-scanner-settings')); ?>" class="nav-tab-btn" style="text-decoration: none;">
+                    ⚙️ <?php esc_html_e('Settings', 'wcp-security-scanner'); ?>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- FIREWALL HERO BANNER -->
+    <div class="wcp-firewall-hero">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div class="wcp-firewall-hero-icon">
+                <span style="font-size: 24px;">⚡</span>
+            </div>
+            <div>
+                <h1 class="wcp-firewall-hero-title">
+                    <?php esc_html_e('Context-Adaptive Firewall (CAF) & StackGuard', 'wcp-security-scanner'); ?>
+                </h1>
+                <p class="wcp-firewall-hero-desc">
+                    <?php esc_html_e('Zero-friction intelligent perimeter: stack anatomy inspection, Cloudflare 3-slot edge offload, and behavioral velocity defenses.', 'wcp-security-scanner'); ?>
+                </p>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button type="button" id="wcp-caf-reprofile-btn" class="wcp-btn wcp-btn-secondary" style="font-size: 13px; font-weight: 600; padding: 8px 16px; cursor: pointer;">
+                🔄 <?php esc_html_e('Re-Profile Stack', 'wcp-security-scanner'); ?>
+            </button>
+            <button type="button" id="wcp-caf-killswitch-btn" class="wcp-btn" style="font-size: 13px; font-weight: 600; padding: 8px 16px; cursor: pointer; <?php echo $is_killed ? 'background: #dc2626; color: #ffffff;' : 'background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #ffffff;'; ?>">
+                ⚡ <?php echo $is_killed ? esc_html__('Preload Bypassed (Click to Enable)', 'wcp-security-scanner') : esc_html__('Preload WAF Active', 'wcp-security-scanner'); ?>
+            </button>
+        </div>
     </div>
 
-    <!-- 4 ANATOMY STAT CARDS -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
-                <?php esc_html_e('WordPress & PHP Environment', 'wcp-security-scanner'); ?>
+    <!-- 4 KPI ANATOMY STAT CARDS -->
+    <div class="wcp-firewall-kpi-grid">
+        <div class="wcp-firewall-kpi-card">
+            <div class="wcp-firewall-kpi-label">
+                <span><?php esc_html_e('WordPress & PHP Environment', 'wcp-security-scanner'); ?></span>
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #0284c7; display: inline-block;"></span>
             </div>
-            <div style="font-size: 18px; font-weight: 800; color: #0f172a;">
+            <div class="wcp-firewall-kpi-val" style="font-size: 18px; margin-top: 6px;">
                 WP v<?php echo esc_html($snapshot['wp_version'] ?? '7.x'); ?> • PHP <?php echo esc_html($snapshot['php_version'] ?? '8.x'); ?>
             </div>
-            <div style="font-size: 12px; color: #475569; margin-top: 4px;">
+            <span class="wcp-firewall-kpi-sub">
                 <?php
                 /* translators: %1$d: active plugin count, %2$s: active theme slug */
                 printf(esc_html__('%1$d Active Plugins • Theme: %2$s', 'wcp-security-scanner'), count($snapshot['active_plugins'] ?? []), esc_html($snapshot['active_themes']['active']['slug'] ?? 'Active'));
                 ?>
-            </div>
+            </span>
         </div>
 
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
-                <?php esc_html_e('Dormant Attack Surface', 'wcp-security-scanner'); ?>
+        <div class="wcp-firewall-kpi-card">
+            <div class="wcp-firewall-kpi-label">
+                <span><?php esc_html_e('Dormant Attack Surface', 'wcp-security-scanner'); ?></span>
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: <?php echo !empty($recommendations['lock_dormant_surface']) ? '#10b981' : '#f59e0b'; ?>; display: inline-block;"></span>
             </div>
-            <div style="font-size: 18px; font-weight: 800; color: <?php echo !empty($recommendations['lock_dormant_surface']) ? '#10b981' : '#f59e0b'; ?>;">
+            <div class="wcp-firewall-kpi-val" style="font-size: 18px; margin-top: 6px; color: <?php echo !empty($recommendations['lock_dormant_surface']) ? '#10b981' : '#f59e0b'; ?>;">
                 <?php echo esc_html((string)($recommendations['dormant_plugin_count'] ?? 0)); ?> <?php esc_html_e('Inactive Plugins', 'wcp-security-scanner'); ?>
             </div>
-            <div style="font-size: 12px; color: #475569; margin-top: 4px;">
-                <?php echo !empty($recommendations['lock_dormant_surface']) ? esc_html__('🔒 Locked down at early preload runtime', 'wcp-security-scanner') : esc_html__('⚠️ Direct plugin execution open', 'wcp-security-scanner'); ?>
-            </div>
+            <span class="wcp-firewall-kpi-sub">
+                <?php echo !empty($recommendations['lock_dormant_surface']) ? esc_html__('🔒 Locked down at early preload runtime', 'wcp-security-scanner') : esc_html__('⚠️ Direct plugin probe surface exposed', 'wcp-security-scanner'); ?>
+            </span>
         </div>
 
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
-                <?php esc_html_e('Conflict Avoidance Shields', 'wcp-security-scanner'); ?>
+        <div class="wcp-firewall-kpi-card">
+            <div class="wcp-firewall-kpi-label">
+                <span><?php esc_html_e('Conflict Avoidance Shields', 'wcp-security-scanner'); ?></span>
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
             </div>
-            <div style="font-size: 18px; font-weight: 800; color: #0284c7;">
+            <div class="wcp-firewall-kpi-val" style="font-size: 18px; margin-top: 6px; color: #0284c7;">
                 <?php echo esc_html((string)count($recommendations['conflict_exemptions']['scoped_rules'] ?? [])); ?> <?php esc_html_e('Context Safe-Passes', 'wcp-security-scanner'); ?>
             </div>
-            <div style="font-size: 12px; color: #475569; margin-top: 4px;">
-                <?php esc_html_e('Zero false-positive e-commerce & builder saves', 'wcp-security-scanner'); ?>
-            </div>
+            <span class="wcp-firewall-kpi-sub">
+                <?php esc_html_e('Zero false-positive e-commerce & page-builder saves', 'wcp-security-scanner'); ?>
+            </span>
         </div>
 
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
-                <?php esc_html_e('Residual Risk Posture', 'wcp-security-scanner'); ?>
+        <div class="wcp-firewall-kpi-card">
+            <div class="wcp-firewall-kpi-label">
+                <span><?php esc_html_e('Residual Risk Posture', 'wcp-security-scanner'); ?></span>
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: <?php echo $risk_score > 50 ? '#dc2626' : '#10b981'; ?>; display: inline-block;"></span>
             </div>
-            <div style="font-size: 18px; font-weight: 800; color: <?php echo $risk_score > 50 ? '#ef4444' : '#10b981'; ?>;">
+            <div class="wcp-firewall-kpi-val" style="font-size: 18px; margin-top: 6px; color: <?php echo $risk_score > 50 ? '#dc2626' : '#10b981'; ?>;">
                 <?php echo esc_html((string)$risk_score); ?> / 100
             </div>
-            <div style="font-size: 12px; color: #475569; margin-top: 4px;">
-                <?php echo $risk_score <= 20 ? esc_html__('Optimal Hardened Defense Posture', 'wcp-security-scanner') : esc_html__('Additional hardening recommended', 'wcp-security-scanner'); ?>
-            </div>
+            <span class="wcp-firewall-kpi-sub">
+                <?php echo $risk_score <= 20 ? esc_html__('Optimal Hardened Defense Posture', 'wcp-security-scanner') : esc_html__('Hardening recommendations pending', 'wcp-security-scanner'); ?>
+            </span>
         </div>
     </div>
 
     <!-- MAIN TWO-COLUMN SPLIT: PROFILES (LEFT) + CLOUDFLARE EDGE & BEHAVIORAL (RIGHT) -->
-    <div style="display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(420px, 1.65fr); gap: 24px; align-items: start;">
+    <div style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(420px, 1.75fr); gap: 24px; align-items: start;">
 
         <!-- LEFT COLUMN: SMART PROTECTION PROFILES (PHASE 1) -->
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+        <div class="wcp-firewall-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--wcp-border, #e2e8f0); padding-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                 <div>
-                    <h2 style="font-size: 17px; font-weight: 800; color: #0f172a; margin: 0 0 4px 0;">
+                    <h3 class="wcp-firewall-section-title" style="margin: 0 0 4px 0; font-size: 16px;">
                         🛡️ <?php esc_html_e('Smart Protection Profiles (Phase 1)', 'wcp-security-scanner'); ?>
-                    </h2>
-                    <p style="font-size: 12.5px; color: #64748b; margin: 0;">
+                    </h3>
+                    <p class="wcp-firewall-section-desc" style="margin: 0; font-size: 12.5px;">
                         <?php esc_html_e('Compile tailored O(1) early-rejection rules matching your site archetype.', 'wcp-security-scanner'); ?>
                     </p>
                 </div>
-                <span style="font-size: 12px; color: #64748b;">
-                    <?php esc_html_e('Auto-Detected:', 'wcp-security-scanner'); ?> <strong style="color: #4f46e5;"><?php echo esc_html($recommendations['recommended_profile'] ?? 'balanced'); ?></strong>
+                <span class="wcp-badge-info" style="font-size: 11px;">
+                    <?php esc_html_e('Auto-Detected:', 'wcp-security-scanner'); ?> <?php echo esc_html($recommendations['recommended_profile'] ?? 'balanced'); ?>
                 </span>
             </div>
 
@@ -214,30 +284,30 @@ $rest_nonce = wp_create_nonce('wp_rest');
                     $is_current = ($active_profile === $p['id']);
                     $is_rec = (($recommendations['recommended_profile'] ?? '') === $p['id']);
                 ?>
-                <div style="border: <?php echo $is_current ? '2px solid #4f46e5' : '1px solid #e2e8f0'; ?>; border-radius: 10px; padding: 14px 16px; background: <?php echo $is_current ? '#f5f3ff' : '#ffffff'; ?>; display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="wcp-firewall-rule-card" style="padding: 14px 16px; <?php echo $is_current ? 'border: 2px solid #4f46e5; box-shadow: 0 0 12px rgba(79, 70, 229, 0.15);' : ''; ?>">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: <?php echo esc_attr($p['color']); ?>;"></span>
-                            <strong style="font-size: 14px; color: #0f172a;"><?php echo esc_html($p['name']); ?></strong>
+                            <strong style="font-size: 14px;"><?php echo esc_html($p['name']); ?></strong>
                             <?php if ($is_rec): ?>
-                                <span style="background: #ecfdf5; color: #047857; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #a7f3d0;">
+                                <span class="wcp-badge-clean" style="font-size: 10px; padding: 2px 6px;">
                                     <?php esc_html_e('RECOMMENDED', 'wcp-security-scanner'); ?>
                                 </span>
                             <?php endif; ?>
                         </div>
-                        <span style="font-size: 11px; font-weight: 600; color: #64748b;"><?php echo esc_html($p['badge']); ?></span>
+                        <span class="wcp-badge-neutral" style="font-size: 11px;"><?php echo esc_html($p['badge']); ?></span>
                     </div>
 
-                    <p style="font-size: 12px; color: #475569; margin: 0; line-height: 1.4;">
+                    <p style="font-size: 12px; margin: 0 0 10px 0; line-height: 1.5; opacity: 0.85;">
                         <?php echo esc_html($p['desc']); ?>
                     </p>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.05);">
-                        <span style="font-size: 11px; font-weight: 600; color: <?php echo $is_current ? '#4f46e5' : '#94a3b8'; ?>;">
-                            <?php echo $is_current ? esc_html__('● Active Profile', 'wcp-security-scanner') : esc_html__('Inactive', 'wcp-security-scanner'); ?>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--wcp-border, #e2e8f0);">
+                        <span style="font-size: 11.5px; font-weight: 600;" class="<?php echo $is_current ? 'wcp-badge-clean' : 'wcp-badge-neutral'; ?>">
+                            <?php echo $is_current ? esc_html__('● Active Profile', 'wcp-security-scanner') : esc_html__('○ Inactive', 'wcp-security-scanner'); ?>
                         </span>
-                        <button type="button" class="wcp-apply-profile-btn button" data-profile="<?php echo esc_attr($p['id']); ?>" <?php disabled($is_current); ?> style="font-size: 11px; padding: 3px 12px; height: 28px; line-height: 20px;">
-                            <?php echo $is_current ? esc_html__('Active', 'wcp-security-scanner') : esc_html__('Apply & Compile', 'wcp-security-scanner'); ?>
+                        <button type="button" class="wcp-apply-profile-btn wcp-firewall-rule-save-btn <?php echo $is_current ? 'is-saved' : ''; ?>" data-profile="<?php echo esc_attr($p['id']); ?>" <?php disabled($is_current); ?>>
+                            <?php echo $is_current ? esc_html__('✓ Active', 'wcp-security-scanner') : esc_html__('Apply & Compile', 'wcp-security-scanner'); ?>
                         </button>
                     </div>
                 </div>
@@ -249,47 +319,55 @@ $rest_nonce = wp_create_nonce('wp_rest');
         <div style="display: flex; flex-direction: column; gap: 24px;">
 
             <!-- CLOUDFLARE FREE-PLAN EDGE DEFENSE (PHASE 2) -->
-            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+            <div class="wcp-firewall-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--wcp-border, #e2e8f0); padding-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                     <div>
-                        <h2 style="font-size: 17px; font-weight: 800; color: #0f172a; margin: 0 0 4px 0;">
+                        <h3 class="wcp-firewall-section-title" style="margin: 0 0 4px 0; font-size: 16px;">
                             ☁️ <?php esc_html_e('Cloudflare Free-Plan 3-Slot Edge Offload (Phase 2)', 'wcp-security-scanner'); ?>
-                        </h2>
-                        <p style="font-size: 12.5px; color: #64748b; margin: 0;">
-                            <?php esc_html_e('Stops scans and brute-force at the edge before hitting cPanel/PHP workers.', 'wcp-security-scanner'); ?>
+                        </h3>
+                        <p class="wcp-firewall-section-desc" style="margin: 0; font-size: 12.5px;">
+                            <?php esc_html_e('Packs defense rules into Cloudflare free edge slots to save PHP workers.', 'wcp-security-scanner'); ?>
                         </p>
                     </div>
-                    <span style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; background: <?php echo !empty($cf_status['configured']) ? '#ecfdf5' : '#fef2f2'; ?>; color: <?php echo !empty($cf_status['configured']) ? '#047857' : '#dc2626'; ?>;">
-                        <?php echo !empty($cf_status['configured']) ? esc_html__('● Connected', 'wcp-security-scanner') : esc_html__('○ Not Configured', 'wcp-security-scanner'); ?>
+                    <span class="<?php echo !empty($cf_status['configured']) ? 'wcp-badge-clean' : 'wcp-badge-critical'; ?>" style="font-size: 11px;">
+                        <?php echo !empty($cf_status['configured']) ? esc_html__('● Edge Connected', 'wcp-security-scanner') : esc_html__('○ Not Configured', 'wcp-security-scanner'); ?>
                     </span>
                 </div>
 
-                <!-- Slots Visualization -->
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
-                    <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #f8fafc;">
-                        <div style="font-size: 11px; font-weight: 700; color: #dc2626; text-transform: uppercase;">Slot 1: Hard Drop</div>
-                        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin: 4px 0;">Dormant & Attackers</div>
-                        <div style="font-size: 11px; color: #64748b;">Instant HTTP 403 block for known scanners & bad subnets.</div>
+                <!-- 3-Slot Edge Matrix Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="wcp-firewall-inset-box" style="padding: 12px 14px;">
+                        <span class="wcp-badge-critical" style="font-size: 10px; margin-bottom: 4px; display: inline-block;">
+                            <?php esc_html_e('Slot 1: Hard Drop', 'wcp-security-scanner'); ?>
+                        </span>
+                        <div style="font-size: 13px; font-weight: 700; margin: 4px 0;">Dormant & Scanners</div>
+                        <div style="font-size: 11px; opacity: 0.8; line-height: 1.4;">Instant HTTP 403 block for known bot scanners & inactive plugin probes.</div>
                     </div>
-                    <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #f8fafc;">
-                        <div style="font-size: 11px; font-weight: 700; color: #d97706; text-transform: uppercase;">Slot 2: Challenge</div>
-                        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin: 4px 0;">Bot & Brute Pacing</div>
-                        <div style="font-size: 11px; color: #64748b;">Managed Challenge on wp-login & suspicious auth queries.</div>
+
+                    <div class="wcp-firewall-inset-box" style="padding: 12px 14px;">
+                        <span class="wcp-badge-warn" style="font-size: 10px; margin-bottom: 4px; display: inline-block;">
+                            <?php esc_html_e('Slot 2: Managed Challenge', 'wcp-security-scanner'); ?>
+                        </span>
+                        <div style="font-size: 13px; font-weight: 700; margin: 4px 0;">Auth & Velocity Pacing</div>
+                        <div style="font-size: 11px; opacity: 0.8; line-height: 1.4;">Managed Challenge on wp-login.php & abnormal authorization bursts.</div>
                     </div>
-                    <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #f8fafc;">
-                        <div style="font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase;">Slot 3: Virtual Patches</div>
-                        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin: 4px 0;">0-Day Mitigation</div>
-                        <div style="font-size: 11px; color: #64748b;">Wirefilter byte-packed rules blocking known CVE exploits.</div>
+
+                    <div class="wcp-firewall-inset-box" style="padding: 12px 14px;">
+                        <span class="wcp-badge-purple" style="font-size: 10px; margin-bottom: 4px; display: inline-block;">
+                            <?php esc_html_e('Slot 3: Virtual Patches', 'wcp-security-scanner'); ?>
+                        </span>
+                        <div style="font-size: 13px; font-weight: 700; margin: 4px 0;">CVE Wirefilter Mitigations</div>
+                        <div style="font-size: 11px; opacity: 0.8; line-height: 1.4;">Byte-packed wirefilter expressions neutralizing active plugin 0-days.</div>
                     </div>
                 </div>
 
-                <!-- Async Ban Queue & Survival Mode Controls -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; flex-wrap: wrap; gap: 10px;">
+                <!-- Ban Queue & Origin Survival Controls Strip -->
+                <div class="wcp-firewall-section-group" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <div>
-                        <div style="font-size: 13px; font-weight: 700; color: #0f172a;">
+                        <div style="font-size: 13px; font-weight: 700;">
                             <?php esc_html_e('Origin Survival Mode & Async Ban Queue', 'wcp-security-scanner'); ?>
                         </div>
-                        <div style="font-size: 11.5px; color: #64748b;">
+                        <div style="font-size: 11.5px; opacity: 0.8; margin-top: 2px;">
                             <?php
                             /* translators: %d: pending queued IP count */
                             printf(esc_html__('Ban queue: %d pending IPs • Subnet aggregation active (/24 & /64)', 'wcp-security-scanner'), (int)($cf_status['pending_ban_queue_size'] ?? 0));
@@ -297,11 +375,11 @@ $rest_nonce = wp_create_nonce('wp_rest');
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 8px;">
-                        <button type="button" id="wcp-caf-sync-cf-btn" class="button" style="font-size: 12px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button type="button" id="wcp-caf-sync-cf-btn" class="wcp-btn wcp-btn-secondary" style="font-size: 12px; padding: 6px 12px; cursor: pointer;">
                             ☁️ <?php esc_html_e('Sync Edge Now', 'wcp-security-scanner'); ?>
                         </button>
-                        <button type="button" id="wcp-caf-circuit-breaker-btn" class="button" style="font-size: 12px; background: <?php echo !empty($cf_status['circuit_breaker_active']) ? '#fef2f2' : '#ffffff'; ?>; color: <?php echo !empty($cf_status['circuit_breaker_active']) ? '#dc2626' : '#334155'; ?>;">
+                        <button type="button" id="wcp-caf-circuit-breaker-btn" class="wcp-btn <?php echo !empty($cf_status['circuit_breaker_active']) ? 'wcp-btn-danger' : 'wcp-btn-secondary'; ?>" style="font-size: 12px; padding: 6px 12px; cursor: pointer;">
                             🚨 <?php echo !empty($cf_status['circuit_breaker_active']) ? esc_html__('De-escalate Survival Mode', 'wcp-security-scanner') : esc_html__('Trip Survival Mode', 'wcp-security-scanner'); ?>
                         </button>
                     </div>
@@ -309,67 +387,67 @@ $rest_nonce = wp_create_nonce('wp_rest');
             </div>
 
             <!-- BEHAVIORAL INTELLIGENCE & STATELESS POW (PHASE 3) -->
-            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+            <div class="wcp-firewall-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--wcp-border, #e2e8f0); padding-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                     <div>
-                        <h2 style="font-size: 17px; font-weight: 800; color: #0f172a; margin: 0 0 4px 0;">
+                        <h3 class="wcp-firewall-section-title" style="margin: 0 0 4px 0; font-size: 16px;">
                             🧠 <?php esc_html_e('Behavioral Intelligence & Proof-of-Work (Phase 3)', 'wcp-security-scanner'); ?>
-                        </h2>
-                        <p style="font-size: 12.5px; color: #64748b; margin: 0;">
+                        </h3>
+                        <p class="wcp-firewall-section-desc" style="margin: 0; font-size: 12.5px;">
                             <?php esc_html_e('Exponential threat score decay, WebCrypto SHA-256 client puzzles, and 5-bucket rate limiting.', 'wcp-security-scanner'); ?>
                         </p>
                     </div>
-                    <span style="font-size: 11px; font-weight: 700; color: #10b981; background: #ecfdf5; padding: 3px 8px; border-radius: 4px;">
+                    <span class="wcp-badge-clean" style="font-size: 11px;">
                         <?php esc_html_e('Active Velocity Tracking', 'wcp-security-scanner'); ?>
                     </span>
                 </div>
 
                 <!-- 5 Sliding-Window Velocity Buckets -->
                 <div style="margin-bottom: 18px;">
-                    <div style="font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 8px;">
+                    <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; opacity: 0.9;">
                         <?php esc_html_e('5 Multi-Bucket Velocity Classification (WooCommerce Safe-Pass)', 'wcp-security-scanner'); ?>
                     </div>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
-                            <strong style="display: block; color: #0f172a;">Auth Bucket</strong>
-                            <span style="color: #64748b;">wp-login & XML-RPC</span>
+                        <div class="wcp-firewall-inset-box" style="padding: 10px 12px;">
+                            <strong style="display: block; font-size: 12px; margin-bottom: 2px;">Auth Bucket</strong>
+                            <span style="font-size: 11px; opacity: 0.75;">wp-login & XML-RPC</span>
                         </div>
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
-                            <strong style="display: block; color: #10b981;">Checkout Bucket</strong>
-                            <span style="color: #64748b;">Carding prevention</span>
+                        <div class="wcp-firewall-inset-box" style="padding: 10px 12px;">
+                            <strong style="display: block; font-size: 12px; margin-bottom: 2px; color: #10b981;">Checkout Bucket</strong>
+                            <span style="font-size: 11px; opacity: 0.75;">Carding defense</span>
                         </div>
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
-                            <strong style="display: block; color: #0284c7;">Cart AJAX</strong>
-                            <span style="color: #64748b;">Zero buyer friction</span>
+                        <div class="wcp-firewall-inset-box" style="padding: 10px 12px;">
+                            <strong style="display: block; font-size: 12px; margin-bottom: 2px; color: #0284c7;">Cart AJAX</strong>
+                            <span style="font-size: 11px; opacity: 0.75;">Zero buyer friction</span>
                         </div>
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
-                            <strong style="display: block; color: #7c3aed;">REST Write</strong>
-                            <span style="color: #64748b;">POST /wp-json abuse</span>
+                        <div class="wcp-firewall-inset-box" style="padding: 10px 12px;">
+                            <strong style="display: block; font-size: 12px; margin-bottom: 2px; color: #7c3aed;">REST Write</strong>
+                            <span style="font-size: 11px; opacity: 0.75;">POST /wp-json bounds</span>
                         </div>
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
-                            <strong style="display: block; color: #ea580c;">Search Probe</strong>
-                            <span style="color: #64748b;">Crawler DoS bounds</span>
+                        <div class="wcp-firewall-inset-box" style="padding: 10px 12px;">
+                            <strong style="display: block; font-size: 12px; margin-bottom: 2px; color: #ea580c;">Search Probe</strong>
+                            <span style="font-size: 11px; opacity: 0.75;">Crawler DoS pacing</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Proof-of-Work & Threat Score Escalation Summary -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; flex-wrap: wrap; gap: 10px;">
+                <!-- Threat Score Escalation Policy & PoW Issue Strip -->
+                <div class="wcp-firewall-section-group" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <div>
-                        <div style="font-size: 13px; font-weight: 700; color: #0f172a;">
+                        <div style="font-size: 13px; font-weight: 700;">
                             <?php esc_html_e('Tracked IP Escalation Levels', 'wcp-security-scanner'); ?>
                         </div>
-                        <div style="font-size: 11.5px; color: #64748b;">
+                        <div style="font-size: 11.5px; opacity: 0.8; margin-top: 2px;">
                             <?php
                             /* translators: %1$d: elevated threat IP count, %2$d: PoW challenged count */
-                            printf(esc_html__('%1$d IPs tracked • T ≥ 40 invokes WebCrypto PoW (%2$d challenged) • T ≥ 85 hard ban', 'wcp-security-scanner'), (int)($threat_summary['total_tracked_ips'] ?? 0), (int)($threat_summary['pow_challenges_active'] ?? 0));
+                            printf(esc_html__('%1$d IPs tracked • T ≥ 40 invokes WebCrypto PoW (%2$d active) • T ≥ 85 hard ban', 'wcp-security-scanner'), (int)($threat_summary['total_tracked_ips'] ?? 0), (int)($threat_summary['pow_challenges_active'] ?? 0));
                             ?>
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="wcp-caf-pow-ip" placeholder="Target IP..." style="height: 28px; font-size: 12px; padding: 2px 8px; width: 120px;" />
-                        <button type="button" id="wcp-caf-toggle-pow-btn" class="button" style="font-size: 12px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="wcp-caf-pow-ip" class="wcp-firewall-input" placeholder="IP Address..." style="width: 130px; padding: 4px 10px; font-size: 12px; height: 32px;" />
+                        <button type="button" id="wcp-caf-toggle-pow-btn" class="wcp-btn wcp-btn-secondary" style="font-size: 12px; padding: 6px 12px; height: 32px; cursor: pointer;">
                             🧩 <?php esc_html_e('Issue PoW', 'wcp-security-scanner'); ?>
                         </button>
                     </div>
@@ -382,12 +460,60 @@ $rest_nonce = wp_create_nonce('wp_rest');
 
 </div>
 
-<!-- INLINE CONTROLLER JAVASCRIPT FOR DYNAMIC ACTIONS -->
+<!-- THEME CONTROLLER & INLINE ACTION LOGIC -->
 <script type="text/javascript">
 (function() {
     const rootUrl = '<?php echo esc_url($rest_url); ?>';
     const nonce   = '<?php echo esc_js($rest_nonce); ?>';
 
+    // 1. Theme Synchronization (Matches main plugin theme stored in wcp_theme_mode)
+    const rootContainer = document.getElementById('wcp-caf-root');
+    const themeBtn      = document.getElementById('wcp-theme-toggle-btn');
+    const themeIcon     = document.getElementById('wcp-theme-toggle-icon');
+    const themeText     = document.getElementById('wcp-theme-toggle-text');
+
+    function applyTheme(mode) {
+        if (!rootContainer) return;
+        if (mode === 'dark') {
+            rootContainer.classList.remove('wcp-theme-light');
+            rootContainer.classList.add('wcp-theme-dark');
+            document.body.classList.remove('wcp-theme-light');
+            document.body.classList.add('wcp-theme-dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            if (themeIcon) themeIcon.innerText = '☀️';
+            if (themeText) themeText.innerText = 'White Mode';
+        } else {
+            rootContainer.classList.remove('wcp-theme-dark');
+            rootContainer.classList.add('wcp-theme-light');
+            document.body.classList.remove('wcp-theme-dark');
+            document.body.classList.add('wcp-theme-light');
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (themeIcon) themeIcon.innerText = '🌙';
+            if (themeText) themeText.innerText = 'Dark Mode';
+        }
+    }
+
+    // Initialize theme from localStorage
+    let currentTheme = 'light';
+    try {
+        const stored = localStorage.getItem('wcp_theme_mode');
+        if (stored === 'dark' || stored === 'light') {
+            currentTheme = stored;
+        }
+    } catch(e) {}
+    applyTheme(currentTheme);
+
+    if (themeBtn) {
+        themeBtn.addEventListener('click', function() {
+            currentTheme = (currentTheme === 'dark') ? 'light' : 'dark';
+            try {
+                localStorage.setItem('wcp_theme_mode', currentTheme);
+            } catch(e) {}
+            applyTheme(currentTheme);
+        });
+    }
+
+    // 2. Notification Helper
     function showNotice(type, msg) {
         const box = document.getElementById('wcp-caf-notice');
         if (!box) return;
@@ -399,7 +525,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
         setTimeout(() => { box.style.display = 'none'; }, 6000);
     }
 
-    // Apply Profile
+    // 3. Apply Protection Profile
     document.querySelectorAll('.wcp-apply-profile-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const pid = this.getAttribute('data-profile');
@@ -414,7 +540,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
             .then(r => r.json())
             .then(data => {
                 if (data && data.success) {
-                    showNotice('success', data.message || 'Profile applied and WAF recompiled!');
+                    showNotice('success', data.message || 'Profile applied and Micro-WAF recompiled!');
                     setTimeout(() => window.location.reload(), 1000);
                 } else {
                     showNotice('error', data.message || 'Failed to apply profile.');
@@ -430,7 +556,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
         });
     });
 
-    // Re-Profile Stack
+    // 4. Re-Profile Stack
     const reprofileBtn = document.getElementById('wcp-caf-reprofile-btn');
     if (reprofileBtn) {
         reprofileBtn.addEventListener('click', function() {
@@ -453,7 +579,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
         });
     }
 
-    // Toggle Killswitch
+    // 5. Toggle Preload Killswitch
     const killswitchBtn = document.getElementById('wcp-caf-killswitch-btn');
     if (killswitchBtn) {
         killswitchBtn.addEventListener('click', function() {
@@ -476,7 +602,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
         });
     }
 
-    // Sync Cloudflare
+    // 6. Sync Cloudflare Edge
     const syncCfBtn = document.getElementById('wcp-caf-sync-cf-btn');
     if (syncCfBtn) {
         syncCfBtn.addEventListener('click', function() {
@@ -499,7 +625,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
         });
     }
 
-    // Toggle Circuit Breaker
+    // 7. Toggle Origin Survival Mode
     const circuitBtn = document.getElementById('wcp-caf-circuit-breaker-btn');
     if (circuitBtn) {
         circuitBtn.addEventListener('click', function() {
@@ -521,7 +647,7 @@ $rest_nonce = wp_create_nonce('wp_rest');
         });
     }
 
-    // Issue PoW
+    // 8. Issue Proof-of-Work Challenge
     const powBtn = document.getElementById('wcp-caf-toggle-pow-btn');
     const powIpInput = document.getElementById('wcp-caf-pow-ip');
     if (powBtn && powIpInput) {
