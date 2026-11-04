@@ -92,8 +92,33 @@ class OutboundEgressFirewall {
         // Intercept all HTTP requests executed via wp_remote_get, wp_remote_post, Requests, etc.
         add_filter('pre_http_request', [__CLASS__, 'inspect_outbound_request'], 10, 3);
 
+        // Intercept Requests/cURL redirect hops to validate target before following redirect (defeats Redirect-Hop SSRF)
+        add_action('requests-requests.before_redirect', [__CLASS__, 'inspect_redirect_hop'], 10, 1);
+
         // Constrain cURL redirect protocols and pin validated safe IPs via CURLOPT_RESOLVE (defeats TOCTOU DNS rebinding)
         add_action('http_api_curl', [__CLASS__, 'constrain_curl_transport'], 10, 3);
+    }
+
+    /**
+     * Inspect redirect destination URL during HTTP requests before Requests transport follows it.
+     *
+     * @param string $location Redirect target location
+     * @return void
+     */
+    public static function inspect_redirect_hop(string $location): void {
+        if (empty($location)) {
+            return;
+        }
+
+        $res = self::inspect_outbound_request(false, [], $location);
+        if (is_wp_error($res)) {
+            // Throw exception or terminate connection to prevent following malicious redirect hop
+            wp_die(
+                esc_html($res->get_error_message()),
+                esc_html__('SSRF Redirect Blocked', 'wcp-security-scanner'),
+                ['response' => 403]
+            );
+        }
     }
 
     /**
@@ -135,7 +160,13 @@ class OutboundEgressFirewall {
                 $safe_ip  = $pin_data['ip'] ?? '';
                 $port     = (int) ($parsed_url['port'] ?? (($parsed_url['scheme'] ?? 'https') === 'http' ? 80 : 443));
                 if (!empty($safe_ip) && $port > 0) {
-                    $resolve_entry = "{$host}:{$port}:{$safe_ip}";
+                    // Strip ::ffff: IPv4-mapped IPv6 prefix if present
+                    if (str_starts_with($safe_ip, '::ffff:')) {
+                        $safe_ip = substr($safe_ip, 7);
+                    }
+                    // Format IPv6 with brackets in CURLOPT_RESOLVE (host:port:[ipv6])
+                    $formatted_ip = (str_contains($safe_ip, ':') && !str_starts_with($safe_ip, '[')) ? "[{$safe_ip}]" : $safe_ip;
+                    $resolve_entry = "{$host}:{$port}:{$formatted_ip}";
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
                     @curl_setopt($handle, CURLOPT_RESOLVE, [$resolve_entry]);
                 }

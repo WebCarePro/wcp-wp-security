@@ -8,6 +8,85 @@ if (!defined('ABSPATH')) {
 class SerializedDataScanner {
 
     /**
+     * Explicitly allowed commerce & scheduling classes in database records.
+     */
+    private const ALLOWED_COMMERCE_CLASSES = [
+        'WC_Cart',
+        'WC_Customer',
+        'WC_Product',
+        'WC_Product_Simple',
+        'WC_Product_Variable',
+        'WC_Product_Variation',
+        'WC_Order_Item_Product',
+        'WC_Tax',
+        'WC_DateTime',
+        'ActionScheduler_SimpleSchedule',
+        'ActionScheduler_IntervalSchedule',
+        'ActionScheduler_CronSchedule',
+        'ActionScheduler_NullSchedule',
+        'DateTime',
+        'DateTimeImmutable',
+        'DateTimeZone',
+        'stdClass',
+    ];
+
+    /**
+     * Known POP-chain gadget classes across popular Composer packages.
+     */
+    private const KNOWN_GADGET_PATTERNS = '/^(?:GuzzleHttp\\\\|Monolog\\\\|Symfony\\\\|Illuminate\\\\|PhpOption\\\\|Faker\\\\|Swift_|PendingBroadcast)/i';
+
+    /**
+     * Check if a class is an explicitly allowed benign commerce or schedule value object.
+     *
+     * @param string $class_name
+     * @return bool
+     */
+    public static function is_allowed_commerce_class(string $class_name): bool {
+        $clean_class = ltrim($class_name, '\\');
+        return in_array($clean_class, self::ALLOWED_COMMERCE_CLASSES, true);
+    }
+
+    /**
+     * Inspect a serialized payload for dangerous POP gadgets or unauthorized objects without calling unserialize().
+     *
+     * @param string $payload Raw database value.
+     * @return array<string, mixed>|null Finding array if malicious, null if clean.
+     */
+    public function inspect_serialized_string(string $payload): ?array {
+        if (strpos($payload, 'O:') === false && strpos($payload, 'C:') === false) {
+            return null;
+        }
+
+        if (!preg_match_all('/(?:O|C):[+-]?\d+:"([^"]+)"/i', $payload, $matches)) {
+            return null;
+        }
+
+        foreach ($matches[1] as $class_name) {
+            $clean_class = ltrim($class_name, '\\');
+
+            if (preg_match(self::KNOWN_GADGET_PATTERNS, $clean_class)) {
+                return [
+                    'type'     => 'serialized_pop_gadget',
+                    'severity' => 'critical',
+                    'class'    => $clean_class,
+                    'reason'   => sprintf('Known PHP Object Injection gadget class (%s) detected.', $clean_class),
+                ];
+            }
+
+            if (!self::is_allowed_commerce_class($clean_class)) {
+                return [
+                    'type'     => 'serialized_unexpected_object',
+                    'severity' => 'high',
+                    'class'    => $clean_class,
+                    'reason'   => sprintf('Unauthorized serialized class (%s) found in stateful storage.', $clean_class),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Check if a string appears to be serialized PHP data.
      *
      * @param mixed $data

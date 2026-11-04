@@ -382,4 +382,148 @@ class BotReconDefense {
 
         return $output . $ai_rules;
     }
+
+    private const POW_COOKIE_NAME = 'wcp_pow_clearance';
+    private const POW_DIFFICULTY  = 4; // 4 hex zeros = 16 leading zero bits (~65,536 hashes max)
+    private const CLEARANCE_TTL   = 3600;
+
+    /**
+     * Verify if the client holds a valid PoW clearance cookie or just submitted a valid PoW solution.
+     * Invoked when high-velocity reconnaissance or scraping anomaly is detected.
+     */
+    public static function verify_or_challenge_client(): void {
+        $client_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '0.0.0.0';
+        $ua        = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+
+        if (self::has_valid_clearance_cookie($client_ip, $ua)) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if (isset($_POST['wcp_pow_challenge'], $_POST['wcp_pow_nonce'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            $challenge = sanitize_text_field(wp_unslash($_POST['wcp_pow_challenge']));
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            $nonce     = sanitize_text_field(wp_unslash($_POST['wcp_pow_nonce']));
+
+            if (self::verify_pow_solution($challenge, $nonce, $client_ip, $ua)) {
+                self::issue_clearance_cookie($client_ip, $ua);
+                $req_uri = isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+                wp_safe_redirect($req_uri);
+                exit;
+            }
+        }
+
+        self::render_webcrypto_challenge($client_ip, $ua);
+    }
+
+    private static function generate_challenge(string $ip, string $ua): string {
+        $window = (string) floor(time() / 300); // Valid for 5-minute window
+        $salt   = defined('NONCE_KEY') ? NONCE_KEY : 'wcp_pow_salt';
+        $mac    = hash_hmac('sha256', $ip . '|' . $ua . '|' . $window, $salt);
+        return $window . '.' . substr($mac, 0, 32);
+    }
+
+    private static function verify_pow_solution(string $challenge, string $nonce, string $ip, string $ua): bool {
+        $expected_challenge = self::generate_challenge($ip, $ua);
+        if (!hash_equals($expected_challenge, $challenge)) {
+            return false;
+        }
+
+        $digest = hash('sha256', $challenge . ':' . $nonce);
+        return strpos($digest, str_repeat('0', self::POW_DIFFICULTY)) === 0;
+    }
+
+    private static function issue_clearance_cookie(string $ip, string $ua): void {
+        $expires = time() + self::CLEARANCE_TTL;
+        $salt    = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_pow_auth_salt';
+        $sig     = hash_hmac('sha256', $ip . '|' . $ua . '|' . $expires, $salt);
+        $value   = $expires . '.' . $sig;
+
+        setcookie(self::POW_COOKIE_NAME, $value, [
+            'expires'  => $expires,
+            'path'     => defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/',
+            'secure'   => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    private static function has_valid_clearance_cookie(string $ip, string $ua): bool {
+        if (empty($_COOKIE[self::POW_COOKIE_NAME])) {
+            return false;
+        }
+
+        $raw   = sanitize_text_field(wp_unslash($_COOKIE[self::POW_COOKIE_NAME]));
+        $parts = explode('.', $raw, 2);
+        if (count($parts) !== 2) {
+            return false;
+        }
+
+        $expires = (int) $parts[0];
+        if (time() > $expires) {
+            return false;
+        }
+
+        $salt         = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_pow_auth_salt';
+        $expected_sig = hash_hmac('sha256', $ip . '|' . $ua . '|' . $expires, $salt);
+        return hash_equals($expected_sig, $parts[1]);
+    }
+
+    private static function render_webcrypto_challenge(string $ip, string $ua): void {
+        $challenge = self::generate_challenge($ip, $ua);
+        $zeros     = str_repeat('0', self::POW_DIFFICULTY);
+
+        status_header(429);
+        nocache_headers();
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title><?php esc_html_e('Security Verification', 'wcp-security-scanner'); ?></title>
+        </head>
+        <body style="font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#f8fafc;">
+            <div style="text-align:center;max-width:420px;padding:32px;background:#1e293b;border-radius:12px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
+                <div style="font-size:36px;margin-bottom:12px;">🛡️</div>
+                <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:600;"><?php esc_html_e('Browser Integrity Verification', 'wcp-security-scanner'); ?></h2>
+                <p id="wcp-status" style="color:#94a3b8;font-size:14px;margin:0 0 20px 0;line-height:1.5;"><?php esc_html_e('Verifying browser cryptographic environment to prevent automated scraping...', 'wcp-security-scanner'); ?></p>
+                <div style="height:4px;width:100%;background:#334155;border-radius:2px;overflow:hidden;position:relative;">
+                    <div style="height:100%;width:50%;background:#4f46e5;border-radius:2px;animation:wcpPulse 1.2s infinite ease-in-out;"></div>
+                </div>
+                <form id="wcp-pow-form" method="POST" action="">
+                    <input type="hidden" name="wcp_pow_challenge" value="<?php echo esc_attr($challenge); ?>">
+                    <input type="hidden" name="wcp_pow_nonce" id="wcp-pow-nonce" value="">
+                </form>
+            </div>
+            <style>
+                @keyframes wcpPulse {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(250%); }
+                }
+            </style>
+            <script>
+            (async function() {
+                const challenge = <?php echo wp_json_encode($challenge); ?>;
+                const target = <?php echo wp_json_encode($zeros); ?>;
+                const enc = new TextEncoder();
+                let nonce = 0;
+                while (true) {
+                    const buf = await crypto.subtle.digest('SHA-256', enc.encode(challenge + ':' + nonce));
+                    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    if (hex.startsWith(target)) {
+                        document.getElementById('wcp-pow-nonce').value = String(nonce);
+                        document.getElementById('wcp-pow-form').submit();
+                        return;
+                    }
+                    nonce++;
+                }
+            })();
+            </script>
+        </body>
+        </html>
+        <?php
+        exit;
+    }
 }

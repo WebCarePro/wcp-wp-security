@@ -144,6 +144,38 @@ class HookInfiltrationSentinel {
                 $line_number = $reflection->getStartLine();
             }
 
+            // Flag 0: Fileless Closure or runtime-created function (eval() / create_function)
+            if ($function instanceof \Closure) {
+                $raw_fn = (string) $file_path;
+                if (empty($raw_fn) || str_contains($raw_fn, "eval()'d code") || str_contains($raw_fn, 'runtime-created function')) {
+                    return [
+                        'type'        => 'eval_closure_hook_callback',
+                        'severity'    => 'critical',
+                        'confidence'  => 100,
+                        'file_path'   => $file_path ?: 'runtime:eval_memory',
+                        'line_number' => $line_number,
+                        'identifier'  => $identifier,
+                        'reason'      => "Fileless in-memory Closure (eval()'d code) bound to sensitive WordPress hook '{$hook_name}'.",
+                    ];
+                }
+            }
+
+            // Flag 0.5: POP-chain and reflection methods bound as array callbacks
+            if (is_array($function) && count($function) >= 2) {
+                $method = strtolower((string) $function[1]);
+                if (in_array($method, ['__destruct', '__wakeup', 'invoke', 'invokeargs'], true)) {
+                    return [
+                        'type'        => 'gadget_reflection_hook_callback',
+                        'severity'    => 'critical',
+                        'confidence'  => 95,
+                        'file_path'   => $file_path ?: 'runtime:gadget',
+                        'line_number' => $line_number,
+                        'identifier'  => $identifier,
+                        'reason'      => "Suspicious POP gadget magic method or reflection dispatch ({$identifier}) registered as WordPress hook callback.",
+                    ];
+                }
+            }
+
             // Flag 1: Anonymous closure on sensitive credential/auth hooks
             if ($function instanceof \Closure) {
                 $is_password_hook = in_array($hook_name, ['authenticate', 'wp_authenticate', 'wp_authenticate_user'], true);

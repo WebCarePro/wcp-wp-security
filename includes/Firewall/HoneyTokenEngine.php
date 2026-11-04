@@ -47,7 +47,8 @@ class HoneyTokenEngine {
         add_filter('registration_errors', [__CLASS__, 'inspect_registration_honeytoken'], 1, 3);
         add_filter('preprocess_comment', [__CLASS__, 'inspect_comment_honeytoken'], 1);
 
-        // 3. Phantom Decoy Endpoints
+        // 3. Phantom Decoy Endpoints & Active Canary Callbacks
+        add_action('init', [__CLASS__, 'inspect_for_canary_trigger'], 0);
         if (!empty($settings['trap_phantom_endpoints'])) {
             add_action('init', [__CLASS__, 'check_phantom_endpoints'], 0);
         }
@@ -452,6 +453,107 @@ class HoneyTokenEngine {
             'honeytoken_bot_trapped',
             sprintf('Honey-Token Trapped Bot IP "%s" via %s (%s).', $ip, $trap_type, $target)
         );
+    }
+
+    const CANARY_PREFIX   = 'sk-wcp-canary-';
+
+    /**
+     * Generate a realistic decoy .env payload with an active canary token tied to the probing IP.
+     *
+     * @param string $probing_ip
+     * @return string
+     */
+    public static function generate_decoy_env_payload(string $probing_ip): string {
+        $canary_id  = self::create_signed_canary_id($probing_ip);
+        $api_token  = self::CANARY_PREFIX . $canary_id;
+        $canary_url = add_query_arg(
+            ['wcp_canary_ping' => $canary_id],
+            home_url('/wp-json/wcp/v1/health-sync')
+        );
+
+        $salt = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_canary_salt';
+        $fake_aws_key = 'AKIA' . strtoupper(substr(hash_hmac('sha256', 'aws:' . $canary_id, $salt), 0, 16));
+
+        return implode(
+            "\n",
+            [
+                'APP_ENV=production',
+                'DB_HOST=127.0.0.1',
+                'OPENAI_API_KEY=' . $api_token,
+                'WCP_MANAGEMENT_WEBHOOK=' . $canary_url,
+                'AWS_ACCESS_KEY_ID=' . $fake_aws_key,
+            ]
+        ) . "\n";
+    }
+
+    /**
+     * Inspect incoming request for triggered canary tokens or honeytoken Bearer headers.
+     *
+     * @return bool
+     */
+    public static function inspect_for_canary_trigger(): bool {
+        $triggered_token = '';
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (!empty($_GET['wcp_canary_ping'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $triggered_token = sanitize_text_field(wp_unslash($_GET['wcp_canary_ping']));
+        }
+
+        $auth_header = isset($_SERVER['HTTP_AUTHORIZATION']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_AUTHORIZATION'])) : '';
+        if (str_contains($auth_header, self::CANARY_PREFIX)) {
+            $triggered_token = trim(str_replace(['Bearer', self::CANARY_PREFIX], '', $auth_header));
+        }
+
+        if (empty($triggered_token) || !self::verify_signed_canary_id($triggered_token)) {
+            return false;
+        }
+
+        $c2_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '0.0.0.0';
+        self::alert_and_contain_c2($c2_ip, $triggered_token);
+
+        status_header(403);
+        exit;
+    }
+
+    private static function create_signed_canary_id(string $probing_ip): string {
+        $timestamp = (string) time();
+        $data      = $probing_ip . '|' . $timestamp;
+        $salt      = defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : 'wcp_canary_secure_salt';
+        $mac       = substr(hash_hmac('sha256', $data, $salt), 0, 24);
+        return base64_encode($data) . '.' . $mac;
+    }
+
+    private static function verify_signed_canary_id(string $token): bool {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) {
+            return false;
+        }
+
+        $decoded = base64_decode($parts[0], true);
+        if (false === $decoded || !str_contains($decoded, '|')) {
+            return false;
+        }
+
+        $salt = defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : 'wcp_canary_secure_salt';
+        $expected_mac = substr(hash_hmac('sha256', $decoded, $salt), 0, 24);
+        return hash_equals($expected_mac, $parts[1]);
+    }
+
+    private static function alert_and_contain_c2(string $c2_ip, string $token): void {
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            FirewallEngine::add_blocked_ip($c2_ip, 86400, 'Canary Honeytoken Triggered: External C2 probing decoy credentials', 'canary_trap', 'Honeytoken Alert');
+        }
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('canary_honeytoken_triggered', [
+                'severity' => 'critical',
+                'c2_ip'    => $c2_ip,
+                'token'    => $token,
+                'ua'       => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
+                'title'    => __('Hostile C2 Honeytoken Callback Intercepted', 'wcp-security-scanner'),
+            ]);
+        }
     }
 
     /**

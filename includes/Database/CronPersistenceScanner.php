@@ -364,6 +364,8 @@ class CronPersistenceScanner {
 
     /**
      * Audit WooCommerce ActionScheduler database table for malicious pending actions.
+     * Uses non-locking primary-key cursor pagination (WHERE action_id > %d ORDER BY action_id ASC LIMIT 250)
+     * to eliminate InnoDB row-lock contention and checkout slowdowns on high-volume stores.
      *
      * @param string $scan_id
      * @return Finding[]
@@ -381,45 +383,82 @@ class CronPersistenceScanner {
                 return $findings;
             }
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $sql = "SELECT action_id, hook, status, args FROM `{$as_table}` WHERE status = 'pending' LIMIT 250";
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            $pending_actions = $wpdb->get_results($sql, OBJECT);
+            $last_id = 0;
+            $batch_size = 250;
+            $max_batches = 10;
+            $batches = 0;
 
-            if (empty($pending_actions) || !is_array($pending_actions)) {
-                return $findings;
-            }
+            while ($batches < $max_batches) {
+                $batches++;
 
-            foreach ($pending_actions as $action) {
-                $hook = (string) ($action->hook ?? '');
-                $args = (string) ($action->args ?? '');
-                $action_id = (int) ($action->action_id ?? 0);
+                // Keyset pagination avoids table locks and OFFSET slowdowns on large WooCommerce stores
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+                $pending_actions = $wpdb->get_results(
+                    $wpdb->prepare(
+                        "SELECT action_id, hook, status, args, extended_args FROM `{$as_table}` WHERE action_id > %d AND status IN ('pending', 'in-progress') ORDER BY action_id ASC LIMIT %d",
+                        $last_id,
+                        $batch_size
+                    ),
+                    OBJECT
+                );
 
-                // Dangerous function in hook column
-                if (in_array(strtolower($hook), self::DANGEROUS_SINKS, true)) {
-                    $findings[] = new Finding([
-                        'engine'      => 'database-persistence',
-                        'type'        => 'dangerous_actionscheduler_hook',
-                        'severity'    => 'critical',
-                        'confidence'  => 100,
-                        'file_path'   => "{$as_table}:action #{$action_id}",
-                        'description' => "ActionScheduler persistence trojan: Pending action directly targets dangerous PHP sink '{$hook}'.",
-                        'evidence'    => "Action #{$action_id} | Hook: {$hook} | Args: " . substr($args, 0, 100),
-                    ]);
-                    continue;
+                if (empty($pending_actions) || !is_array($pending_actions)) {
+                    break;
                 }
 
-                // Dangerous payloads in args column
-                if (preg_match('/(?:<\?(?:php|=)|eval\s*\(|assert\s*\(|base64_decode\s*\(|\b(?:powershell|curl\s+-[sS]|wget\s+)\b)/i', $args, $m)) {
-                    $findings[] = new Finding([
-                        'engine'      => 'database-persistence',
-                        'type'        => 'weaponized_actionscheduler_args',
-                        'severity'    => 'critical',
-                        'confidence'  => 98,
-                        'file_path'   => "{$as_table}:action #{$action_id}",
-                        'description' => "ActionScheduler persistence trojan: Pending action contains weaponized executable payload in its arguments.",
-                        'evidence'    => "Action #{$action_id} | Hook: {$hook} | Match: {$m[0]} | Args: " . substr($args, 0, 100),
-                    ]);
+                foreach ($pending_actions as $action) {
+                    $action_id = (int) ($action->action_id ?? 0);
+                    $last_id = $action_id;
+                    $hook = (string) ($action->hook ?? '');
+                    $args = (string) (!empty($action->extended_args) ? $action->extended_args : ($action->args ?? ''));
+
+                    // Dangerous function in hook column
+                    if (in_array(strtolower($hook), self::DANGEROUS_SINKS, true)) {
+                        $findings[] = new Finding([
+                            'engine'      => 'database-persistence',
+                            'type'        => 'dangerous_actionscheduler_hook',
+                            'severity'    => 'critical',
+                            'confidence'  => 100,
+                            'file_path'   => "{$as_table}:action #{$action_id}",
+                            'description' => "ActionScheduler persistence trojan: Pending action directly targets dangerous PHP sink '{$hook}'.",
+                            'evidence'    => "Action #{$action_id} | Hook: {$hook} | Args: " . substr($args, 0, 100),
+                        ]);
+                        continue;
+                    }
+
+                    // Check for disguised executable payloads, dynamic callables, or shell commands in args
+                    if (preg_match('/\b(eval|assert|create_function|call_user_func(?:_array)?|system|exec|passthru|shell_exec|popen|proc_open|pcntl_exec|base64_decode|gzinflate)\b/i', $args, $m)) {
+                        $findings[] = new Finding([
+                            'engine'      => 'database-persistence',
+                            'type'        => 'weaponized_actionscheduler_args',
+                            'severity'    => 'critical',
+                            'confidence'  => 98,
+                            'file_path'   => "{$as_table}:action #{$action_id}",
+                            'description' => "ActionScheduler persistence trojan: Pending action contains weaponized executable callable payload in its arguments.",
+                            'evidence'    => "Action #{$action_id} | Hook: {$hook} | Match: {$m[0]} | Args: " . substr($args, 0, 100),
+                        ]);
+                        continue;
+                    }
+
+                    // Class-aware Serialized Object Validation: permit benign WooCommerce value objects, flag POP gadgets
+                    if (preg_match('/(?:O|C):[+-]?\d+:"([^"]+)"/i', $args, $class_match)) {
+                        $class_name = $class_match[1];
+                        if (class_exists('\\WcpScanner\\Database\\SerializedDataScanner') && !SerializedDataScanner::is_allowed_commerce_class($class_name)) {
+                            $findings[] = new Finding([
+                                'engine'      => 'database-persistence',
+                                'type'        => 'actionscheduler_unauthorized_serialized_class',
+                                'severity'    => 'high',
+                                'confidence'  => 92,
+                                'file_path'   => "{$as_table}:action #{$action_id}",
+                                'description' => sprintf("ActionScheduler persistence risk: Unauthorized serialized PHP class '%s' found inside scheduled arguments.", esc_html($class_name)),
+                                'evidence'    => "Action #{$action_id} | Hook: {$hook} | Class: {$class_name}",
+                            ]);
+                        }
+                    }
+                }
+
+                if (count($pending_actions) < $batch_size) {
+                    break;
                 }
             }
         } catch (\Throwable $e) {

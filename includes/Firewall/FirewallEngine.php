@@ -868,6 +868,31 @@ class FirewallEngine {
             }
         }
 
+        // Atomic Upgrade Lock Route Shield: Block unauthenticated access to update endpoints while updates run
+        if (class_exists('\\WcpScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
+            $active_lock = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_active_lock();
+            if ($active_lock !== null) {
+                $is_admin = self::is_authenticated_administrator();
+                $lock_ip = (string) ($active_lock['ip'] ?? '');
+                if (!$is_admin && !hash_equals($lock_ip, $client_ip)) {
+                    $decoded_uri = rawurldecode($request_uri);
+                    if (preg_match('#(?:/wp-admin/(?:upgrade|maint/repair)\.php|/wp-content/(?:plugins|themes|upgrade)/)#i', $decoded_uri)) {
+                        $rule_triggered = [
+                            'id'          => 'WAF-ATOMIC-UPGRADE-LOCK',
+                            'name'        => 'Atomic Upgrade Lock Route Shield',
+                            'category'    => 'Supply Chain Defense',
+                            'description' => 'Target resource is locked against unauthenticated access during an active software update.',
+                            'match_type'  => 'Upgrade Window Lock',
+                            'match_value' => $decoded_uri,
+                            'payload'     => "URI: {$decoded_uri} IP: {$client_ip}",
+                        ];
+                        self::handle_rule_violation($rule_triggered, $settings, $client_ip, 423);
+                        exit;
+                    }
+                }
+            }
+        }
+
         $is_builder_session = self::is_authenticated_editor_or_builder();
         if ($is_builder_session) {
             // Verified editors in builder context (Elementor AJAX, Gutenberg REST, Divi save) are exempt from early admin area restrictions
@@ -1680,6 +1705,18 @@ class FirewallEngine {
                     ];
                 }
             }
+        }
+
+        // 3.5 PHP Object Injection (POP-chain gadgets) & Stream Wrapper Injection Shield
+        $stream_and_pop_regex = '/(?:(?:^|[\s"\';,\[\]{}])(?:O|C):[+-]?\d+:"[^"]+":\d+:\{|(?:phar|expect|zip|glob|ogg|rar):\/\/|php:\/\/(?:filter|input|fd))/i';
+        if (preg_match($stream_and_pop_regex, $uri) || preg_match($stream_and_pop_regex, $combined_payload)) {
+            return [
+                'id'          => 'WAF-OBJECT-STREAM-INJECTION',
+                'name'        => 'PHP Object Injection & Stream Wrapper Shield',
+                'category'    => 'Execution Armor',
+                'description' => 'Serialized PHP object payload or dangerous stream wrapper (phar://, php://filter) detected.',
+                'payload'     => substr($combined_payload, 0, 200),
+            ];
         }
 
         // 4. Cross-Site Scripting (XSS)

@@ -21,12 +21,84 @@ class UpdateGatekeeperEngine {
     const OPTION_LOGS      = 'wcpscan_gatekeeper_logs';
     const OPTION_SNAPSHOTS = 'wcpscan_gatekeeper_snapshots';
     const OPTION_SETTINGS  = 'wcpscan_gatekeeper_settings';
+    const LOCK_OPTION_KEY  = 'wcp_atomic_upgrade_lock';
+    const LOCK_TTL         = 180;
 
     /**
      * Initialize Gatekeeper hooks.
      */
     public static function init() {
+        add_filter('upgrader_pre_install', [__CLASS__, 'acquire_upgrade_lock'], 10, 2);
         add_filter('upgrader_source_selection', [__CLASS__, 'inspect_unpacked_source'], 20, 4);
+        add_action('upgrader_process_complete', [__CLASS__, 'release_lock_and_rebaseline'], 10, 2);
+    }
+
+    /**
+     * Acquire atomic upgrade lock before package installation begins.
+     *
+     * @param bool|\WP_Error $returnStatus Current status.
+     * @param array         $hook_extra   Upgrade context.
+     * @return bool|\WP_Error
+     */
+    public static function acquire_upgrade_lock($returnStatus, array $hook_extra = []) {
+        if (is_wp_error($returnStatus)) {
+            return $returnStatus;
+        }
+
+        $target = (string) ($hook_extra['plugin'] ?? ($hook_extra['theme'] ?? 'core'));
+        $client_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+
+        $lock_payload = [
+            'target'     => $target,
+            'started_at' => time(),
+            'expires_at' => time() + self::LOCK_TTL,
+            'user_id'    => function_exists('get_current_user_id') ? get_current_user_id() : 0,
+            'ip'         => $client_ip,
+        ];
+
+        update_option(self::LOCK_OPTION_KEY, $lock_payload, false);
+
+        return $returnStatus;
+    }
+
+    /**
+     * Release lock and trigger FIM re-baselining once upgrade finishes.
+     *
+     * @param object $upgrader   Upgrader instance.
+     * @param array  $hook_extra Upgrade details.
+     */
+    public static function release_lock_and_rebaseline($upgrader, array $hook_extra = []): void {
+        self::release_upgrade_lock();
+
+        if (class_exists('\\WcpScanner\\Integrity\\FileIntegrityMonitor') && method_exists('\\WcpScanner\\Integrity\\FileIntegrityMonitor', 'schedule_immediate_baseline_sync')) {
+            \WcpScanner\Integrity\FileIntegrityMonitor::schedule_immediate_baseline_sync($hook_extra);
+        }
+    }
+
+    /**
+     * Release atomic upgrade lock.
+     */
+    public static function release_upgrade_lock(): void {
+        delete_option(self::LOCK_OPTION_KEY);
+    }
+
+    /**
+     * Check if an atomic upgrade window is currently active.
+     *
+     * @return array|null
+     */
+    public static function get_active_lock(): ?array {
+        $lock = get_option(self::LOCK_OPTION_KEY);
+        if (!is_array($lock) || empty($lock['expires_at'])) {
+            return null;
+        }
+
+        if (time() > (int) $lock['expires_at']) {
+            delete_option(self::LOCK_OPTION_KEY);
+            return null;
+        }
+
+        return $lock;
     }
 
     /**
@@ -104,6 +176,63 @@ class UpdateGatekeeperEngine {
         // (Internal attack simulation test suites, virtual patch synthesizers, and quarantine engines contain controlled exploit strings)
         if ($folder_name === 'wcp-security-scanner') {
             return $source;
+        }
+
+        // Pre-Move Path Traversal, Null Byte, Symlink & Webshell Security Audit
+        $real_source = realpath($source);
+        if (false !== $real_source && is_dir($real_source)) {
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($real_source, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::SELF_FIRST
+                );
+
+                foreach ($iterator as $item) {
+                    $item_path = $item->getPathname();
+
+                    // 1. Block Zip-Slip / Path Traversal & Null Bytes
+                    if (str_contains($item_path, "\0") || str_contains($item_path, '..')) {
+                        self::release_upgrade_lock();
+                        return new \WP_Error('wcp_upgrade_zip_slip', __('Blocked package containing path traversal sequences or null bytes.', 'wcp-security-scanner'));
+                    }
+
+                    // 2. Block External Symlinks inside packages
+                    if ($item->isLink()) {
+                        $link_target = @readlink($item_path);
+                        $real_target = $link_target ? realpath(dirname($item_path) . DIRECTORY_SEPARATOR . $link_target) : false;
+
+                        if (false === $real_target || !str_starts_with($real_target, $real_source)) {
+                            self::release_upgrade_lock();
+                            return new \WP_Error(
+                                'wcp_upgrade_malicious_symlink',
+                                sprintf(
+                                    /* translators: %s: symlink name */
+                                    __('Blocked package containing external symlink: %s', 'wcp-security-scanner'),
+                                    esc_html(basename($item_path))
+                                )
+                            );
+                        }
+                    }
+
+                    // 3. Audit extracted PHP files for high-confidence webshell markers
+                    if ($item->isFile() && preg_match('/\.(?:php[0-9]?|phtml|phar)$/i', $item->getFilename())) {
+                        $head = (string) @file_get_contents($item_path, false, null, 0, 65536);
+                        if (preg_match('/(?:eval\s*\(\s*(?:base64_decode|gzinflate|str_rot13|\$_POST|\$_REQUEST|\$_GET)|FilesMan|WSO\s+[0-9.]+)/i', $head)) {
+                            self::release_upgrade_lock();
+                            return new \WP_Error(
+                                'wcp_upgrade_backdoor_detected',
+                                sprintf(
+                                    /* translators: %s: file name */
+                                    __('Blocked package containing backdoor signature in %s.', 'wcp-security-scanner'),
+                                    esc_html(basename($item_path))
+                                )
+                            );
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Proceed with delta analysis if directory iteration encountered read permission issues
+            }
         }
 
         $installed_plugin_dir = wp_normalize_path(WP_PLUGIN_DIR . '/' . $folder_name);
