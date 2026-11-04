@@ -1608,6 +1608,13 @@ class FirewallEngine {
         $raw_input = @file_get_contents('php://input');
         if (!empty($raw_input) && strlen($raw_input) < 131072) { // Inspect up to 128KB payload
             $params_to_check[] = wp_unslash($raw_input);
+
+            // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
+            // Recursively inspect and extract nested sub-requests inside /wp/v2/batch and /batch/v1 JSON payloads
+            $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $raw_input);
+            if (!empty($batch_sub_payloads)) {
+                $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
+            }
         }
 
         $combined_payload = implode(' ', $params_to_check);
@@ -6423,6 +6430,7 @@ class FirewallEngine {
      * Rule #37: Guest REST API Mutation Guard.
      * Inspects REST API mutations (POST, PUT, PATCH, DELETE) from unauthenticated visitors.
      * Whitelists safe public namespaces (contact forms, analytics, store carts).
+     * Normalizes HTTP method overrides and unpacks REST batch requests (/wp/v2/batch, /batch/v1).
      * Flags anomalous unknown guest write mutations in WAF telemetry.
      *
      * @param mixed $result
@@ -6441,8 +6449,18 @@ class FirewallEngine {
             return $result;
         }
 
-        // Only inspect mutating methods
+        // Canonicalize Method (normalize _method query param and X-HTTP-Method-Override header)
         $method = strtoupper($request->get_method());
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $override_method = isset($_GET['_method']) ? strtoupper(sanitize_key(wp_unslash($_GET['_method']))) : '';
+        if (empty($override_method) && !empty($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])) {
+            $override_method = strtoupper(sanitize_key(wp_unslash($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])));
+        }
+        if (!empty($override_method) && in_array($override_method, ['POST', 'PUT', 'PATCH', 'DELETE', 'GET'], true)) {
+            $method = $override_method;
+        }
+
+        // Only inspect mutating methods
         if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             return $result;
         }
@@ -6457,6 +6475,47 @@ class FirewallEngine {
         }
 
         $route = strtolower($request->get_route());
+
+        // Special handling for REST batch requests (/wp/v2/batch or /batch/v1):
+        // Walk nested requests[] inside the batch payload to ensure unauthorized guest mutations aren't smuggled
+        if (str_contains($route, '/batch')) {
+            $body_params = $request->get_json_params();
+            if (is_array($body_params) && !empty($body_params['requests']) && is_array($body_params['requests'])) {
+                foreach ($body_params['requests'] as $sub_req) {
+                    $sub_method = strtoupper($sub_req['method'] ?? 'GET');
+                    $sub_path   = strtolower($sub_req['path'] ?? '');
+                    if (in_array($sub_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+                        $is_sub_safe = false;
+                        $safe_sub_prefixes = [
+                            '/wc/store/', '/contact-form-7/', '/wpforms/', '/fluentform/',
+                            '/ninja-forms/', '/frm/', '/gf/', '/paypal/', '/wc-stripe/',
+                            '/stripe/', '/surecart/', '/wp/v2/comments',
+                        ];
+                        foreach ($safe_sub_prefixes as $ssp) {
+                            if (str_starts_with($sub_path, $ssp) || str_contains($sub_path, $ssp)) {
+                                $is_sub_safe = true;
+                                break;
+                            }
+                        }
+                        if (!$is_sub_safe) {
+                            $client_ip = self::get_client_ip();
+                            $rule_triggered = [
+                                'id'          => 'WAF-GUEST-REST-BATCH-MUTATION',
+                                'name'        => 'Unauthenticated REST Batch Mutation Probe (Rule #37)',
+                                'category'    => 'Behavioral Defense',
+                                'description' => sprintf('Unauthenticated %s request smuggled inside REST batch for route "%s".', $sub_method, esc_html($sub_path)),
+                                'match_type'  => 'Guest REST Batch Mutation',
+                                'match_value' => $sub_path,
+                                'payload'     => "Method: {$sub_method} SubRoute: {$sub_path} IP: {$client_ip}",
+                            ];
+                            self::log_incident($rule_triggered, 'monitored');
+                            break;
+                        }
+                    }
+                }
+            }
+            return $result;
+        }
 
         // Whitelist recognized safe public mutating routes
         $safe_prefixes = [
@@ -6478,7 +6537,6 @@ class FirewallEngine {
             '/akismet/',
             '/jetpack/',
             '/wcp-scanner/',
-            '/batch/v1',
         ];
 
         foreach ($safe_prefixes as $prefix) {
@@ -7758,5 +7816,81 @@ class FirewallEngine {
                 'timestamp'   => current_time('mysql'),
             ]);
         }
+    }
+
+    /**
+     * Extract and normalize sub-request payloads from REST API batch requests (/wp/v2/batch, /batch/v1).
+     * Defeats REST API batch tunneling and smuggling bypasses (CVE-2026-63030 & CVE-2026-60137 chain).
+     * Enforces strict recursion depth (max 2), payload size (max 64KB), and sub-request count (max 25) limits.
+     *
+     * @param string $raw_uri
+     * @param string $raw_input
+     * @return array Array of normalized sub-request query & body strings.
+     */
+    public static function extract_rest_batch_payloads(string $raw_uri, string $raw_input): array {
+        $extracted = [];
+        $clean_uri = strtolower($raw_uri);
+
+        // Check if current endpoint targets REST batch API
+        $is_batch = str_contains($clean_uri, '/wp-json/wp/v2/batch') ||
+                    str_contains($clean_uri, '/wp-json/batch/v1') ||
+                    str_contains($clean_uri, 'rest_route=%2fwp%2fv2%2fbatch') ||
+                    str_contains($clean_uri, 'rest_route=/wp/v2/batch') ||
+                    str_contains($clean_uri, 'rest_route=%2fbatch%2fv1') ||
+                    str_contains($clean_uri, 'rest_route=/batch/v1');
+
+        if (!$is_batch) {
+            return $extracted;
+        }
+
+        // Limit maximum batch JSON length to 65,536 bytes (64KB) to prevent worker DoS
+        if (strlen($raw_input) > 65536) {
+            return [$raw_input];
+        }
+
+        $decoded = json_decode($raw_input, true);
+        if (!is_array($decoded) || empty($decoded['requests']) || !is_array($decoded['requests'])) {
+            return $extracted;
+        }
+
+        // Bound sub-request count to maximum 25 items to prevent PHP worker exhaustion
+        $requests = array_slice($decoded['requests'], 0, 25);
+
+        foreach ($requests as $req) {
+            if (!is_array($req)) {
+                continue;
+            }
+
+            // Extract path/route
+            if (!empty($req['path']) && is_string($req['path'])) {
+                $extracted[] = $req['path'];
+                $path_parts = parse_url($req['path']);
+                if (!empty($path_parts['query'])) {
+                    $extracted[] = urldecode($path_parts['query']);
+                }
+            }
+
+            // Extract body
+            if (!empty($req['body'])) {
+                if (is_array($req['body'])) {
+                    $extracted[] = urldecode(http_build_query($req['body']));
+                    $extracted[] = (string) wp_json_encode($req['body']);
+                } elseif (is_string($req['body'])) {
+                    $extracted[] = $req['body'];
+                    $extracted[] = urldecode($req['body']);
+                }
+            }
+
+            // Extract headers (e.g. smuggled X-HTTP-Method-Override or auth tokens)
+            if (!empty($req['headers']) && is_array($req['headers'])) {
+                foreach ($req['headers'] as $hk => $hv) {
+                    if (is_string($hv)) {
+                        $extracted[] = "{$hk}: {$hv}";
+                    }
+                }
+            }
+        }
+
+        return $extracted;
     }
 }

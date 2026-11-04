@@ -73,6 +73,14 @@ class OutboundEgressFirewall {
     ];
 
     /**
+     * Cache of pre-resolved validated safe IPs indexed by host for the current request cycle.
+     * Prevents TOCTOU DNS rebinding by pinning IP via CURLOPT_RESOLVE in http_api_curl.
+     *
+     * @var array<string, array>
+     */
+    private static $resolved_safe_pins = [];
+
+    /**
      * Initialize Outbound Egress Firewall.
      */
     public static function init() {
@@ -84,16 +92,17 @@ class OutboundEgressFirewall {
         // Intercept all HTTP requests executed via wp_remote_get, wp_remote_post, Requests, etc.
         add_filter('pre_http_request', [__CLASS__, 'inspect_outbound_request'], 10, 3);
 
-        // Constrain cURL redirect protocols to prevent protocol switching & redirect-hop SSRF
+        // Constrain cURL redirect protocols and pin validated safe IPs via CURLOPT_RESOLVE (defeats TOCTOU DNS rebinding)
         add_action('http_api_curl', [__CLASS__, 'constrain_curl_transport'], 10, 3);
     }
 
     /**
-     * Constrain cURL transport to HTTP/HTTPS and prevent dangerous protocol hopping on redirects.
+     * Constrain cURL transport to HTTP/HTTPS, prevent dangerous protocol hopping on redirects,
+     * and pin pre-validated safe IP addresses via CURLOPT_RESOLVE to defeat TOCTOU DNS rebinding.
      *
-     * @param resource $handle
-     * @param array    $parsed_args
-     * @param string   $url
+     * @param resource|\CurlHandle $handle
+     * @param array                $parsed_args
+     * @param string               $url
      * @return void
      */
     public static function constrain_curl_transport($handle, $parsed_args, $url): void {
@@ -109,6 +118,28 @@ class OutboundEgressFirewall {
         if (defined('CURLOPT_REDIR_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
             @curl_setopt($handle, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        }
+
+        // Redirect-Hop SSRF Defense: Limit internal cURL follow-redirect hops to 3 to prevent infinite redirect loops
+        if (defined('CURLOPT_MAXREDIRS')) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
+            @curl_setopt($handle, CURLOPT_MAXREDIRS, 3);
+        }
+
+        // TOCTOU DNS Rebinding Defense: Pin validated safe IP directly to cURL via CURLOPT_RESOLVE
+        if (!empty($url) && defined('CURLOPT_RESOLVE')) {
+            $parsed_url = wp_parse_url($url);
+            $host = strtolower($parsed_url['host'] ?? '');
+            if (!empty($host) && isset(self::$resolved_safe_pins[$host])) {
+                $pin_data = self::$resolved_safe_pins[$host];
+                $safe_ip  = $pin_data['ip'] ?? '';
+                $port     = (int) ($parsed_url['port'] ?? (($parsed_url['scheme'] ?? 'https') === 'http' ? 80 : 443));
+                if (!empty($safe_ip) && $port > 0) {
+                    $resolve_entry = "{$host}:{$port}:{$safe_ip}";
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
+                    @curl_setopt($handle, CURLOPT_RESOLVE, [$resolve_entry]);
+                }
+            }
         }
     }
 
@@ -213,7 +244,8 @@ class OutboundEgressFirewall {
         $reason = '';
 
         // 2. SSRF, Binary IP Normalization & Cloud Metadata Check
-        // Resolves hostnames and checks decimal/hex/IPv6 encodings, link-local, loopback, and cloud metadata
+        // Resolves hostnames and checks decimal/hex/IPv6 encodings, link-local, loopback, and cloud metadata.
+        // Pin validated safe IP to prevent TOCTOU DNS rebinding in curl.
         if (!empty($settings['block_ssrf_metadata'])) {
             $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
             if ($host !== $site_host) {
@@ -221,6 +253,12 @@ class OutboundEgressFirewall {
                 if ($ssrf_eval['threat']) {
                     $threat = $ssrf_eval['threat'];
                     $reason = $ssrf_eval['reason'];
+                } elseif (!empty($ssrf_eval['safe_ip'])) {
+                    // Record safe pinned IP for CURLOPT_RESOLVE in constrain_curl_transport()
+                    self::$resolved_safe_pins[$host] = [
+                        'ip'        => $ssrf_eval['safe_ip'],
+                        'timestamp' => time(),
+                    ];
                 }
             }
         }
@@ -438,6 +476,13 @@ class OutboundEgressFirewall {
                         'reason' => 'IPv6 link-local network connection attempted (fe80::/10).',
                     ];
                 }
+                // IPv6 Unique Local Address: fc00::/7
+                if (($first_byte & 0xfe) === 0xfc) {
+                    return [
+                        'threat' => 'ssrf_private_network',
+                        'reason' => 'IPv6 unique local private network connection attempted (fc00::/7).',
+                    ];
+                }
                 // IPv4-mapped IPv6 (::ffff:169.254.169.254)
                 if (substr($packed, 0, 12) === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff") {
                     $ipv4_part = inet_ntop(substr($packed, 12));
@@ -446,9 +491,64 @@ class OutboundEgressFirewall {
                     }
                 }
             }
+            return ['threat' => null, 'reason' => '', 'safe_ip' => $clean_host];
         }
 
-        return ['threat' => null, 'reason' => ''];
+        // Hostname Resolution: Resolve all A and AAAA DNS records to verify and prevent TOCTOU DNS rebinding
+        $first_safe_ip = '';
+        $has_records = false;
+        if (function_exists('dns_get_record')) {
+            $records = @dns_get_record($clean_host, DNS_A | DNS_AAAA);
+            if (is_array($records) && !empty($records)) {
+                $has_records = true;
+                foreach ($records as $record) {
+                    $resolved_ip = $record['ip'] ?? ($record['ipv6'] ?? '');
+                    if (!empty($resolved_ip)) {
+                        $check = self::evaluate_ssrf_destination($resolved_ip);
+                        // Strict zero-trust rule: Reject mixed public/private responses immediately
+                        if (!empty($check['threat'])) {
+                            return [
+                                'threat' => $check['threat'],
+                                'reason' => sprintf('DNS record for %s resolved to protected IP %s: %s', $clean_host, $resolved_ip, $check['reason']),
+                            ];
+                        }
+                        if (empty($first_safe_ip)) {
+                            $first_safe_ip = $resolved_ip;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to gethostbynamel if dns_get_record returned nothing or is disabled
+        if (!$has_records && function_exists('gethostbynamel')) {
+            $ips = @gethostbynamel($clean_host);
+            if (is_array($ips) && !empty($ips)) {
+                $has_records = true;
+                foreach ($ips as $resolved_ip) {
+                    $check = self::evaluate_ssrf_destination($resolved_ip);
+                    if (!empty($check['threat'])) {
+                        return [
+                            'threat' => $check['threat'],
+                            'reason' => sprintf('DNS A record for %s resolved to protected IP %s: %s', $clean_host, $resolved_ip, $check['reason']),
+                        ];
+                    }
+                    if (empty($first_safe_ip)) {
+                        $first_safe_ip = $resolved_ip;
+                    }
+                }
+            }
+        }
+
+        // Fail-safe: If hostname failed to resolve any valid IP records, block outbound connection to prevent blind routing
+        if (!$has_records || empty($first_safe_ip)) {
+            return [
+                'threat' => 'unresolvable_host',
+                'reason' => sprintf('Outbound destination host (%s) could not be resolved to a valid IP address.', $clean_host),
+            ];
+        }
+
+        return ['threat' => null, 'reason' => '', 'safe_ip' => $first_safe_ip];
     }
 
     /**

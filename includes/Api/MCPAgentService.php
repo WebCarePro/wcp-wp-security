@@ -88,11 +88,11 @@ class MCPAgentService {
         if (in_array($tool, self::READ_TOOLS, true)) {
             return 'allowed';
         }
-        if ($tool === 'wcpscan_run_security_drill' || $tool === 'wcpscan_whitelist_finding') {
+        if ($tool === 'wcpscan_run_security_drill') {
             return 'allowed';
         }
 
-        // Potentially high-impact mutating tools require human confirmation by default
+        // Deterministic Sandboxing: All mutating and state-altering tools require human confirmation by default
         return 'confirmation_required';
     }
 
@@ -953,15 +953,20 @@ class MCPAgentService {
         }
         $staged_id = 'stg_' . substr(md5(uniqid('wcp_stg_', true)), 0, 12);
 
+        // Generate Out-of-Band Cryptographic Confirmation Token signed with site auth salt
+        $salt = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_mcp_default_salt';
+        $confirmation_token = 'wcp_mcp_' . hash_hmac('sha256', $staged_id . '|' . $tool . '|' . time(), $salt);
+
         $staged_entry = [
-            'id'          => $staged_id,
-            'tool'        => $tool,
-            'args'        => $args,
-            'client_ip'   => $client_ip,
-            'user_agent'  => $user_agent,
-            'status'      => 'pending_approval',
-            'created_at'  => time(),
-            'expires_at'  => time() + 86400, // 24 hours
+            'id'                 => $staged_id,
+            'confirmation_token' => $confirmation_token,
+            'tool'               => $tool,
+            'args'               => $args,
+            'client_ip'          => $client_ip,
+            'user_agent'         => $user_agent,
+            'status'             => 'pending_approval',
+            'created_at'         => time(),
+            'expires_at'         => time() + 86400, // 24 hours
         ];
 
         $staged_list = get_option(self::STAGED_OPTION_KEY, []);
@@ -988,11 +993,12 @@ class MCPAgentService {
         ]);
 
         return [
-            'isError'   => false,
-            'isStaged'  => true,
-            'staged_id' => $staged_id,
-            'tool'      => $tool,
-            'status'    => 'pending_approval',
+            'isError'            => false,
+            'isStaged'           => true,
+            'staged_id'          => $staged_id,
+            'confirmation_token' => $confirmation_token,
+            'tool'               => $tool,
+            'status'             => 'pending_approval',
             'content'   => [
                 [
                     'type' => 'text',
@@ -1005,9 +1011,10 @@ class MCPAgentService {
                 ],
             ],
             'result' => [
-                'staged_id'   => $staged_id,
-                'status'      => 'pending_approval',
-                'description' => 'Awaiting administrator confirmation in WCP Console.',
+                'staged_id'          => $staged_id,
+                'confirmation_token' => $confirmation_token,
+                'status'             => 'pending_approval',
+                'description'        => 'Awaiting administrator confirmation in WCP Console with signed confirmation token.',
             ],
         ];
     }
@@ -1036,12 +1043,14 @@ class MCPAgentService {
 
     /**
      * Approve and execute a staged action.
+     * Validates that the executing session holds manage_options or provides the valid signed confirmation token.
      *
      * @param string $staged_id
      * @param int    $approver_id
+     * @param string $token_override
      * @return array
      */
-    public static function approve_staged_action(string $staged_id, int $approver_id = 0): array {
+    public static function approve_staged_action(string $staged_id, int $approver_id = 0, string $token_override = ''): array {
         $list = get_option(self::STAGED_OPTION_KEY, []);
         if (!is_array($list)) {
             return ['success' => false, 'message' => __('No staged actions found.', 'wcp-security-scanner')];
@@ -1066,6 +1075,24 @@ class MCPAgentService {
             /* translators: %s: status of the action */
             return ['success' => false, 'message' => sprintf(__('Action is already %s.', 'wcp-security-scanner'), $target_action['status'])];
         }
+
+        // Cryptographic confirmation verification:
+        // Must either be called by an authenticated administrator with manage_options OR provide the exact matching confirmation token
+        $is_admin = function_exists('current_user_can') && current_user_can('manage_options');
+        $has_valid_token = !empty($token_override) && !empty($target_action['confirmation_token']) && hash_equals($target_action['confirmation_token'], $token_override);
+
+        if (!$is_admin && !$has_valid_token) {
+            return [
+                'success' => false,
+                'message' => __('Execution Rejected: Mutating actions require administrative authorization or a valid cryptographic confirmation token.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Single-Use Atomic Invalidation: Mark token as consumed immediately before executing the tool to prevent replay attacks
+        $list[$target_index]['status']      = 'executing';
+        $list[$target_index]['consumed_at'] = time();
+        $list[$target_index]['confirmation_token'] = null; // Invalidate token immediately
+        update_option(self::STAGED_OPTION_KEY, $list, false);
 
         // Execute the tool with gate bypass
         $exec_result = self::execute_tool($target_action['tool'], $target_action['args'], true);

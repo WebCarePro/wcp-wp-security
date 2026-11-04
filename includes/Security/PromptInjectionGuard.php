@@ -163,14 +163,14 @@ class PromptInjectionGuard {
         $has_unicode_tags = false;
         $has_secret_leak = false;
 
-        // 1. Invisible Unicode Tag Characters Check (U+E0000 - U+E007F)
-        if (preg_match('/[\x{E0000}-\x{E007F}]/u', $text)) {
+        // 1. Invisible Unicode Tag Characters & Bidi Control Smuggling (U+E0000 - U+E007F, Zero-width U+200B-U+200D, Bidi U+202A-U+202E)
+        if (preg_match('/[\x{E0000}-\x{E007F}\x{200B}-\x{200D}\x{FEFF}\x{202A}-\x{202E}]/u', $text)) {
             $has_unicode_tags = true;
             $score += 70;
-            $findings[] = 'Invisible Unicode tag characters detected (adversarial prompt smuggling).';
+            $findings[] = 'Invisible Unicode tag, zero-width, or bidi control characters detected (adversarial prompt smuggling).';
         }
 
-        // 2. Prompt Override & Jailbreak Patterns Check
+        // 2. Prompt Override & Jailbreak Patterns Check (Includes comment-embedded overrides: /* SYSTEM: ... */ or <!-- SYSTEM: ... -->)
         foreach (self::PROMPT_OVERRIDE_PATTERNS as $name => $pattern) {
             if (preg_match($pattern, $text, $m)) {
                 $has_override = true;
@@ -178,6 +178,13 @@ class PromptInjectionGuard {
                 $findings[] = sprintf('Adversarial prompt override signature matched: "%s".', substr($m[0], 0, 70));
                 break;
             }
+        }
+
+        // Secondary check for embedded comment directives: /* SYSTEM: Ignore ... */ or <!-- SYSTEM: ... -->
+        if (!$has_override && preg_match('/(?:\/\*|<!--|\/\/|#)\s*(?:system|admin|root|instruction|directive)\s*:\s*(?:ignore|whitelist|allow|bypass)/i', $text, $m)) {
+            $has_override = true;
+            $score += 85;
+            $findings[] = sprintf('Embedded comment prompt override directive detected: "%s".', substr($m[0], 0, 70));
         }
 
         // 3. Secret Leak / Environment Extraction Check
@@ -198,8 +205,8 @@ class PromptInjectionGuard {
             }
         }
 
-        // Sanitize out invisible tags
-        $cleaned = preg_replace('/[\x{E0000}-\x{E007F}]/u', '', $text);
+        // Sanitize out invisible tags, zero-width spaces, and dangerous bidi controls
+        $cleaned = preg_replace('/[\x{E0000}-\x{E007F}\x{200B}-\x{200D}\x{FEFF}\x{202A}-\x{202E}]/u', '', $text);
 
         $is_safe = ($score === 0);
 

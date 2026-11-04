@@ -81,6 +81,8 @@ class RestApiInventory {
 
     /**
      * Guard against unauthenticated REST user enumeration (/wp/v2/users).
+     * Normalizes both pretty permalinks (/wp-json/wp/v2/users) and query-based (?rest_route=/wp/v2/users),
+     * as well as nested sub-requests inside /wp/v2/batch payloads.
      *
      * @param mixed $result
      * @return mixed
@@ -90,8 +92,39 @@ class RestApiInventory {
             return $result;
         }
 
-        $raw_uri = isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        if (str_contains($raw_uri, '/wp/v2/users') && !is_user_logged_in()) {
+        if (is_user_logged_in()) {
+            return $result;
+        }
+
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['REQUEST_URI']))) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $rest_route = isset($_GET['rest_route']) ? strtolower(sanitize_text_field(wp_unslash($_GET['rest_route']))) : '';
+
+        $is_user_enum = str_contains($raw_uri, '/wp/v2/users') || str_contains($rest_route, '/wp/v2/users');
+
+        // Allow /wp/v2/users/me through to standard core authentication error handler
+        if ($is_user_enum && (str_contains($raw_uri, '/wp/v2/users/me') || str_contains($rest_route, '/wp/v2/users/me'))) {
+            return $result;
+        }
+
+        // Check if user enumeration is being smuggled inside a REST batch request
+        if (!$is_user_enum && (str_contains($raw_uri, '/batch') || str_contains($rest_route, '/batch'))) {
+            $raw_input = @file_get_contents('php://input');
+            if (!empty($raw_input)) {
+                $batch_data = json_decode($raw_input, true);
+                if (is_array($batch_data) && !empty($batch_data['requests']) && is_array($batch_data['requests'])) {
+                    foreach ($batch_data['requests'] as $req) {
+                        $path = strtolower($req['path'] ?? '');
+                        if (str_contains($path, '/wp/v2/users') && !str_contains($path, '/wp/v2/users/me')) {
+                            $is_user_enum = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($is_user_enum) {
             return new \WP_Error(
                 'rest_user_enumeration_forbidden',
                 esc_html__('User enumeration via REST API is disabled for unauthenticated visitors.', 'wcp-security-scanner'),
