@@ -57,7 +57,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (64 Specialized Security Engines & Subsystems)
+## 🌟 Comprehensive Feature Catalog (71 Specialized Security Engines & Subsystems)
 
 > 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
@@ -353,6 +353,40 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
+
+### 65. WooCommerce Keyset Cursor Pagination & Safe Database Persistence Auditing
+- **Zero-Lock Keyset Cursor Pagination (`CronPersistenceScanner.php`)**: Replaces table-locking `OFFSET` and full-table `LIKE` scans with primary-key cursor pagination (`WHERE action_id > %d ORDER BY action_id ASC LIMIT 250`) on `wp_actionscheduler_actions`, preventing row-lock contention and checkout slowdowns during high-volume store traffic.
+- **Class-Aware Serialized Object & POP-Chain Validation (`SerializedDataScanner.php`)**: Performs zero-unserialize static object inspections against white-listed WooCommerce and ActionScheduler domain classes, immediately flagging dangerous PHP Object Injection gadget chains (Guzzle, Monolog, Symfony, Illuminate).
+- **Deep Hook Argument Auditing**: Whitelists legitimate commerce hook prefixes (`woocommerce_`, `action_scheduler_`, `wc_`, `wp_privacy_`) while recursively inspecting hook `args` payloads for smuggled dynamic callables, shell primitives, or dangerous arrays.
+
+### 66. Pre-Install Package Security Gatekeeper & Atomic Upgrade Shield
+- **Pre-Install Package Security Audit (`UpdateGatekeeperEngine.php`)**: Intercepts unzipped plugin/theme archives in temporary staging directories prior to production deployment, inspecting packages for zip-slip path traversals (`../`), external directory symlinks, and obfuscated webshell markers.
+- **Atomic Upgrade Window Locks (`FirewallEngine.php`)**: Places an atomic upgrade lock with a 180-second TTL during software update cycles, blocking unauthenticated external requests targeting `/wp-admin/upgrade.php` and plugin directories while software is being unpacked.
+
+### 67. In-Memory Anonymous Closure Reflection & Gadget Sentinel
+- **In-Memory Closure Reflection (`HookInfiltrationSentinel.php`)**: Leverages `ReflectionFunction` on anonymous Closures registered to critical runtime hooks (`authenticate`, `init`, `template_redirect`, `wp_authenticate`).
+- **Fileless Code & Writable Directory Detection**: Detects fileless `eval()'d code` closures, writable directory bindings (`/uploads/`, `/tmp/`), and dangerous array reflection/gadget callbacks (`__destruct`, `__wakeup`, `invoke`).
+
+### 68. REST API Batch-Route & Method-Override Normalization (CVE-2026-63030 Defense)
+- **Recursive Batch Inspection (`FirewallEngine.php`)**: Recursively walks nested `requests[]` payloads inside `/wp-json/wp/v2/batch` and `/batch/v1` with depth and sub-request boundaries to prevent worker resource exhaustion.
+- **Method-Override & Canonicalization Normalization**: Canonicalizes `_method` query parameters and `X-HTTP-Method-Override` headers, neutralizing smuggled unauthenticated user enumeration and mutating exploit chains (CVE-2026-63030 and CVE-2026-60137).
+
+### 69. Outbound Egress DNS Pinning & Anti-Rebinding SSRF Shield
+- **Single-Pass DNS Resolution & Range Validation (`OutboundEgressFirewall.php`)**: Resolves A and AAAA records via `dns_get_record()` and validates all returned IPs against RFC 1918, loopback, IPv6 unique-local (`fc00::/7`), and AWS/GCP/Alibaba cloud metadata ranges (`169.254.169.254`, `100.100.100.200`, `fd00:ec2::254`).
+- **Deterministic cURL Pinning (`CURLOPT_RESOLVE`)**: Pins verified public destination IPs directly into cURL transports via `http_api_curl`, permanently closing Time-of-Check to Time-of-Use (TOCTOU) DNS rebinding SSRF attack windows.
+- **Mixed DNS Answer Rejection**: Rejects any DNS answer that bundles public IPs with private, loopback, or metadata addresses.
+
+### 70. AI Agent & MCP Plugin Governance with AES-256-GCM Secret Vaulting
+- **Third-Party AI & MCP Discovery (`AiAgentInventoryScanner.php`)**: Scans active plugins, database option keys (`wp_options`), and registered REST namespaces for autonomous agents, LLM integrations, and MCP tools.
+- **Exposed Route Verification**: Audits REST route declarations across AI namespaces to identify exposed endpoints missing authorization callbacks (`permission_callback`).
+- **Automated Plaintext Key Migration (`SecretVault.php`)**: Scans for plaintext LLM secrets (`openai`, `anthropic`, `gemini`, `mcp`) and encrypts them via AES-256-GCM AEAD encryption into secure `wcp_gcm:<base64>` envelopes.
+
+### 71. Surgical In-File Remediation & Compressed Pristine Baseline Vaulting
+- **Pristine Gzip Baselines (`FimVaultManager.php`)**: Stores gzip-compressed pristine file baselines inside a hardened directory (`fim-vault/baselines`) protected by strict Apache `.htaccess` (`Require all denied`) and silent PHP index files.
+- **Zero-Quarantine Surgical Restoration (`TransactionalRemediation.php`)**: Surgically restores infected core and plugin files back to their pristine baseline rather than quarantining entire active files and taking down site execution.
+- **Pre-Repair Snapshot & CrashGuard Probe**: Automatically generates pre-repair snapshots and triggers loopback health check probes (`verify_site_health_probe()`); immediately rolls back changes if a repair causes fatal errors or HTTP 500 status codes.
+
+---
 
 ## ⚖️ Architectural Comparison at a Glance (as of Oct 2026)
 

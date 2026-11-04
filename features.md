@@ -72,6 +72,13 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 62. [ActionScheduler Persistence & Code Snippets Database Injection Armor](#62-actionscheduler-persistence--code-snippets-database-injection-armor)
 63. [Developer Performance Controls, Throttling & Background Worker Strategies](#63-developer-performance-controls-throttling--background-worker-strategies)
 64. [Administrator Real-Time Access & Password Change Notification Matrix](#64-administrator-real-time-access--password-change-notification-matrix)
+65. [WooCommerce Keyset Cursor Pagination & Safe Database Persistence Auditing](#65-woocommerce-keyset-cursor-pagination--safe-database-persistence-auditing)
+66. [Pre-Install Package Security Gatekeeper & Atomic Upgrade Shield](#66-pre-install-package-security-gatekeeper--atomic-upgrade-shield)
+67. [In-Memory Anonymous Closure Reflection & Gadget Sentinel](#67-in-memory-anonymous-closure-reflection--gadget-sentinel)
+68. [REST API Batch-Route & Method-Override Normalization (CVE-2026-63030 Defense)](#68-rest-api-batch-route--method-override-normalization-cve-2026-63030-defense)
+69. [Outbound Egress DNS Pinning & Anti-Rebinding SSRF Shield](#69-outbound-egress-dns-pinning--anti-rebinding-ssrf-shield)
+70. [AI Agent & MCP Plugin Governance with AES-256-GCM Secret Vaulting](#70-ai-agent--mcp-plugin-governance-with-aes-256-gcm-secret-vaulting)
+71. [Surgical In-File Remediation & Compressed Pristine Baseline Vaulting](#71-surgical-in-file-remediation--compressed-pristine-baseline-vaulting)
 
 ---
 
@@ -974,6 +981,91 @@ Account takeovers are the most dangerous security risk for any website. The mome
 - **Pure AES-256-GCM AEAD Webhook Encryption:** All destination webhook URLs and notification keys are encrypted at rest inside the Cryptographic Secret Vault, ensuring credentials are never exposed in plaintext database exports.
 
 ---
+
+
+
+---
+
+## 65. WooCommerce Keyset Cursor Pagination & Safe Database Persistence Auditing
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+High-traffic WooCommerce stores process hundreds of background events every hour (scheduled orders, webhooks, customer emails). Traditional security scanners lock large database tables while scanning for malware, slowing down checkouts or freezing transactions. WCP Security Scanner utilizes frictionless keyset pagination that glides through scheduled tasks non-destructively, auditing background tasks for hidden malicious triggers without placing row locks or slowing down active customer purchases.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Keyset Cursor Pagination (`CronPersistenceScanner.php`):** Replaces slow, table-locking `OFFSET` queries with primary key cursor pagination (`WHERE action_id > %d ORDER BY action_id ASC LIMIT 250`) across `wp_actionscheduler_actions` and high-churn session tables, completely eliminating InnoDB row-lock contention.
+- **Class-Aware Serialized Object Validation (`SerializedDataScanner.php`):** Validates serialized values against known-safe WooCommerce and ActionScheduler domain classes while flagging dangerous PHP Object Injection (POI) gadget chains (Guzzle, Monolog, Symfony, Illuminate) and unexpected objects.
+- **Deep Argument Payload Auditing:** White-lists legitimate commerce hook prefixes (`woocommerce_`, `action_scheduler_`, `wc_`, `wp_privacy_`) while recursively inspecting hook `args` payloads for smuggled dynamic callables, shell primitives, or dangerous arrays.
+
+---
+
+## 66. Pre-Install Package Security Gatekeeper & Atomic Upgrade Shield
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+When you install or update a plugin, WordPress downloads a zip archive and unzips it directly into your website directories. If a malicious or compromised package is uploaded, malicious code can compromise your site before you even run a scan. WCP Security Scanner intercepts packages during extraction, auditing them for dangerous path traversal exploits and webshell patterns before they ever reach production. Additionally, it locks down site upgrade windows to prevent attackers from probing temporary installation files.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Pre-Install Package Security Audit (`UpdateGatekeeperEngine.php`):** Inspects unzipped plugin/theme archives in temporary staging directories prior to production deployment, flagging zip-slip traversals (`../`), external directory symlinks, and obfuscated webshell markers.
+- **Atomic Upgrade Window Locks (`FirewallEngine.php`):** Places an atomic upgrade lock with a 180-second TTL during software update cycles, blocking unauthenticated external requests targeting `/wp-admin/upgrade.php` and plugin directories while software is being unpacked.
+
+---
+
+## 67. In-Memory Anonymous Closure Reflection & Gadget Sentinel
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Sophisticated WordPress backdoors no longer write obvious PHP files to disk. Instead, they inject fileless code into WordPress runtime memory, hooking into authentication processes or page loads using anonymous functions. WCP Security Scanner uses PHP Reflection to inspect anonymous functions directly in memory, identifying and neutralizing stealthy memory-only backdoors before they can intercept administrator logins.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **In-Memory Closure Reflection (`HookInfiltrationSentinel.php`):** Leverages `ReflectionFunction` on anonymous Closures registered to critical runtime hooks (`authenticate`, `init`, `template_redirect`, `wp_authenticate`).
+- **Fileless Code & Writable Directory Detection:** Detects fileless `eval()'d code` closures, writable directory bindings (`/uploads/`, `/tmp/`), and dangerous array reflection/gadget callbacks (`__destruct`, `__wakeup`, `invoke`).
+
+---
+
+## 68. REST API Batch-Route & Method-Override Normalization (CVE-2026-63030 Defense)
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+WordPress allows bundling multiple API requests into a single batch command (`/wp-json/wp/v2/batch`). Attackers frequently hide malicious requests—such as user enumeration or privilege tampering—inside nested batch requests or disguise them using method-override headers to bypass traditional security firewalls. WCP Security Scanner recursively unpacks and inspects all nested requests inside batches, canonicalizing route formats and neutralizing smuggled exploits before they execute.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Recursive Batch Extraction (`FirewallEngine.php`):** Unpacks `/wp-json/wp/v2/batch` and `/batch/v1` payloads, recursively walking nested `requests[]` arrays with strict depth and sub-request count boundaries to prevent resource exhaustion.
+- **Method-Override & Canonicalization Normalization:** Canonicalizes `_method` query arguments and `X-HTTP-Method-Override` headers, neutralizing smuggled unauthenticated user enumeration and mutating exploit chains (CVE-2026-63030 and CVE-2026-60137).
+
+---
+
+## 69. Outbound Egress DNS Pinning & Anti-Rebinding SSRF Shield
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Server-Side Request Forgery (SSRF) occurs when a vulnerable plugin makes an outbound web request on behalf of an attacker, potentially leaking cloud server credentials or probing internal private networks. Attackers use DNS rebinding (TOCTOU) tricks where a domain resolves to a safe IP during initial checks, then switches to a private IP during execution. WCP Security Scanner resolves hostnames once, checks all IPv4 and IPv6 addresses, and pins the verified destination directly into the cURL transport to completely defeat DNS rebinding.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Single-Pass DNS Resolution & Range Validation (`OutboundEgressFirewall.php`):** Resolves A and AAAA records via `dns_get_record()` and validates all returned IPs against RFC 1918, loopback, IPv6 unique-local (`fc00::/7`), and AWS/GCP/Alibaba cloud metadata ranges (`169.254.169.254`, `100.100.100.200`, `fd00:ec2::254`).
+- **Deterministic cURL Pinning (`CURLOPT_RESOLVE`):** Pins verified public destination IPs directly into cURL transports via `http_api_curl`, permanently closing Time-of-Check to Time-of-Use (TOCTOU) DNS rebinding SSRF attack windows.
+- **Mixed DNS Answer Rejection:** Rejects any DNS answer that bundles public IPs with private, loopback, or metadata addresses.
+
+---
+
+## 70. AI Agent & MCP Plugin Governance with AES-256-GCM Secret Vaulting
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+As WordPress sites adopt AI tools, chat agents, and autonomous assistants, many third-party plugins store sensitive OpenAI, Anthropic, or Gemini API keys in plaintext in the database or register public API routes without proper permission checks. WCP Security Scanner automatically discovers AI/MCP connectors, flags exposed routes missing authentication, and migrates plaintext API credentials into military-grade AES-256-GCM authenticated encrypted storage with 1 click.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Third-Party AI & MCP Discovery (`AiAgentInventoryScanner.php`):** Scans active plugins, database option keys (`wp_options`), and registered REST namespaces for autonomous agents, LLM integrations, and MCP tools.
+- **Exposed Route Verification:** Audits REST route declarations across AI namespaces to identify exposed endpoints missing authorization callbacks (`permission_callback`).
+- **Automated Plaintext Key Migration (`SecretVault.php`):** Scans for plaintext LLM secrets (`openai`, `anthropic`, `gemini`, `mcp`) and encrypts them via AES-256-GCM AEAD encryption into secure `wcp_gcm:<base64>` envelopes.
+
+---
+
+## 71. Surgical In-File Remediation & Compressed Pristine Baseline Vaulting
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+When malware injects a small malicious snippet into an essential WordPress core or plugin file, legacy security tools quarantine or delete the entire file—frequently crashing the website or breaking critical functionality. WCP Security Scanner saves compressed pristine baselines of clean files in a hardened vault. When an altered file is detected, it surgically restores the file back to its pristine state while creating a safety snapshot and testing website health to prevent downtime.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Pristine Gzip Baselines (`FimVaultManager.php`):** Stores gzip-compressed pristine file baselines inside a hardened directory (`fim-vault/baselines`) protected by strict Apache `.htaccess` (`Require all denied`) and silent PHP index files.
+- **Zero-Quarantine Surgical Restoration (`TransactionalRemediation.php`):** Surgically restores infected core and plugin files back to their pristine baseline rather than quarantining entire active files.
+- **Pre-Repair Snapshot & CrashGuard Probe:** Automatically generates pre-repair snapshots and triggers loopback health check probes (`verify_site_health_probe()`); immediately rolls back changes if a repair causes fatal errors or HTTP 500 status codes.
+
+
 
 ## 👨‍💻 Author & Engineering
 
