@@ -125,33 +125,34 @@ The Adaptive Firewall Advisor introduces selectable, stack-aware profiles that c
 
 ---
 
-## 5. Five-Phase Implementation Roadmap
+## 5. Unified Implementation Blueprint (Immediate Same-Day Rollout)
 
-### Phase 1: Stack Inventory & Capability Deepening (v2.5.0)
+All components of the **Context-Adaptive Firewall (CAF) & StackGuard Engine** are unified into a single, cohesive same-day release pipeline (v2.4.0):
+
+### Sprint A: Stack Profiling, Advisory Engine & Smart Recommendations
 - Deepen `SiteCapabilityProfiler.php` to extract comprehensive plugin versions, active theme hierarchies, PHP runtime extensions, and registered REST route schemas.
-- Build the `AdaptiveFirewallAdvisor` core class to evaluate stack inventory against current WAF rule states.
-- Output structured recommendation reports: *Must-Enable*, *Strongly Recommended*, *Safe Defaults*, and *Conflict Risks*.
-- Introduce the **"Smart Firewall Recommendations"** card within the Firewall Dashboard with 1-click profile execution.
+- Build the `AdaptiveFirewallAdvisor` core engine to evaluate stack inventory against current WAF rule states.
+- Output structured recommendation matrices: *Must-Enable*, *Strongly Recommended*, *Safe Defaults*, and *Conflict Risks*.
+- Expose the unified **Smart Firewall Protection Profiles** (*E-Commerce Hardened*, *Corporate/Brochure*, *Membership/LMS*, *High-Security/Paranoid*, *Balanced*).
 
-### Phase 2: Inactive Attack Surface Lockdown & Virtual Patch Prioritization (v2.6.0)
+### Sprint B: Inactive Attack Surface Lockdown & Version-Aware Virtual Patching
 - Implement dormant route elimination in `MicroWafCompiler.php`: automatically intercept and drop requests targeting inactive plugin endpoints.
 - Enhance `VirtualPatchManager.php` to dynamically prioritize and compile virtual patches specifically matching installed, unpatched component versions.
 - Integrate automated re-profiling on plugin activation, deactivation, and update lifecycle hooks (`activated_plugin`, `deactivated_plugin`, `upgrader_process_complete`).
 
-### Phase 3: Action-Specific Velocity Limiting & Anomaly Scoring (v2.7.0)
+### Sprint C: Action-Specific Velocity Limiting & Anomaly Scoring
 - Upgrade `AdaptiveRateLimiter.php` with distinct rate buckets for authentication, e-commerce checkout, search queries, and general REST dispatch.
 - Implement differential response tracking in `CorrelationEngine.php`, automatically raising risk scores when clients probe backup files, `.env`, or invalid paths.
 - Deploy automated WebCrypto SHA-256 Proof-of-Work challenges for escalated threat scores.
 
-### Phase 4: False-Positive Feedback Loop & Learning Mode Synthesis (v2.8.0)
+### Sprint D: False-Positive Feedback Loop & Learning Mode Synthesis
 - Connect Learning Mode telemetry directly to the Adaptive Firewall Advisor.
-- Provide 1-click "Tuning Suggestions" in WAF incident logs when legitimate administrative or customer actions trigger protective rules.
+- Provide 1-click tuning suggestions in WAF incident logs when legitimate administrative or customer actions trigger protective rules.
 - Support parameter-level granular exemptions without disabling full security rules.
 
-### Phase 5: Header Fingerprinting & Edge Synchronization (v2.9.0)
+### Sprint E: Header Fingerprinting & Edge Synchronization
 - Add HTTP/2 pseudo-header sequence anomaly checks to `BotReconDefense.php` to detect headless browser spoofing.
 - Synchronize tailored stack-aware rule profiles directly to Cloudflare Edge IP Access Rules and Custom WAF expressions.
-- Automated quarterly residual risk assessment reports for site owners and agency clients.
 
 ---
 
