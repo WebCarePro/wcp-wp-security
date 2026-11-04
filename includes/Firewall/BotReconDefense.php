@@ -426,7 +426,7 @@ class BotReconDefense {
      * @return array|null Anomaly report if detected, null if clean or non-HTTP/2
      */
     public static function check_http2_pseudo_header_anomaly(): ?array {
-        $protocol = isset($_SERVER['SERVER_PROTOCOL']) ? (string) $_SERVER['SERVER_PROTOCOL'] : '';
+        $protocol = isset($_SERVER['SERVER_PROTOCOL']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_PROTOCOL'])) : '';
         $is_h2 = (strpos($protocol, 'HTTP/2') !== false || strpos($protocol, 'HTTP/3') !== false || (!empty($_SERVER['HTTP2']) && $_SERVER['HTTP2'] === 'on'));
 
         // If not running under HTTP/2 or HTTP/3, skip check
@@ -464,7 +464,7 @@ class BotReconDefense {
         }
 
         // Anomaly 2: Check for missing standard User-Agent or known script agent impersonating browser HTTP/2
-        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         if (preg_match('/^(python|go-http-client|curl|libwww|aiohttp)/i', $ua)) {
             return [
                 'anomaly'     => 'script_http2_signature',

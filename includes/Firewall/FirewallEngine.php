@@ -927,7 +927,7 @@ class FirewallEngine {
         // Context-Adaptive Firewall (CAF): Dormant Attack Surface Lockdown
         $lock_dormant = (bool) get_option('wcp_caf_lock_dormant_surface', true);
         if ($lock_dormant) {
-            $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+            $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
             $decoded_check_uri = rawurldecode($raw_uri);
 
             // Check if URI targets an inactive plugin or theme directory
@@ -5907,7 +5907,7 @@ class FirewallEngine {
 
         // Check Synthesized Exemptions (CAF Phase 3): 1-Click safe-passes generated via Learning Mode
         if (class_exists('\\WcpScanner\\Firewall\\CAF\\LearningModeEngine')) {
-            $req_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+            $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
             $r_id = (string) ($rule['id'] ?? '');
             if (\WcpScanner\Firewall\CAF\LearningModeEngine::is_request_exempted($req_uri, $r_id)) {
                 $bypass_rule = $rule;
@@ -5918,6 +5918,7 @@ class FirewallEngine {
 
             // If in learning mode or CAF adaptive learning mode active: record observation
             if ($mode === 'learning' || !empty($settings['caf_adaptive_learning_mode'])) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive observation recording of incoming request payload
                 \WcpScanner\Firewall\CAF\LearningModeEngine::record_observation($rule, $client_ip, $req_uri, array_merge((array)($_GET ?? []), (array)($_POST ?? [])));
             }
         }
@@ -8002,7 +8003,7 @@ class FirewallEngine {
             // Extract path/route
             if (!empty($req['path']) && is_string($req['path'])) {
                 $extracted[] = $req['path'];
-                $path_parts = parse_url($req['path']);
+                $path_parts = wp_parse_url($req['path']);
                 if (!empty($path_parts['query'])) {
                     $extracted[] = urldecode($path_parts['query']);
                 }

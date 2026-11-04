@@ -45,7 +45,8 @@ class LearningModeEngine {
         $obs_id = 'OBS-' . strtoupper(substr(md5($client_ip . $request_uri . microtime(true)), 0, 8));
 
         $clean_uri = (string) wp_parse_url($request_uri, PHP_URL_PATH);
-        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+        $raw_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+        $method = strtoupper($raw_method);
         $is_user_logged = function_exists('is_user_logged_in') && is_user_logged_in();
 
         $entry = [
@@ -83,6 +84,7 @@ class LearningModeEngine {
         if (!$incident) {
             return [
                 'success' => false,
+                /* translators: %s: incident or finding ID */
                 'message' => sprintf(__('Incident record "%s" not found in active WAF telemetry or learning observations.', 'wcp-security-scanner'), esc_html($finding_id)),
             ];
         }
@@ -142,7 +144,8 @@ class LearningModeEngine {
 
         return [
             'success'   => true,
-            'message'   => sprintf(__('Surgical safe-pass exemption "%s" created successfully.', 'wcp-security-scanner'), $exemption_id),
+            /* translators: %s: exemption ID */
+            'message'   => sprintf(__('Surgical safe-pass exemption "%s" created successfully.', 'wcp-security-scanner'), esc_html($exemption_id)),
             'exemption' => $exemption_rule,
         ];
     }

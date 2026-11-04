@@ -11077,7 +11077,7 @@ class ScannerRoutes {
             $active = true;
         } else {
             if (file_exists($killswitch_file)) {
-                @unlink($killswitch_file);
+                wp_delete_file($killswitch_file);
             }
             $active = false;
         }

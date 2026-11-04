@@ -132,6 +132,7 @@ class CloudflareIpListSynchronizer {
         wp_remote_post($ajax_url, [
             'timeout'   => 0.01,
             'blocking'  => false,
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Standard WordPress core filter for local loopback requests
             'sslverify' => apply_filters('https_local_ssl_verify', false),
             'body'      => [
                 'action' => 'wcp_flush_cf_ban_queue',

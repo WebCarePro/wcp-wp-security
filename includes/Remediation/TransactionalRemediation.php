@@ -536,7 +536,7 @@ class TransactionalRemediation {
         }
 
         if (!$restored) {
-            @unlink($corrupted_backup);
+            wp_delete_file($corrupted_backup);
             return false;
         }
 
@@ -546,12 +546,12 @@ class TransactionalRemediation {
             if (!$healthy) {
                 // Rollback to corrupted state if restoration triggers a fatal error
                 @copy($corrupted_backup, $absolute_path);
-                @unlink($corrupted_backup);
+                wp_delete_file($corrupted_backup);
                 return false;
             }
         }
 
-        @unlink($corrupted_backup);
+        wp_delete_file($corrupted_backup);
         return true;
     }
 }

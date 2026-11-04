@@ -182,13 +182,18 @@ class AdaptiveRateLimiter {
             return true;
         }
 
-        $uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
-        $decoded_uri = rawurldecode($uri);
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+        $decoded_uri = rawurldecode($raw_uri);
 
         // Detect appropriate velocity bucket and limits
         $bucket = 'global';
         $limit = (int) ($settings['limit_global'] ?? self::LIMIT_GLOBAL);
         $window = (int) ($settings['window_global'] ?? self::WINDOW_GLOBAL);
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early passive packet rate-limiting
+        $post_action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $search_query = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
 
         if (
             str_contains($decoded_uri, 'wp-login.php') ||
@@ -202,13 +207,13 @@ class AdaptiveRateLimiter {
             str_contains($decoded_uri, 'wc-ajax=checkout') ||
             str_contains($decoded_uri, 'wc-ajax=add_to_cart') ||
             str_contains($decoded_uri, 'wc-ajax=update_order_review') ||
-            (isset($_POST['action']) && in_array($_POST['action'], ['woocommerce_checkout', 'woocommerce_add_to_cart'], true))
+            in_array($post_action, ['woocommerce_checkout', 'woocommerce_add_to_cart'], true)
         ) {
             $bucket = 'checkout';
             $limit = (int) ($settings['limit_checkout'] ?? self::LIMIT_CHECKOUT);
             $window = (int) ($settings['window_checkout'] ?? self::WINDOW_CHECKOUT);
         } elseif (
-            (isset($_GET['s']) && trim((string) $_GET['s']) !== '') ||
+            trim($search_query) !== '' ||
             str_contains($decoded_uri, '/wp-json/wp/v2/search')
         ) {
             $bucket = 'search';
@@ -267,7 +272,8 @@ class AdaptiveRateLimiter {
                 'success'     => false,
                 'status'      => 429,
                 'error'       => 'too_many_requests',
-                'message'     => sprintf(__('Too many %s requests. Please wait %d seconds before retrying.', 'wcp-security-scanner'), esc_html($bucket), $retry_after),
+                /* translators: %1$s: velocity bucket name, %2$d: retry after seconds */
+                'message'     => sprintf(__('Too many %1$s requests. Please wait %2$d seconds before retrying.', 'wcp-security-scanner'), esc_html($bucket), $retry_after),
                 'retry_after' => $retry_after,
                 'bucket'      => $bucket,
             ]);

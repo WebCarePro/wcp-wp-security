@@ -402,6 +402,7 @@ class FimVaultManager {
 
         $result = @file_put_contents($absolute_path, $content, LOCK_EX);
         if (false !== $result) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Direct surgical restoration of core/plugin file permissions
             @chmod($absolute_path, 0644);
             return true;
         }

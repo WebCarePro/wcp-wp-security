@@ -392,7 +392,7 @@ class CronPersistenceScanner {
                 $batches++;
 
                 // Keyset pagination avoids table locks and OFFSET slowdowns on large WooCommerce stores
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
                 $pending_actions = $wpdb->get_results(
                     $wpdb->prepare(
                         "SELECT action_id, hook, status, args, extended_args FROM `{$as_table}` WHERE action_id > %d AND status IN ('pending', 'in-progress') ORDER BY action_id ASC LIMIT %d",
@@ -401,6 +401,7 @@ class CronPersistenceScanner {
                     ),
                     OBJECT
                 );
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
                 if (empty($pending_actions) || !is_array($pending_actions)) {
                     break;
