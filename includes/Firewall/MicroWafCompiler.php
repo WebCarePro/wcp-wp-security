@@ -318,6 +318,36 @@ class MicroWafCompiler {
         $out .= "        \$query = isset(\$_SERVER['QUERY_STRING']) ? (string) \$_SERVER['QUERY_STRING'] : '';\n";
         $out .= "        \$target_text = urldecode(\$uri . ' ' . \$query);\n\n";
 
+        // 4. Context-Adaptive Firewall (CAF) Preload Enforcement
+        $caf_compiled_path = self::get_caf_compiled_file_path();
+        $caf_compiled_escaped = addslashes($caf_compiled_path);
+        $caf_sig_escaped = addslashes($caf_compiled_path . '.sig');
+        $salt = function_exists('wp_salt') ? wp_salt('auth') : 'wcp-caf-fallback-salt';
+        $salt_escaped = addslashes($salt);
+
+        $out .= "        // 4. Context-Adaptive Firewall (CAF): Inactive component lockdown & verified artifact validation\n";
+        $out .= "        \$caf_data_file = '{$caf_compiled_escaped}';\n";
+        $out .= "        \$caf_sig_file  = '{$caf_sig_escaped}';\n";
+        $out .= "        if (file_exists(\$caf_data_file) && file_exists(\$caf_sig_file)) {\n";
+        $out .= "            \$sig_content = trim((string) @file_get_contents(\$caf_sig_file));\n";
+        $out .= "            \$raw_php = (string) @file_get_contents(\$caf_data_file);\n";
+        $out .= "            \$expected_hmac = hash_hmac('sha256', \$raw_php, '{$salt_escaped}');\n";
+        $out .= "            // Fail-open security guardrail: only execute artifact if cryptographic signature is intact\n";
+        $out .= "            if (!empty(\$sig_content) && hash_equals(\$expected_hmac, \$sig_content)) {\n";
+        $out .= "                \$caf_rules = include \$caf_data_file;\n";
+        $out .= "                if (is_array(\$caf_rules) && !empty(\$caf_rules['lock_dormant_surface'])) {\n";
+        $out .= "                    \$dormant_plugins = !empty(\$caf_rules['inactive_plugin_slugs']) && is_array(\$caf_rules['inactive_plugin_slugs']) ? \$caf_rules['inactive_plugin_slugs'] : [];\n";
+        $out .= "                    if (!empty(\$dormant_plugins)) {\n";
+        $out .= "                        foreach (\$dormant_plugins as \$d_slug) {\n";
+        $out .= "                            if (strpos(\$target_text, '/wp-content/plugins/' . \$d_slug . '/') !== false) {\n";
+        $out .= "                                wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-SURFACE', 'Request targets inactive component directory (' . \$d_slug . ') under CAF lockdown policy', \$fail2ban_log);\n";
+        $out .= "                            }\n";
+        $out .= "                        }\n";
+        $out .= "                    }\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n\n";
+
         $out .= "        foreach (\$signatures as \$rule_id => \$sig) {\n";
         $out .= "            if (preg_match(\$sig['pattern'], \$target_text)) {\n";
         $out .= "                wcp_micro_waf_block(\$ip, \$rule_id, \$sig['desc'], \$fail2ban_log);\n";

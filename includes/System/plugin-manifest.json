@@ -1,6 +1,6 @@
 {
   "version": "2.4.0",
-  "generated_at": "2026-11-04T07:50:30.772Z",
+  "generated_at": "2026-11-04T08:08:24.920Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -255,6 +255,10 @@
       "sha256": "1e1a23546d2598f2861e842e2a8f618b0ca07c102987c000e46a12e445a3c09f",
       "size": 8716
     },
+    "includes/Firewall/CAF/ProfileManager.php": {
+      "sha256": "cc4d50dd61bedadde3ed59d2e39303b597f1826099cbf7d6e94e76051286fd0b",
+      "size": 5236
+    },
     "includes/Firewall/CAF/StackSnapshot.php": {
       "sha256": "c5b881fe3d06086eaee5bbddaaff1ff84898ab5a8b903a4147bc15a925e0be6c",
       "size": 3070
@@ -288,8 +292,8 @@
       "size": 15335
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "bd1fd0e0a23dc533fac5024f914157c0548ebcea44a47d765ad81e548e72e9c1",
-      "size": 30623
+      "sha256": "0425d143bb67e610089ad3735c41b657706ebd90354c8a11a18f6f5bf9fe0492",
+      "size": 33056
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "66e0de692ffcb906b955d0f5007b71aa570276faea4371cb40abc7159818b6df",
