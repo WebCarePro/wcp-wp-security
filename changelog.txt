@@ -1,4 +1,7 @@
 v:2.4.0 - 2026-11-04
+- Dynamic Dashboard Environment Badge & Contradiction Fix (App.tsx, ServerInfo.php):
+  * Environment Telemetry Classification (`includes/System/ServerInfo.php`): Extended server telemetry to classify live site hosting environments dynamically into `Live Production Server`, `Staging Environment`, `Docker Dev Environment`, or `Local Development Site` via `wp_get_environment_type()` and container runtime probes.
+  * Resolved Dashboard Hero Contradiction (`src/App.tsx`): Replaced the static, hardcoded badge `"Docker Dev Site • Verified Safe"` on the Executive SOC Dashboard with dynamic environment labels. Eliminates the confusing contradiction where "Verified Safe" was displayed directly beside "Action Required: Potential Threats Detected", displaying the authentic hosting environment architecture instead.
 - Firewall Option C Architecture & Dedicated CAF Sub-Tab (FirewallPage.tsx, App.tsx, AdminMenu.php):
   * Dedicated CAF Sub-Tab in Firewall (`src/FirewallPage.tsx`): Integrated a dedicated `caf` tab directly within the React Firewall container alongside Rules, Whitelist, Blacklist, User-Agents, Server Security, and 2FA. Cleanly hosts all 3 CAF phases: Phase 1 (Smart Profiles & StackGuard), Phase 2 (Cloudflare Free-Plan 3-Slot Optimizer & Origin Survival Mode), and Phase 3 (Behavioral Intelligence & WebCrypto PoW Sentinel).
   * Focused Firewall Rules Tab (`src/FirewallPage.tsx`): Removed `CafAdvisorPanel` from the Rules tab (`tab=rules`), keeping Rules strictly focused on inspection rule toggles, site health, and Site Advisor.

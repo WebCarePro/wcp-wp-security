@@ -97,6 +97,34 @@ class ServerInfo {
                 $filesystem = is_array($cached_fs) ? $cached_fs : null;
             }
 
+            // 7. Dynamic Environment Classification (Localhost, Docker, Staging, Live Production)
+            $is_docker = @file_exists('/.dockerenv') || @file_exists('/run/.containerenv') || (getenv('DOCKER_CONTAINER') !== false);
+            $site_host = wp_parse_url(function_exists('get_site_url') ? get_site_url() : '', PHP_URL_HOST);
+            $is_local_host = empty($site_host) 
+                || $site_host === 'localhost' 
+                || $site_host === '127.0.0.1' 
+                || $site_host === '::1' 
+                || str_ends_with($site_host, '.local') 
+                || str_ends_with($site_host, '.test') 
+                || str_ends_with($site_host, '.internal')
+                || (filter_var($site_host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false && filter_var($site_host, FILTER_VALIDATE_IP));
+
+            $wp_env_type = function_exists('wp_get_environment_type') ? wp_get_environment_type() : '';
+            if (empty($wp_env_type) || $wp_env_type === 'production') {
+                if ($is_local_host || $is_docker) {
+                    $wp_env_type = 'development';
+                } else {
+                    $wp_env_type = 'production';
+                }
+            }
+
+            $env_label = 'Live Production Server';
+            if ($wp_env_type === 'staging') {
+                $env_label = 'Staging Environment';
+            } elseif ($wp_env_type === 'development' || $wp_env_type === 'local') {
+                $env_label = $is_docker ? 'Docker Dev Environment' : 'Local Development Site';
+            }
+
             return [
                 'php' => [
                     'version'             => PHP_VERSION,
@@ -146,6 +174,12 @@ class ServerInfo {
                 ],
                 'permissions' => $permissions,
                 'filesystem'  => $filesystem,
+                'environment' => [
+                    'type'      => $wp_env_type,
+                    'label'     => $env_label,
+                    'is_docker' => (bool) $is_docker,
+                    'is_local'  => (bool) $is_local_host,
+                ],
             ];
         } catch (\Throwable $e) {
             return [
