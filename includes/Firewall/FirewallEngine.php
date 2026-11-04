@@ -5200,25 +5200,50 @@ class FirewallEngine {
                 if (!$is_fm_file && $ext === 'zip' && class_exists('ZipArchive')) {
                     $zip = new \ZipArchive();
                     if ($zip->open($tmp_path) === true) {
-                        for ($i = 0; $i < min(300, $zip->numFiles); $i++) {
-                            $entry_name = strtolower($zip->getNameIndex($i));
-                            if (preg_match('/(tinyfilemanager|filemanager|fileorganizer|elfinder|responsivefilemanager|filester|file-explorer|file-commander)/i', $entry_name)) {
-                                $is_fm_file = true;
-                                break;
-                            }
-                            if (preg_match('/\.php$/i', $entry_name)) {
-                                $stream = $zip->getStream($zip->getNameIndex($i));
+                        // Check if this archive is WCP Security Scanner itself (self update / release package)
+                        $is_self_package = false;
+                        for ($j = 0; $j < min(15, $zip->numFiles); $j++) {
+                            $check_name = $zip->getNameIndex($j);
+                            if (preg_match('/(?:^|\/)wcp-wp-scanner\.php$/i', $check_name)) {
+                                $stream = $zip->getStream($check_name);
                                 if ($stream) {
-                                    $chunk = stream_get_contents($stream, 4096);
-                                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- ZipArchive stream resource cleanup
+                                    $chunk = stream_get_contents($stream, 2048);
+                                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                                     fclose($stream);
-                                    if ($chunk && (
-                                        preg_match('/Plugin Name:\s*.*(?:file\s*manager|fileorganizer|filester|elfinder|tinyfilemanager|file\s*explorer)/i', $chunk) ||
-                                        stripos($chunk, 'TinyFileManager') !== false ||
-                                        stripos($chunk, 'elFinder') !== false
-                                    )) {
-                                        $is_fm_file = true;
+                                    if ($chunk && (stripos($chunk, 'WCP Security Scanner') !== false || stripos($chunk, 'WCPSCAN_VERSION') !== false)) {
+                                        $is_self_package = true;
                                         break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!$is_self_package) {
+                            for ($i = 0; $i < min(300, $zip->numFiles); $i++) {
+                                $entry_name = strtolower($zip->getNameIndex($i));
+                                $entry_base = basename($entry_name);
+                                // Target dedicated file manager script/plugin archives specifically without false-flagging internal sub-services (like ProfileManager.php)
+                                if (
+                                    preg_match('/(tinyfilemanager|fileorganizer|elfinder|responsivefilemanager|filester|file-explorer|file-commander)/i', $entry_base) ||
+                                    preg_match('/(^|[-_])file[-_]?manager([-_\.]|$)/i', $entry_base)
+                                ) {
+                                    $is_fm_file = true;
+                                    break;
+                                }
+                                if (preg_match('/\.php$/i', $entry_name)) {
+                                    $stream = $zip->getStream($zip->getNameIndex($i));
+                                    if ($stream) {
+                                        $chunk = stream_get_contents($stream, 4096);
+                                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- ZipArchive stream resource cleanup
+                                        fclose($stream);
+                                        if ($chunk && (
+                                            preg_match('/Plugin Name:\s*.*(?:file\s*manager|fileorganizer|filester|elfinder|tinyfilemanager|file\s*explorer)/i', $chunk) ||
+                                            stripos($chunk, 'TinyFileManager') !== false ||
+                                            stripos($chunk, 'elFinder') !== false
+                                        )) {
+                                            $is_fm_file = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
