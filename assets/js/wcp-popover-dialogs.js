@@ -220,7 +220,9 @@
         }
 
         var rect = triggerEl.getBoundingClientRect();
-        var cardRect = card.getBoundingClientRect();
+        // Measure unscaled element layout dimensions for pixel-accurate positioning
+        var cardWidth = card.offsetWidth || 380;
+        var cardHeight = card.offsetHeight || 180;
         var vw = window.innerWidth;
         var vh = window.innerHeight;
 
@@ -232,26 +234,26 @@
         var spaceAbove = rect.top;
         var spaceBelow = vh - rect.bottom;
 
-        if (spaceBelow >= cardRect.height + 15 || spaceBelow >= spaceAbove) {
+        if (spaceBelow >= cardHeight + 15 || spaceBelow >= spaceAbove) {
             // Below button
             targetTop = rect.bottom + 10;
             arrowPos = 'top';
         } else {
             // Above button
-            targetTop = rect.top - cardRect.height - 10;
+            targetTop = rect.top - cardHeight - 10;
             arrowPos = 'bottom';
         }
 
         // Align horizontally: center with button, keep within viewport padding
-        targetLeft = rect.left + (rect.width / 2) - (cardRect.width / 2);
+        targetLeft = rect.left + (rect.width / 2) - (cardWidth / 2);
         if (targetLeft < 15) targetLeft = 15;
-        if (targetLeft + cardRect.width > vw - 15) {
-            targetLeft = vw - cardRect.width - 15;
+        if (targetLeft + cardWidth > vw - 15) {
+            targetLeft = vw - cardWidth - 15;
         }
 
         if (targetTop < 15) targetTop = 15;
-        if (targetTop + cardRect.height > vh - 15) {
-            targetTop = vh - cardRect.height - 15;
+        if (targetTop + cardHeight > vh - 15) {
+            targetTop = vh - cardHeight - 15;
         }
 
         card.style.top = targetTop + 'px';
@@ -264,7 +266,7 @@
         if (arrow) {
             var arrowLeft = (rect.left + rect.width / 2) - targetLeft - 5;
             if (arrowLeft < 15) arrowLeft = 15;
-            if (arrowLeft > cardRect.width - 25) arrowLeft = cardRect.width - 25;
+            if (arrowLeft > cardWidth - 25) arrowLeft = cardWidth - 25;
             arrow.style.left = arrowLeft + 'px';
         }
     }
@@ -298,7 +300,7 @@
 
         var iconBox = document.createElement('div');
         iconBox.className = 'wcp-popover-icon-box ' + variant;
-        iconBox.innerHTML = (variant === 'danger' || variant === 'warning') ? '⚠️' : (variant === 'success' ? '✓' : 'ℹ️');
+        iconBox.textContent = (variant === 'danger' || variant === 'warning') ? '\u26A0\uFE0F' : (variant === 'success' ? '\u2714' : '\u2139\uFE0F');
 
         var titleEl = document.createElement('h4');
         titleEl.className = 'wcp-popover-title';
@@ -316,7 +318,13 @@
         var actions = document.createElement('div');
         actions.className = 'wcp-popover-actions';
 
+        var keyHandler = null;
+
         var close = function(result) {
+            if (keyHandler) {
+                window.removeEventListener('keydown', keyHandler);
+                keyHandler = null;
+            }
             overlay.classList.remove('wcp-visible');
             card.classList.remove('wcp-visible');
             setTimeout(function() {
@@ -376,9 +384,8 @@
         });
 
         // Close on ESC
-        var keyHandler = function(e) {
+        keyHandler = function(e) {
             if (e.key === 'Escape') {
-                window.removeEventListener('keydown', keyHandler);
                 close(false);
             }
         };
@@ -440,12 +447,14 @@
         callout.style.gap = '8px';
         callout.style.animation = 'wcpModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
 
-        var icon = (type === 'error') ? '⚠️ ' : (type === 'success' ? '✓ ' : 'ℹ️ ');
-        callout.innerHTML = '<span>' + icon + message + '</span>';
+        var icon = (type === 'error') ? '\u26A0\uFE0F ' : (type === 'success' ? '\u2714 ' : '\u2139\uFE0F ');
+        var spanEl = document.createElement('span');
+        spanEl.textContent = icon + String(message || '');
+        callout.appendChild(spanEl);
 
         var closeBtn = document.createElement('button');
         closeBtn.type = 'button';
-        closeBtn.innerHTML = '×';
+        closeBtn.textContent = '\u00D7';
         closeBtn.style.background = 'none';
         closeBtn.style.border = 'none';
         closeBtn.style.fontSize = '16px';
