@@ -341,4 +341,71 @@ class FimVaultManager {
         $encoded = wp_json_encode($meta_data, JSON_PRETTY_PRINT);
         return @file_put_contents($meta_file, $encoded, LOCK_EX) !== false;
     }
+
+    /**
+     * Store a compressed gzip baseline of a clean file for surgical in-file restoration.
+     *
+     * @param string $absolute_path
+     * @return bool
+     */
+    public static function store_baseline(string $absolute_path): bool {
+        if (!file_exists($absolute_path) || !is_file($absolute_path)) {
+            return false;
+        }
+
+        $content = @file_get_contents($absolute_path);
+        if (false === $content) {
+            return false;
+        }
+
+        $compressed = @gzcompress($content, 9);
+        if (false === $compressed) {
+            return false;
+        }
+
+        $dir = self::get_vault_dir() . '/baselines';
+        if (!is_dir($dir)) {
+            wp_mkdir_p($dir);
+            self::lockdown_vault_directory($dir);
+        }
+
+        $vault_key = md5(wp_normalize_path($absolute_path));
+        $vault_path = rtrim($dir, '/\\') . '/' . $vault_key . '.gz';
+
+        return (bool) @file_put_contents($vault_path, $compressed, LOCK_EX);
+    }
+
+    /**
+     * Restore a modified file from its compressed baseline in the vault.
+     *
+     * @param string $absolute_path
+     * @return bool
+     */
+    public static function restore_from_baseline(string $absolute_path): bool {
+        $dir = self::get_vault_dir() . '/baselines';
+        $vault_key = md5(wp_normalize_path($absolute_path));
+        $vault_path = rtrim($dir, '/\\') . '/' . $vault_key . '.gz';
+
+        if (!file_exists($vault_path)) {
+            return false;
+        }
+
+        $compressed = @file_get_contents($vault_path);
+        if (false === $compressed) {
+            return false;
+        }
+
+        $content = @gzuncompress($compressed);
+        if (false === $content) {
+            return false;
+        }
+
+        $result = @file_put_contents($absolute_path, $content, LOCK_EX);
+        if (false !== $result) {
+            @chmod($absolute_path, 0644);
+            return true;
+        }
+
+        return false;
+    }
 }

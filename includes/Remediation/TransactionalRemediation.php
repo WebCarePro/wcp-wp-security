@@ -512,4 +512,46 @@ class TransactionalRemediation {
 
         return array_slice($transactions, 0, $limit);
     }
+
+    /**
+     * Execute surgical restoration of a compromised file with automatic CrashGuard rollback.
+     * Restores modified files from their compressed FimVaultManager baseline, avoiding destructive quarantines.
+     *
+     * @param string $absolute_path
+     * @return bool
+     */
+    public static function surgically_repair_file(string $absolute_path): bool {
+        if (!file_exists($absolute_path)) {
+            return false;
+        }
+
+        // 1. Snapshot current corrupted state for emergency rollback
+        $corrupted_backup = sys_get_temp_dir() . '/wcp_rollback_' . md5($absolute_path) . '.tmp';
+        @copy($absolute_path, $corrupted_backup);
+
+        // 2. Attempt surgical restoration from vault baseline
+        $restored = false;
+        if (class_exists('\\WcpScanner\\Integrity\\FimVaultManager')) {
+            $restored = \WcpScanner\Integrity\FimVaultManager::restore_from_baseline($absolute_path);
+        }
+
+        if (!$restored) {
+            @unlink($corrupted_backup);
+            return false;
+        }
+
+        // 3. Verify site stability using CrashGuard circuit breaker if available
+        if (class_exists('\\WcpScanner\\System\\CrashGuard') && method_exists('\\WcpScanner\\System\\CrashGuard', 'verify_site_health_probe')) {
+            $healthy = \WcpScanner\System\CrashGuard::verify_site_health_probe();
+            if (!$healthy) {
+                // Rollback to corrupted state if restoration triggers a fatal error
+                @copy($corrupted_backup, $absolute_path);
+                @unlink($corrupted_backup);
+                return false;
+            }
+        }
+
+        @unlink($corrupted_backup);
+        return true;
+    }
 }

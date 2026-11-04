@@ -125,6 +125,31 @@ class SecretVault {
     }
 
     /**
+     * Alias for encrypt() for standard AEAD secret vaulting.
+     *
+     * @param string $plaintext
+     * @return string|null
+     */
+    public static function encrypt_secret(string $plaintext): ?string {
+        try {
+            return self::encrypt($plaintext);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Alias for decrypt() for standard AEAD secret unvaulting.
+     *
+     * @param string $enc_payload
+     * @return string|null
+     */
+    public static function decrypt_secret(string $enc_payload): ?string {
+        $res = self::decrypt($enc_payload);
+        return is_string($res) ? $res : null;
+    }
+
+    /**
      * Decrypt an encrypted secret string.
      * Authenticates ciphertext integrity with AES-256-GCM tags.
      *

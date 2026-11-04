@@ -1,6 +1,6 @@
 {
   "version": "2.4.0",
-  "generated_at": "2026-11-04T04:03:21.416Z",
+  "generated_at": "2026-11-04T04:07:50.531Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -303,6 +303,10 @@
       "sha256": "28850ddb24d9d88601a49406d90caf01de6dd6bbed9ddba6d661fab89eacd13d",
       "size": 13780
     },
+    "includes/Identity/AiAgentInventoryScanner.php": {
+      "sha256": "0c86551195cb7d8727cf847e8aed5b386b6ffab476cedb86305258d42418181c",
+      "size": 5403
+    },
     "includes/Identity/EphemeralAdminEngine.php": {
       "sha256": "3f3360dd2fe45e7ef4851e27e6deb21ee3362759f1075dbd1009f934c2f78a2c",
       "size": 25240
@@ -340,8 +344,8 @@
       "size": 28813
     },
     "includes/Integrity/FimVaultManager.php": {
-      "sha256": "d83ed11dc5d20e98b6473899c653be53f8e0f01a6fda41bb877d4e2734254020",
-      "size": 12023
+      "sha256": "ba4b8e3d367c8986f795e48f59408300c23274c0f66bc4d6ae699c9ea4648112",
+      "size": 13965
     },
     "includes/Integrity/ImportantFileFIM.php": {
       "sha256": "92c8dd9fe4a0f9f92c91cb17356a74eb5b7b7969c72a99fa31db1f880c0a6b71",
@@ -424,8 +428,8 @@
       "size": 52428
     },
     "includes/Remediation/TransactionalRemediation.php": {
-      "sha256": "d595ffb3884e8e9c51ada1c884a8429fd3fb8f2273579f1456fd41b9b7eb6de0",
-      "size": 21458
+      "sha256": "444b54998f3b8ef1292cf3b9f3f9178cba8b735dadd55cbf8ee77e47b858c057",
+      "size": 23147
     },
     "includes/Reports/IncidentReportEngine.php": {
       "sha256": "3394ef200cd04e49f5b654d9578b9b28bed6e9529c9052c28bca95c96a9c7770",
@@ -488,8 +492,8 @@
       "size": 13281
     },
     "includes/Security/SecretVault.php": {
-      "sha256": "ed17a1bcb0067f0275b11e6c94714dc48c1e0cb8fc0967c17425f713d8b81539",
-      "size": 12767
+      "sha256": "1bead5f0ed1373414fc8aec3bb952b0489e85a2ad2922dc9a969d55dc2f22f1a",
+      "size": 13438
     },
     "includes/Security/VaultRotator.php": {
       "sha256": "7f2c179f551183bcb75ef2bb17e6465f51db8da768c6ae64b68f5a8bd55983a9",
