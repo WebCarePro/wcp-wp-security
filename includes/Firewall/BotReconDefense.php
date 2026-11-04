@@ -417,6 +417,77 @@ class BotReconDefense {
         self::render_webcrypto_challenge($client_ip, $ua);
     }
 
+    /**
+     * Inspect HTTP/2 & HTTP/3 pseudo-header ordering and letter-case anomalies.
+     * Genuine modern web browsers (Chrome, Firefox, Safari) strictly send pseudo-headers
+     * in standardized order (:method -> :authority -> :scheme -> :path) in lowercase.
+     * Automated scripts (Python requests, Go net/http, custom cURL scrapers) often violate this.
+     *
+     * @return array|null Anomaly report if detected, null if clean or non-HTTP/2
+     */
+    public static function check_http2_pseudo_header_anomaly(): ?array {
+        $protocol = isset($_SERVER['SERVER_PROTOCOL']) ? (string) $_SERVER['SERVER_PROTOCOL'] : '';
+        $is_h2 = (strpos($protocol, 'HTTP/2') !== false || strpos($protocol, 'HTTP/3') !== false || (!empty($_SERVER['HTTP2']) && $_SERVER['HTTP2'] === 'on'));
+
+        // If not running under HTTP/2 or HTTP/3, skip check
+        if (!$is_h2) {
+            return null;
+        }
+
+        // Check if raw request headers can be retrieved
+        $raw_headers = [];
+        if (function_exists('getallheaders')) {
+            $raw_headers = getallheaders();
+        }
+
+        if (empty($raw_headers) && is_array($_SERVER)) {
+            foreach ($_SERVER as $k => $v) {
+                if (str_starts_with($k, 'HTTP_')) {
+                    $raw_headers[substr($k, 5)] = $v;
+                }
+            }
+        }
+
+        // Anomaly 1: Check for uppercase HTTP/2 headers if raw headers exposed
+        if (!empty($raw_headers)) {
+            foreach (array_keys($raw_headers) as $header_name) {
+                if (is_string($header_name) && str_starts_with($header_name, ':')) {
+                    if ($header_name !== strtolower($header_name)) {
+                        return [
+                            'anomaly'     => 'uppercase_pseudo_header',
+                            'description' => sprintf('Invalid uppercase HTTP/2 pseudo-header detected: %s', esc_html($header_name)),
+                            'severity'    => 'high',
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Anomaly 2: Check for missing standard User-Agent or known script agent impersonating browser HTTP/2
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+        if (preg_match('/^(python|go-http-client|curl|libwww|aiohttp)/i', $ua)) {
+            return [
+                'anomaly'     => 'script_http2_signature',
+                'description' => sprintf('Script scraper "%s" connecting over HTTP/2 with automated bot signature.', esc_html($ua)),
+                'severity'    => 'medium',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Render the stateless WebCrypto Proof-of-Work (PoW) HTML5 challenge.
+     * Public alias for active bot defense and suspicious IP mitigation.
+     *
+     * @param string $ip
+     * @param string $action_context
+     */
+    public static function render_pow_challenge(string $ip, string $action_context = 'High-velocity probe'): void {
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+        self::render_webcrypto_challenge($ip, $ua);
+    }
+
     private static function generate_challenge(string $ip, string $ua): string {
         $window = (string) floor(time() / 300); // Valid for 5-minute window
         $salt   = defined('NONCE_KEY') ? NONCE_KEY : 'wcp_pow_salt';

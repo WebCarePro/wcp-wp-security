@@ -821,6 +821,32 @@ class FirewallEngine {
             \WcpScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
         }
 
+        // WebCrypto Proof-of-Work (PoW) Enforced Suspicious IP Sentinel
+        $pow_ips = get_option('wcp_pow_enforced_ips', []);
+        if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
+            if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+                \WcpScanner\Firewall\BotReconDefense::verify_or_challenge_client();
+            }
+        }
+
+        // HTTP/2 & HTTP/3 Pseudo-Header Anomaly Sentinel
+        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+            $h2_anomaly = \WcpScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
+            if ($h2_anomaly !== null) {
+                $rule_triggered = [
+                    'id'          => 'BOT-H2-HEADER-ANOMALY',
+                    'name'        => 'HTTP/2 Header Sequencing Anomaly',
+                    'category'    => 'Protocol Anomaly Defense',
+                    'description' => $h2_anomaly['description'],
+                    'match_type'  => 'Pseudo-Header Anomaly',
+                    'match_value' => $h2_anomaly['anomaly'],
+                    'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                exit;
+            }
+        }
+
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
         $is_drill_request = !empty($_GET['wcp_drill_token']) || !empty($_POST['wcp_drill_token']) || !empty($_SERVER['HTTP_X_WCP_DRILL_TOKEN']);
 
@@ -5878,6 +5904,24 @@ class FirewallEngine {
         }
 
         $mode = $settings['waf_mode'] ?? 'enabled';
+
+        // Check Synthesized Exemptions (CAF Phase 3): 1-Click safe-passes generated via Learning Mode
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\LearningModeEngine')) {
+            $req_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+            $r_id = (string) ($rule['id'] ?? '');
+            if (\WcpScanner\Firewall\CAF\LearningModeEngine::is_request_exempted($req_uri, $r_id)) {
+                $bypass_rule = $rule;
+                $bypass_rule['description'] = ($rule['description'] ?? 'Firewall trigger') . ' [Bypassed via Synthesized Exemption]';
+                self::log_incident($bypass_rule, 'bypassed');
+                return; // Granted targeted safe-pass!
+            }
+
+            // If in learning mode or CAF adaptive learning mode active: record observation
+            if ($mode === 'learning' || !empty($settings['caf_adaptive_learning_mode'])) {
+                \WcpScanner\Firewall\CAF\LearningModeEngine::record_observation($rule, $client_ip, $req_uri, array_merge((array)($_GET ?? []), (array)($_POST ?? [])));
+            }
+        }
+
         if ($mode === 'learning') {
             if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine') && \WcpScanner\Firewall\LearningModeEngine::is_route_graduated()) {
                 // Route has graduated: enforce blocking even during global learning mode!

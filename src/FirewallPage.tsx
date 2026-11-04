@@ -63,6 +63,7 @@ import { TargetedAllowlistManagerCard } from './components/TargetedAllowlistMana
 import { AiDefenseCard } from './components/AiDefenseCard';
 import { SiteAdvisorCard } from './components/SiteAdvisorCard';
 import { CafAdvisorPanel } from './components/CafAdvisorPanel';
+import { CafBehavioralCockpit } from './components/CafBehavioralCockpit';
 import { CloudflareSlotVisualizer } from './components/CloudflareSlotVisualizer';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { InlineConfirmPopover } from './components/InlineConfirmPopover';
@@ -6520,6 +6521,9 @@ export const FirewallPage = ({
       {/* TAB: Behavioral WAF & Anti-Automated Abuse */}
       {activeTab === 'behavioral' && (
         <div style={{ marginTop: '10px' }}>
+          {/* CAF Phase 3: Action-Type Velocity Monitor, WebCrypto PoW & 1-Click Exemption Synthesizer */}
+          <CafBehavioralCockpit apiRequest={apiRequest} />
+
           <BehavioralWafCard
             apiRequest={apiRequest}
             initialSubTab={initialBehavioralSubTab}

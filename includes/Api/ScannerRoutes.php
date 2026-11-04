@@ -522,6 +522,24 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/caf/behavioral-status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_caf_behavioral_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/create-exemption', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'create_caf_exemption'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/toggle-pow-challenge', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_caf_pow_challenge'],
+            'permission_callback' => $permission,
+        ]);
+
         // Site Archetype Intelligence & Adaptive Firewall Advisor Endpoints
         register_rest_route(self::NAMESPACE, '/site-advisor', [
             'methods'             => 'GET',
@@ -11193,6 +11211,94 @@ class ScannerRoutes {
             'success'               => $success,
             'message'               => $msg,
             'circuit_breaker_state' => $breaker->get_state(),
+        ]);
+    }
+
+    /**
+     * Get CAF Phase 3 Behavioral Status: Multi-Bucket Velocity, PoW Counters, Learning Observations
+     */
+    public static function get_caf_behavioral_status(\WP_REST_Request $request) {
+        $rate_limiter_stats = class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')
+            ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry()
+            : [];
+
+        $learning_observations = get_option(\WcpScanner\Firewall\CAF\LearningModeEngine::OPTION_OBSERVATIONS, []);
+        $synthesized_exemptions = get_option(\WcpScanner\Firewall\CAF\LearningModeEngine::OPTION_SYNTHESIZED, []);
+
+        $pow_enforced_ips = get_option('wcp_pow_enforced_ips', []);
+
+        return rest_ensure_response([
+            'success'                => true,
+            'rate_limiter'           => $rate_limiter_stats,
+            'learning_observations'  => is_array($learning_observations) ? array_values(array_slice($learning_observations, 0, 50)) : [],
+            'observation_count'      => is_array($learning_observations) ? count($learning_observations) : 0,
+            'synthesized_exemptions' => is_array($synthesized_exemptions) ? array_values($synthesized_exemptions) : [],
+            'exemption_count'        => is_array($synthesized_exemptions) ? count($synthesized_exemptions) : 0,
+            'pow_enforced_ips'       => is_array($pow_enforced_ips) ? array_values($pow_enforced_ips) : [],
+        ]);
+    }
+
+    /**
+     * Synthesize 1-click targeted safe-pass exemption from incident or observation ID.
+     */
+    public static function create_caf_exemption(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $finding_id = !empty($params['finding_id']) ? sanitize_text_field($params['finding_id']) : '';
+
+        if (empty($finding_id)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Finding or Incident ID is required.',
+            ], 400);
+        }
+
+        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\LearningModeEngine')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Learning Mode Engine is not loaded.',
+            ], 500);
+        }
+
+        $result = \WcpScanner\Firewall\CAF\LearningModeEngine::synthesize_exemption($finding_id);
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Toggle manual WebCrypto PoW challenge for suspicious IP.
+     */
+    public static function toggle_caf_pow_challenge(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $ip = !empty($params['ip']) ? sanitize_text_field($params['ip']) : '';
+        $enable = !empty($params['enable']);
+
+        if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Valid IP address is required.',
+            ], 400);
+        }
+
+        $enforced = get_option('wcp_pow_enforced_ips', []);
+        if (!is_array($enforced)) {
+            $enforced = [];
+        }
+
+        if ($enable) {
+            $enforced[$ip] = [
+                'ip'         => $ip,
+                'enforced_at'=> time(),
+                'reason'     => sanitize_text_field($params['reason'] ?? 'Administrator Suspicious Traffic Flag'),
+            ];
+        } else {
+            unset($enforced[$ip]);
+        }
+
+        update_option('wcp_pow_enforced_ips', $enforced, false);
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => $enable ? sprintf('WebCrypto PoW challenge enforced for IP %s.', $ip) : sprintf('WebCrypto PoW challenge lifted for IP %s.', $ip),
+            'enforced'=> array_values($enforced),
         ]);
     }
 
