@@ -267,7 +267,8 @@ class CloudflareSlotOptimizer {
         $clauses = [];
 
         if ($has_custom_ip_list) {
-            $clauses[] = '(ip.src in $wcp_threat_blocklist)';
+            // Note: Wirefilter expressions in Cloudflare Rulesets reference Account IP lists by the list NAME prefixed with $
+            $clauses[] = '(ip.src in $' . CloudflareIpListSynchronizer::LIST_NAME . ')';
         }
 
         $clauses[] = '(http.request.uri.path in {"/xmlrpc.php" "/wp-config.php" "/.env" "/.git/config" "/wp-content/debug.log"})';
@@ -283,7 +284,8 @@ class CloudflareSlotOptimizer {
                     continue;
                 }
 
-                $candidate = sprintf('(starts_with(http.request.uri.path, "/wp-content/plugins/%s/"))', $slug);
+                // Strict Cloudflare Wirefilter syntax: double quotes around string literal
+                $candidate = sprintf('(starts_with(http.request.uri.path, %s))', wp_json_encode("/wp-content/plugins/{$slug}/"));
                 $projected = implode(' or ', array_merge($clauses, [$candidate]));
                 if (strlen($projected) > self::MAX_EXPRESSION_BYTES) {
                     break; // Graceful truncation: remaining inactive plugins handled by local WAF

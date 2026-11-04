@@ -109,6 +109,35 @@ class CloudflareIpListSynchronizer {
         }
 
         update_option(self::OPTION_BAN_QUEUE, $queue, false);
+
+        // WP-Cron Reliability on Edge-Cached Sites:
+        // When Cloudflare aggressively caches edge pages, low-traffic sites may not trigger cron on schedule.
+        // If queue exceeds 25 pending bans, immediately trigger background loopback flush.
+        if (count($queue) >= 25) {
+            $this->trigger_background_queue_flush();
+        }
+    }
+
+    /**
+     * Trigger immediate non-blocking loopback request to flush bans without waiting for cron visitor.
+     */
+    public function trigger_background_queue_flush(): void {
+        $last_spawn = (int) get_transient('wcp_cf_queue_spawn_debounce');
+        if (time() - $last_spawn < 60) {
+            return; // Debounce to at most once per 60 seconds
+        }
+        set_transient('wcp_cf_queue_spawn_debounce', time(), 60);
+
+        $ajax_url = admin_url('admin-ajax.php');
+        wp_remote_post($ajax_url, [
+            'timeout'   => 0.01,
+            'blocking'  => false,
+            'sslverify' => apply_filters('https_local_ssl_verify', false),
+            'body'      => [
+                'action' => 'wcp_flush_cf_ban_queue',
+                'nonce'  => wp_create_nonce('wcp_cf_queue_flush_nonce'),
+            ],
+        ]);
     }
 
     /**
@@ -360,7 +389,7 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
-     * Register asynchronous sync cron hook.
+     * Register asynchronous sync cron hook and AJAX loopback handler.
      */
     public static function register_cron(): void {
         add_action(self::CRON_HOOK, static function () {
@@ -368,8 +397,22 @@ class CloudflareIpListSynchronizer {
             $sync->process_sync_queue();
         });
 
+        // Loopback AJAX handler for high-velocity queue flushing
+        add_action('wp_ajax_nopriv_wcp_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
+        add_action('wp_ajax_wcp_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
+
         if (!wp_next_scheduled(self::CRON_HOOK)) {
             wp_schedule_event(time() + 300, 'wcp_every_five_minutes', self::CRON_HOOK);
         }
+    }
+
+    /**
+     * Handle non-blocking loopback queue flush request.
+     */
+    public static function handle_loopback_flush(): void {
+        check_ajax_referer('wcp_cf_queue_flush_nonce', 'nonce');
+        $sync = new self();
+        $sync->process_sync_queue();
+        wp_send_json_success(['flushed' => true]);
     }
 }
