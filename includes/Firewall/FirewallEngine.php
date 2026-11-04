@@ -652,7 +652,12 @@ class FirewallEngine {
      */
     public static function inspect_incoming_request() {
         // Emergency Override / Failsafe: Bypass all firewall inspection if WCPSCAN_DISABLE_WAF or WCPSCAN_DISABLE_FIREWALL is defined in wp-config.php
-        if ((defined('WCPSCAN_DISABLE_WAF') && WCPSCAN_DISABLE_WAF) || (defined('WCPSCAN_DISABLE_FIREWALL') && WCPSCAN_DISABLE_FIREWALL)) {
+        if ((defined('WCPSCAN_DISABLE_WAF') && WCPSCAN_DISABLE_WAF) || (defined('WCPSCAN_DISABLE_FIREWALL') && WCPSCAN_DISABLE_FIREWALL) || (defined('WCP_CAF_DISABLE_PRELOAD') && WCP_CAF_DISABLE_PRELOAD)) {
+            return;
+        }
+
+        // CAF Killswitch check
+        if (defined('WP_CONTENT_DIR') && (file_exists(WP_CONTENT_DIR . '/uploads/wcp-security-scanner/.killswitch') || file_exists(WP_CONTENT_DIR . '/wcp-vault/.killswitch'))) {
             return;
         }
 
@@ -889,6 +894,52 @@ class FirewallEngine {
                         self::handle_rule_violation($rule_triggered, $settings, $client_ip, 423);
                         exit;
                     }
+                }
+            }
+        }
+
+        // Context-Adaptive Firewall (CAF): Dormant Attack Surface Lockdown
+        $lock_dormant = (bool) get_option('wcp_caf_lock_dormant_surface', true);
+        if ($lock_dormant) {
+            $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+            $decoded_check_uri = rawurldecode($raw_uri);
+
+            // Check if URI targets an inactive plugin or theme directory
+            if (preg_match('#/wp-content/plugins/([a-zA-Z0-9_-]+)/#i', $decoded_check_uri, $plugin_matches)) {
+                $target_slug = strtolower($plugin_matches[1]);
+                $cached_snapshot = get_option('wcp_caf_stack_snapshot');
+                $inactive_plugins = is_array($cached_snapshot) && !empty($cached_snapshot['inactive_plugins']) ? array_keys($cached_snapshot['inactive_plugins']) : [];
+
+                if (in_array($target_slug, $inactive_plugins, true)) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-CAF-DORMANT-SURFACE',
+                        'name'        => 'Context-Adaptive Dormant Attack Surface Lockdown',
+                        'category'    => 'Dormant Surface Shield',
+                        'description' => sprintf('Request targets deactivated plugin "%s". Direct requests to inactive components are strictly blocked.', esc_html($target_slug)),
+                        'match_type'  => 'Dormant Plugin Policy',
+                        'match_value' => $target_slug,
+                        'payload'     => "Target Slug: {$target_slug} URI: {$raw_uri} IP: {$client_ip}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    exit;
+                }
+            } elseif (preg_match('#/wp-content/themes/([a-zA-Z0-9_-]+)/#i', $decoded_check_uri, $theme_matches)) {
+                $target_theme = strtolower($theme_matches[1]);
+                $cached_snapshot = get_option('wcp_caf_stack_snapshot');
+                $inactive_themes = is_array($cached_snapshot) && !empty($cached_snapshot['inactive_themes']) ? array_keys($cached_snapshot['inactive_themes']) : [];
+
+                if (in_array($target_theme, $inactive_themes, true)) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-CAF-DORMANT-THEME',
+                        'name'        => 'Context-Adaptive Dormant Theme Surface Lockdown',
+                        'category'    => 'Dormant Surface Shield',
+                        'description' => sprintf('Request targets inactive theme "%s". Direct requests to inactive themes are strictly blocked.', esc_html($target_theme)),
+                        'match_type'  => 'Dormant Theme Policy',
+                        'match_value' => $target_theme,
+                        'payload'     => "Target Theme: {$target_theme} URI: {$raw_uri} IP: {$client_ip}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    exit;
                 }
             }
         }

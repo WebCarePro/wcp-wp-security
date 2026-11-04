@@ -62,6 +62,7 @@ import { BehavioralWafCard } from './components/BehavioralWafCard';
 import { TargetedAllowlistManagerCard } from './components/TargetedAllowlistManagerCard';
 import { AiDefenseCard } from './components/AiDefenseCard';
 import { SiteAdvisorCard } from './components/SiteAdvisorCard';
+import { CafAdvisorPanel } from './components/CafAdvisorPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { InlineConfirmPopover } from './components/InlineConfirmPopover';
 import { formatRelativeTime, formatTelemetryDateFull } from './timeUtils';
@@ -2607,6 +2608,14 @@ export const FirewallPage = ({
       {/* TAB 2: Rules & Configuration */}
       {activeTab === 'rules' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Context-Adaptive Firewall (CAF) Advisor Panel */}
+          <CafAdvisorPanel
+            apiRequest={apiRequest}
+            onSettingsUpdated={() => {
+              loadFirewallData(true);
+            }}
+          />
+
           {/* Site Archetype Intelligence & Adaptive Firewall Advisor */}
           <SiteAdvisorCard
             apiRequest={apiRequest}

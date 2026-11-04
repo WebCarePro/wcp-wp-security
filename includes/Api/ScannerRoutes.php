@@ -479,6 +479,31 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Context-Adaptive Firewall (CAF) & StackGuard Endpoints
+        register_rest_route(self::NAMESPACE, '/caf/overview', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_caf_overview'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/apply-profile', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'apply_caf_profile'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/reprofile', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reprofile_caf_stack'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/killswitch', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_caf_killswitch'],
+            'permission_callback' => $permission,
+        ]);
+
         // Site Archetype Intelligence & Adaptive Firewall Advisor Endpoints
         register_rest_route(self::NAMESPACE, '/site-advisor', [
             'methods'             => 'GET',
@@ -10922,6 +10947,110 @@ class ScannerRoutes {
         $result = \WcpScanner\Advisor\SiteAdvisorEngine::rollback();
         return rest_ensure_response($result);
     }
+
+    /**
+     * Get complete CAF overview including stack snapshot and recommendations matrix.
+     */
+    public static function get_caf_overview(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'CAF module is not initialized.',
+            ], 500);
+        }
+
+        $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $snapshot = $advisor->get_stack_snapshot();
+        $matrix   = $advisor->get_recommendations_matrix($snapshot);
+
+        // Preload status
+        $killswitch_file = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/wcp-security-scanner/.killswitch') : '';
+        $is_killed = (defined('WCP_CAF_DISABLE_PRELOAD') && WCP_CAF_DISABLE_PRELOAD) || ($killswitch_file && file_exists($killswitch_file));
+
+        return rest_ensure_response([
+            'success'              => true,
+            'snapshot'             => $snapshot->to_array(),
+            'recommendations'      => $matrix,
+            'is_killswitch_active' => $is_killed,
+            'active_profile'       => $matrix['current_profile'],
+            'residual_risk_score'  => $matrix['residual_risk_score'],
+        ]);
+    }
+
+    /**
+     * Apply a CAF Protection Profile.
+     */
+    public static function apply_caf_profile(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $profile_id   = sanitize_key($params['profile_id'] ?? 'balanced');
+        $lock_dormant = isset($params['lock_dormant_surface']) ? (bool) $params['lock_dormant_surface'] : true;
+
+        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'CAF module missing.'], 500);
+        }
+
+        $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $result  = $advisor->apply_profile($profile_id, $lock_dormant);
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => sprintf('CAF Profile "%s" applied and Micro-WAF recompiled.', esc_html($profile_id)),
+            'result'  => $result,
+        ]);
+    }
+
+    /**
+     * Force immediate stack re-profiling and re-compilation.
+     */
+    public static function reprofile_caf_stack(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'CAF module missing.'], 500);
+        }
+
+        $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $snapshot = $advisor->capture_stack_snapshot();
+
+        if (class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+            \WcpScanner\Firewall\MicroWafCompiler::compile_script();
+        }
+
+        return rest_ensure_response([
+            'success'         => true,
+            'message'         => 'Stack snapshot refreshed and CAF Micro-WAF recompiled.',
+            'snapshot'        => $snapshot->to_array(),
+            'recommendations' => $advisor->get_recommendations_matrix($snapshot),
+        ]);
+    }
+
+    /**
+     * Toggle the emergency preload killswitch.
+     */
+    public static function toggle_caf_killswitch(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $enable_killswitch = !empty($params['killswitch']);
+
+        $vault_dir = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/wcp-security-scanner') : '';
+        if (!$vault_dir || !is_dir($vault_dir)) {
+            wp_mkdir_p($vault_dir);
+        }
+
+        $killswitch_file = $vault_dir . '/.killswitch';
+
+        if ($enable_killswitch) {
+            file_put_contents($killswitch_file, '1');
+            $active = true;
+        } else {
+            if (file_exists($killswitch_file)) {
+                @unlink($killswitch_file);
+            }
+            $active = false;
+        }
+
+        return rest_ensure_response([
+            'success'              => true,
+            'is_killswitch_active' => $active,
+            'message'              => $active ? 'Emergency Killswitch activated. Preload WAF bypassed.' : 'Emergency Killswitch deactivated. Preload WAF active.',
+        ]);
+    }
+
 }
-
-

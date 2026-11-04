@@ -123,6 +123,11 @@ class Plugin {
             \WcpScanner\Identity\WcpJitMuGuardian::ensure_installed();
         }
 
+        // Context-Adaptive Firewall (CAF) Lifecycle Observers
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::register_lifecycle_hooks();
+        }
+
         add_action('rest_api_init', function () {
             ScannerRoutes::register();
         });
