@@ -63,6 +63,7 @@ import { TargetedAllowlistManagerCard } from './components/TargetedAllowlistMana
 import { AiDefenseCard } from './components/AiDefenseCard';
 import { SiteAdvisorCard } from './components/SiteAdvisorCard';
 import { CafAdvisorPanel } from './components/CafAdvisorPanel';
+import { CloudflareSlotVisualizer } from './components/CloudflareSlotVisualizer';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { InlineConfirmPopover } from './components/InlineConfirmPopover';
 import { formatRelativeTime, formatTelemetryDateFull } from './timeUtils';
@@ -6951,6 +6952,9 @@ export const FirewallPage = ({
               </>
             )}
           </div>
+
+          {/* Context-Adaptive Firewall (CAF) Cloudflare Free-Plan 5-Slot Optimizer & Origin Survival Mode */}
+          <CloudflareSlotVisualizer apiRequest={apiRequest} />
 
           {/* 1-Click Cloudflare Free Edge WAF Rules Deployer */}
           <div className="wcp-firewall-card">

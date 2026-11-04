@@ -3933,6 +3933,12 @@ class FirewallEngine {
             'admin_user'       => $admin_user,
         ]);
 
+        // Context-Adaptive Firewall (CAF Phase 2): Queue IP ban for Cloudflare Edge synchronization
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            $cf_sync = new \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer();
+            $cf_sync->queue_ip_ban($ip, $reason, $duration_seconds > 0 ? $duration_seconds : 86400);
+        }
+
         return true;
     }
 

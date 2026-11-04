@@ -123,9 +123,12 @@ class Plugin {
             \WcpScanner\Identity\WcpJitMuGuardian::ensure_installed();
         }
 
-        // Context-Adaptive Firewall (CAF) Lifecycle Observers
+        // Context-Adaptive Firewall (CAF) Lifecycle Observers & Edge Cron
         if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
             \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::register_lifecycle_hooks();
+        }
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::register_cron();
         }
 
         add_action('rest_api_init', function () {

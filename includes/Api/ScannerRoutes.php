@@ -504,6 +504,24 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/caf/cloudflare-status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_caf_cloudflare_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/sync-cloudflare', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'sync_caf_cloudflare'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/caf/toggle-circuit-breaker', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_origin_circuit_breaker'],
+            'permission_callback' => $permission,
+        ]);
+
         // Site Archetype Intelligence & Adaptive Firewall Advisor Endpoints
         register_rest_route(self::NAMESPACE, '/site-advisor', [
             'methods'             => 'GET',
@@ -11050,6 +11068,131 @@ class ScannerRoutes {
             'success'              => true,
             'is_killswitch_active' => $active,
             'message'              => $active ? 'Emergency Killswitch activated. Preload WAF bypassed.' : 'Emergency Killswitch deactivated. Preload WAF active.',
+        ]);
+    }
+
+    /**
+     * Get Cloudflare CAF Status (Phase 2): Slots, Token Capability, Ban Queue, Origin Circuit Breaker
+     */
+    public static function get_caf_cloudflare_status(\WP_REST_Request $request) {
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+        $configured = !empty($settings['cloudflare_api_token']) && !empty($zone_id);
+
+        $optimizer = class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareSlotOptimizer') ? new \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer() : null;
+        $synchronizer = class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer') ? new \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer() : null;
+        $breaker = class_exists('\\WcpScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker') ? new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker() : null;
+
+        $existing_rules = [];
+        $slot_budget = 3;
+        $user_rules_count = 0;
+        $wcp_rules_count = 0;
+
+        if ($configured && $optimizer) {
+            $existing_rules = $optimizer->get_zone_rules($zone_id);
+            $slot_budget = $optimizer->calculate_wcp_slot_budget($existing_rules);
+
+            foreach ($existing_rules as $r) {
+                $desc = (string) ($r['description'] ?? '');
+                if (str_starts_with($desc, \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with($desc, \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG)) {
+                    $wcp_rules_count++;
+                } else {
+                    $user_rules_count++;
+                }
+            }
+        }
+
+        $token_scope = $synchronizer ? $synchronizer->detect_api_scope() : 'none';
+        $pending_queue = get_option(\WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::OPTION_BAN_QUEUE, []);
+        $pending_count = is_array($pending_queue) ? count($pending_queue) : 0;
+
+        $circuit_breaker_state = $breaker ? $breaker->get_state() : [];
+
+        return rest_ensure_response([
+            'success'               => true,
+            'configured'            => $configured,
+            'zone_id'               => $zone_id,
+            'token_scope'           => $token_scope,
+            'slot_usage'            => [
+                'total_quota'      => 5,
+                'user_rules'       => $user_rules_count,
+                'wcp_rules'        => $wcp_rules_count,
+                'available_slots'  => $slot_budget,
+                'free_unallocated' => max(0, 5 - ($user_rules_count + $wcp_rules_count)),
+            ],
+            'existing_rules'        => array_map(function ($r) {
+                return [
+                    'id'          => $r['id'] ?? '',
+                    'description' => $r['description'] ?? '',
+                    'action'      => $r['action'] ?? '',
+                    'enabled'     => !empty($r['enabled']),
+                    'bytes'       => strlen((string) ($r['expression'] ?? '')),
+                    'is_wcp'      => str_starts_with((string) ($r['description'] ?? ''), \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with((string) ($r['description'] ?? ''), \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG),
+                ];
+            }, $existing_rules),
+            'pending_ban_queue_size'=> $pending_count,
+            'circuit_breaker'       => $circuit_breaker_state,
+        ]);
+    }
+
+    /**
+     * Trigger immediate on-demand synchronization of Cloudflare Edge slots and IP lists.
+     */
+    public static function sync_caf_cloudflare(\WP_REST_Request $request) {
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Cloudflare API token and Zone ID must be configured in Settings first.',
+            ], 400);
+        }
+
+        $optimizer = new \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer();
+        $synchronizer = new \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer();
+        $breaker = new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+
+        // 1. Sync IP ban queue
+        $synced_ips = $synchronizer->process_sync_queue();
+
+        // 2. Sync 3-slot ruleset
+        $origin_survival = $breaker->is_survival_mode_active();
+        $slot_result = $optimizer->deploy_to_cloudflare($zone_id, null, [], $origin_survival);
+
+        return rest_ensure_response([
+            'success'     => $slot_result['success'] ?? false,
+            'message'     => $slot_result['message'] ?? 'Cloudflare Edge synchronized.',
+            'synced_ips'  => $synced_ips,
+            'slot_result' => $slot_result,
+        ]);
+    }
+
+    /**
+     * Manual toggle for Origin Survival Mode (Circuit Breaker).
+     */
+    public static function toggle_origin_circuit_breaker(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $enable = !empty($params['enable']);
+
+        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        $breaker = new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+
+        if ($enable) {
+            $reason = !empty($params['reason']) ? sanitize_text_field($params['reason']) : 'Administrator Manual Trigger';
+            $success = $breaker->escalate_edge_defense($zone_id, $reason, false);
+            $msg = $success ? 'Origin Survival Mode engaged. Cloudflare Edge defense escalated.' : 'Failed to escalate Cloudflare Edge defense.';
+        } else {
+            $success = $breaker->deescalate_edge_defense($zone_id);
+            $msg = $success ? 'Origin Survival Mode disengaged. Cloudflare Edge returned to standard baseline.' : 'Failed to deescalate Cloudflare Edge defense.';
+        }
+
+        return rest_ensure_response([
+            'success'               => $success,
+            'message'               => $msg,
+            'circuit_breaker_state' => $breaker->get_state(),
         ]);
     }
 
