@@ -1,6 +1,6 @@
 {
   "version": "2.4.0",
-  "generated_at": "2026-11-04T10:30:32.294Z",
+  "generated_at": "2026-11-04T10:46:23.325Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -10,6 +10,10 @@
     "assets/icon.svg": {
       "sha256": "4009ed8d198344c2e6606806b73eccd33f71110bd49e575ca8184b8831aded2c",
       "size": 1993
+    },
+    "assets/js/wcp-popover-dialogs.js": {
+      "sha256": "a9482b147307919623085370c54ca1236b08a2d3061cca4596f0f62ee6022245",
+      "size": 18031
     },
     "assets/logo-96x96.png": {
       "sha256": "025a25ca61df25c924c684530df16d49ec3d41324bbb69c335996338219a8233",
@@ -52,12 +56,12 @@
       "size": 324
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "6de0bad9b37ac27de2c4cbd0a3580368d201bfbd7c1a55b9a737c61820a20cb1",
-      "size": 44575
+      "sha256": "bcd87a478b97b708f7183aa7d52e291180620a97766f266f45b02b65892b0733",
+      "size": 44982
     },
     "includes/Admin/views/caf-page.php": {
-      "sha256": "315bd75ba5190b8f75e60581a76f06b25fe353439e8c4b335d9556c1a444459d",
-      "size": 39437
+      "sha256": "2e128077d3cd971a7ce77559ec101719e88c523cefbc5d8cd2729f8c53092b4a",
+      "size": 41719
     },
     "includes/Advisor/PolicyRegistry.php": {
       "sha256": "9ad4dcc4befa73d0f157d96e0917d1afab47540e84ec94567e022bfaa0b2711d",
@@ -608,8 +612,8 @@
       "size": 12348
     },
     "includes/System/CrashGuard.php": {
-      "sha256": "8e5b213d7d1e2612fc9880054ca7f0684c1c1c01d9e78f66906cf5a3fa893b02",
-      "size": 31726
+      "sha256": "5b0351f729c93c2a3447adb55ff67f51901842e3d9d414d446d4bbd7692fe25d",
+      "size": 31903
     },
     "includes/System/PulseHealthCheck.php": {
       "sha256": "96c643a479b5e853d8021763a16837f501f452d13302fab1ee731564a422ccbd",

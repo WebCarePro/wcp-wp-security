@@ -515,7 +515,7 @@ class CrashGuard {
                         <?php endif; ?>
 
                         <div style="margin-top: 12px; display: flex; align-items: center; justify-content: flex-end;">
-                            <button type="button" class="button button-small" onclick="navigator.clipboard.writeText(document.getElementById('wcp-crashguard-json-dossier').textContent).then(function(){alert('Incident dossier copied to clipboard!');});">
+                            <button type="button" class="button button-small" onclick="var btn=this;navigator.clipboard.writeText(document.getElementById('wcp-crashguard-json-dossier').textContent).then(function(){var orig=btn.innerHTML;btn.innerHTML='✓ <?php echo esc_js(__('Copied to Clipboard!', 'wcp-security-scanner')); ?>';btn.style.color='#059669';setTimeout(function(){btn.innerHTML=orig;btn.style.color='';},3000);});">
                                 📋 <?php esc_html_e('Copy Full Forensic JSON Dossier', 'wcp-security-scanner'); ?>
                             </button>
                             <script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES); ?></script>

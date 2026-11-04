@@ -582,9 +582,25 @@ $version  = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0';
     // 5. Toggle Preload Killswitch
     const killswitchBtn = document.getElementById('wcp-caf-killswitch-btn');
     if (killswitchBtn) {
-        killswitchBtn.addEventListener('click', function() {
-            this.disabled = true;
+        killswitchBtn.addEventListener('click', async function() {
             const isKilled = <?php echo $is_killed ? 'true' : 'false'; ?>;
+            const actionText = isKilled ? 'Re-enable Preload Micro-WAF engine' : 'Engage Emergency Preload Killswitch';
+            const warningText = isKilled 
+                ? 'This will re-activate early kernel packet interception before WordPress core boots.' 
+                : 'This will completely disengage the early preload engine. High-privilege hooks will be paused until re-enabled.';
+
+            if (window.wcpConfirmPopover) {
+                const confirmed = await window.wcpConfirmPopover({
+                    title: actionText,
+                    message: warningText,
+                    confirmLabel: isKilled ? 'Re-Enable Engine' : 'Engage Killswitch',
+                    variant: isKilled ? 'info' : 'danger',
+                    anchorEl: this
+                });
+                if (!confirmed) return;
+            }
+
+            this.disabled = true;
             fetch(rootUrl + '/caf/killswitch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
@@ -628,12 +644,29 @@ $version  = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0';
     // 7. Toggle Origin Survival Mode
     const circuitBtn = document.getElementById('wcp-caf-circuit-breaker-btn');
     if (circuitBtn) {
-        circuitBtn.addEventListener('click', function() {
+        circuitBtn.addEventListener('click', async function() {
+            const isActive = <?php echo !empty($cf_status['circuit_breaker_active']) ? 'true' : 'false'; ?>;
+            const actionText = isActive ? 'De-escalate Survival Mode' : 'Trip Origin Survival Mode';
+            const warningText = isActive
+                ? 'Return Cloudflare edge and local rate limiters to normal balanced operation.'
+                : 'Origin Survival Mode escalates Cloudflare edge security to Under Attack / Managed Challenge and aggressively drops bad bot probes to protect shared hosting CPU.';
+
+            if (window.wcpConfirmPopover) {
+                const confirmed = await window.wcpConfirmPopover({
+                    title: actionText,
+                    message: warningText,
+                    confirmLabel: isActive ? 'De-escalate' : 'Trip Survival Mode',
+                    variant: isActive ? 'info' : 'danger',
+                    anchorEl: this
+                });
+                if (!confirmed) return;
+            }
+
             this.disabled = true;
             fetch(rootUrl + '/caf/toggle-circuit-breaker', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-                body: JSON.stringify({ active: <?php echo !empty($cf_status['circuit_breaker_active']) ? 'false' : 'true'; ?> })
+                body: JSON.stringify({ active: !isActive })
             })
             .then(r => r.json())
             .then(data => {
@@ -654,7 +687,17 @@ $version  = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0';
         powBtn.addEventListener('click', function() {
             const ip = powIpInput.value.trim();
             if (!ip) {
-                alert('Please enter an IP address to issue a Proof-of-Work challenge.');
+                if (window.wcpShowInlineCallout) {
+                    window.wcpShowInlineCallout(powIpInput, 'Please enter an IP address to issue a Proof-of-Work challenge.', 'error');
+                } else if (window.wcpAlertPopover) {
+                    window.wcpAlertPopover({
+                        title: 'IP Address Required',
+                        message: 'Please enter an IP address to issue a Proof-of-Work challenge.',
+                        variant: 'warning',
+                        anchorEl: powIpInput
+                    });
+                }
+                powIpInput.focus();
                 return;
             }
             this.disabled = true;

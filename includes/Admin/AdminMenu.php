@@ -380,6 +380,13 @@ class AdminMenu {
             return;
         }
 
+        // Enqueue universal in-page popover dialog system for alerts & near-button confirmations
+        $popover_js_url = WCPSCAN_URL . 'assets/js/wcp-popover-dialogs.js';
+        $popover_js_path = WCPSCAN_PATH . 'assets/js/wcp-popover-dialogs.js';
+        if (file_exists($popover_js_path)) {
+            wp_enqueue_script('wcp-popover-dialogs', $popover_js_url, [], WCPSCAN_VERSION, false);
+        }
+
         $active_tab = 'dashboard';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $tab_param = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
