@@ -336,11 +336,56 @@ class MicroWafCompiler {
         $out .= "            if (!empty(\$sig_content) && hash_equals(\$expected_hmac, \$sig_content)) {\n";
         $out .= "                \$caf_rules = include \$caf_data_file;\n";
         $out .= "                if (is_array(\$caf_rules) && !empty(\$caf_rules['lock_dormant_surface'])) {\n";
+        $out .= "                    // 1. Inactive plugins directory probe drop\n";
         $out .= "                    \$dormant_plugins = !empty(\$caf_rules['inactive_plugin_slugs']) && is_array(\$caf_rules['inactive_plugin_slugs']) ? \$caf_rules['inactive_plugin_slugs'] : [];\n";
         $out .= "                    if (!empty(\$dormant_plugins)) {\n";
         $out .= "                        foreach (\$dormant_plugins as \$d_slug) {\n";
         $out .= "                            if (strpos(\$target_text, '/wp-content/plugins/' . \$d_slug . '/') !== false) {\n";
         $out .= "                                wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-SURFACE', 'Request targets inactive component directory (' . \$d_slug . ') under CAF lockdown policy', \$fail2ban_log);\n";
+        $out .= "                            }\n";
+        $out .= "                        }\n";
+        $out .= "                    }\n\n";
+
+        $out .= "                    // 2. Unregistered / Uninstalled REST API namespace probe drop\n";
+        $out .= "                    if (strpos(\$uri, '/wp-json/') !== false) {\n";
+        $out .= "                        \$active_namespaces = !empty(\$caf_rules['active_rest_namespaces']) && is_array(\$caf_rules['active_rest_namespaces']) ? \$caf_rules['active_rest_namespaces'] : [];\n";
+        $out .= "                        \$rest_path = substr(\$uri, strpos(\$uri, '/wp-json/') + 9);\n";
+        $out .= "                        \$rest_path_clean = strtok(\$rest_path, '?');\n";
+        $out .= "                        \$segments = explode('/', trim((string) \$rest_path_clean, '/'));\n";
+        $out .= "                        if (count(\$segments) >= 2) {\n";
+        $out .= "                            \$prefix_candidate = \$segments[0] . '/' . \$segments[1];\n";
+        $out .= "                            \$single_candidate = \$segments[0];\n";
+        $out .= "                            if (!empty(\$active_namespaces) && !in_array(\$prefix_candidate, \$active_namespaces, true) && !in_array(\$single_candidate, \$active_namespaces, true)) {\n";
+        $out .= "                                if (\$single_candidate !== '' && \$single_candidate !== 'wp') {\n";
+        $out .= "                                    wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-REST-NAMESPACE', 'Request probes dormant or uninstalled REST namespace (' . htmlspecialchars(\$single_candidate, ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                                }\n";
+        $out .= "                            }\n";
+        $out .= "                        }\n";
+        $out .= "                    }\n\n";
+
+        $out .= "                    // 3. Unauthenticated admin-ajax.php probe lockdown against unapproved actions\n";
+        $out .= "                    if (strpos(\$uri, 'admin-ajax.php') !== false) {\n";
+        $out .= "                        \$has_auth_cookie = false;\n";
+        $out .= "                        if (!empty(\$_COOKIE)) {\n";
+        $out .= "                            foreach (array_keys(\$_COOKIE) as \$c_name) {\n";
+        $out .= "                                if (strpos((string) \$c_name, 'wordpress_logged_in_') === 0) {\n";
+        $out .= "                                    \$has_auth_cookie = true;\n";
+        $out .= "                                    break;\n";
+        $out .= "                                }\n";
+        $out .= "                            }\n";
+        $out .= "                        }\n";
+        $out .= "                        if (!\$has_auth_cookie) {\n";
+        $out .= "                            \$ajax_action = '';\n";
+        $out .= "                            if (isset(\$_GET['action'])) {\n";
+        $out .= "                                \$ajax_action = trim((string) \$_GET['action']);\n";
+        $out .= "                            } elseif (isset(\$_POST['action'])) {\n";
+        $out .= "                                \$ajax_action = trim((string) \$_POST['action']);\n";
+        $out .= "                            }\n";
+        $out .= "                            if (!empty(\$ajax_action)) {\n";
+        $out .= "                                \$allowed_nopriv = !empty(\$caf_rules['allowed_nopriv_actions']) && is_array(\$caf_rules['allowed_nopriv_actions']) ? \$caf_rules['allowed_nopriv_actions'] : [];\n";
+        $out .= "                                if (!in_array(\$ajax_action, \$allowed_nopriv, true)) {\n";
+        $out .= "                                    wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-AJAX-ACTION', 'Unauthenticated probe on unapproved guest AJAX action (' . htmlspecialchars(substr(\$ajax_action, 0, 40), ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                                }\n";
         $out .= "                            }\n";
         $out .= "                        }\n";
         $out .= "                    }\n";
@@ -604,18 +649,50 @@ class MicroWafCompiler {
 
         $inactive_plugin_slugs = $snapshot ? array_keys($snapshot->inactive_plugins) : [];
         $inactive_theme_slugs  = $snapshot ? array_keys($snapshot->inactive_themes) : [];
+        $active_rest_namespaces= $snapshot && !empty($snapshot->rest_namespaces) ? array_values(array_unique($snapshot->rest_namespaces)) : ['wp/v2', 'oembed/1.0'];
         $snapshot_hash         = $snapshot ? $snapshot->snapshot_hash : '';
 
+        // Extract registered nopriv AJAX actions from $wp_filter if available
+        global $wp_filter;
+        $allowed_nopriv_actions = [];
+        if (!empty($wp_filter) && is_array($wp_filter)) {
+            foreach (array_keys($wp_filter) as $hook_name) {
+                if (is_string($hook_name) && str_starts_with($hook_name, 'wp_ajax_nopriv_')) {
+                    $allowed_nopriv_actions[] = substr($hook_name, 16);
+                }
+            }
+        }
+
+        // Merge standard WooCommerce & Core guest AJAX safe-passes
+        $default_guest_ajax = [
+            'woocommerce_get_refreshed_fragments',
+            'woocommerce_apply_coupon',
+            'woocommerce_remove_coupon',
+            'woocommerce_update_shipping_method',
+            'woocommerce_get_cart_totals',
+            'woocommerce_update_order_review',
+            'woocommerce_add_to_cart',
+            'woocommerce_remove_from_cart',
+            'woocommerce_checkout',
+            'woocommerce_get_variation',
+            'woocommerce_get_customer_location',
+            'wcp_flush_cf_ban_queue',
+            'heartbeat',
+        ];
+        $allowed_nopriv_actions = array_values(array_unique(array_merge($allowed_nopriv_actions, $default_guest_ajax)));
+
         $artifact_data = [
-            'version'               => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0',
-            'generated_at'          => time(),
-            'snapshot_hash'         => $snapshot_hash,
-            'active_profile'        => $active_profile,
-            'lock_dormant_surface'  => $lock_dormant,
-            'inactive_plugin_slugs' => $inactive_plugin_slugs,
-            'inactive_theme_slugs'  => $inactive_theme_slugs,
-            'conflict_exemptions'   => $conflict_exemptions,
-            'scoped_virtual_patches'=> $scoped_patches,
+            'version'                => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0',
+            'generated_at'           => time(),
+            'snapshot_hash'          => $snapshot_hash,
+            'active_profile'         => $active_profile,
+            'lock_dormant_surface'   => $lock_dormant,
+            'inactive_plugin_slugs'  => $inactive_plugin_slugs,
+            'inactive_theme_slugs'   => $inactive_theme_slugs,
+            'active_rest_namespaces' => $active_rest_namespaces,
+            'allowed_nopriv_actions' => $allowed_nopriv_actions,
+            'conflict_exemptions'    => $conflict_exemptions,
+            'scoped_virtual_patches' => $scoped_patches,
         ];
 
         $php_code = "<?php\n// Auto-generated by WCP MicroWafCompiler - DO NOT EDIT MANUALLY.\nreturn "

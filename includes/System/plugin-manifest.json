@@ -1,6 +1,6 @@
 {
   "version": "2.4.0",
-  "generated_at": "2026-11-04T08:08:24.920Z",
+  "generated_at": "2026-11-04T08:21:06.766Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -292,8 +292,8 @@
       "size": 15335
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "0425d143bb67e610089ad3735c41b657706ebd90354c8a11a18f6f5bf9fe0492",
-      "size": 33056
+      "sha256": "1449babe37900a21111c0a92a9366f74465b7a90ee6d54bff837e9b4cdfbaa7f",
+      "size": 38740
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "66e0de692ffcb906b955d0f5007b71aa570276faea4371cb40abc7159818b6df",
