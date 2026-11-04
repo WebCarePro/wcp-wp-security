@@ -105,7 +105,7 @@ class AdminMenu {
             __('Adaptive Firewall (CAF)', 'wcp-security-scanner'),
             'manage_options',
             'wcp-scanner-caf',
-            [__CLASS__, 'render_caf_container']
+            [__CLASS__, 'render_app_container']
         );
 
         // 4. Submenu: Identity & Access
@@ -316,18 +316,6 @@ class AdminMenu {
         echo '<div class="wrap"><div id="wcp-scanner-root"></div></div>';
     }
 
-    /**
-     * Render Context-Adaptive Firewall (CAF) Standalone Admin Page.
-     */
-    public static function render_caf_container() {
-        $view_file = plugin_dir_path(WCPSCAN_FILE) . 'includes/Admin/views/caf-page.php';
-        if (file_exists($view_file)) {
-            require_once $view_file;
-        } else {
-            echo '<div class="wrap"><div class="notice notice-error"><p>' . esc_html__('CAF View file not found.', 'wcp-security-scanner') . '</p></div></div>';
-        }
-    }
-
     public static function enqueue_assets($hook) {
         $valid_hooks = [
             'toplevel_page_wcp-security-scanner',
@@ -407,7 +395,23 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
 
+        $is_scan_tab = ($current_page === 'wcp-scanner-scan') || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan');
+
+        $js_rel = 'build/index.js';
+        $css_rel = 'build/index.css';
         $asset_file = WCPSCAN_PATH . 'build/index.asset.php';
+
+        // Completely decouple the Scan Page by loading the pristine dedicated scan bundle
+        if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'assets/scan/scan.js')) {
+            $js_rel = 'assets/scan/scan.js';
+            $css_rel = 'assets/scan/scan.css';
+            $asset_file = WCPSCAN_PATH . 'assets/scan/scan.asset.php';
+        } elseif ($is_scan_tab && file_exists(WCPSCAN_PATH . 'build/scan.js')) {
+            $js_rel = 'build/scan.js';
+            $css_rel = 'build/scan.css';
+            $asset_file = WCPSCAN_PATH . 'build/scan.asset.php';
+        }
+
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
         $version = WCPSCAN_VERSION;
 
@@ -417,10 +421,11 @@ class AdminMenu {
             $version = $asset['version'] ?? $version;
         }
 
-        $js_url = WCPSCAN_URL . 'build/index.js';
-        $css_url = WCPSCAN_URL . 'build/index.css';
+        $js_url = WCPSCAN_URL . $js_rel;
+        $css_url = WCPSCAN_URL . $css_rel;
+        $target_bundle_path = WCPSCAN_PATH . $js_rel;
 
-        if (file_exists(WCPSCAN_PATH . 'build/index.js')) {
+        if (file_exists($target_bundle_path)) {
             $server_info = [];
             try {
                 $server_info = \WcpScanner\System\ServerInfo::get_info(false);
@@ -481,7 +486,7 @@ class AdminMenu {
             ]);
         }
 
-        if (file_exists(WCPSCAN_PATH . 'build/index.css')) {
+        if (file_exists(WCPSCAN_PATH . $css_rel)) {
             wp_enqueue_style('wcp-scanner-style', $css_url, ['wp-components'], $version);
         }
     }

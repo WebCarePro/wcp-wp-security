@@ -218,11 +218,11 @@ interface FirewallPageProps {
   onNavigateToVpatch?: () => void;
   onNavigateToSettings?: (subTab: string) => void;
   onNavigateToServerTelemetry?: () => void;
-  initialSubTab?: 'stream' | 'rules' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense';
+  initialSubTab?: 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense';
   initialSupplyChainSubTab?: 'sbom' | 'gatekeeper' | 'advisor' | 'lockfiles' | 'scripts';
   initialBehavioralSubTab?: 'learning' | 'honeytoken' | 'ratelimit';
   initialAiDefenseSubTab?: 'ghost' | 'egress' | 'prompt' | 'credentials' | 'surface';
-  onSubTabChange?: (tab: 'stream' | 'rules' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense', nested?: string) => void;
+  onSubTabChange?: (tab: 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense', nested?: string) => void;
 }
 
 export const FirewallPage = ({
@@ -256,7 +256,7 @@ export const FirewallPage = ({
   ]);
   const [selectedRoleToAdd, setSelectedRoleToAdd] = useState<string>('');
   const [wooRulesExpanded, setWooRulesExpanded] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'stream' | 'rules' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense'>(initialSubTab as any);
+  const [activeTab, setActiveTab] = useState<'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense'>(initialSubTab as any);
   const [copiedIp, setCopiedIp] = useState<string | null>(null);
   const [showDevTelemetry, setShowDevTelemetry] = useState<boolean>(false);
 
@@ -350,7 +350,7 @@ export const FirewallPage = ({
     }
   }, [initialSubTab]);
 
-  const handleSwitchTab = (tab: 'stream' | 'rules' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense') => {
+  const handleSwitchTab = (tab: 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense') => {
     setActiveTab(tab);
     if (onSubTabChange) {
       onSubTabChange(tab);
@@ -2389,6 +2389,18 @@ export const FirewallPage = ({
 
         <button
           type="button"
+          className={`wcp-tab-link ${activeTab === 'caf' ? 'is-active' : ''}`}
+          onClick={() => handleSwitchTab('caf')}
+        >
+          <Sparkles size={16} color="#0284c7" />
+          <span>Adaptive Firewall (CAF)</span>
+          <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '1px 6px', marginLeft: '4px' }}>
+            StackGuard
+          </span>
+        </button>
+
+        <button
+          type="button"
           className={`wcp-tab-link ${activeTab === 'cloudflare' ? 'is-active' : ''}`}
           onClick={() => handleSwitchTab('cloudflare')}
         >
@@ -2610,14 +2622,6 @@ export const FirewallPage = ({
       {/* TAB 2: Rules & Configuration */}
       {activeTab === 'rules' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Context-Adaptive Firewall (CAF) Advisor Panel */}
-          <CafAdvisorPanel
-            apiRequest={apiRequest}
-            onSettingsUpdated={() => {
-              loadFirewallData(true);
-            }}
-          />
-
           {/* Site Archetype Intelligence & Adaptive Firewall Advisor */}
           <SiteAdvisorCard
             apiRequest={apiRequest}
@@ -6494,6 +6498,25 @@ export const FirewallPage = ({
           </div>
         </div>
       </div>
+      )}
+
+      {/* TAB: Context-Adaptive Firewall (CAF) & StackGuard Cockpit */}
+      {activeTab === 'caf' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Phase 1: Smart Protection Profiles & StackGuard Engine */}
+          <CafAdvisorPanel
+            apiRequest={apiRequest}
+            onSettingsUpdated={() => {
+              loadFirewallData(true);
+            }}
+          />
+
+          {/* Phase 2: Cloudflare Free-Plan 3-Slot Edge Offload & Origin Survival Mode */}
+          <CloudflareSlotVisualizer apiRequest={apiRequest} />
+
+          {/* Phase 3: Behavioral Intelligence, Multi-Bucket Velocity & WebCrypto PoW */}
+          <CafBehavioralCockpit apiRequest={apiRequest} />
+        </div>
       )}
 
       {/* TAB: Red Team Attack Drill & Defensibility Benchmarking */}

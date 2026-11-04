@@ -5182,8 +5182,8 @@ class FirewallEngine {
                     }
                 }
 
-                // Check text/script content if candidate extension
-                if (!$is_fm_file && in_array($ext, ['txt', 'inc', 'zip', 'tar', 'gz'], true)) {
+                // Check text/script content if candidate extension (do not scan binary archives as strings)
+                if (!$is_fm_file && in_array($ext, ['txt', 'inc', 'php', 'phtml'], true)) {
                     $sample = @file_get_contents($tmp_path, false, null, 0, 16384);
                     if ($sample && (
                         stripos($sample, 'TinyFileManager') !== false ||
@@ -5202,7 +5202,7 @@ class FirewallEngine {
                     if ($zip->open($tmp_path) === true) {
                         // Check if this archive is WCP Security Scanner itself (self update / release package)
                         $is_self_package = false;
-                        for ($j = 0; $j < min(15, $zip->numFiles); $j++) {
+                        for ($j = 0; $j < $zip->numFiles; $j++) {
                             $check_name = $zip->getNameIndex($j);
                             if (preg_match('/(?:^|\/)wcp-wp-scanner\.php$/i', $check_name)) {
                                 $stream = $zip->getStream($check_name);
@@ -5219,18 +5219,22 @@ class FirewallEngine {
                         }
 
                         if (!$is_self_package) {
-                            for ($i = 0; $i < min(300, $zip->numFiles); $i++) {
+                            for ($i = 0; $i < min(400, $zip->numFiles); $i++) {
                                 $entry_name = strtolower($zip->getNameIndex($i));
                                 $entry_base = basename($entry_name);
-                                // Target dedicated file manager script/plugin archives specifically without false-flagging internal sub-services (like ProfileManager.php)
-                                if (
-                                    preg_match('/(tinyfilemanager|fileorganizer|elfinder|responsivefilemanager|filester|file-explorer|file-commander)/i', $entry_base) ||
-                                    preg_match('/(^|[-_])file[-_]?manager([-_\.]|$)/i', $entry_base)
-                                ) {
-                                    $is_fm_file = true;
-                                    break;
-                                }
+                                // Target dedicated standalone file manager script/plugin archives specifically without false-flagging internal sub-services (like ProfileManager.php)
                                 if (preg_match('/\.php$/i', $entry_name)) {
+                                    if (
+                                        (
+                                            preg_match('/(tinyfilemanager|fileorganizer|elfinder|responsivefilemanager|filester|file-explorer|file-commander)/i', $entry_base) ||
+                                            preg_match('/(^|[-_])file[-_]?manager([-_\.]|$)/i', $entry_base)
+                                        ) &&
+                                        !preg_match('/^(?:profile|cache|user|setting|option|asset|system|rule|log)manager\.php$/i', $entry_base)
+                                    ) {
+                                        $is_fm_file = true;
+                                        break;
+                                    }
+
                                     $stream = $zip->getStream($zip->getNameIndex($i));
                                     if ($stream) {
                                         $chunk = stream_get_contents($stream, 4096);
