@@ -98,6 +98,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // 3b. Submenu: Context-Adaptive Firewall (CAF)
+        add_submenu_page(
+            'wcp-security-scanner',
+            __('Context-Adaptive Firewall (CAF) & StackGuard', 'wcp-security-scanner'),
+            __('Adaptive Firewall (CAF)', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-caf',
+            [__CLASS__, 'render_caf_container']
+        );
+
         // 4. Submenu: Identity & Access
         add_submenu_page(
             'wcp-security-scanner',
@@ -276,6 +286,7 @@ class AdminMenu {
                 'wcp-security-scanner'       => __('WCP Security Scanner', 'wcp-security-scanner'),
                 'wcp-scanner-scan'           => __('Security Scan & Findings', 'wcp-security-scanner'),
                 'wcp-scanner-firewall'       => __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
+                'wcp-scanner-caf'            => __('Context-Adaptive Firewall (CAF) & StackGuard', 'wcp-security-scanner'),
                 'wcp-scanner-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'wcp-security-scanner'),
                 'wcp-scanner-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
                 'wcp-scanner-vault'          => __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
@@ -303,6 +314,18 @@ class AdminMenu {
 
     public static function render_app_container() {
         echo '<div class="wrap"><div id="wcp-scanner-root"></div></div>';
+    }
+
+    /**
+     * Render Context-Adaptive Firewall (CAF) Standalone Admin Page.
+     */
+    public static function render_caf_container() {
+        $view_file = plugin_dir_path(WCPSCAN_FILE) . 'includes/Admin/views/caf-page.php';
+        if (file_exists($view_file)) {
+            require_once $view_file;
+        } else {
+            echo '<div class="wrap"><div class="notice notice-error"><p>' . esc_html__('CAF View file not found.', 'wcp-security-scanner') . '</p></div></div>';
+        }
     }
 
     public static function enqueue_assets($hook) {
