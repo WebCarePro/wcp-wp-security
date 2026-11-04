@@ -473,6 +473,88 @@ class BotReconDefense {
             ];
         }
 
+        // Anomaly 3: Client-Hint (Sec-CH-UA) Consistency Check (CAF Phase 3)
+        // Modern Chromium browsers (Chrome >= 89, Edge >= 89) on HTTPS always emit Sec-CH-UA, Sec-CH-UA-Mobile, and Sec-CH-UA-Platform.
+        // Scrapers claiming modern Chrome User-Agents without Client-Hints or with platform contradictions are flagged.
+        $client_hint_anomaly = self::check_client_hint_consistency($ua, $raw_headers);
+        if ($client_hint_anomaly !== null) {
+            return $client_hint_anomaly;
+        }
+
+        return null;
+    }
+
+    /**
+     * Inspect Client-Hint headers (Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Platform)
+     * against declared User-Agent.
+     *
+     * @param string $ua
+     * @param array $headers
+     * @return array|null Anomaly description or null
+     */
+    public static function check_client_hint_consistency(string $ua, array $headers): ?array {
+        if (empty($ua) || !is_ssl()) {
+            return null; // Client-Hints are standard on HTTPS
+        }
+
+        // Normalize header keys to uppercase for search
+        $normalized = [];
+        foreach ($headers as $k => $v) {
+            $normalized[strtoupper(str_replace('-', '_', (string) $k))] = (string) $v;
+        }
+
+        $sec_ch_ua          = $normalized['SEC_CH_UA'] ?? ($normalized['HTTP_SEC_CH_UA'] ?? '');
+        $sec_ch_ua_mobile   = $normalized['SEC_CH_UA_MOBILE'] ?? ($normalized['HTTP_SEC_CH_UA_MOBILE'] ?? '');
+        $sec_ch_ua_platform = $normalized['SEC_CH_UA_PLATFORM'] ?? ($normalized['HTTP_SEC_CH_UA_PLATFORM'] ?? '');
+
+        // Pattern: User-Agent claims modern Chrome on Desktop (Version >= 90)
+        $is_modern_desktop_chrome = false;
+        if (preg_match('/Chrome\/([0-9]{2,3})\./i', $ua, $matches)) {
+            $version = (int) $matches[1];
+            if ($version >= 95 && !preg_match('/(Mobile|Android|iPhone|iPad)/i', $ua)) {
+                $is_modern_desktop_chrome = true;
+            }
+        }
+
+        // Check 1: User-Agent claims modern Chrome desktop but Sec-CH-UA header is completely absent
+        if ($is_modern_desktop_chrome && empty($sec_ch_ua)) {
+            return [
+                'anomaly'     => 'missing_client_hints',
+                'description' => 'User-Agent claims modern desktop Chrome but Sec-CH-UA Client-Hints are missing (bot spoofing signature).',
+                'severity'    => 'medium',
+            ];
+        }
+
+        // Check 2: Mobile Client-Hint mismatch (?1 on desktop UA or ?0 on mobile UA)
+        if (!empty($sec_ch_ua_mobile)) {
+            $is_mobile_ua = (bool) preg_match('/(Mobile|Android|iPhone|iPad)/i', $ua);
+            if ($sec_ch_ua_mobile === '?1' && !$is_mobile_ua) {
+                return [
+                    'anomaly'     => 'client_hint_mobile_mismatch',
+                    'description' => 'Sec-CH-UA-Mobile indicates mobile client (?1) but User-Agent indicates desktop.',
+                    'severity'    => 'medium',
+                ];
+            }
+        }
+
+        // Check 3: Platform contradiction (e.g. Windows UA with Linux/Android Client-Hint)
+        if (!empty($sec_ch_ua_platform)) {
+            $platform_clean = strtolower(trim($sec_ch_ua_platform, '" '));
+            if ($platform_clean === 'windows' && preg_match('/(Linux|Macintosh|Android)/i', $ua)) {
+                return [
+                    'anomaly'     => 'client_hint_platform_mismatch',
+                    'description' => 'Sec-CH-UA-Platform ("Windows") contradicts non-Windows operating system in User-Agent.',
+                    'severity'    => 'high',
+                ];
+            } elseif ($platform_clean === 'linux' && preg_match('/(Windows NT|Macintosh)/i', $ua)) {
+                return [
+                    'anomaly'     => 'client_hint_platform_mismatch',
+                    'description' => 'Sec-CH-UA-Platform ("Linux") contradicts Windows/Mac operating system in User-Agent.',
+                    'severity'    => 'high',
+                ];
+            }
+        }
+
         return null;
     }
 

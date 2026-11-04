@@ -48,6 +48,8 @@ class LearningModeEngine {
         $raw_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
         $method = strtoupper($raw_method);
         $is_user_logged = function_exists('is_user_logged_in') && is_user_logged_in();
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Passive observation of request auth context
+        $has_nonce = !empty($_SERVER['HTTP_X_WP_NONCE']) || !empty($_REQUEST['_wpnonce']);
 
         $entry = [
             'id'             => $obs_id,
@@ -60,6 +62,8 @@ class LearningModeEngine {
             'clean_route'    => substr($clean_uri, 0, 150),
             'payload_sample' => substr(wp_json_encode($request_payload), 0, 500),
             'is_logged_in'   => $is_user_logged,
+            'has_nonce'      => $has_nonce,
+            'auth_context'   => $is_user_logged ? ($has_nonce ? 'authenticated_nonce' : 'authenticated_session') : 'anonymous_guest',
             'observed_at'    => $now,
             'status'         => 'observed',
         ];

@@ -816,6 +816,11 @@ class FirewallEngine {
             }
         }
 
+        // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            \WcpScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
+        }
+
         // Adaptive Rate Limiter & Token-Bucket Throttling
         if (class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')) {
             \WcpScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
@@ -829,16 +834,21 @@ class FirewallEngine {
             }
         }
 
-        // HTTP/2 & HTTP/3 Pseudo-Header Anomaly Sentinel
+        // HTTP/2 & HTTP/3 Pseudo-Header and Client-Hint Anomaly Sentinel (CAF Phase 3)
         if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
             $h2_anomaly = \WcpScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
             if ($h2_anomaly !== null) {
+                // Record threat score increment for header anomaly (+15)
+                if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+                    \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
+                }
+
                 $rule_triggered = [
                     'id'          => 'BOT-H2-HEADER-ANOMALY',
-                    'name'        => 'HTTP/2 Header Sequencing Anomaly',
+                    'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
                     'category'    => 'Protocol Anomaly Defense',
                     'description' => $h2_anomaly['description'],
-                    'match_type'  => 'Pseudo-Header Anomaly',
+                    'match_type'  => 'Header Anomaly',
                     'match_value' => $h2_anomaly['anomaly'],
                     'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
                 ];
@@ -2085,6 +2095,12 @@ class FirewallEngine {
         // High risk probes advance counter by 3 to accelerate lockout
         $increment = $is_high_risk ? 3 : 1;
         $new_count = $current_count + $increment;
+
+        // Record differential threat score event (CAF Phase 3: +4 for 404 probe, +25 if sensitive path)
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            $event_category = $is_high_risk ? 'honeypot' : 'probe_404';
+            \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_category);
+        }
 
         if ($new_count >= $threshold) {
             // Threshold exceeded: Enforce temporary lockout
@@ -5948,6 +5964,20 @@ class FirewallEngine {
 
         $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
         self::log_incident($rule, 'blocked', $incident_id);
+
+        // Record differential threat score event (CAF Phase 3)
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            $rule_id_str = (string) ($rule['id'] ?? '');
+            $event_type = 'probe_404';
+            if (str_contains($rule_id_str, 'HONEY') || str_contains($rule_id_str, 'SENSITIVE') || str_contains($rule_id_str, 'ENV') || str_contains($rule_id_str, 'GIT')) {
+                $event_type = 'honeypot';
+            } elseif (str_contains($rule_id_str, 'DORMANT') || str_contains($rule_id_str, 'CAF')) {
+                $event_type = 'dormant_surface';
+            } elseif (str_contains($rule_id_str, 'AUTH') || str_contains($rule_id_str, 'LOGIN') || str_contains($rule_id_str, 'XMLRPC')) {
+                $event_type = 'auth_fail';
+            }
+            \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_type);
+        }
 
         // Surge detection: Check if blocked count in the last 60 seconds exceeds surge threshold (e.g. 15 blocks/min)
         $surge_key = 'wcpscan_waf_block_surge_window';

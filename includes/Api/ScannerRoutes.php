@@ -11215,11 +11215,15 @@ class ScannerRoutes {
     }
 
     /**
-     * Get CAF Phase 3 Behavioral Status: Multi-Bucket Velocity, PoW Counters, Learning Observations
+     * Get CAF Phase 3 Behavioral Status: Multi-Bucket Velocity, PoW Counters, Learning Observations, Threat Scores
      */
     public static function get_caf_behavioral_status(\WP_REST_Request $request) {
         $rate_limiter_stats = class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')
             ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry()
+            : [];
+
+        $threat_score_stats = class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')
+            ? \WcpScanner\Firewall\CAF\ThreatScoreTracker::get_telemetry()
             : [];
 
         $learning_observations = get_option(\WcpScanner\Firewall\CAF\LearningModeEngine::OPTION_OBSERVATIONS, []);
@@ -11230,6 +11234,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success'                => true,
             'rate_limiter'           => $rate_limiter_stats,
+            'threat_scorer'          => $threat_score_stats,
             'learning_observations'  => is_array($learning_observations) ? array_values(array_slice($learning_observations, 0, 50)) : [],
             'observation_count'      => is_array($learning_observations) ? count($learning_observations) : 0,
             'synthesized_exemptions' => is_array($synthesized_exemptions) ? array_values($synthesized_exemptions) : [],
