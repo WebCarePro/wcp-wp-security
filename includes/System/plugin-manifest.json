@@ -1,6 +1,6 @@
 {
   "version": "2.4.0",
-  "generated_at": "2026-11-04T10:03:41.084Z",
+  "generated_at": "2026-11-04T10:10:09.737Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -56,8 +56,8 @@
       "size": 44426
     },
     "includes/Admin/views/caf-page.php": {
-      "sha256": "b5d1165f854c90b24beda9179c5205a87dfd5cdf7908620f33186e9c2162c4d3",
-      "size": 32980
+      "sha256": "0a410c6f0003865eba857f8d22fb4d0748b8195bcbfa2d054909ef9dc214866d",
+      "size": 34132
     },
     "includes/Advisor/PolicyRegistry.php": {
       "sha256": "9ad4dcc4befa73d0f157d96e0917d1afab47540e84ec94567e022bfaa0b2711d",
@@ -236,8 +236,8 @@
       "size": 28169
     },
     "includes/Firewall/CAF/AdaptiveFirewallAdvisor.php": {
-      "sha256": "7f5aff5a7485dc01d92f16dd22c238e132561eed6939954c3d98b8cdec1ecc00",
-      "size": 11779
+      "sha256": "7b550f68a719bf78e3dd27f2be702f555454b2693d47dcb6a7922b875180e7a2",
+      "size": 12634
     },
     "includes/Firewall/CAF/CloudflareIpListSynchronizer.php": {
       "sha256": "a9641c7c17cb60d027877702b6fb4e89ecb4578b27d19533d5578f2c645a39f8",

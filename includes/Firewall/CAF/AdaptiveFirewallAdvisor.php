@@ -35,6 +35,28 @@ final class AdaptiveFirewallAdvisor {
 	public const PROFILE_BALANCED           = 'balanced';
 
 	/**
+	 * Get full overview data for UI views and API consumers.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function get_overview(): array {
+		$snapshot = $this->get_stack_snapshot();
+		$matrix   = $this->get_recommendations_matrix( $snapshot );
+
+		$killswitch_file = defined( 'WP_CONTENT_DIR' ) ? ( WP_CONTENT_DIR . '/uploads/wcp-security-scanner/.killswitch' ) : '';
+		$is_killed = ( defined( 'WCP_CAF_DISABLE_PRELOAD' ) && WCP_CAF_DISABLE_PRELOAD ) || ( $killswitch_file && file_exists( $killswitch_file ) );
+
+		return [
+			'success'              => true,
+			'snapshot'             => $snapshot->to_array(),
+			'recommendations'      => $matrix,
+			'is_killswitch_active' => $is_killed,
+			'active_profile'       => $matrix['current_profile'] ?? self::PROFILE_BALANCED,
+			'residual_risk_score'  => $matrix['residual_risk_score'] ?? 10,
+		];
+	}
+
+	/**
 	 * Build or retrieve the cached StackSnapshot.
 	 *
 	 * @param bool $force_refresh

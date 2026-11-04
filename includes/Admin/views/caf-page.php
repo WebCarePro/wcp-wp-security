@@ -72,11 +72,33 @@ $profiles = [
     ],
 ];
 
-// Cloudflare Status
-$cf_status = \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::get_status();
+// Cloudflare Status (Phase 2)
+$cf_settings = \WcpScanner\System\SettingsManager::get_settings();
+$cf_zone_id  = $cf_settings['cloudflare_zone_id'] ?? '';
+$cf_configured = !empty($cf_settings['cloudflare_api_token']) && !empty($cf_zone_id);
 
-// Threat Score & Behavioral Metrics
-$threat_summary = \WcpScanner\Firewall\CAF\ThreatScoreTracker::get_threat_summary();
+$cf_optimizer = class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareSlotOptimizer') ? new \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer() : null;
+$cf_breaker   = class_exists('\\WcpScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker') ? new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker() : null;
+
+$cf_pending_queue = get_option(\WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::OPTION_BAN_QUEUE, []);
+$cf_pending_count = is_array($cf_pending_queue) ? count($cf_pending_queue) : 0;
+$cf_breaker_state = $cf_breaker ? $cf_breaker->get_state() : [];
+
+$cf_status = [
+    'configured'              => $cf_configured,
+    'pending_ban_queue_size'  => $cf_pending_count,
+    'circuit_breaker_active'  => !empty($cf_breaker_state['active']),
+];
+
+// Threat Score & Behavioral Metrics (Phase 3)
+$threat_telemetry = class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')
+    ? \WcpScanner\Firewall\CAF\ThreatScoreTracker::get_telemetry()
+    : [];
+
+$threat_summary = [
+    'total_tracked_ips'     => $threat_telemetry['total_tracked_ips'] ?? 0,
+    'pow_challenges_active' => $threat_telemetry['pow_active_count'] ?? 0,
+];
 
 $rest_url = esc_url_raw(rest_url('wcp-scanner/v1'));
 $rest_nonce = wp_create_nonce('wp_rest');
