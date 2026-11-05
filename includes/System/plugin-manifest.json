@@ -1,6 +1,6 @@
 {
   "version": "2.5.0",
-  "generated_at": "2026-11-05T00:39:38.638Z",
+  "generated_at": "2026-11-05T00:46:37.791Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -28,16 +28,16 @@
       "size": 2150
     },
     "assets/scan/scan.asset.php": {
-      "sha256": "1149ecee0ed133b22ac2bf6f8a3221c31a71da86f2b0e3eb1e74f4e8d9c17b25",
-      "size": 123
+      "sha256": "fdbafce359407696033b37f5df1d906e0f872b694e5989557e4a17003b56bda9",
+      "size": 175
     },
     "assets/scan/scan.css": {
-      "sha256": "d06fd94fb99815017d4ee6960f6a1bca5109a316be4a7e7a07d0ae703b7e9c14",
-      "size": 572298
+      "sha256": "d753ca7629a4c24ce435f80d83b1329879e20dd0ba7794cd1da40ea28c3b04ae",
+      "size": 572295
     },
     "assets/scan/scan.js": {
-      "sha256": "1504b13d34bc50a1b226e5db03837e099d2122c042efb03caa38a31e81d4a1c9",
-      "size": 2241326
+      "sha256": "79016761d4b0a95395d0a571b311fd160ee74e09c05c3c32ee2031886a43685c",
+      "size": 2241323
     },
     "assets/webcare-original-logo-3d.jpg": {
       "sha256": "bcf6cebcbcf9752bebaf95776a12b57a038d10562cb6c9ec2cd48d69b62122f5",
