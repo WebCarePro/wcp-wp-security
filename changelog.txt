@@ -1,4 +1,7 @@
 v:2.5.0 - 2026-11-05
+- Universal Header & Navigation Menu Parity (WcpShell.tsx, App.tsx, scan.js):
+  * Identical Global Navigation Row: Synchronized the navigation header across all decoupled sub-pages (Firewall, Identity, Vault & Tools, Settings, WAF Logs, and FIM) to be 100% identical to Dashboard and Scanner. Added the quick-jump "All Modules" (⌘K) trigger connected to the full MegaMenuModal dialog with deep-linking routing and global Ctrl+K / Cmd+K keyboard listeners.
+  * Synchronized Action Controls & Mode Switcher: Integrated the interactive Advanced SOC (53 Engines) mode switcher toggle pill, Welcome Guide trigger with WelcomeModal pre-flight readiness dialog, and Panic Button across all sub-pages for unified administrative ergonomics.
 - Container Padding & Layout Normalization (AuthSecurityPage.tsx, WafLogsPage.tsx, FileIntegrityPage.tsx, VulnerabilitiesPage.tsx):
   * Standardized Root Containers: Synchronized container padding on Zero-Trust Identity / Auth Security (wcp-scanner-auth), WAF Incident Logs (wcp-scanner-waf-logs), File Integrity (wcp-scanner-fim), and Vulnerabilities views to use .wcp-page-container with standard 24px 28px 50px spacing, ensuring consistent horizontal alignment with Firewall and Settings pages.
 - Calm Sanctuary UI/UX Design System & Ergonomic Reassurance Overhaul (index.css, WcpShell.tsx, App.tsx):
