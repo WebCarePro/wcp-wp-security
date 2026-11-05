@@ -385,9 +385,18 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
 
+        $is_scan_tab = ($current_page === 'wcp-scanner-scan') || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan');
+
         $js_rel = 'build/index.js';
         $css_rel = 'build/index.css';
         $asset_file = WCPSCAN_PATH . 'build/index.asset.php';
+
+        // Load dedicated, isolated Scan bundle matching fa0454a57af99bb45244acea6ecbb6614237aa5d
+        if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'assets/scan/scan.js')) {
+            $js_rel = 'assets/scan/scan.js';
+            $css_rel = 'assets/scan/scan.css';
+            $asset_file = WCPSCAN_PATH . 'assets/scan/scan.asset.php';
+        }
 
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
         $version = WCPSCAN_VERSION;
