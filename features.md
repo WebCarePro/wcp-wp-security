@@ -38,7 +38,7 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 28. [High-Precision Microsecond Telemetry & Diagnostics](#28-high-precision-microsecond-telemetry--diagnostics)
 29. [Behavioral Baseline & Attack Chain Correlation](#29-behavioral-baseline--attack-chain-correlation)
 30. [Frictionless 1-Click "Mark Safe / Ignore" UX with SHA-256 Hash-Locking](#30-frictionless-1-click-mark-safe--ignore-ux-with-sha-256-hash-locking)
-31. [Zero-Trust Must-Use (MU) Guardian & Sandboxed Temporary Support Access](#31-zero-trust-must-use-mu-guardian--sandboxed-temporary-support-access)
+31. [Granular Rule-Scoped & Category-Scoped IP Allowlisting & In-Place Policy Management](#31-granular-rule-scoped--category-scoped-ip-allowlisting--in-place-policy-management)
 32. [Preload Micro-WAF & Early Execution Engine (Linux Fail2ban & CrowdSec Syslog)](#32-preload-micro-waf--early-execution-engine-linux-fail2ban--crowdsec-syslog)
 33. [JavaScript Threat Intelligence, Magecart Payment Skimmer & Beacon Detector](#33-javascript-threat-intelligence-magecart-payment-skimmer--beacon-detector)
 34. [Third-Party Script Inventory & Frontend Hostname Drift Sentinel](#34-third-party-script-inventory--frontend-hostname-drift-sentinel)
@@ -79,6 +79,9 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 69. [Outbound Egress DNS Pinning & Anti-Rebinding SSRF Shield](#69-outbound-egress-dns-pinning--anti-rebinding-ssrf-shield)
 70. [AI Agent & MCP Plugin Governance with AES-256-GCM Secret Vaulting](#70-ai-agent--mcp-plugin-governance-with-aes-256-gcm-secret-vaulting)
 71. [Surgical In-File Remediation & Compressed Pristine Baseline Vaulting](#71-surgical-in-file-remediation--compressed-pristine-baseline-vaulting)
+72. [First-Time Protection Quickstart & 12-Step Calibration Wizard](#72-first-time-protection-quickstart--12-step-calibration-wizard)
+73. [Cloudflare Edge 1-Click API Token Provisioning & Automatic Zone ID Detection](#73-cloudflare-edge-1-click-api-token-provisioning--automatic-zone-id-detection)
+74. [Firewall Sub-Tab Navigation Consolidation & Advanced Tools Dropdown](#74-firewall-sub-tab-navigation-consolidation--advanced-tools-dropdown)
 
 ---
 
@@ -326,7 +329,7 @@ If a hacker steals an administrator's browser cookie (through a malicious browse
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Multi-Factor & Passkey Authentication Tracking:** Enriched session token metadata with real-time authentication method detection (`passkey`, `2fa`, `magic_link`, `password`), device categorization (Desktop/Mobile/Tablet), idle activity formatting, and session lifespan countdowns.
 - **High-Contrast Sentinel Metrics Bar:** Summary metrics strip displaying total active administrator sessions, Passkey Verified sessions, 2FA TOTP Protected sessions, Magic Support Links, and single-factor Password Only sessions.
-- **Real-Time Risk & Sandboxing Notice Strips:** Contextual warning and info banners for single-factor administrator sessions, network IP shifts (ISP dynamic roaming), and Zero-Trust sandboxed temporary support technician sessions.
+- **Real-Time Risk & Sandboxing Notice Strips:** Contextual warning and info banners for single-factor administrator sessions, network IP shifts (ISP dynamic roaming), and unverified elevated administrator sessions.
 - **1-Click Remote Session Destruction:** Allows administrators to instantly terminate individual suspicious sessions or purge all remote sessions in one click via `wp_destroy_other_sessions()`.
 
 ---
@@ -376,7 +379,7 @@ Imagine logging into your WordPress website the exact same way you unlock your s
 When something important happens—like malware is detected, a new administrator is created, or an attack is blocked—you need to know right away. The Notification Center lets you choose exactly how you want to be notified: by Email, Slack, Discord, Microsoft Teams, or custom webhooks. You have complete control over which alerts you receive, so your inbox is never spammed with unimportant messages.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Granular 32+ Security Event Matrix:** Configurable alerts across Critical Malware Findings, Core File Alterations, Rogue Admin Account Injections, Brute-Force Lockouts, WAF Incursions, 2FA Status Changes, Database Injections, and Temporary Support Access Events.
+- **Granular 32+ Security Event Matrix:** Configurable alerts across Critical Malware Findings, Core File Alterations, Rogue Admin Account Injections, Brute-Force Lockouts, WAF Incursions, 2FA Status Changes, Database Injections, and Granular IP Allowlist Policy Changes.
 - **Multi-Channel Dispatch Engine:** Native integrations for transactional Email (`wp_mail`), Slack incoming webhooks, Discord webhooks, Telegram bot alerts, Microsoft Teams, and Generic JSON Webhooks (Zapier, Make, n8n).
 - **Asynchronous Non-Blocking Delivery:** Batches and queues outgoing notifications via background cron jobs to prevent slowing down admin page loads or user checkout flows.
 - **Payload Formatting & Rate-Limiting:** Formats messages with rich markdown, status embeds, and severity colors, with automatic deduplication rate-limiting to prevent alert storms during active attacks.
@@ -526,22 +529,22 @@ Sometimes a custom script that you or your developer wrote gets flagged by the s
 
 ---
 
-## 31. Zero-Trust Must-Use (MU) Guardian & Sandboxed Temporary Support Access
+## 31. Granular Rule-Scoped & Category-Scoped IP Allowlisting & In-Place Policy Management
 
-### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-When you hire an external freelance developer or theme support agent to fix an issue on your website, you often have to give them administrator access. But what if they accidentally deactivate your security plugin, install a dangerous plugin, or edit your database? Our Zero-Trust Support Access allows you to generate a temporary, expiring "magic link" for the technician. While they work, our Must-Use Guardian locks down the doors: they cannot disable WCP Security Scanner, cannot see your secret API keys, cannot install unapproved plugins, and cannot edit other administrator accounts. When their time is up, their access vanishes automatically.
+### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
+When troubleshooting legitimate visitor or developer blocks in traditional security plugins, whitelisting an IP address turns off all firewall protection for that IP. If an exempted computer later gets infected with malware or an attacker hijacks that IP, they can launch SQL injection or file upload attacks with zero protection. WCP Security Scanner introduces the **Principle of Least Privilege** to IP allowlisting: when you allow an IP from the firewall incident logs, you can allow it *only* for the specific rule that blocked it (like XML-RPC or a REST API endpoint), or for a specific group of rules. All other 30+ enterprise security rules remain 100% active. You can also restrict the exemption strictly to a single URL path, set an automatic expiration schedule (such as 24 hours), and edit active policies in place anytime without re-creating them.
 
-### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Inviolable Must-Use Guardian (`WcpJitMuGuardian.php`):** Deployed as an infallible Must-Use plugin (`wp-content/mu-plugins/wcp-jit-guardian.php`) executing at earliest bootstrap (`muplugins_loaded`) that cannot be deactivated or deleted via the WordPress admin UI.
-- **Inviolable Anti-Tamper Shield:** Strictly prohibits temporary support technicians and JIT administrators from deactivating, deleting, or modifying WCP Security Scanner, immediately aborting attempts with a 403 Forbidden intercept.
-- **Anti-Sub-Account & Delegation Lockdown:** Strictly prohibits temporary technicians from creating new temporary support accounts, inspecting active magic login links, or revoking existing credentials, shutting down privilege escalation vectors.
-- **Plugin & Theme Installation Lockdown:** Intercepts `plugin-install.php`, `theme-install.php`, `update.php` package uploads, core REST endpoints (`/wp/v2/plugins`, `/wp/v2/themes`), and AJAX installer actions (`install-plugin`, `upload-plugin`, `install-theme`, `upload-theme`).
-- **Database & Core Options Protection:** Blocks direct navigation to `wp-admin/options.php` with an immediate 403 exit, restricts `options-*.php` core settings screens, filters `pre_update_option` on critical options (`siteurl`, `home`, `admin_email`, `active_plugins`, `wcpscan_*`), and rejects database row modification endpoints (`/database/*`, `/remediation/*`).
-- **Anti-Account Hijacking & Persistence Defense:** Hooks `wp_pre_insert_user_data` to forbid temporary technicians from modifying other user accounts or changing their own username, email, or password to establish unauthorized persistence.
-- **Secret Vault Redaction:** Redacts sensitive API tokens (Cloudflare, AI keys, MCP tokens, webhooks, SMTP credentials) in `/settings` responses for temporary sessions.
-- **Plugin Settings Read-Only Enforcement:** Forbids settings reset (`/settings/reset`), import (`/settings/import`), and configuration updates, rendering a locked "Reset Defaults (Locked)" button with a Lock icon and contextual Zero-Trust session notices in `SettingsPage.tsx`.
-- **Configurable Zero-Trust Sandboxing Shields:** Added granular policy toggles in `TemporarySupportAccessCard.tsx` covering plugin deactivation, package installation, file editors, user administration, secret vault, database/options protection, tools/exports restriction, forensic remediation lock, and settings lock.
-- **Infallible Auto-Termination:** On every request, expired sessions are pruned and active user tokens destroyed; if WCP Security Scanner is ever deactivated, all temporary support sessions are instantly revoked.
+### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Zero-Trust Principle of Least Privilege:** Completely replaces blunt, binary IP bypasses with granular, multi-tiered exemption scopes evaluated at sub-millisecond speeds in memory (FirewallEngine.php):
+  - **Tier 1 (Single Rule Exemption - Safest):** Exemption is scoped strictly to a single rule identifier (e.g. WAF-XMLRPC-DISABLED, WAF-SQLI-DETECTED, or WAF-REST-POST-MATRIX). All other firewall rules and inspection categories remain fully armed against the client IP.
+  - **Tier 2 (Rule Category Group Exemption):** Exemption applies to all rules within a specific security domain category (e.g. Identity Defense & Honeypot Trap, Injection Armor, DoS & Resource Shield, WooCommerce Behavioral, or RASP Runtime Hooks).
+  - **Tier 3 (Global Full Bypass - High Trust):** Standard blanket bypass for verified static development workstations or corporate office VPN gateways, complete with prominent warning indicators.
+- **Request Path Restriction:** Scopes rule exemptions strictly to a specific URI path (e.g. /xmlrpc.php, /wp-json/custom/v1/sync). Requests originating from the same IP targeting other endpoints are subjected to standard full-spectrum inspection.
+- **Automated TTL Expiration Scheduling:** Built-in expiration intervals (24 Hours by default for temporary troubleshooting, 7 Days, 30 Days, or Permanent) automatically prune expired allowlist policies in real time during inspection without requiring cron workers or manual cleanup.
+- **Catalog-Driven Rule Name Resolution (get_firewall_rules_catalog()):** Maintains an authoritative catalog of 50+ enterprise inspection rules across 21 functional categories, resolving raw rule tokens (e.g. WAF-XMLRPC-DISABLED) into human-readable titles (e.g. XML-RPC Access Prohibited) with visual category badges across allowlist tables and audit logs.
+- **Interactive Manual Rule & Group Category Selectors (FirewallPage.tsx):** The manual allowlist builder features dedicated searchable dropdown selectors allowing administrators to pick individual rules or rule categories, configure paths, and assign TTL expirations directly.
+- **Interactive In-Place Policy Editors:** Dedicated edit modals allow instant in-place modification of active allowlist entries (adjusting rule scopes, categories, paths, TTLs, and notes) and banlist entries (adjusting ban duration and justification) without deleting or re-adding records.
+- **100% Forensic Audit Visibility:** Whitelisted requests that match inspection signatures are safely passed and logged with status 'bypassed' and tag 'Rule-Scoped Allowlist Exemption' into partitioned incident logs, preserving total forensic observability.
 
 ---
 
@@ -1066,6 +1069,48 @@ When malware injects a small malicious snippet into an essential WordPress core 
 - **Pre-Repair Snapshot & CrashGuard Probe:** Automatically generates pre-repair snapshots and triggers loopback health check probes (`verify_site_health_probe()`); immediately rolls back changes if a repair causes fatal errors or HTTP 500 status codes.
 
 
+
+---
+
+## 72. First-Time Protection Quickstart & 12-Step Calibration Wizard
+
+### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
+Setting up an enterprise security plugin can feel overwhelming with dozens of unfamiliar technical settings. WCP Security Scanner features an interactive 12-Step Calibration Wizard that guides you step-by-step through configuring your site's defenses. It checks your server health and PHP requirements in real time, automatically protects your own computer's IP address from accidental lockouts, gives you a permanent 6-character emergency rescue code, discovers installed e-commerce and payment plugins to enable safe bypass rules in one click, and atomically configures your automated background scans—all explained in crystal-clear, non-technical language.
+
+### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **12-Step Calibration Lifecycle (SetupWizard.tsx, wizard.tsx):** Built as an independent, lightweight React single-page onboarding application (uild/wizard.js, ~62 KB) that executes smoothly without loading or altering the locked main scanning engine.
+- **Step 2 - Live Server Requirements & PHP Extension Audit:** Performs live runtime environmental verification, checking PHP version (up to PHP 8.4), SAPI interface, memory limit, max execution time, and attesting 10 mission-critical PHP extensions (curl, openssl, zip, zlib, mbstring, json, sodium, opcache, intl, gd/imagick) with clear pass/fail status pills.
+- **Step 3 - Administrator Lockout Shield & Emergency Support Code:** Automatically detects the active client IP address (RemoteAddressDetector), provides a 1-click toggle to exempt it, and generates a permanent, cryptographically isolated 6-character emergency unblock Support Code (SettingsManager::get_support_code()) for terminal and URL-based rescue.
+- **Step 6 - Granular Threat Detection Options:** Allows fine-tuning of AST heuristic backdoor analysis, core/plugin/theme checksum verifications, unknown unbundled file flags, CVE advisory scanning, rogue administrator checks, and real-time disk monitors.
+- **Step 7 - Engine & Performance Envelope Optimization:** Configurable batch processing size (25 to 200 files per batch), memory limit envelope (strict 60%, balanced 70%, performance 80%), adaptive visitor throttling, and inter-batch execution delay to guarantee zero frontend performance degradation on budget shared hosting.
+- **Step 8 - Cleanup & Data Purge Governance:** Granular data retention controls ensuring full compliance with WordPress.org guidelines. Administrators can toggle whether to drop custom database tables, delete options, or purge quarantined files upon plugin uninstallation.
+- **Step 9 - Plugin Activity & Forensic Audit Logs:** Configurable audit trail retention intervals (14, 30, 60, or 90 days) and automated tamper alert webhook notification endpoints.
+- **Step 10 - Targeted Endpoint & User-Agent Bypass Library (33+ Integrations):** Surfaces the comprehensive library of 33+ verified enterprise bypass rules across E-Commerce (WooCommerce Webhooks, Stripe Webhooks, PayPal IPN, Mollie, Square), Shipping & Logistics (ShipStation, EasyPost, DHL), Marketing & CRM (HubSpot, Mailchimp, ActiveCampaign), and Automation (Zapier, Make/Integromat, WP Fusion). Features 1-click **Auto-Detect** that scans active plugins and lets administrators enable all detected integration rules simultaneously.
+- **Atomic Cron Schedule Synchronization:** Eliminates scheduling drift by atomically saving frequency parameters (schedule_enabled = true, schedule_frequency = 'weekly'), invoking SettingsManager::sync_cron_schedule(), and binding background WordPress cron schedules seamlessly across Settings and Dashboard.
+
+---
+
+## 73. Cloudflare Edge 1-Click API Token Provisioning & Automatic Zone ID Detection
+
+### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
+Connecting your website to Cloudflare's free edge network stops malicious bots and massive DDoS attacks before they ever reach your web server. However, generating API tokens and finding 32-character Zone IDs inside Cloudflare's dashboard can be confusing. WCP Security Scanner makes this completely effortless: one click opens Cloudflare with all the required security permissions pre-selected. Once you paste your token, the plugin instantly contacts Cloudflare to discover your website's Zone ID automatically—no copy-pasting cryptic IDs required.
+
+### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **1-Click Pre-Configured Token Generator (CloudflareEdgeTab.tsx):** Provides a direct deep-link to Cloudflare's API Token creation screen with pre-filled parameter permissions (Zone:Read, Zone WAF:Edit, Firewall Services:Edit, Analytics:Read, and Cache Purge), eliminating permission misconfiguration and 403 API rejections.
+- **Automated Zone ID Resolution (ScannerRoutes.php):** Implements an automated discovery endpoint (/wcp-scanner/v1/cloudflare/detect-zone) that queries https://api.cloudflare.com/client/v4/zones using the provided bearer token, matches the current WordPress domain name against available Cloudflare zones, and automatically populates the Zone ID field in real time.
+- **Live Proxy Telemetry Verification:** Continuously inspects inbound HTTP headers (HTTP_CF_RAY, HTTP_CF_CONNECTING_IP) to provide real-time status pills indicating whether edge proxying is active and protecting the origin server, or running in local on-premise fallback mode.
+
+---
+
+## 74. Firewall Sub-Tab Navigation Consolidation & Advanced Tools Dropdown
+
+### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
+As security features grew, having 11 different tabs across the top of the Firewall screen caused buttons to wrap into multiple rows, cluttering the screen on smaller laptops and tablets. WCP Security Scanner consolidates the firewall into a clean, modern single-line navigation bar. Primary daily tools—like Live Incident Logs, Firewall Rules, Cloudflare Edge, and AI Bot Defense—remain prominently visible, while advanced forensic and simulation tools are organized into an elegant **Advanced Tools** dropdown menu.
+
+### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Single-Line Responsive Top Bar (FirewallPage.tsx):** Streamlines 11 tabs into 6 primary operational hubs: Live Stream (	ab=stream), Firewall Rules (	ab=rules), CAF StackGuard (	ab=caf), Cloudflare Edge (	ab=cloudflare), Behavioral WAF (	ab=behavioral), and 2026 AI Defense (	ab=ai_defense).
+- **Accessible Advanced Tools Dropdown:** Neatly houses secondary diagnostic and audit engines: Red Team Attack Drill (	ab=drill), Supply-Chain & SBOM (	ab=supply_chain), Server Security (	ab=server_sec), Cloud Threat Intel (	ab=intel), and Virtual Patching (	ab=vpatch). Features theme-adaptive styling, keyboard accessibility, active tab indicator pill, and automatic click-outside dismissal.
+- **Universal URL Synchronization & Browser History:** Fully preserves bi-directional URL query parameters (?tab=...) and history.pushState routing across all consolidated sub-tabs, ensuring deep links from notifications, documentation, or browser bookmarks load the exact requested tool instantly.
 
 ## 👨‍💻 Author & Engineering
 

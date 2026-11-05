@@ -272,7 +272,7 @@ To compile the React admin application from source:
 * WAF Rule Verification, Targeted Bypass Testing & Core Bug Fixes.
 * Firewall & Edge Protection UI Modernization.
 * Zero-Breakage Production Stabilization & False Positive Elimination.
-* Zero-Trust Must-Use Guardian & Sandboxed Temporary Support Access.
+* Granular Rule-Scoped & Category-Scoped IP Allowlisting & In-Place Policy Management.
 * Canonical Plugin Slug Standardization & Legacy Slug Elimination.
 * 1-Click WP_DEBUG Remediation Engine.
 * Active Sessions Sentinel & Multi-Factor Telemetry Cockpit.
@@ -299,7 +299,9 @@ To compile the React admin application from source:
 * Enhanced 1-Click Panic Button Emergency Containment Protocol.
 * Autonomous System Number & TLS Fingerprint Session Binding.
 * Native Dependency-Free W3C WebAuthn Biometric Passkeys.
-* Scoped Time-Bombed Emergency Support Access.
+* 12-Step Protection Setup & Calibration Onboarding Wizard with Live Server Audit.
+* Cloudflare Edge 1-Click API Token Generator & Automatic Zone ID Detection.
+* Consolidated Single-Line Firewall Navigation & Advanced Tools Dropdown.
 * 10-Vector Non-Destructive Attack Simulation Engine.
 * Caddy v2 Security Directives & Perimeter Verification Suite.
 

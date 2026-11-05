@@ -57,7 +57,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ---
 
-## 🌟 Comprehensive Feature Catalog (71 Specialized Security Engines & Subsystems)
+## 🌟 Comprehensive Feature Catalog (74 Specialized Security Engines & Subsystems)
 
 > 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
@@ -215,9 +215,9 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 ### 30. Frictionless 1-Click "Mark Safe / Ignore" UX with SHA-256 Hash-Locking
 - **1-Click Intelligent Suppression**: Instantly suppress known false-positives with automated SHA-256 cryptographic checksum locking and customizable expiration windows (30 days, 90 days, 1 year, or Permanent).
 
-### 31. Zero-Trust Must-Use (MU) Guardian & Sandboxed Temporary Support Access
-- **Inviolable Must-Use Guardian (`WcpJitMuGuardian.php`)**: Deployed as an infallible Must-Use plugin (`wp-content/mu-plugins/wcp-jit-guardian.php`) executing at earliest bootstrap (`muplugins_loaded`) that cannot be deactivated or deleted via the WordPress admin UI.
-- **Granular Sandboxing Shields**: Strictly forbids temporary technicians from modifying security settings, deactivating plugins, installing unapproved packages, editing files, or viewing decrypted secrets.
+### 31. Granular Rule-Scoped & Category-Scoped IP Allowlisting & In-Place Policy Management
+- **Zero-Trust Principle of Least Privilege (FirewallEngine.php)**: Eliminates dangerous blanket IP bypasses. Administrators can exempt client IPs strictly for a single firewall rule (e.g. WAF-XMLRPC-DISABLED) or security category while keeping all other 30+ inspection engines actively armed.
+- **Interactive Manual Selectors & In-Place Policy Editors (FirewallPage.tsx)**: Searchable dropdowns for 50+ enterprise rules across 21 functional categories, custom URI path scoping, configurable TTL expiration schedules (defaulting to 24 Hours), and dedicated modals for modifying existing whitelist and banlist entries in place.
 
 ### 32. Preload Micro-WAF & Early Execution Engine (Linux Fail2ban & CrowdSec Syslog)
 - **Zero-Dependency Standalone Runtime (`MicroWafCompiler.php`)**: Compiles WAF rules to OPcache-shared static PHP arrays (`micro-waf-compiled.php`), intercepting malicious requests via `auto_prepend_file` before WordPress core boots or database connections initialize.
@@ -386,6 +386,18 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Zero-Quarantine Surgical Restoration (`TransactionalRemediation.php`)**: Surgically restores infected core and plugin files back to their pristine baseline rather than quarantining entire active files and taking down site execution.
 - **Pre-Repair Snapshot & CrashGuard Probe**: Automatically generates pre-repair snapshots and triggers loopback health check probes (`verify_site_health_probe()`); immediately rolls back changes if a repair causes fatal errors or HTTP 500 status codes.
 
+
+### 72. First-Time Protection Quickstart & 12-Step Calibration Wizard
+- **12-Step Calibration Lifecycle (SetupWizard.tsx, wizard.tsx)**: Lightweight onboarding single-page application guiding administrators through real-time server health and PHP requirements audits (10 mission-critical extensions), owner IP lockout shields, and permanent 6-character emergency rescue support codes.
+- **Enterprise Bypass Rule Library (33+ Integrations) & Atomic Cron Synchronization**: 1-click auto-detection for WooCommerce, Stripe, PayPal, and CRM webhooks, paired with atomic background scan cron synchronization across Settings and Dashboard.
+
+### 73. Cloudflare Edge 1-Click API Token Provisioning & Automatic Zone ID Detection
+- **1-Click Pre-Configured Token Generator (CloudflareEdgeTab.tsx)**: Direct deep link to Cloudflare with all required API permissions (Zone:Read, Zone WAF:Edit, Firewall Services:Edit, Analytics:Read, Cache Purge) pre-populated to prevent permission errors.
+- **Automated Zone ID Resolution (ScannerRoutes.php)**: Live REST endpoint querying Cloudflare's API to match the WordPress domain name and automatically populate the Zone ID in real time without manual dashboard searches.
+
+### 74. Firewall Sub-Tab Navigation Consolidation & Advanced Tools Dropdown
+- **Single-Line Responsive Top Bar (FirewallPage.tsx)**: Consolidates 11 wrapping tabs into 6 primary operational hubs and an accessible, theme-adaptive **Advanced Tools** dropdown menu (housing Red Team Attack Drill, Supply-Chain & SBOM, Server Security, Cloud Threat Intel, and Virtual Patching).
+- **Universal URL Synchronization**: Retains bi-directional URL query parameters (?tab=...) and browser history navigation across all consolidated sub-tabs for seamless deep-linking.
 ---
 
 ## ⚖️ Architectural Comparison at a Glance (as of Oct 2026)
