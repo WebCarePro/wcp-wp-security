@@ -1,6 +1,6 @@
 {
   "version": "2.5.0",
-  "generated_at": "2026-11-05T00:19:32.016Z",
+  "generated_at": "2026-11-05T00:35:16.763Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -27,26 +27,6 @@
       "sha256": "888ce39c34d6208a4a8cf97e6a291e220cba25932dbe77b1ce278e945cfc05db",
       "size": 2150
     },
-    "assets/scan/scan-rtl.css": {
-      "sha256": "94dd2ffbff58c4320f6c3402d4035bac21f6e7fc1e6d5bd14b5ef033c27c8b47",
-      "size": 572277
-    },
-    "assets/scan/scan.asset.php": {
-      "sha256": "b0051cb5d7c07b4ca3090d6152eca6607394cf9d49142f3e683b592dbd20b0ec",
-      "size": 121
-    },
-    "assets/scan/scan.css": {
-      "sha256": "d4162e55dc5e381714a96278120658d8b531125a8d93b10f4fd15faf233647ca",
-      "size": 572108
-    },
-    "assets/scan/scan.js": {
-      "sha256": "b24bff27163011698854bebbcf9b9d9919eb5b156340c8ef4f1ebbc42f7e207e",
-      "size": 2239078
-    },
-    "assets/webcare-3d-emblem.png": {
-      "sha256": "7ba6c70733929f53561ff3362df50b792b05ea01278041878c995caf0882bf89",
-      "size": 218602
-    },
     "assets/webcare-original-logo-3d.jpg": {
       "sha256": "bcf6cebcbcf9752bebaf95776a12b57a038d10562cb6c9ec2cd48d69b62122f5",
       "size": 592076
@@ -67,29 +47,13 @@
       "sha256": "522c254f6bf1f9e6dfeb017816aa0e4388f5216e95d7350f574fe4fb2bafb646",
       "size": 2253676
     },
-    "build/scan-rtl.css": {
-      "sha256": "94dd2ffbff58c4320f6c3402d4035bac21f6e7fc1e6d5bd14b5ef033c27c8b47",
-      "size": 572277
-    },
-    "build/scan.asset.php": {
-      "sha256": "b0051cb5d7c07b4ca3090d6152eca6607394cf9d49142f3e683b592dbd20b0ec",
-      "size": 121
-    },
-    "build/scan.css": {
-      "sha256": "d4162e55dc5e381714a96278120658d8b531125a8d93b10f4fd15faf233647ca",
-      "size": 572108
-    },
-    "build/scan.js": {
-      "sha256": "b24bff27163011698854bebbcf9b9d9919eb5b156340c8ef4f1ebbc42f7e207e",
-      "size": 2239078
-    },
     "composer.json": {
       "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
       "size": 324
     },
     "includes/Admin/AdminMenu.php": {
-      "sha256": "7eb90a4731fce924e4cb8642d85edb590d2c09c22fc8f8fc8541e5210016ab9e",
-      "size": 45281
+      "sha256": "10d7daed6b3898c98e4663ffdc356d969dd7f0bf92d34ae6ea10183f1622f62c",
+      "size": 44180
     },
     "includes/Advisor/PolicyRegistry.php": {
       "sha256": "9ad4dcc4befa73d0f157d96e0917d1afab47540e84ec94567e022bfaa0b2711d",
@@ -712,8 +676,8 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "0942d04078ea5a4dd8d1cf6f3445411e213a4672862404db453c92211f520385",
-      "size": 803
+      "sha256": "f35a0b309784abafeeb606ed1180ce7ab3517477af3474fefa8c7a4817a28141",
+      "size": 429
     },
     "README.md": {
       "sha256": "3c167b5a2b3b425b42c0114a28693cc4eb4c4752e017f10608060cc6a045e804",

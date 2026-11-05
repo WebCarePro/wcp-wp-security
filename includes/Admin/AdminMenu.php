@@ -98,16 +98,6 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
-        // 3b. Submenu: Context-Adaptive Firewall (CAF)
-        add_submenu_page(
-            'wcp-security-scanner',
-            __('Context-Adaptive Firewall (CAF) & StackGuard', 'wcp-security-scanner'),
-            __('Adaptive Firewall (CAF)', 'wcp-security-scanner'),
-            'manage_options',
-            'wcp-scanner-caf',
-            [__CLASS__, 'render_app_container']
-        );
-
         // 4. Submenu: Identity & Access
         add_submenu_page(
             'wcp-security-scanner',
@@ -395,22 +385,9 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
 
-        $is_scan_tab = ($current_page === 'wcp-scanner-scan') || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan');
-
         $js_rel = 'build/index.js';
         $css_rel = 'build/index.css';
         $asset_file = WCPSCAN_PATH . 'build/index.asset.php';
-
-        // Completely decouple the Scan Page by loading the pristine dedicated scan bundle
-        if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'assets/scan/scan.js')) {
-            $js_rel = 'assets/scan/scan.js';
-            $css_rel = 'assets/scan/scan.css';
-            $asset_file = WCPSCAN_PATH . 'assets/scan/scan.asset.php';
-        } elseif ($is_scan_tab && file_exists(WCPSCAN_PATH . 'build/scan.js')) {
-            $js_rel = 'build/scan.js';
-            $css_rel = 'build/scan.css';
-            $asset_file = WCPSCAN_PATH . 'build/scan.asset.php';
-        }
 
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
         $version = WCPSCAN_VERSION;
