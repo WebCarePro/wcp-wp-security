@@ -1,4 +1,10 @@
 v:2.6.0 - 2026-11-06
+- Theme Controller Unification & White Mode Cross-Page Persistence Fix (theme.ts, global.ts, WcpShell.tsx, App.tsx, index.css):
+  * Unified Theme Controller (theme.ts): Built dedicated `applyWcpTheme()` and `getWcpTheme()` synchronization utilities ensuring bidirectional consistency across `localStorage`, `data-theme` attribute, and CSS theme classes on `document.documentElement` (`<html>`), `document.body`, and `#wcp-scanner-root`.
+  * Pre-Mount Theme Class Sanitization (global.ts): Eliminated stale `.wcp-theme-dark` retention by systematically removing dark classes and applying clean `.wcp-theme-light` across `<html>` and `<body>` prior to React component mounting.
+  * Cross-Tab & Cross-Page Theme Synchronization: Bound `storage` event listeners across decoupled page shells (`WcpShell.tsx`, `App.tsx`, `SetupWizard.tsx`) ensuring instant, flicker-free theme updates when switching pages or tabs.
+  * Transparent Page Wrapper Protection (index.css): Removed `.wcp-page-container` from the global card dark background override rule and enforced strict `background: transparent !important`, preventing decoupled page containers from turning into dark boxes in White Mode.
+  * Typography Token Conformance (AuthSecurityPage.tsx): Replaced hardcoded dark color literals (`#0f172a`, `#64748b`) with adaptive semantic tokens (`var(--wcp-text-heading)`, `var(--wcp-text-secondary)`).
 - Navigation Bar Centering & Header Geometry Alignment (index.css):
   * Centered 7-Pillar Navigation HUD: Updated `.wcp-header-tier-bottom` to `justify-content: center !important` with `margin: 0 auto !important` for `.nav-tabs`, horizontally centering the primary module navigation capsule across all pages for a balanced, focused header layout.
 - Authentic Scanner Live Progress Bar & Telemetry HUD Restoration (SecurityScannerPage.tsx):
