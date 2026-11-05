@@ -10,6 +10,9 @@ v:2.5.0 - 2026-11-05
     - Group Category: Dropdown to exempt an entire category domain at once.
     - Global Full Bypass: Standard blanket pass.
     - Expiration Schedule: Configurable TTL defaulting to 24 Hours.
+  * Interactive In-Place Modification for Existing Whitelist & Banlist Entries (`src/FirewallPage.tsx`):
+    - Whitelist Policy Editor Modal: Added an "Edit" button to every row in the Allowlist table, allowing administrators to modify an active IP's exemption scope (switch between Single Rule, Category Group, and Global Full Bypass), update rule/category assignments, change request path restrictions, adjust TTL expiration schedules, and update audit descriptions.
+    - Banlist Policy Editor Modal: Added an "Edit" button to every row in the Blocked IPs table, allowing administrators to modify ban durations (Permanent, 15 Minutes, 1 Hour, 24 Hours, 7 Days, 30 Days) and audit justification notes.
   * Human-Readable Rule Name Resolution in Allowlist Table: Enhanced the Allowlist table to resolve raw rule IDs (e.g. `WAF-XMLRPC-DISABLED`) into their clean human-readable rule titles (e.g. `XML-RPC Access Prohibited`) right alongside category badges.
   * Request Path Restriction & Automatic TTL Expiration: Allows scoping exemptions strictly to a specific request path (e.g. `/xmlrpc.php`), with automated expiration scheduling (Permanent, 24 Hours, 7 Days, or 30 Days).
   * High-Performance In-Memory Rule Verification (`includes/Firewall/FirewallEngine.php`): Updated `check_ip_whitelist_context()` to evaluate client IP metadata against active rule IDs, categories, endpoints, and timestamps in sub-millisecond in-memory lookups. When an exempt request matches, traffic is safely allowed and logged as `'bypassed'` with context `"Rule-Scoped Allowlist Exemption"` for full auditability.

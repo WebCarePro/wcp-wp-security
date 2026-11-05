@@ -51,7 +51,8 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal
+  MoreHorizontal,
+  Edit2
 } from 'lucide-react';
 import { VirtualPatchCard } from './components/VirtualPatchCard';
 import { CustomerLockoutCard } from './components/CustomerLockoutCard';
@@ -987,6 +988,43 @@ export const FirewallPage = ({
   const [whitelistingCurrentIp, setWhitelistingCurrentIp] = useState<boolean>(false);
   const [whitelistSearch, setWhitelistSearch] = useState<string>('');
 
+  // Editing Modals for Existing Allowlist and Blocklist
+  const [editWhitelistItem, setEditWhitelistItem] = useState<{
+    isOpen: boolean;
+    ip: string;
+    reason: string;
+    scope: 'rule' | 'category' | 'global';
+    selectedRule: string;
+    selectedCat: string;
+    endpoint: string;
+    expiresIn: number;
+    isSubmitting: boolean;
+  }>({
+    isOpen: false,
+    ip: '',
+    reason: '',
+    scope: 'global',
+    selectedRule: '',
+    selectedCat: '',
+    endpoint: '',
+    expiresIn: 86400,
+    isSubmitting: false,
+  });
+
+  const [editBlocklistItem, setEditBlocklistItem] = useState<{
+    isOpen: boolean;
+    ip: string;
+    reason: string;
+    durationSeconds: number;
+    isSubmitting: boolean;
+  }>({
+    isOpen: false,
+    ip: '',
+    reason: '',
+    durationSeconds: 0,
+    isSubmitting: false,
+  });
+
   // Blocked IPs inline table state & pagination
   const [newBlockIp, setNewBlockIp] = useState<string>('');
   const [newBlockReason, setNewBlockReason] = useState<string>('');
@@ -1074,6 +1112,120 @@ export const FirewallPage = ({
       showFirewallNotice('error', err?.message || 'Error adding IP to whitelist.');
     } finally {
       setAddingWhitelistIp(false);
+    }
+  };
+
+  const handleOpenEditWhitelistModal = (item: WhitelistedIpItem) => {
+    const existingRule = (item.allowed_rules && item.allowed_rules[0]) || '';
+    const existingCat = (item.allowed_cats && item.allowed_cats[0]) || '';
+    let remainingTtl = 86400;
+    if (item.expires_at && item.expires_at > 0) {
+      const diff = item.expires_at - Math.floor(Date.now() / 1000);
+      remainingTtl = diff > 0 ? diff : 0;
+    } else if (item.expires_at === 0) {
+      remainingTtl = 0;
+    }
+
+    setEditWhitelistItem({
+      isOpen: true,
+      ip: item.ip,
+      reason: item.reason || '',
+      scope: item.scope || 'global',
+      selectedRule: existingRule,
+      selectedCat: existingCat,
+      endpoint: item.endpoint || '',
+      expiresIn: remainingTtl,
+      isSubmitting: false,
+    });
+  };
+
+  const handleSaveEditWhitelist = async () => {
+    if (!editWhitelistItem.ip) return;
+    if (editWhitelistItem.scope === 'rule' && !editWhitelistItem.selectedRule) {
+      showFirewallNotice('warning', 'Please select a specific firewall rule to exempt.');
+      return;
+    }
+    if (editWhitelistItem.scope === 'category' && !editWhitelistItem.selectedCat) {
+      showFirewallNotice('warning', 'Please select a rule category group to exempt.');
+      return;
+    }
+
+    try {
+      setEditWhitelistItem(prev => ({ ...prev, isSubmitting: true }));
+      const payload: any = {
+        ip: editWhitelistItem.ip,
+        reason: editWhitelistItem.reason.trim() || 'Updated allowlist policy',
+        scope: editWhitelistItem.scope,
+        endpoint: editWhitelistItem.endpoint.trim(),
+        expires_in: editWhitelistItem.expiresIn,
+      };
+
+      if (editWhitelistItem.scope === 'rule') {
+        payload.allowed_rules = [editWhitelistItem.selectedRule];
+      } else if (editWhitelistItem.scope === 'category') {
+        payload.allowed_cats = [editWhitelistItem.selectedCat];
+      }
+
+      const res = await apiRequest({
+        path: '/firewall/logs/whitelist-ip',
+        method: 'POST',
+        data: payload
+      });
+
+      if (res && res.success) {
+        if (res.whitelisted_ips) {
+          setWhitelistedIpsList(res.whitelisted_ips);
+        } else {
+          await fetchWhitelistData();
+        }
+        showFirewallNotice('success', `Allowlist policy for ${editWhitelistItem.ip} updated successfully.`);
+        setEditWhitelistItem(prev => ({ ...prev, isOpen: false }));
+      } else {
+        showFirewallNotice('error', res?.message || 'Failed to update allowlist policy.');
+      }
+    } catch (err: any) {
+      showFirewallNotice('error', err?.message || 'Error updating allowlist policy.');
+    } finally {
+      setEditWhitelistItem(prev => ({ ...prev, isSubmitting: false }));
+    }
+  };
+
+  const handleOpenEditBlocklistModal = (item: LockedIpItem) => {
+    setEditBlocklistItem({
+      isOpen: true,
+      ip: item.ip,
+      reason: item.reason || '',
+      durationSeconds: item.duration_seconds || 0,
+      isSubmitting: false,
+    });
+  };
+
+  const handleSaveEditBlocklist = async () => {
+    if (!editBlocklistItem.ip) return;
+
+    try {
+      setEditBlocklistItem(prev => ({ ...prev, isSubmitting: true }));
+      const res = await apiRequest({
+        path: '/firewall/logs/block-ip',
+        method: 'POST',
+        data: {
+          ip: editBlocklistItem.ip,
+          reason: editBlocklistItem.reason.trim() || 'Updated blocklist policy by administrator',
+          duration_seconds: editBlocklistItem.durationSeconds,
+        }
+      });
+
+      if (res && res.success) {
+        await fetchBlocklistData();
+        showFirewallNotice('success', `Blocklist entry for ${editBlocklistItem.ip} updated successfully.`);
+        setEditBlocklistItem(prev => ({ ...prev, isOpen: false }));
+      } else {
+        showFirewallNotice('error', res?.message || 'Failed to update blocklist entry.');
+      }
+    } catch (err: any) {
+      showFirewallNotice('error', err?.message || 'Error updating blocklist entry.');
+    } finally {
+      setEditBlocklistItem(prev => ({ ...prev, isSubmitting: false }));
     }
   };
 
@@ -6040,6 +6192,30 @@ export const FirewallPage = ({
                                         </button>
                                       )}
 
+                                      {/* Modify / Edit Block Policy Button */}
+                                      <button
+                                        type="button"
+                                        className="wcp-btn"
+                                        onClick={() => handleOpenEditBlocklistModal(item)}
+                                        style={{
+                                          fontSize: '10.5px',
+                                          padding: '4px 8px',
+                                          borderRadius: '4px',
+                                          background: 'none',
+                                          color: 'var(--wcp-text-secondary, #475569)',
+                                          border: '1px solid var(--wcp-border, #cbd5e1)',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          fontWeight: 600
+                                        }}
+                                        title="Modify duration or reason for this banned IP"
+                                      >
+                                        <Edit2 size={10} />
+                                        Edit
+                                      </button>
+
                                       {/* Local Origin Firewall Unblock Button */}
                                       <button
                                         type="button"
@@ -6632,29 +6808,53 @@ export const FirewallPage = ({
                             </td>
 
                             <td style={{ padding: '10px 12px', textAlign: 'right', verticalAlign: 'middle' }}>
-                              <button
-                                type="button"
-                                className="wcp-btn"
-                                onClick={() => handleRemoveWhitelistIp(item.ip)}
-                                disabled={removingWhitelistIp === item.ip}
-                                style={{
-                                  fontSize: '11px',
-                                  padding: '4px 10px',
-                                  borderRadius: '4px',
-                                  background: 'none',
-                                  color: '#dc2626',
-                                  border: '1px solid rgba(220, 38, 38, 0.3)',
-                                  cursor: removingWhitelistIp === item.ip ? 'not-allowed' : 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontWeight: 600
-                                }}
-                                title="Remove IP from whitelist"
-                              >
-                                {removingWhitelistIp === item.ip ? <Loader2 size={10} className="wcp-spin" /> : <Trash2 size={10} />}
-                                Remove
-                              </button>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  className="wcp-btn"
+                                  onClick={() => handleOpenEditWhitelistModal(item)}
+                                  style={{
+                                    fontSize: '11px',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    background: 'none',
+                                    color: 'var(--wcp-text-secondary, #475569)',
+                                    border: '1px solid var(--wcp-border, #cbd5e1)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontWeight: 600
+                                  }}
+                                  title="Modify rule scope, reason, or expiration"
+                                >
+                                  <Edit2 size={10} />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="wcp-btn"
+                                  onClick={() => handleRemoveWhitelistIp(item.ip)}
+                                  disabled={removingWhitelistIp === item.ip}
+                                  style={{
+                                    fontSize: '11px',
+                                    padding: '4px 10px',
+                                    borderRadius: '4px',
+                                    background: 'none',
+                                    color: '#dc2626',
+                                    border: '1px solid rgba(220, 38, 38, 0.3)',
+                                    cursor: removingWhitelistIp === item.ip ? 'not-allowed' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontWeight: 600
+                                  }}
+                                  title="Remove IP from whitelist"
+                                >
+                                  {removingWhitelistIp === item.ip ? <Loader2 size={10} className="wcp-spin" /> : <Trash2 size={10} />}
+                                  Remove
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -8945,6 +9145,325 @@ export const FirewallPage = ({
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Whitelist Policy Modal */}
+      {editWhitelistItem.isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--wcp-bg-surface, #ffffff)',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '560px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+            border: '1px solid var(--wcp-border, #e2e8f0)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--wcp-border, #e2e8f0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--wcp-bg-elevated, #f8fafc)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ShieldCheck size={16} color="#16a34a" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)' }}>
+                    Modify Allowlist Policy
+                  </h3>
+                  <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', fontFamily: 'monospace' }}>
+                    {editWhitelistItem.ip}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditWhitelistItem(prev => ({ ...prev, isOpen: false }))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wcp-text-muted, #94a3b8)', padding: '4px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                  Exemption Scope:
+                </label>
+                <select
+                  value={editWhitelistItem.scope}
+                  onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, scope: e.target.value as any }))}
+                  className="wcp-firewall-input"
+                  style={{ width: '100%', fontSize: '12.5px', padding: '8px 10px' }}
+                >
+                  <option value="global">All Firewall Rules (Global Full Bypass)</option>
+                  <option value="rule">Single Firewall Rule (Safest)</option>
+                  <option value="category">Group Category (e.g. Identity Defense)</option>
+                </select>
+              </div>
+
+              {editWhitelistItem.scope === 'rule' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                    Specific Rule to Exempt:
+                  </label>
+                  <select
+                    value={editWhitelistItem.selectedRule}
+                    onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, selectedRule: e.target.value }))}
+                    className="wcp-firewall-input"
+                    style={{ width: '100%', fontSize: '12px', padding: '8px 10px' }}
+                  >
+                    <option value="">-- Choose Firewall Rule ({rulesCatalog.length || 50}+ Available) --</option>
+                    {Array.from(new Set(rulesCatalog.map(r => r.category))).map(cat => (
+                      <optgroup key={cat} label={`📂 ${cat}`}>
+                        {rulesCatalog.filter(r => r.category === cat).map(r => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} [{r.id}]
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {editWhitelistItem.scope === 'category' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                    Rule Group Category to Exempt:
+                  </label>
+                  <select
+                    value={editWhitelistItem.selectedCat}
+                    onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, selectedCat: e.target.value }))}
+                    className="wcp-firewall-input"
+                    style={{ width: '100%', fontSize: '12.5px', padding: '8px 10px' }}
+                  >
+                    <option value="">-- Choose Category Group --</option>
+                    {Array.from(new Set(rulesCatalog.map(r => r.category))).map(cat => {
+                      const count = rulesCatalog.filter(r => r.category === cat).length;
+                      return (
+                        <option key={cat} value={cat}>
+                          {cat} ({count} {count === 1 ? 'rule' : 'rules'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                  Optional Request Path Restriction:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. /xmlrpc.php or /wp-json/wc/v3/* (leave empty for all endpoints)"
+                  value={editWhitelistItem.endpoint}
+                  onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, endpoint: e.target.value }))}
+                  className="wcp-firewall-input"
+                  style={{ width: '100%', fontSize: '12px', padding: '8px 10px', fontFamily: 'monospace' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                  Exemption Expiration Schedule:
+                </label>
+                <select
+                  value={editWhitelistItem.expiresIn}
+                  onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, expiresIn: Number(e.target.value) }))}
+                  className="wcp-firewall-input"
+                  style={{ width: '100%', fontSize: '12.5px', padding: '8px 10px' }}
+                >
+                  <option value={86400}>24 Hours (Temporary Client Testing)</option>
+                  <option value={604800}>7 Days (Transient Integration Setup)</option>
+                  <option value={2592000}>30 Days (Extended Evaluation)</option>
+                  <option value={0}>Permanent (Active until manually removed)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                  Audit Justification / Note:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Authorized client integration or office static IP"
+                  value={editWhitelistItem.reason}
+                  onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, reason: e.target.value }))}
+                  className="wcp-firewall-input"
+                  style={{ width: '100%', fontSize: '12px', padding: '8px 10px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid var(--wcp-border, #e2e8f0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              background: 'var(--wcp-bg-elevated, #f8fafc)'
+            }}>
+              <button
+                type="button"
+                className="wcp-btn"
+                onClick={() => setEditWhitelistItem(prev => ({ ...prev, isOpen: false }))}
+                style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--wcp-border, #cbd5e1)', color: 'var(--wcp-text-secondary, #475569)', fontSize: '12px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="wcp-btn"
+                onClick={handleSaveEditWhitelist}
+                disabled={editWhitelistItem.isSubmitting}
+                style={{ padding: '7px 18px', background: '#16a34a', border: 'none', color: '#ffffff', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {editWhitelistItem.isSubmitting ? <Loader2 size={13} className="wcp-spin" /> : <Save size={13} />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Blocklist / Ban Policy Modal */}
+      {editBlocklistItem.isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--wcp-bg-surface, #ffffff)',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '520px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+            border: '1px solid var(--wcp-border, #e2e8f0)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--wcp-border, #e2e8f0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--wcp-bg-elevated, #f8fafc)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(220, 38, 38, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ban size={16} color="#dc2626" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)' }}>
+                    Modify Ban / Blocklist Entry
+                  </h3>
+                  <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', fontFamily: 'monospace' }}>
+                    {editBlocklistItem.ip}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditBlocklistItem(prev => ({ ...prev, isOpen: false }))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wcp-text-muted, #94a3b8)', padding: '4px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                  Ban Duration:
+                </label>
+                <select
+                  value={editBlocklistItem.durationSeconds}
+                  onChange={(e) => setEditBlocklistItem(prev => ({ ...prev, durationSeconds: Number(e.target.value) }))}
+                  className="wcp-firewall-input"
+                  style={{ width: '100%', fontSize: '12.5px', padding: '8px 10px' }}
+                >
+                  <option value={0}>Permanent Ban (Active until manually removed)</option>
+                  <option value={900}>15 Minutes (Temporary Quarantine)</option>
+                  <option value={3600}>1 Hour (Short-Term Lockdown)</option>
+                  <option value={86400}>24 Hours (Daily Lockout)</option>
+                  <option value={604800}>7 Days (Extended Threat Quarantine)</option>
+                  <option value={2592000}>30 Days (Monthly Suspension)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
+                  Audit Reason / Description:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Repeated credential stuffing or hostile reconnaissance"
+                  value={editBlocklistItem.reason}
+                  onChange={(e) => setEditBlocklistItem(prev => ({ ...prev, reason: e.target.value }))}
+                  className="wcp-firewall-input"
+                  style={{ width: '100%', fontSize: '12px', padding: '8px 10px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid var(--wcp-border, #e2e8f0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              background: 'var(--wcp-bg-elevated, #f8fafc)'
+            }}>
+              <button
+                type="button"
+                className="wcp-btn"
+                onClick={() => setEditBlocklistItem(prev => ({ ...prev, isOpen: false }))}
+                style={{ padding: '7px 14px', background: 'none', border: '1px solid var(--wcp-border, #cbd5e1)', color: 'var(--wcp-text-secondary, #475569)', fontSize: '12px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="wcp-btn"
+                onClick={handleSaveEditBlocklist}
+                disabled={editBlocklistItem.isSubmitting}
+                style={{ padding: '7px 18px', background: '#dc2626', border: 'none', color: '#ffffff', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {editBlocklistItem.isSubmitting ? <Loader2 size={13} className="wcp-spin" /> : <Save size={13} />}
+                Update Ban Policy
               </button>
             </div>
           </div>
