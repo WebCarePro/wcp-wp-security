@@ -1,4 +1,14 @@
 v:2.5.0 - 2026-11-05
+- Authentic Scanner Live Progress Bar & Telemetry HUD Restoration (SecurityScannerPage.tsx):
+  * Exact Visual Parity with Original Specification: Rebuilt and restored the authentic live scanning area directly matching the original implementation from old/wcp-security-scanner.
+  * Turbo Headroom Status Strip: Integrated the dynamic governor status strip featuring the emerald + TURBO HEADROOM badge, real-time CPU & memory headroom calculations, safety envelope ceiling display (70% max), and free memory headroom telemetry (e.g. 870 MB Free).
+  * 5-Card Real-Time Telemetry HUD: Re-established the comprehensive 5-card telemetry grid under the pulsating header ("REAL-TIME AUDIT TELEMETRY & RESOURCE CONSUMPTION" with host PHP version, memory limit, CPU core count, and 100% on-premise privacy badge):
+    1. Time Elapsed card with live elapsed seconds and remaining ETA countdown.
+    2. PHP Memory card with dynamic utilization percentage pill (safe green / warning yellow / critical red), consumed megabytes, peak memory footprint, and safe remaining memory headroom.
+    3. CPU / Load card tracking instant AST processor load and 1-minute system load averages.
+    4. Throughput card displaying real-time files per second (f/s) and completed versus total files count.
+    5. Threats Flagged card with high-contrast clean / danger indicators and quarantine queue alerts.
+  * Launcher Header Button Action Parity: Restored active scan controls with Scan Options, Configure Engines, solid emerald active state ("Scanning Website..." with animated spinner), and high-contrast red outline "Stop Scan" button.
 - Comprehensive Security Hardening & Logic Audit Remediation (Argon 4 Review):
   * AI Forensic Verdict Parser Fix (AiForensicReportView.tsx): Remediated critical logic flaw where strings like "unsafe", "not a false positive", and "not clean" triggered false-safe classifications. Reordered verdict checks to evaluate malicious tokens first with word boundaries (\b), followed by suspicious tokens, and guarded safe classifications with negative lookbehinds.
   * Indirect Prompt Injection Guard (AIService.php): Protected the AI analysis endpoint by wrapping untrusted code in randomized cryptographic boundary delimiters, stripping internal closing tags, and directing the system prompt to treat all enclosed content strictly as inert inspection data.
