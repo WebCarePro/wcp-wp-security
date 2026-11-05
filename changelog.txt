@@ -1,4 +1,13 @@
 v:2.5.0 - 2026-11-05
+- Expanded 12-Step Protection Setup & Onboarding Wizard (SetupWizard.tsx, ScannerRoutes.php):
+  * In-Depth 12-Step Calibration: Expanded the quickstart onboarding wizard to twelve dedicated, plain-English configuration steps designed for site owners and sysadmins alike.
+  * Server Requirements & PHP Extensions Audit (Step 2): Live environment verification inspecting PHP runtime specs (PHP 8.4, SAPI, memory limit, max execution time, environment mode) and attesting 10 critical extensions (cURL, OpenSSL, ZipArchive, Zlib, mbstring, JSON, Sodium, Zend OPcache, Intl, GD/Imagick).
+  * Granular Threat Detection Options (Step 6): Configurable toggles for heuristic AST backdoor analysis, core/plugin/theme checksums, unbundled file detection, CVE vulnerability scanning, rogue admin detection, and disk monitor.
+  * Engine & Performance Optimization (Step 7): Batch size calibration (25 to 200 files/batch), memory safety envelope (strict 60%, balanced 70%, performance 80%), adaptive visitor throttling, and inter-batch delay.
+  * Cleanup & Data Purge Governance (Step 8): Transparent controls for uninstall behavior, including dropping custom database tables, deleting stored options, and purging quarantined malware items.
+  * Activity & Audit Logs Configuration (Step 9): Retention period scheduling (14, 30, 60, 90 days) and remote tamper alert webhook notification endpoints.
+  * Targeted Endpoint & User-Agent Bypass Rules (Step 10): Zero-trust allowlist configuration with 1-click presets for Stripe Webhooks, PayPal IPN, WooCommerce Mobile App, Zapier, and Klaviyo, plus custom rule builder.
+  * Atomic Settings Persistence: Synchronized all wizard inputs directly with `SettingsManager::save_settings()` and `wcpscan_waf_settings` via REST API endpoint `/wizard/save`.
 - Firewall Sub-Tab Consolidation & Clean Dropdown Navigation (FirewallPage.tsx, index.css):
   * Clean Single-Line Navigation: Streamlined the wrapping 11-item Firewall tab bar into a clean, unified primary bar. Placed primary operational hubs (Live Incident Stream, Firewall Rules, CAF StackGuard, Cloudflare Edge, Behavioral WAF, and 2026 AI Defense) directly on the bar.
   * Advanced Modules Dropdown Menu: Consolidated secondary tools (Red Team Attack Drill, Supply-Chain & SBOM, Server Security, Cloud Threat Intel, and Virtual Patching) into an accessible, theme-adaptive dropdown menu with automatic click-outside dismissal and dynamic active tab indicator.

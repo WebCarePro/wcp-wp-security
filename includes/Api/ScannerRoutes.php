@@ -1795,6 +1795,14 @@ class ScannerRoutes {
             ? \WcpScanner\Cloudflare\CloudflareService::extract_root_domain($site_host)
             : $site_host;
 
+        $server_info = class_exists('\WcpScanner\System\ServerInfo')
+            ? \WcpScanner\System\ServerInfo::get_info(false)
+            : null;
+
+        $global_settings = class_exists('\WcpScanner\System\SettingsManager')
+            ? \WcpScanner\System\SettingsManager::get_settings()
+            : [];
+
         return new \WP_REST_Response([
             'success'              => true,
             'client_ip'            => $client_ip,
@@ -1809,6 +1817,19 @@ class ScannerRoutes {
             'wizard_completed'     => (bool) get_option('wcpscan_wizard_completed', false),
             'support_code'         => $support_code,
             'waf_settings'         => $waf_settings,
+            'server_info'          => $server_info,
+            'settings'             => [
+                'custom_scan_options'          => $global_settings['custom_scan_options'] ?? [],
+                'scan_batch_size'              => $global_settings['scan_batch_size'] ?? 50,
+                'scan_memory_safety_envelope'  => $global_settings['scan_memory_safety_envelope'] ?? 'balanced',
+                'scan_adaptive_throttling'     => $global_settings['scan_adaptive_throttling'] ?? true,
+                'scan_batch_delay_ms'          => $global_settings['scan_batch_delay_ms'] ?? 0,
+                'delete_data_on_uninstall'     => $global_settings['delete_data_on_uninstall'] ?? false,
+                'uninstall_drop_tables'        => $global_settings['uninstall_drop_tables'] ?? true,
+                'uninstall_delete_options'     => $global_settings['uninstall_delete_options'] ?? true,
+                'activity_log_settings'        => $global_settings['activity_log_settings'] ?? ['retention_days' => 30, 'tamper_webhook_url' => ''],
+                'waf_targeted_allowlist_rules' => $global_settings['waf_targeted_allowlist_rules'] ?? '[]',
+            ],
         ], 200);
     }
 
@@ -1888,7 +1909,58 @@ class ScannerRoutes {
             update_option('wcpscan_notification_settings', $notif_settings);
         }
 
-        // 7. Mark Wizard as Completed
+        // 7. Advanced Engine Settings (Scan Options, Performance, Cleanup, Activity Logs, Targeted Bypass)
+        if (class_exists('\WcpScanner\System\SettingsManager')) {
+            $advanced_payload = [];
+
+            if (isset($params['custom_scan_options']) && is_array($params['custom_scan_options'])) {
+                $advanced_payload['custom_scan_options'] = $params['custom_scan_options'];
+            }
+
+            if (isset($params['scan_batch_size'])) {
+                $advanced_payload['scan_batch_size'] = intval($params['scan_batch_size']);
+            }
+
+            if (isset($params['scan_memory_safety_envelope'])) {
+                $advanced_payload['scan_memory_safety_envelope'] = sanitize_key($params['scan_memory_safety_envelope']);
+            }
+
+            if (isset($params['scan_adaptive_throttling'])) {
+                $advanced_payload['scan_adaptive_throttling'] = (bool) $params['scan_adaptive_throttling'];
+            }
+
+            if (isset($params['scan_batch_delay_ms'])) {
+                $advanced_payload['scan_batch_delay_ms'] = intval($params['scan_batch_delay_ms']);
+            }
+
+            if (isset($params['delete_data_on_uninstall'])) {
+                $advanced_payload['delete_data_on_uninstall'] = (bool) $params['delete_data_on_uninstall'];
+            }
+
+            if (isset($params['uninstall_drop_tables'])) {
+                $advanced_payload['uninstall_drop_tables'] = (bool) $params['uninstall_drop_tables'];
+            }
+
+            if (isset($params['uninstall_delete_options'])) {
+                $advanced_payload['uninstall_delete_options'] = (bool) $params['uninstall_delete_options'];
+            }
+
+            if (isset($params['activity_log_settings']) && is_array($params['activity_log_settings'])) {
+                $advanced_payload['activity_log_settings'] = $params['activity_log_settings'];
+            }
+
+            if (isset($params['waf_targeted_allowlist_rules'])) {
+                $advanced_payload['waf_targeted_allowlist_rules'] = is_string($params['waf_targeted_allowlist_rules'])
+                    ? $params['waf_targeted_allowlist_rules']
+                    : wp_json_encode($params['waf_targeted_allowlist_rules']);
+            }
+
+            if (!empty($advanced_payload)) {
+                \WcpScanner\System\SettingsManager::save_settings($advanced_payload);
+            }
+        }
+
+        // 8. Mark Wizard as Completed
         update_option('wcpscan_wizard_completed', true);
 
         return new \WP_REST_Response([
