@@ -227,6 +227,8 @@ class WafFileLogger {
             'request_method'   => $method,
             'http_status_code' => (int) $status_code,
             'http_referer'     => !empty($referer) ? $referer : null,
+            'rule_id'          => !empty($rule['id']) ? sanitize_text_field($rule['id']) : null,
+            'rule_name'        => !empty($rule['name']) ? sanitize_text_field($rule['name']) : null,
             'rule_category'    => $category,
             'rule_description' => sanitize_text_field($rule['description'] ?? $rule['name'] ?? 'Threat payload intercepted by WCP firewall.'),
             'payload_sample'   => $payload,

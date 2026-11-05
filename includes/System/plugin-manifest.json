@@ -1,6 +1,6 @@
 {
-  "version": "2.4.0",
-  "generated_at": "2026-11-04T12:23:02.823Z",
+  "version": "2.5.0",
+  "generated_at": "2026-11-05T00:19:32.016Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -56,7 +56,7 @@
       "size": 577948
     },
     "build/index.asset.php": {
-      "sha256": "7739929c68b21ceb9752131cdcde9ea097610572e000400db53fcb236137e26e",
+      "sha256": "a84b3461dff40b8b1f901da58f10229cc42c7568dbb207b2152cf9755830767b",
       "size": 121
     },
     "build/index.css": {
@@ -64,8 +64,8 @@
       "size": 577767
     },
     "build/index.js": {
-      "sha256": "8b72e5b8dcf9abf664ac1235ff2ee63ffeec4ce04a03bcdf4b588f7c3e2f9939",
-      "size": 2242663
+      "sha256": "522c254f6bf1f9e6dfeb017816aa0e4388f5216e95d7350f574fe4fb2bafb646",
+      "size": 2253676
     },
     "build/scan-rtl.css": {
       "sha256": "94dd2ffbff58c4320f6c3402d4035bac21f6e7fc1e6d5bd14b5ef033c27c8b47",
@@ -360,8 +360,8 @@
       "size": 21155
     },
     "includes/Firewall/WafFileLogger.php": {
-      "sha256": "a42da36042907ae0df17db276b1ef1d8b4e85d25cacb3e010c2afc11b828f1e7",
-      "size": 34167
+      "sha256": "23a8eb4bd80d5f4063b62d22289427478850642669827827a7aa7a5309942dfd",
+      "size": 34365
     },
     "includes/Forensics/AttackChainEngine.php": {
       "sha256": "0b281308f119113cce5785ce57357287909460142929d7a281b8872d1ccbf3cd",
@@ -712,15 +712,15 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "fdbb8600e37da31f9d516d7361435d568bf1f068cdb987885bf4eea106eb962f",
+      "sha256": "0942d04078ea5a4dd8d1cf6f3445411e213a4672862404db453c92211f520385",
       "size": 803
     },
     "README.md": {
-      "sha256": "2c71bb0bb2b98d19223fbb2fb86eda070ebada9f8c2f95512743ddd53c224287",
+      "sha256": "3c167b5a2b3b425b42c0114a28693cc4eb4c4752e017f10608060cc6a045e804",
       "size": 61373
     },
     "readme.txt": {
-      "sha256": "381e76ab71f28b1f64a78ec78ac1e1fea0dece1c5ed757196763b044d7e3538e",
+      "sha256": "e78d519690b8f076e49c4b445dd67382185bcabed483fe74b2eb97d0238a0302",
       "size": 29681
     },
     "uninstall.php": {
@@ -728,7 +728,7 @@
       "size": 9018
     },
     "wcp-wp-scanner.php": {
-      "sha256": "32db08076d4a457d1c220eadcdd2663079611882d135442d1d4abdf1c9b9fd28",
+      "sha256": "13df93dbfea22bfb8eac60711f0b253d77ae5a616222dce8dacf763db894f1b7",
       "size": 6497
     }
   }
