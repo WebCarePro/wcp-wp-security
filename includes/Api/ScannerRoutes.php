@@ -1803,6 +1803,10 @@ class ScannerRoutes {
             ? \WcpScanner\System\SettingsManager::get_settings()
             : [];
 
+        $active_plugin_slugs = class_exists('\WcpScanner\Firewall\FirewallEngine')
+            ? \WcpScanner\Firewall\FirewallEngine::get_active_plugin_slugs()
+            : [];
+
         return new \WP_REST_Response([
             'success'              => true,
             'client_ip'            => $client_ip,
@@ -1818,6 +1822,7 @@ class ScannerRoutes {
             'support_code'         => $support_code,
             'waf_settings'         => $waf_settings,
             'server_info'          => $server_info,
+            'active_plugin_slugs'  => $active_plugin_slugs,
             'settings'             => [
                 'custom_scan_options'          => $global_settings['custom_scan_options'] ?? [],
                 'scan_batch_size'              => $global_settings['scan_batch_size'] ?? 50,
