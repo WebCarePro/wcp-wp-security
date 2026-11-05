@@ -641,8 +641,28 @@ class FileIntegrityMonitor {
         }
 
         $real_path = wp_normalize_path($real_path);
-
         $rel_path = ltrim(str_replace($normalized_abs, '', $real_path), '/');
+
+        $filename = strtolower(basename($real_path));
+        // Strict Sensitive File Protection: Block database credentials, salts, and secrets from diff inspection
+        $blocked_exact = [
+            'wp-config.php',
+            '.env',
+            '.htpasswd',
+            '.user.ini',
+            'php.ini',
+            'web.config',
+        ];
+        if (in_array($filename, $blocked_exact, true) || 
+            preg_match('/(?:^|\/)(?:wcp-vault|quarantine|backups|\.git|\.well-known)\//i', $rel_path) ||
+            preg_match('/(?:secret|credential|password|id_rsa|id_ed25519|\.pem|\.key)$/i', $filename)
+        ) {
+            return [
+                'success' => false,
+                'message' => 'Security Policy: Access to sensitive system configurations, credentials, or encrypted vaults is restricted from visual diff inspection.',
+            ];
+        }
+
         $local_content = @file_get_contents($real_path);
 
         if ($local_content === false) {

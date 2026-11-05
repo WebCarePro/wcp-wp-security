@@ -383,7 +383,7 @@ class WebAuthnManager {
             ];
         }
 
-        $credential_id = $payload['id'] ?? '';
+        $credential_id = !empty($payload['rawId']) ? sanitize_text_field($payload['rawId']) : sanitize_text_field($payload['id'] ?? '');
         $response      = $payload['response'] ?? [];
         $client_data_b64 = $response['clientDataJSON'] ?? '';
         $auth_data_b64   = $response['authenticatorData'] ?? '';

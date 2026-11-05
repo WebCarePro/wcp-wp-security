@@ -203,6 +203,61 @@
             border-right: none;
             border-bottom: none;
         }
+        @keyframes wcpModalIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(-4px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        .wcp-inline-callout {
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: wcpModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .wcp-inline-callout.wcp-callout-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        .wcp-theme-dark .wcp-inline-callout.wcp-callout-error,
+        [data-theme="dark"] .wcp-inline-callout.wcp-callout-error {
+            background: rgba(239, 68, 68, 0.16) !important;
+            color: #f87171 !important;
+            border-color: rgba(239, 68, 68, 0.35) !important;
+        }
+        .wcp-inline-callout.wcp-callout-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .wcp-theme-dark .wcp-inline-callout.wcp-callout-success,
+        [data-theme="dark"] .wcp-inline-callout.wcp-callout-success {
+            background: rgba(16, 185, 129, 0.16) !important;
+            color: #34d399 !important;
+            border-color: rgba(16, 185, 129, 0.35) !important;
+        }
+        .wcp-inline-callout.wcp-callout-info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        .wcp-theme-dark .wcp-inline-callout.wcp-callout-info,
+        [data-theme="dark"] .wcp-inline-callout.wcp-callout-info {
+            background: rgba(99, 102, 241, 0.16) !important;
+            color: #818cf8 !important;
+            border-color: rgba(99, 102, 241, 0.35) !important;
+        }
     `;
     document.head.appendChild(styleEl);
 
@@ -210,7 +265,7 @@
      * Compute anchor position near triggering button
      */
     function positionCard(card, triggerEl) {
-        if (!triggerEl || typeof triggerEl.getBoundingClientRect !== 'function') {
+        if (!triggerEl || !document.body.contains(triggerEl) || typeof triggerEl.getBoundingClientRect !== 'function' || (triggerEl.offsetWidth === 0 && triggerEl.offsetHeight === 0 && triggerEl.getClientRects().length === 0)) {
             // Center in viewport
             card.style.top = '50%';
             card.style.left = '50%';
@@ -431,21 +486,8 @@
         if (existing) existing.remove();
 
         var callout = document.createElement('div');
-        callout.className = 'wcp-inline-callout';
+        callout.className = 'wcp-inline-callout wcp-callout-' + (type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info'));
         callout.style.position = 'absolute';
-        callout.style.background = (type === 'error') ? '#fef2f2' : (type === 'success' ? '#ecfdf5' : '#eff6ff');
-        callout.style.color = (type === 'error') ? '#991b1b' : (type === 'success' ? '#065f46' : '#1e40af');
-        callout.style.border = '1px solid ' + ((type === 'error') ? '#fca5a5' : (type === 'success' ? '#a7f3d0' : '#bfdbfe'));
-        callout.style.borderRadius = '8px';
-        callout.style.padding = '8px 14px';
-        callout.style.fontSize = '12px';
-        callout.style.fontWeight = '600';
-        callout.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
-        callout.style.zIndex = '999999';
-        callout.style.display = 'flex';
-        callout.style.alignItems = 'center';
-        callout.style.gap = '8px';
-        callout.style.animation = 'wcpModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
 
         var icon = (type === 'error') ? '\u26A0\uFE0F ' : (type === 'success' ? '\u2714 ' : '\u2139\uFE0F ');
         var spanEl = document.createElement('span');

@@ -7521,6 +7521,18 @@ class ScannerRoutes {
     }
 
     public static function get_integrity_file_diff(\WP_REST_Request $request) {
+        $uid = get_current_user_id();
+        if ($uid) {
+            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+                $cfg = $support_users[$uid] ?? [];
+                $scope = $cfg['scope'] ?? 'read_only';
+                if ($scope === 'quarantine_only') {
+                    return new \WP_Error('jit_access_denied', __('Temporary support sessions with quarantine-only scope cannot inspect source diffs.', 'wcp-security-scanner'), ['status' => 403]);
+                }
+            }
+        }
+
         $file_path = $request->get_param('file_path') ?: $request->get_param('path');
         if (empty($file_path)) {
             $json_params = $request->get_json_params();
@@ -8324,14 +8336,14 @@ class ScannerRoutes {
         $user_id = get_current_user_id();
         $params  = $request->get_json_params() ?: [];
         $code    = sanitize_text_field($params['code'] ?? '');
-        $secret  = sanitize_text_field($params['secret'] ?? '');
 
         $setup_state = get_transient('wcpscan_2fa_setup_' . $user_id);
         if (!$setup_state || empty($setup_state['secret'])) {
             return new \WP_Error('session_expired', __('2FA setup session expired. Please click "Setup 2FA" again.', 'wcp-security-scanner'), ['status' => 400]);
         }
 
-        $active_secret = $secret ?: $setup_state['secret'];
+        // Always read the pending secret strictly from server storage; never trust client-supplied secret overrides
+        $active_secret = $setup_state['secret'];
         $algo          = $setup_state['algorithm'] ?? 'sha1';
         $digits        = (int) ($setup_state['digits'] ?? 6);
 
@@ -8516,6 +8528,40 @@ class ScannerRoutes {
         $user = get_user_by('id', $user_id);
         if (!$user) {
             return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+        }
+
+        $current_uid = get_current_user_id();
+        // If resetting another administrator, reset their 2FA and require self-enrollment on next login
+        // to prevent immediate lockout and cross-admin secret exposure
+        if ($user_id !== $current_uid) {
+            \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
+            update_user_meta($user_id, 'wcpscan_force_2fa_setup', 1);
+            delete_user_meta($user_id, 'wcpscan_2fa_secret');
+            delete_user_meta($user_id, 'wcpscan_2fa_backup_codes');
+
+            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+                \WcpScanner\System\AuditLogger::log_event(
+                    'admin_2fa_reset',
+                    sprintf(
+                        /* translators: 1: admin username, 2: target username, 3: user ID */
+                        __('Administrator %1$s reset 2FA policy for user "%2$s" (ID: %3$d), requiring re-enrollment on next login.', 'wcp-security-scanner'),
+                        wp_get_current_user()->user_login,
+                        $user->user_login,
+                        $user_id
+                    )
+                );
+            }
+
+            return rest_ensure_response([
+                'success'       => true,
+                'message'       => sprintf(
+                    /* translators: %s: username */
+                    __('2FA has been reset for administrator %s. They will be prompted to safely enroll their own authenticator upon next login.', 'wcp-security-scanner'),
+                    $user->user_login
+                ),
+                'setup_package' => null,
+                'admins'        => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            ]);
         }
 
         try {
