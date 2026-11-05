@@ -1,4 +1,6 @@
 v:2.5.0 - 2026-11-05
+- UTF-8 Encoding & CP437 Mojibake Elimination (scan.js):
+  * Comprehensive Character Set Restoration: Fixed CP437 encoding corruption across the standalone Scanner bundle (assets/scan/scan.js). Restored over 625 corrupted sequences into clean, native UTF-8 characters (e.g. replacing 'ΓÇó' / 'ГÇó' with bullet dots '•', 'ΓåÆ' / 'ГåÆ' with arrows '→', 'ΓÇô' with dashes '–', and command symbols '⌘K').
 - Full-Width Fluid Layout & Container Padding Normalization Across All Pages (index.css, scan.css, WcpShell.tsx, AdminMenu.php):
   * Normalized Container Dimensions & Fluid Geometry: Resolved horizontal width and layout inconsistencies where the Settings page appeared full-width while Forensics, Vault, and Scanner appeared narrower with large blank gutters. Updated .wcp-scanner-app and .wcp-container across the global design system to use the standardized full-width fluid layout with 24px 28px 50px bounds (width: 100%, maxWidth: 100%, margin: 0).
   * Nested Container Override & Double-Padding Elimination: Implemented zero-overhead overrides for nested container components (.wcp-container .wcp-container, .wcp-container .wcp-page-container, .wcp-scanner-app .wcp-container, .wcp-scanner-app .wcp-page-container) to eliminate duplicate padding and redundant grid backdrops across child cards and modules.

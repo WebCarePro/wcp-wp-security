@@ -1,6 +1,6 @@
 {
   "version": "2.5.0",
-  "generated_at": "2026-11-05T07:14:55.386Z",
+  "generated_at": "2026-11-05T07:24:31.768Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,8 +36,8 @@
       "size": 573129
     },
     "assets/scan/scan.js": {
-      "sha256": "eeb61215b8b66feea7a37114215de748f59f53fab04c3664b7fcb73e67c689ae",
-      "size": 2241492
+      "sha256": "65af0d9787e3ec2313812d04d09d06e2f4b152ab5a3bf27a29544b949639384d",
+      "size": 2239268
     },
     "assets/webcare-original-logo-3d.jpg": {
       "sha256": "bcf6cebcbcf9752bebaf95776a12b57a038d10562cb6c9ec2cd48d69b62122f5",
