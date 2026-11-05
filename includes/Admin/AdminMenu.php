@@ -394,23 +394,25 @@ class AdminMenu {
         $active_tab = 'dashboard';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $tab_param = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
-        if ($current_page === 'wcp-scanner-scan' || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan')) $active_tab = 'scan';
-        elseif ($current_page === 'wcp-scanner-vault' || ($current_page === 'wcp-security-scanner' && in_array($tab_param, ['vault', 'quarantine'], true))) $active_tab = 'vault';
-        elseif ($current_page === 'wcp-scanner-tools' || ($current_page === 'wcp-security-scanner' && $tab_param === 'targeted')) $active_tab = 'targeted';
-        elseif ($current_page === 'wcp-scanner-logs' || ($current_page === 'wcp-security-scanner' && $tab_param === 'logs')) $active_tab = 'logs';
-        elseif ($current_page === 'wcp-scanner-forensics' || ($current_page === 'wcp-security-scanner' && $tab_param === 'forensics')) $active_tab = 'forensics';
-        elseif ($current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
-        elseif ($current_page === 'wcp-scanner-backup' || ($current_page === 'wcp-security-scanner' && $tab_param === 'backup')) $active_tab = 'backup';
-        elseif ($current_page === 'wcp-scanner-server' || ($current_page === 'wcp-security-scanner' && $tab_param === 'server')) $active_tab = 'server';
-        elseif ($current_page === 'wcp-scanner-vulnerabilities' || ($current_page === 'wcp-security-scanner' && $tab_param === 'vulnerabilities')) $active_tab = 'vulnerabilities';
-        elseif ($current_page === 'wcp-scanner-firewall' || ($current_page === 'wcp-security-scanner' && $tab_param === 'firewall') || $current_page === 'wcp-scanner-vpatch' || $current_page === 'wcp-scanner-caf') $active_tab = 'firewall';
-        elseif ($current_page === 'wcp-scanner-waf-logs' || ($current_page === 'wcp-security-scanner' && $tab_param === 'waf_logs')) $active_tab = 'waf_logs';
-        elseif ($current_page === 'wcp-scanner-fim' || ($current_page === 'wcp-security-scanner' && $tab_param === 'fim')) $active_tab = 'fim';
-        elseif ($current_page === 'wcp-scanner-auth' || ($current_page === 'wcp-security-scanner' && $tab_param === 'auth')) $active_tab = 'auth';
-        elseif ($current_page === 'wcp-scanner-notifications' || ($current_page === 'wcp-security-scanner' && $tab_param === 'notifications')) $active_tab = 'notifications';
-        elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
-        elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
-        elseif ($current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
+
+        // Prioritize explicit tab parameter if passed in query string
+        if ($tab_param === 'logs' || $current_page === 'wcp-scanner-logs') $active_tab = 'logs';
+        elseif ($tab_param === 'targeted' || $current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
+        elseif ($tab_param === 'vulnerabilities' || $current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
+        elseif ($tab_param === 'fim' || $current_page === 'wcp-scanner-fim') $active_tab = 'fim';
+        elseif ($tab_param === 'quarantine' || $current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
+        elseif ($tab_param === 'backup' || $current_page === 'wcp-scanner-backup') $active_tab = 'backup';
+        elseif ($tab_param === 'server' || $current_page === 'wcp-scanner-server') $active_tab = 'server';
+        elseif ($tab_param === 'forensics' || $current_page === 'wcp-scanner-forensics') $active_tab = 'forensics';
+        elseif ($tab_param === 'vault' || $current_page === 'wcp-scanner-vault') $active_tab = 'vault';
+        elseif ($tab_param === 'waf_logs' || $current_page === 'wcp-scanner-waf-logs') $active_tab = 'waf_logs';
+        elseif (in_array($tab_param, ['firewall', 'vpatch', 'caf'], true) || in_array($current_page, ['wcp-scanner-firewall', 'wcp-scanner-vpatch', 'wcp-scanner-caf'], true)) $active_tab = 'firewall';
+        elseif ($tab_param === 'auth' || $current_page === 'wcp-scanner-auth') $active_tab = 'auth';
+        elseif ($tab_param === 'notifications' || $current_page === 'wcp-scanner-notifications') $active_tab = 'notifications';
+        elseif ($tab_param === 'settings' || $current_page === 'wcp-scanner-settings') $active_tab = 'settings';
+        elseif ($tab_param === 'about' || $current_page === 'wcp-scanner-about') $active_tab = 'about';
+        elseif ($tab_param === 'wizard' || $current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
+        elseif ($current_page === 'wcp-scanner-scan' || $tab_param === 'scan') $active_tab = 'scan';
 
         $global_css_file = WCPSCAN_PATH . 'build/global.css';
         $global_js_file  = WCPSCAN_PATH . 'build/global.js';
@@ -425,11 +427,12 @@ class AdminMenu {
             wp_enqueue_script('wcp-global-script', WCPSCAN_URL . 'build/global.js', ['wp-element'], $global_js_ver, true);
         }
 
-        $is_scan_tab = ($current_page === 'wcp-scanner-scan') || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan');
+        $is_scan_cluster = ($current_page === 'wcp-scanner-scan')
+            || in_array($active_tab, ['scan', 'targeted', 'logs', 'vulnerabilities'], true);
 
         // 2. Select decoupled per-page bundle (ensures individual page updates never break other pages)
         $page_bundle = 'index';
-        if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'build/scan.js')) {
+        if ($is_scan_cluster && file_exists(WCPSCAN_PATH . 'build/scan.js')) {
             $page_bundle = 'scan';
         } elseif ($active_tab === 'firewall' && file_exists(WCPSCAN_PATH . 'build/firewall.js')) {
             $page_bundle = 'firewall';
