@@ -414,7 +414,7 @@ class AdminMenu {
 
         // 2. Select decoupled per-page bundle (ensures individual page updates never break other pages)
         $page_bundle = 'index';
-        if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'assets/scan/scan.js')) {
+        if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'build/scan.js')) {
             $page_bundle = 'scan';
         } elseif ($active_tab === 'firewall' && file_exists(WCPSCAN_PATH . 'build/firewall.js')) {
             $page_bundle = 'firewall';
@@ -432,15 +432,9 @@ class AdminMenu {
             $page_bundle = 'wizard';
         }
 
-        if ($page_bundle === 'scan') {
-            $js_rel = 'assets/scan/scan.js';
-            $css_rel = 'assets/scan/scan.css';
-            $asset_file = WCPSCAN_PATH . 'assets/scan/scan.asset.php';
-        } else {
-            $js_rel = "build/{$page_bundle}.js";
-            $css_rel = file_exists(WCPSCAN_PATH . "build/{$page_bundle}.css") ? "build/{$page_bundle}.css" : '';
-            $asset_file = WCPSCAN_PATH . "build/{$page_bundle}.asset.php";
-        }
+        $js_rel = "build/{$page_bundle}.js";
+        $css_rel = file_exists(WCPSCAN_PATH . "build/{$page_bundle}.css") ? "build/{$page_bundle}.css" : '';
+        $asset_file = WCPSCAN_PATH . "build/{$page_bundle}.asset.php";
 
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
         $bundle_file = WCPSCAN_PATH . $js_rel;

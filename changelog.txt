@@ -1,4 +1,10 @@
 v:2.5.0 - 2026-11-05
+- Architecture Standardization Across All Pages & Assets Cleanup:
+  * Rogue Bundle Elimination (assets/scan/): Completely removed the legacy `assets/scan/` directory (`scan.js`, `scan.css`, `scan.asset.php`). Standardized the Scan page to use the exact same decoupled build pipeline as all other plugin views.
+  * Dedicated Scan Build Entry (src/entries/scan.tsx -> build/scan.js): Added `src/entries/scan.tsx` with error boundary resilience, compiled directly by Webpack into `build/scan.js` and `build/scan.asset.php`.
+  * Uniform Asset Routing (AdminMenu.php): Updated `AdminMenu.php` routing to uniformly load `build/scan.js` for the Scanner view without special cases, eliminating stale cache divergence between client-side tab navigation and full browser page reloads.
+  * OS-Adaptive Keyboard Shortcut & Mojibake Prevention: Replaced standalone Apple command symbol (`⌘K`) with universal OS-adaptive `Ctrl+K` across all navigation headers (`App.tsx`, `WcpShell.tsx`), preventing character corruption in Windows environments.
+  * Developer Guidelines Streamlining (AGENTS.md): Removed legacy constraints restricting modifications to the Scan page, enabling unified design system enhancements across all plugin pages.
 - UTF-8 Encoding & CP437 Mojibake Elimination (scan.js):
   * Comprehensive Character Set Restoration: Fixed CP437 encoding corruption across the standalone Scanner bundle (assets/scan/scan.js). Restored over 625 corrupted sequences into clean, native UTF-8 characters (e.g. replacing 'ΓÇó' / 'ГÇó' with bullet dots '•', 'ΓåÆ' / 'ГåÆ' with arrows '→', 'ΓÇô' with dashes '–', and command symbols '⌘K').
 - Full-Width Fluid Layout & Container Padding Normalization Across All Pages (index.css, scan.css, WcpShell.tsx, AdminMenu.php):

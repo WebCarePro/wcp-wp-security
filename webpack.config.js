@@ -6,6 +6,7 @@ module.exports = {
   entry: {
     'global': path.resolve(__dirname, 'src/entries/global.ts'),
     'index': path.resolve(__dirname, 'src/index.tsx'),
+    'scan': path.resolve(__dirname, 'src/entries/scan.tsx'),
     'firewall': path.resolve(__dirname, 'src/entries/firewall.tsx'),
     'waf-logs': path.resolve(__dirname, 'src/entries/waf-logs.tsx'),
     'auth': path.resolve(__dirname, 'src/entries/auth.tsx'),

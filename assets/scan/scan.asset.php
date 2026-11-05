@@ -1,9 +1,0 @@
-<?php
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
-return array(
-	'dependencies' => array( 'react', 'wp-api-fetch', 'wp-element' ),
-	'version'      => '41d8e4f17c3b375da3ce',
-);
