@@ -1,4 +1,13 @@
 v:2.5.0 - 2026-11-05
+- Firewall Sub-Tab Consolidation & Clean Dropdown Navigation (FirewallPage.tsx, index.css):
+  * Clean Single-Line Navigation: Streamlined the wrapping 11-item Firewall tab bar into a clean, unified primary bar. Placed primary operational hubs (Live Incident Stream, Firewall Rules, CAF StackGuard, Cloudflare Edge, Behavioral WAF, and 2026 AI Defense) directly on the bar.
+  * Advanced Modules Dropdown Menu: Consolidated secondary tools (Red Team Attack Drill, Supply-Chain & SBOM, Server Security, Cloud Threat Intel, and Virtual Patching) into an accessible, theme-adaptive dropdown menu with automatic click-outside dismissal and dynamic active tab indicator.
+  * Full Deep-Link & URL Sync Integrity: Preserved complete URL query parameter synchronization (`?tab=...`) and browser history navigation across all consolidated sub-tabs.
+- First-Time Protection Quickstart & Onboarding Wizard (SetupWizard.tsx, wizard.tsx, AdminMenu.php, ScannerRoutes.php):
+  * Interactive Multi-Step Quickstart: Built a seamless 6-step setup flow for first-time plugin activation explaining security protections in plain English for 2026 AI botnets, automated scrapers, and 0-day exploits.
+  * Owner IP Whitelisting & Lockout Shield: Surfaces the administrator's detected IP with a 1-click allowlist toggle and displays the permanent 6-character emergency unblock Support Code.
+  * Live Cloudflare Proxy Detection: Inspects incoming HTTP headers (e.g. `HTTP_CF_RAY`) to advise users whether Cloudflare proxy edge is active or on-premise fallback is running.
+  * Dedicated Lightweight Bundle: Compiled independently into `build/wizard.js` (~57 KB) without modifying or re-bundling the locked Scan Page.
 - Universal URL Synchronization & Per-Tab Deep Linking (FirewallPage.tsx, AuthSecurityPage.tsx, FileIntegrityPage.tsx, SettingsPage.tsx, WcpVaultPage.tsx):
   * Unique Sub-Tab URL Routing: Enabled bi-directional browser address bar synchronization across all sub-tabs. Switching between Live Stream (`tab=stream`), Rules (`tab=rules`), CAF StackGuard (`tab=caf`), Cloudflare Edge (`tab=cloudflare`), Red Team (`tab=drill`), Supply-Chain (`tab=supply_chain`), Behavioral (`tab=behavioral`), AI Defense (`tab=ai_defense`), Server Security (`tab=server_sec`), Threat Intel (`tab=intel`), and Virtual Patching (`tab=vpatch`) dynamically updates the browser URL via `history.pushState`.
   * Deep-Linking & Browser History: Added `popstate` event listeners and URL search param initializers, ensuring direct link sharing, page reloads, and browser Back/Forward navigation seamlessly open the exact requested tab.

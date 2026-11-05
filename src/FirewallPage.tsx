@@ -1,4 +1,4 @@
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useRef } from '@wordpress/element';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -50,7 +50,8 @@ import {
   History,
   AlertCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MoreHorizontal
 } from 'lucide-react';
 import { VirtualPatchCard } from './components/VirtualPatchCard';
 import { CustomerLockoutCard } from './components/CustomerLockoutCard';
@@ -273,6 +274,20 @@ export const FirewallPage = ({
   const [activeTab, setActiveTab] = useState<'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense'>(getStartingTab);
   const [copiedIp, setCopiedIp] = useState<string | null>(null);
   const [showDevTelemetry, setShowDevTelemetry] = useState<boolean>(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    if (isMoreMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isMoreMenuOpen]);
 
   // In-Page Notification Toast / Alert Banner State
   const [firewallNotice, setFirewallNotice] = useState<{
@@ -2406,12 +2421,12 @@ export const FirewallPage = ({
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs */}
-      <div className="wcp-tabs-bar">
+      {/* Navigation Sub-Tabs & Dropdown */}
+      <div className="wcp-tabs-bar" style={{ alignItems: 'center', position: 'relative' }}>
         <button
           type="button"
           className={`wcp-tab-link ${activeTab === 'stream' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('stream')}
+          onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('stream'); }}
         >
           <Activity size={16} /> Live Incident Stream ({logs.length})
         </button>
@@ -2419,7 +2434,7 @@ export const FirewallPage = ({
         <button
           type="button"
           className={`wcp-tab-link ${activeTab === 'rules' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('rules')}
+          onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('rules'); }}
         >
           <Sliders size={16} /> Firewall Rules &amp; Controls
         </button>
@@ -2427,7 +2442,7 @@ export const FirewallPage = ({
         <button
           type="button"
           className={`wcp-tab-link ${activeTab === 'caf' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('caf')}
+          onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('caf'); }}
         >
           <Sparkles size={16} color="#0284c7" />
           <span>Adaptive Firewall (CAF)</span>
@@ -2439,7 +2454,7 @@ export const FirewallPage = ({
         <button
           type="button"
           className={`wcp-tab-link ${activeTab === 'cloudflare' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('cloudflare')}
+          onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('cloudflare'); }}
         >
           <Cloud
             size={16}
@@ -2458,24 +2473,8 @@ export const FirewallPage = ({
 
         <button
           type="button"
-          className={`wcp-tab-link ${activeTab === 'drill' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('drill')}
-        >
-          <Target size={16} /> Red Team Attack Drill
-        </button>
-
-        <button
-          type="button"
-          className={`wcp-tab-link ${activeTab === 'supply_chain' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('supply_chain')}
-        >
-          <Layers size={16} /> Supply-Chain &amp; SBOM
-        </button>
-
-        <button
-          type="button"
           className={`wcp-tab-link ${activeTab === 'behavioral' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('behavioral')}
+          onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('behavioral'); }}
         >
           <Sliders size={16} /> Behavioral WAF &amp; Bot Traps
         </button>
@@ -2483,35 +2482,162 @@ export const FirewallPage = ({
         <button
           type="button"
           className={`wcp-tab-link ${activeTab === 'ai_defense' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('ai_defense')}
+          onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('ai_defense'); }}
         >
           <Sparkles size={16} /> 2026 AI Defense &amp; Decoy Traps
         </button>
 
-        <button
-          type="button"
-          className={`wcp-tab-link ${activeTab === 'server_sec' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('server_sec')}
-        >
-          <Server size={16} /> Server Security (Nginx / Apache)
-        </button>
+        {/* More Security Tools Dropdown */}
+        <div ref={moreMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+          <button
+            type="button"
+            className={`wcp-tab-link ${['drill', 'supply_chain', 'server_sec', 'intel', 'vpatch'].includes(activeTab) ? 'is-active' : ''}`}
+            onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            aria-expanded={isMoreMenuOpen}
+          >
+            <Layers size={16} />
+            <span>
+              {activeTab === 'drill' && 'Red Team Attack Drill'}
+              {activeTab === 'supply_chain' && 'Supply-Chain & SBOM'}
+              {activeTab === 'server_sec' && 'Server Security'}
+              {activeTab === 'intel' && 'Cloud Threat Intel'}
+              {activeTab === 'vpatch' && 'Virtual Patching'}
+              {!['drill', 'supply_chain', 'server_sec', 'intel', 'vpatch'].includes(activeTab) && 'Advanced Modules'}
+            </span>
+            <ChevronDown size={14} style={{ transform: isMoreMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+          </button>
 
-        <button
-          type="button"
-          className={`wcp-tab-link ${activeTab === 'intel' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('intel')}
-        >
-          <Globe size={16} /> Cloud Threat Intel & Botnet Feeds
-        </button>
+          {isMoreMenuOpen && (
+            <div
+              className="wcp-dropdown-menu"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: 0,
+                zIndex: 100,
+                minWidth: '240px',
+                background: 'var(--wcp-bg-panel, #ffffff)',
+                border: '1px solid var(--wcp-border, #e2e8f0)',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                padding: '6px 0',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('drill'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  background: activeTab === 'drill' ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                  color: activeTab === 'drill' ? '#4f46e5' : 'inherit',
+                  fontWeight: activeTab === 'drill' ? 600 : 500,
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px'
+                }}
+              >
+                <Target size={15} color="#dc2626" />
+                <span>Red Team Attack Drill</span>
+              </button>
 
-        <button
-          type="button"
-          className={`wcp-tab-link ${activeTab === 'vpatch' ? 'is-active' : ''}`}
-          onClick={() => handleSwitchTab('vpatch')}
-        >
-          <ShieldAlert size={16} />
-          Virtual Patching &amp; 0-Day Shield
-        </button>
+              <button
+                type="button"
+                onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('supply_chain'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  background: activeTab === 'supply_chain' ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                  color: activeTab === 'supply_chain' ? '#4f46e5' : 'inherit',
+                  fontWeight: activeTab === 'supply_chain' ? 600 : 500,
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px'
+                }}
+              >
+                <Layers size={15} color="#7c3aed" />
+                <span>Supply-Chain &amp; SBOM</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('server_sec'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  background: activeTab === 'server_sec' ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                  color: activeTab === 'server_sec' ? '#4f46e5' : 'inherit',
+                  fontWeight: activeTab === 'server_sec' ? 600 : 500,
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px'
+                }}
+              >
+                <Server size={15} color="#0284c7" />
+                <span>Server Security (Nginx / Apache)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('intel'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  background: activeTab === 'intel' ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                  color: activeTab === 'intel' ? '#4f46e5' : 'inherit',
+                  fontWeight: activeTab === 'intel' ? 600 : 500,
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px'
+                }}
+              >
+                <Globe size={15} color="#059669" />
+                <span>Cloud Threat Intel &amp; Feeds</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setIsMoreMenuOpen(false); handleSwitchTab('vpatch'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  background: activeTab === 'vpatch' ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                  color: activeTab === 'vpatch' ? '#4f46e5' : 'inherit',
+                  fontWeight: activeTab === 'vpatch' ? 600 : 500,
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px'
+                }}
+              >
+                <ShieldAlert size={15} color="#ea580c" />
+                <span>Virtual Patching &amp; 0-Day Shield</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         <button
           type="button"

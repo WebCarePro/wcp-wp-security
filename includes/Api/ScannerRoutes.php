@@ -1747,6 +1747,133 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'acknowledge_activity_tamper_alert'],
             'permission_callback' => $permission,
         ]);
+
+        // Onboarding & Protection Quickstart Wizard Routes
+        register_rest_route(self::NAMESPACE, '/wizard/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_wizard_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/wizard/save', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_wizard_settings'],
+            'permission_callback' => $permission,
+        ]);
+    }
+
+    /**
+     * Retrieve status and environmental signals for the Onboarding Protection Wizard.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function get_wizard_status(\WP_REST_Request $request) {
+        $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        
+        // Detect live Cloudflare edge proxy
+        $is_cloudflare = !empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
+        $cf_ray = !empty($_SERVER['HTTP_CF_RAY']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_RAY'])) : '';
+
+        // Detect archetype
+        $archetype = 'business';
+        if (class_exists('WooCommerce')) {
+            $archetype = 'ecommerce';
+        } elseif (class_exists('MemberPress') || class_exists('LearnDash_Settings_Section') || class_exists('LifterLMS')) {
+            $archetype = 'membership';
+        }
+
+        $waf_settings = get_option('wcpscan_waf_settings', []);
+        $current_whitelist = (string) get_option('wcpscan_waf_whitelisted_ips', '');
+        $is_whitelisted = strpos($current_whitelist, $client_ip) !== false;
+
+        $uid = get_current_user_id();
+        $support_code = '#WCP-' . strtoupper(substr(md5((string) $uid . wp_salt('auth')), 0, 4));
+
+        return new \WP_REST_Response([
+            'success'              => true,
+            'client_ip'            => $client_ip,
+            'is_whitelisted'       => $is_whitelisted,
+            'is_cloudflare_active' => $is_cloudflare,
+            'cf_ray'               => $cf_ray,
+            'admin_email'          => get_option('admin_email'),
+            'site_name'            => get_bloginfo('name'),
+            'detected_archetype'   => $archetype,
+            'wizard_completed'     => (bool) get_option('wcpscan_wizard_completed', false),
+            'support_code'         => $support_code,
+            'waf_settings'         => $waf_settings,
+        ], 200);
+    }
+
+    /**
+     * Atomic save handler for Onboarding Quickstart settings.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function save_wizard_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+
+        // 1. Whitelist Owner IP
+        if (!empty($params['whitelist_ip'])) {
+            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+            $existing_ips = (string) get_option('wcpscan_waf_whitelisted_ips', '');
+            if (strpos($existing_ips, $client_ip) === false) {
+                $new_whitelist = trim($existing_ips . "\n" . $client_ip);
+                update_option('wcpscan_waf_whitelisted_ips', $new_whitelist);
+            }
+        }
+
+        // 2. Archetype & Profile
+        $archetype = sanitize_key($params['archetype'] ?? 'business');
+        update_option('wcpscan_site_archetype', $archetype);
+
+        // 3. Firewall Toggles
+        $waf_settings = get_option('wcpscan_waf_settings', []);
+        if (isset($params['firewall_settings']) && is_array($params['firewall_settings'])) {
+            foreach ($params['firewall_settings'] as $k => $v) {
+                $waf_settings[sanitize_key($k)] = (bool) $v;
+            }
+            update_option('wcpscan_waf_settings', $waf_settings);
+        }
+
+        // 4. Cloudflare Integration (if provided)
+        if (!empty($params['cloudflare']['api_token']) && !empty($params['cloudflare']['zone_id'])) {
+            $cf = get_option('wcpscan_cloudflare_settings', []);
+            $cf['api_token'] = sanitize_text_field($params['cloudflare']['api_token']);
+            $cf['zone_id']   = sanitize_text_field($params['cloudflare']['zone_id']);
+            $cf['enabled']   = true;
+            update_option('wcpscan_cloudflare_settings', $cf);
+        }
+
+        // 5. Scheduled Scan Frequency
+        if (!empty($params['scan_schedule'])) {
+            $freq = sanitize_key($params['scan_schedule']);
+            if (in_array($freq, ['daily', 'weekly', 'manual'], true)) {
+                $settings = get_option('wcpscan_settings', []);
+                $settings['schedule_frequency'] = $freq;
+                update_option('wcpscan_settings', $settings);
+            }
+        }
+
+        // 6. Security Alert Notifications
+        if (!empty($params['alerts'])) {
+            $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
+            $notif_settings = get_option('wcpscan_notification_settings', []);
+            $notif_settings['email_recipient'] = $alert_email;
+            $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
+            $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
+            $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
+            update_option('wcpscan_notification_settings', $notif_settings);
+        }
+
+        // 7. Mark Wizard as Completed
+        update_option('wcpscan_wizard_completed', true);
+
+        return new \WP_REST_Response([
+            'success' => true,
+            'message' => __('WCP Protection Quickstart successfully configured.', 'wcp-security-scanner'),
+        ], 200);
     }
 
     public static function start_scan(\WP_REST_Request $request) {

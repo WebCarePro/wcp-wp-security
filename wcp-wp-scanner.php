@@ -72,6 +72,11 @@ register_activation_hook(__FILE__, function () {
 
     // 2. Install Database Schema
     \WcpScanner\Database\Migration::install();
+
+    // 3. Queue First-Time Onboarding Wizard Redirect
+    if (!get_option('wcpscan_wizard_completed', false)) {
+        add_option('wcpscan_activation_redirect_wizard', true);
+    }
 });
 
 register_deactivation_hook(__FILE__, function () {

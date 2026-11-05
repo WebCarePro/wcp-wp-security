@@ -13,6 +13,7 @@ class AdminMenu {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_brand_styles']);
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
+        add_action('admin_init', [__CLASS__, 'handle_wizard_activation_redirect']);
         add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
         add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
         add_action('wp_ajax_wcpscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
@@ -212,6 +213,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Sub-Page: Onboarding & Protection Quickstart Wizard
+        add_submenu_page(
+            null,
+            __('WCP Security Protection Quickstart Wizard', 'wcp-security-scanner'),
+            __('Protection Wizard', 'wcp-security-scanner'),
+            'manage_options',
+            'wcp-scanner-wizard',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Sub-Page: Database Backup Vault
         add_submenu_page(
             null,
@@ -384,6 +395,7 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-notifications' || ($current_page === 'wcp-security-scanner' && $tab_param === 'notifications')) $active_tab = 'notifications';
         elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
+        elseif ($current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
 
         // 1. Enqueue Global Core Shell Assets (Design tokens, CSS variables & typography)
         if (file_exists(WCPSCAN_PATH . 'build/global.css')) {
@@ -411,6 +423,8 @@ class AdminMenu {
             $page_bundle = 'fim';
         } elseif (in_array($active_tab, ['settings', 'notifications'], true) && file_exists(WCPSCAN_PATH . 'build/settings.js')) {
             $page_bundle = 'settings';
+        } elseif ($active_tab === 'wizard' && file_exists(WCPSCAN_PATH . 'build/wizard.js')) {
+            $page_bundle = 'wizard';
         }
 
         if ($page_bundle === 'scan') {
@@ -705,6 +719,30 @@ class AdminMenu {
             $redirect_url = remove_query_arg(['wcpscan_action', '_wpnonce']);
             wp_safe_redirect($redirect_url);
             exit;
+        }
+    }
+
+    /**
+     * Handle first-time plugin activation redirect to the Onboarding & Protection Quickstart Wizard.
+     */
+    public static function handle_wizard_activation_redirect() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (get_option('wcpscan_activation_redirect_wizard', false)) {
+            delete_option('wcpscan_activation_redirect_wizard');
+
+            if (is_network_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+                return;
+            }
+
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+            if ($page !== 'wcp-scanner-wizard') {
+                wp_safe_redirect(admin_url('admin.php?page=wcp-scanner-wizard'));
+                exit;
+            }
         }
     }
 
