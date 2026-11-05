@@ -385,17 +385,42 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-settings' || ($current_page === 'wcp-security-scanner' && $tab_param === 'settings')) $active_tab = 'settings';
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
 
+        // 1. Enqueue Global Core Shell Assets (Design tokens, CSS variables & typography)
+        if (file_exists(WCPSCAN_PATH . 'build/global.css')) {
+            wp_enqueue_style('wcp-global-style', WCPSCAN_URL . 'build/global.css', ['wp-components'], WCPSCAN_VERSION);
+        }
+        if (file_exists(WCPSCAN_PATH . 'build/global.js')) {
+            wp_enqueue_script('wcp-global-script', WCPSCAN_URL . 'build/global.js', ['wp-element'], WCPSCAN_VERSION, true);
+        }
+
         $is_scan_tab = ($current_page === 'wcp-scanner-scan') || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan');
 
-        $js_rel = 'build/index.js';
-        $css_rel = 'build/index.css';
-        $asset_file = WCPSCAN_PATH . 'build/index.asset.php';
-
-        // Load dedicated, isolated Scan bundle matching fa0454a57af99bb45244acea6ecbb6614237aa5d
+        // 2. Select decoupled per-page bundle (ensures individual page updates never break other pages)
+        $page_bundle = 'index';
         if ($is_scan_tab && file_exists(WCPSCAN_PATH . 'assets/scan/scan.js')) {
+            $page_bundle = 'scan';
+        } elseif ($active_tab === 'firewall' && file_exists(WCPSCAN_PATH . 'build/firewall.js')) {
+            $page_bundle = 'firewall';
+        } elseif ($active_tab === 'waf_logs' && file_exists(WCPSCAN_PATH . 'build/waf-logs.js')) {
+            $page_bundle = 'waf-logs';
+        } elseif ($active_tab === 'auth' && file_exists(WCPSCAN_PATH . 'build/auth.js')) {
+            $page_bundle = 'auth';
+        } elseif ($active_tab === 'vault' && file_exists(WCPSCAN_PATH . 'build/vault.js')) {
+            $page_bundle = 'vault';
+        } elseif ($active_tab === 'fim' && file_exists(WCPSCAN_PATH . 'build/fim.js')) {
+            $page_bundle = 'fim';
+        } elseif (in_array($active_tab, ['settings', 'notifications'], true) && file_exists(WCPSCAN_PATH . 'build/settings.js')) {
+            $page_bundle = 'settings';
+        }
+
+        if ($page_bundle === 'scan') {
             $js_rel = 'assets/scan/scan.js';
             $css_rel = 'assets/scan/scan.css';
             $asset_file = WCPSCAN_PATH . 'assets/scan/scan.asset.php';
+        } else {
+            $js_rel = "build/{$page_bundle}.js";
+            $css_rel = file_exists(WCPSCAN_PATH . "build/{$page_bundle}.css") ? "build/{$page_bundle}.css" : '';
+            $asset_file = WCPSCAN_PATH . "build/{$page_bundle}.asset.php";
         }
 
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
@@ -472,8 +497,8 @@ class AdminMenu {
             ]);
         }
 
-        if (file_exists(WCPSCAN_PATH . $css_rel)) {
-            wp_enqueue_style('wcp-scanner-style', $css_url, ['wp-components'], $version);
+        if (!empty($css_rel) && file_exists(WCPSCAN_PATH . $css_rel)) {
+            wp_enqueue_style('wcp-scanner-style', $css_url, ['wcp-global-style'], $version);
         }
     }
 

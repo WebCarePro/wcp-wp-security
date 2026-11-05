@@ -1,0 +1,1 @@
+(()=>{"use strict";!function(){try{"dark"===(localStorage.getItem("wcp_theme_mode")||"light")&&(document.body.classList.add("wcp-theme-dark"),document.documentElement.classList.add("wcp-theme-dark"))}catch(t){}}()})();

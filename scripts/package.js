@@ -68,7 +68,18 @@ function copyDirRecursive(src, dest) {
     if (entry.isDirectory()) {
       copyDirRecursive(srcPath, destPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      if (entry.name.endsWith('.asset.php')) {
+        let content = fs.readFileSync(srcPath, 'utf8');
+        if (content.charCodeAt(0) === 0xFEFF) {
+          content = content.slice(1);
+        }
+        if (!content.includes('ABSPATH')) {
+          content = content.replace(/^<\?php\s*/i, "<?php\nif ( ! defined( 'ABSPATH' ) ) {\n\texit;\n}\n\n");
+        }
+        fs.writeFileSync(destPath, content, { encoding: 'utf8' });
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
     }
   }
 }
