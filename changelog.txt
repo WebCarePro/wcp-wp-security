@@ -1,4 +1,10 @@
 v:2.5.0 - 2026-11-05
+- Scanner Page Authoritative UI/UX Restoration & Telemetry Parity (SecurityScannerPage.tsx, App.tsx, WcpShell.tsx):
+  * Hero Status & Gauge Card: Restored the authoritative "Deep WordPress Security Scanner" hero card featuring the radar pill, 23 active security engines highlight, real-time telemetry HUD badge, safe 1-click quarantine pill, and live audit status gauge with dynamic threat count, inspected files metric, and completion timestamp.
+  * 3-Column Profile Selection Grid: Implemented the high-contrast scan launcher card with Quick Scan (Plugins & Themes), Complete Website Scan, and Custom Security Engines profile cards with custom engine count and configure trigger.
+  * 2-Row Historical Telemetry Ribbon: Organized audit performance metrics into a clean 2-row layout with Scan Run switcher, Profile badge, Started/Ended timestamps, Duration, Peak RAM, Throughput (files/sec), CPU load, total files, threats badge, PHP runtime pill, active engines pill, and Latest refresh button.
+  * Freelancer Support Banner Parity: Integrated the dedicated 1-on-1 assistance banner connecting directly with Mir Alamin (WebCare Pro) for safe malware eradication and server hardening.
+  * Character Encoding & Brand Formatting: Sanitized all bullets (&bull;) and arrows (&rarr;, &nearr;) to prevent CP437/UTF-8 mojibake, and synchronized brand typography to "WebCare Pro Security" across both App.tsx and WcpShell.tsx.
 - Architecture Standardization Across All Pages & Assets Cleanup:
   * Rogue Bundle Elimination (assets/scan/): Completely removed the legacy `assets/scan/` directory (`scan.js`, `scan.css`, `scan.asset.php`). Standardized the Scan page to use the exact same decoupled build pipeline as all other plugin views.
   * Dedicated Scan Build Entry (src/entries/scan.tsx -> build/scan.js): Added `src/entries/scan.tsx` with error boundary resilience, compiled directly by Webpack into `build/scan.js` and `build/scan.asset.php`.
