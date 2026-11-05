@@ -1,4 +1,6 @@
-v:2.5.0 - 2026-11-05
+v:2.6.0 - 2026-11-06
+- Navigation Bar Centering & Header Geometry Alignment (index.css):
+  * Centered 7-Pillar Navigation HUD: Updated `.wcp-header-tier-bottom` to `justify-content: center !important` with `margin: 0 auto !important` for `.nav-tabs`, horizontally centering the primary module navigation capsule across all pages for a balanced, focused header layout.
 - Authentic Scanner Live Progress Bar & Telemetry HUD Restoration (SecurityScannerPage.tsx):
   * Exact Visual Parity with Original Specification: Rebuilt and restored the authentic live scanning area directly matching the original implementation from old/wcp-security-scanner.
   * Turbo Headroom Status Strip: Integrated the dynamic governor status strip featuring the emerald + TURBO HEADROOM badge, real-time CPU & memory headroom calculations, safety envelope ceiling display (70% max), and free memory headroom telemetry (e.g. 870 MB Free).

@@ -1,6 +1,6 @@
 {
-  "version": "2.5.0",
-  "generated_at": "2026-11-05T12:08:37.327Z",
+  "version": "2.6.0",
+  "generated_at": "2026-11-05T23:10:11.928Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -56,16 +56,16 @@
       "size": 744251
     },
     "build/global-rtl.css": {
-      "sha256": "cd70f969ba39df9f0c25f1b65d65f4dfd71b74ba9be51e52ea430177ea787061",
-      "size": 584170
+      "sha256": "6181f761cb8cf5f06ad4e3ae465bb267f2806d42fc774903235937afba51cc43",
+      "size": 584167
     },
     "build/global.asset.php": {
-      "sha256": "ed2fb075d579a2c0e250d365591c49216a6d1d81656778d6db119de1614301c2",
+      "sha256": "8b8828174a7cddd8071e1a5fd330637fca9c6e6f72bce88e635311352350fcc3",
       "size": 126
     },
     "build/global.css": {
-      "sha256": "c65da807e2e9b5b2b5504b2d236dca0ed964c3e2b48d8d35e6904c185da294d2",
-      "size": 583986
+      "sha256": "0d53b7225b13b8abc0af3ff01babb3c996b7de62c0c3f60ab353bc772b52a76e",
+      "size": 583983
     },
     "build/global.js": {
       "sha256": "ca063a09cb43667a1f874cdb64430c1be82d4ea01d35a9537934f01382f17463",
@@ -748,15 +748,15 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "f35a0b309784abafeeb606ed1180ce7ab3517477af3474fefa8c7a4817a28141",
+      "sha256": "3d4beb056db4fb7a47b32de64b6c450881de1563aa738bc2d9cfada80ec985d6",
       "size": 429
     },
     "README.md": {
-      "sha256": "e37aeaaf01022ad837e86acab757150b99b3229a7f671878477ee8dee6307968",
+      "sha256": "481bf4d7ad0139f08566b2307624415a33365869841eaca90eb4471a8c6a92be",
       "size": 63859
     },
     "readme.txt": {
-      "sha256": "6468b634f718eb4ce714fb297e3db7be8373719ac9c4699ce563479762feb807",
+      "sha256": "10d349b61d7e3f10e2d3b70da564ac9a73a8f4357d11876df9b89c2bd70f8849",
       "size": 30310
     },
     "uninstall.php": {
@@ -764,7 +764,7 @@
       "size": 9018
     },
     "wcp-wp-scanner.php": {
-      "sha256": "f3f1e4e3a4992229c994d8334f571b6ae8fc88522d5dd4afeb5b87bae5873963",
+      "sha256": "52c8d163f49167193fdc5dd4b0b4f55c6d8155c09372c2d5782af70342bdafe2",
       "size": 6680
     }
   }
