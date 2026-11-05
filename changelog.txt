@@ -1,4 +1,6 @@
 v:2.5.0 - 2026-11-05
+- Decoupled Routing & Scan Page Synchronization (App.tsx, scan.js):
+  * Seamless In-Page Navigation: Updated handleNavTabChange on Dashboard and Scanner views to execute direct canonical page routing via window.location.href. Eliminated in-memory state divergence and history.pushState desynchronization between Dashboard transitions and standalone Scan page reloads, ensuring the official Deep WordPress Security Scanner view loads consistently before and after browser refresh.
 - Universal Header & Navigation Menu Parity (WcpShell.tsx, App.tsx, scan.js):
   * Identical Global Navigation Row: Synchronized the navigation header across all decoupled sub-pages (Firewall, Identity, Vault & Tools, Settings, WAF Logs, and FIM) to be 100% identical to Dashboard and Scanner. Added the quick-jump "All Modules" (⌘K) trigger connected to the full MegaMenuModal dialog with deep-linking routing and global Ctrl+K / Cmd+K keyboard listeners.
   * Synchronized Action Controls & Mode Switcher: Integrated the interactive Advanced SOC (53 Engines) mode switcher toggle pill, Welcome Guide trigger with WelcomeModal pre-flight readiness dialog, and Panic Button across all sub-pages for unified administrative ergonomics.

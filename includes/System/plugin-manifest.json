@@ -1,6 +1,6 @@
 {
   "version": "2.5.0",
-  "generated_at": "2026-11-05T06:19:58.133Z",
+  "generated_at": "2026-11-05T06:34:21.200Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -36,8 +36,8 @@
       "size": 572295
     },
     "assets/scan/scan.js": {
-      "sha256": "79016761d4b0a95395d0a571b311fd160ee74e09c05c3c32ee2031886a43685c",
-      "size": 2241323
+      "sha256": "eeb61215b8b66feea7a37114215de748f59f53fab04c3664b7fcb73e67c689ae",
+      "size": 2241492
     },
     "assets/webcare-original-logo-3d.jpg": {
       "sha256": "bcf6cebcbcf9752bebaf95776a12b57a038d10562cb6c9ec2cd48d69b62122f5",
@@ -84,12 +84,12 @@
       "size": 218
     },
     "build/index.asset.php": {
-      "sha256": "0c548bc466037cb89e6a13ca3d29d3cf26d3f8427c5903b888ac8fa0fb4c31f3",
+      "sha256": "38d5b46b6c280117dbe6fbedf9edd8217eb001d204cf62f1850f783500156522",
       "size": 163
     },
     "build/index.js": {
-      "sha256": "755bb5df9dbdf4a6233c797890d5b1e4c04943a97c0ab3cc38d122ff1c59cac5",
-      "size": 2293579
+      "sha256": "736794a7f538318c38e48f9ee4aa743422f480f7a500e5c1ccf697f0f04e848a",
+      "size": 2293774
     },
     "build/settings.asset.php": {
       "sha256": "79c0fb35aa570a4d6e025ba9d1cacce0e0521c58339c9c853dd41bfa8803bb49",
