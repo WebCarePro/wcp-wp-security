@@ -1790,6 +1790,11 @@ class ScannerRoutes {
         $uid = get_current_user_id();
         $support_code = '#WCP-' . strtoupper(substr(md5((string) $uid . wp_salt('auth')), 0, 4));
 
+        $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+        $root_domain = class_exists('\WcpScanner\Cloudflare\CloudflareService')
+            ? \WcpScanner\Cloudflare\CloudflareService::extract_root_domain($site_host)
+            : $site_host;
+
         return new \WP_REST_Response([
             'success'              => true,
             'client_ip'            => $client_ip,
@@ -1798,6 +1803,8 @@ class ScannerRoutes {
             'cf_ray'               => $cf_ray,
             'admin_email'          => get_option('admin_email'),
             'site_name'            => get_bloginfo('name'),
+            'site_domain'          => $site_host,
+            'root_domain'          => $root_domain,
             'detected_archetype'   => $archetype,
             'wizard_completed'     => (bool) get_option('wcpscan_wizard_completed', false),
             'support_code'         => $support_code,
@@ -1838,12 +1845,26 @@ class ScannerRoutes {
         }
 
         // 4. Cloudflare Integration (if provided)
-        if (!empty($params['cloudflare']['api_token']) && !empty($params['cloudflare']['zone_id'])) {
-            $cf = get_option('wcpscan_cloudflare_settings', []);
-            $cf['api_token'] = sanitize_text_field($params['cloudflare']['api_token']);
-            $cf['zone_id']   = sanitize_text_field($params['cloudflare']['zone_id']);
-            $cf['enabled']   = true;
-            update_option('wcpscan_cloudflare_settings', $cf);
+        if (!empty($params['cloudflare']['api_token'])) {
+            $cf_token = sanitize_text_field($params['cloudflare']['api_token']);
+            $cf_zone  = !empty($params['cloudflare']['zone_id']) ? sanitize_text_field($params['cloudflare']['zone_id']) : '';
+
+            // If Zone ID is empty, attempt auto-detect via CloudflareService
+            if (empty($cf_zone) && class_exists('\WcpScanner\Cloudflare\CloudflareService')) {
+                $verify = \WcpScanner\Cloudflare\CloudflareService::verify_zone(null, $cf_token);
+                if (!empty($verify['success']) && !empty($verify['zone_id'])) {
+                    $cf_zone = $verify['zone_id'];
+                }
+            }
+
+            if (!empty($cf_zone) && class_exists('\WcpScanner\System\SettingsManager')) {
+                \WcpScanner\System\SettingsManager::save_settings([
+                    'cloudflare_enabled'        => true,
+                    'cloudflare_api_token'      => $cf_token,
+                    'cloudflare_zone_id'        => $cf_zone,
+                    'cloudflare_auto_sync_bans' => true,
+                ]);
+            }
         }
 
         // 5. Scheduled Scan Frequency
