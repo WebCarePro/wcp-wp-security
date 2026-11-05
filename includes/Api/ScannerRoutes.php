@@ -1823,7 +1823,12 @@ class ScannerRoutes {
             'waf_settings'         => $waf_settings,
             'server_info'          => $server_info,
             'active_plugin_slugs'  => $active_plugin_slugs,
+            'scan_schedule'        => !empty($global_settings['schedule_enabled'])
+                ? ($global_settings['schedule_frequency'] ?? 'daily')
+                : 'manual',
             'settings'             => [
+                'schedule_enabled'             => !empty($global_settings['schedule_enabled']),
+                'schedule_frequency'           => $global_settings['schedule_frequency'] ?? 'daily',
                 'custom_scan_options'          => $global_settings['custom_scan_options'] ?? [],
                 'scan_batch_size'              => $global_settings['scan_batch_size'] ?? 50,
                 'scan_memory_safety_envelope'  => $global_settings['scan_memory_safety_envelope'] ?? 'balanced',
@@ -1893,30 +1898,19 @@ class ScannerRoutes {
             }
         }
 
-        // 5. Scheduled Scan Frequency
-        if (!empty($params['scan_schedule'])) {
-            $freq = sanitize_key($params['scan_schedule']);
-            if (in_array($freq, ['daily', 'weekly', 'manual'], true)) {
-                $settings = get_option('wcpscan_settings', []);
-                $settings['schedule_frequency'] = $freq;
-                update_option('wcpscan_settings', $settings);
-            }
-        }
-
-        // 6. Security Alert Notifications
-        if (!empty($params['alerts'])) {
-            $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
-            $notif_settings = get_option('wcpscan_notification_settings', []);
-            $notif_settings['email_recipient'] = $alert_email;
-            $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
-            $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
-            $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
-            update_option('wcpscan_notification_settings', $notif_settings);
-        }
-
-        // 7. Advanced Engine Settings (Scan Options, Performance, Cleanup, Activity Logs, Targeted Bypass)
+        // 5. Scheduled Scan Frequency & Advanced Engine Settings
         if (class_exists('\WcpScanner\System\SettingsManager')) {
             $advanced_payload = [];
+
+            if (!empty($params['scan_schedule'])) {
+                $freq = sanitize_key($params['scan_schedule']);
+                if (in_array($freq, ['daily', 'weekly', 'manual'], true)) {
+                    $is_enabled = ($freq !== 'manual');
+                    $actual_freq = $is_enabled ? $freq : 'daily';
+                    $advanced_payload['schedule_enabled']   = $is_enabled;
+                    $advanced_payload['schedule_frequency'] = $actual_freq;
+                }
+            }
 
             if (isset($params['custom_scan_options']) && is_array($params['custom_scan_options'])) {
                 $advanced_payload['custom_scan_options'] = $params['custom_scan_options'];
@@ -1963,6 +1957,17 @@ class ScannerRoutes {
             if (!empty($advanced_payload)) {
                 \WcpScanner\System\SettingsManager::save_settings($advanced_payload);
             }
+        }
+
+        // 6. Security Alert Notifications
+        if (!empty($params['alerts'])) {
+            $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
+            $notif_settings = get_option('wcpscan_notification_settings', []);
+            $notif_settings['email_recipient'] = $alert_email;
+            $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
+            $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
+            $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
+            update_option('wcpscan_notification_settings', $notif_settings);
         }
 
         // 8. Mark Wizard as Completed
