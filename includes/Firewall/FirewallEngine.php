@@ -4483,9 +4483,22 @@ class FirewallEngine {
     }
 
     /**
-     * Add IP to custom whitelist with structured metadata
+     * Add IP to custom whitelist with structured metadata and granular rule/category scoping.
+     *
+     * @param string      $ip          The IPv4, IPv6, or CIDR address.
+     * @param string      $reason      Human-readable justification.
+     * @param string|null $admin_user  The administrator login performing the action.
+     * @param array       $scope_args  Granular scoping parameters:
+     *                                 [
+     *                                   'scope'         => 'rule'|'category'|'global',
+     *                                   'allowed_rules' => string[],
+     *                                   'allowed_cats'  => string[],
+     *                                   'endpoint'      => string,
+     *                                   'expires_in'    => int (seconds, 0 for permanent)
+     *                                 ]
+     * @return bool
      */
-    public static function add_whitelisted_ip(string $ip, string $reason = '', ?string $admin_user = null): bool {
+    public static function add_whitelisted_ip(string $ip, string $reason = '', ?string $admin_user = null, array $scope_args = []): bool {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP) && strpos($ip, '/') === false) {
             return false;
@@ -4502,12 +4515,33 @@ class FirewallEngine {
         }
 
         $now = time();
+        $scope = isset($scope_args['scope']) && in_array($scope_args['scope'], ['rule', 'category', 'global'], true)
+            ? $scope_args['scope']
+            : 'global';
+
+        $allowed_rules = !empty($scope_args['allowed_rules']) && is_array($scope_args['allowed_rules'])
+            ? array_map('sanitize_text_field', $scope_args['allowed_rules'])
+            : [];
+
+        $allowed_cats = !empty($scope_args['allowed_cats']) && is_array($scope_args['allowed_cats'])
+            ? array_map('sanitize_text_field', $scope_args['allowed_cats'])
+            : [];
+
+        $endpoint = !empty($scope_args['endpoint']) ? sanitize_text_field($scope_args['endpoint']) : '';
+        $expires_in = isset($scope_args['expires_in']) ? max(0, (int) $scope_args['expires_in']) : 0;
+        $expires_at = $expires_in > 0 ? ($now + $expires_in) : 0;
+
         self::set_ip_whitelist_meta($ip, [
-            'ip'         => $ip,
-            'reason'     => !empty($reason) ? $reason : 'Trusted access policy approved by administrator',
-            'added_at'   => $now,
-            'added_by'   => !empty($admin_user) ? $admin_user : 'admin',
-            'type'       => !empty($admin_user) ? 'manual_admin' : 'custom_whitelist',
+            'ip'            => $ip,
+            'reason'        => !empty($reason) ? $reason : 'Trusted access policy approved by administrator',
+            'added_at'      => $now,
+            'added_by'      => !empty($admin_user) ? $admin_user : 'admin',
+            'type'          => !empty($admin_user) ? 'manual_admin' : 'custom_whitelist',
+            'scope'         => $scope,
+            'allowed_rules' => $allowed_rules,
+            'allowed_cats'  => $allowed_cats,
+            'endpoint'      => $endpoint,
+            'expires_at'    => $expires_at,
         ]);
 
         return true;
@@ -4561,6 +4595,8 @@ class FirewallEngine {
             $added_at_ts = $meta['added_at'] ?? null;
             $added_at_formatted = $added_at_ts ? gmdate('M j, Y, g:i a \U\T\C', $added_at_ts) : 'Previously added';
             $added_ago = $added_at_ts ? self::format_seconds_human(max(0, $now - $added_at_ts)) . ' ago' : 'active';
+            $expires_at = !empty($meta['expires_at']) ? (int) $meta['expires_at'] : 0;
+            $is_expired = $expires_at > 0 && $now > $expires_at;
 
             $results[] = [
                 'ip'                 => $ip,
@@ -4571,6 +4607,12 @@ class FirewallEngine {
                 'added_by'           => !empty($meta['added_by']) ? $meta['added_by'] : 'administrator',
                 'type'               => !empty($meta['type']) ? $meta['type'] : 'manual_admin',
                 'require_admin'      => !empty($settings['waf_whitelist_require_admin']),
+                'scope'              => !empty($meta['scope']) ? $meta['scope'] : 'global',
+                'allowed_rules'      => !empty($meta['allowed_rules']) ? (array) $meta['allowed_rules'] : [],
+                'allowed_cats'       => !empty($meta['allowed_cats']) ? (array) $meta['allowed_cats'] : [],
+                'endpoint'           => !empty($meta['endpoint']) ? $meta['endpoint'] : '',
+                'expires_at'         => $expires_at,
+                'is_expired'         => $is_expired,
             ];
         }
 
@@ -5858,7 +5900,7 @@ class FirewallEngine {
      * @param array  $settings
      * @return array [ 'is_whitelisted' => bool, 'is_admin' => bool, 'full_bypass' => bool ]
      */
-    public static function check_ip_whitelist_context(string $client_ip, array $settings): array {
+    public static function check_ip_whitelist_context(string $client_ip, array $settings, ?array $rule = null): array {
         $whitelist_str = $settings['waf_whitelisted_ips'] ?? '';
         $is_whitelisted = self::is_ip_whitelisted($client_ip, $whitelist_str);
 
@@ -5867,6 +5909,50 @@ class FirewallEngine {
                 'is_whitelisted' => false,
                 'is_admin'       => false,
                 'full_bypass'    => false,
+                'rule_bypass'    => false,
+            ];
+        }
+
+        // Check if this IP has granular rule or category scoping
+        $all_meta = self::get_all_whitelist_meta();
+        $meta = $all_meta[$client_ip] ?? null;
+
+        if ($meta && !empty($meta['expires_at']) && time() > (int) $meta['expires_at']) {
+            return [
+                'is_whitelisted' => false,
+                'is_admin'       => false,
+                'full_bypass'    => false,
+                'rule_bypass'    => false,
+            ];
+        }
+
+        $rule_bypass = false;
+        if ($meta && !empty($meta['scope']) && $meta['scope'] !== 'global') {
+            $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+            $endpoint_allowed = empty($meta['endpoint']) || strpos($req_uri, $meta['endpoint']) !== false;
+
+            if ($endpoint_allowed && $rule !== null) {
+                if ($meta['scope'] === 'rule') {
+                    $rule_id = (string) ($rule['id'] ?? '');
+                    $allowed_rules = (array) ($meta['allowed_rules'] ?? []);
+                    if (!empty($rule_id) && in_array($rule_id, $allowed_rules, true)) {
+                        $rule_bypass = true;
+                    }
+                } elseif ($meta['scope'] === 'category') {
+                    $rule_cat = (string) ($rule['category'] ?? '');
+                    $allowed_cats = (array) ($meta['allowed_cats'] ?? []);
+                    if (!empty($rule_cat) && in_array($rule_cat, $allowed_cats, true)) {
+                        $rule_bypass = true;
+                    }
+                }
+            }
+
+            // Scoped rule allowlist: only bypasses if matched!
+            return [
+                'is_whitelisted' => true,
+                'is_admin'       => false,
+                'full_bypass'    => false,
+                'rule_bypass'    => $rule_bypass,
             ];
         }
 
@@ -5881,6 +5967,7 @@ class FirewallEngine {
             'is_whitelisted' => true,
             'is_admin'       => $is_admin,
             'full_bypass'    => $full_bypass,
+            'rule_bypass'    => false,
         ];
     }
 
@@ -5914,13 +6001,14 @@ class FirewallEngine {
             exit;
         }
 
-        // Tiered Context-Aware IP Whitelist Interceptor
-        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
+        // Tiered Context-Aware & Rule-Scoped IP Whitelist Interceptor
+        $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings, $rule);
         if ($whitelist_ctx['is_whitelisted']) {
             $is_admin = $whitelist_ctx['is_admin'];
             $full_bypass = $whitelist_ctx['full_bypass'];
+            $rule_bypass = !empty($whitelist_ctx['rule_bypass']);
 
-            // Critical Exploit Categories that Pre-Auth (unauthenticated) traffic can NEVER bypass
+            // Critical Exploit Categories that Pre-Auth (unauthenticated) traffic can NEVER bypass on global mode
             $critical_exploit_categories = [
                 'SQL Injection',
                 'PHP Code Injection',
@@ -5933,14 +6021,21 @@ class FirewallEngine {
             $rule_cat = $rule['category'] ?? '';
             $is_critical_exploit = in_array($rule_cat, $critical_exploit_categories, true);
 
-            // If full bypass is permitted (verified authenticated admin session), OR
+            // If granted specific rule/category exemption, OR
+            // if full bypass is permitted (verified authenticated admin session), OR
             // if this is an operational / rate limit / scan probe rule (NOT a critical exploit payload):
-            if ($full_bypass || !$is_critical_exploit) {
+            if ($rule_bypass || $full_bypass || !$is_critical_exploit) {
                 // Log incident telemetry as 'bypassed' if telemetry logging is enabled
                 $log_telemetry = isset($settings['waf_whitelist_log_telemetry']) ? !empty($settings['waf_whitelist_log_telemetry']) : true;
                 if ($log_telemetry) {
                     $bypass_rule = $rule;
-                    $bypass_context = $is_admin ? 'Authenticated Administrator Session' : 'Pre-Auth Whitelisted IP';
+                    if ($rule_bypass) {
+                        $bypass_context = 'Rule-Scoped Allowlist Exemption';
+                    } elseif ($is_admin) {
+                        $bypass_context = 'Authenticated Administrator Session';
+                    } else {
+                        $bypass_context = 'Pre-Auth Whitelisted IP';
+                    }
                     $bypass_rule['description'] = ($rule['description'] ?? 'Firewall trigger') . " [Bypassed via {$bypass_context}]";
                     self::log_incident($bypass_rule, 'bypassed');
                 }

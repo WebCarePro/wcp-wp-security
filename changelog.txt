@@ -1,4 +1,13 @@
 v:2.5.0 - 2026-11-05
+- Granular Rule-Scoped & Category-Scoped IP Allowlisting (WafLogsPage.tsx, FirewallPage.tsx, FirewallEngine.php, ScannerRoutes.php):
+  * Zero-Trust Principle of Least Privilege: Overhauled the WAF incident log allowlist workflow. When an administrator clicks "Allow" on any blocked or monitored incident, the plugin no longer defaults to an over-permissive global whitelist that leaves the site vulnerable to other attack vectors.
+  * Interactive Allowlist Rule Configuration Modal (`src/WafLogsPage.tsx`): Administrators can choose between three scoped exemption tiers:
+    1. Option A (Specific Rule Only - Safest): Allows the client IP strictly for the triggered firewall rule (e.g. `WAF-XMLRPC-DISABLED`) while keeping all other 30+ enterprise firewall rules (SQLi, XSS, RCE, honeypots) actively enforced against that IP.
+    2. Option B (Rule Category Group): Allows the IP for all rules within the parent category (e.g. `Identity Defense & Honeypot Trap`).
+    3. Option C (Global Full Bypass): Grants full blanket exemption across all firewall rules with clear administrative warnings.
+  * Request Path Restriction & Automatic TTL Expiration: Allows scoping exemptions strictly to a specific request path (e.g. `/xmlrpc.php`), with automated expiration scheduling (Permanent, 24 Hours, 7 Days, or 30 Days).
+  * High-Performance In-Memory Rule Verification (`includes/Firewall/FirewallEngine.php`): Updated `check_ip_whitelist_context()` to evaluate client IP metadata against active rule IDs, categories, endpoints, and timestamps in sub-millisecond in-memory lookups. When an exempt request matches, traffic is safely allowed and logged as `'bypassed'` with context `"Rule-Scoped Allowlist Exemption"` for full auditability.
+  * Scoped Allowlist Management HUD (`src/FirewallPage.tsx`): Enhanced the "Allowlisted IP Addresses" table to clearly display assigned scopes with color-coded badges (`Rule: <rule_id>`, `Category: <cat>`, or `Global Full Bypass`), active endpoint paths, and dynamic expiration statuses.
 - Expanded 12-Step Protection Setup & Onboarding Wizard (SetupWizard.tsx, ScannerRoutes.php):
   * In-Depth 12-Step Calibration: Expanded the quickstart onboarding wizard to twelve dedicated, plain-English configuration steps designed for site owners and sysadmins alike.
   * Server Requirements & PHP Extensions Audit (Step 2): Live environment verification inspecting PHP runtime specs (PHP 8.4, SAPI, memory limit, max execution time, environment mode) and attesting 10 critical extensions (cURL, OpenSSL, ZipArchive, Zlib, mbstring, JSON, Sodium, Zend OPcache, Intl, GD/Imagick).

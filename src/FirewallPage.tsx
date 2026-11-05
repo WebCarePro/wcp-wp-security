@@ -957,6 +957,12 @@ export const FirewallPage = ({
     added_by: string;
     type: string;
     require_admin: boolean;
+    scope?: 'rule' | 'category' | 'global';
+    allowed_rules?: string[];
+    allowed_cats?: string[];
+    endpoint?: string;
+    expires_at?: number;
+    is_expired?: boolean;
   }
 
   const [whitelistedIpsList, setWhitelistedIpsList] = useState<WhitelistedIpItem[]>([]);
@@ -6335,23 +6341,24 @@ export const FirewallPage = ({
                 <table className="wcp-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', margin: 0 }}>
                   <thead>
                     <tr style={{ background: 'var(--wcp-bg-elevated, #f8fafc)', borderBottom: '1px solid var(--wcp-border, #e2e8f0)' }}>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '26%' }}>IP Address / Subnet</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '38%' }}>Reason & Description</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '22%' }}>Added By & Date</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '14%' }}>Action</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '22%' }}>IP Address / Subnet</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '22%' }}>Scope &amp; Exemption</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '28%' }}>Reason &amp; Description</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '16%' }}>Added By &amp; Date</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', width: '12%' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingWhitelist ? (
                       <tr>
-                        <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: 'var(--wcp-text-muted, #64748b)' }}>
+                        <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--wcp-text-muted, #64748b)' }}>
                           <Loader2 size={16} className="wcp-spin" style={{ margin: '0 auto 6px', color: '#16a34a' }} />
                           <span style={{ fontSize: '12px' }}>Loading whitelisted addresses...</span>
                         </td>
                       </tr>
                     ) : whitelistedIpsList.length === 0 ? (
                       <tr>
-                        <td colSpan={4} style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--wcp-text-muted, #64748b)' }}>
+                        <td colSpan={5} style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--wcp-text-muted, #64748b)' }}>
                           <Shield size={28} color="#0284c7" style={{ margin: '0 auto 6px' }} />
                           <div style={{ fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', fontSize: '13px' }}>No Whitelisted IP Addresses</div>
                           <p style={{ margin: '2px 0 0', fontSize: '11px' }}>Your whitelist is empty. Add trusted static IPs above to bypass rate limits and diagnostic checks.</p>
@@ -6395,10 +6402,48 @@ export const FirewallPage = ({
                                 </button>
                               </div>
                               <div style={{ marginTop: '3px' }}>
-                                <span className="wcp-badge-pill wcp-badge-clean" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                                  Trusted IP
-                                </span>
+                                {item.is_expired ? (
+                                  <span className="wcp-badge-pill wcp-badge-warn" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                    Expired
+                                  </span>
+                                ) : (
+                                  <span className="wcp-badge-pill wcp-badge-clean" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                    Active Exemption
+                                  </span>
+                                )}
                               </div>
+                            </td>
+
+                            <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
+                              {item.scope === 'rule' ? (
+                                <div>
+                                  <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                    Rule: {(item.allowed_rules || []).join(', ') || 'Specific Rule'}
+                                  </span>
+                                  {item.endpoint && (
+                                    <div style={{ fontSize: '10px', color: '#0284c7', fontFamily: 'monospace', marginTop: '3px' }}>
+                                      Path: {item.endpoint}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : item.scope === 'category' ? (
+                                <div>
+                                  <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', border: '1px solid rgba(124, 58, 237, 0.3)' }}>
+                                    Category: {(item.allowed_cats || []).join(', ') || 'Category Group'}
+                                  </span>
+                                  {item.endpoint && (
+                                    <div style={{ fontSize: '10px', color: '#0284c7', fontFamily: 'monospace', marginTop: '3px' }}>
+                                      Path: {item.endpoint}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="wcp-badge-pill wcp-badge-clean" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                    Global Full Bypass
+                                  </span>
+                                </div>
+                              )}
                             </td>
 
                             <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>

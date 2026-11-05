@@ -7157,23 +7157,41 @@ class ScannerRoutes {
         $current_user = wp_get_current_user();
         $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
 
-        $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip, $reason, $user_login);
+        $scope_args = [
+            'scope'         => sanitize_key($params['scope'] ?? 'global'),
+            'allowed_rules' => !empty($params['allowed_rules']) && is_array($params['allowed_rules']) ? $params['allowed_rules'] : [],
+            'allowed_cats'  => !empty($params['allowed_cats']) && is_array($params['allowed_cats']) ? $params['allowed_cats'] : [],
+            'endpoint'      => sanitize_text_field($params['endpoint'] ?? ''),
+            'expires_in'    => isset($params['expires_in']) ? intval($params['expires_in']) : 0,
+        ];
+
+        $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip, $reason, $user_login, $scope_args);
         if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
             $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+            $scope_desc = $scope_args['scope'] === 'rule' 
+                ? sprintf('Rule: %s', implode(', ', $scope_args['allowed_rules'])) 
+                : ($scope_args['scope'] === 'category' ? sprintf('Category: %s', implode(', ', $scope_args['allowed_cats'])) : 'Global Bypass');
 
             \WcpScanner\System\WcpActivityLogger::notice(
                 'firewall_ip_whitelisted',
                 'firewall',
                 [
                     'ip'          => $ip,
-                    'description' => sprintf('IP %s added to trusted WAF allowlist by %s from IP %s (Reason: %s).', $ip, $user_login, $client_ip, $reason ?: 'Administrator policy'),
+                    'description' => sprintf('IP %s allowlisted (%s) by %s from IP %s (Reason: %s).', $ip, $scope_desc, $user_login, $client_ip, $reason ?: 'Administrator policy'),
                 ]
             );
         }
 
+        $success_msg = sprintf('IP %s added to allowlist.', $ip);
+        if ($scope_args['scope'] === 'rule' && !empty($scope_args['allowed_rules'])) {
+            $success_msg = sprintf('IP %s successfully allowed strictly for rule %s.', $ip, implode(', ', $scope_args['allowed_rules']));
+        } elseif ($scope_args['scope'] === 'category' && !empty($scope_args['allowed_cats'])) {
+            $success_msg = sprintf('IP %s successfully allowed for category %s.', $ip, implode(', ', $scope_args['allowed_cats']));
+        }
+
         return rest_ensure_response([
-            'success' => $added,
-            'message' => $added ? sprintf('IP %s added to trusted WAF allowlist.', $ip) : 'Failed to whitelist IP.',
+            'success'         => $added,
+            'message'         => $added ? $success_msg : 'Failed to whitelist IP.',
             'whitelisted_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
         ]);
     }
