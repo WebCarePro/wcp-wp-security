@@ -256,7 +256,21 @@ export const FirewallPage = ({
   ]);
   const [selectedRoleToAdd, setSelectedRoleToAdd] = useState<string>('');
   const [wooRulesExpanded, setWooRulesExpanded] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense'>(initialSubTab as any);
+
+  // Initialize active tab from URL query param ?tab= if valid, else fallback to initialSubTab
+  const getStartingTab = (): 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense' => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      const validTabs = ['stream', 'rules', 'caf', 'drill', 'supply_chain', 'behavioral', 'server_sec', 'intel', 'cloudflare', 'vpatch', 'ai_defense'];
+      if (tabParam && validTabs.includes(tabParam)) {
+        return tabParam as any;
+      }
+    } catch (e) {}
+    return (initialSubTab as any) || 'stream';
+  };
+
+  const [activeTab, setActiveTab] = useState<'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense'>(getStartingTab);
   const [copiedIp, setCopiedIp] = useState<string | null>(null);
   const [showDevTelemetry, setShowDevTelemetry] = useState<boolean>(false);
 
@@ -350,8 +364,31 @@ export const FirewallPage = ({
     }
   }, [initialSubTab]);
 
+  // Synchronize browser back/forward history navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        const validTabs = ['stream', 'rules', 'caf', 'drill', 'supply_chain', 'behavioral', 'server_sec', 'intel', 'cloudflare', 'vpatch', 'ai_defense'];
+        if (tabParam && validTabs.includes(tabParam)) {
+          setActiveTab(tabParam as any);
+        } else if (!tabParam) {
+          setActiveTab('stream');
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleSwitchTab = (tab: 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense') => {
     setActiveTab(tab);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.pushState({ tab }, '', url.toString());
+    } catch (e) {}
     if (onSubTabChange) {
       onSubTabChange(tab);
     }
