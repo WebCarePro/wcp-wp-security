@@ -1,6 +1,6 @@
 {
   "version": "2.5.0",
-  "generated_at": "2026-11-05T10:22:29.736Z",
+  "generated_at": "2026-11-05T10:48:04.927Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -32,40 +32,40 @@
       "size": 592076
     },
     "build/auth.asset.php": {
-      "sha256": "65db8ac285260aad3159cbf259a643713781da8d5290554df9e6a3351e894690",
+      "sha256": "9a345846a14bd6104394f7fc0e7511282538937675ea22d904581e2e13a59e1d",
       "size": 163
     },
     "build/auth.js": {
-      "sha256": "46778f8e95b6ee447387a38a3d7adbf6e692a178bc34bda637b90d07368afe2e",
-      "size": 248344
+      "sha256": "9a79b3f9b42de1796ce1c1fe7a09e6a9f523e5e87bc807e3e99016996c3adaaf",
+      "size": 248325
     },
     "build/fim.asset.php": {
-      "sha256": "9095eaa4562ce064e35c6d598745af09394657a89ac64ec5fdcc11b88065c99f",
+      "sha256": "b91b52995380ef5dd39ef6f5dfb90775b2cc317ee5e8c6615f1286e961a422e6",
       "size": 163
     },
     "build/fim.js": {
-      "sha256": "47a183eea1f2e6d2c121c795ca71035e0586bbe76db20396594802ba8b516b98",
-      "size": 213952
+      "sha256": "9d92b718da8944473b2fed01732042ad92736549869cc1f2b279c624f845375b",
+      "size": 213933
     },
     "build/firewall.asset.php": {
-      "sha256": "8b3b8e633d4120ec60aa7a8d9de388b62c0c5c24e6ff4478e8c89ef53495d683",
+      "sha256": "c909b5f769c545aa510d3d69cf64f063c7c653159b1c627577db65452c485680",
       "size": 163
     },
     "build/firewall.js": {
-      "sha256": "ed18f5ffb8e0443ca164c93d2d48d8feee2e478a9c1915e812eb96ed9b0729be",
-      "size": 744105
+      "sha256": "8e21913b4d305b88cbde4d9d75f63f8b44fc28fe4ffe347ad4b673874cbdc013",
+      "size": 744086
     },
     "build/global-rtl.css": {
-      "sha256": "eb67fa436a8ee21ff6cf269bb5deee0668e923490c1862039c326332cddf2942",
-      "size": 584082
+      "sha256": "6181f761cb8cf5f06ad4e3ae465bb267f2806d42fc774903235937afba51cc43",
+      "size": 584167
     },
     "build/global.asset.php": {
-      "sha256": "7b8ba3f5f9c3aa22532ce02ef7910a14851b8201c142da9178afc160aeb01a68",
+      "sha256": "8b8828174a7cddd8071e1a5fd330637fca9c6e6f72bce88e635311352350fcc3",
       "size": 126
     },
     "build/global.css": {
-      "sha256": "930941ca0f2dd504661a1939d0fb61202a11ef23f964a0a41e7003ea4becc4d9",
-      "size": 583898
+      "sha256": "0d53b7225b13b8abc0af3ff01babb3c996b7de62c0c3f60ab353bc772b52a76e",
+      "size": 583983
     },
     "build/global.js": {
       "sha256": "ca063a09cb43667a1f874cdb64430c1be82d4ea01d35a9537934f01382f17463",
@@ -88,28 +88,28 @@
       "size": 2287816
     },
     "build/settings.asset.php": {
-      "sha256": "9a72726ab19f0d19c0dbe159f532eb4bb439d31819843e3f2e14dc8b12397437",
+      "sha256": "5709d210091c368802e5ff16ea78efd8508931931c098378522a2d800834c534",
       "size": 163
     },
     "build/settings.js": {
-      "sha256": "c6af9d3ad674991c2186dd8c65b484b0b7f44d0898be29011e1ad8c6e48bf98e",
-      "size": 340051
+      "sha256": "dc244665fbc05420afefce2c32e8eed3dc3007c3729511fbffd7dade9acfda28",
+      "size": 340032
     },
     "build/vault.asset.php": {
-      "sha256": "99cbc22c08d8a20a38a9e7af274d271e49ead7b8c3838e1411fa1d7f8e4d76ce",
+      "sha256": "14290f9af83a08bc458f4be2f76d3075e3bd36e3d7f07d08f60fbad3553dde39",
       "size": 163
     },
     "build/vault.js": {
-      "sha256": "7275d6cd7b2e9ea5a3eca904f737ac5c4be1b44437846d1265b2dd9aed725167",
-      "size": 194771
+      "sha256": "7a2d7e40158d821273a1a9411a57e3984b6bfecedddbb24b1cfd05da8bb8fe55",
+      "size": 194752
     },
     "build/waf-logs.asset.php": {
-      "sha256": "c327cbc2bfc44cfcf61d21ec9b0e94b0b00e8fb32b45645606c040b8295e2427",
+      "sha256": "041896b265d06990c0bbceac03348c338d86bc512f4aa06cd71480efa3744081",
       "size": 163
     },
     "build/waf-logs.js": {
-      "sha256": "848846712c19a5659fced3edcabf4b5e312fe919e3248ff78fe481b30ec0d49a",
-      "size": 212966
+      "sha256": "036a3c8be55420d764c437a234c693cc54b90afbbc7a027d66834accee71d481",
+      "size": 212947
     },
     "build/wizard.asset.php": {
       "sha256": "06c6bab83e5b8e5d035cb1adc762ea46953616b52b7ba5f9db8da4d2444b57f3",

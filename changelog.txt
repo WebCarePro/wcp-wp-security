@@ -1,4 +1,6 @@
 v:2.5.0 - 2026-11-05
+- Universal Header Brand Logo & Text Alignment Parity Across All Pages (WcpShell.tsx, index.css):
+  * Standardized Brand Section Flex Container Across WAF, Auth, Vault & Settings: Resolved layout discrepancy where the SVG brand shield logo and title text were vertically stacked on decoupled pages. Replaced unstyled .wcp-brand-group with standardized .brand-section (.header-bar .wcp-two-tier-header), ensuring pixel-perfect horizontal side-by-side alignment, font sizing, and gap parity identical to the Executive Dashboard.
 - System Forensics Console Subtab Navigation & Route Parity (ForensicsPage.tsx, App.tsx, WcpShell.tsx):
   * Restored Seamless Forensics Subpage Switching: Fixed forensics route mapping in pageMap (`forensics: 'wcp-scanner-forensics'`) across App.tsx and WcpShell.tsx, resolving the issue where clicking any forensics subtab redirected back to Vault & Tools (`wcp-scanner-vault&tab=forensics`).
   * Reactive In-Memory Subtab Transitions: Updated onSubTabChange in App.tsx and handleTabChange in ForensicsPage.tsx to utilize reactive state updates and window.history.pushState instead of triggering full browser window reloads.
