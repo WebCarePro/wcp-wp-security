@@ -4440,6 +4440,113 @@ class FirewallEngine {
     }
 
     /**
+     * Retrieve complete catalog of inspectable firewall rules and category groups
+     *
+     * @return array
+     */
+    public static function get_firewall_rules_catalog(): array {
+        return [
+            // Incident Containment & Upgrades
+            ['id' => 'WAF-CONTAINMENT-LOCKDOWN', 'name' => 'Emergency Containment Write Lockdown', 'category' => 'Incident Containment', 'description' => 'Write operations are strictly prohibited while site is in Emergency Containment Mode.'],
+            ['id' => 'WAF-CONTAINMENT-SURFACE-LOCK', 'name' => 'Emergency Containment Attack Surface Lock', 'category' => 'Incident Containment', 'description' => 'Endpoint locked down by Emergency Containment Mode.'],
+            ['id' => 'WAF-ATOMIC-UPGRADE-LOCK', 'name' => 'Atomic Upgrade Lock Route Shield', 'category' => 'Supply Chain Defense', 'description' => 'Target resource is locked against unauthenticated access during an active software update.'],
+
+            // Context-Adaptive & Dormant Surface
+            ['id' => 'WAF-CAF-DORMANT-SURFACE', 'name' => 'Context-Adaptive Dormant Attack Surface Lockdown', 'category' => 'Dormant Surface Shield', 'description' => 'Direct requests to deactivated plugins are strictly blocked.'],
+            ['id' => 'WAF-CAF-DORMANT-THEME', 'name' => 'Context-Adaptive Dormant Theme Surface Lockdown', 'category' => 'Dormant Surface Shield', 'description' => 'Direct requests to inactive themes are strictly blocked.'],
+
+            // DoS, Buffer & Resource Floods
+            ['id' => 'WAF-OVERSIZED-URI', 'name' => 'Oversized URI Buffer Overflow Guard', 'category' => 'DoS & Resource Shield', 'description' => 'Request URI length exceeded security buffer threshold.'],
+            ['id' => 'WAF-OVERSIZED-QUERY', 'name' => 'Oversized Query String Guard', 'category' => 'DoS & Resource Shield', 'description' => 'Query string length exceeded security threshold.'],
+            ['id' => 'WAF-OVERSIZED-POST-VARS', 'name' => 'Excessive Parameter Count Flood Guard', 'category' => 'DoS & Resource Shield', 'description' => 'POST payload exceeds recursive parameter threshold.'],
+            ['id' => 'WAF-ADMIN-AJAX-BURST', 'name' => 'admin-ajax.php Burst Flood Limit Exceeded', 'category' => 'DoS & Resource Shield', 'description' => 'Unauthenticated client exceeded rate threshold on admin-ajax.php.'],
+            ['id' => 'WAF-EXTERNAL-CRON-BLOCK', 'name' => 'External wp-cron.php Abuse Block', 'category' => 'DoS & Resource Shield', 'description' => 'External HTTP trigger to wp-cron.php blocked to prevent resource exhaustion.'],
+
+            // Protocol, Header & Transport Defense
+            ['id' => 'WAF-HOST-HEADER-POISON', 'name' => 'Host Header Poisoning & Cache Spoof Defense', 'category' => 'Protocol Defense', 'description' => 'HTTP Host header spoofing and poisoning attempt intercepted.'],
+            ['id' => 'WAF-UNSAFE-HTTP-METHOD', 'name' => 'Unsafe HTTP Method Block', 'category' => 'Protocol Defense', 'description' => 'Unsafe or dangerous HTTP verbs (TRACE, TRACK, CONNECT, DEBUG) rejected.'],
+            ['id' => 'WAF-UNAUTHORIZED-PUT-UPLOAD', 'name' => 'Unauthorized HTTP PUT File Upload Guard', 'category' => 'Protocol Defense', 'description' => 'Direct HTTP PUT file modification attempt blocked.'],
+            ['id' => 'WAF-GUEST-AJAX-EMPTY', 'name' => 'Guest Endpoint Missing Action Probe', 'category' => 'Protocol Defense', 'description' => 'Unauthenticated empty action request to AJAX handler rejected.'],
+
+            // Bot & Scraping Defense
+            ['id' => 'WAF-EMPTY-POST-UA-REFERER', 'name' => 'Blank User-Agent & Referer POST Block', 'category' => 'Bot Defense', 'description' => 'Automated bot POST with empty User-Agent and Referer headers dropped.'],
+
+            // File Reconnaissance & Path Traversal
+            ['id' => 'WAF-SENSITIVE-FILE-PROBE', 'name' => 'Sensitive File & Backup Probe Block', 'category' => 'File Reconnaissance', 'description' => 'Probing for .git, .env, wp-config backups, or SQL dumps blocked.'],
+            ['id' => 'WAF-PATH-TRAVERSAL', 'name' => 'Path Traversal & LFI/RFI File Inclusion Armor', 'category' => 'Path Traversal', 'description' => 'Directory traversal (../, ..\\) and system file inclusion (/etc/passwd, php://filter) intercepted.'],
+
+            // Core Web Exploits & Injection Armor
+            ['id' => 'WAF-SQLI-ARMOR', 'name' => 'SQL Injection (SQLi) Heuristic Armor', 'category' => 'SQL Injection', 'description' => 'Malicious SQL exploitation signatures (UNION SELECT, benchmark, sleep) dropped.'],
+            ['id' => 'WAF-PHP-CODE-INJECTION', 'name' => 'PHP Code Injection & Web Shell Shield', 'category' => 'PHP Code Injection', 'description' => 'Direct PHP script tag or dangerous execution function payload blocked.'],
+            ['id' => 'WAF-XSS-ARMOR', 'name' => 'Cross-Site Scripting (XSS) Sanitization Guard', 'category' => 'Cross-Site Scripting (XSS)', 'description' => 'Hostile JavaScript injection, malicious SVG, or payload script tag dropped.'],
+            ['id' => 'WAF-OBJECT-STREAM-INJECTION', 'name' => 'PHP Object Injection & Stream Wrapper Shield', 'category' => 'Execution Armor', 'description' => 'Serialized object payload or dangerous stream wrapper (phar://) blocked.'],
+            ['id' => 'WAF-UPLOADS-PHP-DENY', 'name' => 'Uploads Directory PHP Execution Deny', 'category' => 'Execution Armor', 'description' => 'Direct PHP script execution inside uploads directory strictly blocked.'],
+
+            // Security Policy & Hardening
+            ['id' => 'WAF-XMLRPC-DISABLED', 'name' => 'XML-RPC Access Prohibited', 'category' => 'XML-RPC Disabled', 'description' => 'XML-RPC invocation blocked by administrator security policy.'],
+            ['id' => 'WAF-DISALLOW-PHPMYADMIN-PLUGIN', 'name' => 'Prohibited Database Manager Plugin Installation', 'category' => 'Security Policy Enforcement', 'description' => 'Ad-hoc web database manager plugins are prohibited.'],
+            ['id' => 'WAF-DISALLOW-FILEMANAGER-PLUGIN', 'name' => 'Prohibited File Manager Plugin Installation', 'category' => 'Security Policy Enforcement', 'description' => 'Web file manager plugins are prohibited on production environments.'],
+            ['id' => 'WAF-INSTALL-LOCKDOWN', 'name' => 'WordPress Installer Lockdown', 'category' => 'Hardening Defense', 'description' => 'Access to install.php/upgrade.php blocked on established site.'],
+
+            // AI & Prompt Injection
+            ['id' => 'WAF-AI-PROMPT-INJECTION', 'name' => 'AI Prompt Injection & Agent Poisoning Shield', 'category' => 'AI & Agent Defense', 'description' => 'Hostile prompt injection, jailbreak syntax, and agent poisoning patterns neutralized.'],
+
+            // Identity, Honeypots & Reconnaissance
+            ['id' => 'WAF-FORBIDDEN-USERNAME-TRAP', 'name' => 'Forbidden Honeypot Username Trap', 'category' => 'Identity Defense', 'description' => 'Authentication attempt using trap usernames (admin, root) blocked.'],
+            ['id' => 'WAF-REST-USER-ENUM', 'name' => 'REST API User Enumeration Interceptor', 'category' => 'Reconnaissance & Enumeration', 'description' => 'Unauthenticated user enumeration on /wp/v2/users intercepted.'],
+            ['id' => 'WAF-AUTHOR-ENUM', 'name' => 'Author Permalink Enumeration Suppression', 'category' => 'Reconnaissance & Enumeration', 'description' => 'Author scan attempts (?author=1) deflected.'],
+            ['id' => 'WAF-LOSTPW-VIEW-FLOOD', 'name' => 'Lost-Password View Burst Limit Exceeded', 'category' => 'Brute Force & Auth Armor', 'description' => 'Excessive views on lost password endpoint throttled.'],
+            ['id' => 'WAF-LOSTPW-FLOOD-IP', 'name' => 'Lost-Password Request Flood Limit (IP)', 'category' => 'Brute Force & Auth Armor', 'description' => 'Too many password reset requests originating from this IP.'],
+            ['id' => 'WAF-LOSTPW-FLOOD-USER', 'name' => 'Lost-Password Target User Bombing Guard', 'category' => 'Brute Force & Auth Armor', 'description' => 'Too many reset attempts targeting a single account identifier.'],
+
+            // Behavioral & Unauthenticated API Defense
+            ['id' => 'WAF-GUEST-AJAX-PROBE', 'name' => 'Unregistered Guest Action Probe', 'category' => 'Behavioral Defense', 'description' => 'Probing unregistered AJAX action hooks blocked.'],
+            ['id' => 'WAF-GUEST-REST-BATCH-MUTATION', 'name' => 'Unauthenticated REST Batch Mutation Probe', 'category' => 'Behavioral Defense', 'description' => 'Batch modification probes on REST API blocked.'],
+            ['id' => 'WAF-GUEST-REST-MUTATION', 'name' => 'Unauthenticated REST API Mutation Probe', 'category' => 'Behavioral Defense', 'description' => 'Direct unauthenticated POST/PUT/DELETE mutations to REST endpoints blocked.'],
+
+            // WooCommerce & E-Commerce Defenses
+            ['id' => 'WAF-WOO-CARDING-BLOCKED', 'name' => 'WooCommerce Carding Attack & Checkout Velocity Mitigation', 'category' => 'Behavioral Defense', 'description' => 'Rapid card testing and checkout bot spray blocked.'],
+            ['id' => 'WAF-WOO-CARDING-THRESHOLD', 'name' => 'WooCommerce Carding Velocity Threshold Exceeded', 'category' => 'Behavioral Defense', 'description' => 'Excessive failed checkouts from this IP address.'],
+            ['id' => 'WAF-WOO-COUPON-BLOCKED', 'name' => 'WooCommerce Coupon Enumeration & Brute-Force Shield', 'category' => 'Behavioral Defense', 'description' => 'Dictionary attack on coupon codes intercepted.'],
+            ['id' => 'WAF-WOO-COUPON-THRESHOLD', 'name' => 'WooCommerce Coupon Velocity Threshold Exceeded', 'category' => 'Behavioral Defense', 'description' => 'Coupon testing threshold breached.'],
+            ['id' => 'WAF-WOO-REG-DISPOSABLE-EMAIL', 'name' => 'WooCommerce Disposable Email Registration Block', 'category' => 'Behavioral Defense', 'description' => 'Customer registration using disposable/throwaway domain blocked.'],
+            ['id' => 'WAF-WOO-REG-VELOCITY-BLOCKED', 'name' => 'WooCommerce Customer Registration Velocity Limit', 'category' => 'Behavioral Defense', 'description' => 'Excessive new customer account creations from this IP.'],
+            ['id' => 'WAF-WOO-CART-VELOCITY-BLOCKED', 'name' => 'WooCommerce Cart Flooding Velocity Limit', 'category' => 'Behavioral Defense', 'description' => 'Denial of inventory cart manipulation blocked.'],
+            ['id' => 'WAF-WOO-INVENTORY-HOARDING', 'name' => 'WooCommerce Denial of Inventory Cap Exceeded', 'category' => 'Behavioral Defense', 'description' => 'Mass cart abandonment holding stock captive blocked.'],
+            ['id' => 'WAF-WOO-SCRAPING-BLOCKED', 'name' => 'WooCommerce Catalog & Price Scraping Mitigation', 'category' => 'Behavioral Defense', 'description' => 'Aggressive automated catalog pricing scraping blocked.'],
+            ['id' => 'WAF-WOO-SCRAPING-THRESHOLD', 'name' => 'WooCommerce Catalog Scraping Threshold Exceeded', 'category' => 'Behavioral Defense', 'description' => 'Product view request rate exceeded scraping threshold.'],
+
+            // Runtime RASP Protections
+            ['id' => 'WAF-RASP-OPTION-TAMPER', 'name' => 'Runtime Option Tampering Guard', 'category' => 'Runtime RASP Hook Defense', 'description' => 'Runtime tampering of core site options (siteurl, home) intercepted.'],
+            ['id' => 'WAF-RASP-ROLE-ESCALATION', 'name' => 'Runtime Privilege Escalation Guard', 'category' => 'Runtime RASP Hook Defense', 'description' => 'Unauthorized promotion of user capabilities intercepted.'],
+            ['id' => 'WAF-RASP-ADMIN-REG-BLOCKED', 'name' => 'Runtime Administrator Registration Guard', 'category' => 'Runtime RASP Hook Defense', 'description' => 'Unauthorized account creation with administrator privileges blocked.'],
+            ['id' => 'WAF-RASP-META-INJECTION', 'name' => 'Runtime User Meta Injection Guard', 'category' => 'Runtime RASP Hook Defense', 'description' => 'Hostile user meta manipulation targeting wp_capabilities blocked.'],
+        ];
+    }
+
+    /**
+     * Map rule IDs to their human-readable title
+     *
+     * @param array $rule_ids
+     * @return array
+     */
+    public static function resolve_rule_names(array $rule_ids): array {
+        static $catalog_map = null;
+        if ($catalog_map === null) {
+            $catalog_map = [];
+            foreach (self::get_firewall_rules_catalog() as $rule) {
+                $catalog_map[$rule['id']] = $rule['name'];
+            }
+        }
+
+        $names = [];
+        foreach ($rule_ids as $id) {
+            $names[$id] = $catalog_map[$id] ?? $id;
+        }
+        return $names;
+    }
+
+    /**
      * Option key for storing structured metadata for whitelisted IPs
      */
     const OPTION_WHITELISTED_IPS_META = 'wcpscan_whitelisted_ips_meta';
@@ -4609,6 +4716,7 @@ class FirewallEngine {
                 'require_admin'      => !empty($settings['waf_whitelist_require_admin']),
                 'scope'              => !empty($meta['scope']) ? $meta['scope'] : 'global',
                 'allowed_rules'      => !empty($meta['allowed_rules']) ? (array) $meta['allowed_rules'] : [],
+                'allowed_rule_names' => !empty($meta['allowed_rules']) ? self::resolve_rule_names((array) $meta['allowed_rules']) : (object) [],
                 'allowed_cats'       => !empty($meta['allowed_cats']) ? (array) $meta['allowed_cats'] : [],
                 'endpoint'           => !empty($meta['endpoint']) ? $meta['endpoint'] : '',
                 'expires_at'         => $expires_at,

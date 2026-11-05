@@ -7229,11 +7229,13 @@ class ScannerRoutes {
     public static function get_firewall_whitelist(\WP_REST_Request $request) {
         $whitelisted_ips = \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips();
         $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $rules_catalog = \WcpScanner\Firewall\FirewallEngine::get_firewall_rules_catalog();
         return rest_ensure_response([
             'success'             => true,
             'whitelisted_ips'     => $whitelisted_ips,
             'total_whitelisted'   => count($whitelisted_ips),
             'waf_whitelisted_ips' => $settings['waf_whitelisted_ips'] ?? '',
+            'rules_catalog'       => $rules_catalog,
         ]);
     }
 

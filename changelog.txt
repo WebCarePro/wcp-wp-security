@@ -5,6 +5,12 @@ v:2.5.0 - 2026-11-05
     1. Option A (Specific Rule Only - Safest): Allows the client IP strictly for the triggered firewall rule (e.g. `WAF-XMLRPC-DISABLED`) while keeping all other 30+ enterprise firewall rules (SQLi, XSS, RCE, honeypots) actively enforced against that IP.
     2. Option B (Rule Category Group): Allows the IP for all rules within the parent category (e.g. `Identity Defense & Honeypot Trap`).
     3. Option C (Global Full Bypass): Grants full blanket exemption across all firewall rules with clear administrative warnings.
+  * Manual IP Allowlist Rule & Category Selector (`src/FirewallPage.tsx`): Upgraded the manual "Add IP or Subnet to Allowlist" card on the Firewall page. Administrators can now manually whitelist an IP with a dedicated scope selector:
+    - Single Firewall Rule: Dynamic dropdown featuring all 50+ enterprise inspection rules categorized by security domain (DoS & Resource Shield, Protocol Defense, Injection Armor, Identity Defense, WooCommerce Behavioral, RASP Hooks).
+    - Group Category: Dropdown to exempt an entire category domain at once.
+    - Global Full Bypass: Standard blanket pass.
+    - Expiration Schedule: Configurable TTL defaulting to 24 Hours.
+  * Human-Readable Rule Name Resolution in Allowlist Table: Enhanced the Allowlist table to resolve raw rule IDs (e.g. `WAF-XMLRPC-DISABLED`) into their clean human-readable rule titles (e.g. `XML-RPC Access Prohibited`) right alongside category badges.
   * Request Path Restriction & Automatic TTL Expiration: Allows scoping exemptions strictly to a specific request path (e.g. `/xmlrpc.php`), with automated expiration scheduling (Permanent, 24 Hours, 7 Days, or 30 Days).
   * High-Performance In-Memory Rule Verification (`includes/Firewall/FirewallEngine.php`): Updated `check_ip_whitelist_context()` to evaluate client IP metadata against active rule IDs, categories, endpoints, and timestamps in sub-millisecond in-memory lookups. When an exempt request matches, traffic is safely allowed and logged as `'bypassed'` with context `"Rule-Scoped Allowlist Exemption"` for full auditability.
   * Scoped Allowlist Management HUD (`src/FirewallPage.tsx`): Enhanced the "Allowlisted IP Addresses" table to clearly display assigned scopes with color-coded badges (`Rule: <rule_id>`, `Category: <cat>`, or `Global Full Bypass`), active endpoint paths, and dynamic expiration statuses.

@@ -959,16 +959,29 @@ export const FirewallPage = ({
     require_admin: boolean;
     scope?: 'rule' | 'category' | 'global';
     allowed_rules?: string[];
+    allowed_rule_names?: Record<string, string>;
     allowed_cats?: string[];
     endpoint?: string;
     expires_at?: number;
     is_expired?: boolean;
   }
 
+  interface FirewallRuleCatalogItem {
+    id: string;
+    name: string;
+    category: string;
+    description: string;
+  }
+
   const [whitelistedIpsList, setWhitelistedIpsList] = useState<WhitelistedIpItem[]>([]);
   const [loadingWhitelist, setLoadingWhitelist] = useState<boolean>(false);
   const [newWhitelistIp, setNewWhitelistIp] = useState<string>('');
   const [newWhitelistReason, setNewWhitelistReason] = useState<string>('');
+  const [newWhitelistScope, setNewWhitelistScope] = useState<'rule' | 'category' | 'global'>('global');
+  const [newWhitelistSelectedRule, setNewWhitelistSelectedRule] = useState<string>('');
+  const [newWhitelistSelectedCat, setNewWhitelistSelectedCat] = useState<string>('');
+  const [newWhitelistExpiresIn, setNewWhitelistExpiresIn] = useState<number>(86400); // Default 24h
+  const [rulesCatalog, setRulesCatalog] = useState<FirewallRuleCatalogItem[]>([]);
   const [addingWhitelistIp, setAddingWhitelistIp] = useState<boolean>(false);
   const [removingWhitelistIp, setRemovingWhitelistIp] = useState<string | null>(null);
   const [whitelistingCurrentIp, setWhitelistingCurrentIp] = useState<boolean>(false);
@@ -992,6 +1005,9 @@ export const FirewallPage = ({
       if (res && res.whitelisted_ips) {
         setWhitelistedIpsList(res.whitelisted_ips);
       }
+      if (res && res.rules_catalog && Array.isArray(res.rules_catalog)) {
+        setRulesCatalog(res.rules_catalog);
+      }
       if (res && res.waf_whitelisted_ips !== undefined) {
         setWafSettings(prev => ({ ...prev, waf_whitelisted_ips: res.waf_whitelisted_ips }));
       }
@@ -1009,25 +1025,48 @@ export const FirewallPage = ({
       showFirewallNotice('warning', 'Please enter a valid IP address or CIDR range.');
       return;
     }
+
+    if (newWhitelistScope === 'rule' && !newWhitelistSelectedRule) {
+      showFirewallNotice('warning', 'Please select a specific firewall rule to exempt.');
+      return;
+    }
+
+    if (newWhitelistScope === 'category' && !newWhitelistSelectedCat) {
+      showFirewallNotice('warning', 'Please select a rule category group to exempt.');
+      return;
+    }
+
     try {
       setAddingWhitelistIp(true);
+      const payload: any = {
+        ip: cleanIp,
+        reason: newWhitelistReason.trim() || 'Trusted administrative access policy',
+        scope: newWhitelistScope,
+        expires_in: newWhitelistExpiresIn,
+      };
+
+      if (newWhitelistScope === 'rule') {
+        payload.allowed_rules = [newWhitelistSelectedRule];
+      } else if (newWhitelistScope === 'category') {
+        payload.allowed_cats = [newWhitelistSelectedCat];
+      }
+
       const res = await apiRequest({
         path: '/firewall/logs/whitelist-ip',
         method: 'POST',
-        data: {
-          ip: cleanIp,
-          reason: newWhitelistReason.trim() || 'Trusted administrative access policy'
-        }
+        data: payload
       });
       if (res && res.success) {
         setNewWhitelistIp('');
         setNewWhitelistReason('');
+        setNewWhitelistSelectedRule('');
+        setNewWhitelistSelectedCat('');
         if (res.whitelisted_ips) {
           setWhitelistedIpsList(res.whitelisted_ips);
         } else {
           await fetchWhitelistData();
         }
-        showFirewallNotice('success', `IP ${cleanIp} added to whitelist.`);
+        showFirewallNotice('success', res.message || `IP ${cleanIp} added to whitelist.`);
       } else {
         showFirewallNotice('error', res?.message || 'Failed to add IP to whitelist.');
       }
@@ -6221,21 +6260,31 @@ export const FirewallPage = ({
                 background: 'var(--wcp-bg-elevated, #f8fafc)',
                 border: '1px solid var(--wcp-border, #e2e8f0)',
                 borderRadius: '8px',
-                padding: '12px 14px',
+                padding: '14px 16px',
                 marginBottom: '16px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '8px'
+                gap: '12px'
               }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Plus size={13} color="#16a34a" />
-                  <span>Add IP or Subnet to Allowlist</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Plus size={14} color="#16a34a" />
+                    <span>Add IP or Subnet to Allowlist</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)' }}>
+                    Granular Least-Privilege Exemption Policy
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.2fr) minmax(220px, 2fr) auto', gap: '10px', alignItems: 'center' }}>
+
+                {/* Primary Row: IP, Scope Selector, Reason */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.2fr) minmax(180px, 1.1fr) minmax(200px, 1.8fr)', gap: '10px', alignItems: 'center' }}>
                   <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
+                      IP Address or CIDR Subnet:
+                    </label>
                     <input
                       type="text"
-                      placeholder="IP or Subnet (e.g. 192.168.1.100 or 10.0.0.0/24)"
+                      placeholder="e.g. 192.168.1.100 or 10.0.0.0/24"
                       value={newWhitelistIp}
                       onChange={(e) => setNewWhitelistIp(e.target.value)}
                       className="wcp-firewall-input"
@@ -6243,38 +6292,148 @@ export const FirewallPage = ({
                       required
                     />
                   </div>
+
                   <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
+                      Exemption Scope:
+                    </label>
+                    <select
+                      value={newWhitelistScope}
+                      onChange={(e) => setNewWhitelistScope(e.target.value as any)}
+                      className="wcp-firewall-input"
+                      style={{ width: '100%', fontSize: '12px', padding: '7px 10px' }}
+                    >
+                      <option value="global">All Firewall Rules (Global Pass)</option>
+                      <option value="rule">Single Firewall Rule (Safest)</option>
+                      <option value="category">Group Category (e.g. Identity Defense)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
+                      Audit Justification / Description:
+                    </label>
                     <input
                       type="text"
-                      placeholder="Reason (e.g. Office static IP, VPN gateway, dev workstation)"
+                      placeholder="e.g. Office static IP, VPN gateway, dev workstation"
                       value={newWhitelistReason}
                       onChange={(e) => setNewWhitelistReason(e.target.value)}
                       className="wcp-firewall-input"
                       style={{ width: '100%', fontSize: '12px', padding: '7px 10px' }}
                     />
                   </div>
-                  <button
-                    type="submit"
-                    className="wcp-btn"
-                    disabled={addingWhitelistIp || !newWhitelistIp.trim()}
-                    style={{
-                      padding: '7px 16px',
-                      background: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '5px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: (addingWhitelistIp || !newWhitelistIp.trim()) ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {addingWhitelistIp ? <Loader2 size={12} className="wcp-spin" /> : <Lock size={12} />}
-                    Whitelist IP
-                  </button>
+                </div>
+
+                {/* Secondary Row: Specific Rule or Category Group Dropdown + TTL Expiration + Action Button */}
+                <div style={{ display: 'grid', gridTemplateColumns: newWhitelistScope === 'global' ? 'minmax(200px, 1fr) auto' : 'minmax(240px, 2fr) minmax(180px, 1fr) auto', gap: '10px', alignItems: 'flex-end', paddingTop: '4px', borderTop: '1px dashed var(--wcp-border, #e2e8f0)' }}>
+                  {newWhitelistScope === 'rule' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
+                        Select Specific Rule to Exempt:
+                      </label>
+                      <select
+                        value={newWhitelistSelectedRule}
+                        onChange={(e) => {
+                          const rId = e.target.value;
+                          setNewWhitelistSelectedRule(rId);
+                          if (!newWhitelistReason) {
+                            const found = rulesCatalog.find(r => r.id === rId);
+                            if (found) {
+                              setNewWhitelistReason(`Allowed for rule ${found.name}`);
+                            }
+                          }
+                        }}
+                        className="wcp-firewall-input"
+                        style={{ width: '100%', fontSize: '12px', padding: '7px 10px' }}
+                        required
+                      >
+                        <option value="">-- Choose Firewall Rule ({rulesCatalog.length || 30}+ Available) --</option>
+                        {Array.from(new Set(rulesCatalog.map(r => r.category))).map(cat => (
+                          <optgroup key={cat} label={`📂 ${cat}`}>
+                            {rulesCatalog.filter(r => r.category === cat).map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} [{r.id}]
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {newWhitelistScope === 'category' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
+                        Select Rule Group Category to Exempt:
+                      </label>
+                      <select
+                        value={newWhitelistSelectedCat}
+                        onChange={(e) => {
+                          const cat = e.target.value;
+                          setNewWhitelistSelectedCat(cat);
+                          if (!newWhitelistReason && cat) {
+                            setNewWhitelistReason(`Allowed for category group ${cat}`);
+                          }
+                        }}
+                        className="wcp-firewall-input"
+                        style={{ width: '100%', fontSize: '12px', padding: '7px 10px' }}
+                        required
+                      >
+                        <option value="">-- Choose Category Group --</option>
+                        {Array.from(new Set(rulesCatalog.map(r => r.category))).map(cat => {
+                          const count = rulesCatalog.filter(r => r.category === cat).length;
+                          return (
+                            <option key={cat} value={cat}>
+                              {cat} ({count} {count === 1 ? 'rule' : 'rules'})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
+                      Exemption Expiration Schedule:
+                    </label>
+                    <select
+                      value={newWhitelistExpiresIn}
+                      onChange={(e) => setNewWhitelistExpiresIn(Number(e.target.value))}
+                      className="wcp-firewall-input"
+                      style={{ width: '100%', fontSize: '12px', padding: '7px 10px' }}
+                    >
+                      <option value={86400}>24 Hours (Temporary Client Testing)</option>
+                      <option value={604800}>7 Days (Transient Integration Setup)</option>
+                      <option value={2592000}>30 Days (Extended Evaluation)</option>
+                      <option value={0}>Permanent (Active until manually removed)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <button
+                      type="submit"
+                      className="wcp-btn"
+                      disabled={addingWhitelistIp || !newWhitelistIp.trim()}
+                      style={{
+                        padding: '7px 18px',
+                        background: '#16a34a',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '5px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: (addingWhitelistIp || !newWhitelistIp.trim()) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                        height: '34px'
+                      }}
+                    >
+                      {addingWhitelistIp ? <Loader2 size={13} className="wcp-spin" /> : <Lock size={13} />}
+                      Whitelist IP
+                    </button>
+                  </div>
                 </div>
               </form>
 
@@ -6417,9 +6576,14 @@ export const FirewallPage = ({
                             <td style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
                               {item.scope === 'rule' ? (
                                 <div>
-                                  <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                  <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 600 }}>
                                     Rule: {(item.allowed_rules || []).join(', ') || 'Specific Rule'}
                                   </span>
+                                  {item.allowed_rules && item.allowed_rules.length > 0 && (
+                                    <div style={{ fontSize: '11px', color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 500, marginTop: '3px' }}>
+                                      {item.allowed_rules.map(rId => item.allowed_rule_names?.[rId] || rulesCatalog.find(rc => rc.id === rId)?.name || rId).join(', ')}
+                                    </div>
+                                  )}
                                   {item.endpoint && (
                                     <div style={{ fontSize: '10px', color: '#0284c7', fontFamily: 'monospace', marginTop: '3px' }}>
                                       Path: {item.endpoint}
@@ -6428,9 +6592,12 @@ export const FirewallPage = ({
                                 </div>
                               ) : item.scope === 'category' ? (
                                 <div>
-                                  <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', border: '1px solid rgba(124, 58, 237, 0.3)' }}>
-                                    Category: {(item.allowed_cats || []).join(', ') || 'Category Group'}
+                                  <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', border: '1px solid rgba(124, 58, 237, 0.3)', fontWeight: 600 }}>
+                                    Group Category
                                   </span>
+                                  <div style={{ fontSize: '11px', color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 600, marginTop: '3px' }}>
+                                    {(item.allowed_cats || []).join(', ') || 'Category Group'}
+                                  </div>
                                   {item.endpoint && (
                                     <div style={{ fontSize: '10px', color: '#0284c7', fontFamily: 'monospace', marginTop: '3px' }}>
                                       Path: {item.endpoint}
@@ -6439,9 +6606,12 @@ export const FirewallPage = ({
                                 </div>
                               ) : (
                                 <div>
-                                  <span className="wcp-badge-pill wcp-badge-clean" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                  <span className="wcp-badge-pill wcp-badge-clean" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 600 }}>
                                     Global Full Bypass
                                   </span>
+                                  <div style={{ fontSize: '10.5px', color: 'var(--wcp-text-muted, #64748b)', marginTop: '2px' }}>
+                                    All 30+ Firewall Rules
+                                  </div>
                                 </div>
                               )}
                             </td>
