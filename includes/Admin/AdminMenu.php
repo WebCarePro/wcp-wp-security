@@ -18,6 +18,21 @@ class AdminMenu {
         add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
         add_action('wp_ajax_wcpscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
         add_action('wp_ajax_wcpscan_dismiss_quarantined_notice', [__CLASS__, 'ajax_dismiss_quarantined_notice']);
+        add_filter('script_loader_tag', [__CLASS__, 'add_charset_to_scripts'], 10, 2);
+    }
+
+    /**
+     * Ensure WCP scripts are parsed explicitly with UTF-8 character encoding across all browsers and locales.
+     *
+     * @param string $tag The <script> tag for the enqueued script.
+     * @param string $handle The script's registered handle.
+     * @return string
+     */
+    public static function add_charset_to_scripts($tag, $handle) {
+        if (in_array($handle, ['wcp-scanner-app', 'wcp-global-script', 'wcp-popover-dialogs'], true) && strpos($tag, 'charset=') === false) {
+            $tag = str_replace('<script ', '<script charset="UTF-8" ', $tag);
+        }
+        return $tag;
     }
 
     /**
