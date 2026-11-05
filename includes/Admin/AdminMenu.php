@@ -397,12 +397,17 @@ class AdminMenu {
         elseif ($current_page === 'wcp-scanner-about' || ($current_page === 'wcp-security-scanner' && $tab_param === 'about')) $active_tab = 'about';
         elseif ($current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
 
+        $global_css_file = WCPSCAN_PATH . 'build/global.css';
+        $global_js_file  = WCPSCAN_PATH . 'build/global.js';
+        $global_css_ver  = file_exists($global_css_file) ? (string) filemtime($global_css_file) : WCPSCAN_VERSION;
+        $global_js_ver   = file_exists($global_js_file) ? (string) filemtime($global_js_file) : WCPSCAN_VERSION;
+
         // 1. Enqueue Global Core Shell Assets (Design tokens, CSS variables & typography)
-        if (file_exists(WCPSCAN_PATH . 'build/global.css')) {
-            wp_enqueue_style('wcp-global-style', WCPSCAN_URL . 'build/global.css', ['wp-components'], WCPSCAN_VERSION);
+        if (file_exists($global_css_file)) {
+            wp_enqueue_style('wcp-global-style', WCPSCAN_URL . 'build/global.css', ['wp-components'], $global_css_ver);
         }
-        if (file_exists(WCPSCAN_PATH . 'build/global.js')) {
-            wp_enqueue_script('wcp-global-script', WCPSCAN_URL . 'build/global.js', ['wp-element'], WCPSCAN_VERSION, true);
+        if (file_exists($global_js_file)) {
+            wp_enqueue_script('wcp-global-script', WCPSCAN_URL . 'build/global.js', ['wp-element'], $global_js_ver, true);
         }
 
         $is_scan_tab = ($current_page === 'wcp-scanner-scan') || ($current_page === 'wcp-security-scanner' && $tab_param === 'scan');
@@ -417,7 +422,7 @@ class AdminMenu {
             $page_bundle = 'waf-logs';
         } elseif ($active_tab === 'auth' && file_exists(WCPSCAN_PATH . 'build/auth.js')) {
             $page_bundle = 'auth';
-        } elseif ($active_tab === 'vault' && file_exists(WCPSCAN_PATH . 'build/vault.js')) {
+        } elseif (in_array($active_tab, ['vault', 'quarantine'], true) && file_exists(WCPSCAN_PATH . 'build/vault.js')) {
             $page_bundle = 'vault';
         } elseif ($active_tab === 'fim' && file_exists(WCPSCAN_PATH . 'build/fim.js')) {
             $page_bundle = 'fim';
@@ -438,7 +443,8 @@ class AdminMenu {
         }
 
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
-        $version = WCPSCAN_VERSION;
+        $bundle_file = WCPSCAN_PATH . $js_rel;
+        $version = file_exists($bundle_file) ? (string) filemtime($bundle_file) : WCPSCAN_VERSION;
 
         if (file_exists($asset_file)) {
             $asset = include $asset_file;
@@ -512,7 +518,8 @@ class AdminMenu {
         }
 
         if (!empty($css_rel) && file_exists(WCPSCAN_PATH . $css_rel)) {
-            wp_enqueue_style('wcp-scanner-style', $css_url, ['wcp-global-style'], $version);
+            $css_ver = (string) filemtime(WCPSCAN_PATH . $css_rel);
+            wp_enqueue_style('wcp-scanner-style', $css_url, ['wcp-global-style'], $css_ver);
         }
     }
 
