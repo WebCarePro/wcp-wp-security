@@ -378,6 +378,15 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
     if (issue.type === 'unsafe_permissions') {
       return 'World-writable permissions detected. Click "Fix File Permissions" to enforce standard 0644 for files or 0755 for directories, preventing local write escalation.';
     }
+    if (issue.engine === 'wordpress-updates' || issue.is_software_update || issue.type?.includes('outdated') || issue.type?.includes('vulnerable_')) {
+      const vFrom = issue.installed_version ? `v${issue.installed_version}` : '';
+      const vTo = issue.latest_version ? `v${issue.latest_version}` : '';
+      const vDiff = vFrom && vTo ? ` (${vFrom} → ${vTo})` : (vTo ? ` (Available: ${vTo})` : '');
+      if (issue.cves && issue.cves.length > 0) {
+        return `Critical security vulnerabilities reported for this component${vDiff}. Update immediately via WordPress Updates or download the latest release from the developer.`;
+      }
+      return `Software component is outdated${vDiff}. Upgrading to the latest release ensures compatibility, patches potential security risks, and keeps your store secure.`;
+    }
     if (issue.type?.includes('theme') || issue.engine === 'integrity-theme' || issue.file_path?.includes('/themes/')) {
       return 'Theme file differs from official WordPress.org cryptographic release. If this was not a deliberate child-theme edit, click "Restore Clean Copy" or view the Visual Diff.';
     }
@@ -1738,9 +1747,19 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     issue.type?.includes('weak_password') ||
                     issue.file_path?.startsWith('user:')
                   );
-                  const isTheme = Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
-                  const isCore = Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
-                  const isPlugin = Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
+                  const isUpdate = Boolean(
+                    issue.engine === 'wordpress-updates' ||
+                    issue.is_software_update ||
+                    issue.type === 'outdated_plugin' ||
+                    issue.type === 'vulnerable_plugin' ||
+                    issue.type === 'outdated_theme' ||
+                    issue.type === 'vulnerable_theme' ||
+                    issue.type === 'outdated_core' ||
+                    issue.type === 'vulnerable_core'
+                  );
+                  const isTheme = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
+                  const isCore = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
+                  const isPlugin = !isUpdate && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
                   const isChecksumsUnavailable = Boolean(
                     issue.type === 'plugin_checksums_unavailable' ||
                     issue.type === 'theme_checksums_unavailable' ||
@@ -1799,6 +1818,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {isUser ? (
                             <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
                               ACCOUNT DEFENSE
+                            </span>
+                          ) : isUpdate ? (
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', border: '1px solid rgba(217, 119, 6, 0.2)' }}>
+                              SOFTWARE UPDATE
                             </span>
                           ) : isTheme ? (
                             <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', border: '1px solid rgba(2, 132, 199, 0.2)' }}>
@@ -1931,6 +1954,34 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             >
                               <Key size={13} />
                               <span>Update Password in WP-Admin &nearr;</span>
+                            </a>
+                          )}
+
+                          {/* 1b. Software Update Action */}
+                          {isUpdate && issue.status === 'open' && (
+                            <a
+                              href={issue.update_url || 'plugins.php'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="wcp-btn"
+                              style={{
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                color: '#ffffff',
+                                border: 'none',
+                                padding: '6px 14px',
+                                borderRadius: '7px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                textDecoration: 'none',
+                                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                              }}
+                              title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
+                            >
+                              <RefreshCw size={13} />
+                              <span>Update to v{issue.latest_version || 'Latest'} &nearr;</span>
                             </a>
                           )}
 
@@ -2236,9 +2287,9 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         issue.file_path.endsWith('wp-config.php')
                       );
 
-                      const isPlugin = Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
-                      const isCore = Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
-                      const isTheme = Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
+                      const isPlugin = !isUpdate && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
+                      const isCore = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
+                      const isTheme = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
                       const isWebshell = Boolean(issue.code_snippet || issue.type?.includes('webshell') || issue.type?.includes('eval') || issue.type?.includes('injected') || issue.type?.includes('malware'));
 
                       const isEven = index % 2 === 0;
@@ -2311,6 +2362,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                   ) : isDbTable ? (
                                     <span className="wcp-type-badge-db" style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
                                       DB ROW
+                                    </span>
+                                  ) : isUpdate ? (
+                                    <span className="wcp-type-badge-update" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                                      UPDATE
                                     </span>
                                   ) : (
                                     <span className="wcp-type-badge-file">FILE</span>
@@ -2385,6 +2440,33 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                   >
                                     <Key size={12} />
                                     <span>Update Password &nearr;</span>
+                                  </a>
+                                )}
+
+                                {/* 1b. Software Update Action */}
+                                {isUpdate && issue.status === 'open' && (
+                                  <a
+                                    href={issue.update_url || 'plugins.php'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="wcp-btn"
+                                    style={{
+                                      background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      fontSize: '12px',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      textDecoration: 'none'
+                                    }}
+                                    title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
+                                  >
+                                    <RefreshCw size={12} />
+                                    <span>Update to v{issue.latest_version || 'Latest'} &nearr;</span>
                                   </a>
                                 )}
 
