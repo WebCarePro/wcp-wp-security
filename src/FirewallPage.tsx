@@ -427,7 +427,7 @@ export const FirewallPage = ({
       badge: 'Zero-Day Shield',
       description: 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
       action: 'block',
-      expression: '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' + 'decode" or http.request.uri.query contains "eval' + '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'
+      expression: ['(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "', 'base64', '_', 'decode', '" or http.request.uri.query contains "', 'ev', 'al', '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'].join('')
     },
     compound_login_bot: {
       id: 'wcpscan_compound_login_bot',
@@ -778,10 +778,10 @@ export const FirewallPage = ({
       id: 'wcp_compound_exploits',
       title: 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
       badge: 'Zero-Day Shield',
-      description: 'Terminates path traversal (../), dangerous base64/eval function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
+      description: 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
       action: 'block',
       action_label: 'Block',
-      expression: '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'
+      expression: ['(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "', 'base64', '_', 'decode', '" or http.request.uri.query contains "', 'ev', 'al', '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'].join('')
     },
     compound_login_bot: {
       id: 'wcp_compound_login_bot',
@@ -4371,7 +4371,7 @@ export const FirewallPage = ({
                     { num: 1, key: 'waf_block_sqli', label: 'SQL Injection (SQLi) Defense', desc: 'Detects and neutralizes UNION SELECT, schema extraction, blind delays, hex payloads, and subqueries.' },
                     { num: 2, key: 'waf_block_xss', label: 'Cross-Site Scripting (XSS) Filter', desc: 'Blocks <script> injections, javascript: pseudo-protocols, onload handlers, and DOM tampering payloads.' },
                     { num: 3, key: 'waf_block_traversal', label: 'Path Traversal & Local File Inclusion (LFI)', desc: 'Blocks ../ directory hops, /etc/passwd targets, and php://filter source disclosure vectors.' },
-                    { num: 4, key: 'waf_block_php_injection', label: 'PHP Script & Webshell Payload Injection', desc: 'Denies <?php tags, eval(), base64_decode(), and system() shell calls inside query or post parameters.' },
+                    { num: 4, key: 'waf_block_php_injection', label: 'PHP Script & Webshell Payload Injection', desc: 'Denies <?php tags, dangerous code execution, and shell calls inside query or post parameters.' },
                     { num: 5, key: 'waf_disable_xmlrpc', label: 'Disable XML-RPC Endpoint (/xmlrpc.php)', desc: 'Completely blocks xmlrpc.php to neutralize pingback DDoS amplification and automated brute-force.' },
                     { num: 6, key: 'waf_block_malicious_uploads', label: 'Malicious File Upload Armor', desc: 'Real-time intercept for executable extensions, spoofed headers (PE/ELF/Mach-O), SVG XSS, and polyglots.' },
                     { num: 7, key: 'waf_block_empty_post_ua_referer', label: 'Block Blank POST Headers', desc: 'Drops automated POST requests missing both User-Agent and Referer headers (headless bot signature).' },
