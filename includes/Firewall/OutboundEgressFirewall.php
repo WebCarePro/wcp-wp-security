@@ -279,11 +279,18 @@ class OutboundEgressFirewall {
         // Pin validated safe IP to prevent TOCTOU DNS rebinding in curl.
         if (!empty($settings['block_ssrf_metadata'])) {
             $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
-            if ($host !== $site_host) {
+            $port = isset($parsed_url['port']) ? (int) $parsed_url['port'] : null;
+            $is_non_standard_port = ($port !== null && !in_array($port, [80, 443, 8080, 8443], true));
+
+            // Same-host requests targeting non-standard internal ports (e.g., Redis :6379, MySQL :3306) must be inspected for SSRF
+            if ($host !== $site_host || $is_non_standard_port) {
                 $ssrf_eval = self::evaluate_ssrf_destination($host);
                 if ($ssrf_eval['threat']) {
                     $threat = $ssrf_eval['threat'];
                     $reason = $ssrf_eval['reason'];
+                } elseif ($is_non_standard_port && $host === $site_host) {
+                    $threat = 'internal_port_probe';
+                    $reason = sprintf('Outbound request targeting restricted internal port (%1$d) on local site host (%2$s).', $port, $host);
                 } elseif (!empty($ssrf_eval['safe_ip'])) {
                     // Record safe pinned IP for CURLOPT_RESOLVE in constrain_curl_transport()
                     self::$resolved_safe_pins[$host] = [

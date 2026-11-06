@@ -116,7 +116,7 @@ class TransactionalRemediation {
             return false;
         }
 
-        $backup_key = 'f_' . count($manifest['items']) . '_' . basename($full_path);
+        $backup_key = 'f_' . count($manifest['items']) . '_' . basename($full_path) . '.bak';
         $backup_path = $tx_dir . '/files/' . $backup_key;
 
         // Perform byte-for-byte copy
@@ -153,6 +153,11 @@ class TransactionalRemediation {
      * @return bool
      */
     public static function record_db_snapshot(string $tx_id, string $table_name, string $primary_key, $row_id, array $original_row, ?int $issue_id = null): bool {
+        $tx_id = self::sanitize_tx_id($tx_id);
+        if (empty($tx_id)) {
+            return false;
+        }
+
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
 
@@ -189,6 +194,11 @@ class TransactionalRemediation {
      * @return bool
      */
     public static function record_user_snapshot(string $tx_id, int $user_id, string $backup_filename, string $action_type = 'delete'): bool {
+        $tx_id = self::sanitize_tx_id($tx_id);
+        if (empty($tx_id)) {
+            return false;
+        }
+
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
 
@@ -221,6 +231,11 @@ class TransactionalRemediation {
      * @return array
      */
     public static function commit_transaction(string $tx_id): array {
+        $tx_id = self::sanitize_tx_id($tx_id);
+        if (empty($tx_id)) {
+            return ['success' => false, 'message' => __('Invalid transaction ID.', 'wcp-security-scanner')];
+        }
+
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
 

@@ -1244,6 +1244,7 @@ class FirewallEngine {
                     ];
 
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    break;
                 }
             }
         }
@@ -6766,10 +6767,10 @@ class FirewallEngine {
 
         if ($policy === 'block') {
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    }
-
-        // In 'monitor' mode: log to WAF telemetry with status 'monitored' and permit execution
-        self::log_incident($rule_triggered, 'monitored');
+        } else {
+            // In 'monitor' mode: log to WAF telemetry with status 'monitored' and permit execution
+            self::log_incident($rule_triggered, 'monitored');
+        }
     }
 
     /**

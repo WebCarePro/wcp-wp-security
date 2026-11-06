@@ -24,20 +24,8 @@ class Plugin {
 
     private function init() {
         // Performance optimization: check cached in-memory alloptions db version first (0 queries)
-        $db_version = get_option('wcpscan_db_version');
-        if ($db_version !== '1.12.0') {
-            global $wpdb;
-            $core_table = $wpdb->prefix . 'wcpscan_scans';
-            $history_table = $wpdb->prefix . 'wcpscan_login_history';
-            $firewall_table = $wpdb->prefix . 'wcpscan_firewall_logs';
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $has_tables = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $core_table)) === $core_table)
-                && ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $history_table)) === $history_table)
-                && ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $firewall_table)) === $firewall_table);
-
-            if (!$has_tables) {
-                \WcpScanner\Database\Migration::install();
-            }
+        if (get_option('wcpscan_db_version') !== '1.12.0') {
+            \WcpScanner\Database\Migration::install();
         }
 
         // Ensure root uploads/wcp-security-scanner storage directory has an index.php directory silence guard

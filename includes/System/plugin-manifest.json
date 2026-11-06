@@ -1,6 +1,6 @@
 {
   "version": "2.6.0",
-  "generated_at": "2026-11-06T01:44:42.809Z",
+  "generated_at": "2026-11-06T01:54:44.753Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -296,8 +296,8 @@
       "size": 25013
     },
     "includes/Firewall/AdaptiveRateLimiter.php": {
-      "sha256": "65957c97f33c2a2711700b62e6f7e73d48fcd918e752de8fab73287f1fc9d514",
-      "size": 19649
+      "sha256": "cd81b7673be5b7dddc1a2392cb6fc4b0ee6bacff862b72d512199d62ba03c309",
+      "size": 19732
     },
     "includes/Firewall/BotReconDefense.php": {
       "sha256": "fbb399d4eb4838c931c0f45edc4c527783ab46615d6ee437d36be6807bcbab06",
@@ -348,8 +348,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "90c5b093703791448d94ecedcb8665a47d0a322d20abac7c529824f01a7021ec",
-      "size": 402600
+      "sha256": "0e9048a7e64bee831ca68031bee0d30557eb5239065ca1bf011acb5892f01584",
+      "size": 402639
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "6ba64e5afb5f6cc67975c230a949c4e33f29eb4f3c37a7dbccf329bbe44386c0",
@@ -372,8 +372,8 @@
       "size": 40216
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
-      "sha256": "12f65914fd6987a5fd71634c98177d48b1d9a47862d8cd496239c38115b2a6df",
-      "size": 28185
+      "sha256": "03a00166ecf28b99e59703d43b5f49c571f0207343ae1ecff9e5b2c2f63c7eea",
+      "size": 28799
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "81d13769bed598987d2f54c484191d500e55193e5473716c7084bfa0bb1a3c14",
@@ -516,8 +516,8 @@
       "size": 31800
     },
     "includes/Plugin.php": {
-      "sha256": "9c07387bd4c10157770801e4dd22834897f99b985a32ceafbca1817345fe33d6",
-      "size": 6476
+      "sha256": "bf3fab8eb870c4dee086c31d40fc4a3ed2e8b070908915c3afb94d4307136192",
+      "size": 5713
     },
     "includes/Quarantine/CoreRepairManager.php": {
       "sha256": "70378804525270b5ba94a2271f74b6ff982190b7f3a5c61df47a9ff25ed64584",
@@ -536,8 +536,8 @@
       "size": 52615
     },
     "includes/Remediation/TransactionalRemediation.php": {
-      "sha256": "7ebdd543cb75c9d0de257c68f0b0f844cf49f5dec69f7d139c84add0aed0fd45",
-      "size": 23839
+      "sha256": "0fc757ba546f3adb14148668c85f7daae38e34e494ca7cadcfb94111b87f7948",
+      "size": 24270
     },
     "includes/Reports/IncidentReportEngine.php": {
       "sha256": "0f34e7bdef8cc9787a63c2ac6b4b7832b81f83073a0f318efdb4fc8d57564207",

@@ -158,9 +158,9 @@ class AdaptiveRateLimiter {
         $data = null;
         if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
             $data = apcu_fetch($cache_key);
-        }
-
-        if (!is_array($data)) {
+        } elseif (wp_using_ext_object_cache()) {
+            $data = wp_cache_get($cache_key, 'wcpscan_rl');
+        } else {
             $data = get_transient($cache_key);
         }
 
