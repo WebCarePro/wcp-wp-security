@@ -1969,7 +1969,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               title="Open user profile in new tab to update password"
                             >
                               <Key size={13} />
-                              <span>Update Password in WP-Admin &nearr;</span>
+                              <span>Update Password in WP-Admin ↗</span>
                             </a>
                           )}
 
@@ -1997,7 +1997,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
                             >
                               <RefreshCw size={13} />
-                              <span>Update to v{issue.latest_version || 'Latest'} &nearr;</span>
+                              <span>Update to v{issue.latest_version || 'Latest'} ↗</span>
                             </a>
                           )}
 
@@ -2479,7 +2479,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                     title="Open user profile in new tab to update password or manage credentials"
                                   >
                                     <Key size={12} />
-                                    <span>Update Password &nearr;</span>
+                                    <span>Update Password ↗</span>
                                   </a>
                                 )}
 
@@ -2506,7 +2506,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                     title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
                                   >
                                     <RefreshCw size={12} />
-                                    <span>Update to v{issue.latest_version || 'Latest'} &nearr;</span>
+                                    <span>Update to v{issue.latest_version || 'Latest'} ↗</span>
                                   </a>
                                 )}
 
