@@ -215,8 +215,9 @@ class TwoFactorAuth {
             $current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $current_tab  = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : '';
-            if ($current_page !== 'wcp-security-scanner' || $current_tab !== 'auth') {
-                wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner&tab=auth&forced=1'));
+            $is_auth_page = ($current_page === 'wcp-scanner-auth') || ($current_page === 'wcp-security-scanner' && $current_tab === 'auth');
+            if (!$is_auth_page) {
+                wp_safe_redirect(admin_url('admin.php?page=wcp-scanner-auth&tab=2fa&forced=1'));
                 exit;
             }
         }
@@ -1088,6 +1089,19 @@ class TwoFactorAuth {
         if ($request_method === 'POST' && isset($_POST['wcpscan_2fa_code'])) {
             check_admin_referer('wcpscan_2fa_verify_' . $pending_key);
 
+            // Rate-limit brute-force attempts on this pending verification session (max 5 attempts)
+            $attempt_transient = 'wcpscan_2fa_attempts_' . $pending_key;
+            $failed_attempts = (int) get_transient($attempt_transient);
+            if ($failed_attempts >= 5) {
+                delete_transient(self::SESSION_TRANSIENT . $pending_key);
+                delete_transient($attempt_transient);
+                wp_die(
+                    esc_html__('Too many incorrect verification attempts. For your security, this login session has been terminated. Please log in again.', 'wcp-security-scanner'),
+                    esc_html__('Too Many Attempts', 'wcp-security-scanner'),
+                    ['response' => 429, 'back_link' => true]
+                );
+            }
+
             $code   = sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code']));
             $secret = self::get_user_secret($user_id);
             $valid  = false;
@@ -1095,17 +1109,29 @@ class TwoFactorAuth {
             $code_type  = 'totp';
             $userAlgo   = self::get_user_algorithm($user_id);
             $userDigits = self::get_user_digits($user_id);
+
+            // Check TOTP code with replay cache protection
             if ($secret && self::verify_code($secret, $code, 1, $userAlgo, $userDigits)) {
-                $valid = true;
-                $code_type = 'totp';
+                $current_timeslot = (int) floor(time() / 30);
+                $replay_key = 'wcpscan_totp_used_' . $user_id . '_' . $current_timeslot;
+                if (get_transient($replay_key)) {
+                    $valid = false;
+                    $error_msg = __('This authentication code has already been used. Please wait for the next rotating code in your authenticator app.', 'wcp-security-scanner');
+                } else {
+                    // Record replay lock for 90 seconds (covering full drift window)
+                    set_transient($replay_key, 1, 90);
+                    $valid = true;
+                    $code_type = 'totp';
+                }
             } elseif (self::verify_and_consume_backup_code($user_id, $code)) {
                 $valid = true;
                 $code_type = 'backup_code';
             }
 
             if ($valid) {
-                // Delete session transient
+                // Delete session and attempt transients
                 delete_transient(self::SESSION_TRANSIENT . $pending_key);
+                delete_transient($attempt_transient);
 
                 if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
                     \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
@@ -1130,7 +1156,12 @@ class TwoFactorAuth {
                 wp_safe_redirect($redirect_to);
                 exit;
             } else {
-                $error_msg = __('Invalid two-factor code. Please check your authenticator app or enter a recovery code.', 'wcp-security-scanner');
+                set_transient($attempt_transient, $failed_attempts + 1, 300);
+                if (empty($error_msg)) {
+                    $attempts_left = max(0, 5 - ($failed_attempts + 1));
+                    /* translators: %d: number of remaining verification attempts */
+                    $error_msg = sprintf(__('Invalid two-factor code (%d attempts remaining). Please check your authenticator app or enter a recovery code.', 'wcp-security-scanner'), $attempts_left);
+                }
             }
         }
 
@@ -1171,7 +1202,7 @@ class TwoFactorAuth {
                 <label for="wcpscan_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
                     <?php esc_html_e('Security Code or Recovery Code', 'wcp-security-scanner'); ?>
                 </label>
-                <input type="text" name="wcpscan_2fa_code" id="wcpscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="numeric" placeholder="<?php echo esc_attr(str_repeat('0', (int) $userDigits)); ?>" maxlength="<?php echo esc_attr((string) $userDigits); ?>" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
+                <input type="text" name="wcpscan_2fa_code" id="wcpscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="text" placeholder="<?php echo esc_attr(str_repeat('0', (int) $userDigits)); ?>" maxlength="12" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
             </p>
 
             <?php if ($remember_device_allowed): ?>

@@ -1660,7 +1660,7 @@ class CloudflareService {
      * @return array
      */
     public static function disconnect(): array {
-        SettingsManager::update_settings([
+        SettingsManager::save_settings([
             'cloudflare_enabled'        => false,
             'cloudflare_api_token'      => '',
             'cloudflare_zone_id'        => '',

@@ -213,8 +213,12 @@ class LearningModeEngine {
                 'first_seen'       => current_time('mysql'),
                 'last_seen'        => current_time('mysql'),
             ];
+            $should_save = true;
         } else {
             $p = &$profiles[$route_key];
+            $prev_status = $p['status'] ?? 'learning';
+            $prev_param_count = count($p['learned_params'] ?? []);
+
             $p['request_count']++;
             $p['benign_count']++;
             $p['last_seen'] = current_time('mysql');
@@ -233,6 +237,14 @@ class LearningModeEngine {
                     sprintf('Adaptive Learning Mode: Route "%s" reached 100%% confidence (%d benign requests) and graduated to Active Enforcement.', $route_key, $p['benign_count'])
                 );
             }
+            // Only flag option updates if new params were discovered or graduation status shifted
+            $params_changed = count($p['learned_params']) > $prev_param_count;
+            $status_changed = ($p['status'] !== $prev_status);
+            $should_save = $params_changed || $status_changed || ($p['request_count'] % 20 === 0);
+        }
+
+        if (!$should_save) {
+            return;
         }
 
         // Limit stored route profiles to top 150 active routes

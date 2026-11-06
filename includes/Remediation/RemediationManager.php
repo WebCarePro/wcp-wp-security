@@ -924,7 +924,14 @@ class RemediationManager {
     /**
      * Create safety backup before any remediation action
      */
-    private function create_file_backup($file_path, $action_type) {
+    /**
+     * Create a secure backup of a file prior to remediation.
+     *
+     * @param string $file_path
+     * @param string $action_type
+     * @return array Backup metadata
+     */
+    public function create_file_backup($file_path, $action_type) {
         $backup_id = uniqid('rem_', true);
         $filename = basename($file_path) . '_' . gmdate('Ymd_His') . '_' . substr(md5($backup_id), 0, 8) . '.bak.php';
         $dest_path = $this->backup_dir . '/' . $filename;

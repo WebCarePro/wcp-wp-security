@@ -511,7 +511,7 @@ class PersistenceScanner {
             $snippet = '';
 
             // Run AST token analysis
-            $ast = $this->analyze_php_tokens($content);
+            $ast = $this->analyze_php_tokens($content, $file);
             if ($ast['is_malicious']) {
                 $status = 'malicious';
                 $threat_summary = $ast['reason'];
@@ -597,7 +597,7 @@ class PersistenceScanner {
             }
 
             // AST Token Check
-            $ast = $this->analyze_php_tokens($content);
+            $ast = $this->analyze_php_tokens($content, $file);
             if ($ast['is_malicious']) {
                 $status = 'malicious';
                 $threat_summary = $ast['reason'];
@@ -856,7 +856,7 @@ class PersistenceScanner {
                 // If file was stripped or restored, but was edited again AFTER remediation timestamp
                 if ($mtime && $mtime > ($created_time + 10)) {
                     $content = @file_get_contents($orig_path) ?: '';
-                    $ast = $this->analyze_php_tokens($content);
+                    $ast = $this->analyze_php_tokens($content, $orig_path);
 
                     if ($ast['is_malicious'] || $ast['is_suspicious']) {
                         $diff = $mtime - $created_time;
@@ -884,9 +884,10 @@ class PersistenceScanner {
      * Parse PHP tokens to detect malicious constructs, stealth include wrappers, and backdoors.
      *
      * @param string $content
+     * @param string $file_path
      * @return array
      */
-    private function analyze_php_tokens(string $content): array {
+    private function analyze_php_tokens(string $content, string $file_path = ''): array {
         $result = [
             'is_malicious'  => false,
             'is_suspicious' => false,

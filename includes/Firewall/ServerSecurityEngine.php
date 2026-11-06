@@ -712,4 +712,29 @@ class ServerSecurityEngine {
                 : __('Perimeter enforcement test inconclusive. Ensure the generated server config has been included in your Nginx, Apache, or Caddy configuration.', 'wcp-security-scanner'),
         ];
     }
+
+    /**
+     * Remove deployed server security rules from root .htaccess
+     *
+     * @return array
+     */
+    public static function remove_rules(): array {
+        $htaccess_path = ABSPATH . '.htaccess';
+        if (!file_exists($htaccess_path)) {
+            return ['success' => true, 'message' => 'No .htaccess file present.'];
+        }
+
+        $current = (string) @file_get_contents($htaccess_path);
+        $marker = 'WCP_SECURITY_SCANNER_SERVER_RULES';
+        $pattern = '/# BEGIN ' . preg_quote($marker, '/') . '.*?# END ' . preg_quote($marker, '/') . '\s*/s';
+
+        if (preg_match($pattern, $current)) {
+            $updated = preg_replace($pattern, '', $current);
+            // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+            @file_put_contents($htaccess_path, $updated);
+            return ['success' => true, 'message' => 'Server security rules removed from .htaccess.'];
+        }
+
+        return ['success' => true, 'message' => 'No WCP rules found in .htaccess.'];
+    }
 }

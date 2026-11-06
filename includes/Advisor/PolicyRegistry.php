@@ -251,7 +251,7 @@ class PolicyRegistry {
      * @return bool
      */
     public static function validate_registry(): bool {
-        $defaults = SettingsManager::get_default_settings();
+        $defaults = SettingsManager::get_defaults();
         foreach (self::get_policies() as $key => $policy) {
             if (!array_key_exists($key, $defaults)) {
                 return false;

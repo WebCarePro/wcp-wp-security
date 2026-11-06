@@ -31,7 +31,7 @@ class LocalSnapshotManager {
      */
     public static function get_storage_dir(): string {
         $uploads = wp_upload_dir();
-        $dir = untrailingslashit($uploads['basedir']) . '/wcp-security-scanner/snapshots';
+        $dir = untrailingslashit($uploads['basedir']) . '/wcp-security-scanner/.snapshots';
 
         if (!is_dir($dir)) {
             wp_mkdir_p($dir);
@@ -420,7 +420,8 @@ class LocalSnapshotManager {
      * @return array
      */
     public static function restore_file(string $snapshot_id, string $rel_path): array {
-        if (!current_user_can('manage_options')) {
+        $is_cli_or_cron = (defined('WP_CLI') && WP_CLI) || (defined('DOING_CRON') && DOING_CRON);
+        if (!current_user_can('manage_options') && !$is_cli_or_cron) {
             return ['success' => false, 'message' => esc_html__('Access Denied: manage_options capability required.', 'wcp-security-scanner')];
         }
         $archive_data = self::load_snapshot_archive($snapshot_id);

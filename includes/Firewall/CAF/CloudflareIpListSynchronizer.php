@@ -85,7 +85,7 @@ class CloudflareIpListSynchronizer {
      * @param string $reason Reason description
      * @param int $ttl Time to live in seconds (default 86400)
      */
-    public function queue_ip_ban(string $ip, string $reason = 'WCP WAF Threat', int $ttl = 86400): void {
+    public static function queue_ip_ban(string $ip, string $reason = 'WCP WAF Threat', int $ttl = 86400): void {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return;
@@ -114,14 +114,14 @@ class CloudflareIpListSynchronizer {
         // When Cloudflare aggressively caches edge pages, low-traffic sites may not trigger cron on schedule.
         // If queue exceeds 25 pending bans, immediately trigger background loopback flush.
         if (count($queue) >= 25) {
-            $this->trigger_background_queue_flush();
+            self::trigger_background_queue_flush();
         }
     }
 
     /**
      * Trigger immediate non-blocking loopback request to flush bans without waiting for cron visitor.
      */
-    public function trigger_background_queue_flush(): void {
+    public static function trigger_background_queue_flush(): void {
         $last_spawn = (int) get_transient('wcp_cf_queue_spawn_debounce');
         if (time() - $last_spawn < 60) {
             return; // Debounce to at most once per 60 seconds

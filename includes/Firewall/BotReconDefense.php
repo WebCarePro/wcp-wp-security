@@ -516,14 +516,9 @@ class BotReconDefense {
             }
         }
 
-        // Check 1: User-Agent claims modern Chrome desktop but Sec-CH-UA header is completely absent
-        if ($is_modern_desktop_chrome && empty($sec_ch_ua)) {
-            return [
-                'anomaly'     => 'missing_client_hints',
-                'description' => 'User-Agent claims modern desktop Chrome but Sec-CH-UA Client-Hints are missing (bot spoofing signature).',
-                'severity'    => 'medium',
-            ];
-        }
+        // Check 1: User-Agent claims modern Chrome desktop but Sec-CH-UA header is absent
+        // NOTE: Privacy-focused browsers like Brave, Tor, or hardened Firefox forks intentionally strip Sec-CH-UA,
+        // and search crawlers or privacy extensions may omit it. Do not hard-block; only evaluate if platform contradicts.
 
         // Check 2: Mobile Client-Hint mismatch (?1 on desktop UA or ?0 on mobile UA)
         if (!empty($sec_ch_ua_mobile)) {

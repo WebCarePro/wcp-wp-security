@@ -52,6 +52,16 @@ class WcpJitMuGuardian {
             return false;
         }
 
+        // Performance Optimization: Only verify/deploy MU guardian on admin requests or when ephemeral/support users exist
+        $is_admin_req = is_admin() || (defined('WP_CLI') && WP_CLI);
+        if (!$is_admin_req) {
+            $has_ephemeral = !empty(get_option(self::OPTION_ELEVATIONS, []));
+            $has_support   = !empty(get_option(self::OPTION_SUPPORT_USERS, []));
+            if (!$has_ephemeral && !$has_support) {
+                return true;
+            }
+        }
+
         $mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
         $target_file = $mu_dir . '/' . self::MU_FILENAME;
 
@@ -294,23 +304,34 @@ class WcpJitMuGuardianRuntime {
         }
 
         $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
-        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+        $elevations    = get_option(self::OPTION_ELEVATIONS, []);
+
+        $is_support = is_array($support_users) && isset($support_users[$user_id]);
+        $is_jit     = is_array($elevations) && isset($elevations[$user_id]);
+
+        if (!$is_support && !$is_jit) {
             return $result;
         }
+
+        $cfg = $is_support ? $support_users[$user_id] : [
+            'block_settings_modification' => true,
+            'block_database_and_options'  => true,
+            'block_remediation_actions'   => true,
+            'block_user_management'       => true,
+            'block_plugin_install'        => true,
+        ];
+        $method = (is_object($request) && method_exists($request, 'get_method')) ? strtoupper($request->get_method()) : 'GET';
 
         $route = (is_object($request) && method_exists($request, 'get_route')) ? $request->get_route() : '';
         if (empty($route)) {
             return $result;
         }
 
-        $cfg = $support_users[$user_id];
-        $method = (is_object($request) && method_exists($request, 'get_method')) ? strtoupper($request->get_method()) : 'GET';
-
         // 1. Inviolable: Prohibit creating, viewing, or revoking temporary support links
         if (strpos($route, '/wcp-scanner/v1/identity/temporary-access') !== false) {
             return new \WP_Error(
                 'rest_forbidden',
-                esc_html__('Temporary Support Technicians are strictly prohibited from generating, viewing, or revoking temporary support access links.', 'wcp-security-scanner'),
+                esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from generating, viewing, or revoking temporary support access links.', 'wcp-security-scanner'),
                 ['status' => 403]
             );
         }
@@ -319,7 +340,7 @@ class WcpJitMuGuardianRuntime {
         if (strpos($route, '/wcp-scanner/v1/settings/reset') !== false) {
             return new \WP_Error(
                 'rest_forbidden',
-                esc_html__('Temporary Support Technicians are strictly prohibited from resetting plugin settings to factory defaults.', 'wcp-security-scanner'),
+                esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from resetting plugin settings to factory defaults.', 'wcp-security-scanner'),
                 ['status' => 403]
             );
         }
@@ -327,7 +348,7 @@ class WcpJitMuGuardianRuntime {
         if (strpos($route, '/wcp-scanner/v1/settings/import') !== false) {
             return new \WP_Error(
                 'rest_forbidden',
-                esc_html__('Temporary Support Technicians are strictly prohibited from importing or overwriting plugin settings.', 'wcp-security-scanner'),
+                esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from importing or overwriting plugin settings.', 'wcp-security-scanner'),
                 ['status' => 403]
             );
         }
@@ -501,11 +522,22 @@ class WcpJitMuGuardianRuntime {
         }
 
         $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
-        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+        $elevations    = get_option(self::OPTION_ELEVATIONS, []);
+
+        $is_support = is_array($support_users) && isset($support_users[$user_id]);
+        $is_jit     = is_array($elevations) && isset($elevations[$user_id]);
+
+        if (!$is_support && !$is_jit) {
             return;
         }
 
-        $cfg = $support_users[$user_id];
+        $cfg = $is_support ? $support_users[$user_id] : [
+            'block_settings_modification' => true,
+            'block_database_and_options'  => true,
+            'block_plugin_install'        => true,
+            'block_file_editor'           => true,
+            'block_user_management'       => true,
+        ];
         global $pagenow;
 
         // 1. Unconditional Lockout: options.php
@@ -628,11 +660,21 @@ class WcpJitMuGuardianRuntime {
         }
 
         $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
-        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+        $elevations    = get_option(self::OPTION_ELEVATIONS, []);
+
+        $is_support = is_array($support_users) && isset($support_users[$user_id]);
+        $is_jit     = is_array($elevations) && isset($elevations[$user_id]);
+
+        if (!$is_support && !$is_jit) {
             return;
         }
 
-        $cfg = $support_users[$user_id];
+        $cfg = $is_support ? $support_users[$user_id] : [
+            'block_plugin_install'   => true,
+            'block_plugin_deletion'  => true,
+            'block_file_editor'      => true,
+            'block_user_management'  => true,
+        ];
         $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
         if (empty($action)) {
             return;
@@ -672,11 +714,18 @@ class WcpJitMuGuardianRuntime {
         }
 
         $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
-        if (!is_array($support_users) || !isset($support_users[$user_id])) {
+        $elevations    = get_option(self::OPTION_ELEVATIONS, []);
+
+        $is_support = is_array($support_users) && isset($support_users[$user_id]);
+        $is_jit     = is_array($elevations) && isset($elevations[$user_id]);
+
+        if (!$is_support && !$is_jit) {
             return $value;
         }
 
-        $cfg = $support_users[$user_id];
+        $cfg = $is_support ? $support_users[$user_id] : [
+            'block_database_and_options' => true,
+        ];
         if (!empty($cfg['block_database_and_options'])) {
             $guarded_options = [
                 'siteurl', 'home', 'admin_email', 'users_can_register', 'default_role',
@@ -714,15 +763,20 @@ class WcpJitMuGuardianRuntime {
         }
 
         $support_users = get_option(self::OPTION_SUPPORT_USERS, []);
-        if (!is_array($support_users) || !isset($support_users[$acting_uid])) {
+        $elevations    = get_option(self::OPTION_ELEVATIONS, []);
+
+        $is_support = is_array($support_users) && isset($support_users[$acting_uid]);
+        $is_jit     = is_array($elevations) && isset($elevations[$acting_uid]);
+
+        if (!$is_support && !$is_jit) {
             return $data;
         }
 
-        // Rule 1: Temporary support technician cannot edit other user accounts
+        // Rule 1: Temporary support technician and ephemeral admins cannot edit other user accounts
         if ($acting_uid !== (int) $user_id) {
             wp_die(
                 '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('Temporary support technicians are prohibited from modifying other user accounts.', 'wcp-security-scanner') . '</p>',
+                '<p>' . esc_html__('Temporary support technicians and ephemeral administrators are prohibited from modifying other user accounts.', 'wcp-security-scanner') . '</p>',
                 esc_html__('Access Denied', 'wcp-security-scanner'),
                 ['response' => 403]
             );

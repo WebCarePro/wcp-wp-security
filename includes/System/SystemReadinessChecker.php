@@ -21,8 +21,8 @@ class SystemReadinessChecker {
 
     const MIN_PHP_VERSION       = '8.3.0';
     const RECOMMENDED_PHP       = '8.4.0';
-    const MIN_WP_VERSION        = '7.0.0';
-    const RECOMMENDED_WP        = '7.1.0';
+    const MIN_WP_VERSION        = '6.2.0';
+    const RECOMMENDED_WP        = '6.7.0';
     const MIN_MEMORY_LIMIT_MB   = 128;
     const RECOMMENDED_MEMORY_MB = 256;
 

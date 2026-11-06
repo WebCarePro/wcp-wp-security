@@ -268,15 +268,16 @@ final class AdaptiveFirewallAdvisor {
 		$all_patches = class_exists( VirtualPatchManager::class ) ? ( VirtualPatchManager::get_patch_catalog() ?: [] ) : [];
 
 		foreach ( $all_patches as $patch_id => $patch ) {
-			$target = $patch['target'] ?? '';
-			$cve    = $patch['cve'] ?? $patch_id;
+			$target = $patch['component'] ?? ($patch['target'] ?? '');
+			$cve    = $patch['cve_id'] ?? ($patch['cve'] ?? $patch_id);
 
 			// If target matches an installed active plugin
-			if ( isset( $snapshot->active_plugins[ $target ] ) ) {
+			if ( ! empty( $target ) && isset( $snapshot->active_plugins[ $target ] ) ) {
 				$installed_ver = $snapshot->active_plugins[ $target ]['version'];
 				$fixed_in = $patch['fixed_in'] ?? null;
 
-				if ( $fixed_in && version_compare( (string) $installed_ver, (string) $fixed_in, '<' ) ) {
+				// If no specific fixed_in version is set, any version is vulnerable until patched
+				if ( ! $fixed_in || version_compare( (string) $installed_ver, (string) $fixed_in, '<' ) ) {
 					$must_enable_patches[] = [
 						'id'          => $patch_id,
 						'cve'         => $cve,

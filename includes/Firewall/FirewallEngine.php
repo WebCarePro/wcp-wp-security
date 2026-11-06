@@ -289,10 +289,10 @@ class FirewallEngine {
         }
 
         // 3. Localhost / loopback / internal reverse proxy check (e.g. Cloudflare Tunnel, Docker, cPanel Nginx reverse proxy)
-        // If connecting from local/private network AND Cloudflare header is present or WCP_TRUST_LOCAL_PROXY is enabled
+        // Local/private proxies are strictly trusted ONLY if WCP_TRUST_LOCAL_PROXY is explicitly enabled by administrator
         $is_local_or_private = ($ip === '127.0.0.1' || $ip === '::1' || self::is_private_ip($ip));
         if ($is_local_or_private) {
-            if ((defined('WCP_TRUST_LOCAL_PROXY') && WCP_TRUST_LOCAL_PROXY) || !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            if (defined('WCP_TRUST_LOCAL_PROXY') && WCP_TRUST_LOCAL_PROXY) {
                 return true;
             }
         }
@@ -680,8 +680,9 @@ class FirewallEngine {
         $is_admin_area = is_admin() || strpos($req_uri, '/wp-admin/') !== false;
 
         if (!$is_admin_area && !$is_rest && !$is_ajax && !self::is_authenticated_administrator()) {
-            $visitor_hits = (int) get_transient('wcpscan_active_visitor_traffic_15s');
-            set_transient('wcpscan_active_visitor_traffic_15s', $visitor_hits + 1, 15);
+            if (get_transient('wcpscan_active_visitor_traffic_15s') === false) {
+                set_transient('wcpscan_active_visitor_traffic_15s', 1, 15);
+            }
         }
 
         $settings = SettingsManager::get_settings();
@@ -742,53 +743,35 @@ class FirewallEngine {
                         // ensure legitimate paying customers are NOT permanently locked out by automated or non-admin bans.
                         $is_manual_admin_ban = ($ban_source === 'manual_admin') || (!empty($block_meta['admin_user']));
                         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
-                        $is_commerce_action = self::has_active_shopper_session() || self::is_commerce_or_membership_request($request_uri);
 
-                        if (!$is_manual_admin_ban && $is_commerce_action) {
-                            $rule_triggered = [
-                                'id'             => 'USER-CUSTOM-IP-BLOCK',
-                                'name'           => 'Custom Administrator IP Blocklist',
-                                'category'       => 'Custom IP Blocklist',
-                                'description'    => 'Active verified e-commerce cart/checkout session granted safe pass through non-admin custom block.',
-                                'match_type'     => 'Custom Blocklist',
-                                'match_value'    => $matching_entry,
-                                'payload'        => $client_ip,
-                                'ban_reason'     => $ban_reason,
-                                'ban_source'     => $ban_source,
-                                'matching_entry' => $matching_entry,
-                                'expires_at'     => $expires_at,
-                            ];
-                            self::log_incident($rule_triggered, 'monitored');
+                        $description = 'Connection blocked by administrator-defined custom IP rule.';
+                        if (!empty($ban_reason)) {
+                            $description = sprintf('Connection blocked: %s', $ban_reason);
+                        } elseif (!empty($ban_rule)) {
+                            $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                        }
+
+                        $rule_triggered = [
+                            'id'             => 'USER-CUSTOM-IP-BLOCK',
+                            'name'           => 'Custom Administrator IP Blocklist',
+                            'category'       => 'Custom IP Blocklist',
+                            'description'    => $description,
+                            'match_type'     => 'Custom Blocklist',
+                            'match_value'    => $matching_entry,
+                            'payload'        => $client_ip,
+                            'ban_reason'     => $ban_reason,
+                            'ban_source'     => $ban_source,
+                            'matching_entry' => $matching_entry,
+                            'expires_at'     => $expires_at,
+                        ];
+
+                        $mode = $settings['waf_mode'] ?? 'enabled';
+                        if ($mode === 'learning') {
+                            self::log_incident($rule_triggered, 'detected');
                         } else {
-                            $description = 'Connection blocked by administrator-defined custom IP rule.';
-                            if (!empty($ban_reason)) {
-                                $description = sprintf('Connection blocked: %s', $ban_reason);
-                            } elseif (!empty($ban_rule)) {
-                                $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
-                            }
-
-                            $rule_triggered = [
-                                'id'             => 'USER-CUSTOM-IP-BLOCK',
-                                'name'           => 'Custom Administrator IP Blocklist',
-                                'category'       => 'Custom IP Blocklist',
-                                'description'    => $description,
-                                'match_type'     => 'Custom Blocklist',
-                                'match_value'    => $matching_entry,
-                                'payload'        => $client_ip,
-                                'ban_reason'     => $ban_reason,
-                                'ban_source'     => $ban_source,
-                                'matching_entry' => $matching_entry,
-                                'expires_at'     => $expires_at,
-                            ];
-
-                            $mode = $settings['waf_mode'] ?? 'enabled';
-                            if ($mode === 'learning') {
-                                self::log_incident($rule_triggered, 'detected');
-                            } else {
-                                self::log_incident($rule_triggered, 'blocked');
-                                self::render_block_page($rule_triggered, $client_ip);
-                                exit;
-                            }
+                            self::log_incident($rule_triggered, 'blocked');
+                            self::render_block_page($rule_triggered, $client_ip);
+                            exit;
                         }
                     }
                 }
@@ -853,8 +836,7 @@ class FirewallEngine {
                     'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                exit;
-            }
+                            }
         }
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
@@ -890,8 +872,7 @@ class FirewallEngine {
                         'payload'     => "Method: {$req_method} URI: {$request_uri} IP: {$client_ip}",
                     ];
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    exit;
-                }
+                                    }
 
                 if (strpos($request_uri, 'xmlrpc.php') !== false || strpos($request_uri, '/wp/v2/users') !== false) {
                     $rule_triggered = [
@@ -904,8 +885,7 @@ class FirewallEngine {
                         'payload'     => "URI: {$request_uri} IP: {$client_ip}",
                     ];
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    exit;
-                }
+                                    }
             }
         }
 
@@ -928,8 +908,7 @@ class FirewallEngine {
                             'payload'     => "URI: {$decoded_uri} IP: {$client_ip}",
                         ];
                         self::handle_rule_violation($rule_triggered, $settings, $client_ip, 423);
-                        exit;
-                    }
+                                            }
                 }
             }
         }
@@ -957,8 +936,7 @@ class FirewallEngine {
                         'payload'     => "Target Slug: {$target_slug} URI: {$raw_uri} IP: {$client_ip}",
                     ];
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    exit;
-                }
+                                    }
             } elseif (preg_match('#/wp-content/themes/([a-zA-Z0-9_-]+)/#i', $decoded_check_uri, $theme_matches)) {
                 $target_theme = strtolower($theme_matches[1]);
                 $cached_snapshot = get_option('wcp_caf_stack_snapshot');
@@ -975,8 +953,7 @@ class FirewallEngine {
                         'payload'     => "Target Theme: {$target_theme} URI: {$raw_uri} IP: {$client_ip}",
                     ];
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    exit;
-                }
+                                    }
             }
         }
 
@@ -990,10 +967,8 @@ class FirewallEngine {
         }
 
         // Central Management Worker Bypass (ManageWP, MainWP, InfiniteWP)
+        // Requests from central management plugins are flagged for context, but MUST still pass through standard WAF exploit inspection
         $is_central_mgmt = self::is_verified_central_management_request($request_uri, $settings);
-        if ($is_central_mgmt) {
-            return;
-        }
 
         // Rule #34: Oversized Request Buffer & DoS Guard (Earliest execution check)
         if (!empty($settings['waf_block_oversized_requests'])) {
@@ -1017,8 +992,7 @@ class FirewallEngine {
                     'payload'     => "URI Length: {$uri_length} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 414);
-                exit;
-            }
+                            }
 
             if ($query_length > 1024 && !$is_exempt_endpoint) {
                 $rule_triggered = [
@@ -1031,8 +1005,7 @@ class FirewallEngine {
                     'payload'     => "Query Length: {$query_length} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                exit;
-            }
+                            }
 
             if ($post_count > 1000 && !$is_exempt_endpoint) {
                 $rule_triggered = [
@@ -1045,8 +1018,7 @@ class FirewallEngine {
                     'payload'     => "Params: {$post_count} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 400);
-                exit;
-            }
+                            }
         }
 
         // Rule #32: Strict Host & Forwarded Host Header Allowlist Guard
@@ -1065,8 +1037,7 @@ class FirewallEngine {
                     'payload'     => "Host: {$presented_host} Forwarded: {$forwarded_host} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                exit;
-            }
+                            }
         }
 
         // Rule #33: admin-ajax.php Unauthenticated Request Burst Rate-Limiter
@@ -1185,8 +1156,7 @@ class FirewallEngine {
                 ];
 
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 405);
-                exit;
-            }
+                            }
         }
 
         // HTTP PUT / Arbitrary Webshell Upload Hardening:
@@ -1211,8 +1181,7 @@ class FirewallEngine {
                 ];
 
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 405);
-                exit;
-            }
+                            }
         }
 
         // Block IPs who send POST requests with blank User-Agent and Referer
@@ -1238,15 +1207,24 @@ class FirewallEngine {
                         ];
 
                         self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                        exit;
-                    }
+                                            }
                 }
             }
         }
 
         // Rule 18: Instant Sensitive File & Backup Probes Shield
         if (!empty($settings['waf_block_sensitive_file_probes'])) {
-            $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
+            // Multi-pass URL decode to catch obfuscated probes (e.g. /%2eenv, /%252eenv, /%2egit)
+            $decoded_check_path = $request_uri;
+            for ($d_i = 0; $d_i < 3; $d_i++) {
+                $prev_path = $decoded_check_path;
+                $decoded_check_path = rawurldecode($decoded_check_path);
+                if ($decoded_check_path === $prev_path) {
+                    break;
+                }
+            }
+            $clean_path = strtolower(wp_parse_url($decoded_check_path, PHP_URL_PATH) ?: $decoded_check_path);
+            $clean_path = str_replace('\\', '/', $clean_path);
             $sensitive_patterns = [
                 '/\.(env|git|svn|htaccess|user\.ini)(\/|$)/i',
                 '/\.(sql|sql\.gz|tar\.gz|bak)$/i',
@@ -1266,7 +1244,6 @@ class FirewallEngine {
                     ];
 
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    exit;
                 }
             }
         }
@@ -1286,8 +1263,7 @@ class FirewallEngine {
                 ];
 
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                exit;
-            }
+                            }
         }
 
         // Specialized Rule: Disallow phpMyAdmin & Database Manager Plugin Installations (AJAX/REST/Query inspection)
@@ -1413,8 +1389,7 @@ class FirewallEngine {
                     ];
 
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    exit;
-                }
+                                    }
             }
         }
 
@@ -1488,53 +1463,35 @@ class FirewallEngine {
                         // ensure legitimate paying customers are NOT permanently locked out by automated or non-admin bans.
                         $is_manual_admin_ban = ($ban_source === 'manual_admin') || (!empty($block_meta['admin_user']));
                         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
-                        $is_commerce_action = self::has_active_shopper_session() || self::is_commerce_or_membership_request($request_uri);
 
-                        if (!$is_manual_admin_ban && $is_commerce_action) {
-                            $rule_triggered = [
-                                'id'             => 'USER-CUSTOM-IP-BLOCK',
-                                'name'           => 'Custom Administrator IP Blocklist',
-                                'category'       => 'Custom IP Blocklist',
-                                'description'    => 'Active verified e-commerce cart/checkout session granted safe pass through non-admin custom block.',
-                                'match_type'     => 'Custom Blocklist',
-                                'match_value'    => $matching_entry,
-                                'payload'        => $client_ip,
-                                'ban_reason'     => $ban_reason,
-                                'ban_source'     => $ban_source,
-                                'matching_entry' => $matching_entry,
-                                'expires_at'     => $expires_at,
-                            ];
-                            self::log_incident($rule_triggered, 'monitored');
+                        $description = 'Connection blocked by administrator-defined custom IP rule.';
+                        if (!empty($ban_reason)) {
+                            $description = sprintf('Connection blocked: %s', $ban_reason);
+                        } elseif (!empty($ban_rule)) {
+                            $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
+                        }
+
+                        $rule_triggered = [
+                            'id'             => 'USER-CUSTOM-IP-BLOCK',
+                            'name'           => 'Custom Administrator IP Blocklist',
+                            'category'       => 'Custom IP Blocklist',
+                            'description'    => $description,
+                            'match_type'     => 'Custom Blocklist',
+                            'match_value'    => $matching_entry,
+                            'payload'        => $client_ip,
+                            'ban_reason'     => $ban_reason,
+                            'ban_source'     => $ban_source,
+                            'matching_entry' => $matching_entry,
+                            'expires_at'     => $expires_at,
+                        ];
+
+                        $mode = $settings['waf_mode'] ?? 'enabled';
+                        if ($mode === 'learning') {
+                            self::log_incident($rule_triggered, 'detected');
                         } else {
-                            $description = 'Connection blocked by administrator-defined custom IP rule.';
-                            if (!empty($ban_reason)) {
-                                $description = sprintf('Connection blocked: %s', $ban_reason);
-                            } elseif (!empty($ban_rule)) {
-                                $description = sprintf('Connection blocked by automated rule: %s', $ban_rule);
-                            }
-
-                            $rule_triggered = [
-                                'id'             => 'USER-CUSTOM-IP-BLOCK',
-                                'name'           => 'Custom Administrator IP Blocklist',
-                                'category'       => 'Custom IP Blocklist',
-                                'description'    => $description,
-                                'match_type'     => 'Custom Blocklist',
-                                'match_value'    => $matching_entry,
-                                'payload'        => $client_ip,
-                                'ban_reason'     => $ban_reason,
-                                'ban_source'     => $ban_source,
-                                'matching_entry' => $matching_entry,
-                                'expires_at'     => $expires_at,
-                            ];
-
-                            $mode = $settings['waf_mode'] ?? 'enabled';
-                            if ($mode === 'learning') {
-                                self::log_incident($rule_triggered, 'detected');
-                            } else {
-                                self::log_incident($rule_triggered, 'blocked');
-                                self::render_block_page($rule_triggered, $client_ip);
-                                exit;
-                            }
+                            self::log_incident($rule_triggered, 'blocked');
+                            self::render_block_page($rule_triggered, $client_ip);
+                            exit;
                         }
                     }
                 }
@@ -1583,8 +1540,7 @@ class FirewallEngine {
                 ];
 
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                exit;
-            }
+                            }
         }
 
         // Check Bot Recon Defense & AI Scraper Shield
@@ -1592,8 +1548,7 @@ class FirewallEngine {
         $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
         if ($bot_rule !== null) {
             self::handle_rule_violation($bot_rule, $settings, $client_ip, 403);
-            exit;
-        }
+                    }
 
         // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
         if (class_exists('\\WcpScanner\\Firewall\\VirtualPatchManager')) {
@@ -1604,8 +1559,7 @@ class FirewallEngine {
                     ThreatIntelNetwork::record_consensus_beacon($client_ip, $vpatch_rule['name'] ?? 'Virtual Patch Violation', ['category' => 'Virtual Patch']);
                 }
                 self::handle_rule_violation($vpatch_rule, $settings, $client_ip, 403);
-                exit;
-            }
+                            }
         }
 
         $env = self::detect_environment();
@@ -1617,8 +1571,7 @@ class FirewallEngine {
 
         if ($rule_triggered) {
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-            exit;
-        } else {
+                    } else {
             // Clean request passed all firewall filters: profile route parameters
             if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
                 \WcpScanner\Firewall\LearningModeEngine::profile_benign_request();
@@ -1627,13 +1580,26 @@ class FirewallEngine {
     }
 
     /**
-     * Evaluate protection rules across GET, POST, and URI
+     * Evaluate protection rules across GET, POST, Cookies, User-Agent, Referer, and URI
      */
     private static function evaluate_rules(array $settings, bool $is_complementary): ?array {
-        $raw_uri      = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        $uri          = urldecode($raw_uri);
-        $query_string = isset($_SERVER['QUERY_STRING']) ? urldecode(sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']))) : '';
-        $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
+
+        // Multi-pass URL decode for robust detection across multiple encoding layers
+        $decoded_uri = $raw_uri;
+        for ($d_i = 0; $d_i < 3; $d_i++) {
+            $prev_u = $decoded_uri;
+            $decoded_uri = rawurldecode($decoded_uri);
+            if ($decoded_uri === $prev_u) {
+                break;
+            }
+        }
+        $uri = $decoded_uri;
+
+        $raw_query = isset($_SERVER['QUERY_STRING']) ? (string) wp_unslash($_SERVER['QUERY_STRING']) : '';
+        $query_string = rawurldecode($raw_query);
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? (string) wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
+        $referer = isset($_SERVER['HTTP_REFERER']) ? (string) wp_unslash($_SERVER['HTTP_REFERER']) : '';
 
         // Authenticated administrators performing back-end actions in wp-admin or via authenticated WCP REST API are exempt from payload heuristic blocks
         // (Ensures an administrator browsing public frontend pages is STILL fully inspected and protected)
@@ -1652,8 +1618,6 @@ class FirewallEngine {
         // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];
 
-        $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($raw_uri);
-
         if (!empty($query_string)) {
             $params_to_check[] = $query_string;
         }
@@ -1661,68 +1625,43 @@ class FirewallEngine {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Early inspection of GET parameters before route execution
         if (!empty($_GET) && is_array($_GET)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $params_to_check[] = urldecode(http_build_query(wp_unslash($_GET)));
+            $params_to_check[] = rawurldecode(http_build_query(wp_unslash($_GET)));
         }
 
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early inspection of raw POST payload before WordPress nonce check
         if (!empty($_POST) && is_array($_POST)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
+            $params_to_check[] = rawurldecode(http_build_query($post_data));
+        }
 
-            // E-Commerce & Membership field normalization:
-            // (e.g. "Apt. #4", "O'Reilly", "Suite / Flat 2B", "Deliver c/o neighbor")
-            // must not be concatenated directly into generic path traversal or SQL heuristics.
-            if ($is_commerce_safe) {
-                $benign_customer_fields = [
-                    'billing_address_1', 'billing_address_2', 'shipping_address_1', 'shipping_address_2',
-                    'billing_city', 'shipping_city', 'billing_company', 'shipping_company',
-                    'order_comments', 'customer_note', 'billing_last_name', 'shipping_last_name',
-                    'payment_method_title', 'terms', 'ship_to_different_address'
-                ];
-                foreach ($benign_customer_fields as $field_key) {
-                    unset($post_data[$field_key]);
+        // Inspect Cookies vector
+        if (!empty($_COOKIE) && is_array($_COOKIE)) {
+            $cookie_data = wp_unslash($_COOKIE);
+            $cookie_str = '';
+            foreach ($cookie_data as $ck => $cv) {
+                if (is_string($cv)) {
+                    $cookie_str .= ' ' . $ck . '=' . $cv;
                 }
             }
-
-            // Smart Form Plugin Shield: Automatically normalize harmless free-form message fields
-            // (e.g. your-message, contact inquiries, feedback notes, user address lines)
-            // so benign English phrases containing single quotes or dashes don't trigger SQLi heuristics
-            $is_form_safe = !empty($settings['waf_forms_safe_mode']) && self::is_form_submission_request($raw_uri);
-            if ($is_form_safe) {
-                $benign_form_keys = [
-                    'your-message', 'your-name', 'your-subject', 'your-email',
-                    'message', 'comments', 'comment', 'description', 'subject', 'notes',
-                    'feedback', 'inquiry', 'wpforms', 'fluentform', 'gform_fields',
-                    'formData', 'frm_action'
-                ];
-                foreach ($post_data as $pk => $pv) {
-                    if (is_string($pv)) {
-                        // Check if key matches common form content fields
-                        $lower_k = strtolower((string)$pk);
-                        foreach ($benign_form_keys as $bfk) {
-                            if (strpos($lower_k, $bfk) !== false) {
-                                // Keep actual exploit tags (script, eval, UNION SELECT), but strip benign single-quote patterns
-                                $cleaned_val = preg_replace('/(\bunion\s+(all\s+)?select\b|<script|<iframe)/i', '$1', $pv);
-                                // If it doesn't contain genuine exploit signatures, isolate it from raw SQL heuristics
-                                if (!preg_match('/(<script|<iframe|\bunion\s+(all\s+)?select\b|php:\/\/|\b(eval|passthru|shell_exec|system)\s*\()/i', $pv)) {
-                                    unset($post_data[$pk]);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
+            if (!empty($cookie_str)) {
+                $params_to_check[] = rawurldecode($cookie_str);
             }
+        }
 
-            $params_to_check[] = urldecode(http_build_query($post_data));
+        // Inspect User-Agent and Referer headers
+        if (!empty($user_agent)) {
+            $params_to_check[] = $user_agent;
+        }
+        if (!empty($referer)) {
+            $params_to_check[] = rawurldecode($referer);
         }
 
         $raw_input = @file_get_contents('php://input');
-        if (!empty($raw_input) && strlen($raw_input) < 131072) { // Inspect up to 128KB payload
+        if (!empty($raw_input) && strlen($raw_input) < 262144) { // Inspect up to 256KB payload
             $params_to_check[] = wp_unslash($raw_input);
 
             // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
-            // Recursively inspect and extract nested sub-requests inside /wp/v2/batch and /batch/v1 JSON payloads
             $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $raw_input);
             if (!empty($batch_sub_payloads)) {
                 $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
@@ -1731,19 +1670,26 @@ class FirewallEngine {
 
         $combined_payload = implode(' ', $params_to_check);
 
+        // Multi-pass decode combined payload for deep matching
+        $decoded_combined = $combined_payload;
+        for ($c_i = 0; $c_i < 2; $c_i++) {
+            $prev_c = $decoded_combined;
+            $decoded_combined = rawurldecode($decoded_combined);
+            if ($decoded_combined === $prev_c) {
+                break;
+            }
+        }
+
         // 1. Path Traversal & LFI/RFI
         if (!empty($settings['waf_block_traversal'])) {
             $traversal_patterns = [
-                '/\.\.\//i',
-                '/\.\.\\\/i',
-                '/\.\.%2f/i',
-                '/\.\.%5c/i',
-                '/php:\/\/filter/i',
-                '/php:\/\/input/i',
-                '/etc\/passwd/i',
+                '/(?:\.\.\/|\.\.\\\\|\%2e\%2e|\%252e|\.\.%2f|\.\.%5c)/i',
+                '/php:\/\/(?:filter|input|fd)/i',
+                '/(?:\/|^)etc\/(?:passwd|shadow|hosts)/i',
+                '/(?:proc\/self\/environ|boot\.ini|win\.ini)/i',
             ];
             foreach ($traversal_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
                         'category'    => 'Path Traversal',
                         'description' => 'Local/Remote file inclusion directory traversal probe detected.',
@@ -1756,16 +1702,17 @@ class FirewallEngine {
         // 2. SQL Injection (SQLi)
         if (!empty($settings['waf_block_sqli'])) {
             $sqli_patterns = [
-                '/\bunion\s+(all\s+)?select\b/i',
+                '/\bunion(?:\s+|\/\*.*?\*\/|\()+(?:all(?:\s+|\/\*.*?\*\/)+)?select\b/i',
                 '/\bselect\b.+\bfrom\b.+\binformation_schema\b/i',
+                '/\b(?:sleep|benchmark)\s*\(\s*[0-9]+(?:\s*,\s*md5|\s*\))/i',
                 '/\bwaitfor\s+delay\s+[\'"][0-9:]+[\'"]/i',
-                '/\bbenchmark\s*\(\s*[0-9]+,\s*md5/i',
                 '/\bconcat\s*\(\s*0x[0-9a-f]+/i',
-                '/\bextractvalue\s*\(/i',
-                '/\bupdatexml\s*\(/i',
+                '/\b(?:extractvalue|updatexml)\s*\(/i',
+                '/\binto\s+(?:outfile|dumpfile)\b/i',
+                '/\bload_file\s*\(/i',
             ];
             foreach ($sqli_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
                         'category'    => 'SQL Injection',
                         'description' => 'Malicious SQL syntax exploitation pattern detected.',
@@ -1778,13 +1725,13 @@ class FirewallEngine {
         // 3. PHP Code & Command Injection
         if (!empty($settings['waf_block_php_injection'])) {
             $php_patterns = [
-                '/<\?php/i',
-                '/\beval\s*\(\s*(base64_decode|gzinflate|str_rot13|\$)/i',
-                '/\b(system|passthru|shell_exec|proc_open|popen)\s*\(/i',
+                '/<\?(?:php|=)/i',
+                '/\b(?:eval|assert)\s*(?:\(\s*|\s*[\'"][^\'"]*[\'"]\s*\()(?:base64_decode|gzinflate|str_rot13|\$)/i',
+                '/\b(?:system|passthru|shell_exec|proc_open|popen|pcntl_exec)\s*\(/i',
                 '/\bbase64_decode\s*\(\s*[\'"][A-Za-z0-9+\/=]{20,}/i',
             ];
             foreach ($php_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
                         'category'    => 'PHP Code Injection',
                         'description' => 'Direct PHP script tag or dangerous execution function payload detected.',
@@ -1796,7 +1743,7 @@ class FirewallEngine {
 
         // 3.5 PHP Object Injection (POP-chain gadgets) & Stream Wrapper Injection Shield
         $stream_and_pop_regex = '/(?:(?:^|[\s"\';,\[\]{}])(?:O|C):[+-]?\d+:"[^"]+":\d+:\{|(?:phar|expect|zip|glob|ogg|rar):\/\/|php:\/\/(?:filter|input|fd))/i';
-        if (preg_match($stream_and_pop_regex, $uri) || preg_match($stream_and_pop_regex, $combined_payload)) {
+        if (preg_match($stream_and_pop_regex, $uri) || preg_match($stream_and_pop_regex, $combined_payload) || preg_match($stream_and_pop_regex, $decoded_combined)) {
             return [
                 'id'          => 'WAF-OBJECT-STREAM-INJECTION',
                 'name'        => 'PHP Object Injection & Stream Wrapper Shield',
@@ -1812,10 +1759,11 @@ class FirewallEngine {
                 '/<script\b[^>]*>/i',
                 '/javascript\s*:\s*[a-z0-9_]+/i',
                 '/<iframe\b[^>]*>/i',
-                '/\bon(error|load|mouseover|click)\s*=\s*[\'"].+[\'"]/i',
+                '/<svg\b[^>]*\bon\w+\s*=/i',
+                '/\bon(?:error|load|mouseover|click|focus|blur|pointerenter|pointerover)\s*=/i',
             ];
             foreach ($xss_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
                         'category'    => 'Cross-Site Scripting (XSS)',
                         'description' => 'Hostile JavaScript injection or payload tag detected.',
@@ -2940,7 +2888,7 @@ class FirewallEngine {
         // Red Team Synthetic Attack Drill: NEVER log synthetic simulation probes to persistent incident table
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
-        if (!empty($drill_token)) {
+        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
             return null;
         }
 
@@ -3013,12 +2961,11 @@ class FirewallEngine {
         if ($action === 'blocked') {
             $settings = SettingsManager::get_settings();
             if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-                // SAFETY SHIELD: Never auto-ban authenticated admins, whitelisted IPs, or current admin IP
+                // SAFETY SHIELD: Never auto-ban authenticated admins or whitelisted IPs
                 $is_admin = self::is_authenticated_administrator();
                 $is_whitelisted = self::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
-                $current_client_ip = self::get_client_ip();
 
-                if (!$is_admin && !$is_whitelisted && $ip !== $current_client_ip) {
+                if (!$is_admin && !$is_whitelisted) {
                     // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
                     $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
                     if (in_array($rule['category'] ?? '', $critical_categories, true)) {
@@ -6566,8 +6513,7 @@ class FirewallEngine {
             ];
 
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 429);
-            exit;
-        }
+                    }
     }
 
     /**
@@ -6587,6 +6533,8 @@ class FirewallEngine {
             return;
         }
 
+        $client_ip = self::get_client_ip();
+
         // 1. IP-based limit: max 3 reset submissions per 15 minutes
         $ip_check = self::check_rate_limit('lostpw_post_ip:' . md5($client_ip), 3, 900);
         if (!$ip_check['allowed']) {
@@ -6601,8 +6549,7 @@ class FirewallEngine {
             ];
 
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 429);
-            exit;
-        }
+                    }
 
         // 2. User/Login identifier-based limit: max 3 reset submissions per target login/email per 15 minutes
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Lost password POST form submission rate limiting
@@ -6622,8 +6569,7 @@ class FirewallEngine {
                 ];
 
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 429);
-                exit;
-            }
+                            }
         }
     }
 
@@ -6820,8 +6766,7 @@ class FirewallEngine {
 
         if ($policy === 'block') {
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-            exit;
-        }
+                    }
 
         // In 'monitor' mode: log to WAF telemetry with status 'monitored' and permit execution
         self::log_incident($rule_triggered, 'monitored');

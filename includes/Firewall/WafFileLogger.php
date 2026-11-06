@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
  */
 class WafFileLogger {
 
-    const SUBDIR = 'wcp-security-scanner/waf-logs';
+    const SUBDIR = 'wcp-security-scanner/.waf-logs';
     const RETENTION_OPTION = 'wcpscan_waf_log_retention_days';
     const DEFAULT_RETENTION_DAYS = 60;
     const CRON_HOOK = 'wcpscan_waf_log_retention_prune';
@@ -76,7 +76,7 @@ class WafFileLogger {
         $index_file = $dir . '/index.php';
         if (!file_exists($index_file)) {
             // phpcs:ignore WordPress.WP.AlternativeFileSystem.file_put_contents_file_put_contents
-            @file_put_contents($index_file, "<?php\n// Silence is golden.\n");
+            @file_put_contents($index_file, "<?php\nhttp_response_code(403);\nexit('Direct access forbidden.');\n");
         }
 
         return true;
@@ -134,7 +134,7 @@ class WafFileLogger {
         // Red Team Synthetic Attack Drill probe suppression
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
-        if (!empty($drill_token)) {
+        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
             return null;
         }
 

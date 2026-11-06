@@ -68,6 +68,30 @@ if (file_exists($wcpscan_dispatcher_file) && file_exists($wcpscan_settings_mgr_f
     }
 }
 
+// Always clean up Micro-WAF preloads and server security rules regardless of delete_data_on_uninstall
+$wcpscan_microwaf_file = dirname(__FILE__) . '/includes/Firewall/MicroWafCompiler.php';
+if (file_exists($wcpscan_microwaf_file)) {
+    require_once $wcpscan_microwaf_file;
+    if (class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+        try {
+            \WcpScanner\Firewall\MicroWafCompiler::uninstall_preload();
+        } catch (\Throwable $e) {
+            // Fail safely
+        }
+    }
+}
+$wcpscan_server_sec_file = dirname(__FILE__) . '/includes/Firewall/ServerSecurityEngine.php';
+if (file_exists($wcpscan_server_sec_file)) {
+    require_once $wcpscan_server_sec_file;
+    if (class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
+        try {
+            \WcpScanner\Firewall\ServerSecurityEngine::remove_rules();
+        } catch (\Throwable $e) {
+            // Fail safely
+        }
+    }
+}
+
 $wcpscan_settings = get_option('wcpscan_settings', []);
 $wcpscan_delete_data = false; // Disabled by default to prevent loss of quarantine vault & settings on reinstallation
 
@@ -143,15 +167,15 @@ if ($wcpscan_delete_data) {
 
         // Comprehensive cleanup for dynamic/wildcard options (e.g. wcpscan_vault_backup_*, wcpscan_vault_ephem_*, wcpscan_*)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'wcpscan_%' OR option_name LIKE 'wcp_%'");
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'wcpscan_%'");
         if (is_multisite()) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->query("DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE 'wcpscan_%' OR meta_key LIKE 'wcp_%'");
+            $wpdb->query("DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE 'wcpscan_%'");
         }
 
         // 3. Purge all plugin transients and temporary caches
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_wcpscan_%' OR option_name LIKE '_transient_timeout_wcpscan_%' OR option_name LIKE '_transient_wcp_%' OR option_name LIKE '_transient_timeout_wcp_%'");
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_wcpscan_%' OR option_name LIKE '_transient_timeout_wcpscan_%'");
 
         // 4. Purge plugin user meta (2FA tokens, backup codes, trusted devices, session meta)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

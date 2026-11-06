@@ -200,7 +200,7 @@ class QRCode {
         return $pattern;
     }
 
-    function createNullArray($length) {
+    static function createNullArray($length) {
         $nullArray = array();
         for ($i = 0; $i < $length; $i++) {
             $nullArray[] = null;
@@ -383,7 +383,7 @@ class QRCode {
         $this->modules[$this->moduleCount - 8][8] = !$test;
     }
 
-    function createData($typeNumber, $errorCorrectLevel, $dataArray) {
+    static function createData($typeNumber, $errorCorrectLevel, $dataArray) {
 
         $rsBlocks = QRRSBlock::getRSBlocks($typeNumber, $errorCorrectLevel);
 
@@ -443,7 +443,7 @@ class QRCode {
      *
      * @return array
      */
-    function createBytes(&$buffer, &$rsBlocks) {
+    static function createBytes(&$buffer, &$rsBlocks) {
 
         $offset = 0;
 

@@ -239,8 +239,54 @@ class WebAuthnManager {
             ];
         }
 
+        // Strictly verify origin to prevent cross-origin registration relay attacks
+        $expected_origin_host = wp_parse_url(home_url(), PHP_URL_HOST);
+        $client_origin = (string) ($client_data['origin'] ?? '');
+        $client_origin_host = wp_parse_url($client_origin, PHP_URL_HOST);
+        if (empty($client_origin_host) || empty($expected_origin_host)) {
+            return [
+                'success' => false,
+                'message' => __('Registration origin verification failed: missing or invalid origin.', 'wcp-security-scanner'),
+            ];
+        }
+        $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
+        if (strtolower($client_origin_host) !== strtolower($expected_origin_host) && !$is_dev_env) {
+            return [
+                'success' => false,
+                'message' => __('WebAuthn registration origin mismatch.', 'wcp-security-scanner'),
+            ];
+        }
+
         // Parse Attestation Object to extract public key PEM
         $attestation_bin = self::base64url_decode($attestation_obj_b64);
+
+        // Verify rpIdHash in authenticatorData inside attestation object
+        $expected_rp_id = self::get_rp_id();
+        $expected_rp_hash = hash('sha256', $expected_rp_id, true);
+        $auth_data_pos = strpos($attestation_bin, 'authData');
+        if ($auth_data_pos !== false) {
+            $after_tag = $auth_data_pos + 8;
+            if ($after_tag < strlen($attestation_bin)) {
+                $lead = ord($attestation_bin[$after_tag]);
+                $auth_offset = $after_tag + 1;
+                if ($lead === 0x58) {
+                    $auth_offset = $after_tag + 2;
+                } elseif ($lead === 0x59) {
+                    $auth_offset = $after_tag + 3;
+                }
+                $auth_data = substr($attestation_bin, $auth_offset);
+                if (strlen($auth_data) >= 32) {
+                    $incoming_rp_hash = substr($auth_data, 0, 32);
+                    if (!hash_equals($expected_rp_hash, $incoming_rp_hash)) {
+                        return [
+                            'success' => false,
+                            'message' => __('WebAuthn registration RP ID verification failed.', 'wcp-security-scanner'),
+                        ];
+                    }
+                }
+            }
+        }
+
         $public_key_pem = self::extract_public_key_pem_from_attestation($attestation_bin);
 
         // Fallback: check if client provided direct DER public key via getPublicKey()
@@ -323,26 +369,11 @@ class WebAuthnManager {
             'created_at' => time(),
         ], 180);
 
-        // If the user entered their username or email on the login form, populate allowCredentials
-        // to guide authenticators like Windows Hello and prevent cross-account assertion confusion.
+        // Support resident / discoverable credentials without disclosing account credentials:
+        // By leaving allowCredentials empty, WebAuthn authenticators (Windows Hello, TouchID, YubiKey)
+        // automatically prompt the user to choose or present their resident passkey.
+        // This strictly prevents unauthenticated callers from enumerating valid users or credential IDs.
         $allow_credentials = [];
-        if (!empty($login_hint)) {
-            $matched_user = get_user_by('login', $login_hint);
-            if (!$matched_user) {
-                $matched_user = get_user_by('email', $login_hint);
-            }
-            if ($matched_user && $matched_user->exists()) {
-                $creds = self::get_user_credentials($matched_user->ID);
-                foreach ($creds as $c) {
-                    if (!empty($c['credential_id'])) {
-                        $allow_credentials[] = [
-                            'id'   => $c['credential_id'],
-                            'type' => 'public-key',
-                        ];
-                    }
-                }
-            }
-        }
 
         return [
             'success'    => true,
@@ -413,18 +444,22 @@ class WebAuthnManager {
             ];
         }
 
-        // Validate origin to prevent cross-site assertion relay
+        // Validate origin strictly to prevent cross-site assertion relay
         $expected_host = wp_parse_url(home_url(), PHP_URL_HOST);
         $client_origin = (string) ($client_data['origin'] ?? '');
         $client_origin_host = wp_parse_url($client_origin, PHP_URL_HOST);
-        if (!empty($client_origin_host) && !empty($expected_host)) {
-            $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
-            if (strtolower($client_origin_host) !== strtolower($expected_host) && !$is_dev_env) {
-                return [
-                    'success' => false,
-                    'message' => __('WebAuthn assertion origin mismatch.', 'wcp-security-scanner'),
-                ];
-            }
+        if (empty($client_origin_host) || empty($expected_host)) {
+            return [
+                'success' => false,
+                'message' => __('WebAuthn assertion origin invalid or missing.', 'wcp-security-scanner'),
+            ];
+        }
+        $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
+        if (strtolower($client_origin_host) !== strtolower($expected_host) && !$is_dev_env) {
+            return [
+                'success' => false,
+                'message' => __('WebAuthn assertion origin mismatch.', 'wcp-security-scanner'),
+            ];
         }
 
         // Fast O(1) indexed lookup for user owning this credential ID
@@ -484,6 +519,17 @@ class WebAuthnManager {
             return [
                 'success' => false,
                 'message' => __('Authenticator data truncated or invalid.', 'wcp-security-scanner'),
+            ];
+        }
+
+        // Verify rpIdHash matches expected RP ID hash (first 32 bytes of authenticatorData)
+        $expected_rp_id = self::get_rp_id();
+        $expected_rp_hash = hash('sha256', $expected_rp_id, true);
+        $incoming_rp_hash = substr($auth_data_bin, 0, 32);
+        if (!hash_equals($expected_rp_hash, $incoming_rp_hash)) {
+            return [
+                'success' => false,
+                'message' => __('WebAuthn RP ID hash mismatch for login assertion.', 'wcp-security-scanner'),
             ];
         }
 
@@ -845,7 +891,9 @@ class WebAuthnManager {
     public static function render_login_passkey_scripts(): void {
         $options_url = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-options'));
         $verify_url  = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-verify'));
-        $default_redirect = esc_url_raw(admin_url());
+        $requested_redirect = isset($_REQUEST['redirect_to']) ? wp_unslash($_REQUEST['redirect_to']) : '';
+        $validated_redirect = !empty($requested_redirect) ? wp_validate_redirect($requested_redirect, admin_url()) : admin_url();
+        $default_redirect = esc_url_raw($validated_redirect);
         ?>
         <script>
         (function() {
@@ -995,8 +1043,7 @@ class WebAuthnManager {
                     btn.style.borderColor = '#46b450';
                     btn.innerHTML = '✓ <?php echo esc_js(__('Authenticated! Redirecting...', 'wcp-security-scanner')); ?>';
 
-                    var urlParams = new URLSearchParams(window.location.search);
-                    var redirectTo = urlParams.get('redirect_to') || verifyData.redirect_url || '<?php echo esc_url($default_redirect); ?>';
+                    var redirectTo = verifyData.redirect_url || '<?php echo esc_url($default_redirect); ?>';
                     window.location.href = redirectTo;
 
                 } catch (err) {

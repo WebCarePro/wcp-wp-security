@@ -244,7 +244,7 @@ class GhostRouteTrap {
         // 4. Sync to Cloudflare Edge IP Lists if configured
         if (!empty($settings['sync_cloudflare_edge']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
             try {
-                CloudflareService::add_to_ip_list($ip, 'WCP Decoy Ghost Trap Probed');
+                CloudflareService::block_ip($ip, 'WCP Decoy Ghost Trap Probed');
             } catch (\Throwable $e) {
                 // Ignore Cloudflare API network failure during high-speed mitigation
             }

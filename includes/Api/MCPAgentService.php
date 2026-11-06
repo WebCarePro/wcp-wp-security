@@ -996,7 +996,6 @@ class MCPAgentService {
             'isError'            => false,
             'isStaged'           => true,
             'staged_id'          => $staged_id,
-            'confirmation_token' => $confirmation_token,
             'tool'               => $tool,
             'status'             => 'pending_approval',
             'content'   => [
@@ -1012,9 +1011,8 @@ class MCPAgentService {
             ],
             'result' => [
                 'staged_id'          => $staged_id,
-                'confirmation_token' => $confirmation_token,
                 'status'             => 'pending_approval',
-                'description'        => 'Awaiting administrator confirmation in WCP Console with signed confirmation token.',
+                'description'        => 'Awaiting administrator confirmation in WCP Console by an authenticated administrator session.',
             ],
         ];
     }
@@ -1037,6 +1035,12 @@ class MCPAgentService {
             });
             $list = array_values($list);
         }
+
+        // Never leak internal confirmation tokens in staged action listings
+        foreach ($list as &$item) {
+            unset($item['confirmation_token']);
+        }
+        unset($item);
 
         return $list;
     }
@@ -1077,14 +1081,13 @@ class MCPAgentService {
         }
 
         // Cryptographic confirmation verification:
-        // Must either be called by an authenticated administrator with manage_options OR provide the exact matching confirmation token
+        // Must strictly be called by an authenticated administrator with manage_options
         $is_admin = function_exists('current_user_can') && current_user_can('manage_options');
-        $has_valid_token = !empty($token_override) && !empty($target_action['confirmation_token']) && hash_equals($target_action['confirmation_token'], $token_override);
 
-        if (!$is_admin && !$has_valid_token) {
+        if (!$is_admin) {
             return [
                 'success' => false,
-                'message' => __('Execution Rejected: Mutating actions require administrative authorization or a valid cryptographic confirmation token.', 'wcp-security-scanner'),
+                'message' => __('Execution Rejected: Mutating actions require administrative authorization from an active administrator session.', 'wcp-security-scanner'),
             ];
         }
 
@@ -1163,8 +1166,7 @@ class MCPAgentService {
     private static function tool_get_posture(): array {
         $scorer = new RiskScorer();
         $health = $scorer->get_site_health();
-        $baseline_engine = new BehavioralBaselineEngine();
-        $baseline_drift = $baseline_engine->detect_drift();
+        $baseline_drift = BehavioralBaselineEngine::audit_baseline();
 
         $waf_enabled = (bool) SettingsManager::get('waf_enabled', true);
         $containment_active = EmergencyContainmentManager::is_active();
@@ -1241,8 +1243,7 @@ class MCPAgentService {
     }
 
     private static function tool_audit_baseline(): array {
-        $engine = new BehavioralBaselineEngine();
-        $drift = $engine->detect_drift();
+        $drift = BehavioralBaselineEngine::audit_baseline();
 
         return [
             'content' => [
@@ -1338,9 +1339,9 @@ class MCPAgentService {
         $action  = sanitize_text_field($args['action'] ?? 'apply');
 
         if ($action === 'apply') {
-            $res = VirtualPatchManager::apply_virtual_patch($rule_id);
+            $res = VirtualPatchManager::apply_patch($rule_id);
         } else {
-            $res = VirtualPatchManager::remove_virtual_patch($rule_id);
+            $res = VirtualPatchManager::remove_patch($rule_id);
         }
 
         return [

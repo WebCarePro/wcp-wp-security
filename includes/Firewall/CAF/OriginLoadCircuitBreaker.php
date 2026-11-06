@@ -53,7 +53,7 @@ class OriginLoadCircuitBreaker {
         if ($probe_velocity === 0 && class_exists(WafFileLogger::class)) {
             // Read lightweight stats from today's log if transient empty
             $stats = WafFileLogger::get_log_stats('today');
-            $blocked_today = (int) ($stats['actions']['blocked'] ?? 0);
+            $blocked_today = (int) ($stats['blocked_24h'] ?? ($stats['actions']['blocked'] ?? 0));
             $probe_velocity = min(150, (int) round($blocked_today / 60));
         }
 

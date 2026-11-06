@@ -223,8 +223,9 @@ class LearningModeEngine {
         // 2. Search WafFileLogger
         if (class_exists(WafFileLogger::class)) {
             $logs = WafFileLogger::query_logs(['limit' => 100]);
-            if (!empty($logs['items']) && is_array($logs['items'])) {
-                foreach ($logs['items'] as $item) {
+            $entries = $logs['logs'] ?? ($logs['items'] ?? []);
+            if (!empty($entries) && is_array($entries)) {
+                foreach ($entries as $item) {
                     if (($item['incident_id'] ?? '') === $id || ($item['id'] ?? '') === $id) {
                         return $item;
                     }

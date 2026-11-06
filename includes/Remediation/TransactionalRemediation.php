@@ -1,7 +1,7 @@
 <?php
 namespace WcpScanner\Remediation;
 
-use WcpScanner\Security\PathValidator;
+use WcpScanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,16 +23,24 @@ class TransactionalRemediation {
      */
     public static function get_transactions_dir(): string {
         $upload_dir = wp_upload_dir();
-        $base = wp_normalize_path($upload_dir['basedir'] . '/wcp-security-scanner/transactions');
+        $base = wp_normalize_path($upload_dir['basedir'] . '/wcp-security-scanner/.remediation/transactions');
 
         if (!is_dir($base)) {
             wp_mkdir_p($base);
             // Harden transaction storage against public web access
             @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
-            @file_put_contents($base . '/index.php', "<?php\n// Silence is golden.\n");
+            @file_put_contents($base . '/index.php', "<?php\nhttp_response_code(403);\nexit('Direct access forbidden.');\n");
         }
 
         return $base;
+    }
+
+    /**
+     * Validate transaction ID format to prevent path traversal
+     */
+    public static function sanitize_tx_id(string $tx_id): string {
+        $clean = preg_replace('/[^a-zA-Z0-9_-]/', '', $tx_id);
+        return (preg_match('/^tx_[0-9]{8}_[0-9]{6}_[a-zA-Z0-9]+$/', $clean)) ? $clean : '';
     }
 
     /**
@@ -80,6 +88,11 @@ class TransactionalRemediation {
      * @return bool
      */
     public static function record_file_snapshot(string $tx_id, string $file_path, string $action_type = 'quarantine', ?int $issue_id = null): bool {
+        $tx_id = self::sanitize_tx_id($tx_id);
+        if (empty($tx_id)) {
+            return false;
+        }
+
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
 
@@ -261,6 +274,11 @@ class TransactionalRemediation {
      * @return array
      */
     public static function rollback_transaction(string $tx_id): array {
+        $tx_id = self::sanitize_tx_id($tx_id);
+        if (empty($tx_id)) {
+            return ['success' => false, 'message' => __('Invalid transaction ID.', 'wcp-security-scanner')];
+        }
+
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
 

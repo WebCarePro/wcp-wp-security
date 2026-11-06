@@ -92,4 +92,48 @@ class RiskScorer {
             'all_total'   => count($findings),
         ];
     }
+
+    /**
+     * Get aggregate site security health summary.
+     *
+     * @return array
+     */
+    public function get_site_health(): array {
+        global $wpdb;
+        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issues = [];
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$table_issues}'") === $table_issues) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $issues = $wpdb->get_results("SELECT severity, status, confidence FROM {$table_issues} WHERE status = 'open'", ARRAY_A) ?: [];
+        }
+
+        $calc = $this->calculate($issues);
+        $score = $calc['score'];
+
+        $grade = 'A+';
+        $status = 'healthy';
+        if ($score >= 80) {
+            $grade = 'F';
+            $status = 'critical';
+        } elseif ($score >= 60) {
+            $grade = 'D';
+            $status = 'high_risk';
+        } elseif ($score >= 40) {
+            $grade = 'C';
+            $status = 'warning';
+        } elseif ($score >= 20) {
+            $grade = 'B';
+            $status = 'fair';
+        }
+
+        return [
+            'risk_score'     => $score,
+            'grade'          => $grade,
+            'status'         => $status,
+            'total_issues'   => $calc['total'],
+            'critical_count' => $calc['counts']['critical'] ?? 0,
+            'high_count'     => $calc['counts']['high'] ?? 0,
+            'breakdown'      => $calc['counts'],
+        ];
+    }
 }

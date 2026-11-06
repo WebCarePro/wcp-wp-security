@@ -459,7 +459,7 @@ class OutboundEgressFirewall {
         }
 
         // Direct Localhost & Loopback checks
-        if ($clean_host === '127.0.0.1' || $clean_host === 'localhost' || $clean_host === '::1' || $clean_host === '0.0.0.0') {
+        if ($clean_host === '127.0.0.1' || $clean_host === 'localhost' || $clean_host === '::1' || $clean_host === '0.0.0.0' || $clean_host === '0:0:0:0:0:0:0:1' || $clean_host === '0:0:0:0:0:0:0:0') {
             return [
                 'threat' => 'ssrf_loopback',
                 'reason' => 'Unauthorized internal localhost/loopback connection attempted.',
@@ -498,6 +498,13 @@ class OutboundEgressFirewall {
                     }
                 }
             } elseif (strlen($packed) === 16) {
+                // IPv6 Loopback: ::1 or any packed representation matching \x00...1
+                if ($packed === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01" || $packed === str_repeat("\x00", 16)) {
+                    return [
+                        'threat' => 'ssrf_loopback',
+                        'reason' => 'Unauthorized internal IPv6 loopback connection attempted (::1).',
+                    ];
+                }
                 // IPv6 Range Checks: Link-Local fe80::/10
                 $first_byte = ord($packed[0]);
                 $second_byte = ord($packed[1]);
@@ -514,8 +521,8 @@ class OutboundEgressFirewall {
                         'reason' => 'IPv6 unique local private network connection attempted (fc00::/7).',
                     ];
                 }
-                // IPv4-mapped IPv6 (::ffff:169.254.169.254)
-                if (substr($packed, 0, 12) === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff") {
+                // IPv4-mapped IPv6 (::ffff:x.x.x.x) or IPv4-compatible IPv6 (::x.x.x.x)
+                if (substr($packed, 0, 12) === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff" || substr($packed, 0, 12) === str_repeat("\x00", 12)) {
                     $ipv4_part = inet_ntop(substr($packed, 12));
                     if ($ipv4_part) {
                         return self::evaluate_ssrf_destination($ipv4_part);

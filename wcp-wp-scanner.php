@@ -145,6 +145,22 @@ register_deactivation_hook(__FILE__, function () {
         }
         delete_option('wcpscan_support_active_users');
     }
+
+    // Clean up Micro-WAF preloads and server security rules on deactivation to prevent site breakage
+    if (class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+        try {
+            \WcpScanner\Firewall\MicroWafCompiler::uninstall_preload();
+        } catch (\Throwable $e) {
+            // Fail safely
+        }
+    }
+    if (class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
+        try {
+            \WcpScanner\Firewall\ServerSecurityEngine::remove_rules();
+        } catch (\Throwable $e) {
+            // Fail safely
+        }
+    }
 });
 
 // =========================================================================

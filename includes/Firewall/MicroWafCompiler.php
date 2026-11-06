@@ -144,7 +144,7 @@ class MicroWafCompiler {
             wp_mkdir_p($dir);
             // Place silent index.php and hardened .htaccess
             file_put_contents(trailingslashit($dir) . 'index.php', "<?php\n// Silence is golden.\n");
-            file_put_contents(trailingslashit($dir) . '.htaccess', "<Files *.php>\nOrder Allow,Deny\nAllow from all\n</Files>\n");
+            file_put_contents(trailingslashit($dir) . '.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n");
         }
 
         $compiled_file = self::get_compiled_file_path();
@@ -287,7 +287,19 @@ class MicroWafCompiler {
 
         $out .= "        // 1. Resolve real client IP\n";
         $out .= "        \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
-        $out .= "        if (isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
+        $out .= "        \$cf_cidrs = ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'];\n";
+        $out .= "        \$is_cf_ip = false;\n";
+        $out .= "        if (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "            \$r_long = ip2long(\$ip);\n";
+        $out .= "            foreach (\$cf_cidrs as \$c_cidr) {\n";
+        $out .= "                list(\$net, \$m) = explode('/', \$c_cidr);\n";
+        $out .= "                \$mask_l = ~((1 << (32 - (int) \$m)) - 1);\n";
+        $out .= "                if ((\$r_long & \$mask_l) === (ip2long(\$net) & \$mask_l)) { \$is_cf_ip = true; break; }\n";
+        $out .= "            }\n";
+        $out .= "        } elseif (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {\n";
+        $out .= "            if (str_starts_with(\$ip, '2400:cb00:') || str_starts_with(\$ip, '2606:4700:') || str_starts_with(\$ip, '2803:f800:') || str_starts_with(\$ip, '2405:b500:') || str_starts_with(\$ip, '2405:8100:') || str_starts_with(\$ip, '2a06:98c0:')) { \$is_cf_ip = true; }\n";
+        $out .= "        }\n";
+        $out .= "        if (\$is_cf_ip && isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
         $out .= "            \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
         $out .= "        }\n\n";
 
@@ -415,10 +427,10 @@ class MicroWafCompiler {
 
         // Responder function
         $out .= "function wcp_micro_waf_block(string \$ip, string \$rule_id, string \$desc, string \$fail2ban_log): void {\n";
-        $out .= "    // Log in Linux Fail2ban / CrowdSec compatible format\n";
+        $out .= "    // Log in Linux Fail2ban / CrowdSec compatible format (strip CRLF to prevent log injection)\n";
         $out .= "    \$timestamp = gmdate('Y-m-d H:i:s');\n";
-        $out .= "    \$uri = isset(\$_SERVER['REQUEST_URI']) ? substr(\$_SERVER['REQUEST_URI'], 0, 200) : '/';\n";
-        $out .= "    \$method = isset(\$_SERVER['REQUEST_METHOD']) ? substr(\$_SERVER['REQUEST_METHOD'], 0, 10) : 'GET';\n";
+        $out .= "    \$uri = isset(\$_SERVER['REQUEST_URI']) ? str_replace([\"\\r\", \"\\n\"], '', substr(\$_SERVER['REQUEST_URI'], 0, 200)) : '/';\n";
+        $out .= "    \$method = isset(\$_SERVER['REQUEST_METHOD']) ? str_replace([\"\\r\", \"\\n\"], '', substr(\$_SERVER['REQUEST_METHOD'], 0, 10)) : 'GET';\n";
         $out .= "    \$log_entry = sprintf(\"[%s] [WCP-MICRO-WAF] [BLOCKED] IP: %s | Rule: %s | URI: %s | Method: %s\\n\", \$timestamp, \$ip, \$rule_id, \$uri, \$method);\n";
         $out .= "    @file_put_contents(\$fail2ban_log, \$log_entry, FILE_APPEND | LOCK_EX);\n\n";
 

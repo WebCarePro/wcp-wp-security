@@ -120,7 +120,7 @@ class Engine {
                     }
 
                     // Internal plugin storage exclusions
-                    if (in_array($name, ['.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', 'tests', 'test', 'testing', 'spec', 'specs', 'phpunit', 'docs', 'documentation', 'examples', 'fixtures', '.vscode', '.idea'], true)) {
+                    if (in_array($name, ['.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', '.vscode', '.idea'], true)) {
                         return false;
                     }
                     if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {

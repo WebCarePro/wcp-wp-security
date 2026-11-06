@@ -2,7 +2,7 @@
 namespace WcpScanner\Firewall;
 
 use WcpScanner\Security\SecretVault;
-use WcpScanner\Security\AuditLogger;
+use WcpScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;

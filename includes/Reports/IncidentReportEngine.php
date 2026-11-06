@@ -82,7 +82,7 @@ class IncidentReportEngine {
         // 3. Behavioral Attack Chains (Phase 2)
         $attack_chains = [];
         try {
-            $chain_data = AttackChainEngine::correlate_chains();
+            $chain_data = (new AttackChainEngine())->audit_attack_chains();
             $attack_chains = $chain_data['chains'] ?? [];
         } catch (\Throwable $e) {
             $attack_chains = [];
@@ -91,7 +91,7 @@ class IncidentReportEngine {
         // 4. Multi-Persistence Sentinel (Phase 1)
         $persistence_data = [];
         try {
-            $persistence_data = PersistenceScanner::audit();
+            $persistence_data = (new PersistenceScanner())->audit_full();
         } catch (\Throwable $e) {
             $persistence_data = ['threat_count' => 0, 'threats' => []];
         }
@@ -100,7 +100,7 @@ class IncidentReportEngine {
         $virtual_patches = [];
         $active_patches_count = 0;
         try {
-            $catalog = VirtualPatchManager::get_catalog();
+            $catalog = VirtualPatchManager::get_patch_catalog();
             $active_rules = VirtualPatchManager::get_active_patches();
             $active_patches_count = count($active_rules);
 

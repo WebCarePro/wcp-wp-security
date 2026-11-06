@@ -761,7 +761,7 @@ class AttackChainEngine {
                     }
                 } else {
                     // Try demoting to subscriber instead
-                    $demote_res = $user_mgr->assign_role($uid, 'subscriber');
+                    $demote_res = $user_mgr->assign_default_role($uid, 'subscriber');
                     if ($demote_res['success']) {
                         /* translators: %d: user ID */
                         $actions_taken[] = sprintf(__('Demoted user #%d to subscriber', 'wcp-security-scanner'), $uid);

@@ -542,7 +542,7 @@ class HoneyTokenEngine {
 
     private static function alert_and_contain_c2(string $c2_ip, string $token): void {
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            FirewallEngine::add_blocked_ip($c2_ip, 86400, 'Canary Honeytoken Triggered: External C2 probing decoy credentials', 'canary_trap', 'Honeytoken Alert');
+            FirewallEngine::add_blocked_ip($c2_ip, 'Canary Honeytoken Triggered: External C2 probing decoy credentials', 86400, 'canary_trap', 'Honeytoken Alert');
         }
 
         if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
@@ -604,15 +604,11 @@ class HoneyTokenEngine {
     }
 
     /**
-     * Safe client IP resolution.
+     * Safe client IP resolution delegating to FirewallEngine.
      */
     private static function get_client_ip(): string {
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-            return sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
-        }
-        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $parts = explode(',', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR'])));
-            return trim($parts[0]);
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            return FirewallEngine::get_client_ip();
         }
         return isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1';
     }

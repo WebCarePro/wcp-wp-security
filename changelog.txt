@@ -1,4 +1,27 @@
 v:2.6.0 - 2026-11-06
+- Master Security, Reliability, Architecture & Performance Remediation (bug-fix.md & MasterRemediationPlan.md):
+  * Phase 1 (Fatal PHP 8.3 & Crash Remediation):
+    - Removed 24 unconditional exit statements immediately following handle_rule_violation in FirewallEngine, resolving blank White Screens of Death (WSOD) during WAF Learning Mode, simulated drills, and authenticated administrator exceptions.
+    - Added automated MicroWafCompiler preload cleanup and ServerSecurityEngine rule uninstallation to both plugin deactivation and uninstall.php routines, and narrowed destructive database deletion queries to wcpscan_% options.
+    - Resolved 22+ PHP 8.3 fatal method, visibility, and namespace errors across CloudflareIpListSynchronizer, VirtualPatchManager, QRCodeGenerator, GhostRouteTrap, SettingsManager, NotificationDispatcher, RiskScorer, and MCPAgentService.
+  * Phase 2 (Core WAF Integrity & Bypass Remediation):
+    - Client IP Spoofing Hardening: Delegated HoneyTokenEngine and MicroWafCompiler IP resolution to validated Cloudflare IPv4/IPv6 CIDRs and enforced explicit WCP_TRUST_LOCAL_PROXY declarations before trusting upstream proxy headers.
+    - Eliminated Central Management & Drill Token Bypasses: Removed blanket unauthenticated bypasses on central management headers and enforced AttackSimulationEngine verification before suppressing WAF incident logging.
+    - Removed E-Commerce & Form Safe-Mode Bypasses: Eliminated cart cookie and webhook bypasses in FirewallEngine and VirtualPatchManager, ensuring all endpoints and POST bodies are deeply evaluated against CVE virtual patches and injection rules.
+    - Deep Input Inspection Normalization: Replaced destructive sanitize_text_field calls with recursive multi-pass rawurldecode, extended inspection to User-Agent, Referer, and Cookies, and hardened regex patterns for SQLi, XSS, RCE, and Path Traversal.
+  * Phase 3 (Identity, Auth, Storage & Secrets Hardening):
+    - WebAuthn / Passkey Hardening: Enforced strict origin matching against home_url() and verified rpIdHash against sha256(rpId) in registration and login assertions; secured redirect_to against open redirects and DOM XSS; prevented user enumeration on unauthenticated login-options requests.
+    - Two-Factor Authentication Hardening: Added 5-attempt rate limiting per pending verification session transient with HTTP 429 lockout, 90-second TOTP replay cache, input length expansion to maxlength="12" for recovery codes, and fixed redirect loops.
+    - AI Copilot & JIT Privileges: Stripped confirmation_token from MCP client responses; enforced $is_jit checks across all MU-guardian interceptors; optimized ensure_installed to run strictly during admin requests or active elevations.
+    - Storage & Backups Lockdown: Relocated transaction snapshots, WAF logs, and database backups into dot-prefixed directories (.remediation/, .waf-logs/, .db-backups/, .snapshots/) protected with HTTP 403 exit envelopes and sanitization against path traversal.
+    - SSRF & Database Placeholder Fixes: Hardened OutboundEgressFirewall against expanded IPv6 loopback addresses, and wrapped DatabaseBackup SQL exports with remove_placeholder_escape to prevent serialized PHP data corruption.
+  * Phase 4 (Scanner Accuracy & Per-Request Performance Optimization):
+    - Scanner Scope Corrections: Removed blanket /tests/ and /docs/ exclusions across all 8 malware detectors and Scanner/Engine, scoping exclusions strictly to the plugin's own directory.
+    - Batch Traversal Fix: Upgraded DirectoryWalker to track full relative paths (last_rel_path) for seamless resume across subdirectories.
+    - Known Hash Manifest Cleanup: Removed dummy placeholder hashes in KnownMalwareManifest and eliminated the false-positive md5("123456") entry from KnownHashDetector.
+    - Zero-Query Table Check: Optimized Plugin.php to check cached wcpscan_db_version before executing SHOW TABLES on every request.
+    - Eliminated Per-Request Transient Writes: Optimized visitor traffic counters and rate limiters to avoid continuous InnoDB row locking on non-object-cache servers.
+    - Throttled Learning Mode Updates: Gated LearningModeEngine::profile_benign_request to only write options when new route parameters or status transitions occur.
 - Theme Controller Unification & White Mode Cross-Page Persistence Fix (theme.ts, global.ts, WcpShell.tsx, App.tsx, index.css):
   * Unified Theme Controller (theme.ts): Built dedicated `applyWcpTheme()` and `getWcpTheme()` synchronization utilities ensuring bidirectional consistency across `localStorage`, `data-theme` attribute, and CSS theme classes on `document.documentElement` (`<html>`), `document.body`, and `#wcp-scanner-root`.
   * Pre-Mount Theme Class Sanitization (global.ts): Eliminated stale `.wcp-theme-dark` retention by systematically removing dark classes and applying clean `.wcp-theme-light` across `<html>` and `<body>` prior to React component mounting.

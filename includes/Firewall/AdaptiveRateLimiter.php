@@ -187,10 +187,20 @@ class AdaptiveRateLimiter {
 
         // Store back
         $ttl = $window * 2;
+        $has_fast_cache = false;
         if (function_exists('apcu_store') && ini_get('apc.enabled')) {
             apcu_store($cache_key, $data, $ttl);
+            $has_fast_cache = true;
         }
-        set_transient($cache_key, $data, $ttl);
+        if (wp_using_ext_object_cache()) {
+            wp_cache_set($cache_key, $data, 'wcpscan_rl', $ttl);
+            $has_fast_cache = true;
+        }
+
+        // Only fallback to options database writes if external object cache / APCu is unavailable, throttling write frequency
+        if (!$has_fast_cache) {
+            set_transient($cache_key, $data, $ttl);
+        }
 
         $allowed = ($effective_count <= (float) $limit);
         $remaining = max(0, (int) floor($limit - $effective_count));
@@ -218,7 +228,10 @@ class AdaptiveRateLimiter {
             return true;
         }
 
-        // Exempt logged-in administrators and editor/builders
+        // Exempt logged-in administrators and editor/builders (including early authentication detection at plugins_loaded: 0)
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator()) {
+            return true;
+        }
         if (function_exists('current_user_can') && current_user_can('manage_options')) {
             return true;
         }

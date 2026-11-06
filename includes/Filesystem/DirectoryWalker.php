@@ -51,16 +51,14 @@ class DirectoryWalker {
      */
     public function get_batch(string $root, array $cursor = [], int $batch_size = 25): array {
         $root = rtrim(str_replace('\\', '/', $root), '/');
-        $dir_stack = $cursor['dir_stack'] ?? [];
-        $last_file = $cursor['last_file'] ?? null;
+        $last_rel_path = $cursor['last_rel_path'] ?? ($cursor['last_file'] ?? null);
         $phase = $cursor['phase'] ?? 'filesystem';
 
         $files = [];
         $new_cursor = $cursor;
         $exhausted = false;
 
-        $current_dir = $this->build_path($root, $dir_stack);
-        if (!is_dir($current_dir)) {
+        if (!is_dir($root)) {
             return [
                 'files'     => [],
                 'cursor'    => $cursor,
@@ -68,10 +66,10 @@ class DirectoryWalker {
             ];
         }
 
-        $found_resume_point = ($last_file === null || $last_file === '');
+        $found_resume_point = ($last_rel_path === null || $last_rel_path === '');
 
         try {
-            $iterator = $this->create_iterator($current_dir);
+            $iterator = $this->create_iterator($root);
 
             foreach ($iterator as $fileinfo) {
                 /** @var \SplFileInfo $fileinfo */
@@ -90,9 +88,11 @@ class DirectoryWalker {
                     continue;
                 }
 
+                $rel_path = ltrim(substr($pathname, strlen($root)), '/');
+
                 // Skip until resume point is found
                 if (!$found_resume_point) {
-                    if ($basename === $last_file) {
+                    if ($rel_path === $last_rel_path || $basename === $last_rel_path) {
                         $found_resume_point = true;
                     }
                     continue;
@@ -205,11 +205,13 @@ class DirectoryWalker {
         $relative = trim(str_replace('\\', '/', $relative), '/');
 
         $dir_stack = $relative === '' ? [] : explode('/', $relative);
+        $rel_path = ltrim(substr($filepath, strlen($root)), '/');
 
         return [
-            'phase'     => $phase,
-            'dir_stack' => $dir_stack,
-            'last_file' => basename($filepath),
+            'phase'         => $phase,
+            'dir_stack'     => $dir_stack,
+            'last_file'     => basename($filepath),
+            'last_rel_path' => $rel_path,
         ];
     }
 }

@@ -12,7 +12,7 @@ class DatabaseBackup {
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        $this->backup_dir = $base . '/wcp-security-scanner/db-backups';
+        $this->backup_dir = $base . '/wcp-security-scanner/.db-backups';
 
         $this->ensure_directory();
     }
@@ -64,7 +64,7 @@ class DatabaseBackup {
         // Lock with index.php
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index) && wp_is_writable($this->backup_dir)) {
-            @file_put_contents($index, "<?php\n// Silence is golden.\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('Direct access forbidden.');\n");
         }
     }
 
@@ -628,7 +628,11 @@ class DatabaseBackup {
                         foreach ($chunk as $row) {
                             $vals = array_map(function ($val) use ($wpdb) {
                                 if ($val === null) return 'NULL';
-                                return "'" . esc_sql($val) . "'";
+                                $escaped = esc_sql((string) $val);
+                                if (method_exists($wpdb, 'remove_placeholder_escape')) {
+                                    $escaped = $wpdb->remove_placeholder_escape($escaped);
+                                }
+                                return "'" . $escaped . "'";
                             }, array_values($row));
                             $val_lines[] = "(" . implode(', ', $vals) . ")";
 

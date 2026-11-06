@@ -533,6 +533,30 @@ class NotificationDispatcher {
     }
 
     /**
+     * Check if a specific notification event channel is enabled.
+     *
+     * @param string $event_key Event identifier
+     * @param string $channel 'email' or 'webhook'
+     * @return bool
+     */
+    public static function is_event_enabled(string $event_key, string $channel = 'email'): bool {
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['notification_master_enabled'])) {
+            return false;
+        }
+
+        $events_config = $settings['notification_events'] ?? [];
+        $event_cfg = $events_config[$event_key] ?? null;
+
+        if ($event_cfg === null) {
+            $defaults = SettingsManager::get_default_notification_events();
+            $event_cfg = $defaults[$event_key] ?? ['email' => false, 'webhook' => false];
+        }
+
+        return !empty($event_cfg[$channel]);
+    }
+
+    /**
      * Trigger a granular security event notification
      *
      * @param string $event_key
