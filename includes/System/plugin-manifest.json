@@ -1,6 +1,6 @@
 {
   "version": "2.6.0",
-  "generated_at": "2026-11-06T03:10:07.848Z",
+  "generated_at": "2026-11-06T03:26:37.741Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -72,20 +72,20 @@
       "size": 854
     },
     "build/index.asset.php": {
-      "sha256": "2b380a655e9a2b8a5a6a3c5371c758f341d7a643dc3dd596b3effc50b5c6b8cd",
+      "sha256": "acd4d8c4842053c2a4b42cb588bfbb496a77c3b32f60e6d585b626b954370d76",
       "size": 163
     },
     "build/index.js": {
-      "sha256": "75a9f4edbc6f6353860cb682d5a4399ded83a416385fa6bf0edf45c9d856b1a3",
-      "size": 2301713
+      "sha256": "ef3cae96c5ffefc6285c624eee4a70c6bb90cea582dc273734213a4a485c1d28",
+      "size": 2304161
     },
     "build/scan.asset.php": {
-      "sha256": "c5e9bc6be8ff63168b1e310d629dc9dc49dc4164a9191dc0cf367c6c17afd51d",
+      "sha256": "fc9ea0140452edf62a0e8f266844b118f92e29b0133539370f407aca115260c9",
       "size": 163
     },
     "build/scan.js": {
-      "sha256": "329139fb6d17ac42129d9eadd7b7fb9e2ffb965c6e4407af1347e85651e95433",
-      "size": 2301112
+      "sha256": "af716d50b7144d88c727082f26a61035d3bd90c184a70b7f0390b533edb90dd4",
+      "size": 2303560
     },
     "build/settings.asset.php": {
       "sha256": "a52c642cad23c25a98a28a428753be37a88753ab7e4e06f75b9e932ad10efecb",
@@ -144,8 +144,8 @@
       "size": 75357
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "d8212bfe202eb852c2f05d28dffc96b88837b19ff7791e98de3f4ef59185c370",
-      "size": 568317
+      "sha256": "85aa5437f8aa5f5eb081201f13058677956195e131f3a15be6f5727bd3e6aed4",
+      "size": 574199
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "9e97b8abc045ca309fcb211443214328b6b9a5d1e5e04612d2d097e972b0d99d",
@@ -264,8 +264,8 @@
       "size": 1056
     },
     "includes/Filesystem/SymlinkScanner.php": {
-      "sha256": "fd32eef197eb1e2d0b931fcc30fd1facac65765b0f6bdeb619fc16cbca34fdee",
-      "size": 734
+      "sha256": "fddca78983508907faca997975aa246cfedd5f51105765d0aabb21244b80b28d",
+      "size": 2375
     },
     "includes/Filesystem/UploadsScanner.php": {
       "sha256": "0fc092ef840131f08efaeaf2eb5ffab84d6f35ddb7c7c4dbdde4304afc3e043f",

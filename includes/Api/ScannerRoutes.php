@@ -4606,6 +4606,64 @@ class ScannerRoutes {
                 }
             }
 
+            if (empty($item['display_title'])) {
+                $type_map = [
+                    'weak_password_detected'         => __('Weak Administrator Password', 'wcp-security-scanner'),
+                    'username_enumeration_risk'      => __('Username Enumeration Vulnerability', 'wcp-security-scanner'),
+                    'generic_admin_username'         => __('Generic Admin Username', 'wcp-security-scanner'),
+                    'user_missing_capabilities'      => __('Missing Administrator Capabilities', 'wcp-security-scanner'),
+                    'suspicious_user_capabilities'   => __('Suspicious User Capabilities', 'wcp-security-scanner'),
+                    'injected_user_capabilities'     => __('Injected User Capabilities', 'wcp-security-scanner'),
+                    'tampered_role_definition'       => __('Tampered Role Definition', 'wcp-security-scanner'),
+                    'orphaned_post_author'           => __('Orphaned Post Author', 'wcp-security-scanner'),
+                    'webshell_pattern'               => __('Webshell Signature Pattern', 'wcp-security-scanner'),
+                    'obfuscated_malware_payload'     => __('Obfuscated Malware Payload', 'wcp-security-scanner'),
+                    'suspicious_strings'             => __('Suspicious Remote Code Strings', 'wcp-security-scanner'),
+                    'obfuscation_detected'           => __('Code Obfuscation Detected', 'wcp-security-scanner'),
+                    'executable_in_uploads'          => __('Executable Script in Uploads Directory', 'wcp-security-scanner'),
+                    'unsafe_permissions'             => __('Unsafe File Permissions', 'wcp-security-scanner'),
+                    'symlink_detected'               => __('Filesystem Symbolic Link', 'wcp-security-scanner'),
+                    'unknown_core_file'              => __('Unrecognized Core Directory File', 'wcp-security-scanner'),
+                    'unknown_wp_admin_file'          => __('Unrecognized WP-Admin File', 'wcp-security-scanner'),
+                    'unknown_wp_includes_file'       => __('Unrecognized WP-Includes File', 'wcp-security-scanner'),
+                    'modified_core_file'             => __('Modified WordPress Core File', 'wcp-security-scanner'),
+                    'modified_theme_file'            => __('Modified Theme File', 'wcp-security-scanner'),
+                    'modified_plugin_file'           => __('Modified Plugin File', 'wcp-security-scanner'),
+                    'missing_core_file'              => __('Missing WordPress Core File', 'wcp-security-scanner'),
+                    'eval_in_options'                => __('PHP Code in WordPress Options', 'wcp-security-scanner'),
+                    'base64_in_options'              => __('Base64 Payload in Options', 'wcp-security-scanner'),
+                    'serialized_injection'           => __('Serialized Object Injection', 'wcp-security-scanner'),
+                    'malicious_cron_hook'            => __('Suspicious Scheduled Cron Hook', 'wcp-security-scanner'),
+                    'malicious_cron_hook_name'       => __('Suspicious Scheduled Cron Hook', 'wcp-security-scanner'),
+                    'orphaned_cron_hook'             => __('Orphaned Scheduled Cron Hook', 'wcp-security-scanner'),
+                    'malicious_system_crontab'       => __('Malicious System Crontab Entry', 'wcp-security-scanner'),
+                    'suspicious_crontab_execution'   => __('Suspicious Crontab Execution', 'wcp-security-scanner'),
+                    'hidden_directory_crontab'       => __('Hidden Directory Crontab Task', 'wcp-security-scanner'),
+                    'malicious_mu_plugin'            => __('Suspicious Must-Use (MU) Plugin', 'wcp-security-scanner'),
+                    'mu_plugin_warning'              => __('Unverified Must-Use Plugin', 'wcp-security-scanner'),
+                    'unexpected_wp_content_file'     => __('Unexpected File in WP-Content', 'wcp-security-scanner'),
+                    'malicious_dropin'               => __('Malicious WordPress Drop-in', 'wcp-security-scanner'),
+                    'unauthorized_dropin'            => __('Unauthorized WordPress Drop-in', 'wcp-security-scanner'),
+                    'db_autoload_malware_anchor'     => __('Autoload Database Malware Anchor', 'wcp-security-scanner'),
+                    'self_healing_malware_resurrection' => __('Self-Healing Malware Persistence', 'wcp-security-scanner'),
+                    'rogue_server_preloader'         => __('Rogue Server Auto-Preloader', 'wcp-security-scanner'),
+                    'ini_auto_prepend'               => __('PHP INI auto_prepend_file Injection', 'wcp-security-scanner'),
+                    'ini_auto_append'                => __('PHP INI auto_append_file Injection', 'wcp-security-scanner'),
+                    'user_ini_preloader'             => __('User INI Preload Injection', 'wcp-security-scanner'),
+                    'htaccess_preloader'             => __('htaccess Preload Injection', 'wcp-security-scanner'),
+                    'core_checksums_unavailable'     => __('WordPress Core Checksums Unavailable', 'wcp-security-scanner'),
+                    'theme_checksums_unavailable'    => __('Theme Checksums Unavailable', 'wcp-security-scanner'),
+                    'plugin_checksums_unavailable'   => __('Plugin Checksums Unavailable', 'wcp-security-scanner'),
+                ];
+
+                if (!empty($item['type']) && isset($type_map[$item['type']])) {
+                    $item['display_title'] = $type_map[$item['type']];
+                } elseif (!empty($item['type'])) {
+                    // Fallback to formatted title case: "my_suspicious_finding" -> "My Suspicious Finding"
+                    $item['display_title'] = ucwords(str_replace(['_', '-'], ' ', $item['type']));
+                }
+            }
+
             // 6. Whitelist & False-Positive Rule Matching (Auto-suppression)
             $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
             if ($matched_rule !== null) {
