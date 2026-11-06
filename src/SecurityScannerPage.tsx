@@ -53,6 +53,7 @@ import {
   RotateCw,
   SlidersHorizontal,
   Gauge,
+  BookOpen,
 } from 'lucide-react';
 
 import { PersistenceSentinelCard } from './components/PersistenceSentinelCard';
