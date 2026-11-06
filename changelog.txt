@@ -46,6 +46,9 @@ v:2.6.0 - 2026-11-06
   * Live User Audit Telemetry & Finding Pagination Scale (UserScanner.php, SecurityScannerPage.tsx):
     - Live User Inspection Telemetry: Enhanced `UserScanner` to dynamically broadcast incremental progress counting (`Auditing user accounts (X / Y users checked)...`) during user audits, preventing the scan from appearing frozen or stuck on large membership sites (e.g., 20k+ user databases).
     - Large-Scale Findings Pagination: Changed the default findings pagination size from 25 to 100 results per page, removed the small 25 and 50 page options, and added 200 and 500 per page options for rapid triage of large finding sets.
+  * Large-Scale Pagination Optimization (WafLogsPage.tsx, ActivityLogsPage.tsx):
+    - WAF Incident Logs Pagination: Updated default page size to 100 rows, removed small 15, 25, and 50 options, and added 200 and 500 rows per page for large-scale incident investigation and real-time security log filtering.
+    - Plugin Activity Logs Pagination: Updated default page size to 100 forensic events, removed 25 and 50 options, and added 200 and 500 options for rapid high-volume audit analysis.
   * Granular Firewall Allowlist Multi-Group Category Selection (FirewallPage.tsx):
     - Multi-Group Category Exemption: Upgraded the Firewall IP Allowlist exemption selector from a rigid single-select dropdown into a dynamic multi-category selector across both the "Add IP or Subnet to Allowlist" card and the "Edit Whitelist Policy" modal dialog.
     - Category Pill Matrix & Quick Actions: Implemented an intuitive, high-contrast matrix of interactive category pills with active checkmark states, real-time rule counters, and 1-click "Select All" and "Clear" toggles, giving developers and website owners maximum customization and freedom to exempt multiple firewall rule categories simultaneously.
