@@ -1,6 +1,6 @@
 {
   "name": "wcp-security-scanner",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "description": "React Admin UI for WCP WP Security Scanner",
   "scripts": {
     "build": "wp-scripts build",

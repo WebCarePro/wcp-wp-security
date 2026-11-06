@@ -469,10 +469,14 @@ class OutboundEgressFirewall {
             return ($dns_cache[$clean_host] = ['threat' => null, 'reason' => '', 'safe_ip' => '']);
         }
 
-        // Normalize shorthand, octal, hex, or integer IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1, 0x7f000001, 2130706433)
-        $normalized_ipv4 = self::normalize_ipv4($clean_host);
-        if ($normalized_ipv4 !== false) {
-            $clean_host = $normalized_ipv4;
+        // Normalize or hard-block shorthand/octal/hex IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1)
+        if (preg_match('/^(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){1,3}$/i', $clean_host)) {
+            if (filter_var($clean_host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+                return [
+                    'threat' => 'ssrf_loopback',
+                    'reason' => 'Non-standard octal, hex, or shorthand IPv4 literal blocked to prevent SSRF bypass.',
+                ];
+            }
         }
 
         // Direct Cloud Metadata & Link-Local checks
@@ -674,59 +678,6 @@ class OutboundEgressFirewall {
                 'payload'     => $url,
             ], ($action === 'blocked') ? 'blocked' : 'detected');
         }
-    }
-
-    /**
-     * Normalize standard, shorthand, octal, hex, or integer IPv4 formats to dotted decimal.
-     * Accurately parses inet_aton representations like 0177.0.0.1, 127.1, 0x7f.1, 0x7f000001, 2130706433.
-     *
-     * @param string $host
-     * @return string|false Dotted decimal IPv4 string if valid IPv4 format, false otherwise.
-     */
-    private static function normalize_ipv4(string $host): string|false {
-        if (!preg_match('/^(?:0x[0-9a-f]+|0[0-7]*|[0-9]+)(?:\.(?:0x[0-9a-f]+|0[0-7]*|[0-9]+)){0,3}$/i', $host)) {
-            return false;
-        }
-
-        $parts = explode('.', $host);
-        $count = count($parts);
-        $parsed = [];
-
-        foreach ($parts as $p) {
-            if ($p === '') {
-                return false;
-            }
-            if (str_starts_with(strtolower($p), '0x')) {
-                $val = hexdec($p);
-            } elseif (strlen($p) > 1 && $p[0] === '0') {
-                $val = octdec($p);
-            } else {
-                $val = (float) $p;
-            }
-            if ($val < 0) {
-                return false;
-            }
-            $parsed[] = $val;
-        }
-
-        $ip_int = 0;
-        if ($count === 1) {
-            if ($parsed[0] > 4294967295) return false;
-            $ip_int = (int) $parsed[0];
-        } elseif ($count === 2) {
-            if ($parsed[0] > 255 || $parsed[1] > 16777215) return false;
-            $ip_int = ((int)$parsed[0] << 24) | (int)$parsed[1];
-        } elseif ($count === 3) {
-            if ($parsed[0] > 255 || $parsed[1] > 255 || $parsed[2] > 65535) return false;
-            $ip_int = ((int)$parsed[0] << 24) | ((int)$parsed[1] << 16) | (int)$parsed[2];
-        } elseif ($count === 4) {
-            if ($parsed[0] > 255 || $parsed[1] > 255 || $parsed[2] > 255 || $parsed[3] > 255) return false;
-            $ip_int = ((int)$parsed[0] << 24) | ((int)$parsed[1] << 16) | ((int)$parsed[2] << 8) | (int)$parsed[3];
-        } else {
-            return false;
-        }
-
-        return long2ip($ip_int);
     }
 
     /**

@@ -5,6 +5,7 @@ vendor/
 # Build and distribution archives
 *.zip
 !wcp-security-scanner.zip
+!wcp-security-scanner-v*.zip
 
 
 # Environment & OS files

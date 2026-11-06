@@ -856,11 +856,8 @@ class FirewallEngine {
                     \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
                 }
 
-                // Gate hard-block behind setting and exempt webhook/commerce and allowlisted URLs
-                $should_hard_block = !empty($settings['waf_block_http2_anomalies']) &&
-                    ($h2_anomaly['anomaly'] !== 'script_http2_signature' || !empty($settings['waf_block_http2_scripts']));
-
-                if ($should_hard_block && !self::is_commerce_or_membership_request() && !self::is_url_whitelisted($request_uri, $settings)) {
+                // Only hard-block malformed uppercase HTTP/2 pseudo-headers (or when strict HTTP/2 blocking is explicitly enabled)
+                if (($h2_anomaly['anomaly'] ?? '') === 'uppercase_pseudo_header' || !empty($settings['waf_block_http2_anomalies'])) {
                     $rule_triggered = [
                         'id'          => 'BOT-H2-HEADER-ANOMALY',
                         'name'        => 'HTTP/2 Header / Client-Hint Anomaly',

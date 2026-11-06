@@ -1,5 +1,5 @@
-v:2.7.0 - 2026-11-07
-- Master Security, Reliability, Architecture & Performance Remediation (roadmap.md Phases 1-4 Complete):
+v:2.7.1 - 2026-11-07
+- Master Security, Reliability, Architecture & Performance Remediation (roadmap.md Phases 1-5 Complete):
   * Frontend UX & Scan Results Rendering Fix:
     - Fixed ReferenceError for BookOpen icon in SecurityScannerPage.tsx and recompiled scan bundle (build/scan.js), restoring immediate rendering of malware scan findings, code context preview, and remediation buttons.
     - Decoupled Cloudflare Edge Defense navigation on WAF Incident Logs (admin.php?page=wcp-scanner-waf-logs) so clicking "Cloudflare Edge Defense" routes to the dedicated Edge cockpit (admin.php?page=wcp-scanner-firewall&tab=cloudflare).
@@ -41,7 +41,13 @@ v:2.7.0 - 2026-11-07
     - Options Autoload Optimization: Set $autoload = false on high-churn options across OriginLoadCircuitBreaker.php, HoneyTokenEngine.php, and LearningModeEngine.php.
     - Unconditional MU-Plugin Watchdog Cleanup: Relocated wcp-jit-guardian.php deletion in uninstall.php outside the data deletion condition, guaranteeing the MU-plugin is removed upon uninstallation even if the admin chooses to retain data.
     - Cryptographic Manifest Regeneration: Rebuilt includes/System/plugin-manifest.json with updated SHA-256 hashes across all modified files.
-    - Production Distribution Package: Generated updated wcp-security-scanner.zip release archive with synchronized 2.7.0 manifests.
+    - Production Distribution Package: Generated updated wcp-security-scanner.zip release archive with synchronized 2.7.1 manifests.
+  * Phase 5 (Final Edge-Case Hardening & Stream Restores):
+    - Outbound Egress IPv4 Literal SSRF Lockdown: Hardened evaluate_ssrf_destination in OutboundEgressFirewall.php against non-standard octal (0177.0.0.1), hex (0x7f.1), and shorthand (127.1) IPv4 literals, classifying them immediately as ssrf_loopback to prevent bypass in monitor mode.
+    - Search Crawler FCrDNS Immunity Optimization: Cleaned up redundant direct CIDR bypass checks in FirewallEngine.php to rely exclusively on BotReconDefense::is_genuine_search_engine, enforcing User-Agent inspection and FCrDNS verification before pardoning search crawlers.
+    - HTTP/2 Pseudo-Header Anomaly Hardening: Gated HTTP/2 pseudo-header anomaly hard-blocking in FirewallEngine.php strictly behind waf_block_http2_anomalies or uppercase pseudo-headers, preserving ThreatScoreTracker scoring (+15) without returning premature 403 blocks for automation clients.
+    - Large Quarantined File Stream Restore: Upgraded restore_file in QuarantineManager.php to stream vault files >20MB directly to disk via stream_copy_to_stream past the halt compiler header, eliminating PHP memory exhaustion (OOM) during large file recovery.
+    - MU-Plugin Guardian Uninstall Guarantee: Verified unconditional removal of wcp-jit-guardian.php in uninstall.php prior to data retention checks, ensuring no orphaned MU-plugins remain after uninstallation.
 
 v:2.6.0 - 2026-11-06
 - Master Security, Reliability, Architecture & Performance Remediation (bug-fix.md & MasterRemediationPlan.md):

@@ -442,3 +442,187 @@ $manifest["generated_at"] = gmdate("Y-m-d\TH:i:s\Z");
 file_put_contents("includes/System/plugin-manifest.json", json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 '
 ```
+
+## Phase 5: Final 5 Edge-Case Polish Fixes (Post-v2.7.0 Verification)
+
+After verifying the v2.7.0 build, apply these 5 final adjustments and re-run your zip packaging script so the updated PHP files and `plugin-manifest.json` are bundled into the new `.zip` archive:
+
+### 5.1 Block Octal (`0177.0.0.1`), Hex (`0x7f.1`), and Shorthand (`127.1`) IPv4 Literals in Monitor Mode (`includes/Firewall/OutboundEgressFirewall.php`)
+
+* **Target**: `OutboundEgressFirewall::evaluate_ssrf_destination()` (lines 472–478)
+* **Why**: PHP 8's `ip2long()` returns `false` on octal (`0177.0.0.1`), hex (`0x7f.1`), and shorthand (`127.1`) IPv4 strings, which causes them to fall through to `unresolvable_host` (not blocked in default `'monitor'` mode) while libcurl resolves them to `127.0.0.1` or `169.254.169.254`.
+* **Before (lines 472–478)**:
+```php
+// Normalize shorthand or octal/hex IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1)
+if (preg_match('/^[0-9a-fA-FxX.]+$/', $clean_host) && strpos($clean_host, '.') !== false) {
+    $parsed_long = ip2long($clean_host);
+    if ($parsed_long !== false) {
+        $clean_host = long2ip($parsed_long);
+    }
+}
+```
+* **After**:
+```php
+// Normalize or hard-block shorthand/octal/hex IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1)
+if (preg_match('/^(?:0x[0-9a-f]+|0[0-7]+|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]+|\d+)){1,3}$/i', $clean_host)) {
+    if (filter_var($clean_host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+        return [
+            'threat' => 'ssrf_loopback',
+            'reason' => 'Non-standard octal, hex, or shorthand IPv4 literal blocked to prevent SSRF bypass.',
+        ];
+    }
+}
+```
+
+### 5.2 Remove Redundant CIDR Calls That Skip Reverse DNS & User-Agent Checks (`includes/Firewall/FirewallEngine.php`)
+
+* **Target**: `FirewallEngine.php` at lines 747–750, 1468–1471, and 3973–3976
+* **Why**: `BotReconDefense::is_genuine_search_engine($client_ip, $ua)` already performs Forward-Confirmed Reverse DNS (FCrDNS) first and uses `is_search_bot_in_official_cidrs()` only as a fallback when `$ua` matches a search bot. Calling `|| BotReconDefense::is_search_bot_in_official_cidrs(...)` directly in `FirewallEngine.php` bypasses both the User-Agent check and FCrDNS check.
+* **Before (lines 747–750 & 1468–1471)**:
+```php
+$is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua) ||
+    BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'googlebot') ||
+    BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'bingbot');
+```
+* **After**:
+```php
+$is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua);
+```
+*(Apply the same change at lines 3973–3976 inside `FirewallEngine::add_blocked_ip()`.)*
+
+### 5.3 Avoid Hard-Blocking Legitimate `curl` / `python` Webhook & API Clients Over HTTP/2 (`includes/Firewall/FirewallEngine.php`)
+
+* **Target**: `FirewallEngine.php` (lines 853–872)
+* **Why**: `BotReconDefense::check_http2_pseudo_header_anomaly()` flags any `curl`, `python`, or `go-http-client` User-Agent over HTTP/2 as `script_http2_signature`, and line 870 immediately triggers a 403 block (`self::handle_rule_violation(...)`) before checking if the request is a legitimate webhook or API client.
+* **Before (lines 853–872)**:
+```php
+if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+    $h2_anomaly = \WcpScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
+    if ($h2_anomaly !== null) {
+        // Record threat score increment for header anomaly (+15)
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
+        }
+
+        $rule_triggered = [
+            'id'          => 'BOT-H2-HEADER-ANOMALY',
+            'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
+            'category'    => 'Protocol Anomaly Defense',
+            'description' => $h2_anomaly['description'],
+            'match_type'  => 'Header Anomaly',
+            'match_value' => $h2_anomaly['anomaly'],
+            'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+        ];
+        self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+    }
+}
+```
+* **After**:
+```php
+if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+    $h2_anomaly = \WcpScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
+    if ($h2_anomaly !== null) {
+        // Record threat score increment for header anomaly (+15)
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
+        }
+
+        // Only hard-block malformed uppercase HTTP/2 pseudo-headers (or when strict HTTP/2 blocking is explicitly enabled)
+        if (($h2_anomaly['anomaly'] ?? '') === 'uppercase_pseudo_header' || !empty($settings['waf_block_http2_anomalies'])) {
+            $rule_triggered = [
+                'id'          => 'BOT-H2-HEADER-ANOMALY',
+                'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
+                'category'    => 'Protocol Anomaly Defense',
+                'description' => $h2_anomaly['description'],
+                'match_type'  => 'Header Anomaly',
+                'match_value' => $h2_anomaly['anomaly'],
+                'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+            ];
+            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+        }
+    }
+}
+```
+
+### 5.4 Stream-Restore Large Quarantined Files (`>20 MB`) Without Memory Exhaustion (`includes/Quarantine/QuarantineManager.php`)
+
+* **Target**: `QuarantineManager::restore_file()` (lines 339–369)
+* **Why**: `quarantine_file()` now streams files `>20 MB` directly to disk after the `$guard_header`, but `restore_file()` still calls `file_get_contents($source_path)` in memory, which will hit PHP's memory limit when restoring a `>20 MB` file.
+* **Before (lines 339–369)**:
+```php
+// Read vault file and extract payload
+$vault_raw = @file_get_contents($source_path);
+if ($vault_raw === false) {
+    return ['success' => false, 'message' => 'Failed to read vault file for restoration.'];
+}
+...
+if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
+    return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
+}
+```
+* **After**:
+```php
+$perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
+$halt_marker = "__halt_compiler(); ?>\n";
+$vault_size = (int) @filesize($source_path);
+
+if ($vault_size > 20971520) {
+    // Stream-restore large unencrypted vault files (>20MB) without loading into RAM
+    $src_fp = @fopen($source_path, 'rb');
+    if (!$src_fp) {
+        return ['success' => false, 'message' => 'Failed to open large vault file for restoration.'];
+    }
+    $header_chunk = (string) fread($src_fp, 256);
+    $pos = strpos($header_chunk, '__halt_compiler(); ?>');
+    $offset = ($pos !== false) ? ($pos + strlen('__halt_compiler(); ?>')) : 0;
+    if ($offset > 0 && isset($header_chunk[$offset]) && $header_chunk[$offset] === "\r") {
+        $offset++;
+    }
+    if ($offset > 0 && isset($header_chunk[$offset]) && $header_chunk[$offset] === "\n") {
+        $offset++;
+    }
+    fseek($src_fp, $offset);
+    $dst_fp = @fopen($dest_path, 'wb');
+    if (!$dst_fp) {
+        fclose($src_fp);
+        return ['success' => false, 'message' => 'Failed to open destination file for restoration.'];
+    }
+    stream_copy_to_stream($src_fp, $dst_fp);
+    fclose($src_fp);
+    fclose($dst_fp);
+    @chmod($dest_path, $perms);
+} else {
+    // Read vault file and extract payload
+    $vault_raw = @file_get_contents($source_path);
+    if ($vault_raw === false) {
+        return ['success' => false, 'message' => 'Failed to read vault file for restoration.'];
+    }
+
+    $payload = $vault_raw;
+    $pos = strpos($vault_raw, '__halt_compiler(); ?>');
+    if ($pos !== false) {
+        $payload = ltrim(substr($vault_raw, $pos + strlen('__halt_compiler(); ?>')), "\r\n");
+    }
+
+    // Decrypt ciphertext if encrypted
+    if (\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
+        $decrypted = \WcpScanner\Security\SecretVault::decrypt($payload);
+        if ($decrypted === false) {
+            return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted vault ciphertext.'];
+        }
+        $clean_data = $decrypted;
+    } else {
+        $clean_data = $payload;
+    }
+
+    if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
+        return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
+    }
+}
+```
+
+### 5.5 Always Remove `wcp-jit-guardian.php` MU-Plugin on Uninstall (`uninstall.php`)
+
+* **Target**: `uninstall.php` (lines 94 and 195–200)
+* **Why**: Currently, `wp_delete_file($wcpscan_mu_file)` is inside `if ($wcpscan_delete_data)` (lines 195–200). If a user uninstalls the plugin with the default "Retain Data" option, `wcp-jit-guardian.php` is left behind in `wp-content/mu-plugins/`.
+* **Fix**: Move lines 195–200 above `if ($wcpscan_delete_data)` (immediately after `ServerSecurityEngine::remove_rules()` at line 93) so the MU-plugin is always removed upon uninstallation.
