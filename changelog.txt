@@ -29,14 +29,17 @@ v:2.7.0 - 2026-11-07
     - Host Header Inspection: Validated all comma-separated hosts in X-Forwarded-Host and rejected @ user-info characters.
     - Guest REST Dispatch Policy: Returned WP_Error(403) on blocked guest REST requests.
     - Bot Recon Defense FCrDNS: Removed broad cloud CIDRs from crawler ranges and prioritized forward-confirmed reverse DNS (FCrDNS) checks.
-    - Outbound Egress IP Normalization: Normalized shorthand and octal IPs via ip2long, added in-memory static DNS cache, and fast-pathed default official WordPress hosts.
+    - Outbound Egress IPv4 Normalization: Built inet_aton parser in OutboundEgressFirewall.php to accurately normalize octal, hex, and shorthand IP formats (e.g. 0177.0.0.1, 127.1, 0x7f.1, 2130706433) to standard dotted-decimal loopback/metadata IPs, and hard-blocked unresolvable raw-IP vectors in monitor mode.
+    - Crawler CIDR Redundancy Removal: Cleaned up duplicate CIDR bypass calls in FirewallEngine.php to rely exclusively on BotReconDefense::is_genuine_search_engine, enforcing User-Agent inspection and FCrDNS verification before pardoning search bots.
+    - HTTP/2 Header Anomaly Gating: Gated HTTP/2 pseudo-header anomaly hard-blocking in FirewallEngine.php behind waf_block_http2_anomalies, protected commerce/webhook endpoints from false positives, and converted script_http2_signature into threat score increments (+15) instead of immediate 403 drops.
     - Form Spam Protection: Fixed class reference to \WcpScanner\System\AuditLogger, expanded speed-gate expiration to 48 hours for full-page cache compatibility, and required wcp_time_gate on public submissions.
   * Phase 3 (Database, Backup & Quarantine Vaults):
     - Database Backup Row Truncation Fix: Hardened directory permissions to 0750 and updated table completion pagination check to count($rows) < $batch_size, preventing silent row truncation on active tables.
     - Database Remediation Manager Safeguards: Added validate_table_name enforcing $wpdb->prefix and blocked deletions or column modifications targeting the primary administrator in wp_users and wp_usermeta.
-    - Quarantine Vault Stream Cap: Maintained PathValidator::is_inside_root, capped in-memory encryption at 20MB, and streamed larger files (>20MB) directly into the vault with defanged PHP execution headers.
+    - Quarantine Vault Stream Cap & Streaming Restore: Maintained PathValidator::is_inside_root, capped in-memory encryption at 20MB, and added streaming file restoration in QuarantineManager.php for vault files >20MB by seeking past guard headers and copying streams atomically without in-memory buffering to prevent PHP OOM crashes.
   * Phase 4 (Performance & Packaging):
     - Options Autoload Optimization: Set $autoload = false on high-churn options across OriginLoadCircuitBreaker.php, HoneyTokenEngine.php, and LearningModeEngine.php.
+    - Unconditional MU-Plugin Watchdog Cleanup: Relocated wcp-jit-guardian.php deletion in uninstall.php outside the data deletion condition, guaranteeing the MU-plugin is removed upon uninstallation even if the admin chooses to retain data.
     - Cryptographic Manifest Regeneration: Rebuilt includes/System/plugin-manifest.json with updated SHA-256 hashes across all modified files.
     - Production Distribution Package: Generated updated wcp-security-scanner.zip release archive with synchronized 2.7.0 manifests.
 

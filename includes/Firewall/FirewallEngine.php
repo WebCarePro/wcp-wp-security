@@ -744,9 +744,7 @@ class FirewallEngine {
                 $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
                 $is_legit_crawler = false;
                 if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
-                    $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua) ||
-                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'googlebot') ||
-                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'bingbot');
+                    $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua);
                 }
 
                 if ($is_legit_crawler) {
@@ -858,17 +856,23 @@ class FirewallEngine {
                     \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
                 }
 
-                $rule_triggered = [
-                    'id'          => 'BOT-H2-HEADER-ANOMALY',
-                    'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
-                    'category'    => 'Protocol Anomaly Defense',
-                    'description' => $h2_anomaly['description'],
-                    'match_type'  => 'Header Anomaly',
-                    'match_value' => $h2_anomaly['anomaly'],
-                    'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
-                ];
-                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                            }
+                // Gate hard-block behind setting and exempt webhook/commerce and allowlisted URLs
+                $should_hard_block = !empty($settings['waf_block_http2_anomalies']) &&
+                    ($h2_anomaly['anomaly'] !== 'script_http2_signature' || !empty($settings['waf_block_http2_scripts']));
+
+                if ($should_hard_block && !self::is_commerce_or_membership_request() && !self::is_url_whitelisted($request_uri, $settings)) {
+                    $rule_triggered = [
+                        'id'          => 'BOT-H2-HEADER-ANOMALY',
+                        'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
+                        'category'    => 'Protocol Anomaly Defense',
+                        'description' => $h2_anomaly['description'],
+                        'match_type'  => 'Header Anomaly',
+                        'match_value' => $h2_anomaly['anomaly'],
+                        'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                }
+            }
         }
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
@@ -1465,9 +1469,7 @@ class FirewallEngine {
                 $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
                 $is_legit_crawler = false;
                 if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
-                    $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua) ||
-                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'googlebot') ||
-                        BotReconDefense::is_search_bot_in_official_cidrs($client_ip, 'bingbot');
+                    $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua);
                 }
 
                 if ($is_legit_crawler) {
@@ -3970,9 +3972,7 @@ class FirewallEngine {
         // Never allow automated honeypots or rules to inadvertently ban Googlebot, Bingbot, or verified monitors.
         if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
             $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-            if (BotReconDefense::is_genuine_search_engine($ip, $user_agent) ||
-                BotReconDefense::is_search_bot_in_official_cidrs($ip, 'googlebot') ||
-                BotReconDefense::is_search_bot_in_official_cidrs($ip, 'bingbot')) {
+            if (BotReconDefense::is_genuine_search_engine($ip, $user_agent)) {
                 return false;
             }
         }

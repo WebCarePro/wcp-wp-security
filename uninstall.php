@@ -92,6 +92,13 @@ if (file_exists($wcpscan_server_sec_file)) {
     }
 }
 
+// Remove Must-Use (MU) plugin watchdog unconditionally upon uninstall
+$wcpscan_mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
+$wcpscan_mu_file = $wcpscan_mu_dir . '/wcp-jit-guardian.php';
+if (file_exists($wcpscan_mu_file)) {
+    wp_delete_file($wcpscan_mu_file);
+}
+
 $wcpscan_settings = get_option('wcpscan_settings', []);
 $wcpscan_delete_data = false; // Disabled by default to prevent loss of quarantine vault & settings on reinstallation
 
@@ -192,14 +199,7 @@ if ($wcpscan_delete_data) {
         wp_clear_scheduled_hook('wcpscan_waf_log_retention_prune');
     }
 
-    // 6. Remove Must-Use (MU) plugin watchdog if present
-    $wcpscan_mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
-    $wcpscan_mu_file = $wcpscan_mu_dir . '/wcp-jit-guardian.php';
-    if (file_exists($wcpscan_mu_file)) {
-        wp_delete_file($wcpscan_mu_file);
-    }
-
-    // 7. Remove all plugin-created files in uploads (logs, quarantine, backups)
+    // 6. Remove all plugin-created files in uploads (logs, quarantine, backups)
     if ($wcpscan_delete_uploads) {
         $wcpscan_upload_dir = wp_upload_dir();
         if (!empty($wcpscan_upload_dir['basedir'])) {

@@ -1,6 +1,6 @@
 {
   "version": "2.7.0",
-  "generated_at": "2026-11-06T18:30:15.965Z",
+  "generated_at": "2026-11-06T19:47:11.504Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -348,8 +348,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "769533fa5bfbd010d45f35fc1f5d10d68f28a9c174c4b278d7b02bfa58b48ab6",
-      "size": 410397
+      "sha256": "96c041aab26c30c2898242805e1fa60a38eef4ebe909d670d4a12df4489b96c9",
+      "size": 410321
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "a3ca3ac585deff3badcd521cb195b7ab29da6b2ae59bccf2335ac91dd292773d",
@@ -372,8 +372,8 @@
       "size": 41853
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
-      "sha256": "2a794a9c476a899c8cf0ce4327d91f858bf7e40e0cc01296bd7f753ff718ba98",
-      "size": 31858
+      "sha256": "82eab7a9b6cc828d2049dcd20742e965dd973c34912dfbe8d219f880a78f6893",
+      "size": 33093
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "4abadae031f7f35af91c56fc03e5449dc67b61819f678fcc02876e75804edda1",
@@ -524,8 +524,8 @@
       "size": 1185
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "3033d12b46f18d549fef7a979497742be91d70bf87229c58ae9840d1beda7076",
-      "size": 28289
+      "sha256": "0e676b42935c68aa1e11ac947ded8bed2b0cfa4ca8abbc41580b7d28d5221d57",
+      "size": 31132
     },
     "includes/Quarantine/ReinfectionWatchdog.php": {
       "sha256": "0afbf7d544e07d9cf8e764a17323a3886a5ac3c84b54d972709174978c418ea8",
@@ -760,8 +760,8 @@
       "size": 30310
     },
     "uninstall.php": {
-      "sha256": "aeaf4f6df845897cf54fdff858e29909a92bfdcbc74ff6f4e2b15f83bd2c68ae",
-      "size": 9806
+      "sha256": "5b8b2d618cc165e1c9166ed30ef269e7d47d9d3815addb155a303d69b4ea0348",
+      "size": 9799
     },
     "wcp-wp-scanner.php": {
       "sha256": "80eea8b0bb132ff113e9b77eafc58ae0d81c702a232dc4b8f30584eff141ee01",

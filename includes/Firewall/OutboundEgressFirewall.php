@@ -375,8 +375,8 @@ class OutboundEgressFirewall {
         }
 
         if ($threat) {
-            // Cloud metadata and localhost SSRF are hard-blocked unconditionally even in monitor mode
-            $is_hard_block = ($threat === 'ssrf_metadata' || $threat === 'ssrf_loopback');
+            // Cloud metadata, localhost SSRF, and unresolvable raw-IP/hex vectors are hard-blocked unconditionally even in monitor mode
+            $is_hard_block = ($threat === 'ssrf_metadata' || $threat === 'ssrf_loopback' || ($threat === 'unresolvable_host' && preg_match('/^[0-9a-fA-FxX.]+$/', $host)));
             // Raw-IP egress defaults to monitor mode unless global mode is enforce
             $is_enforced = $is_hard_block || ($settings['mode'] === 'enforce' && $threat !== 'raw_ip_egress') || $is_containment;
 
@@ -469,34 +469,10 @@ class OutboundEgressFirewall {
             return ($dns_cache[$clean_host] = ['threat' => null, 'reason' => '', 'safe_ip' => '']);
         }
 
-        // Normalize shorthand or octal/hex IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1)
-        if (preg_match('/^[0-9a-fA-FxX.]+$/', $clean_host) && strpos($clean_host, '.') !== false) {
-            $parsed_long = ip2long($clean_host);
-            if ($parsed_long !== false) {
-                $clean_host = long2ip($parsed_long);
-            }
-        }
-
-        // Check if host is decimal integer encoding (e.g. 2852039166 or 2130706433)
-        if (ctype_digit($clean_host)) {
-            $long_val = (float) $clean_host;
-            if ($long_val >= 0 && $long_val <= 4294967295) {
-                $decoded_ip = long2ip((int) $clean_host);
-                if ($decoded_ip) {
-                    $clean_host = $decoded_ip;
-                }
-            }
-        }
-
-        // Check if host is hex encoding (e.g. 0xa9feeea or 0x7f000001)
-        if (preg_match('/^0x[0-9a-f]+$/i', $clean_host)) {
-            $hex_val = hexdec($clean_host);
-            if ($hex_val >= 0 && $hex_val <= 4294967295) {
-                $decoded_ip = long2ip($hex_val);
-                if ($decoded_ip) {
-                    $clean_host = $decoded_ip;
-                }
-            }
+        // Normalize shorthand, octal, hex, or integer IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1, 0x7f000001, 2130706433)
+        $normalized_ipv4 = self::normalize_ipv4($clean_host);
+        if ($normalized_ipv4 !== false) {
+            $clean_host = $normalized_ipv4;
         }
 
         // Direct Cloud Metadata & Link-Local checks
@@ -698,6 +674,59 @@ class OutboundEgressFirewall {
                 'payload'     => $url,
             ], ($action === 'blocked') ? 'blocked' : 'detected');
         }
+    }
+
+    /**
+     * Normalize standard, shorthand, octal, hex, or integer IPv4 formats to dotted decimal.
+     * Accurately parses inet_aton representations like 0177.0.0.1, 127.1, 0x7f.1, 0x7f000001, 2130706433.
+     *
+     * @param string $host
+     * @return string|false Dotted decimal IPv4 string if valid IPv4 format, false otherwise.
+     */
+    private static function normalize_ipv4(string $host): string|false {
+        if (!preg_match('/^(?:0x[0-9a-f]+|0[0-7]*|[0-9]+)(?:\.(?:0x[0-9a-f]+|0[0-7]*|[0-9]+)){0,3}$/i', $host)) {
+            return false;
+        }
+
+        $parts = explode('.', $host);
+        $count = count($parts);
+        $parsed = [];
+
+        foreach ($parts as $p) {
+            if ($p === '') {
+                return false;
+            }
+            if (str_starts_with(strtolower($p), '0x')) {
+                $val = hexdec($p);
+            } elseif (strlen($p) > 1 && $p[0] === '0') {
+                $val = octdec($p);
+            } else {
+                $val = (float) $p;
+            }
+            if ($val < 0) {
+                return false;
+            }
+            $parsed[] = $val;
+        }
+
+        $ip_int = 0;
+        if ($count === 1) {
+            if ($parsed[0] > 4294967295) return false;
+            $ip_int = (int) $parsed[0];
+        } elseif ($count === 2) {
+            if ($parsed[0] > 255 || $parsed[1] > 16777215) return false;
+            $ip_int = ((int)$parsed[0] << 24) | (int)$parsed[1];
+        } elseif ($count === 3) {
+            if ($parsed[0] > 255 || $parsed[1] > 255 || $parsed[2] > 65535) return false;
+            $ip_int = ((int)$parsed[0] << 24) | ((int)$parsed[1] << 16) | (int)$parsed[2];
+        } elseif ($count === 4) {
+            if ($parsed[0] > 255 || $parsed[1] > 255 || $parsed[2] > 255 || $parsed[3] > 255) return false;
+            $ip_int = ((int)$parsed[0] << 24) | ((int)$parsed[1] << 16) | ((int)$parsed[2] << 8) | (int)$parsed[3];
+        } else {
+            return false;
+        }
+
+        return long2ip($ip_int);
     }
 
     /**

@@ -336,6 +336,63 @@ class QuarantineManager {
             wp_mkdir_p($dest_dir);
         }
 
+        $source_size = (int) @filesize($source_path);
+        if ($source_size > 20971520) {
+            // Large file stream restore: avoid loading entire file into memory (OOM prevention)
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $src_fp = @fopen($source_path, 'rb');
+            if (!$src_fp) {
+                return ['success' => false, 'message' => 'Failed to open large vault file for restoration.'];
+            }
+
+            // Seek past guard header
+            $header_buffer = fread($src_fp, 2048);
+            $halt_marker = '__halt_compiler(); ' . '?>';
+            $pos = strpos($header_buffer, $halt_marker);
+            if ($pos !== false) {
+                $payload_offset = $pos + strlen($halt_marker);
+                while ($payload_offset < strlen($header_buffer) && ($header_buffer[$payload_offset] === "\r" || $header_buffer[$payload_offset] === "\n")) {
+                    $payload_offset++;
+                }
+                fseek($src_fp, $payload_offset, SEEK_SET);
+            } else {
+                fseek($src_fp, 0, SEEK_SET);
+            }
+
+            $temp_dest = $dest_path . '.wcp_rst_' . bin2hex(random_bytes(6));
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $dst_fp = @fopen($temp_dest, 'wb');
+            if (!$dst_fp) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($src_fp);
+                return ['success' => false, 'message' => 'Failed to create destination stream for large file restoration.'];
+            }
+
+            stream_copy_to_stream($src_fp, $dst_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($src_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($dst_fp);
+
+            $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
+            chmod($temp_dest, $perms);
+            if (!@rename($temp_dest, $dest_path)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'message' => 'Failed to safely move restored large file to destination.'];
+            }
+
+            wp_delete_file($source_path);
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->update($table, [
+                'status'          => 'restored',
+                'restored_at'     => current_time('mysql'),
+                'restored_at_gmt' => gmdate('Y-m-d H:i:s'),
+            ], ['id' => $quarantine_id]);
+
+            return ['success' => true, 'message' => 'Large file successfully restored to original location.'];
+        }
+
         // Read vault file and extract payload
         $vault_raw = @file_get_contents($source_path);
         if ($vault_raw === false) {
@@ -343,7 +400,7 @@ class QuarantineManager {
         }
 
         $payload = $vault_raw;
-        $halt_marker = '__halt_compiler(); ?>';
+        $halt_marker = '__halt_compiler(); ' . '?>';
         $pos = strpos($vault_raw, $halt_marker);
         if ($pos !== false) {
             $payload = ltrim(substr($vault_raw, $pos + strlen($halt_marker)), "\r\n");
