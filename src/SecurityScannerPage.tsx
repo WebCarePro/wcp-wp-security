@@ -1874,8 +1874,18 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           )}
                         </div>
 
-                        {/* Location Monospace Badge with 1-Click Copy */}
-                        {issue.file_path && (
+                        {/* Location Monospace Badge with 1-Click Copy or Update Recommendation Text */}
+                        {isUpdate ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#b45309' }}>
+                              {issue.component_type === 'theme' || issue.type?.includes('theme')
+                                ? `The installed theme (${issue.component_name || 'Theme'}) is outdated. Please update the theme.`
+                                : issue.component_type === 'core' || issue.type?.includes('core')
+                                ? 'WordPress Core is outdated. Please update WordPress to the latest version.'
+                                : `The installed plugin (${issue.component_name || 'Plugin'}) is outdated. Please update the plugin.`}
+                            </span>
+                          </div>
+                        ) : issue.file_path && (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span
                               style={{
@@ -1975,30 +1985,57 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                           {/* 1b. Software Update Action */}
                           {isUpdate && issue.status === 'open' && (
-                            <a
-                              href={issue.update_url || 'plugins.php'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="wcp-btn"
-                              style={{
-                                background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
-                                color: '#ffffff',
-                                border: 'none',
-                                padding: '6px 14px',
-                                borderRadius: '7px',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                textDecoration: 'none',
-                                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
-                              }}
-                              title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
-                            >
-                              <RefreshCw size={13} />
-                              <span>Update to v{issue.latest_version || 'Latest'} ↗</span>
-                            </a>
+                            <>
+                              <a
+                                href={issue.update_url || 'plugins.php'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="wcp-btn"
+                                style={{
+                                  background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  padding: '6px 14px',
+                                  borderRadius: '7px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  textDecoration: 'none',
+                                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                                }}
+                                title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
+                              >
+                                <RefreshCw size={13} />
+                                <span>Update to v{issue.latest_version || 'Latest'} ↗</span>
+                              </a>
+
+                              {onOpenChangelog && (
+                                <button
+                                  type="button"
+                                  className="wcp-btn"
+                                  style={{
+                                    background: 'rgba(2, 132, 199, 0.1)',
+                                    color: '#0284c7',
+                                    border: '1px solid rgba(2, 132, 199, 0.25)',
+                                    padding: '6px 12px',
+                                    borderRadius: '7px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => onOpenChangelog(issue)}
+                                  title="View release notes and changelog history"
+                                >
+                                  <BookOpen size={13} />
+                                  <span>View Changelog</span>
+                                </button>
+                              )}
+                            </>
                           )}
 
                           {/* 2. Quarantine Action */}
@@ -2159,7 +2196,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                         {/* View Technical Details & Expand Button */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {issue.file_path && !issue.is_dir && !isUser && (
+                          {issue.file_path && !issue.is_dir && !isUser && !isUpdate && (
                             <button
                               type="button"
                               className="wcp-btn"
@@ -2428,21 +2465,33 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             </td>
 
                             <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--wcp-text-primary, #0f172a)', wordBreak: 'break-all' }}>
-                                  {issue.file_path || 'N/A'}
-                                </span>
-                                {issue.file_path && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyPath(issue.file_path)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedIssuePath === issue.file_path ? '#16a34a' : '#64748b', padding: '2px' }}
-                                    title="Copy path"
-                                  >
-                                    {copiedIssuePath === issue.file_path ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
-                                  </button>
-                                )}
-                              </div>
+                              {isUpdate ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#b45309' }}>
+                                    {issue.component_type === 'theme' || issue.type?.includes('theme')
+                                      ? `The installed theme (${issue.component_name || 'Theme'}) is outdated. Please update the theme.`
+                                      : issue.component_type === 'core' || issue.type?.includes('core')
+                                      ? 'WordPress Core is outdated. Please update WordPress to the latest version.'
+                                      : `The installed plugin (${issue.component_name || 'Plugin'}) is outdated. Please update the plugin.`}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--wcp-text-primary, #0f172a)', wordBreak: 'break-all' }}>
+                                    {issue.file_path || 'N/A'}
+                                  </span>
+                                  {issue.file_path && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyPath(issue.file_path)}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedIssuePath === issue.file_path ? '#16a34a' : '#64748b', padding: '2px' }}
+                                      title="Copy path"
+                                    >
+                                      {copiedIssuePath === issue.file_path ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </td>
 
                             <td>
@@ -2485,29 +2534,56 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                                 {/* 1b. Software Update Action */}
                                 {isUpdate && issue.status === 'open' && (
-                                  <a
-                                    href={issue.update_url || 'plugins.php'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="wcp-btn"
-                                    style={{
-                                      background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
-                                      color: '#ffffff',
-                                      border: 'none',
-                                      fontSize: '12px',
-                                      padding: '4px 10px',
-                                      borderRadius: '6px',
-                                      fontWeight: 700,
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      textDecoration: 'none'
-                                    }}
-                                    title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
-                                  >
-                                    <RefreshCw size={12} />
-                                    <span>Update to v{issue.latest_version || 'Latest'} ↗</span>
-                                  </a>
+                                  <>
+                                    <a
+                                      href={issue.update_url || 'plugins.php'}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="wcp-btn"
+                                      style={{
+                                        background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        fontSize: '12px',
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        textDecoration: 'none'
+                                      }}
+                                      title={issue.latest_version ? `Update to latest version v${issue.latest_version} in WordPress` : 'Update software component in WordPress'}
+                                    >
+                                      <RefreshCw size={12} />
+                                      <span>Update to v{issue.latest_version || 'Latest'} ↗</span>
+                                    </a>
+
+                                    {onOpenChangelog && (
+                                      <button
+                                        type="button"
+                                        className="wcp-btn"
+                                        style={{
+                                          background: 'rgba(2, 132, 199, 0.1)',
+                                          color: '#0284c7',
+                                          border: '1px solid rgba(2, 132, 199, 0.25)',
+                                          fontSize: '12px',
+                                          padding: '4px 10px',
+                                          borderRadius: '6px',
+                                          fontWeight: 600,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          cursor: 'pointer'
+                                        }}
+                                        onClick={() => onOpenChangelog(issue)}
+                                        title="View release notes and changelog history"
+                                      >
+                                        <BookOpen size={12} />
+                                        <span>View Changelog</span>
+                                      </button>
+                                    )}
+                                  </>
                                 )}
 
                                 {/* 2. Auto-Cure: 1-Click Restore Clean Official Copy */}
@@ -2599,7 +2675,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 )}
 
                                 {/* 6. View Code */}
-                                {issue.file_path && !issue.is_dir && !isUser && (
+                                {issue.file_path && !issue.is_dir && !isUser && !isUpdate && (
                                   <button
                                     type="button"
                                     className="wcp-btn wcp-btn-view-file"
