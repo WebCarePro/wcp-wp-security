@@ -30,6 +30,10 @@ v:2.6.0 - 2026-11-06
     - Outbound Egress Internal Port SSRF Defense: Added destination port validation in OutboundEgressFirewall to inspect and block same-host outbound requests targeting non-standard internal ports (e.g., Redis :6379, MySQL :3306).
   * Server Security Scanner False-Positive De-escalation (cpGuard Definition Quarantine Fix):
     - Obfuscated Rule Signature Separation: De-escalated plain literal string patterns (`base64_decode`, `eval(`, etc.) within Cloudflare compound rules and firewall UI descriptions in `src/FirewallPage.tsx` using array join tokenization, preventing server-side scanners (e.g., cpGuard definition `{HEX}Malware.Expert.base64.decode.eval`) from falsely quarantining `build/firewall.js` as malware.
+  * WordPress Plugin Check (PCP) Compliance Cleanliness:
+    - Prepared SQL & Direct Database Standards: Wrapped `SHOW TABLES LIKE` in `RiskScorer.php` with `$wpdb->prepare()` and annotated intentional dynamic table name inspection with phpcs ignore directives.
+    - Deep Input Inspection Annotations: Added phpcs justification comments for raw inspection of `REQUEST_URI`, `QUERY_STRING`, `HTTP_USER_AGENT`, and `HTTP_REFERER` in `FirewallEngine.php` and `VirtualPatchManager.php`.
+    - WebAuthn Login Parameter Sanitization: Switched `$_REQUEST['redirect_to']` to sanitized `$_GET['redirect_to']` with `esc_url_raw()` and added nonce verification justification for public `wp-login.php` passkey logins.
 - Theme Controller Unification & White Mode Cross-Page Persistence Fix (theme.ts, global.ts, WcpShell.tsx, App.tsx, index.css):
   * Unified Theme Controller (theme.ts): Built dedicated `applyWcpTheme()` and `getWcpTheme()` synchronization utilities ensuring bidirectional consistency across `localStorage`, `data-theme` attribute, and CSS theme classes on `document.documentElement` (`<html>`), `document.body`, and `#wcp-scanner-root`.
   * Pre-Mount Theme Class Sanitization (global.ts): Eliminated stale `.wcp-theme-dark` retention by systematically removing dark classes and applying clean `.wcp-theme-light` across `<html>` and `<body>` prior to React component mounting.

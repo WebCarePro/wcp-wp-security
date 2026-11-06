@@ -368,6 +368,7 @@ class VirtualPatchManager {
         }
 
         $method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Inspecting raw query string for CVE virtual patch match criteria
         $raw_query = isset($_SERVER['QUERY_STRING']) ? (string) wp_unslash($_SERVER['QUERY_STRING']) : '';
         $query_string = rawurldecode($raw_query);
         $raw_body = '';

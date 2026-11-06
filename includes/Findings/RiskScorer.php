@@ -102,9 +102,14 @@ class RiskScorer {
         global $wpdb;
         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
         $issues = [];
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table_issues}'") === $table_issues) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $issues = $wpdb->get_results("SELECT severity, status, confidence FROM {$table_issues} WHERE status = 'open'", ARRAY_A) ?: [];
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_issues)) === $table_issues) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $issues = $wpdb->get_results(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SELECT severity, status, confidence FROM {$table_issues} WHERE status = 'open'",
+                ARRAY_A
+            ) ?: [];
         }
 
         $calc = $this->calculate($issues);

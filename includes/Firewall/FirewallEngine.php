@@ -1584,6 +1584,7 @@ class FirewallEngine {
      * Evaluate protection rules across GET, POST, Cookies, User-Agent, Referer, and URI
      */
     private static function evaluate_rules(array $settings, bool $is_complementary): ?array {
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Inspecting raw unstripped request URI for attack payloads
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
 
         // Multi-pass URL decode for robust detection across multiple encoding layers
@@ -1597,9 +1598,12 @@ class FirewallEngine {
         }
         $uri = $decoded_uri;
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Inspecting raw query string, user-agent, and referer headers for injection payloads
         $raw_query = isset($_SERVER['QUERY_STRING']) ? (string) wp_unslash($_SERVER['QUERY_STRING']) : '';
         $query_string = rawurldecode($raw_query);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? (string) wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $referer = isset($_SERVER['HTTP_REFERER']) ? (string) wp_unslash($_SERVER['HTTP_REFERER']) : '';
 
         // Authenticated administrators performing back-end actions in wp-admin or via authenticated WCP REST API are exempt from payload heuristic blocks

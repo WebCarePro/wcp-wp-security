@@ -891,7 +891,8 @@ class WebAuthnManager {
     public static function render_login_passkey_scripts(): void {
         $options_url = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-options'));
         $verify_url  = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-verify'));
-        $requested_redirect = isset($_REQUEST['redirect_to']) ? wp_unslash($_REQUEST['redirect_to']) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading public standard login redirect_to parameter on wp-login.php
+        $requested_redirect = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : '';
         $validated_redirect = !empty($requested_redirect) ? wp_validate_redirect($requested_redirect, admin_url()) : admin_url();
         $default_redirect = esc_url_raw($validated_redirect);
         ?>
