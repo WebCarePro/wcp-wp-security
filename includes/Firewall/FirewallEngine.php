@@ -6711,6 +6711,8 @@ class FirewallEngine {
                 'ppc_approve_order',
                 'wc_stripe_create_order',
                 'wc_stripe_get_cart_details',
+                // Official WordPress Plugin Check (PCP) Tool Test Runner
+                'plugin_check_run_checks',
             ], true);
         }
 
@@ -6743,6 +6745,11 @@ class FirewallEngine {
         }
 
         $referer_raw = isset($_SERVER['HTTP_REFERER']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']))) : '';
+        // Official WordPress Plugin Check (PCP) runner from wp-admin/tools.php
+        if (!empty($referer_raw) && strpos($referer_raw, 'page=plugin-check') !== false) {
+            return;
+        }
+
         if (self::has_active_shopper_session() || (!empty($referer_raw) && (strpos($referer_raw, '/checkout') !== false || strpos($referer_raw, '/cart') !== false))) {
             if (str_starts_with($action_lower, 'wc_') || str_starts_with($action_lower, 'woocommerce_') || strpos($action_lower, 'tax') !== false || strpos($action_lower, 'vat') !== false || strpos($action_lower, 'shipping') !== false) {
                 return; // Auto-pass benign cart/checkout companion plugin actions

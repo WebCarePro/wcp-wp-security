@@ -278,17 +278,47 @@ class OutboundEgressFirewall {
         // Resolves hostnames and checks decimal/hex/IPv6 encodings, link-local, loopback, and cloud metadata.
         // Pin validated safe IP to prevent TOCTOU DNS rebinding in curl.
         if (!empty($settings['block_ssrf_metadata'])) {
-            $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
+            $site_home_url = home_url();
+            $site_host = strtolower(wp_parse_url($site_home_url, PHP_URL_HOST) ?? '');
+            $site_port = (int) (wp_parse_url($site_home_url, PHP_URL_PORT) ?: (wp_parse_url(site_url(), PHP_URL_PORT) ?: (is_ssl() ? 443 : 80)));
             $port = isset($parsed_url['port']) ? (int) $parsed_url['port'] : null;
-            $is_non_standard_port = ($port !== null && !in_array($port, [80, 443, 8080, 8443], true));
+            $request_path = strtolower($parsed_url['path'] ?? '');
 
-            // Same-host requests targeting non-standard internal ports (e.g., Redis :6379, MySQL :3306) must be inspected for SSRF
-            if ($host !== $site_host || $is_non_standard_port) {
+            // Standard allowed outbound web ports
+            $allowed_web_ports = [80, 443, 8080, 8443];
+            if ($site_port > 0 && !in_array($site_port, $allowed_web_ports, true)) {
+                $allowed_web_ports[] = $site_port;
+            }
+            // If the incoming HTTP host has a port (e.g. localhost:8282), allow it as well
+            if (!empty($_SERVER['HTTP_HOST'])) {
+                $raw_host_port = (int) (wp_parse_url('http://' . sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])), PHP_URL_PORT) ?: 0);
+                if ($raw_host_port > 0 && !in_array($raw_host_port, $allowed_web_ports, true)) {
+                    $allowed_web_ports[] = $raw_host_port;
+                }
+            }
+            if (!empty($_SERVER['SERVER_PORT'])) {
+                $server_port = (int) $_SERVER['SERVER_PORT'];
+                if ($server_port > 0 && !in_array($server_port, $allowed_web_ports, true)) {
+                    $allowed_web_ports[] = $server_port;
+                }
+            }
+
+            // High-risk internal ports that should never be probed even on same host (e.g., Redis, Memcached, MySQL, Postgres, MongoDB, Elastic, SMTP)
+            $restricted_internal_ports = [3306, 5432, 6379, 11211, 27017, 9200, 25, 22, 23, 21];
+
+            $is_same_host = ($host === $site_host) || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+            $is_wp_cron_or_loopback = (strpos($request_path, 'wp-cron.php') !== false) || (strpos($request_path, 'wp-admin') !== false) || (strpos($request_path, 'wp-json') !== false);
+
+            // Same-host loopbacks (e.g. wp-cron.php, site-health loopback checks, REST background calls)
+            // are legitimate WordPress internal self-requests unless explicitly probing a database/cache service port.
+            if ($is_same_host && ($port === null || !in_array($port, $restricted_internal_ports, true)) && ($is_wp_cron_or_loopback || in_array($port, $allowed_web_ports, true))) {
+                // Legitimate internal self-request to site itself; do not treat as external SSRF
+            } else {
                 $ssrf_eval = self::evaluate_ssrf_destination($host);
                 if ($ssrf_eval['threat']) {
                     $threat = $ssrf_eval['threat'];
                     $reason = $ssrf_eval['reason'];
-                } elseif ($is_non_standard_port && $host === $site_host) {
+                } elseif ($port !== null && in_array($port, $restricted_internal_ports, true) && $is_same_host) {
                     $threat = 'internal_port_probe';
                     $reason = sprintf('Outbound request targeting restricted internal port (%1$d) on local site host (%2$s).', $port, $host);
                 } elseif (!empty($ssrf_eval['safe_ip'])) {
@@ -304,7 +334,8 @@ class OutboundEgressFirewall {
         // 3. Raw-IP Outbound Monitor (Catch unverified C2 callback beacons)
         if (!$threat && empty($settings['block_suspicious_tld'])) {
             if (filter_var($host, FILTER_VALIDATE_IP)) {
-                $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
+                $site_home_url = home_url();
+                $site_host = strtolower(wp_parse_url($site_home_url, PHP_URL_HOST) ?? '');
                 if ($host !== $site_host && !self::is_host_approved($host, $settings)) {
                     $threat = 'raw_ip_egress';
                     $reason = sprintf('Outbound network request targeting raw IP address (%s).', $host);
