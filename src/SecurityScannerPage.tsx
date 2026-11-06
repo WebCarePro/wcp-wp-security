@@ -230,7 +230,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
   // Pagination
   const [findingsPage, setFindingsPage] = useState<number>(1);
-  const [findingsPageSize, setFindingsPageSize] = useState<number>(25);
+  const [findingsPageSize, setFindingsPageSize] = useState<number>(100);
 
   // Bulk Permissions State
   const [isFixingAllPerms, setIsFixingAllPerms] = useState<boolean>(false);
@@ -1555,12 +1555,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   className="wcp-filter-select"
                   value={findingsPageSize}
                   onChange={(e) => setFindingsPageSize(Number(e.target.value))}
-                  style={{ padding: '6px 10px', fontSize: '12px', minWidth: '85px' }}
+                  style={{ padding: '6px 10px', fontSize: '12px', minWidth: '95px' }}
                 >
-                  <option value={25}>25 / page</option>
-                  <option value={50}>50 / page</option>
                   <option value={100}>100 / page</option>
                   <option value={200}>200 / page</option>
+                  <option value={500}>500 / page</option>
                 </select>
               </div>
 

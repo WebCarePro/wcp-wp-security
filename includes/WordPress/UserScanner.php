@@ -84,6 +84,14 @@ class UserScanner {
         $posts_table    = $wpdb->prefix . 'posts';
         $cap_key        = $wpdb->prefix . 'capabilities';
 
+        // 0. Determine total user count for progress telemetry
+        $user_count_info = function_exists('count_users') ? count_users() : [];
+        $total_users_count = (int) ($user_count_info['total_users'] ?? 0);
+        if ($total_users_count === 0) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $total_users_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$users_table}`");
+        }
+
         // Common weak passwords to audit against hashes
         $common_passwords = [
             'password', '123456', '12345678', '123456789', 'admin', 'admin123', 
@@ -92,7 +100,20 @@ class UserScanner {
 
         // 1. Scan administrator accounts for predictable usernames
         $admins = get_users(['role' => 'administrator']);
-        
+        $total_admins = count($admins);
+        $scanned_users_count = 0;
+
+        if (!empty($scan_id)) {
+            $status_msg = sprintf(
+                /* translators: 1: scanned count, 2: total count */
+                __('User & Auth Sentinel: Auditing %1$s of %2$s user accounts...', 'wcp-security-scanner'),
+                number_format(1),
+                number_format(max(1, $total_users_count))
+            );
+            set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
+            \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+        }
+
         foreach ($admins as $admin) {
             $login = strtolower($admin->user_login);
             $generic_logins = ['admin', 'administrator', 'root', 'support', 'test', 'temp', 'backup', 'system', 'wp_admin', 'webmaster'];
@@ -111,7 +132,24 @@ class UserScanner {
 
         // 2. Audit Password Strength & Credentials
         $users_to_audit = $admins_only ? $admins : get_users(['number' => 300]);
+        $total_to_audit = count($users_to_audit);
+        $audit_idx = 0;
+
         foreach ($users_to_audit as $user) {
+            $audit_idx++;
+            $scanned_users_count++;
+
+            if (!empty($scan_id) && ($audit_idx % 10 === 0 || $audit_idx === 1 || $audit_idx === $total_to_audit)) {
+                $status_msg = sprintf(
+                    /* translators: 1: current audited, 2: total users */
+                    __('User & Auth Sentinel: Auditing user accounts (%1$s / %2$s users checked)...', 'wcp-security-scanner'),
+                    number_format($scanned_users_count),
+                    number_format(max($scanned_users_count, $total_users_count))
+                );
+                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+            }
+
             $test_passwords = array_merge($common_passwords, [
                 $user->user_login,
                 strtolower($user->user_login),
@@ -180,8 +218,23 @@ class UserScanner {
         // but have been given file upload, file editing, or administrative powers
         $wp_roles = wp_roles();
         $all_users = get_users(['number' => 500]);
+        $total_all_users = count($all_users);
+        $user_cap_idx = 0;
 
         foreach ($all_users as $user) {
+            $user_cap_idx++;
+
+            if (!empty($scan_id) && ($user_cap_idx % 20 === 0 || $user_cap_idx === 1 || $user_cap_idx === $total_all_users)) {
+                $status_msg = sprintf(
+                    /* translators: 1: current audited, 2: total users */
+                    __('User & Auth Sentinel: Auditing roles & capabilities (%1$s / %2$s users checked)...', 'wcp-security-scanner'),
+                    number_format($user_cap_idx),
+                    number_format(max($user_cap_idx, $total_users_count))
+                );
+                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+            }
+
             $roles = (array) $user->roles;
             $is_admin = in_array('administrator', $roles, true);
 
