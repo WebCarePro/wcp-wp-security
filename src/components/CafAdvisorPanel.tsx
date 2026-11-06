@@ -29,7 +29,7 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
   const [applyingProfile, setApplyingProfile] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [togglingKillswitch, setTogglingKillswitch] = useState<boolean>(false);
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string; autoEnabled?: string[] } | null>(null);
 
   const loadCafOverview = async () => {
     try {
@@ -60,7 +60,16 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
       });
 
       if (res && res.success) {
-        setNotice({ type: 'success', message: res.message || `Profile "${profileId}" applied and WAF recompiled!` });
+        const autoEnabled: string[] = res.auto_enabled || [];
+        let msg = res.message || `Profile "${profileId}" applied and WAF recompiled!`;
+        if (autoEnabled.length > 0) {
+          msg += ` Auto-enabled: ${autoEnabled.join(', ')}.`;
+        }
+        setNotice({
+          type: 'success',
+          message: msg,
+          autoEnabled,
+        });
         await loadCafOverview();
         if (onSettingsUpdated) {
           onSettingsUpdated();
@@ -221,7 +230,21 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
           className={`wcp-alert ${notice.type === 'success' ? 'wcp-alert-success' : 'wcp-alert-danger'}`}
           style={{ padding: '10px 14px', borderRadius: '6px', fontSize: '13px' }}
         >
-          {notice.message}
+          <div style={{ fontWeight: 600, marginBottom: (notice as any).autoEnabled?.length > 0 ? '6px' : 0 }}>
+            {notice.message.split(' Auto-enabled:')[0]}
+          </div>
+          {(notice as any).autoEnabled?.length > 0 && (
+            <div style={{ marginTop: '6px', padding: '8px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '5px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <CheckCircle2 size={12} /> Auto-Enabled on Firewall Rules &amp; Controls:
+              </div>
+              <ul style={{ margin: '0', padding: '0 0 0 16px', fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)' }}>
+                {(notice as any).autoEnabled.map((item: string, idx: number) => (
+                  <li key={idx} style={{ marginBottom: '2px' }}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

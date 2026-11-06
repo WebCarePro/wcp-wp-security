@@ -317,6 +317,9 @@ final class AdaptiveFirewallAdvisor {
 
 	/**
 	 * Apply an advisory profile and trigger MicroWaf re-compilation.
+	 * When the E-Commerce Hardened profile is activated, Smart Shields
+	 * (waf_ecommerce_safe_mode) are automatically enabled to prevent
+	 * false-positives on checkout, cart, and payment webhook endpoints.
 	 *
 	 * @param string $profile_id
 	 * @param bool   $lock_dormant
@@ -339,6 +342,39 @@ final class AdaptiveFirewallAdvisor {
 		update_option( self::OPTION_ACTIVE_PROFILE, $profile_id );
 		update_option( self::OPTION_DORMANT_LOCK, $lock_dormant );
 
+		// --- Profile-Specific Auto-Enable Logic ---
+		$auto_enabled = [];
+
+		if ( self::PROFILE_ECOMMERCE_HARDENED === $profile_id ) {
+			$settings = get_option( 'wcpscan_settings', [] );
+			$changed  = false;
+
+			// Auto-enable 1: Smart Shields & Verified Integrations (False-Positive Prevention)
+			if ( empty( $settings['waf_ecommerce_safe_mode'] ) ) {
+				$settings['waf_ecommerce_safe_mode'] = true;
+				$auto_enabled[]                      = 'Smart Shields & Verified Integrations (E-Commerce, Membership & Payment Webhook Shield)';
+				$changed                             = true;
+			}
+
+			// Auto-enable 2: Targeted Endpoint & User-Agent Bypass Rules
+			// Inject default WooCommerce + payment gateway bypass rules if the list is currently empty.
+			$existing_rules_raw = $settings['waf_targeted_allowlist_rules'] ?? '[]';
+			$existing_rules     = is_array( $existing_rules_raw )
+				? $existing_rules_raw
+				: (array) json_decode( (string) $existing_rules_raw, true );
+
+			if ( empty( $existing_rules ) ) {
+				$default_bypass_rules = self::get_ecommerce_default_bypass_rules();
+				$settings['waf_targeted_allowlist_rules'] = wp_json_encode( $default_bypass_rules );
+				$auto_enabled[] = 'Targeted Endpoint & User-Agent Bypass Rules (pre-loaded WooCommerce REST, Stripe & PayPal webhook bypass rules)';
+				$changed        = true;
+			}
+
+			if ( $changed ) {
+				update_option( 'wcpscan_settings', $settings, false );
+			}
+		}
+
 		// Regenerate snapshot
 		$snapshot = $this->capture_stack_snapshot();
 
@@ -353,7 +389,85 @@ final class AdaptiveFirewallAdvisor {
 			'profile_id'      => $profile_id,
 			'lock_dormant'    => $lock_dormant,
 			'snapshot_hash'   => $snapshot->snapshot_hash,
+			'auto_enabled'    => $auto_enabled,
 			'recommendations' => $this->get_recommendations_matrix( $snapshot ),
+		];
+	}
+
+	/**
+	 * Default bypass rule definitions injected when E-Commerce Hardened profile is applied
+	 * and no Targeted Allowlist rules have been configured yet.
+	 *
+	 * Covers: WooCommerce REST API, Stripe webhooks, and PayPal IPN.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function get_ecommerce_default_bypass_rules(): array {
+		return [
+			[
+				'id'               => 'wcp_auto_woo_rest',
+				'name'             => 'WooCommerce REST API (Auto)',
+				'enabled'          => true,
+				'user_agents'      => [],
+				'endpoints'        => [ '/wp-json/wc/v3/*', '/wp-json/wc/v2/*', '/wp-json/wc-analytics/*' ],
+				'ip_addresses'     => [],
+				'hostnames'        => [],
+				'asns'             => [],
+				'required_headers' => [],
+				'methods'          => [ 'GET', 'POST', 'PUT', 'DELETE' ],
+				'log_payload'      => true,
+				'description'      => 'Auto-added by E-Commerce Hardened CAF profile. Allows WooCommerce REST API v2/v3 and analytics endpoints to function without WAF interference.',
+			],
+			[
+				'id'               => 'wcp_auto_stripe_webhook',
+				'name'             => 'Stripe Webhook (Auto)',
+				'enabled'          => true,
+				'user_agents'      => [ 'Stripe/1.0 (+https://stripe.com/docs/webhooks)' ],
+				'endpoints'        => [ '/wc-api/WC_Stripe*', '/wp-json/wc/v3/payment_gateways*', '/?wc-api=wc_stripe*' ],
+				'ip_addresses'     => [
+					'3.18.12.63/32',
+					'3.130.192.231/32',
+					'13.235.14.237/32',
+					'13.235.122.149/32',
+					'18.211.135.69/32',
+					'35.154.171.200/32',
+					'52.15.183.38/32',
+					'54.187.174.169/32',
+					'54.187.205.235/32',
+					'54.187.216.72/32',
+					'54.241.31.99/32',
+					'54.241.31.102/32',
+					'54.241.34.107/32',
+				],
+				'hostnames'        => [ 'stripe.com', 'hooks.stripe.com' ],
+				'asns'             => [],
+				'required_headers' => [ 'Stripe-Signature' ],
+				'methods'          => [ 'POST' ],
+				'log_payload'      => true,
+				'description'      => 'Auto-added by E-Commerce Hardened CAF profile. Permits Stripe payment webhooks via official IPs and Stripe-Signature header verification.',
+			],
+			[
+				'id'               => 'wcp_auto_paypal_ipn',
+				'name'             => 'PayPal IPN & Webhooks (Auto)',
+				'enabled'          => true,
+				'user_agents'      => [ 'PayPal/IPN*', 'Java/*' ],
+				'endpoints'        => [ '/wc-api/WC_Paypal*', '/wc-api/wc_paypal*', '/?wc-api=WC_PayPal*', '/wp-json/wc/v3/payment_gateways*' ],
+				'ip_addresses'     => [
+					'173.0.80.0/20',
+					'66.211.168.0/22',
+					'64.4.240.0/21',
+					'64.4.248.0/22',
+					'185.177.189.0/24',
+					'3.253.0.0/16',
+					'52.212.0.0/15',
+				],
+				'hostnames'        => [ 'paypal.com', 'ipnpb.paypal.com', 'ipnpb.sandbox.paypal.com' ],
+				'asns'             => [ 'AS17012' ],
+				'required_headers' => [],
+				'methods'          => [ 'POST' ],
+				'log_payload'      => true,
+				'description'      => 'Auto-added by E-Commerce Hardened CAF profile. Permits PayPal IPN and webhook callbacks from official PayPal IP ranges (AS17012).',
+			],
 		];
 	}
 

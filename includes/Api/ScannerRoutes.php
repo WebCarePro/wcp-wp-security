@@ -11416,10 +11416,16 @@ class ScannerRoutes {
         $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
         $result  = $advisor->apply_profile($profile_id, $lock_dormant);
 
+        $auto_enabled = $result['auto_enabled'] ?? [];
+
+        /* translators: %s: CAF profile identifier (e.g. ecommerce_hardened) */
+        $base_msg = sprintf( __( 'CAF Profile "%s" applied and Micro-WAF recompiled.', 'wcp-security-scanner' ), esc_html( $profile_id ) );
+
         return rest_ensure_response([
-            'success' => true,
-            'message' => sprintf('CAF Profile "%s" applied and Micro-WAF recompiled.', esc_html($profile_id)),
-            'result'  => $result,
+            'success'      => true,
+            'message'      => $base_msg,
+            'auto_enabled' => $auto_enabled,
+            'result'       => $result,
         ]);
     }
 
