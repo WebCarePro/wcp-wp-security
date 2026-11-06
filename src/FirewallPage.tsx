@@ -980,7 +980,7 @@ export const FirewallPage = ({
   const [newWhitelistReason, setNewWhitelistReason] = useState<string>('');
   const [newWhitelistScope, setNewWhitelistScope] = useState<'rule' | 'category' | 'global'>('global');
   const [newWhitelistSelectedRule, setNewWhitelistSelectedRule] = useState<string>('');
-  const [newWhitelistSelectedCat, setNewWhitelistSelectedCat] = useState<string>('');
+  const [newWhitelistSelectedCats, setNewWhitelistSelectedCats] = useState<string[]>([]);
   const [newWhitelistExpiresIn, setNewWhitelistExpiresIn] = useState<number>(86400); // Default 24h
   const [rulesCatalog, setRulesCatalog] = useState<FirewallRuleCatalogItem[]>([]);
   const [addingWhitelistIp, setAddingWhitelistIp] = useState<boolean>(false);
@@ -995,7 +995,7 @@ export const FirewallPage = ({
     reason: string;
     scope: 'rule' | 'category' | 'global';
     selectedRule: string;
-    selectedCat: string;
+    selectedCats: string[];
     endpoint: string;
     expiresIn: number;
     isSubmitting: boolean;
@@ -1005,7 +1005,7 @@ export const FirewallPage = ({
     reason: '',
     scope: 'global',
     selectedRule: '',
-    selectedCat: '',
+    selectedCats: [],
     endpoint: '',
     expiresIn: 86400,
     isSubmitting: false,
@@ -1069,8 +1069,8 @@ export const FirewallPage = ({
       return;
     }
 
-    if (newWhitelistScope === 'category' && !newWhitelistSelectedCat) {
-      showFirewallNotice('warning', 'Please select a rule category group to exempt.');
+    if (newWhitelistScope === 'category' && newWhitelistSelectedCats.length === 0) {
+      showFirewallNotice('warning', 'Please select at least one rule category group to exempt.');
       return;
     }
 
@@ -1078,7 +1078,7 @@ export const FirewallPage = ({
       setAddingWhitelistIp(true);
       const payload: any = {
         ip: cleanIp,
-        reason: newWhitelistReason.trim() || 'Trusted administrative access policy',
+        reason: newWhitelistReason.trim() || (newWhitelistScope === 'category' ? `Allowed for categories: ${newWhitelistSelectedCats.join(', ')}` : 'Trusted administrative access policy'),
         scope: newWhitelistScope,
         expires_in: newWhitelistExpiresIn,
       };
@@ -1086,7 +1086,7 @@ export const FirewallPage = ({
       if (newWhitelistScope === 'rule') {
         payload.allowed_rules = [newWhitelistSelectedRule];
       } else if (newWhitelistScope === 'category') {
-        payload.allowed_cats = [newWhitelistSelectedCat];
+        payload.allowed_cats = newWhitelistSelectedCats;
       }
 
       const res = await apiRequest({
@@ -1098,7 +1098,7 @@ export const FirewallPage = ({
         setNewWhitelistIp('');
         setNewWhitelistReason('');
         setNewWhitelistSelectedRule('');
-        setNewWhitelistSelectedCat('');
+        setNewWhitelistSelectedCats([]);
         if (res.whitelisted_ips) {
           setWhitelistedIpsList(res.whitelisted_ips);
         } else {
@@ -1117,7 +1117,9 @@ export const FirewallPage = ({
 
   const handleOpenEditWhitelistModal = (item: WhitelistedIpItem) => {
     const existingRule = (item.allowed_rules && item.allowed_rules[0]) || '';
-    const existingCat = (item.allowed_cats && item.allowed_cats[0]) || '';
+    const existingCats = Array.isArray(item.allowed_cats) && item.allowed_cats.length > 0 
+      ? item.allowed_cats 
+      : ((item as any).allowed_cat ? [(item as any).allowed_cat] : []);
     let remainingTtl = 86400;
     if (item.expires_at && item.expires_at > 0) {
       const diff = item.expires_at - Math.floor(Date.now() / 1000);
@@ -1132,7 +1134,7 @@ export const FirewallPage = ({
       reason: item.reason || '',
       scope: item.scope || 'global',
       selectedRule: existingRule,
-      selectedCat: existingCat,
+      selectedCats: existingCats,
       endpoint: item.endpoint || '',
       expiresIn: remainingTtl,
       isSubmitting: false,
@@ -1145,8 +1147,8 @@ export const FirewallPage = ({
       showFirewallNotice('warning', 'Please select a specific firewall rule to exempt.');
       return;
     }
-    if (editWhitelistItem.scope === 'category' && !editWhitelistItem.selectedCat) {
-      showFirewallNotice('warning', 'Please select a rule category group to exempt.');
+    if (editWhitelistItem.scope === 'category' && editWhitelistItem.selectedCats.length === 0) {
+      showFirewallNotice('warning', 'Please select at least one rule category group to exempt.');
       return;
     }
 
@@ -1163,7 +1165,7 @@ export const FirewallPage = ({
       if (editWhitelistItem.scope === 'rule') {
         payload.allowed_rules = [editWhitelistItem.selectedRule];
       } else if (editWhitelistItem.scope === 'category') {
-        payload.allowed_cats = [editWhitelistItem.selectedCat];
+        payload.allowed_cats = editWhitelistItem.selectedCats;
       }
 
       const res = await apiRequest({
@@ -6500,8 +6502,8 @@ export const FirewallPage = ({
                   </div>
                 </div>
 
-                {/* Secondary Row: Specific Rule or Category Group Dropdown + TTL Expiration + Action Button */}
-                <div style={{ display: 'grid', gridTemplateColumns: newWhitelistScope === 'global' ? 'minmax(200px, 1fr) auto' : 'minmax(240px, 2fr) minmax(180px, 1fr) auto', gap: '10px', alignItems: 'flex-end', paddingTop: '4px', borderTop: '1px dashed var(--wcp-border, #e2e8f0)' }}>
+                {/* Secondary Row: Specific Rule or Category Group Multi-select + TTL Expiration + Action Button */}
+                <div style={{ display: 'grid', gridTemplateColumns: newWhitelistScope === 'global' ? 'minmax(200px, 1fr) auto' : 'minmax(240px, 2fr) minmax(180px, 1fr) auto', gap: '10px', alignItems: newWhitelistScope === 'category' ? 'flex-start' : 'flex-end', paddingTop: '6px', borderTop: '1px dashed var(--wcp-border, #e2e8f0)' }}>
                   {newWhitelistScope === 'rule' && (
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
@@ -6539,32 +6541,97 @@ export const FirewallPage = ({
 
                   {newWhitelistScope === 'category' && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)', marginBottom: '3px' }}>
-                        Select Rule Group Category to Exempt:
-                      </label>
-                      <select
-                        value={newWhitelistSelectedCat}
-                        onChange={(e) => {
-                          const cat = e.target.value;
-                          setNewWhitelistSelectedCat(cat);
-                          if (!newWhitelistReason && cat) {
-                            setNewWhitelistReason(`Allowed for category group ${cat}`);
-                          }
-                        }}
-                        className="wcp-firewall-input"
-                        style={{ width: '100%', fontSize: '12px', padding: '7px 10px' }}
-                        required
-                      >
-                        <option value="">-- Choose Category Group --</option>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-secondary, #475569)' }}>
+                          Select Category Groups to Exempt ({newWhitelistSelectedCats.length} selected):
+                        </label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const allCats = Array.from(new Set(rulesCatalog.map(r => r.category)));
+                              setNewWhitelistSelectedCats(allCats);
+                              if (!newWhitelistReason) {
+                                setNewWhitelistReason(`Allowed for all ${allCats.length} category groups`);
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', padding: 0, fontSize: '10.5px', color: '#4f46e5', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                          >
+                            Select All
+                          </button>
+                          <span style={{ fontSize: '10px', color: 'var(--wcp-text-muted, #94a3b8)' }}>|</span>
+                          <button
+                            type="button"
+                            onClick={() => setNewWhitelistSelectedCats([])}
+                            style={{ background: 'none', border: 'none', padding: 0, fontSize: '10.5px', color: '#64748b', cursor: 'pointer', fontWeight: 500 }}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        maxHeight: '135px',
+                        overflowY: 'auto',
+                        padding: '6px 8px',
+                        background: 'var(--wcp-bg-surface, #f8fafc)',
+                        border: '1px solid var(--wcp-border, #cbd5e1)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                      }}>
                         {Array.from(new Set(rulesCatalog.map(r => r.category))).map(cat => {
                           const count = rulesCatalog.filter(r => r.category === cat).length;
+                          const isSelected = newWhitelistSelectedCats.includes(cat);
                           return (
-                            <option key={cat} value={cat}>
-                              {cat} ({count} {count === 1 ? 'rule' : 'rules'})
-                            </option>
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                setNewWhitelistSelectedCats(prev => {
+                                  const updated = prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat];
+                                  if (!newWhitelistReason && updated.length > 0) {
+                                    setNewWhitelistReason(`Allowed for categories: ${updated.join(', ')}`);
+                                  }
+                                  return updated;
+                                });
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: isSelected ? 600 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                border: isSelected ? '1px solid #4f46e5' : '1px solid var(--wcp-border, #cbd5e1)',
+                                background: isSelected ? 'rgba(79, 70, 229, 0.12)' : 'var(--wcp-bg-card, #ffffff)',
+                                color: isSelected ? '#4f46e5' : 'var(--wcp-text-primary, #0f172a)',
+                              }}
+                            >
+                              <span style={{ fontSize: '10px' }}>{isSelected ? '✓' : '+'}</span>
+                              <span>{cat}</span>
+                              <span style={{
+                                fontSize: '9.5px',
+                                opacity: 0.8,
+                                padding: '1px 4px',
+                                borderRadius: '3px',
+                                background: isSelected ? 'rgba(79, 70, 229, 0.2)' : 'var(--wcp-bg-elevated, #f1f5f9)'
+                              }}>
+                                {count}
+                              </span>
+                            </button>
                           );
                         })}
-                      </select>
+                      </div>
+                      {newWhitelistSelectedCats.length === 0 && (
+                        <div style={{ fontSize: '10.5px', color: '#dc2626', marginTop: '3px' }}>
+                          * Click one or more category badges above to exempt them.
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -6769,10 +6836,29 @@ export const FirewallPage = ({
                               ) : item.scope === 'category' ? (
                                 <div>
                                   <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', border: '1px solid rgba(124, 58, 237, 0.3)', fontWeight: 600 }}>
-                                    Group Category
+                                    {item.allowed_cats && item.allowed_cats.length > 1 ? `${item.allowed_cats.length} Group Categories` : 'Group Category'}
                                   </span>
-                                  <div style={{ fontSize: '11px', color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 600, marginTop: '3px' }}>
-                                    {(item.allowed_cats || []).join(', ') || 'Category Group'}
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                    {(item.allowed_cats && item.allowed_cats.length > 0) ? (
+                                      item.allowed_cats.map((c: string) => (
+                                        <span
+                                          key={c}
+                                          style={{
+                                            fontSize: '10.5px',
+                                            fontWeight: 600,
+                                            padding: '1px 6px',
+                                            borderRadius: '3px',
+                                            background: 'var(--wcp-bg-surface, #f1f5f9)',
+                                            color: 'var(--wcp-text-primary, #0f172a)',
+                                            border: '1px solid var(--wcp-border, #cbd5e1)',
+                                          }}
+                                        >
+                                          {c}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 600 }}>Category Group</span>
+                                    )}
                                   </div>
                                   {item.endpoint && (
                                     <div style={{ fontSize: '10px', color: '#0284c7', fontFamily: 'monospace', marginTop: '3px' }}>
@@ -9249,25 +9335,93 @@ export const FirewallPage = ({
 
               {editWhitelistItem.scope === 'category' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)', marginBottom: '5px' }}>
-                    Rule Group Category to Exempt:
-                  </label>
-                  <select
-                    value={editWhitelistItem.selectedCat}
-                    onChange={(e) => setEditWhitelistItem(prev => ({ ...prev, selectedCat: e.target.value }))}
-                    className="wcp-firewall-input"
-                    style={{ width: '100%', fontSize: '12.5px', padding: '8px 10px' }}
-                  >
-                    <option value="">-- Choose Category Group --</option>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)' }}>
+                      Rule Group Categories to Exempt ({editWhitelistItem.selectedCats.length} selected):
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCats = Array.from(new Set(rulesCatalog.map(r => r.category)));
+                          setEditWhitelistItem(prev => ({ ...prev, selectedCats: allCats }));
+                        }}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#4f46e5', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                      >
+                        Select All
+                      </button>
+                      <span style={{ fontSize: '10px', color: 'var(--wcp-text-muted, #94a3b8)' }}>|</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditWhitelistItem(prev => ({ ...prev, selectedCats: [] }))}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#64748b', cursor: 'pointer', fontWeight: 500 }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    padding: '8px 10px',
+                    background: 'var(--wcp-bg-surface, #f8fafc)',
+                    border: '1px solid var(--wcp-border, #cbd5e1)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                  }}>
                     {Array.from(new Set(rulesCatalog.map(r => r.category))).map(cat => {
                       const count = rulesCatalog.filter(r => r.category === cat).length;
+                      const isSelected = editWhitelistItem.selectedCats.includes(cat);
                       return (
-                        <option key={cat} value={cat}>
-                          {cat} ({count} {count === 1 ? 'rule' : 'rules'})
-                        </option>
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setEditWhitelistItem(prev => ({
+                              ...prev,
+                              selectedCats: prev.selectedCats.includes(cat)
+                                ? prev.selectedCats.filter(c => c !== cat)
+                                : [...prev.selectedCats, cat]
+                            }));
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '5px 9px',
+                            borderRadius: '4px',
+                            fontSize: '11.5px',
+                            fontWeight: isSelected ? 600 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            border: isSelected ? '1px solid #4f46e5' : '1px solid var(--wcp-border, #cbd5e1)',
+                            background: isSelected ? 'rgba(79, 70, 229, 0.12)' : 'var(--wcp-bg-card, #ffffff)',
+                            color: isSelected ? '#4f46e5' : 'var(--wcp-text-primary, #0f172a)',
+                          }}
+                        >
+                          <span style={{ fontSize: '10.5px' }}>{isSelected ? '✓' : '+'}</span>
+                          <span>{cat}</span>
+                          <span style={{
+                            fontSize: '10px',
+                            opacity: 0.8,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            background: isSelected ? 'rgba(79, 70, 229, 0.2)' : 'var(--wcp-bg-elevated, #f1f5f9)'
+                          }}>
+                            {count}
+                          </span>
+                        </button>
                       );
                     })}
-                  </select>
+                  </div>
+                  {editWhitelistItem.selectedCats.length === 0 && (
+                    <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '4px' }}>
+                      * Click one or more category badges above to exempt them.
+                    </div>
+                  )}
                 </div>
               )}
 
