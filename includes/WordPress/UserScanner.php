@@ -87,9 +87,9 @@ class UserScanner {
         // 0. Determine total user count for progress telemetry
         $user_count_info = function_exists('count_users') ? count_users() : [];
         $total_users_count = (int) ($user_count_info['total_users'] ?? 0);
-        if ($total_users_count === 0) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $total_users_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$users_table}`");
+        if ($total_users_count === 0 && !empty($wpdb->users)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $total_users_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$wpdb->users}`");
         }
 
         // Common weak passwords to audit against hashes

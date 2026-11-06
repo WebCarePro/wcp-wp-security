@@ -31,6 +31,8 @@ v:2.6.0 - 2026-11-06
   * Server Security Scanner False-Positive De-escalation (cpGuard Definition Quarantine Fix):
     - Obfuscated Rule Signature Separation: De-escalated plain literal string patterns (`base64_decode`, `eval(`, etc.) within Cloudflare compound rules and firewall UI descriptions in `src/FirewallPage.tsx` using array join tokenization, preventing server-side scanners (e.g., cpGuard definition `{HEX}Malware.Expert.base64.decode.eval`) from falsely quarantining `build/firewall.js` as malware.
   * WordPress Plugin Check (PCP) Compliance Cleanliness:
+    - I18n Translators Placeholders: Added explicit `/* translators: %s: ... */` annotations preceding formatted translatable strings for software update finding titles in `ScannerRoutes.php`.
+    - Direct Database Query Annotation: Safely referenced standard `$wpdb->users` property with interpolation annotation in `UserScanner.php` when querying fallback user counts.
     - Prepared SQL & Direct Database Standards: Wrapped `SHOW TABLES LIKE` in `RiskScorer.php` with `$wpdb->prepare()` and annotated intentional dynamic table name inspection with phpcs ignore directives.
     - Deep Input Inspection Annotations: Added phpcs justification comments for raw inspection of `REQUEST_URI`, `QUERY_STRING`, `HTTP_USER_AGENT`, and `HTTP_REFERER` in `FirewallEngine.php` and `VirtualPatchManager.php`.
     - WebAuthn Login Parameter Sanitization: Switched `$_REQUEST['redirect_to']` to sanitized `$_GET['redirect_to']` with `esc_url_raw()` and added nonce verification justification for public `wp-login.php` passkey logins.

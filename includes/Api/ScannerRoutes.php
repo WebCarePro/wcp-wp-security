@@ -4570,13 +4570,25 @@ class ScannerRoutes {
                 if ($item['engine'] === 'wordpress-updates' || in_array($item['type'], ['outdated_plugin', 'outdated_theme', 'vulnerable_plugin', 'vulnerable_theme', 'outdated_core', 'vulnerable_core'], true)) {
                     // Outdated or vulnerable software update findings should preserve their descriptive update title
                     if ($item['type'] === 'vulnerable_plugin') {
-                        $item['display_title'] = !empty($item['component_name']) ? sprintf(__('Vulnerable Plugin: %s', 'wcp-security-scanner'), $item['component_name']) : __('Vulnerable Plugin', 'wcp-security-scanner');
+                        $item['display_title'] = !empty($item['component_name']) 
+                            /* translators: %s: plugin name */
+                            ? sprintf(__('Vulnerable Plugin: %s', 'wcp-security-scanner'), $item['component_name']) 
+                            : __('Vulnerable Plugin', 'wcp-security-scanner');
                     } elseif ($item['type'] === 'outdated_plugin') {
-                        $item['display_title'] = !empty($item['component_name']) ? sprintf(__('Outdated Plugin: %s', 'wcp-security-scanner'), $item['component_name']) : __('Outdated Plugin', 'wcp-security-scanner');
+                        $item['display_title'] = !empty($item['component_name']) 
+                            /* translators: %s: plugin name */
+                            ? sprintf(__('Outdated Plugin: %s', 'wcp-security-scanner'), $item['component_name']) 
+                            : __('Outdated Plugin', 'wcp-security-scanner');
                     } elseif ($item['type'] === 'vulnerable_theme') {
-                        $item['display_title'] = !empty($item['component_name']) ? sprintf(__('Vulnerable Theme: %s', 'wcp-security-scanner'), $item['component_name']) : __('Vulnerable Theme', 'wcp-security-scanner');
+                        $item['display_title'] = !empty($item['component_name']) 
+                            /* translators: %s: theme name */
+                            ? sprintf(__('Vulnerable Theme: %s', 'wcp-security-scanner'), $item['component_name']) 
+                            : __('Vulnerable Theme', 'wcp-security-scanner');
                     } elseif ($item['type'] === 'outdated_theme') {
-                        $item['display_title'] = !empty($item['component_name']) ? sprintf(__('Outdated Theme: %s', 'wcp-security-scanner'), $item['component_name']) : __('Outdated Theme', 'wcp-security-scanner');
+                        $item['display_title'] = !empty($item['component_name']) 
+                            /* translators: %s: theme name */
+                            ? sprintf(__('Outdated Theme: %s', 'wcp-security-scanner'), $item['component_name']) 
+                            : __('Outdated Theme', 'wcp-security-scanner');
                     } elseif ($item['type'] === 'vulnerable_core') {
                         $item['display_title'] = __('Vulnerable WordPress Core', 'wcp-security-scanner');
                     } elseif ($item['type'] === 'outdated_core') {
