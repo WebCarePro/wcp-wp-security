@@ -4589,8 +4589,13 @@ class ScannerRoutes {
                         $item['display_title'] = $item['component_meta']['classification'];
                     }
                 }
-                if (!empty($item['component_meta']['is_wporg']) || $item['engine'] === 'wordpress-updates') {
-                    $item['is_wporg'] = true;
+                if (isset($item['component_meta']['is_wporg'])) {
+                    $item['is_wporg'] = (bool) $item['component_meta']['is_wporg'];
+                }
+                if (!empty($item['component_meta']['is_custom']) || !empty($item['component_meta']['is_premium'])) {
+                    $item['is_custom'] = !empty($item['component_meta']['is_custom']);
+                    $item['is_premium'] = !empty($item['component_meta']['is_premium']);
+                    $item['is_wporg'] = false;
                 }
                 if (empty($item['component_name']) && !empty($item['component_meta']['name'])) {
                     $item['component_name'] = $item['component_meta']['name'];

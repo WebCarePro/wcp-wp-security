@@ -1760,12 +1760,29 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   const isTheme = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
                   const isCore = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
                   const isPlugin = !isUpdate && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
+
+                  const isCustomOrPremium = Boolean(
+                    issue.is_custom ||
+                    issue.is_premium ||
+                    issue.is_wporg === false ||
+                    issue.component_meta?.is_wporg === false ||
+                    issue.display_title?.toLowerCase().includes('custom') ||
+                    issue.display_title?.toLowerCase().includes('premium') ||
+                    issue.component_meta?.classification === 'premium_plugin' ||
+                    issue.component_meta?.classification === 'custom_plugin' ||
+                    issue.component_meta?.classification === 'premium_theme' ||
+                    issue.component_meta?.classification === 'custom_theme' ||
+                    issue.component_meta?.classification === 'custom_child_theme'
+                  );
+
                   const isChecksumsUnavailable = Boolean(
+                    isCustomOrPremium ||
                     issue.type === 'plugin_checksums_unavailable' ||
                     issue.type === 'theme_checksums_unavailable' ||
                     issue.type?.includes('_checksums_unavailable') ||
-                    (issue.severity === 'info' && (issue.description?.toLowerCase().includes('checksums unavailable') || issue.display_title?.toLowerCase().includes('custom') || issue.display_title?.toLowerCase().includes('premium')))
+                    issue.description?.toLowerCase().includes('checksums unavailable')
                   );
+
                   const isUnknownFile = Boolean(
                     issue.type?.includes('unknown') ||
                     issue.type?.includes('extra') ||
@@ -1776,7 +1793,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     issue.engine?.includes('uploads')
                   );
                   const isPhysicalFile = !isUser && Boolean(issue.file_path) && !issue.file_path.startsWith('cron:') && !issue.file_path.startsWith('wp_options:') && !issue.file_path.startsWith('db:') && !issue.file_path.startsWith('table:') && !issue.file_path.startsWith('user:') && !issue.file_path.startsWith('comment:') && (issue.file_path.includes('/') || issue.file_path.includes('\\'));
-                  const isFimEligible = isPhysicalFile && !isUnknownFile && !isChecksumsUnavailable && (
+                  const isFimEligible = isPhysicalFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable && (
                     issue.type?.includes('modified') ||
                     issue.type?.includes('tampered') ||
                     issue.type?.includes('injected') ||
@@ -2013,7 +2030,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           )}
 
                           {/* 3. Auto-Cure Action */}
-                          {issue.status === 'open' && !isChecksumsUnavailable && (isPlugin || isCore || isTheme || (issue.file_path && (issue.file_path.includes('/plugins/') || issue.file_path.includes('/themes/') || issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/')))) && !issue.file_path?.endsWith('wp-config.php') && !isUnknownFile && (
+                          {issue.status === 'open' && !isUpdate && !isCustomOrPremium && !isChecksumsUnavailable && !isUnknownFile && !issue.file_path?.endsWith('wp-config.php') && (isPlugin || isCore || isTheme) && (
                             <button
                               type="button"
                               className="wcp-btn"
@@ -2253,7 +2270,16 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       );
                       const isDbTable = !isUser && (issue.is_db_table || issue.engine === 'database-table' || Boolean(issue.file_path && !issue.file_path.includes('/') && !issue.file_path.includes('\\') && issue.file_path.includes('.') && issue.file_path.includes('[ID:')));
                       const isDbRecord = !isUser && (isDbOption || isDbTable || issue.engine === 'database-scanner' || issue.file_path?.startsWith('db:') || issue.file_path?.startsWith('table:'));
-                      const isUpdate = issue.engine === 'wordpress-updates' || issue.is_software_update;
+                      const isUpdate = Boolean(
+                        issue.engine === 'wordpress-updates' ||
+                        issue.is_software_update ||
+                        issue.type === 'outdated_plugin' ||
+                        issue.type === 'vulnerable_plugin' ||
+                        issue.type === 'outdated_theme' ||
+                        issue.type === 'vulnerable_theme' ||
+                        issue.type === 'outdated_core' ||
+                        issue.type === 'vulnerable_core'
+                      );
                       const isDir = Boolean(issue.is_dir) ||
                         issue.type === 'plugin_checksums_unavailable' ||
                         issue.type === 'theme_checksums_unavailable' ||
@@ -2272,14 +2298,29 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         issue.engine?.includes('uploads')
                       );
 
+                      const isCustomOrPremium = Boolean(
+                        issue.is_custom ||
+                        issue.is_premium ||
+                        issue.is_wporg === false ||
+                        issue.component_meta?.is_wporg === false ||
+                        issue.display_title?.toLowerCase().includes('custom') ||
+                        issue.display_title?.toLowerCase().includes('premium') ||
+                        issue.component_meta?.classification === 'premium_plugin' ||
+                        issue.component_meta?.classification === 'custom_plugin' ||
+                        issue.component_meta?.classification === 'premium_theme' ||
+                        issue.component_meta?.classification === 'custom_theme' ||
+                        issue.component_meta?.classification === 'custom_child_theme'
+                      );
+
                       const isChecksumsUnavailable = Boolean(
+                        isCustomOrPremium ||
                         issue.type === 'plugin_checksums_unavailable' ||
                         issue.type === 'theme_checksums_unavailable' ||
                         issue.type?.includes('_checksums_unavailable') ||
-                        (issue.severity === 'info' && (issue.description?.toLowerCase().includes('checksums unavailable') || issue.display_title?.toLowerCase().includes('custom') || issue.display_title?.toLowerCase().includes('premium')))
+                        issue.description?.toLowerCase().includes('checksums unavailable')
                       );
 
-                      const isFimEligible = isPhysicalFile && !isUnknownFile && !isChecksumsUnavailable && (
+                      const isFimEligible = isPhysicalFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable && (
                         issue.type?.includes('modified') ||
                         issue.type?.includes('tampered') ||
                         issue.type?.includes('injected') ||
@@ -2471,7 +2512,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 )}
 
                                 {/* 2. Auto-Cure: 1-Click Restore Clean Official Copy */}
-                                {issue.status === 'open' && !isChecksumsUnavailable && (isPlugin || isCore || isTheme || (issue.file_path && (issue.file_path.includes('/plugins/') || issue.file_path.includes('/themes/') || issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/')))) && !issue.file_path?.endsWith('wp-config.php') && !isUnknownFile && (
+                                {issue.status === 'open' && !isUpdate && !isCustomOrPremium && !isChecksumsUnavailable && !isUnknownFile && !issue.file_path?.endsWith('wp-config.php') && (isPlugin || isCore || isTheme) && (
                                   <button
                                     type="button"
                                     className="wcp-btn"
