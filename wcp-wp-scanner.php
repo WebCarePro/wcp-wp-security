@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       WCP Security Scanner
  * Description:       Advanced security & malware scanner with core file integrity checks, heuristic threat analysis, and modern React dashboard.
- * Version: 2.6.0
+ * Version: 2.7.0
  * Requires at least: 7.0
  * Requires PHP:      8.3
  * Author:            Mir Alamin
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('WCPSCAN_VERSION', '2.6.0');
+define('WCPSCAN_VERSION', '2.7.0');
 define('WCPSCAN_FILE', __FILE__);
 define('WCPSCAN_PATH', plugin_dir_path(__FILE__));
 define('WCPSCAN_URL', plugin_dir_url(__FILE__));
@@ -160,6 +160,12 @@ register_deactivation_hook(__FILE__, function () {
         } catch (\Throwable $e) {
             // Fail safely
         }
+    }
+
+    // Clean up MU Guardian if deployed
+    $mu_guardian = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR . '/wcp-jit-guardian.php' : (defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR . '/mu-plugins/wcp-jit-guardian.php' : '');
+    if (!empty($mu_guardian) && file_exists($mu_guardian)) {
+        wp_delete_file($mu_guardian);
     }
 });
 

@@ -1,3 +1,45 @@
+v:2.7.0 - 2026-11-07
+- Master Security, Reliability, Architecture & Performance Remediation (roadmap.md Phases 1-4 Complete):
+  * Frontend UX & Scan Results Rendering Fix:
+    - Fixed ReferenceError for BookOpen icon in SecurityScannerPage.tsx and recompiled scan bundle (build/scan.js), restoring immediate rendering of malware scan findings, code context preview, and remediation buttons.
+    - Decoupled Cloudflare Edge Defense navigation on WAF Incident Logs (admin.php?page=wcp-scanner-waf-logs) so clicking "Cloudflare Edge Defense" routes to the dedicated Edge cockpit (admin.php?page=wcp-scanner-firewall&tab=cloudflare).
+    - Added dedicated "Server WAF Logs" and "Cloudflare Edge Logs" sub-tabs to the WAF Incident Logs toolbar for seamless 1-click toggling between origin and edge security events.
+    - Context-Adaptive Firewall (CAF) E-Commerce Hardened profile auto-enablement: Applying the E-Commerce Hardened profile now automatically activates Smart Shields & Verified Integrations (waf_ecommerce_safe_mode) and pre-populates/enables Targeted Endpoint & User-Agent Bypass Rules (WooCommerce REST v2/v3, Stripe Webhooks with cryptographic signature verification, PayPal IPN), updating the Firewall Rules & Controls UI dynamically without requiring a page refresh.
+  * Phase 1 (P0 Showstopping Bugs & Vulnerability Remediation):
+    - Two-Factor Auth POST Submission: Normalized sanitize_key with strtoupper in TwoFactorAuth.php to ensure POST method comparisons succeed reliably.
+    - Micro-WAF Guest AJAX Off-by-One: Corrected strlen('wp_ajax_nopriv_') substring offset to 15 in MicroWafCompiler.php, eliminating false-positive 403 blocks on legitimate third-party guest AJAX actions, and added support for 3-segment REST namespaces (e.g. wc/store/v1).
+    - Virtual Patching Method Normalization: Normalized HTTP request methods with strtoupper and expanded request body capture to POST, PUT, and PATCH in VirtualPatchManager.php.
+    - CrashGuard Stored XSS & Safe Mode Hardening: Sanitized debug payload output with JSON_HEX flags to eliminate stored XSS breakout in wp-admin, and implemented a 3-strike/60-second threshold before engaging the 15-minute expiring safe mode.
+    - JIT MU-Guardian Endpoint Sandbox: Added comprehensive inviolable blocked routes to intercept_unauthorized_rest_actions in WcpJitMuGuardian.php to prevent privilege escalations.
+    - Automated MU-Guardian Deactivation Cleanup: Cleaned up wcp-jit-guardian.php in register_deactivation_hook to prevent orphaned filters upon plugin deactivation.
+    - Deobfuscation Engine Bomb Mitigation: Reversed unpack order so chained compression executes before standalone base64 decoding with a strict 512KB payload ceiling.
+    - Session Sentinel TypeError & Metadata Initialization: Initialized $decoded = [] to prevent PHP TypeError, preserved auth_type and auth_label across session anchoring, and initialized support link metadata.
+    - Server Security Engine Apache 2.4 & REST Method Support: Wrapped Apache 2.4 legacy directives in <IfModule !mod_authz_core.c>, permitted standard REST methods ^(GET|POST|HEAD|OPTIONS|PUT|PATCH|DELETE)$, removed zip from root FilesMatch, and added probe file verification.
+    - Cron Schedule Registration: Registered wcp_every_five_minutes (300s) interval in cron_schedules filter in Scheduler.php.
+    - Admin Menu Markup Cleanup: Replaced JSX comments with valid HTML comments in render_plugins_uninstall_modal.
+  * Phase 2 (Deep WAF & Rule Hardening):
+    - Page Builder & Editor Bypass Hardening: Required unfiltered_html or manage_options capability alongside valid REST/builder nonces for page builder exemptions in FirewallEngine.php.
+    - Payload Inspection Depth & Unicode Escapes: Expanded payload inspection to read head 256KB + tail 64KB on large payloads and decoded JSON \uXXXX escape sequences prior to signature evaluation.
+    - Signature Upgrades: Hardened Rule #1 (LFI), Rule #2 (SQLi), Rule #3 (PHP injection), Rule #3.5 (Object Injection), and Rule #4 (XSS) with contextual syntax validation and expanded event handler vectors.
+    - Shopper Session Cookie Validation: Strictly validated wp_woocommerce_session_ cookie formatting in has_active_shopper_session.
+    - Webhook Signature Guard: Gated webhook signature header verification strictly behind recognized webhook endpoints.
+    - Unban Substring Fix: Matched exact IP tokens before whitespace or comment delimiters in remove_blocked_ip, preventing accidental neighboring IP unbans.
+    - URL Allowlist Root Boundary: Added strict boundary checks to is_url_whitelisted and match_targeted_allowlist_rule so root / does not match all URLs.
+    - File Upload Inspection: Added .htaccess, .user.ini, .pht, .shtml, and SVG <animate>/<set> tags to prohibited file checks, and scanned head/tail 8KB for PHP polyglots in media files.
+    - Host Header Inspection: Validated all comma-separated hosts in X-Forwarded-Host and rejected @ user-info characters.
+    - Guest REST Dispatch Policy: Returned WP_Error(403) on blocked guest REST requests.
+    - Bot Recon Defense FCrDNS: Removed broad cloud CIDRs from crawler ranges and prioritized forward-confirmed reverse DNS (FCrDNS) checks.
+    - Outbound Egress IP Normalization: Normalized shorthand and octal IPs via ip2long, added in-memory static DNS cache, and fast-pathed default official WordPress hosts.
+    - Form Spam Protection: Fixed class reference to \WcpScanner\System\AuditLogger, expanded speed-gate expiration to 48 hours for full-page cache compatibility, and required wcp_time_gate on public submissions.
+  * Phase 3 (Database, Backup & Quarantine Vaults):
+    - Database Backup Row Truncation Fix: Hardened directory permissions to 0750 and updated table completion pagination check to count($rows) < $batch_size, preventing silent row truncation on active tables.
+    - Database Remediation Manager Safeguards: Added validate_table_name enforcing $wpdb->prefix and blocked deletions or column modifications targeting the primary administrator in wp_users and wp_usermeta.
+    - Quarantine Vault Stream Cap: Maintained PathValidator::is_inside_root, capped in-memory encryption at 20MB, and streamed larger files (>20MB) directly into the vault with defanged PHP execution headers.
+  * Phase 4 (Performance & Packaging):
+    - Options Autoload Optimization: Set $autoload = false on high-churn options across OriginLoadCircuitBreaker.php, HoneyTokenEngine.php, and LearningModeEngine.php.
+    - Cryptographic Manifest Regeneration: Rebuilt includes/System/plugin-manifest.json with updated SHA-256 hashes across all modified files.
+    - Production Distribution Package: Generated updated wcp-security-scanner.zip release archive with synchronized 2.7.0 manifests.
+
 v:2.6.0 - 2026-11-06
 - Master Security, Reliability, Architecture & Performance Remediation (bug-fix.md & MasterRemediationPlan.md):
   * Phase 1 (Fatal PHP 8.3 & Crash Remediation):

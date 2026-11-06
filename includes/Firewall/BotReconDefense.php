@@ -44,39 +44,30 @@ class BotReconDefense {
      */
     private const CRAWLER_CIDR_RANGES = [
         'googlebot' => [
-            // Googlebot Primary IPv4 Subnets
+            // Strict Googlebot-specific crawl CIDRs (excluding broad GCP Cloud/Services subnets)
             '66.249.64.0/19',
             '64.233.160.0/19',
             '72.14.192.0/18',
             '209.85.128.0/17',
             '108.177.8.0/21',
-            '172.217.0.0/16',
             '216.58.192.0/19',
-            '173.194.0.0/16',
-            '74.125.0.0/16',
             '34.22.85.0/27',
             '35.247.243.240/28',
             '192.178.4.0/22',
             // Googlebot Primary IPv6 Subnets
             '2001:4860::/32',
             '2404:6800::/32',
-            '2607:f8b0::/32',
-            '2800:3f0::/32',
             '2a00:1450::/32',
             '2c0f:fb50::/32',
         ],
         'bingbot' => [
-            // Bingbot Primary IPv4 Subnets
+            // Strict Bingbot-specific crawl CIDRs (excluding broad Azure customer subnets)
             '157.55.39.0/24',
             '207.46.13.0/24',
             '40.77.167.0/24',
             '13.66.139.0/24',
             '13.66.144.0/24',
             '52.167.144.0/24',
-            // Bingbot Primary IPv6 Subnets
-            '2603:1030::/32',
-            '2603:1040::/32',
-            '2603:1050::/32',
         ],
     ];
 
@@ -205,13 +196,6 @@ class BotReconDefense {
             return ($cached === 'genuine');
         }
 
-        // Fast-path CIDR check: If the IP falls strictly into the search engine's official published subnets,
-        // it is verified authentic immediately, bypassing external DNS PTR resolution timeouts or docker limitations.
-        if (self::is_search_bot_in_official_cidrs($ip, $bot_key)) {
-            set_transient($transient_key, 'genuine', DAY_IN_SECONDS);
-            return true;
-        }
-
         $allowed_domains = self::SEARCH_BOTS[$bot_key] ?? [];
         if (empty($allowed_domains)) {
             return true;
@@ -219,7 +203,7 @@ class BotReconDefense {
 
         $is_genuine = false;
 
-        // 1. Reverse DNS Lookup (PTR)
+        // 1. Primary Check: Forward-Confirmed Reverse DNS (FCrDNS) - standard search engine recommendation
         $hostname = @gethostbyaddr($ip);
         if (!empty($hostname) && $hostname !== $ip) {
             $hostname_lower = strtolower($hostname);
@@ -240,6 +224,11 @@ class BotReconDefense {
                     $is_genuine = true;
                 }
             }
+        }
+
+        // 2. Fallback CIDR check: Only if external DNS PTR timed out or is unresolvable in container/NAT environment
+        if (!$is_genuine && self::is_search_bot_in_official_cidrs($ip, $bot_key)) {
+            $is_genuine = true;
         }
 
         // Cache verdict for 24 hours

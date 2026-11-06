@@ -39,12 +39,12 @@ class DatabaseBackup {
         if (!is_dir($this->backup_dir)) {
             wp_mkdir_p($this->backup_dir);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-            @chmod($this->backup_dir, 0775);
+            @chmod($this->backup_dir, 0750);
         }
 
         if (is_dir($this->backup_dir) && !wp_is_writable($this->backup_dir)) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-            @chmod($this->backup_dir, 0775);
+            @chmod($this->backup_dir, 0750);
         }
 
         // Lock with .htaccess
@@ -655,8 +655,8 @@ class DatabaseBackup {
                     }
                 }
 
-                // 3. Check if table finished
-                if (empty($rows) || $state['current_row_offset'] >= $table_meta['total_rows']) {
+                // 3. Check if table finished (only complete when batch has fewer rows than batch_size)
+                if (empty($rows) || count($rows) < $batch_size) {
                     $write_fn("\n");
                     $state['table_logs'][] = [
                         'table' => $table_name,

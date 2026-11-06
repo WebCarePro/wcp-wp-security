@@ -1085,7 +1085,7 @@ class TwoFactorAuth {
         $error_msg               = '';
 
         // Handle Form Submission
-        $request_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
+        $request_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : '';
         if ($request_method === 'POST' && isset($_POST['wcpscan_2fa_code'])) {
             check_admin_referer('wcpscan_2fa_verify_' . $pending_key);
 

@@ -27,8 +27,8 @@ class TransactionalRemediation {
 
         if (!is_dir($base)) {
             wp_mkdir_p($base);
-            // Harden transaction storage against public web access
-            @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
+            // Harden transaction storage against public web access (Apache 2.2 + 2.4 mod_authz_core compatibility)
+            @file_put_contents($base . '/.htaccess', "<IfModule !mod_authz_core.c>\nOrder Deny,Allow\nDeny from all\n</IfModule>\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
             @file_put_contents($base . '/index.php', "<?php\nhttp_response_code(403);\nexit('Direct access forbidden.');\n");
         }
 

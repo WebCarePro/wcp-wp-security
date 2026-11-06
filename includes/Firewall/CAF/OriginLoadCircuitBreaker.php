@@ -219,7 +219,7 @@ class OriginLoadCircuitBreaker {
                 // Still stressed, reset healthy timer
                 if (!empty($state['healthy_since'])) {
                     $state['healthy_since'] = null;
-                    update_option(self::OPTION_STATE, $state);
+                    update_option(self::OPTION_STATE, $state, false);
                 }
             }
         } else {
@@ -229,7 +229,7 @@ class OriginLoadCircuitBreaker {
                 $healthy_since = (int) ($state['healthy_since'] ?? 0);
                 if ($healthy_since === 0) {
                     $state['healthy_since'] = $now;
-                    update_option(self::OPTION_STATE, $state);
+                    update_option(self::OPTION_STATE, $state, false);
                 } elseif (($now - $healthy_since) >= self::RECOVERY_WINDOW_SECONDS) {
                     // Origin metrics have stayed clean for >= 10 minutes -> auto-deescalate!
                     $this->deescalate_edge_defense($zone_id);

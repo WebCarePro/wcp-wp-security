@@ -26,6 +26,7 @@ if (!defined('ABSPATH')) {
 class CrashGuard {
 
     public const OPTION_SAFE_MODE        = 'wcpscan_circuit_breaker_safe_mode';
+    public const OPTION_SAFE_MODE_UNTIL  = 'wcpscan_circuit_breaker_safe_mode_until';
     public const OPTION_LAST_INCIDENT    = 'wcpscan_circuit_breaker_last_incident';
     public const OPTION_INCIDENT_ARCHIVE = 'wcpscan_circuit_breaker_archive';
     public const OPTION_CRASH_HISTORY    = 'wcpscan_circuit_breaker_history';
@@ -67,12 +68,20 @@ class CrashGuard {
 
     /**
      * Check if the plugin is currently isolated in Safe Mode.
+     * Auto-expires Safe Mode after the timeout (15 minutes).
      *
      * @return bool
      */
     public static function is_safe_mode_active(): bool {
         if (self::$isolated) {
             return true;
+        }
+
+        $safe_until = (int) get_option(self::OPTION_SAFE_MODE_UNTIL, 0);
+        if ($safe_until > 0 && time() > $safe_until) {
+            delete_option(self::OPTION_SAFE_MODE);
+            delete_option(self::OPTION_SAFE_MODE_UNTIL);
+            return false;
         }
 
         return (bool) get_option(self::OPTION_SAFE_MODE, false);
@@ -99,6 +108,8 @@ class CrashGuard {
 
     /**
      * Engage Safe Mode isolation from a caught \Throwable.
+     * Enforces a multi-strike threshold: requires at least 3 strikes within 60s
+     * before engaging persistent Safe Mode, and auto-expires Safe Mode after 15 mins.
      *
      * @param \Throwable $e
      */
@@ -120,8 +131,20 @@ class CrashGuard {
         ]);
 
         update_option(self::OPTION_LAST_INCIDENT, $incident, false);
-        update_option(self::OPTION_SAFE_MODE, true, false);
         self::archive_incident($incident);
+
+        // Strike threshold check: 3 crashes within 60 seconds
+        $strikes = (array) get_transient('wcpscan_crash_strikes');
+        $strikes = array_filter($strikes, static function ($ts) use ($now) {
+            return ($now - (int) $ts) <= 60;
+        });
+        $strikes[] = $now;
+        set_transient('wcpscan_crash_strikes', $strikes, 120);
+
+        if (count($strikes) >= 3) {
+            update_option(self::OPTION_SAFE_MODE, true, false);
+            update_option(self::OPTION_SAFE_MODE_UNTIL, $now + 900, false); // 15-minute auto-expiry
+        }
 
         // Record in server error log for sysadmin visibility
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -518,7 +541,7 @@ class CrashGuard {
                             <button type="button" class="button button-small" onclick="var btn=this;navigator.clipboard.writeText(document.getElementById('wcp-crashguard-json-dossier').textContent).then(function(){var orig=btn.innerHTML;btn.innerHTML='✓ <?php echo esc_js(__('Copied to Clipboard!', 'wcp-security-scanner')); ?>';btn.style.color='#059669';setTimeout(function(){btn.innerHTML=orig;btn.style.color='';},3000);});">
                                 📋 <?php esc_html_e('Copy Full Forensic JSON Dossier', 'wcp-security-scanner'); ?>
                             </button>
-                            <script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES); ?></script>
+                            <script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
                         </div>
                     </details>
 

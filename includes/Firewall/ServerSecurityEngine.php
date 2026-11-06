@@ -99,9 +99,9 @@ class ServerSecurityEngine {
         $base = $upload_dir['basedir'] . '/' . self::WAF_FOLDER;
         if (!file_exists($base)) {
             wp_mkdir_p($base);
-            // Protect directory from web indexing
+            // Protect directory from web indexing (Apache 2.2 + 2.4 mod_authz_core compatibility)
             @file_put_contents($base . '/index.php', '<?php // Silence is golden.');
-            @file_put_contents($base . '/.htaccess', "Order Deny,Allow\nDeny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
+            @file_put_contents($base . '/.htaccess', "<IfModule !mod_authz_core.c>\nOrder Deny,Allow\nDeny from all\n</IfModule>\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>");
         }
 
         return untrailingslashit($base);
@@ -181,7 +181,7 @@ class ServerSecurityEngine {
         // Restrict HTTP Methods
         if (!empty($opts['restrict_http_methods'])) {
             $c .= "# --- 4. Restrict Hostile HTTP Methods ---\n";
-            $c .= "if (\$request_method !~ ^(GET|POST|HEAD)$ ) {\n";
+            $c .= "if (\$request_method !~ ^(GET|POST|HEAD|OPTIONS|PUT|PATCH|DELETE)$ ) {\n";
             $c .= "    return 405;\n";
             $c .= "}\n\n";
         }
@@ -214,7 +214,7 @@ class ServerSecurityEngine {
             $c .= "    access_log off;\n";
             $c .= "    log_not_found off;\n";
             $c .= "}\n";
-            $c .= "location ~* (?:composer\\.(?:json|lock)|package\\.(?:json|lock)|\\.env|\\.git|\\.sql|\\.bak|\\.tar|\\.gz|\\.zip|debug\\.log)\$ {\n";
+            $c .= "location ~* (?:composer\\.(?:json|lock)|package\\.(?:json|lock)|\\.env|\\.git|\\.sql|\\.bak|\\.tar|\\.gz|debug\\.log)\$ {\n";
             $c .= "    deny all;\n";
             $c .= "    access_log off;\n";
             $c .= "    log_not_found off;\n";
@@ -313,9 +313,15 @@ class ServerSecurityEngine {
 
         // Restrict HTTP Methods
         if (!empty($opts['restrict_http_methods'])) {
-            $c .= "# --- 2. Restrict Hostile HTTP Request Methods ---\n";
-            $c .= "<LimitExcept GET POST HEAD>\n";
-            $c .= "    Deny from all\n";
+            $c .= "# --- 2. Restrict Hostile HTTP Request Methods (Preserves REST API & Gutenberg) ---\n";
+            $c .= "<LimitExcept GET POST HEAD OPTIONS PUT PATCH DELETE>\n";
+            $c .= "    <IfModule !mod_authz_core.c>\n";
+            $c .= "        Order Deny,Allow\n";
+            $c .= "        Deny from all\n";
+            $c .= "    </IfModule>\n";
+            $c .= "    <IfModule mod_authz_core.c>\n";
+            $c .= "        Require all denied\n";
+            $c .= "    </IfModule>\n";
             $c .= "</LimitExcept>\n\n";
         }
 
@@ -328,17 +334,21 @@ class ServerSecurityEngine {
         // Protect wp-config.php and Sensitive Files
         $c .= "# --- 4. Sensitive File & Configuration Armor ---\n";
         $c .= "<FilesMatch \"^(wp-config\\.php|\\.env|composer\\.(json|lock)|package\\.(json|lock)|\\.git|debug\\.log)\">\n";
-        $c .= "    Order Allow,Deny\n";
-        $c .= "    Deny from all\n";
+        $c .= "    <IfModule !mod_authz_core.c>\n";
+        $c .= "        Order Allow,Deny\n";
+        $c .= "        Deny from all\n";
+        $c .= "    </IfModule>\n";
         $c .= "    <IfModule mod_authz_core.c>\n";
         $c .= "        Require all denied\n";
         $c .= "    </IfModule>\n";
         $c .= "</FilesMatch>\n\n";
 
-        // Block backup archives
-        $c .= "<FilesMatch \"\\.(sql|bak|tar|gz|zip|ini|sh)$\">\n";
-        $c .= "    Order Allow,Deny\n";
-        $c .= "    Deny from all\n";
+        // Block backup archives (Excludes .zip to avoid breaking legitimate digital downloads)
+        $c .= "<FilesMatch \"\\.(sql|bak|tar|gz|ini|sh|env)$\">\n";
+        $c .= "    <IfModule !mod_authz_core.c>\n";
+        $c .= "        Order Allow,Deny\n";
+        $c .= "        Deny from all\n";
+        $c .= "    </IfModule>\n";
         $c .= "    <IfModule mod_authz_core.c>\n";
         $c .= "        Require all denied\n";
         $c .= "    </IfModule>\n";
@@ -348,8 +358,10 @@ class ServerSecurityEngine {
         if (!empty($opts['block_xmlrpc'])) {
             $c .= "# --- 5. Disable XML-RPC Endpoint ---\n";
             $c .= "<Files xmlrpc.php>\n";
-            $c .= "    Order Deny,Allow\n";
-            $c .= "    Deny from all\n";
+            $c .= "    <IfModule !mod_authz_core.c>\n";
+            $c .= "        Order Deny,Allow\n";
+            $c .= "        Deny from all\n";
+            $c .= "    </IfModule>\n";
             $c .= "    <IfModule mod_authz_core.c>\n";
             $c .= "        Require all denied\n";
             $c .= "    </IfModule>\n";
@@ -660,23 +672,32 @@ class ServerSecurityEngine {
             'user-agent'  => 'WCP-Server-Verifier/1.0',
         ];
 
-        // Probe 1: Uploads Executable Probe
+        // Probe 1: Uploads Executable Probe with real temporary probe file
+        $upload_dir = wp_upload_dir();
+        $test_probe_file = !empty($upload_dir['basedir']) ? untrailingslashit($upload_dir['basedir']) . '/wcp_server_enforcement_test.php' : '';
+        if (!empty($test_probe_file)) {
+            @file_put_contents($test_probe_file, "<?php echo 'PROBE_FAILED_UNBLOCKED';");
+        }
         $uploads_probe_url = home_url('/wp-content/uploads/wcp_server_enforcement_test.php');
         $uploads_res = wp_remote_get($uploads_probe_url, $args);
         $uploads_code = !is_wp_error($uploads_res) ? (int) wp_remote_retrieve_response_code($uploads_res) : 0;
-        $uploads_blocked = in_array($uploads_code, [400, 403, 404, 410], true);
+        $uploads_body = !is_wp_error($uploads_res) ? wp_remote_retrieve_body($uploads_res) : '';
+        $uploads_blocked = ($uploads_code === 403 || $uploads_code === 401 || strpos($uploads_body, 'PROBE_FAILED_UNBLOCKED') === false);
+        if (!empty($test_probe_file) && file_exists($test_probe_file)) {
+            wp_delete_file($test_probe_file);
+        }
 
         // Probe 2: Sensitive Dotfile (.env) Probe
         $env_url = home_url('/.env');
         $env_res = wp_remote_get($env_url, $args);
         $env_code = !is_wp_error($env_res) ? (int) wp_remote_retrieve_response_code($env_res) : 0;
-        $env_blocked = in_array($env_code, [400, 403, 404, 410], true);
+        $env_blocked = ($env_code === 403 || $env_code === 401 || $env_code === 404);
 
         // Probe 3: WCP Plugin Data & Vault Directory Probe (waf-logs/activity-logs)
         $wcp_vault_url = home_url('/wp-content/uploads/wcp-security-scanner/waf-logs/');
         $wcp_vault_res = wp_remote_get($wcp_vault_url, $args);
         $wcp_vault_code = !is_wp_error($wcp_vault_res) ? (int) wp_remote_retrieve_response_code($wcp_vault_res) : 0;
-        $wcp_vault_blocked = in_array($wcp_vault_code, [400, 403, 404, 410], true);
+        $wcp_vault_blocked = ($wcp_vault_code === 403 || $wcp_vault_code === 401);
 
         $is_enforced = ($uploads_blocked && $env_blocked && $wcp_vault_blocked);
         $overall_status = $is_enforced ? 'protected' : 'partial';

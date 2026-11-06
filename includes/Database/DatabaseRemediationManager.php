@@ -44,11 +44,19 @@ class DatabaseRemediationManager {
     }
 
     /**
+     * Validate table belongs strictly to WordPress prefix to prevent cross-database tampering.
+     */
+    private function validate_table_name($table) {
+        global $wpdb;
+        return (bool) preg_match('/^[a-zA-Z0-9_]+$/', $table) && str_starts_with($table, $wpdb->prefix);
+    }
+
+    /**
      * Retrieve primary key and column metadata for a database table.
      */
     public function get_primary_key($table) {
         global $wpdb;
-        if (!$this->validate_identifier($table)) {
+        if (!$this->validate_table_name($table)) {
             return null;
         }
 
@@ -79,7 +87,7 @@ class DatabaseRemediationManager {
      */
     public function get_row($table, $row_id) {
         global $wpdb;
-        if (!$this->validate_identifier($table)) {
+        if (!$this->validate_table_name($table)) {
             return null;
         }
 
@@ -138,8 +146,22 @@ class DatabaseRemediationManager {
     public function delete_row_with_backup($table, $row_id, $column = '', $issue_id = null) {
         global $wpdb;
 
-        if (!$this->validate_identifier($table)) {
-            return ['success' => false, 'message' => 'Invalid table identifier.'];
+        if (!$this->validate_table_name($table)) {
+            return ['success' => false, 'message' => 'Invalid table identifier or table does not belong to WordPress database prefix.'];
+        }
+
+        // Safety Shield: Prohibit deleting primary administrator or current active user from users/usermeta
+        $current_user_id = function_exists('get_current_user_id') ? (int) get_current_user_id() : 0;
+        if ($table === $wpdb->users) {
+            if ((int) $row_id === 1 || ($current_user_id > 0 && (int) $row_id === $current_user_id)) {
+                return ['success' => false, 'message' => 'Safety Violation: Deleting the primary administrator account is strictly prohibited.'];
+            }
+        } elseif ($table === $wpdb->usermeta) {
+            $row_data = $this->get_row($table, $row_id);
+            $target_uid = isset($row_data['user_id']) ? (int) $row_data['user_id'] : 0;
+            if ($target_uid === 1 || ($current_user_id > 0 && $target_uid === $current_user_id)) {
+                return ['success' => false, 'message' => 'Safety Violation: Deleting user metadata for an active administrator is strictly prohibited.'];
+            }
         }
 
         $pk = $this->get_primary_key($table);
@@ -194,8 +216,22 @@ class DatabaseRemediationManager {
     public function cleanse_field_with_backup($table, $column, $row_id, $issue_id = null) {
         global $wpdb;
 
-        if (!$this->validate_identifier($table) || !$this->validate_identifier($column)) {
+        if (!$this->validate_table_name($table) || !$this->validate_identifier($column)) {
             return ['success' => false, 'message' => 'Invalid table or column identifier.'];
+        }
+
+        // Safety Shield: Prohibit modifying primary administrator or current active user from users/usermeta
+        $current_user_id = function_exists('get_current_user_id') ? (int) get_current_user_id() : 0;
+        if ($table === $wpdb->users) {
+            if ((int) $row_id === 1 || ($current_user_id > 0 && (int) $row_id === $current_user_id)) {
+                return ['success' => false, 'message' => 'Safety Violation: Modifying the primary administrator account is strictly prohibited.'];
+            }
+        } elseif ($table === $wpdb->usermeta) {
+            $row_data = $this->get_row($table, $row_id);
+            $target_uid = isset($row_data['user_id']) ? (int) $row_data['user_id'] : 0;
+            if ($target_uid === 1 || ($current_user_id > 0 && $target_uid === $current_user_id)) {
+                return ['success' => false, 'message' => 'Safety Violation: Modifying user metadata for an active administrator is strictly prohibited.'];
+            }
         }
 
         $pk = $this->get_primary_key($table);

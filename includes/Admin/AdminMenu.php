@@ -818,7 +818,7 @@ class AdminMenu {
         <div id="wcpscan-uninstall-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 100050; backdrop-filter: blur(3px); align-items: center; justify-content: center;">
             <div id="wcpscan-uninstall-modal" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 520px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif; border: 1px solid #e2e8f0; animation: wcpscanFadeIn 0.2s ease-out;">
                 
-                {/* Header */}
+                <!-- Header -->
                 <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px;">
                     <div style="width: 38px; height: 38px; border-radius: 8px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -837,13 +837,13 @@ class AdminMenu {
                     </div>
                 </div>
 
-                {/* Body Content */}
+                <!-- Body Content -->
                 <div style="padding: 22px 24px; color: #334155; font-size: 13.5px; line-height: 1.55;">
                     <p style="margin: 0 0 16px 0;">
                         <?php echo esc_html__('You are deleting WCP Security Scanner. If you reinstall the plugin later, keeping your data ensures your quarantined files and configurations remain intact.', 'wcp-security-scanner'); ?>
                     </p>
 
-                    {/* Option 1: Retain Data (Recommended Default) */}
+                    <!-- Option 1: Retain Data (Recommended Default) -->
                     <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; border: 2px solid #10b981; background: #f0fdf4; cursor: pointer; margin-bottom: 12px;">
                         <input type="radio" name="wcpscan_uninstall_choice" value="retain" <?php checked(!$is_purge_checked); ?> style="margin-top: 3px; accent-color: #059669;">
                         <div>
@@ -857,7 +857,7 @@ class AdminMenu {
                         </div>
                     </label>
 
-                    {/* Option 2: Full Purge */}
+                    <!-- Option 2: Full Purge -->
                     <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; cursor: pointer;">
                         <input type="radio" name="wcpscan_uninstall_choice" value="purge" <?php checked($is_purge_checked); ?> style="margin-top: 3px; accent-color: #dc2626;">
                         <div>
@@ -871,7 +871,7 @@ class AdminMenu {
                     </label>
                 </div>
 
-                {/* Footer Buttons */}
+                <!-- Footer Buttons -->
                 <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
                     <button type="button" id="wcpscan-uninstall-cancel-btn" class="button" style="padding: 4px 14px; font-size: 13px; font-weight: 600;">
                         <?php echo esc_html__('Cancel', 'wcp-security-scanner'); ?>

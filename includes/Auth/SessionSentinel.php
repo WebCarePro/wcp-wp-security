@@ -259,6 +259,7 @@ class SessionSentinel {
             $session_info = $sessions_meta[$current_verifier] ?? ($sessions_meta[$current_token] ?? null);
 
             $current_login_ip = '';
+            $decoded = [];
             if (!empty($session_info['encrypted_meta'])) {
                 $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $session_info['encrypted_meta']);
                 $decoded = is_string($decrypted_meta) ? (json_decode($decrypted_meta, true) ?: []) : [];
@@ -424,12 +425,16 @@ class SessionSentinel {
         $entry = [
             'login_time'     => $existing_info['login_time'] ?? time(),
             'last_seen'      => time(),
+            'auth_type'      => $existing_info['auth_type'] ?? ($existing_decoded['auth_type'] ?? 'password'),
+            'auth_label'     => $existing_info['auth_label'] ?? ($existing_decoded['auth_label'] ?? 'Password'),
             'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
                 'login_ip'   => $ip,
                 'alt_ip'     => $existing_decoded['alt_ip'] ?? '',
                 'user_agent' => substr(!empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : ($existing_decoded['user_agent'] ?? 'Unknown'), 0, 255),
                 'asn'        => isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : ($existing_decoded['asn'] ?? ''),
                 'tls_fp'     => !empty($_SERVER['SSL_CIPHER']) ? hash('sha256', (string) sanitize_text_field(wp_unslash($_SERVER['SSL_CIPHER']))) : ($existing_decoded['tls_fp'] ?? ''),
+                'auth_type'  => $existing_info['auth_type'] ?? ($existing_decoded['auth_type'] ?? 'password'),
+                'auth_label' => $existing_info['auth_label'] ?? ($existing_decoded['auth_label'] ?? 'Password'),
             ])),
         ];
 
@@ -716,6 +721,7 @@ class SessionSentinel {
                 $auth_type = $meta['auth_type'] ?? '';
                 $auth_label = $meta['auth_label'] ?? '';
                 $auth_details = $meta['auth_details'] ?? [];
+                $support_link_meta = null;
 
                 if (!empty($meta['encrypted_meta'])) {
                     $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $meta['encrypted_meta']);

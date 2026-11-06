@@ -554,19 +554,51 @@ class FirewallEngine {
             return ($cached_builder_result = false);
         }
 
-        // Verify Editor / Content Author capabilities
+        // Verify Editor / Content Author capabilities (Must have unfiltered_html or manage_options to bypass WAF)
         if (function_exists('get_userdata')) {
             $user = get_userdata($verified_user_id);
             if (!$user || empty($user->ID)) {
                 return ($cached_builder_result = false);
             }
 
-            $has_editor_cap = $user->has_cap('edit_posts') || $user->has_cap('edit_pages') || $user->has_cap('manage_options');
+            $has_editor_cap = $user->has_cap('unfiltered_html') || $user->has_cap('manage_options');
             if (!$has_editor_cap) {
                 return ($cached_builder_result = false);
             }
         } else {
             return ($cached_builder_result = false);
+        }
+
+        // On state-changing methods, require a valid REST or builder/admin nonce before granting WAF bypass
+        $request_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
+        if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $nonce = '';
+            if (!empty($_SERVER['HTTP_X_WP_NONCE'])) {
+                $nonce = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']));
+            } elseif (!empty($_REQUEST['_wpnonce'])) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
+            } elseif (!empty($_REQUEST['editor_post_nonce'])) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $nonce = sanitize_text_field(wp_unslash($_REQUEST['editor_post_nonce']));
+            }
+
+            if (!function_exists('wp_verify_nonce') && defined('ABSPATH') && file_exists(ABSPATH . 'wp-includes/pluggable.php')) {
+                require_once ABSPATH . 'wp-includes/pluggable.php';
+            }
+
+            $nonce_valid = false;
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+            $action_hint = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
+            if ($nonce !== '' && function_exists('wp_verify_nonce')) {
+                if (wp_verify_nonce($nonce, 'wp_rest') || wp_verify_nonce($nonce, 'elementor_ajax') || wp_verify_nonce($nonce, -1) || ($action_hint !== '' && wp_verify_nonce($nonce, 'wp_ajax_' . $action_hint))) {
+                    $nonce_valid = true;
+                }
+            }
+
+            if (!$nonce_valid) {
+                return ($cached_builder_result = false);
+            }
         }
 
         // Identify builder-specific actions and endpoints
@@ -1662,14 +1694,32 @@ class FirewallEngine {
             $params_to_check[] = rawurldecode($referer);
         }
 
-        $raw_input = @file_get_contents('php://input');
-        if (!empty($raw_input) && strlen($raw_input) < 262144) { // Inspect up to 256KB payload
-            $params_to_check[] = wp_unslash($raw_input);
+        if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            // Read first 256KB and last 64KB so padding >256KB cannot bypass inspection
+            $raw_head = (string) @file_get_contents('php://input', false, null, 0, 262144);
+            if ($raw_head !== '') {
+                $normalized_body = wp_unslash($raw_head);
+                // Decode JSON \uXXXX escapes so REST JSON payloads cannot evade SQLi/XSS regexes
+                if (strpos($normalized_body, '\\u') !== false) {
+                    $normalized_body = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                        return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+                    }, $normalized_body);
+                }
+                $params_to_check[] = $normalized_body;
 
-            // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
-            $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $raw_input);
-            if (!empty($batch_sub_payloads)) {
-                $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
+                // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
+                $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $raw_head);
+                if (!empty($batch_sub_payloads)) {
+                    $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
+                }
+            }
+
+            $content_len = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+            if ($content_len > 262144) {
+                $raw_tail = (string) @file_get_contents('php://input', false, null, max(0, $content_len - 65536), 65536);
+                if ($raw_tail !== '') {
+                    $params_to_check[] = wp_unslash($raw_tail);
+                }
             }
         }
 
@@ -1684,6 +1734,11 @@ class FirewallEngine {
                 break;
             }
         }
+        if (strpos($decoded_combined, '\\u') !== false) {
+            $decoded_combined = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+            }, $decoded_combined);
+        }
 
         // 1. Path Traversal & LFI/RFI
         if (!empty($settings['waf_block_traversal'])) {
@@ -1692,6 +1747,7 @@ class FirewallEngine {
                 '/php:\/\/(?:filter|input|fd)/i',
                 '/(?:\/|^)etc\/(?:passwd|shadow|hosts)/i',
                 '/(?:proc\/self\/environ|boot\.ini|win\.ini)/i',
+                '/(?:phar|zip|data|expect|glob):\/\/|wp-config(?:-sample)?\.php/i',
             ];
             foreach ($traversal_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
@@ -1707,14 +1763,15 @@ class FirewallEngine {
         // 2. SQL Injection (SQLi)
         if (!empty($settings['waf_block_sqli'])) {
             $sqli_patterns = [
-                '/\bunion(?:\s+|\/\*.*?\*\/|\()+(?:all(?:\s+|\/\*.*?\*\/)+)?select\b/i',
-                '/\bselect\b.+\bfrom\b.+\binformation_schema\b/i',
-                '/\b(?:sleep|benchmark)\s*\(\s*[0-9]+(?:\s*,\s*md5|\s*\))/i',
-                '/\bwaitfor\s+delay\s+[\'"][0-9:]+[\'"]/i',
-                '/\bconcat\s*\(\s*0x[0-9a-f]+/i',
-                '/\b(?:extractvalue|updatexml)\s*\(/i',
-                '/\binto\s+(?:outfile|dumpfile)\b/i',
-                '/\bload_file\s*\(/i',
+                '/\bunion(?:\s+|\/\*.*?\*\/|\()+(?:all(?:\s+|\/\*.*?\*\/)+)?select\b/is',
+                '/\bselect\b.+\bfrom\b.+\binformation_schema\b/is',
+                '/\/\*![0-9]*\s*(?:select|union|insert|update|delete|drop|alter|sleep|benchmark)/is',
+                '/\b(?:sleep|pg_sleep)\s*\(\s*[^)]+\)|\bbenchmark\s*\(\s*[0-9]+\s*,/is',
+                '/\bwaitfor\s+delay\s+[\'"][0-9:]+[\'"]/is',
+                '/\bconcat\s*\(\s*0x[0-9a-f]+/is',
+                '/\b(?:gtid_subset|gtid_subtract|extractvalue|updatexml)\s*\(/is',
+                '/\binto\s+(?:outfile|dumpfile)\b/is',
+                '/\bload_file\s*\(/is',
             ];
             foreach ($sqli_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
@@ -1731,8 +1788,9 @@ class FirewallEngine {
         if (!empty($settings['waf_block_php_injection'])) {
             $php_patterns = [
                 '/<\?(?:php|=)/i',
-                '/\b(?:eval|assert)\s*(?:\(\s*|\s*[\'"][^\'"]*[\'"]\s*\()(?:base64_decode|gzinflate|str_rot13|\$)/i',
-                '/\b(?:system|passthru|shell_exec|proc_open|popen|pcntl_exec)\s*\(/i',
+                '/\b(?:eval|assert)\s*(?:\(\s*|\s*[\'"][^\'"]*[\'"]\s*\()(?:base64_decode|gzinflate|str_rot13|\$)/is',
+                '/\b(?:passthru|shell_exec|proc_open|popen|pcntl_exec|posix_mkfifo|posix_setuid)\s*\(/is',
+                '/(?:;\s*|\|\|\s*|\$\w+\s*=\s*|\.\s*|<\?(?:php)?\s+.*)system\s*\(\s*[\'"]?[\$\w]/is',
                 '/\bbase64_decode\s*\(\s*[\'"][A-Za-z0-9+\/=]{20,}/i',
             ];
             foreach ($php_patterns as $pattern) {
@@ -1747,28 +1805,31 @@ class FirewallEngine {
         }
 
         // 3.5 PHP Object Injection (POP-chain gadgets) & Stream Wrapper Injection Shield
-        $stream_and_pop_regex = '/(?:(?:^|[\s"\';,\[\]{}])(?:O|C):[+-]?\d+:"[^"]+":\d+:\{|(?:phar|expect|zip|glob|ogg|rar):\/\/|php:\/\/(?:filter|input|fd))/i';
-        if (preg_match($stream_and_pop_regex, $uri) || preg_match($stream_and_pop_regex, $combined_payload) || preg_match($stream_and_pop_regex, $decoded_combined)) {
-            return [
-                'id'          => 'WAF-OBJECT-STREAM-INJECTION',
-                'name'        => 'PHP Object Injection & Stream Wrapper Shield',
-                'category'    => 'Execution Armor',
-                'description' => 'Serialized PHP object payload or dangerous stream wrapper (phar://, php://filter) detected.',
-                'payload'     => substr($combined_payload, 0, 200),
-            ];
+        if (!isset($settings['waf_block_object_injection']) || !empty($settings['waf_block_object_injection'])) {
+            $stream_and_pop_regex = '/(?:(?:^|[\s"\';,\[\]{}])(?:O|C):[+-]?\d+:"[^"]+":\d+:\{|(?:phar|expect|zip|glob|ogg|rar):\/\/|php:\/\/(?:filter|input|fd))/i';
+            if (preg_match($stream_and_pop_regex, $uri) || preg_match($stream_and_pop_regex, $combined_payload) || preg_match($stream_and_pop_regex, $decoded_combined)) {
+                return [
+                    'id'          => 'WAF-OBJECT-STREAM-INJECTION',
+                    'name'        => 'PHP Object Injection & Stream Wrapper Shield',
+                    'category'    => 'Execution Armor',
+                    'description' => 'Serialized PHP object payload or dangerous stream wrapper (phar://, php://filter) detected.',
+                    'payload'     => substr($combined_payload, 0, 200),
+                ];
+            }
         }
 
         // 4. Cross-Site Scripting (XSS)
         if (!empty($settings['waf_block_xss'])) {
+            $xss_payload_stripped = preg_replace('/[\x00-\x20]+/', '', $combined_payload);
             $xss_patterns = [
-                '/<script\b[^>]*>/i',
-                '/javascript\s*:\s*[a-z0-9_]+/i',
-                '/<iframe\b[^>]*>/i',
-                '/<svg\b[^>]*\bon\w+\s*=/i',
-                '/\bon(?:error|load|mouseover|click|focus|blur|pointerenter|pointerover)\s*=/i',
+                '/<script\b[^>]*>/is',
+                '/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/is',
+                '/<iframe\b[^>]*>/is',
+                '/<svg\b[^>]*\bon\w+\s*=/is',
+                '/\bon(?:error|load|mouseover|mouseenter|mouseleave|click|dblclick|auxclick|contextmenu|focus|blur|pointerenter|pointerover|pointerdown|toggle|beforetoggle|animationstart|animationend|animationiteration|transitionend|begin|pageshow|pagehide|input|invalid|submit|reset|wheel|drag|drop|copy|cut|paste)\s*=\s*[^\s>]+/is',
             ];
             foreach ($xss_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined) || preg_match($pattern, $xss_payload_stripped)) {
                     return [
                         'category'    => 'Cross-Site Scripting (XSS)',
                         'description' => 'Hostile JavaScript injection or payload tag detected.',
@@ -2242,20 +2303,26 @@ class FirewallEngine {
             return false;
         }
 
-        foreach (array_keys($_COOKIE) as $cookie_name) {
-            if (strpos($cookie_name, 'woocommerce_items_in_cart') !== false
-                || strpos($cookie_name, 'woocommerce_cart_hash') !== false
-                || strpos($cookie_name, 'wp_woocommerce_session_') !== false
-                || strpos($cookie_name, 'edd_items_in_cart') !== false
-                || strpos($cookie_name, 'mp_session_') !== false
-                || strpos($cookie_name, 'surecart_session') !== false
-                || strpos($cookie_name, 'surecart_customer') !== false
-                || strpos($cookie_name, 'give_items_in_cart') !== false
-                || strpos($cookie_name, 'wp_ec_session_') !== false
-                || strpos($cookie_name, 'swpm_session') !== false
-                || strpos($cookie_name, 'um_cache_') !== false
-            ) {
-                return true;
+        foreach ($_COOKIE as $cookie_name => $cookie_val) {
+            if (is_string($cookie_name)) {
+                // Cryptographically validated WooCommerce session cookie: customer_id||session_expiration||session_expiring||cookie_hash
+                if (strpos($cookie_name, 'wp_woocommerce_session_') !== false && is_string($cookie_val)) {
+                    $parts = explode('||', $cookie_val);
+                    if (count($parts) >= 3 && (int) ($parts[1] ?? 0) > time()) {
+                        return true;
+                    }
+                }
+                if (strpos($cookie_name, 'edd_items_in_cart') !== false
+                    || strpos($cookie_name, 'mp_session_') !== false
+                    || strpos($cookie_name, 'surecart_session') !== false
+                    || strpos($cookie_name, 'surecart_customer') !== false
+                    || strpos($cookie_name, 'give_items_in_cart') !== false
+                    || strpos($cookie_name, 'wp_ec_session_') !== false
+                    || strpos($cookie_name, 'swpm_session') !== false
+                    || strpos($cookie_name, 'um_cache_') !== false
+                ) {
+                    return true;
+                }
             }
         }
 
@@ -2370,8 +2437,22 @@ class FirewallEngine {
         }
 
         // 5. Cryptographic Payment Gateway Webhook Signatures (Wordfence Smart Pipeline)
-        // Authentic server-to-server payment notifications are signed by gateways with dedicated headers.
-        if (!empty($_SERVER['HTTP_STRIPE_SIGNATURE'])
+        // Authentic server-to-server payment notifications are signed by gateways with dedicated headers on designated endpoints.
+        $is_webhook_endpoint = (
+            strpos($parsed_path, '/wp-json/stripe') !== false
+            || strpos($parsed_path, '/wp-json/wc-stripe') !== false
+            || strpos($parsed_path, '/wp-json/wc/v') !== false
+            || strpos($parsed_path, '/wp-json/paypal') !== false
+            || strpos($parsed_path, '/wp-json/mollie') !== false
+            || strpos($parsed_path, '/wp-json/square') !== false
+            || strpos($parsed_path, '/wp-json/surecart') !== false
+            || strpos($uri, 'wc-api=') !== false
+            || strpos($query_string, 'wc-api=') !== false
+            || strpos($uri, 'wc-ajax=') !== false
+        );
+
+        if ($is_webhook_endpoint && (
+            !empty($_SERVER['HTTP_STRIPE_SIGNATURE'])
             || !empty($_SERVER['HTTP_PAYPAL_TRANSMISSION_SIG'])
             || !empty($_SERVER['HTTP_PAYPAL_CERT_URL'])
             || !empty($_SERVER['HTTP_X_SQUARE_HMACSHA256_SIGNATURE'])
@@ -2380,7 +2461,7 @@ class FirewallEngine {
             || !empty($_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'])
             || !empty($_SERVER['HTTP_X_MOLLIE_SIGNATURE'])
             || !empty($_SERVER['HTTP_X_SURECART_SIGNATURE'])
-        ) {
+        )) {
             return true;
         }
 
@@ -3969,7 +4050,8 @@ class FirewallEngine {
 
         $new_lines = [];
         foreach ($lines as $line) {
-            if ($line === $ip || strpos($line, $ip) !== false) {
+            $entry_ip = trim(preg_split('/[\s#]+/', $line)[0] ?? '');
+            if ($entry_ip === $ip) {
                 $changed = true;
                 continue;
             }
@@ -4699,8 +4781,9 @@ class FirewallEngine {
                 $allowed_clean = $allowed;
             }
 
-            // Exact match or prefix match
-            if ($uri === $allowed || $path === $allowed_clean || strpos($path, rtrim($allowed_clean, '/')) === 0) {
+            // Exact match or prefix match with boundary check (prevents / from wiping out entire whitelist)
+            $trimmed = rtrim($allowed_clean, '/');
+            if ($uri === $allowed || $path === $allowed_clean || ($trimmed !== '' && ($path === $trimmed || strpos($path, $trimmed . '/') === 0))) {
                 return true;
             }
         }
@@ -4788,8 +4871,9 @@ class FirewallEngine {
                             break;
                         }
                     } else {
-                        // Exact match or prefix match
-                        if ($uri === $clean_pattern || $path === $clean_pattern || strpos($path, rtrim($clean_pattern, '/')) === 0) {
+                        // Exact match or prefix match with boundary check
+                        $trimmed = rtrim($clean_pattern, '/');
+                        if ($uri === $clean_pattern || $path === $clean_pattern || ($trimmed !== '' && ($path === $trimmed || strpos($path, $trimmed . '/') === 0))) {
                             $endpoint_matched = true;
                             break;
                         }
@@ -5113,20 +5197,20 @@ class FirewallEngine {
 
         // 1. Prohibited executable extensions
         $prohibited_exts = [
-            'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar', 'phps',
+            'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar', 'phps', 'pht', 'pgif', 'inc', 'shtml',
             'sh', 'bash', 'zsh', 'ksh', 'csh', 'bin', 'cgi', 'pl', 'py', 'pyc', 'pyw',
             'rb', 'asp', 'aspx', 'cer', 'csr', 'jsp', 'jspx', 'exe', 'com', 'bat', 'cmd',
-            'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'msi', 'dll', 'drv', 'sys'
+            'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'msi', 'dll', 'drv', 'sys', 'htaccess', 'ini'
         ];
 
-        if (in_array($ext, $prohibited_exts, true)) {
+        if (in_array($ext, $prohibited_exts, true) || preg_match('/^\.(?:htaccess|htpasswd|user\.ini)$/i', $filename)) {
             self::log_incident([
                 'category'    => 'Malicious File Upload',
-                'description' => sprintf('Upload of executable file "%s" was blocked by firewall.', esc_html($filename)),
+                'description' => sprintf('Upload of executable or restricted file "%s" was blocked by firewall.', esc_html($filename)),
                 'payload'     => "Filename: {$filename} Extension: .{$ext}",
             ], 'blocked');
 
-            $file['error'] = __('Security Firewall: Uploading executable scripts or programs is strictly prohibited.', 'wcp-security-scanner');
+            $file['error'] = __('Security Firewall: Uploading executable scripts or restricted server configurations is strictly prohibited.', 'wcp-security-scanner');
             return $file;
         }
 
@@ -5182,7 +5266,7 @@ class FirewallEngine {
                         }
                     }
 
-                    if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object)\b)/i', $content, $m)) {
+                    if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object|animate|set)\b)/i', $content, $m)) {
                         self::log_incident([
                             'category'    => 'Malicious File Upload',
                             'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
@@ -5195,12 +5279,15 @@ class FirewallEngine {
                 }
             }
 
-            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media
+            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media (Inspect head and tail)
             $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf'];
             if (in_array($ext, $image_exts, true)) {
-                $head = @file_get_contents($tmp_path, false, null, 0, 8192);
+                $head = (string) @file_get_contents($tmp_path, false, null, 0, 8192);
+                $fsize = @filesize($tmp_path) ?: 0;
+                $tail = $fsize > 8192 ? (string) @file_get_contents($tmp_path, false, null, $fsize - 8192, 8192) : '';
+                $check_sample = $head . ' ' . $tail;
                 $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
-                if (!empty($head) && (preg_match($php_pattern, $head) || stripos($head, '__HALT_COMPILER()') !== false)) {
+                if (!empty($check_sample) && (preg_match($php_pattern, $check_sample) || stripos($check_sample, '__HALT_COMPILER()') !== false)) {
                     $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'wcp-security-scanner');
                     return $file;
                 }
@@ -6255,12 +6342,14 @@ class FirewallEngine {
             return false;
         }
 
-        // 2. If HTTP_X_FORWARDED_HOST is present, it MUST also strictly match the allowed list
+        // 2. If HTTP_X_FORWARDED_HOST is present, every host segment MUST strictly match the allowed list and cannot contain @
         if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
             $fwd_raw = explode(',', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_HOST'])));
-            $fwd_host = strtolower(trim(preg_replace('/:\d+$/', '', $fwd_raw[0])));
-            if (!in_array($fwd_host, $allowed, true)) {
-                return false;
+            foreach ($fwd_raw as $raw_seg) {
+                $fwd_host = strtolower(trim(preg_replace('/:\d+$/', '', $raw_seg)));
+                if ($fwd_host === '' || strpos($fwd_host, '@') !== false || !in_array($fwd_host, $allowed, true)) {
+                    return false;
+                }
             }
         }
 
@@ -6866,6 +6955,10 @@ class FirewallEngine {
                                 'match_value' => $sub_path,
                                 'payload'     => "Method: {$sub_method} SubRoute: {$sub_path} IP: {$client_ip}",
                             ];
+                            if ($policy === 'block') {
+                                self::log_incident($rule_triggered, 'blocked');
+                                return new \WP_Error('wcp_waf_rest_batch_blocked', __('Unauthorized guest REST batch mutation blocked by WCP Firewall.', 'wcp-security-scanner'), ['status' => 403]);
+                            }
                             self::log_incident($rule_triggered, 'monitored');
                             break;
                         }
@@ -6894,7 +6987,7 @@ class FirewallEngine {
             '/wp/v2/comments',
             '/akismet/',
             '/jetpack/',
-            '/wcp-scanner/',
+            '/wcp-scanner/v1/auth/webauthn/assertion/',
         ];
 
         foreach ($safe_prefixes as $prefix) {
@@ -6948,6 +7041,11 @@ class FirewallEngine {
             'match_value' => $route,
             'payload'     => "Method: {$method} Route: {$route} IP: {$client_ip}",
         ];
+
+        if ($policy === 'block') {
+            self::log_incident($rule_triggered, 'blocked');
+            return new \WP_Error('wcp_waf_rest_blocked', __('Unauthorized guest REST mutation blocked by WCP Firewall.', 'wcp-security-scanner'), ['status' => 403]);
+        }
 
         self::log_incident($rule_triggered, 'monitored');
         return $result;

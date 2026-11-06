@@ -456,7 +456,26 @@ class OutboundEgressFirewall {
      * @return array ['threat' => string|null, 'reason' => string]
      */
     private static function evaluate_ssrf_destination(string $host): array {
+        static $dns_cache = [];
+
         $clean_host = trim($host, '[]');
+
+        if (isset($dns_cache[$clean_host])) {
+            return $dns_cache[$clean_host];
+        }
+
+        // Fast-path: Default approved official WordPress infrastructure hosts bypass DNS resolution penalty
+        if (in_array($clean_host, ['api.wordpress.org', 'downloads.wordpress.org', 'wordpress.org', 'plugins.svn.wordpress.org'], true)) {
+            return ($dns_cache[$clean_host] = ['threat' => null, 'reason' => '', 'safe_ip' => '']);
+        }
+
+        // Normalize shorthand or octal/hex IPv4 representations (e.g. 0177.0.0.1, 127.1, 0x7f.1)
+        if (preg_match('/^[0-9a-fA-FxX.]+$/', $clean_host) && strpos($clean_host, '.') !== false) {
+            $parsed_long = ip2long($clean_host);
+            if ($parsed_long !== false) {
+                $clean_host = long2ip($parsed_long);
+            }
+        }
 
         // Check if host is decimal integer encoding (e.g. 2852039166 or 2130706433)
         if (ctype_digit($clean_host)) {
@@ -624,7 +643,8 @@ class OutboundEgressFirewall {
             ];
         }
 
-        return ['threat' => null, 'reason' => '', 'safe_ip' => $first_safe_ip];
+        $result = ['threat' => null, 'reason' => '', 'safe_ip' => $first_safe_ip];
+        return ($dns_cache[$clean_host] = $result);
     }
 
     /**

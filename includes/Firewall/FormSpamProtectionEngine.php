@@ -332,33 +332,40 @@ class FormSpamProtectionEngine {
         }
 
         // Tier 3: Cryptographic Speed-Gate & Timing Verification
-        if (!empty($settings['form_speed_gate_enabled']) && isset($request_data['wcp_time_gate'])) {
-            $raw_token = sanitize_text_field(wp_unslash($request_data['wcp_time_gate']));
-            $decrypted = false;
+        if (!empty($settings['form_speed_gate_enabled'])) {
+            if (!isset($request_data['wcp_time_gate'])) {
+                if ($form_source === 'Comment' || $form_source === 'Registration') {
+                    self::record_spam_drop('missing_time_gate', $form_source, $client_ip);
+                    return new \WP_Error('wcp_spam_missing_gate', __('Security token missing from form submission. Please refresh and try again.', 'wcp-security-scanner'));
+                }
+            } else {
+                $raw_token = sanitize_text_field(wp_unslash($request_data['wcp_time_gate']));
+                $decrypted = false;
 
-            if (class_exists('\\WcpScanner\\Security\\SecretVault')) {
-                $decrypted = SecretVault::decrypt($raw_token);
-            }
-            if (!$decrypted) {
-                $decrypted = base64_decode($raw_token);
-            }
-
-            if ($decrypted && strpos($decrypted, '|') !== false) {
-                list($timestamp_str, $token_ip) = explode('|', $decrypted, 2);
-                $rendered_at = (int) $timestamp_str;
-                $elapsed = time() - $rendered_at;
-                $min_seconds = max(1, $settings['form_min_interaction_seconds']);
-
-                // Submitted faster than human threshold (< min_seconds)
-                if ($elapsed < $min_seconds) {
-                    self::record_spam_drop('speed_gate_too_fast', $form_source, $client_ip);
-                    return new \WP_Error('wcp_spam_speed_gate', __('Submission was completed too quickly for a human visitor. Please take a moment and try again.', 'wcp-security-scanner'));
+                if (class_exists('\\WcpScanner\\Security\\SecretVault')) {
+                    $decrypted = SecretVault::decrypt($raw_token);
+                }
+                if (!$decrypted) {
+                    $decrypted = base64_decode($raw_token);
                 }
 
-                // Stale token (> 2 hours / 7200s) indicating cached scraper replay
-                if ($elapsed > 7200) {
-                    self::record_spam_drop('stale_replay_token', $form_source, $client_ip);
-                    return new \WP_Error('wcp_spam_stale_token', __('Form session has expired. Please refresh the page and resubmit.', 'wcp-security-scanner'));
+                if ($decrypted && strpos($decrypted, '|') !== false) {
+                    list($timestamp_str, $token_ip) = explode('|', $decrypted, 2);
+                    $rendered_at = (int) $timestamp_str;
+                    $elapsed = time() - $rendered_at;
+                    $min_seconds = max(1, $settings['form_min_interaction_seconds']);
+
+                    // Submitted faster than human threshold (< min_seconds)
+                    if ($elapsed < $min_seconds) {
+                        self::record_spam_drop('speed_gate_too_fast', $form_source, $client_ip);
+                        return new \WP_Error('wcp_spam_speed_gate', __('Submission was completed too quickly for a human visitor. Please take a moment and try again.', 'wcp-security-scanner'));
+                    }
+
+                    // Stale token (> 48 hours / 172800s to respect full-page caching)
+                    if ($elapsed > 172800) {
+                        self::record_spam_drop('stale_replay_token', $form_source, $client_ip);
+                        return new \WP_Error('wcp_spam_stale_token', __('Form session has expired. Please refresh the page and resubmit.', 'wcp-security-scanner'));
+                    }
                 }
             }
         }
@@ -614,7 +621,7 @@ class FormSpamProtectionEngine {
 
         update_option(self::OPTION_STATS, $stats, false);
 
-        if (class_exists('\\WcpScanner\\Security\\AuditLogger')) {
+        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
             AuditLogger::log('form_spam_neutralized', sprintf('Neutralized %s form spam from IP %s. Vector: %s', $engine, $ip, $reason));
         }
     }

@@ -27,12 +27,18 @@ class Scheduler {
             }
         }
 
-        // Custom cron intervals (e.g., weekly)
+        // Custom cron intervals (e.g., weekly, 5-minutes)
         add_filter('cron_schedules', function ($schedules) {
             if (!isset($schedules['weekly'])) {
                 $schedules['weekly'] = [
                     'interval' => 7 * DAY_IN_SECONDS,
                     'display'  => __('Once Weekly', 'wcp-security-scanner'),
+                ];
+            }
+            if (!isset($schedules['wcp_every_five_minutes'])) {
+                $schedules['wcp_every_five_minutes'] = [
+                    'interval' => 300,
+                    'display'  => __('Every 5 Minutes (WCP Security)', 'wcp-security-scanner'),
                 ];
             }
             return $schedules;

@@ -407,7 +407,7 @@ class HoneyTokenEngine {
         if (count($catches) > 100) {
             $catches = array_slice($catches, 0, 100);
         }
-        update_option(self::OPTION_CATCHES, $catches);
+        update_option(self::OPTION_CATCHES, $catches, false);
     }
 
     /**

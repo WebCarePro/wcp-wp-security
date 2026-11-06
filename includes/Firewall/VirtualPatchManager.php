@@ -367,14 +367,14 @@ class VirtualPatchManager {
             return null;
         }
 
-        $method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Inspecting raw query string for CVE virtual patch match criteria
         $raw_query = isset($_SERVER['QUERY_STRING']) ? (string) wp_unslash($_SERVER['QUERY_STRING']) : '';
         $query_string = rawurldecode($raw_query);
         $raw_body = '';
 
-        if ($method === 'POST') {
-            $raw_input = @file_get_contents('php://input');
+        if (in_array($method, ['POST', 'PUT', 'PATCH'], true)) {
+            $raw_input = @file_get_contents('php://input', false, null, 0, 65536);
             $raw_body = !empty($raw_input) ? wp_unslash($raw_input) : '';
         }
 
@@ -390,7 +390,8 @@ class VirtualPatchManager {
 
             // Check Method restriction
             if (!empty($rule['methods']) && is_array($rule['methods'])) {
-                if (!in_array($method, $rule['methods'], true)) {
+                $allowed_methods = array_map('strtoupper', (array) $rule['methods']);
+                if (!in_array('*', $allowed_methods, true) && !in_array($method, $allowed_methods, true)) {
                     continue;
                 }
             }

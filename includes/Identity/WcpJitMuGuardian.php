@@ -327,30 +327,37 @@ class WcpJitMuGuardianRuntime {
             return $result;
         }
 
-        // 1. Inviolable: Prohibit creating, viewing, or revoking temporary support links
-        if (strpos($route, '/wcp-scanner/v1/identity/temporary-access') !== false) {
-            return new \WP_Error(
-                'rest_forbidden',
-                esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from generating, viewing, or revoking temporary support access links.', 'wcp-security-scanner'),
-                ['status' => 403]
-            );
-        }
+        // 1. Inviolable Security Boundaries for JIT Admins and Support Technicians:
+        // Prohibit privilege re-elevation, 2FA tampering, database exports, config viewing, and backups
+        $inviolable_blocked_routes = [
+            '/wcp-scanner/v1/identity/temporary-access',
+            '/wcp-scanner/v1/identity/jit-elevate',
+            '/wcp-scanner/v1/identity/jit-revoke',
+            '/wcp-scanner/v1/identity/temp-link',
+            '/wcp-scanner/v1/auth/admin-2fa',
+            '/wcp-scanner/v1/backup',
+            '/wcp-scanner/v1/database',
+            '/wcp-scanner/v1/encryption',
+            '/wcp-scanner/v1/file/view',
+            '/wcp-scanner/v1/file/delete',
+            '/wcp-scanner/v1/file/fix-permissions',
+            '/wcp-scanner/v1/quarantine/delete',
+            '/wcp-scanner/v1/remediation/execute',
+            '/wcp-scanner/v1/remediation/auto-clean',
+            '/wcp-scanner/v1/users/remediate',
+            '/wcp-scanner/v1/firewall/reset',
+            '/wcp-scanner/v1/settings/reset',
+            '/wcp-scanner/v1/settings/import',
+        ];
 
-        // 2. Inviolable: Prohibit Reset Defaults & Import Settings
-        if (strpos($route, '/wcp-scanner/v1/settings/reset') !== false) {
-            return new \WP_Error(
-                'rest_forbidden',
-                esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from resetting plugin settings to factory defaults.', 'wcp-security-scanner'),
-                ['status' => 403]
-            );
-        }
-
-        if (strpos($route, '/wcp-scanner/v1/settings/import') !== false) {
-            return new \WP_Error(
-                'rest_forbidden',
-                esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from importing or overwriting plugin settings.', 'wcp-security-scanner'),
-                ['status' => 403]
-            );
+        foreach ($inviolable_blocked_routes as $blocked_route) {
+            if (strpos($route, $blocked_route) !== false) {
+                return new \WP_Error(
+                    'rest_forbidden',
+                    esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from accessing administrative escalation, 2FA, backup, database, or sensitive file routes.', 'wcp-security-scanner'),
+                    ['status' => 403]
+                );
+            }
         }
 
         // 3. Prohibit modifying settings or whitelist if block_settings_modification

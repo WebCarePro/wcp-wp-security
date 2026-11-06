@@ -129,31 +129,53 @@ class QuarantineManager {
             ];
         }
 
-        // Read file contents before isolation
-        $file_content = @file_get_contents($real_path);
-        if ($file_content === false) {
-            return ['success' => false, 'message' => 'Failed to read target file. Permission denied.'];
-        }
-
-        // Compute metadata from raw plaintext
-        $sha256 = hash('sha256', $file_content);
-        $file_size = strlen($file_content);
+        $file_size = (int) @filesize($real_path);
         $file_perms = substr(sprintf('%o', fileperms($real_path)), -4);
-
-        // Encrypt file contents using SecretVault (AES-256-GCM authenticated AEAD encryption)
-        $encrypted_payload = \WcpScanner\Security\SecretVault::encrypt($file_content);
-
-        // Prepend defanged PHP execution prevention header and __halt_compiler()
-        $guard_header = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
-        $vault_payload = $guard_header . $encrypted_payload;
+        $sha256 = hash_file('sha256', $real_path) ?: '';
 
         // Generate quarantined file destination with .quarantine.php extension
         $safe_filename = bin2hex(random_bytes(16)) . '_' . time() . '.quarantine.php';
         $dest_path = $this->quarantine_dir . '/' . $safe_filename;
+        $guard_header = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
 
-        // Write encrypted payload to protected vault
-        if (@file_put_contents($dest_path, $vault_payload, LOCK_EX) === false) {
-            return ['success' => false, 'message' => 'Failed to isolate file to encrypted vault storage. Permission denied.'];
+        // For large files (>20MB), stream directly with guard header to prevent PHP memory exhaustion (OOM)
+        if ($file_size > 20971520) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $src_fp = @fopen($real_path, 'rb');
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $dst_fp = @fopen($dest_path, 'wb');
+            if (!$src_fp || !$dst_fp) {
+                if ($src_fp) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                    fclose($src_fp);
+                }
+                if ($dst_fp) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                    fclose($dst_fp);
+                }
+                return ['success' => false, 'message' => 'Failed to isolate large file to vault storage. Permission denied.'];
+            }
+            fwrite($dst_fp, $guard_header);
+            stream_copy_to_stream($src_fp, $dst_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($src_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($dst_fp);
+        } else {
+            // Read file contents before isolation
+            $file_content = @file_get_contents($real_path);
+            if ($file_content === false) {
+                return ['success' => false, 'message' => 'Failed to read target file. Permission denied.'];
+            }
+
+            // Encrypt file contents using SecretVault (AES-256-GCM authenticated AEAD encryption)
+            $encrypted_payload = \WcpScanner\Security\SecretVault::encrypt($file_content);
+            $vault_payload = $guard_header . $encrypted_payload;
+
+            // Write encrypted payload to protected vault
+            if (@file_put_contents($dest_path, $vault_payload, LOCK_EX) === false) {
+                return ['success' => false, 'message' => 'Failed to isolate file to encrypted vault storage. Permission denied.'];
+            }
         }
 
         // Lock down permissions on vault file

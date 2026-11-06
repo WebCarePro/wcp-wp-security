@@ -253,7 +253,7 @@ class LearningModeEngine {
             $profiles = array_slice($profiles, 0, 150, true);
         }
 
-        update_option(self::OPTION_PROFILES, $profiles);
+        update_option(self::OPTION_PROFILES, $profiles, false);
     }
 
     /**
@@ -268,7 +268,7 @@ class LearningModeEngine {
             $profiles[$route_key]['request_count']++;
             $profiles[$route_key]['threat_count']++;
             $profiles[$route_key]['last_seen'] = current_time('mysql');
-            update_option(self::OPTION_PROFILES, $profiles);
+            update_option(self::OPTION_PROFILES, $profiles, false);
         }
     }
 
@@ -300,7 +300,7 @@ class LearningModeEngine {
 
         if ($action === 'reset') {
             unset($profiles[$route_key]);
-            update_option(self::OPTION_PROFILES, $profiles);
+            update_option(self::OPTION_PROFILES, $profiles, false);
             return ['success' => true, 'message' => "Route profile for '{$route_key}' was reset."];
         }
 
@@ -330,7 +330,7 @@ class LearningModeEngine {
             $profiles[$route_key]['status'] = 'learning';
         }
 
-        update_option(self::OPTION_PROFILES, $profiles);
+        update_option(self::OPTION_PROFILES, $profiles, false);
 
         AuditLogger::log(
             'route_status_updated',

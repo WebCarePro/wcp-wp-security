@@ -363,19 +363,24 @@ class MicroWafCompiler {
         $out .= "                        \$active_namespaces = !empty(\$caf_rules['active_rest_namespaces']) && is_array(\$caf_rules['active_rest_namespaces']) ? \$caf_rules['active_rest_namespaces'] : [];\n";
         $out .= "                        \$rest_path = substr(\$uri, strpos(\$uri, '/wp-json/') + 9);\n";
         $out .= "                        \$rest_path_clean = strtok(\$rest_path, '?');\n";
-        $out .= "                        \$segments = explode('/', trim((string) \$rest_path_clean, '/'));\n";
-        $out .= "                        if (count(\$segments) >= 2) {\n";
-        $out .= "                            \$prefix_candidate = \$segments[0] . '/' . \$segments[1];\n";
-        $out .= "                            \$single_candidate = \$segments[0];\n";
-        $out .= "                            if (!empty(\$active_namespaces) && !in_array(\$prefix_candidate, \$active_namespaces, true) && !in_array(\$single_candidate, \$active_namespaces, true)) {\n";
-        $out .= "                                if (\$single_candidate !== '' && \$single_candidate !== 'wp') {\n";
-        $out .= "                                    wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-REST-NAMESPACE', 'Request probes dormant or uninstalled REST namespace (' . htmlspecialchars(\$single_candidate, ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                        \$rest_route = trim((string) \$rest_path_clean, '/');\n";
+        $out .= "                        if (\$rest_route !== '' && !empty(\$active_namespaces)) {\n";
+        $out .= "                            \$namespace_matched = false;\n";
+        $out .= "                            foreach (\$active_namespaces as \$ns) {\n";
+        $out .= "                                \$ns_clean = trim((string) \$ns, '/');\n";
+        $out .= "                                if (\$ns_clean !== '' && (\$rest_route === \$ns_clean || strpos(\$rest_route, \$ns_clean . '/') === 0 || strpos(\$ns_clean, \$rest_route . '/') === 0)) {\n";
+        $out .= "                                    \$namespace_matched = true;\n";
+        $out .= "                                    break;\n";
         $out .= "                                }\n";
+        $out .= "                            }\n";
+        $out .= "                            if (!\$namespace_matched && !str_starts_with(\$rest_route, 'wp/') && \$rest_route !== 'wp') {\n";
+        $out .= "                                \$single_candidate = explode('/', \$rest_route)[0] ?? \$rest_route;\n";
+        $out .= "                                wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-REST-NAMESPACE', 'Request probes dormant or uninstalled REST namespace (' . htmlspecialchars(\$single_candidate, ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
         $out .= "                            }\n";
         $out .= "                        }\n";
         $out .= "                    }\n\n";
 
-        $out .= "                    // 3. Unauthenticated admin-ajax.php probe lockdown against unapproved actions\n";
+        $out .= "                    // 3. Unauthenticated admin-ajax.php probe lockdown against dormant plugin actions\n";
         $out .= "                    if (strpos(\$uri, 'admin-ajax.php') !== false) {\n";
         $out .= "                        \$has_auth_cookie = false;\n";
         $out .= "                        if (!empty(\$_COOKIE)) {\n";
@@ -396,7 +401,20 @@ class MicroWafCompiler {
         $out .= "                            if (!empty(\$ajax_action)) {\n";
         $out .= "                                \$allowed_nopriv = !empty(\$caf_rules['allowed_nopriv_actions']) && is_array(\$caf_rules['allowed_nopriv_actions']) ? \$caf_rules['allowed_nopriv_actions'] : [];\n";
         $out .= "                                if (!in_array(\$ajax_action, \$allowed_nopriv, true)) {\n";
-        $out .= "                                    wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-AJAX-ACTION', 'Unauthenticated probe on unapproved guest AJAX action (' . htmlspecialchars(substr(\$ajax_action, 0, 40), ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                                    // Specifically verify if action belongs to a known dormant/deactivated plugin\n";
+        $out .= "                                    \$is_dormant_action = false;\n";
+        $out .= "                                    if (!empty(\$dormant_plugins)) {\n";
+        $out .= "                                        foreach (\$dormant_plugins as \$d_slug) {\n";
+        $out .= "                                            \$d_prefix = str_replace('-', '_', \$d_slug);\n";
+        $out .= "                                            if (str_starts_with(\$ajax_action, \$d_prefix . '_') || str_starts_with(\$ajax_action, \$d_slug . '_')) {\n";
+        $out .= "                                                \$is_dormant_action = true;\n";
+        $out .= "                                                break;\n";
+        $out .= "                                            }\n";
+        $out .= "                                        }\n";
+        $out .= "                                    }\n";
+        $out .= "                                    if (\$is_dormant_action) {\n";
+        $out .= "                                        wcp_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-AJAX-ACTION', 'Unauthenticated probe on dormant plugin AJAX action (' . htmlspecialchars(substr(\$ajax_action, 0, 40), ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                                    }\n";
         $out .= "                                }\n";
         $out .= "                            }\n";
         $out .= "                        }\n";
@@ -670,7 +688,7 @@ class MicroWafCompiler {
         if (!empty($wp_filter) && is_array($wp_filter)) {
             foreach (array_keys($wp_filter) as $hook_name) {
                 if (is_string($hook_name) && str_starts_with($hook_name, 'wp_ajax_nopriv_')) {
-                    $allowed_nopriv_actions[] = substr($hook_name, 16);
+                    $allowed_nopriv_actions[] = substr($hook_name, 15);
                 }
             }
         }
