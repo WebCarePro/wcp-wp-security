@@ -435,6 +435,15 @@ class DatabaseBackup {
             fclose($fp);
         }
 
+        // Lock file permissions strictly to 0600 to prevent shared hosting unauthorized reads
+        global $wp_filesystem;
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+            $wp_filesystem->chmod($filepath, 0600);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($filepath, 0600);
+        }
+
         $now_time = current_time('mysql');
         $start_micro = microtime(true);
 
@@ -687,6 +696,15 @@ class DatabaseBackup {
                     fclose($fp);
                 }
 
+                // Finalize restrictive 0600 file permissions on completed backup archive
+                global $wp_filesystem;
+                if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+                    $wp_filesystem->chmod($filepath, 0600);
+                } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                    @chmod($filepath, 0600);
+                }
+
                 $state['status'] = 'completed';
                 $state['stop_time'] = current_time('mysql');
                 $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
@@ -717,6 +735,15 @@ class DatabaseBackup {
                 } else {
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     fclose($fp);
+                }
+
+                // Finalize restrictive 0600 file permissions on completed backup archive
+                global $wp_filesystem;
+                if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+                    $wp_filesystem->chmod($filepath, 0600);
+                } else {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                    @chmod($filepath, 0600);
                 }
             }
 

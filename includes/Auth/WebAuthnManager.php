@@ -481,7 +481,7 @@ class WebAuthnManager {
         if (!$matched_user_id || !$matched_cred) {
             return [
                 'success' => false,
-                'message' => __('Passkey verification failed. Credential not recognized.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
             ];
         }
 
@@ -489,7 +489,7 @@ class WebAuthnManager {
         if (!$user || !$user->exists()) {
             return [
                 'success' => false,
-                'message' => __('Passkey verification failed. Account not accessible.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
             ];
         }
 
@@ -505,7 +505,7 @@ class WebAuthnManager {
         if (empty($stored_pubkey) || strpos($stored_pubkey, '-----BEGIN PUBLIC KEY-----') === false) {
             return [
                 'success' => false,
-                'message' => __('Passkey verification failed: No verifiable cryptographic public key found for credential.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
             ];
         }
 
@@ -566,7 +566,7 @@ class WebAuthnManager {
         if ($verified !== 1) {
             return [
                 'success' => false,
-                'message' => __('Passkey cryptographic signature verification failed.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
             ];
         }
 

@@ -1,6 +1,6 @@
 {
   "version": "2.7.1",
-  "generated_at": "2026-11-07T08:28:43.521Z",
+  "generated_at": "2026-11-07T08:46:45.126Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -144,8 +144,8 @@
       "size": 75357
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "86857c7670508a972af197e06242704ea40b5e64e80474d50644d2f583bcdaf1",
-      "size": 575295
+      "sha256": "804d03baf33d1d791089462822fc5fd16999d0a02e4360d118db50c4c7dce53d",
+      "size": 577881
     },
     "includes/Auth/LoginHardening.php": {
       "sha256": "9e97b8abc045ca309fcb211443214328b6b9a5d1e5e04612d2d097e972b0d99d",
@@ -168,12 +168,12 @@
       "size": 53327
     },
     "includes/Auth/WebAuthnManager.php": {
-      "sha256": "1f902fec463f8a7ac3504b73df772e6d0b8a87b1fce03d79d2ab5cd32c84baef",
-      "size": 45553
+      "sha256": "b811def2040b64a51c9a1ee9115628d67f7a6aa6ac503b61148348f2701761b4",
+      "size": 45557
     },
     "includes/Backup/DatabaseBackup.php": {
-      "sha256": "f0489f72b4661525c7f3c8efb1ad1d7a4a9558d164d5faface70d3ae95b7fff2",
-      "size": 47264
+      "sha256": "eacb15e5212ea4f575d4062f307e3700564a6e550666eaa58a0e2177af404ed6",
+      "size": 48608
     },
     "includes/Cloudflare/CloudflareService.php": {
       "sha256": "9128a77e6436e26d0485076be9ea950aab23140245f099f0143f9be811f21367",
@@ -348,8 +348,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "b75873f7c1978dd6a0aa74ae34dc909e836bb5f77a793ee51d954ff3ce02ed4f",
-      "size": 410135
+      "sha256": "a88946fb75be62dce49c6659f2b4445d0ea251f7b07ed060ddfbca86a29fdd98",
+      "size": 411986
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "a3ca3ac585deff3badcd521cb195b7ab29da6b2ae59bccf2335ac91dd292773d",

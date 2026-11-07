@@ -1008,39 +1008,45 @@ class FirewallEngine {
             $is_upload_endpoint = (strpos($request_uri, 'async-upload.php') !== false || strpos($request_uri, '/wp-json/wp/v2/media') !== false);
             $is_admin_area = is_admin() || strpos($request_uri, '/wp-admin/') !== false;
             $is_commerce_safe = !empty($settings['waf_ecommerce_safe_mode']) && self::is_commerce_or_membership_request($request_uri);
-            $is_exempt_endpoint = $is_upload_endpoint || $is_admin_area || $is_commerce_safe || $is_builder_session;
+            $is_exempt_endpoint = $is_upload_endpoint || $is_admin_area || $is_builder_session;
             $uri_length = strlen($request_uri);
             $query_length = strlen(isset($_SERVER['QUERY_STRING']) ? sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING'])) : '');
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early WAF payload size check executes before nonce lifecycle
             $post_count = !empty($_POST) && is_array($_POST) ? count($_POST, COUNT_RECURSIVE) : 0;
 
-            if ($uri_length > 2048 && !$is_exempt_endpoint) {
+            // Bounded URI buffer guard: Commerce payment callbacks permit up to 4096 bytes; default ceiling is 2048 bytes
+            $max_uri_limit = ($is_commerce_safe || $is_admin_area) ? 4096 : 2048;
+            if ($uri_length > $max_uri_limit && !$is_exempt_endpoint) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-URI',
                     'name'        => 'Oversized URI Buffer Overflow Guard',
                     'category'    => 'DoS & Resource Shield',
-                    'description' => sprintf('Request URI length of %d bytes exceeded security threshold (2048 bytes).', $uri_length),
+                    'description' => sprintf('Request URI length of %d bytes exceeded security threshold (%d bytes).', $uri_length, $max_uri_limit),
                     'match_type'  => 'Buffer Overflow Protection',
                     'match_value' => (string) $uri_length,
                     'payload'     => "URI Length: {$uri_length} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 414);
-                            }
+            }
 
-            if ($query_length > 1024 && !$is_exempt_endpoint) {
+            // Bounded Query String guard: Commerce payment redirects permit up to 2048 bytes; default ceiling is 1024 bytes
+            $max_query_limit = ($is_commerce_safe || $is_admin_area) ? 2048 : 1024;
+            if ($query_length > $max_query_limit && !$is_exempt_endpoint) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-QUERY',
                     'name'        => 'Oversized Query String Guard',
                     'category'    => 'DoS & Resource Shield',
-                    'description' => sprintf('Query string length of %d bytes exceeded security threshold (1024 bytes).', $query_length),
+                    'description' => sprintf('Query string length of %d bytes exceeded security threshold (%d bytes).', $query_length, $max_query_limit),
                     'match_type'  => 'Buffer Overflow Protection',
                     'match_value' => (string) $query_length,
                     'payload'     => "Query Length: {$query_length} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                            }
+            }
 
-            if ($post_count > 1000 && !$is_exempt_endpoint) {
+            // Parameter flooding (HashDoS) is NEVER exempted for commerce checkouts (only builders and media uploads)
+            $is_param_exempt = $is_upload_endpoint || $is_builder_session;
+            if ($post_count > 1000 && !$is_param_exempt) {
                 $rule_triggered = [
                     'id'          => 'WAF-OVERSIZED-POST-VARS',
                     'name'        => 'Excessive Parameter Count Flood Guard',
@@ -1051,7 +1057,7 @@ class FirewallEngine {
                     'payload'     => "Params: {$post_count} IP: {$client_ip}",
                 ];
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 400);
-                            }
+            }
         }
 
         // Rule #32: Strict Host & Forwarded Host Header Allowlist Guard
@@ -2087,10 +2093,19 @@ class FirewallEngine {
 
         // 5. E-Commerce & Membership Shopper Immunity:
         // Genuine customers browsing a store with active cart cookies or accessing commerce endpoints
-        // must never be locked out by 404 scanner rate-limits (e.g., broken product images or expired variation links).
+        // must not be locked out by harmless missing store assets (e.g., broken product images or expired variation links).
+        // IMMUTABLE SECURITY RULE: High-risk reconnaissance probes (.env, .git, .sql, .bak, core PHP files)
+        // are NEVER exempted from 404 tracking, regardless of cookie presence.
         if (!empty($settings['waf_ecommerce_safe_mode'])) {
             if (self::has_active_shopper_session() || self::is_commerce_or_membership_request($raw_uri)) {
-                return;
+                if (!self::is_high_risk_recon_probe($raw_uri)) {
+                    $parsed_path = wp_parse_url($raw_uri, PHP_URL_PATH) ?: $raw_uri;
+                    $ext = strtolower(pathinfo($parsed_path, PATHINFO_EXTENSION));
+                    $static_asset_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'css', 'js', 'woff', 'woff2', 'ttf', 'eot', 'avif'];
+                    if (in_array($ext, $static_asset_exts, true) || strpos($raw_uri, '/wp-content/uploads/') !== false) {
+                        return; // Auto-pass harmless missing media/asset 404s during customer browsing
+                    }
+                }
             }
         }
 
@@ -2311,16 +2326,24 @@ class FirewallEngine {
                         return true;
                     }
                 }
-                if (strpos($cookie_name, 'edd_items_in_cart') !== false
-                    || strpos($cookie_name, 'mp_session_') !== false
-                    || strpos($cookie_name, 'surecart_session') !== false
-                    || strpos($cookie_name, 'surecart_customer') !== false
-                    || strpos($cookie_name, 'give_items_in_cart') !== false
-                    || strpos($cookie_name, 'wp_ec_session_') !== false
-                    || strpos($cookie_name, 'swpm_session') !== false
-                    || strpos($cookie_name, 'um_cache_') !== false
-                ) {
-                    return true;
+                if (is_string($cookie_val) && strlen($cookie_val) > 0) {
+                    if (strpos($cookie_name, 'edd_items_in_cart') !== false || strpos($cookie_name, 'give_items_in_cart') !== false) {
+                        if (is_numeric($cookie_val) && (int) $cookie_val > 0) {
+                            return true;
+                        }
+                    } elseif (
+                        strpos($cookie_name, 'mp_session_') !== false
+                        || strpos($cookie_name, 'surecart_session') !== false
+                        || strpos($cookie_name, 'surecart_customer') !== false
+                        || strpos($cookie_name, 'wp_ec_session_') !== false
+                        || strpos($cookie_name, 'swpm_session') !== false
+                        || strpos($cookie_name, 'um_cache_') !== false
+                    ) {
+                        // Enforce non-trivial session token length (minimum 16 bytes)
+                        if (strlen($cookie_val) >= 16) {
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -7000,9 +7023,9 @@ class FirewallEngine {
             return $result;
         }
 
-        // Check if incoming request is from a verified payment gateway or commerce callback
-        $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : $route;
-        if (self::is_commerce_or_membership_request($raw_uri)) {
+        // Check if the target REST route itself is a designated public store or commerce endpoint
+        $is_store_route = preg_match('#^/wc/store(?:/v\d+)?/#i', $route) || preg_match('#^/(?:surecart|fluentcart|edd)/#i', $route);
+        if ($is_store_route) {
             // Rule #38 Check for Store API checkout route
             if (preg_match('#^/wc/store(?:/v\d+)?/checkout#i', $route) && strtoupper($method) === 'POST') {
                 $block_error = self::check_woo_carding_lockout();

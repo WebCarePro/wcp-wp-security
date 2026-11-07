@@ -1691,13 +1691,13 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/auth/webauthn/login-options', [
             'methods'             => ['GET', 'POST'],
             'callback'            => [__CLASS__, 'webauthn_login_options'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [__CLASS__, 'check_webauthn_public_rate_limit'],
         ]);
 
         register_rest_route(self::NAMESPACE, '/auth/webauthn/login-verify', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'webauthn_login_verify'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [__CLASS__, 'check_webauthn_public_rate_limit'],
         ]);
 
 
@@ -11168,10 +11168,65 @@ class ScannerRoutes {
         ]);
     }
 
+    /**
+     * Rate-limiting and anti-enumeration permission check for public WebAuthn routes.
+     * Enforces proxy-aware sliding window rate limits per IP and per account.
+     *
+     * @param \WP_REST_Request $request
+     * @return true|\WP_Error
+     */
+    public static function check_webauthn_public_rate_limit(\WP_REST_Request $request) {
+        $client_ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
+            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+
+        $route = (string) $request->get_route();
+        $is_verify = strpos($route, 'login-verify') !== false;
+        $action = $is_verify ? 'verify' : 'options';
+        $max_ip_attempts = $is_verify ? 10 : 25; // 10 verifications / 5 min, 25 options / 5 min
+        $window = 300;
+
+        if (class_exists('\\WcpScanner\\Auth\\WebAuthnManager')) {
+            if (!\WcpScanner\Auth\WebAuthnManager::check_ip_rate_limit($action, $max_ip_attempts, $window)) {
+                return new \WP_Error(
+                    'rest_rate_limited',
+                    __('Too many authentication requests from this IP. Please wait a few minutes.', 'wcp-security-scanner'),
+                    ['status' => 429]
+                );
+            }
+        }
+
+        // Per-account rate limiting when login_hint or username is provided
+        $params = $request->get_json_params() ?: [];
+        $username = !empty($params['username']) ? sanitize_text_field(wp_unslash($params['username'])) : '';
+        if (!empty($username)) {
+            $acc_key = 'wcpscan_wa_acc_' . md5(strtolower($username));
+            $acc_attempts = (int) get_transient($acc_key);
+            if ($acc_attempts >= 15) {
+                return new \WP_Error(
+                    'rest_account_rate_limited',
+                    __('Too many authentication attempts for this account. Please wait a few minutes.', 'wcp-security-scanner'),
+                    ['status' => 429]
+                );
+            }
+            set_transient($acc_key, $acc_attempts + 1, $window);
+        }
+
+        return true;
+    }
+
     public static function webauthn_login_options(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         $username = sanitize_text_field(wp_unslash($params['username'] ?? ''));
-        return rest_ensure_response(\WcpScanner\Auth\WebAuthnManager::generate_login_options($username));
+        $options = \WcpScanner\Auth\WebAuthnManager::generate_login_options($username);
+        if (empty($options['success'])) {
+            return new \WP_Error(
+                'options_rate_limited',
+                $options['message'] ?? __('Too many passkey requests. Please wait a few minutes.', 'wcp-security-scanner'),
+                ['status' => 429]
+            );
+        }
+        return rest_ensure_response($options);
     }
 
     public static function webauthn_login_verify(\WP_REST_Request $request) {
