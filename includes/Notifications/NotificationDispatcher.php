@@ -425,6 +425,13 @@ class NotificationDispatcher {
                 'description' => __('Alerts when malicious system-prompt override attempts, adversarial jailbreaks, or LLM scraping probes are terminated.', 'wcp-security-scanner'),
                 'severity'    => 'critical',
             ],
+            'distributed_botnet_attack_detected' => [
+                'category'       => 'behavioral',
+                'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),
+                'title'          => __('Distributed Botnet Attack / Under-Attack Mode Activated', 'wcp-security-scanner'),
+                'description'    => __('Alerts when cross-IP distributed velocity triggers an automated Under-Attack lockdown against credential stuffing or carding swarms.', 'wcp-security-scanner'),
+                'severity'       => 'critical',
+            ],
             'attack_drill_completed' => [
                 'category'    => 'behavioral',
                 'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),

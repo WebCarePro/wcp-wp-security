@@ -418,11 +418,16 @@ class AdaptiveRateLimiter {
             $stats = ['total_throttled' => 0, 'by_bucket' => []];
         }
 
+        $distributed = class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')
+            ? DistributedVelocityShield::get_telemetry()
+            : [];
+
         return [
             'settings'                 => self::get_settings(),
             'total_throttled'          => $stats['total_throttled'] ?? 0,
             'total_throttled_requests' => $stats['total_throttled'] ?? 0,
             'active_tracked_ips'       => count($stats['by_bucket'] ?? []),
+            'distributed_shield'       => $distributed,
             'by_bucket'                => $stats['by_bucket'] ?? [
                 self::BUCKET_AUTH         => 0,
                 self::BUCKET_CHECKOUT     => 0,

@@ -7206,6 +7206,11 @@ class FirewallEngine {
             return;
         }
 
+        // Record global cross-IP checkout failure for distributed carding defense
+        if (class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')) {
+            \WcpScanner\Firewall\DistributedVelocityShield::record_checkout_failure($client_ip, $reason);
+        }
+
         $max_attempts = (int) ($settings['waf_woo_checkout_max_attempts'] ?? 3);
         $lockout_duration_mins = (int) ($settings['waf_woo_carding_lockout_duration'] ?? 30);
         $window_seconds = 300; // 5-minute rolling window for attempts

@@ -554,14 +554,14 @@ class BotReconDefense {
         self::render_webcrypto_challenge($ip, $ua);
     }
 
-    private static function generate_challenge(string $ip, string $ua): string {
+    public static function generate_challenge(string $ip, string $ua): string {
         $window = (string) floor(time() / 300); // Valid for 5-minute window
         $salt   = defined('NONCE_KEY') ? NONCE_KEY : 'wcp_pow_salt';
         $mac    = hash_hmac('sha256', $ip . '|' . $ua . '|' . $window, $salt);
         return $window . '.' . substr($mac, 0, 32);
     }
 
-    private static function verify_pow_solution(string $challenge, string $nonce, string $ip, string $ua): bool {
+    public static function verify_pow_solution(string $challenge, string $nonce, string $ip, string $ua): bool {
         $expected_challenge = self::generate_challenge($ip, $ua);
         if (!hash_equals($expected_challenge, $challenge)) {
             return false;
@@ -571,7 +571,7 @@ class BotReconDefense {
         return strpos($digest, str_repeat('0', self::POW_DIFFICULTY)) === 0;
     }
 
-    private static function issue_clearance_cookie(string $ip, string $ua): void {
+    public static function issue_clearance_cookie(string $ip, string $ua): void {
         $expires = time() + self::CLEARANCE_TTL;
         $salt    = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_pow_auth_salt';
         $sig     = hash_hmac('sha256', $ip . '|' . $ua . '|' . $expires, $salt);
@@ -586,7 +586,7 @@ class BotReconDefense {
         ]);
     }
 
-    private static function has_valid_clearance_cookie(string $ip, string $ua): bool {
+    public static function has_valid_clearance_cookie(string $ip, string $ua): bool {
         if (empty($_COOKIE[self::POW_COOKIE_NAME])) {
             return false;
         }
@@ -607,7 +607,7 @@ class BotReconDefense {
         return hash_equals($expected_sig, $parts[1]);
     }
 
-    private static function render_webcrypto_challenge(string $ip, string $ua): void {
+    public static function render_webcrypto_challenge(string $ip, string $ua): void {
         $challenge = self::generate_challenge($ip, $ua);
         $zeros     = str_repeat('0', self::POW_DIFFICULTY);
 

@@ -1432,6 +1432,31 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Global Cross-IP Distributed Velocity & Under-Attack Shield (2026 AI-Era Defense Pillar 4)
+        register_rest_route(self::NAMESPACE, '/defense/distributed-shield/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_distributed_shield_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/distributed-shield/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_distributed_shield_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/distributed-shield/toggle-under-attack', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_under_attack_mode'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/distributed-shield/simulate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'simulate_distributed_attack'],
+            'permission_callback' => $permission,
+        ]);
+
         // 19. Zero-Trust Identity, Session Forensics & Ephemeral Elevation (Pillar 4)
         register_rest_route(self::NAMESPACE, '/identity/status', [
             'methods'             => 'GET',
@@ -10125,6 +10150,84 @@ class ScannerRoutes {
             'settings' => $updated,
             'message'  => __('Adaptive Rate Limiter thresholds updated successfully.', 'wcp-security-scanner'),
         ]);
+    }
+
+    public static function get_distributed_shield_status(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], \WcpScanner\Firewall\DistributedVelocityShield::get_telemetry()));
+    }
+
+    public static function update_distributed_shield_settings(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params  = $request->get_json_params() ?: [];
+        $updated = \WcpScanner\Firewall\DistributedVelocityShield::update_settings($params);
+        return rest_ensure_response([
+            'success'  => true,
+            'message'  => __('Distributed velocity shield settings saved successfully.', 'wcp-security-scanner'),
+            'settings' => $updated,
+            'status'   => \WcpScanner\Firewall\DistributedVelocityShield::get_telemetry(),
+        ]);
+    }
+
+    public static function toggle_under_attack_mode(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params   = $request->get_json_params() ?: [];
+        $active   = !empty($params['active']);
+        $duration = max(60, min(86400, intval($params['duration'] ?? 900)));
+        $action   = !empty($params['action']) ? sanitize_key($params['action']) : 'pow';
+        $reason   = !empty($params['reason']) ? sanitize_text_field($params['reason']) : __('Manual administrator activation', 'wcp-security-scanner');
+
+        if ($active) {
+            \WcpScanner\Firewall\DistributedVelocityShield::activate_under_attack(
+                'manual_lockdown',
+                $duration,
+                $action,
+                'manual',
+                [
+                    'failures'   => 0,
+                    'unique_ips' => 0,
+                    'surface'    => 'admin_manual',
+                    'reason'     => $reason,
+                ]
+            );
+            $msg = __('Under-Attack Mode manually activated.', 'wcp-security-scanner');
+        } else {
+            \WcpScanner\Firewall\DistributedVelocityShield::deactivate_under_attack();
+            $msg = __('Under-Attack Mode deactivated.', 'wcp-security-scanner');
+        }
+
+        return rest_ensure_response([
+            'success'      => true,
+            'message'      => $msg,
+            'under_attack' => \WcpScanner\Firewall\DistributedVelocityShield::get_under_attack_status(),
+        ]);
+    }
+
+    public static function simulate_distributed_attack(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $params = $request->get_json_params() ?: [];
+        $type   = !empty($params['type']) ? sanitize_key($params['type']) : 'carding';
+
+        $res = \WcpScanner\Firewall\DistributedVelocityShield::simulate_attack_swarm($type);
+
+        return rest_ensure_response(array_merge([
+            'success' => true,
+            'message' => sprintf(
+                /* translators: %s: simulated swarm type */
+                __('Simulated distributed %s attack generated. Check Under-Attack status.', 'wcp-security-scanner'),
+                esc_html($type)
+            ),
+        ], $res));
     }
 
     // ==========================================

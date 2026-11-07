@@ -129,6 +129,11 @@ class LoginHardening {
         // Store failed count with a sliding 1-hour window
         set_transient($fail_key, $attempts, 3600);
 
+        // Record global cross-IP authentication failure for distributed credential-stuffing defense
+        if (class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')) {
+            \WcpScanner\Firewall\DistributedVelocityShield::record_auth_failure($ip, $username, $reason_label ?? '');
+        }
+
         // Determine specific failure diagnosis (wrong password vs non-existent account)
         $reason_label = __('Unknown failure reason', 'wcp-security-scanner');
         $error_code   = '';
