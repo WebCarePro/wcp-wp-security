@@ -161,15 +161,58 @@ class UserScanner {
                 if (empty($weak_pwd) || strlen($weak_pwd) < 3) continue;
 
                 if (wp_check_password($weak_pwd, $user->user_pass, $user->ID)) {
-                    $is_admin = in_array('administrator', (array) $user->roles, true);
+                    $user_roles = (array) $user->roles;
+                    $role_label = !empty($user_roles) ? implode(', ', $user_roles) : 'no role';
+                    $is_admin   = in_array('administrator', $user_roles, true) || $user->has_cap('manage_options');
+                    $is_staff   = $is_admin || in_array('editor', $user_roles, true) || in_array('shop_manager', $user_roles, true) || $user->has_cap('edit_others_posts');
+
+                    if ($is_admin) {
+                        $severity      = 'critical';
+                        $display_title = __('Weak Administrator Password', 'wcp-security-scanner');
+                        $description   = sprintf(
+                            /* translators: %s: username */
+                            __('CRITICAL: Administrator account \'%s\' has a dangerously weak/predictable password matching dictionary or username permutations.', 'wcp-security-scanner'),
+                            $user->user_login
+                        );
+                    } elseif ($is_staff) {
+                        $severity      = 'high';
+                        $primary_role  = ucfirst(reset($user_roles) ?: 'Staff');
+                        $display_title = sprintf(
+                            /* translators: %s: role name */
+                            __('Weak Staff Password (%s)', 'wcp-security-scanner'),
+                            $primary_role
+                        );
+                        $description   = sprintf(
+                            /* translators: 1: username, 2: role */
+                            __('HIGH: Elevated staff account \'%1$s\' (role: %2$s) has a weak or predictable password.', 'wcp-security-scanner'),
+                            $user->user_login,
+                            $role_label
+                        );
+                    } else {
+                        $severity      = 'low';
+                        $primary_role  = ucfirst(reset($user_roles) ?: 'User');
+                        $display_title = sprintf(
+                            /* translators: %s: role name */
+                            __('Weak User Password (%s)', 'wcp-security-scanner'),
+                            $primary_role
+                        );
+                        $description   = sprintf(
+                            /* translators: 1: username, 2: role */
+                            __('User account \'%1$s\' (role: %2$s) has a weak or predictable password. Standard user credentials should be updated to protect against credential stuffing.', 'wcp-security-scanner'),
+                            $user->user_login,
+                            $role_label
+                        );
+                    }
+
                     $findings[] = new Finding([
-                        'engine'      => 'wordpress-users',
-                        'type'        => 'weak_password_detected',
-                        'severity'    => $is_admin ? 'critical' : 'high',
-                        'confidence'  => 100,
-                        'file_path'   => "user:{$user->ID} ({$user->user_login})",
-                        'description' => ($is_admin ? "CRITICAL: Administrator account" : "User account") . " '{$user->user_login}' has a dangerously weak/predictable password.",
-                        'evidence'    => "Password matched common dictionary term or username. Immediate password reset required."
+                        'engine'        => 'wordpress-users',
+                        'type'          => 'weak_password_detected',
+                        'severity'      => $severity,
+                        'confidence'    => 100,
+                        'file_path'     => "user:{$user->ID} ({$user->user_login})",
+                        'display_title' => $display_title,
+                        'description'   => $description,
+                        'evidence'      => "Password matched common dictionary term or username. User ID: {$user->ID}, Role: {$role_label}"
                     ]);
                     break;
                 }
@@ -202,13 +245,14 @@ class UserScanner {
         if (!empty($hidden_users)) {
             foreach ($hidden_users as $u) {
                 $findings[] = new Finding([
-                    'engine'      => 'wordpress-users',
-                    'type'        => 'user_missing_capabilities',
-                    'severity'    => 'medium',
-                    'confidence'  => 95,
-                    'file_path'   => "user:{$u->ID} ({$u->user_login})",
-                    'description' => "User '{$u->user_login}' exists in database ({$users_table}) but lacks standard '{$cap_key}' metadata in {$usermeta_table}. Ghost account without declared role; often injected by raw SQL backdoors.",
-                    'evidence'    => "User ID: {$u->ID}, Email: {$u->user_email}, Registered: {$u->user_registered}"
+                    'engine'        => 'wordpress-users',
+                    'type'          => 'user_missing_capabilities',
+                    'display_title' => __('User Account Missing Role Capabilities', 'wcp-security-scanner'),
+                    'severity'      => 'medium',
+                    'confidence'    => 95,
+                    'file_path'     => "user:{$u->ID} ({$u->user_login})",
+                    'description'   => "User '{$u->user_login}' exists in database ({$users_table}) but lacks standard '{$cap_key}' metadata in {$usermeta_table}. Ghost account without declared role; often injected by raw SQL backdoors.",
+                    'evidence'      => "User ID: {$u->ID}, Email: {$u->user_email}, Registered: {$u->user_registered}"
                 ]);
             }
         }

@@ -1637,6 +1637,7 @@ class SettingsManager {
         // 1. Must match a known legitimate plugin cache directory pattern within wp-content/uploads/
         $is_recognized_cache_dir = (
             preg_match('#/wp-content/uploads/mailpoet/cache/[a-f0-9]{2}/[a-f0-9]{64}\.php$#i', $norm) ||
+            preg_match('#/wp-content/uploads/wpallimport/functions\.php$#i', $norm) ||
             preg_match('#/wp-content/uploads/w3tc-cache/#i', $norm) ||
             preg_match('#/wp-content/uploads/wp-optimize-cache/#i', $norm) ||
             preg_match('#/wp-content/uploads/elementor/css/#i', $norm)
@@ -1647,14 +1648,24 @@ class SettingsManager {
         }
 
         $size = @filesize($file_path);
+        // An empty 0-byte file cannot execute malware
+        if ($size === 0) {
+            return true;
+        }
+
         // Twig template caches can be 10KB - 500KB, but shouldn't exceed 2MB
         if ($size === false || $size > 2 * 1024 * 1024) {
             return false;
         }
 
         $content = @file_get_contents($file_path);
-        if ($content === false || strlen($content) < 10) {
+        if ($content === false) {
             return false;
+        }
+
+        if (strlen(trim($content)) < 15) {
+            // Harmless stub or empty opening tag
+            return (bool) preg_match('/^<\?php(?:\s*\/\/[^\r\n]*)?\s*$/i', trim($content));
         }
 
         // 2. Strict Zero-Tolerance Malware / Webshell Signature Scan

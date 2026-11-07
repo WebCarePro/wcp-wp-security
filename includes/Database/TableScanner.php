@@ -191,9 +191,12 @@ class TableScanner {
                 }
             }
 
-            // Check if option/postmeta legitimately stores custom admin code (e.g. header/footer scripts, Elementor data)
+            // Check if option/postmeta or custom snippets table legitimately stores custom code (e.g. Code Snippets, WPCode, header/footer scripts)
             $is_custom_code_storage = false;
-            if ($is_options_table && isset($row['option_name'])) {
+            $is_snippets_table = (bool) preg_match('/(_snippets|_wpcode_snippets|_code_snippets)$/i', $table);
+            if ($is_snippets_table) {
+                $is_custom_code_storage = true;
+            } elseif ($is_options_table && isset($row['option_name'])) {
                 $is_custom_code_storage = (bool) preg_match('/(header_script|footer_script|custom_js|custom_css|gtm|tag_manager|analytics|pixel|tracking|elementor|theme_mods|forminator)/i', $row['option_name']);
             } elseif (isset($row['meta_key'])) {
                 $is_custom_code_storage = (bool) preg_match('/(_custom_js|_custom_css|_elementor_data|_elementor_css|_elementor_page_settings)/i', $row['meta_key']);
@@ -217,9 +220,9 @@ class TableScanner {
                     if (strlen($str) < 10) continue;
 
                     foreach ($this->patterns as $rule_key => $rule) {
-                        // If stored in legitimate custom code settings, only flag critical exploit payloads (eval/base64/droppers)
+                        // If stored in legitimate custom code settings or dedicated snippet tables, only flag critical exploit payloads (eval/base64/droppers/remote script fetching)
                         if ($is_custom_code_storage && in_array($rule_key, ['script_tag_injection', 'iframe_injection'], true)) {
-                            $has_exploit = preg_match('/(eval\s*\(|base64_decode\s*\(|document\.write\s*\(\s*unescape|String\.fromCharCode|\bwindow\[[\'"]ev)/i', $str);
+                            $has_exploit = preg_match('/(eval\s*\(|base64_decode\s*\(|document\.write\s*\(\s*unescape|String\.fromCharCode|\bwindow\[[\'"]ev|fetch\s*\(\s*[\'"]https?:|new\s+Function\s*\()/i', $str);
                             if (!$has_exploit) {
                                 continue;
                             }

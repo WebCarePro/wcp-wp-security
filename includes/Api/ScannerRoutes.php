@@ -4641,10 +4641,12 @@ class ScannerRoutes {
 
             if (empty($item['display_title'])) {
                 $type_map = [
-                    'weak_password_detected'         => __('Weak Administrator Password', 'wcp-security-scanner'),
+                    'weak_password_detected'         => __('Weak User Password', 'wcp-security-scanner'),
+                    'weak_admin_password'            => __('Weak Administrator Password', 'wcp-security-scanner'),
+                    'weak_user_password'             => __('Weak User Password', 'wcp-security-scanner'),
                     'username_enumeration_risk'      => __('Username Enumeration Vulnerability', 'wcp-security-scanner'),
                     'generic_admin_username'         => __('Generic Admin Username', 'wcp-security-scanner'),
-                    'user_missing_capabilities'      => __('Missing Administrator Capabilities', 'wcp-security-scanner'),
+                    'user_missing_capabilities'      => __('User Account Missing Role Capabilities', 'wcp-security-scanner'),
                     'suspicious_user_capabilities'   => __('Suspicious User Capabilities', 'wcp-security-scanner'),
                     'injected_user_capabilities'     => __('Injected User Capabilities', 'wcp-security-scanner'),
                     'tampered_role_definition'       => __('Tampered Role Definition', 'wcp-security-scanner'),

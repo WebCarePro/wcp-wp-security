@@ -35,30 +35,35 @@ class RogueAdminAnomalyDetector {
         $cap_key        = $wpdb->prefix . 'capabilities';
 
         // 1. Audit wp_users vs wp_usermeta: Detect hidden users or orphaned capability records
-        // Find users in wp_users that have NO record in wp_usermeta for capabilities (Zombie/Hidden users)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $hidden_users = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT u.ID, u.user_login, u.user_email, u.user_registered 
-                 FROM `{$wpdb->users}` u 
-                 LEFT JOIN `{$wpdb->usermeta}` m ON (u.ID = m.user_id AND m.meta_key = %s)
-                 WHERE m.meta_value IS NULL 
-                 LIMIT 50",
-                $cap_key
-            )
-        );
+        // Note: Canonical detection for users missing capabilities is handled by UserScanner ('wordpress-users')
+        // to prevent duplicate findings on full scans. Only run here as fallback if UserScanner is absent.
+        if (!class_exists('\WcpScanner\WordPress\UserScanner')) {
+            // Find users in wp_users that have NO record in wp_usermeta for capabilities (Zombie/Hidden users)
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $hidden_users = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT u.ID, u.user_login, u.user_email, u.user_registered 
+                     FROM `{$wpdb->users}` u 
+                     LEFT JOIN `{$wpdb->usermeta}` m ON (u.ID = m.user_id AND m.meta_key = %s)
+                     WHERE m.meta_value IS NULL 
+                     LIMIT 50",
+                    $cap_key
+                )
+            );
 
-        if (!empty($hidden_users)) {
-            foreach ($hidden_users as $u) {
-                $findings[] = new Finding([
-                    'engine'      => 'database-micro-anomaly',
-                    'type'        => 'user_missing_capabilities',
-                    'severity'    => 'medium',
-                    'confidence'  => 90,
-                    'file_path'   => "db:{$users_table}:user_id_{$u->ID}",
-                    'description' => "User '{$u->user_login}' exists in {$users_table} but lacks standard '{$cap_key}' metadata in {$usermeta_table}. Possible stealth database user injection.",
-                    'evidence'    => "User ID: {$u->ID}, Email: {$u->user_email}, Registered: {$u->user_registered}"
-                ]);
+            if (!empty($hidden_users)) {
+                foreach ($hidden_users as $u) {
+                    $findings[] = new Finding([
+                        'engine'        => 'database-micro-anomaly',
+                        'type'          => 'user_missing_capabilities',
+                        'display_title' => __('User Account Missing Role Capabilities', 'wcp-security-scanner'),
+                        'severity'      => 'medium',
+                        'confidence'    => 90,
+                        'file_path'     => "db:{$users_table}:user_id_{$u->ID}",
+                        'description'   => "User '{$u->user_login}' exists in {$users_table} but lacks standard '{$cap_key}' metadata in {$usermeta_table}. Possible stealth database user injection.",
+                        'evidence'      => "User ID: {$u->ID}, Email: {$u->user_email}, Registered: {$u->user_registered}"
+                    ]);
+                }
             }
         }
 

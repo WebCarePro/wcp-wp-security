@@ -175,7 +175,8 @@ class CoreIntegrity {
                     '.htaccess', 'web.config', 'robots.txt', 'favicon.ico', '.user.ini', 'php.ini',
                     'error_log', '.ds_store', 'thumbs.db', 'sitemap.xml', 'sitemap.xml.gz',
                     'llms.txt', 'llms-full.txt', '.htaccess.bk', '.htaccess.bak', '.htaccess.old',
-                    'humans.txt', 'ads.txt', 'app-ads.txt', 'security.txt'
+                    'humans.txt', 'ads.txt', 'app-ads.txt', 'security.txt',
+                    'wordfence-waf.php', 'site.webmanifest', 'browserconfig.xml', 'crossdomain.xml'
                 ];
 
                 foreach ($root_items as $item_name) {
@@ -201,7 +202,10 @@ class CoreIntegrity {
                         // Check if file is recognized in official root checksums or standard legitimate root list
                         $rel_file = $item_name;
                         $is_google_verify = (bool) preg_match('/^google[a-f0-9]{16,}\.html$/i', $item_name);
-                        $is_standard_entry = in_array($item_name_lower, $known_root_standard_entries, true) || $is_google_verify;
+                        $is_cache_readme  = (bool) preg_match('/^readme\.[a-f0-9]{16,}\.html$/i', $item_name);
+                        $is_product_feed  = (bool) preg_match('/^[a-z0-9_-]*(?:product|feed|sitemap|catalog)[a-z0-9_-]*\.xml$/i', $item_name);
+                        $is_root_media    = (bool) preg_match('/\.(png|jpe?g|gif|svg|ico|webp|avif)$/i', $item_name);
+                        $is_standard_entry = in_array($item_name_lower, $known_root_standard_entries, true) || $is_google_verify || $is_cache_readme || $is_product_feed || $is_root_media;
 
                         if (!isset($checksums[$rel_file]) && !$is_standard_entry) {
                             $ext = strtolower(pathinfo($item_name, PATHINFO_EXTENSION));
@@ -252,6 +256,16 @@ class CoreIntegrity {
                                     // Whitelist recognized .well-known RFC 5785 tokens (e.g. apple-developer-merchantid-domain-association, pki-validation)
                                     if ($item_name_lower === '.well-known' && !$child_executable) {
                                         continue;
+                                    }
+
+                                    // Whitelist benign plugin cache/configuration files in conf/ directory (e.g. imagify.conf or safe directory silence index)
+                                    if ($item_name_lower === 'conf') {
+                                        if ($child_ext === 'conf') {
+                                            continue;
+                                        }
+                                        if ($child_item->getBasename() === 'index.php' && \WcpScanner\System\SettingsManager::is_safe_directory_index($child_full_path)) {
+                                            continue;
+                                        }
                                     }
 
                                     $findings[] = new Finding([

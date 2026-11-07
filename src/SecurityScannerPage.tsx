@@ -1740,6 +1740,12 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   const isRepaired = issue.status === 'repaired';
                   const isExpanded = expandedIssue === issue.id;
 
+                  const isOrphanedAuthor = Boolean(
+                    issue.type === 'orphaned_post_author' ||
+                    issue.file_path?.startsWith('author:')
+                  );
+                  const orphanedAuthorId = (issue.file_path && issue.file_path.match(/author:\s*(\d+)/i)?.[1]) || issue.author_id || '';
+
                   const isUser = Boolean(
                     issue.is_user ||
                     issue.engine === 'wordpress-users' ||
@@ -1956,8 +1962,36 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         borderTop: '1px solid var(--wcp-border, #e2e8f0)'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          {/* 1. User Password Action */}
-                          {isUser && issue.status === 'open' && (
+                          {/* 1. Orphaned Author: Reassign Posts Action */}
+                          {isOrphanedAuthor && issue.status === 'open' && (
+                            <a
+                              href={`edit.php?author=${orphanedAuthorId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="wcp-btn"
+                              style={{
+                                background: '#4f46e5',
+                                color: '#ffffff',
+                                border: 'none',
+                                padding: '6px 14px',
+                                borderRadius: '7px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                textDecoration: 'none',
+                                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
+                              }}
+                              title={`Open posts authored by deleted author #${orphanedAuthorId} to reassign attribution`}
+                            >
+                              <FileText size={13} />
+                              <span>Reassign Posts in WP-Admin ↗</span>
+                            </a>
+                          )}
+
+                          {/* 1b. User Password / Capability Action */}
+                          {!isOrphanedAuthor && isUser && issue.status === 'open' && (
                             <a
                               href={`user-edit.php?user_id=${(issue.file_path && issue.file_path.match(/user:\s*(\d+)/i)?.[1]) || issue.user_id || 1}`}
                               target="_blank"
@@ -1977,10 +2011,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 textDecoration: 'none',
                                 boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
                               }}
-                              title="Open user profile in new tab to update password"
+                              title={issue.type === 'user_missing_capabilities' ? 'Open user profile to review or assign role capabilities' : 'Open user profile in new tab to update password'}
                             >
-                              <Key size={13} />
-                              <span>Update Password in WP-Admin ↗</span>
+                              {issue.type === 'user_missing_capabilities' ? <UserCheck size={13} /> : <Key size={13} />}
+                              <span>{issue.type === 'user_missing_capabilities' ? 'Fix Capabilities in WP-Admin ↗' : 'Update Password in WP-Admin ↗'}</span>
                             </a>
                           )}
 
@@ -2295,6 +2329,12 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       const isCronHook = issue.engine === 'wordpress-cron' || issue.file_path?.startsWith('cron:') || issue.type?.includes('cron_hook');
                       const isDbOption = issue.engine === 'database-options' || issue.file_path?.startsWith('wp_options:') || issue.type?.includes('option');
                       const isHook = issue.engine === 'lotl-hook-sentinel' || issue.engine === 'hook-sentinel' || issue.file_path?.startsWith('hook:') || isCronHook;
+                      const isOrphanedAuthor = Boolean(
+                        issue.type === 'orphaned_post_author' ||
+                        issue.file_path?.startsWith('author:')
+                      );
+                      const orphanedAuthorId = (issue.file_path && issue.file_path.match(/author:\s*(\d+)/i)?.[1]) || issue.author_id || '';
+
                       const isUser = Boolean(
                         issue.is_user ||
                         issue.engine === 'wordpress-users' ||
@@ -2506,8 +2546,35 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                             <td style={{ textAlign: 'right' }}>
                               <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                {/* 1. User account / weak password: Update Password in WP-Admin */}
-                                {isUser && issue.status === 'open' && (
+                                {/* 1. Orphaned Author: Reassign Posts in WP-Admin */}
+                                {isOrphanedAuthor && issue.status === 'open' && (
+                                  <a
+                                    href={`edit.php?author=${orphanedAuthorId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="wcp-btn"
+                                    style={{
+                                      background: '#eef2ff',
+                                      color: '#4f46e5',
+                                      border: '1px solid #c7d2fe',
+                                      fontSize: '12px',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      textDecoration: 'none'
+                                    }}
+                                    title={`View posts belonging to deleted author #${orphanedAuthorId}`}
+                                  >
+                                    <FileText size={12} />
+                                    <span>Reassign Posts ↗</span>
+                                  </a>
+                                )}
+
+                                {/* 1b. User account / weak password: Update Password or Fix Capabilities */}
+                                {!isOrphanedAuthor && isUser && issue.status === 'open' && (
                                   <a
                                     href={`user-edit.php?user_id=${(issue.file_path && issue.file_path.match(/user:\s*(\d+)/i)?.[1]) || issue.user_id || 1}`}
                                     target="_blank"
@@ -2526,10 +2593,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                       gap: '4px',
                                       textDecoration: 'none'
                                     }}
-                                    title="Open user profile in new tab to update password or manage credentials"
+                                    title={issue.type === 'user_missing_capabilities' ? 'Open user profile to review or assign role capabilities' : 'Open user profile in new tab to update password or manage credentials'}
                                   >
-                                    <Key size={12} />
-                                    <span>Update Password ↗</span>
+                                    {issue.type === 'user_missing_capabilities' ? <UserCheck size={12} /> : <Key size={12} />}
+                                    <span>{issue.type === 'user_missing_capabilities' ? 'Fix Capabilities ↗' : 'Update Password ↗'}</span>
                                   </a>
                                 )}
 
