@@ -222,8 +222,8 @@ interface FirewallPageProps {
   onNavigateToServerTelemetry?: () => void;
   initialSubTab?: 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense';
   initialSupplyChainSubTab?: 'sbom' | 'gatekeeper' | 'advisor' | 'lockfiles' | 'scripts';
-  initialBehavioralSubTab?: 'learning' | 'honeytoken' | 'ratelimit';
-  initialAiDefenseSubTab?: 'ghost' | 'egress' | 'prompt' | 'credentials' | 'surface';
+  initialBehavioralSubTab?: 'learning' | 'honeytoken' | 'ratelimit' | 'distributed';
+  initialAiDefenseSubTab?: 'ghost' | 'egress' | 'prompt' | 'credentials' | 'surface' | 'taint' | 'geo' | 'blocks';
   onSubTabChange?: (tab: 'stream' | 'rules' | 'caf' | 'drill' | 'supply_chain' | 'behavioral' | 'server_sec' | 'intel' | 'cloudflare' | 'vpatch' | 'ai_defense', nested?: string) => void;
 }
 

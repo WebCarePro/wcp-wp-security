@@ -118,6 +118,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')) {
             \WcpScanner\Firewall\DistributedVelocityShield::init();
         }
+        if (class_exists('\\WcpScanner\\Content\\BlockDirectiveSanitizer')) {
+            \WcpScanner\Content\BlockDirectiveSanitizer::init();
+        }
         if (class_exists('\\WcpScanner\\WordPress\\RestApiInventory')) {
             \WcpScanner\WordPress\RestApiInventory::init();
         }

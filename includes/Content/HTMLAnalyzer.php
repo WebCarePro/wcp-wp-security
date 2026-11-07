@@ -163,6 +163,14 @@ class HTMLAnalyzer {
             }
         }
 
+        // 10. WordPress 6.5+ Interactivity API & Gutenberg Block Directive Sanitization
+        if (class_exists('\\WcpScanner\\Content\\BlockDirectiveSanitizer')) {
+            $block_hits = \WcpScanner\Content\BlockDirectiveSanitizer::audit_content($html);
+            if (!empty($block_hits)) {
+                $detections = array_merge($detections, $block_hits);
+            }
+        }
+
         return $detections;
     }
 }

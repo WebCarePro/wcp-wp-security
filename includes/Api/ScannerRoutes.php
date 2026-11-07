@@ -1489,6 +1489,19 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Gutenberg Interactivity API & Block Directives Guard (2026 AI-Era Defense Pillar 7)
+        register_rest_route(self::NAMESPACE, '/defense/block-security/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_block_security_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/block-security/audit', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'audit_block_directives'],
+            'permission_callback' => $permission,
+        ]);
+
         // 19. Zero-Trust Identity, Session Forensics & Ephemeral Elevation (Pillar 4)
         register_rest_route(self::NAMESPACE, '/identity/status', [
             'methods'             => 'GET',
@@ -10371,6 +10384,50 @@ class ScannerRoutes {
                     count($all_hits)
                 )
                 : __('GEO Audit: Content verified clean. No cloaking or schema poisoning detected.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    /**
+     * Retrieve telemetry status for Gutenberg Interactivity API & Block Directives defense.
+     */
+    public static function get_block_security_status(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Content\BlockDirectiveSanitizer')) {
+            return new \WP_Error('missing_module', __('BlockDirectiveSanitizer module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        return rest_ensure_response(\WcpScanner\Content\BlockDirectiveSanitizer::get_telemetry());
+    }
+
+    /**
+     * On-demand audit or sanitization of Gutenberg block markup or HTML content.
+     */
+    public static function audit_block_directives(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Content\BlockDirectiveSanitizer')) {
+            return new \WP_Error('missing_module', __('BlockDirectiveSanitizer module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $content = (string) $request->get_param('content');
+        if (empty($content)) {
+            return new \WP_Error('missing_param', __('Please provide "content" to audit.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $audit_hits = \WcpScanner\Content\BlockDirectiveSanitizer::audit_content($content);
+        $sanitized  = \WcpScanner\Content\BlockDirectiveSanitizer::sanitize_content($content);
+
+        return rest_ensure_response([
+            'success'           => true,
+            'has_threats'       => !empty($audit_hits),
+            'detections'        => $audit_hits,
+            'threat_count'      => count($audit_hits),
+            'sanitized_content' => $sanitized['content'],
+            'is_modified'       => $sanitized['modified'],
+            'message'           => !empty($audit_hits)
+                ? sprintf(
+                    /* translators: %d: threat count */
+                    __('Block Security: %d hostile directive(s) or sensitive bindings detected.', 'wcp-security-scanner'),
+                    count($audit_hits)
+                )
+                : __('Block Security: Block directives verified clean and valid.', 'wcp-security-scanner'),
         ]);
     }
 
