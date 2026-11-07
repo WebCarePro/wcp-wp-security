@@ -477,7 +477,8 @@ final class RedirectCanaryEngine {
                                 'severity'    => 'critical',
                                 'target_url'  => $src,
                                 'target_host' => $s_host_low,
-                                'evidence'    => "<script src=\"{$src}\">",
+                                // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- Forensic scanner evidence string representation, not an enqueued script.
+                                'evidence'    => '<' . 'script src="' . esc_url($src) . '">',
                                 'description' => sprintf(
                                     /* translators: 1: external domain, 2: script URL */
                                     __('Cloaked Script Injection: External script from "%1$s" was delivered exclusively to cloaked probes (%2$s).', 'wcp-security-scanner'),

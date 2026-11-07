@@ -64,7 +64,6 @@ final class HtaccessShield {
         'lemonsqueezy.com',
         'pay.woocommerce.com',
         'gravatar.com',
-        's.w.org',
         'wordpress.org',
     ];
 
@@ -622,8 +621,8 @@ final class HtaccessShield {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $check_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_redirection));
             if ($check_table === $table_redirection) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                $plugin_targets = $wpdb->get_col("SELECT action_data FROM {$table_redirection} WHERE action_type = 'url' AND action_data LIKE 'http%' LIMIT 100");
+                // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Whitelisted dynamic table name from verified $wpdb->prefix.
+                $plugin_targets = $wpdb->get_col("SELECT action_data FROM `{$table_redirection}` WHERE action_type = 'url' AND action_data LIKE 'http%' LIMIT 100");
                 if (is_array($plugin_targets)) {
                     foreach ($plugin_targets as $p_url) {
                         $p_host = wp_parse_url($p_url, PHP_URL_HOST);
@@ -665,6 +664,7 @@ final class HtaccessShield {
         $target_host = wp_parse_url($trimmed, PHP_URL_HOST);
 
         // Capture forensic call stack to pinpoint the offending file and line
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Forensic call stack analysis to attribute malicious caller file in runtime redirect firewall.
         $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20);
         $offending_file = 'unknown';
         $offending_line = 0;

@@ -43,6 +43,22 @@ final class HtaccessVaultManager {
     }
 
     /**
+     * Safely set filesystem permissions using WP_Filesystem with direct fallback.
+     *
+     * @param string $path Target file path.
+     * @param int    $mode Octal permission mode.
+     * @return bool
+     */
+    public static function safe_chmod(string $path, int $mode): bool {
+        global $wp_filesystem;
+        if ($wp_filesystem instanceof \WP_Filesystem_Direct) {
+            return (bool) $wp_filesystem->chmod($path, $mode);
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Direct chmod fallback for vault isolation and permission hardening.
+        return (bool) @chmod($path, $mode);
+    }
+
+    /**
      * Ensure the vault directory exists and is heavily locked down against public web execution.
      *
      * @param string $vault_dir Absolute directory path.
@@ -65,7 +81,7 @@ final class HtaccessVaultManager {
             $rules .= "</FilesMatch>\n";
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
             @file_put_contents($htaccess, $rules);
-            @chmod($htaccess, 0644);
+            self::safe_chmod($htaccess, 0644);
         }
 
         // 2. Lock with index.php
@@ -73,7 +89,7 @@ final class HtaccessVaultManager {
         if (!file_exists($index)) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
             @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
-            @chmod($index, 0644);
+            self::safe_chmod($index, 0644);
         }
     }
 
@@ -162,14 +178,14 @@ final class HtaccessVaultManager {
             // Fallback direct write
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
             @file_put_contents($dest_file, $disk_file_content);
-            @chmod($dest_file, 0600);
+            self::safe_chmod($dest_file, 0600);
         }
 
         // 5. Update Emergency Clean Copy (used by Preload Micro-WAF watchdog with zero WP bootstrap overhead)
         $emergency_file = $vault_dir . '/' . self::EMERGENCY_FILE_NAME;
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
         @file_put_contents($emergency_file, $content, LOCK_EX);
-        @chmod($emergency_file, 0600);
+        self::safe_chmod($emergency_file, 0600);
 
         // 6. Update Encrypted Database Fallback Mirror
         $db_snapshots = self::get_db_snapshots();
@@ -360,14 +376,14 @@ final class HtaccessVaultManager {
         $htaccess_path = ABSPATH . '.htaccess';
 
         // Unlock read-only mode if currently active
-        if (file_exists($htaccess_path) && !is_writable($htaccess_path)) {
-            @chmod($htaccess_path, 0644);
+        if (file_exists($htaccess_path) && !wp_is_writable($htaccess_path)) {
+            self::safe_chmod($htaccess_path, 0644);
         }
 
         $written = PathValidator::safe_atomic_write($htaccess_path, $clean_content, ABSPATH, 0644);
         if (!$written) {
             // Direct write fallback
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+            // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Direct write to root .htaccess to restore clean permalinks and server armor from vault.
             $res = @file_put_contents($htaccess_path, $clean_content, LOCK_EX);
             if ($res === false) {
                 return [
@@ -379,7 +395,7 @@ final class HtaccessVaultManager {
 
         // Re-apply read-only lock if enabled
         if (get_option(self::OPTION_READONLY_LOCK, false)) {
-            @chmod($htaccess_path, 0444);
+            self::safe_chmod($htaccess_path, 0444);
         }
 
         // 6. Purge all full-page and opcode caches
@@ -512,7 +528,7 @@ final class HtaccessVaultManager {
         }
 
         $perms = $locked ? 0444 : 0644;
-        $res   = @chmod($htaccess_path, $perms);
+        $res   = self::safe_chmod($htaccess_path, $perms);
         update_option(self::OPTION_READONLY_LOCK, (bool) $locked);
         return $res;
     }

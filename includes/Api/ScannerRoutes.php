@@ -7551,7 +7551,7 @@ class ScannerRoutes {
         $htaccess_path = ABSPATH . '.htaccess';
         $htaccess_exists = file_exists($htaccess_path);
         $htaccess_content = $htaccess_exists ? (@file_get_contents($htaccess_path) ?: '') : '';
-        $htaccess_writable = $htaccess_exists ? is_writable($htaccess_path) : is_writable(ABSPATH);
+        $htaccess_writable = $htaccess_exists ? wp_is_writable($htaccess_path) : wp_is_writable(ABSPATH);
 
         $analysis = class_exists('\\WcpScanner\\Firewall\\HtaccessShield')
             ? \WcpScanner\Firewall\HtaccessShield::analyze_htaccess_content($htaccess_content)
