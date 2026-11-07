@@ -403,48 +403,37 @@ class QuarantineManager {
                 wp_delete_file($temp_dest);
                 return ['success' => false, 'message' => 'Failed to safely move restored large file to destination.'];
             }
-
-            wp_delete_file($source_path);
-
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $wpdb->update($table, [
-                'status'          => 'restored',
-                'restored_at'     => current_time('mysql'),
-                'restored_at_gmt' => gmdate('Y-m-d H:i:s'),
-            ], ['id' => $quarantine_id]);
-
-            return ['success' => true, 'message' => 'Large file successfully restored to original location.'];
-        }
-
-        // Read vault file and extract payload
-        $vault_raw = @file_get_contents($source_path);
-        if ($vault_raw === false) {
-            return ['success' => false, 'message' => 'Failed to read vault file for restoration.'];
-        }
-
-        $payload = $vault_raw;
-        $halt_marker = '__halt_compiler(); ' . '?>';
-        $pos = strpos($vault_raw, $halt_marker);
-        if ($pos !== false) {
-            $payload = ltrim(substr($vault_raw, $pos + strlen($halt_marker)), "\r\n");
-        }
-
-        // Decrypt ciphertext if encrypted
-        if (\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
-            $decrypted = \WcpScanner\Security\SecretVault::decrypt($payload);
-            if ($decrypted === false) {
-                return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted vault ciphertext.'];
-            }
-            $clean_data = $decrypted;
         } else {
-            // Legacy unencrypted plaintext fallback
-            $clean_data = $payload;
-        }
+            // Read vault file and extract payload
+            $vault_raw = @file_get_contents($source_path);
+            if ($vault_raw === false) {
+                return ['success' => false, 'message' => 'Failed to read vault file for restoration.'];
+            }
 
-        // Atomically write restored plaintext to original destination, preventing symlink follower races
-        $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
-        if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
-            return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
+            $payload = $vault_raw;
+            $halt_marker = '__halt_compiler(); ' . '?>';
+            $pos = strpos($vault_raw, $halt_marker);
+            if ($pos !== false) {
+                $payload = ltrim(substr($vault_raw, $pos + strlen($halt_marker)), "\r\n");
+            }
+
+            // Decrypt ciphertext if encrypted
+            if (\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
+                $decrypted = \WcpScanner\Security\SecretVault::decrypt($payload);
+                if ($decrypted === false) {
+                    return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted vault ciphertext.'];
+                }
+                $clean_data = $decrypted;
+            } else {
+                // Legacy unencrypted plaintext fallback
+                $clean_data = $payload;
+            }
+
+            // Atomically write restored plaintext to original destination, preventing symlink follower races
+            $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
+            if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
+                return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
+            }
         }
 
         // Unlink vault storage file

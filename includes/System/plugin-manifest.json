@@ -1,6 +1,6 @@
 {
   "version": "2.7.1",
-  "generated_at": "2026-11-07T08:46:45.126Z",
+  "generated_at": "2026-11-07T09:00:14.393Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -524,8 +524,8 @@
       "size": 1185
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "82e43e8e71a0d4a4f8bb7934a5d265e1f16253baa094c5ee4c93ff7a6391f684",
-      "size": 32419
+      "sha256": "8cb087bc0457c6a4fb88bc68ecf748dca2ace1df24a8f03c0160eb9500b12df7",
+      "size": 32023
     },
     "includes/Quarantine/ReinfectionWatchdog.php": {
       "sha256": "0afbf7d544e07d9cf8e764a17323a3886a5ac3c84b54d972709174978c418ea8",
