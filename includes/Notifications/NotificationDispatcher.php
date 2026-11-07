@@ -132,6 +132,20 @@ class NotificationDispatcher {
                 'description' => __('Notifies when hardening directives are appended or updated in web server configuration files.', 'wcp-security-scanner'),
                 'severity'    => 'info',
             ],
+            'redirect_hack_detected' => [
+                'category'    => 'cloudflare_waf',
+                'category_label' => __('Cloudflare & WAF Defense', 'wcp-security-scanner'),
+                'title'       => __('Zero-Day Redirect Hack / Hijack Intercepted', 'wcp-security-scanner'),
+                'description' => __('Critical alert when a malicious .htaccess redirect, search/mobile cloaker, or runtime PHP redirection is detected.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
+            'redirect_hack_auto_healed' => [
+                'category'    => 'cloudflare_waf',
+                'category_label' => __('Cloudflare & WAF Defense', 'wcp-security-scanner'),
+                'title'       => __('Redirect Hack Remediated / .htaccess Restored', 'wcp-security-scanner'),
+                'description' => __('Notifies when a tampered .htaccess is automatically restored from the vault and all site caches are purged.', 'wcp-security-scanner'),
+                'severity'    => 'info',
+            ],
 
             // Category: Authentication & 2FA
             'auth_admin_login' => [

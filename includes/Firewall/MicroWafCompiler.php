@@ -181,7 +181,7 @@ class MicroWafCompiler {
                 'desc'    => 'Remote Code Execution / Webshell Ingress',
             ],
             'LFI-PATH' => [
-                'pattern' => '/(?:\.\.[\\\/]){2,}|(?:\/etc\/(?:passwd|shadow|hosts)|\bwindows[\\\/]win\.ini\b)/i',
+                'pattern' => '~(?:\.\.[\\\/]){2,}|(?:\/etc\/(?:passwd|shadow|hosts)|\bwindows[\\\/]win\.ini\b)~i',
                 'desc'    => 'Path Traversal / Local File Inclusion Probe',
             ],
             'RECON-DOT' => [
@@ -200,7 +200,26 @@ class MicroWafCompiler {
                 // 4. Compile CAF (Context-Adaptive Firewall) Phase 1 Rules
         self::compile_caf_data_artifact();
 
-        $code = self::generate_standalone_code($blocked_ips, $compiled_signatures, $fail2ban_log, $bypass_token, $chained_file);
+        // 5. Resolve .htaccess mtime and emergency vault for Anti-Deadlock Watchdog
+        $htaccess_path = ABSPATH . '.htaccess';
+        $htaccess_mtime = file_exists($htaccess_path) ? (int) @filemtime($htaccess_path) : 0;
+        $emergency_vault = class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')
+            ? HtaccessVaultManager::get_vault_dir() . '/' . HtaccessVaultManager::EMERGENCY_FILE_NAME
+            : '';
+        if (!empty($emergency_vault) && !file_exists($emergency_vault) && file_exists($htaccess_path)) {
+            HtaccessVaultManager::snapshot_current_if_clean('micro_waf_init');
+        }
+
+        $code = self::generate_standalone_code(
+            $blocked_ips,
+            $compiled_signatures,
+            $fail2ban_log,
+            $bypass_token,
+            $chained_file,
+            $htaccess_path,
+            $emergency_vault,
+            $htaccess_mtime
+        );
 
         // Write compiled file atomically
         $temp_file = $compiled_file . '.tmp.' . wp_rand();
@@ -248,13 +267,24 @@ class MicroWafCompiler {
     /**
      * Generate the complete standalone PHP source code for the Micro-WAF.
      */
-    private static function generate_standalone_code(array $blocked_ips, array $signatures, string $fail2ban_log, string $bypass_token, string $chained_file = ''): string {
+    private static function generate_standalone_code(
+        array $blocked_ips,
+        array $signatures,
+        string $fail2ban_log,
+        string $bypass_token,
+        string $chained_file = '',
+        string $htaccess_path = '',
+        string $emergency_vault = '',
+        int $expected_htaccess_mtime = 0
+    ): string {
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $ips_export = var_export($blocked_ips, true);
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $sigs_export = var_export($signatures, true);
         $fail2ban_escaped = addslashes($fail2ban_log);
         $bypass_escaped = addslashes($bypass_token);
+        $htaccess_escaped = addslashes($htaccess_path);
+        $vault_escaped    = addslashes($emergency_vault);
 
         $out = "<?php\n";
         $out .= "/**\n";
@@ -282,8 +312,34 @@ class MicroWafCompiler {
         $out .= "try {\n";
         $out .= "    (function() {\n";
         $out .= "        \$fail2ban_log = '{$fail2ban_escaped}';\n";
-        $out .= "        \$blocked_ips = {$ips_export};\n";
-        $out .= "        \$signatures  = {$sigs_export};\n\n";
+        $out .= "        \$blocked_ips = " . $ips_export . ";\n";
+        $out .= "        \$signatures  = " . $sigs_export . ";\n\n";
+
+        // Preload Anti-Deadlock .htaccess Watchdog
+        $out .= "        // 0. Preload .htaccess Anti-Deadlock Mtime Watchdog\n";
+        $out .= "        \$ht_path = '{$htaccess_escaped}';\n";
+        $out .= "        \$v_emerg = '{$vault_escaped}';\n";
+        $out .= "        \$exp_mtime = {$expected_htaccess_mtime};\n";
+        $out .= "        if (\$exp_mtime > 0 && !empty(\$ht_path) && !empty(\$v_emerg) && file_exists(\$ht_path) && file_exists(\$v_emerg)) {\n";
+        $out .= "            \$cur_mtime = (int) @filemtime(\$ht_path);\n";
+        $out .= "            if (\$cur_mtime !== \$exp_mtime) {\n";
+        $out .= "                \$ht_content = (string) @file_get_contents(\$ht_path);\n";
+        $out .= "                if (\$ht_content !== '' && (\n";
+        $out .= "                    preg_match('/RewriteRule\s+\\^\\.\\*\\$\\s+https?:\\/\\//i', \$ht_content) ||\n";
+        $out .= "                    preg_match('/RewriteCond\s+%{HTTP_REFERER}\s+.*(google|bing|yahoo).*\s+RewriteRule\s+.*https?:\\/\\//is', \$ht_content) ||\n";
+        $out .= "                    preg_match('/RewriteCond\s+%{HTTP_USER_AGENT}\s+.*(android|iphone|mobile).*\s+RewriteRule\s+.*https?:\\/\\//is', \$ht_content) ||\n";
+        $out .= "                    preg_match('/RedirectMatch\s+30[12]\s+\\^[\\/.]*\\s+https?:\\/\\//i', \$ht_content)\n";
+        $out .= "                )) {\n";
+        $out .= "                    \$clean_data = (string) @file_get_contents(\$v_emerg);\n";
+        $out .= "                    if (\$clean_data !== '') {\n";
+        $out .= "                        @chmod(\$ht_path, 0644);\n";
+        $out .= "                        @file_put_contents(\$ht_path, \$clean_data, LOCK_EX);\n";
+        $out .= "                        \$log_entry = sprintf(\"[%s] [WCP-MICRO-WAF] [AUTO-HEAL] Global .htaccess redirect hijack auto-restored from emergency vault! Tampered mtime: %d\\n\", gmdate('Y-m-d H:i:s'), \$cur_mtime);\n";
+        $out .= "                        @file_put_contents(\$fail2ban_log, \$log_entry, FILE_APPEND | LOCK_EX);\n";
+        $out .= "                    }\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n\n";
 
         $out .= "        // 1. Resolve real client IP\n";
         $out .= "        \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";

@@ -226,6 +226,33 @@ class ActivityHumanizer {
                 $badge_label = 'System Health';
                 break;
 
+            case 'htaccess_vault_snapshot_saved':
+                $v = $details['version'] ?? 1;
+                $reason = $details['reason'] ?? 'auto';
+                $title       = sprintf('Archived .htaccess to Vault Snapshot #%d', $v);
+                $description = sprintf('Verified-clean root .htaccess configuration was archived into Vault Snapshot #%1$d (trigger: %2$s).', $v, $reason);
+                $badge       = 'info';
+                $badge_label = 'Server Armor';
+                break;
+
+            case 'htaccess_restored_from_vault':
+                $v = $details['version'] ?? 1;
+                $source = $details['source'] ?? 'disk';
+                $title       = sprintf('Restored .htaccess from Vault Snapshot #%d', $v);
+                $description = sprintf('Root .htaccess was restored from Vault Snapshot #%1$d (%2$s) and all site caches were purged.', $v, $source);
+                $badge       = 'clean';
+                $badge_label = 'Auto-Healing';
+                break;
+
+            case 'waf_runtime_redirect_intercepted':
+                $t_host = $details['target_host'] ?? 'External';
+                $src = $details['source_file'] ?? 'unknown';
+                $title       = sprintf('Runtime Guest Redirect Hijack Blocked: %s', $t_host);
+                $description = sprintf('An unauthorized external guest redirect to "%1$s" was intercepted and neutralized back to homepage (attributed to %2$s).', $details['target_url'] ?? $t_host, $src);
+                $badge       = 'danger';
+                $badge_label = 'Redirect Defense';
+                break;
+
             case 'policy_updated':
                 $option = $details['option'] ?? '';
                 if (str_contains($option, 'micro_waf_status')) {

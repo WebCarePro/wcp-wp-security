@@ -288,6 +288,8 @@ class SettingsManager {
             'waf_block_surge'           => ['email' => false, 'webhook' => false],
             'waf_virtual_patch_hit'     => ['email' => false, 'webhook' => false],
             'waf_server_rules_updated'  => ['email' => false, 'webhook' => false],
+            'redirect_hack_detected'    => ['email' => true,  'webhook' => true],
+            'redirect_hack_auto_healed' => ['email' => false, 'webhook' => false],
 
             // Authentication & 2FA
             'auth_admin_login'                  => ['email' => false, 'webhook' => false],

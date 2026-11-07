@@ -56,6 +56,12 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
             \WcpScanner\Firewall\FirewallEngine::init();
         }
+        if (class_exists('\\WcpScanner\\Firewall\\HtaccessShield')) {
+            \WcpScanner\Firewall\HtaccessShield::init();
+        }
+        if (class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+            \WcpScanner\Firewall\HtaccessVaultManager::register_cli();
+        }
 
         if (class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager')) {
             \WcpScanner\Security\EmergencyContainmentManager::init();
