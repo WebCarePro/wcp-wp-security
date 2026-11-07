@@ -355,7 +355,7 @@ class EphemeralAdminEngine {
             \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_granted', [
                 'severity' => 'high',
                 /* translators: 1: user login, 2: duration in minutes */
-                'message'  => sprintf(__('Zero-Trust temporary support access granted to %1$s for %2$d minutes.', 'wcp-security-scanner'), $user->user_login, $duration_minutes),
+                'message'  => sprintf(__('JIT Ephemeral Administrator elevation granted to %1$s for %2$d minutes.', 'wcp-security-scanner'), $user->user_login, $duration_minutes),
                 'details'  => [
                     'Elevated User'  => $user->user_login,
                     'Baseline Role'  => $baseline_role,
@@ -431,7 +431,7 @@ class EphemeralAdminEngine {
             \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_revoked', [
                 'severity' => 'info',
                 /* translators: 1: user login, 2: restored baseline role name */
-                'message'  => sprintf(__('Zero-Trust temporary support access revoked for %1$s. Restored to %2$s.', 'wcp-security-scanner'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
+                'message'  => sprintf(__('JIT Ephemeral Administrator elevation revoked for %1$s. Restored to %2$s.', 'wcp-security-scanner'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
                 'details'  => [
                     'User Account'   => $entry['user_login'] ?? "ID {$user_id}",
                     'Restored Role'  => $baseline_role,
@@ -488,6 +488,19 @@ class EphemeralAdminEngine {
             'jit_elevation_expired',
             sprintf('JIT Ephemeral Elevation time expired for user "%s". Automatically restored to baseline role "%s".', $entry['user_login'] ?? "ID {$user_id}", $baseline_role)
         );
+
+        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_revoked', [
+                'severity' => 'info',
+                /* translators: 1: user login, 2: restored baseline role name */
+                'message'  => sprintf(__('JIT Ephemeral Administrator elevation expired for %1$s. Automatically restored to %2$s.', 'wcp-security-scanner'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
+                'details'  => [
+                    'User Account'   => $entry['user_login'] ?? "ID {$user_id}",
+                    'Restored Role'  => $baseline_role,
+                    'Revoke Reason'  => 'time_expired',
+                ],
+            ]);
+        }
     }
 
     /**

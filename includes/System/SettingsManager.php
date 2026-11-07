@@ -290,10 +290,11 @@ class SettingsManager {
             'waf_server_rules_updated'  => ['email' => false, 'webhook' => false],
 
             // Authentication & 2FA
-            'auth_admin_login'          => ['email' => false, 'webhook' => false],
-            'auth_admin_password_reset' => ['email' => false, 'webhook' => false],
-            'auth_2fa_enabled'          => ['email' => false, 'webhook' => false],
-            'auth_2fa_disabled'         => ['email' => false, 'webhook' => false],
+            'auth_admin_login'                  => ['email' => false, 'webhook' => false],
+            'auth_admin_password_reset'         => ['email' => false, 'webhook' => false],
+            'auth_application_password_created' => ['email' => false, 'webhook' => false],
+            'auth_2fa_enabled'                  => ['email' => false, 'webhook' => false],
+            'auth_2fa_disabled'                 => ['email' => false, 'webhook' => false],
             'auth_bruteforce_lockout'   => ['email' => false, 'webhook' => false],
             'auth_cf_edge_ban_synced'   => ['email' => false, 'webhook' => false],
             'auth_session_hijack_flag'  => ['email' => false, 'webhook' => false],

@@ -1,4 +1,9 @@
 v:2.7.1 - 2026-11-07
+- Notification Center Event Verification & Alignment Suite:
+  * Aligned "Zero-Trust Temporary Support Access Created" with current Just-In-Time (JIT) ephemeral administrator architecture: Renamed titles and descriptions to "JIT Ephemeral Administrator Elevation Granted" and "JIT Ephemeral Elevation Revoked / Expired". Connected expiration trigger in EphemeralAdminEngine.php so automatic time expirations dispatch alerts.
+  * Synchronized SettingsManager notification defaults with NotificationDispatcher catalog (63/63 events aligned), adding the default matrix configuration for auth_application_password_created.
+  * Connected behavioral_rate_limit_exceeded trigger directly to AdaptiveRateLimiter.php with intelligent 15-minute debouncing per client IP and boundary bucket.
+  * Verified all 63 notification events across both Email (wp_mail HTML delivery) and DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Custom JSON) with 100% pass rate.
 - Dedicated Notification Center & Activity Logs Bundle Decoupling:
   * Resolved Notification Center page loading issue where clicking "Notification Center 60+ EVENTS" or navigating to admin.php?page=wcp-scanner-notifications loaded the generic scan schedule settings instead of the full dedicated 60+ Event Notification Center.
   * Added decoupled webpack entrypoints and compiled production bundles build/notifications.js and build/activity-logs.js.

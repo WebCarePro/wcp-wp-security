@@ -340,6 +340,26 @@ class AdaptiveRateLimiter {
         // Record throttle telemetry
         self::record_throttle_incident($client_ip, $bucket, $count, $limit);
 
+        // Notify if behavioral rate limit exceeded notification is active (debounced per IP)
+        $rl_notif_lock = 'wcpscan_rl_notif_' . md5($client_ip . '_' . $bucket);
+        if (!get_transient($rl_notif_lock)) {
+            set_transient($rl_notif_lock, 1, 900); // 15-minute debounce per IP and bucket
+            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+                \WcpScanner\Notifications\NotificationDispatcher::trigger('behavioral_rate_limit_exceeded', [
+                    'severity' => 'high',
+                    /* translators: 1: client IP, 2: rate limit bucket name, 3: request count, 4: limit */
+                    'message'  => sprintf(__('Client IP %1$s exceeded the velocity threshold for %2$s (%3$d requests against limit of %4$d).', 'wcp-security-scanner'), $client_ip, strtoupper($bucket), $count, $limit),
+                    'details'  => [
+                        'Offending IP'    => $client_ip,
+                        'Boundary Bucket' => strtoupper($bucket),
+                        'Request Count'   => $count,
+                        'Window Limit'    => $limit,
+                        'Retry-After'     => $retry_after . 's',
+                    ],
+                ]);
+            }
+        }
+
         status_header(429);
         header('Retry-After: ' . $retry_after);
         header('X-WCP-Rate-Limit-Bucket: ' . rawurlencode($bucket));

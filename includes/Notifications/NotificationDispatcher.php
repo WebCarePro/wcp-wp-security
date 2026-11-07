@@ -423,15 +423,15 @@ class NotificationDispatcher {
             'auth_temporary_access_granted' => [
                 'category'    => 'auth',
                 'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
-                'title'       => __('Zero-Trust Temporary Support Access Created', 'wcp-security-scanner'),
-                'description' => __('Notifies when a time-limited, sandboxed technician link is issued under MU Guardian supervision.', 'wcp-security-scanner'),
+                'title'       => __('JIT Ephemeral Administrator Elevation Granted', 'wcp-security-scanner'),
+                'description' => __('Notifies when temporary Just-In-Time administrative privileges are granted to an existing user account.', 'wcp-security-scanner'),
                 'severity'    => 'high',
             ],
             'auth_temporary_access_revoked' => [
                 'category'    => 'auth',
                 'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
-                'title'       => __('Temporary Support Access Revoked / Expired', 'wcp-security-scanner'),
-                'description' => __('Fires when a technician session is prematurely terminated or reaches its expiration boundary.', 'wcp-security-scanner'),
+                'title'       => __('JIT Ephemeral Elevation Revoked / Expired', 'wcp-security-scanner'),
+                'description' => __('Fires when a temporary elevation session is manually terminated or automatically expired back to baseline privileges.', 'wcp-security-scanner'),
                 'severity'    => 'info',
             ],
             'auth_impossible_travel_flag' => [
