@@ -6359,9 +6359,6 @@ class FirewallEngine {
                 $rule_cat,
                 $incident_id
             );
-            if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-                \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'critical_exploit');
-            }
         } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             $event_type = 'probe_404';
             if (str_contains($rule_id_str, 'HONEY') || str_contains($rule_id_str, 'SENSITIVE') || str_contains($rule_id_str, 'ENV') || str_contains($rule_id_str, 'GIT')) {

@@ -1,6 +1,6 @@
 {
   "version": "2.8.0",
-  "generated_at": "2026-11-07T20:18:44.669Z",
+  "generated_at": "2026-11-07T20:24:46.591Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -364,8 +364,8 @@
       "size": 3070
     },
     "includes/Firewall/CAF/ThreatScoreTracker.php": {
-      "sha256": "0aa29db5f9b32a9e6d7a1910dde2a35f9eeb6f66938a0c5cebcdf7035bb1ec51",
-      "size": 11439
+      "sha256": "c19b2fe3bf1b68bee6d4532c9e197bf396198780c0a4a7a24eb460f802fb76cb",
+      "size": 11417
     },
     "includes/Firewall/CVEIntelligenceService.php": {
       "sha256": "9adcbdc67af67a974fd7fd217467d0f01925115586ba24904bb3831d51d29040",
@@ -380,8 +380,8 @@
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "8f6201938582c8204b2c71e8c241c645724bcb7e99fb5193d4126325af59c371",
-      "size": 417747
+      "sha256": "599002aced705e49eabfbff160da2ba5e059412e4430bbc734558d8110ebf6a0",
+      "size": 417543
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "a3ca3ac585deff3badcd521cb195b7ab29da6b2ae59bccf2335ac91dd292773d",

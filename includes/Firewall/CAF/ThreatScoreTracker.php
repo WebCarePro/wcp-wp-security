@@ -186,7 +186,6 @@ class ThreatScoreTracker {
                 $ip,
                 sprintf('ThreatScore %.1f: %s', $score, $reason),
                 86400,
-                null,
                 'CAF-THREAT-SCORE',
                 'CAF Autonomous Threat Score Ban',
                 'Context-Adaptive Firewall'
