@@ -149,6 +149,20 @@ class HTMLAnalyzer {
             }
         }
 
+        // 8. JSON-LD Structured Data Schema Poisoning & GEO AI SEO Shield
+        if (class_exists('\\WcpScanner\\Content\\GeoShieldService')) {
+            $jsonld_hits = \WcpScanner\Content\GeoShieldService::audit_jsonld_schemas($html);
+            if (!empty($jsonld_hits)) {
+                $detections = array_merge($detections, $jsonld_hits);
+            }
+
+            // 9. GEO Invisible CSS Cloaking (Transparent text, contrast cloaking, abused sr-only)
+            $geo_cloak_hits = \WcpScanner\Content\GeoShieldService::audit_geo_cloaking($html);
+            if (!empty($geo_cloak_hits)) {
+                $detections = array_merge($detections, $geo_cloak_hits);
+            }
+        }
+
         return $detections;
     }
 }

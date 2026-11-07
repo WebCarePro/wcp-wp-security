@@ -1470,6 +1470,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // AI SEO, /llms.txt & JSON-LD GEO Shield (2026 AI-Era Defense Pillar 6)
+        register_rest_route(self::NAMESPACE, '/defense/geo-shield/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_geo_shield_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/geo-shield/save-baseline', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_geo_llms_baseline'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/geo-shield/audit-content', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'audit_geo_content'],
+            'permission_callback' => $permission,
+        ]);
+
         // 19. Zero-Trust Identity, Session Forensics & Ephemeral Elevation (Pillar 4)
         register_rest_route(self::NAMESPACE, '/identity/status', [
             'methods'             => 'GET',
@@ -10296,6 +10315,62 @@ class ScannerRoutes {
             'finding'     => null,
             'taint_chain' => [],
             'message'     => __('Clean: No untrusted taint flow reached an execution sink.', 'wcp-security-scanner')
+        ]);
+    }
+
+    /**
+     * Retrieve telemetry and status of the AI SEO & GEO Shield.
+     */
+    public static function get_geo_shield_status(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Content\GeoShieldService')) {
+            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        return rest_ensure_response(\WcpScanner\Content\GeoShieldService::get_telemetry());
+    }
+
+    /**
+     * Save the pristine cryptographic baseline for /llms.txt and /llms-full.txt.
+     */
+    public static function save_geo_llms_baseline(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Content\GeoShieldService')) {
+            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $res = \WcpScanner\Content\GeoShieldService::save_llms_baseline();
+        return rest_ensure_response($res);
+    }
+
+    /**
+     * On-demand audit of HTML or content for GEO invisible cloaking and JSON-LD poisoning.
+     */
+    public static function audit_geo_content(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Content\GeoShieldService')) {
+            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $raw_html = (string) $request->get_param('html');
+        if (empty($raw_html)) {
+            return new \WP_Error('missing_param', __('Please provide "html" content to audit.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        $jsonld_hits = \WcpScanner\Content\GeoShieldService::audit_jsonld_schemas($raw_html);
+        $cloak_hits  = \WcpScanner\Content\GeoShieldService::audit_geo_cloaking($raw_html);
+        $all_hits    = array_merge($jsonld_hits, $cloak_hits);
+
+        return rest_ensure_response([
+            'success'     => true,
+            'has_threats' => !empty($all_hits),
+            'detections'  => $all_hits,
+            'jsonld_hits' => count($jsonld_hits),
+            'cloak_hits'  => count($cloak_hits),
+            'message'     => !empty($all_hits)
+                ? sprintf(
+                    /* translators: %d: threat count */
+                    __('GEO Audit: %d deceptive elements or poisoned schema attributes detected.', 'wcp-security-scanner'),
+                    count($all_hits)
+                )
+                : __('GEO Audit: Content verified clean. No cloaking or schema poisoning detected.', 'wcp-security-scanner'),
         ]);
     }
 

@@ -86,6 +86,12 @@ class ImportantFileFIM {
         $mu_findings = $this->audit_must_use_plugins($scan_id);
         $findings = array_merge($findings, $mu_findings);
 
+        // 4. Audit AI Search & GEO Foundation Files (llms.txt, llms-full.txt)
+        if (class_exists('\\WcpScanner\\Content\\GeoShieldService')) {
+            $geo_findings = \WcpScanner\Content\GeoShieldService::audit_fim_llms_files($scan_id);
+            $findings = array_merge($findings, $geo_findings);
+        }
+
         return $findings;
     }
 
