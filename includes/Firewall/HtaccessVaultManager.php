@@ -473,6 +473,7 @@ final class HtaccessVaultManager {
 
         // 2. LiteSpeed Cache
         if (has_action('litespeed_purge_all')) {
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Triggering LiteSpeed Cache plugin purge hook.
             do_action('litespeed_purge_all');
         }
 

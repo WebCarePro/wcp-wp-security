@@ -82,6 +82,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
             \WcpScanner\Auth\LoginHistoryManager::init();
         }
+        if (class_exists('\\WcpScanner\\Auth\\ApplicationPasswordSentinel')) {
+            \WcpScanner\Auth\ApplicationPasswordSentinel::init();
+        }
         if (class_exists('\\WcpScanner\\Security\\PluginSelfDefense')) {
             \WcpScanner\Security\PluginSelfDefense::init();
         }

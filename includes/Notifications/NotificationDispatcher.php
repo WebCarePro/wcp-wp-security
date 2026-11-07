@@ -211,6 +211,13 @@ class NotificationDispatcher {
                 'description' => __('Fires immediately if a new administrator or super-admin account is registered.', 'wcp-security-scanner'),
                 'severity'    => 'critical',
             ],
+            'auth_app_password_consent_trap' => [
+                'category'    => 'auth',
+                'category_label' => __('Authentication & Access Security', 'wcp-security-scanner'),
+                'title'       => __('Application Password Phishing Trap Blocked', 'wcp-security-scanner'),
+                'description' => __('Dispatches an immediate alert when an unauthorized external callback URL attempts to steal an Application Password via authorize-application.php.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
 
             // Category: File Integrity Monitoring (FIM)
             'fim_core_file_modified' => [

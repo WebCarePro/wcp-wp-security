@@ -511,6 +511,82 @@ class UserScanner {
             }
         }
 
+        // 7. REST Application Passwords Security & Stale Credential Audit
+        if (class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+            $app_passwords     = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+            $disabled_policy   = (bool) get_option(\WcpScanner\Auth\ApplicationPasswordSentinel::OPTION_DISABLED, 0);
+            $admin_only_policy = (bool) get_option(\WcpScanner\Auth\ApplicationPasswordSentinel::OPTION_ADMIN_ONLY, 1);
+
+            if (!empty($app_passwords)) {
+                $stale_passwords        = [];
+                $unprivileged_passwords = [];
+                $total_app_pass         = count($app_passwords);
+
+                foreach ($app_passwords as $pw) {
+                    if (!empty($pw['is_stale'])) {
+                        $stale_passwords[] = $pw;
+                    }
+                    if (empty($pw['is_admin'])) {
+                        $unprivileged_passwords[] = $pw;
+                    }
+                }
+
+                // If Application Passwords are site-wide disabled, any existing ones are orphaned risk
+                if ($disabled_policy) {
+                    $findings[] = new Finding([
+                        'engine'      => 'wordpress-users',
+                        'type'        => 'orphaned_active_application_passwords',
+                        'severity'    => 'high',
+                        'confidence'  => 100,
+                        'file_path'   => 'wp_usermeta:_application_passwords',
+                        'description' => sprintf(
+                            /* translators: 1: Count of passwords */
+                            __('Site-Wide Policy Violation: %1$d active Application Password(s) exist in user meta, but Application Passwords are set to disabled globally. Unrevoked tokens remain an attack surface if policy is toggled.', 'wcp-security-scanner'),
+                            $total_app_pass
+                        ),
+                        'evidence'    => sprintf('Total Active: %d, Affected Users: %s', $total_app_pass, implode(', ', array_unique(array_column($app_passwords, 'user_login')))),
+                    ]);
+                }
+
+                // Flag unprivileged accounts holding application passwords if admin-only policy is active
+                if ($admin_only_policy && !empty($unprivileged_passwords)) {
+                    $unprivileged_users = array_unique(array_column($unprivileged_passwords, 'user_login'));
+                    $findings[] = new Finding([
+                        'engine'      => 'wordpress-users',
+                        'type'        => 'unprivileged_application_passwords',
+                        'severity'    => 'high',
+                        'confidence'  => 95,
+                        'file_path'   => 'wp_usermeta:_application_passwords',
+                        'description' => sprintf(
+                            /* translators: 1: Count of non-admin passwords, 2: Comma-separated usernames */
+                            __('Unprivileged Application Passwords: %1$d token(s) are held by non-administrator user accounts (%2$s). In an Administrator-Only policy, non-admin accounts should not possess REST API credentials.', 'wcp-security-scanner'),
+                            count($unprivileged_passwords),
+                            implode(', ', $unprivileged_users)
+                        ),
+                        'evidence'    => sprintf('Non-admin credentials: %d. Accounts: %s', count($unprivileged_passwords), implode(', ', $unprivileged_users)),
+                    ]);
+                }
+
+                // Flag stale / abandoned tokens
+                if (!empty($stale_passwords)) {
+                    $findings[] = new Finding([
+                        'engine'      => 'wordpress-users',
+                        'type'        => 'stale_application_passwords',
+                        'severity'    => 'medium',
+                        'confidence'  => 90,
+                        'file_path'   => 'wp_usermeta:_application_passwords',
+                        'description' => sprintf(
+                            /* translators: 1: Count of stale credentials, 2: Total active credentials */
+                            __('Stale / Abandoned Application Passwords: %1$d of %2$d active credentials have not been used in >90 days or were created >30 days ago and never used. Abandoned credentials bypass 2FA and should be revoked.', 'wcp-security-scanner'),
+                            count($stale_passwords),
+                            $total_app_pass
+                        ),
+                        'evidence'    => sprintf('Stale tokens: %d / %d. Recommended action: Revoke unused credentials in Authentication > REST App Passwords.', count($stale_passwords), $total_app_pass),
+                    ]);
+                }
+            }
+        }
+
         return $findings;
     }
 }

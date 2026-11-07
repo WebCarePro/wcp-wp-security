@@ -1746,6 +1746,37 @@ class ScannerRoutes {
             'permission_callback' => [__CLASS__, 'check_webauthn_public_rate_limit'],
         ]);
 
+        // Pillar 1: Authorize-Application REST Passwords & Phishing Sentinel Endpoints
+        register_rest_route(self::NAMESPACE, '/auth/app-passwords', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_app_passwords'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/app-passwords/settings', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_app_passwords_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/app-passwords/settings', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'update_app_passwords_settings'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/app-passwords/revoke', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_app_password'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/auth/app-passwords/revoke-all', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'revoke_all_app_passwords'],
+            'permission_callback' => $permission,
+        ]);
+
 
 
         // Phase 6: Server Security Verification & Caddy
@@ -11936,6 +11967,144 @@ class ScannerRoutes {
             'success' => true,
             'message' => $enable ? sprintf('WebCrypto PoW challenge enforced for IP %s.', $ip) : sprintf('WebCrypto PoW challenge lifted for IP %s.', $ip),
             'enforced'=> array_values($enforced),
+        ]);
+    }
+
+    /**
+     * Get all active Application Passwords across all user accounts.
+     */
+    public static function get_app_passwords(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Application Password Sentinel service not available.',
+            ], 500);
+        }
+
+        $passwords = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+        $settings  = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+
+        return rest_ensure_response([
+            'success'   => true,
+            'passwords' => $passwords,
+            'settings'  => $settings,
+        ]);
+    }
+
+    /**
+     * Get Application Password Sentinel settings.
+     */
+    public static function get_app_passwords_settings(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Application Password Sentinel service not available.',
+            ], 500);
+        }
+
+        $settings = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+
+        return rest_ensure_response([
+            'success'  => true,
+            'settings' => $settings,
+        ]);
+    }
+
+    /**
+     * Update Application Password Sentinel policy settings.
+     */
+    public static function update_app_passwords_settings(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Application Password Sentinel service not available.',
+            ], 500);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $result = \WcpScanner\Auth\ApplicationPasswordSentinel::update_settings($params);
+        $settings = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+
+        return rest_ensure_response([
+            'success'  => $result,
+            'message'  => __('Application Password policy settings updated successfully.', 'wcp-security-scanner'),
+            'settings' => $settings,
+        ]);
+    }
+
+    /**
+     * Revoke a single Application Password.
+     */
+    public static function revoke_app_password(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Application Password Sentinel service not available.',
+            ], 500);
+        }
+
+        $params  = $request->get_json_params() ?: [];
+        $user_id = isset($params['user_id']) ? (int) $params['user_id'] : 0;
+        $uuid    = !empty($params['uuid']) ? sanitize_text_field($params['uuid']) : '';
+
+        if ($user_id <= 0 || empty($uuid)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('User ID and Application Password UUID are required.', 'wcp-security-scanner'),
+            ], 400);
+        }
+
+        $result = \WcpScanner\Auth\ApplicationPasswordSentinel::revoke_password($user_id, $uuid);
+
+        if (!$result) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Failed to revoke Application Password or password not found.', 'wcp-security-scanner'),
+            ], 400);
+        }
+
+        $passwords = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+        $settings  = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+
+        return rest_ensure_response([
+            'success'   => true,
+            'message'   => __('Application Password revoked successfully.', 'wcp-security-scanner'),
+            'passwords' => $passwords,
+            'settings'  => $settings,
+        ]);
+    }
+
+    /**
+     * Revoke all Application Passwords for a user.
+     */
+    public static function revoke_all_app_passwords(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Application Password Sentinel service not available.',
+            ], 500);
+        }
+
+        $params  = $request->get_json_params() ?: [];
+        $user_id = isset($params['user_id']) ? (int) $params['user_id'] : 0;
+
+        if ($user_id <= 0) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Valid User ID is required.', 'wcp-security-scanner'),
+            ], 400);
+        }
+
+        $result = \WcpScanner\Auth\ApplicationPasswordSentinel::revoke_all_for_user($user_id);
+
+        $passwords = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+        $settings  = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+
+        return rest_ensure_response([
+            'success'   => true,
+            'message'   => __('All Application Passwords for the user were revoked successfully.', 'wcp-security-scanner'),
+            'passwords' => $passwords,
+            'settings'  => $settings,
         ]);
     }
 
