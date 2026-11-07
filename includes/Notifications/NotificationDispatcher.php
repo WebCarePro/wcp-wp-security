@@ -432,6 +432,13 @@ class NotificationDispatcher {
                 'description'    => __('Alerts when cross-IP distributed velocity triggers an automated Under-Attack lockdown against credential stuffing or carding swarms.', 'wcp-security-scanner'),
                 'severity'       => 'critical',
             ],
+            'db_canary_tripwire_breach' => [
+                'category'       => 'behavioral',
+                'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),
+                'title'          => __('Database Canary / Ghost Admin Tripwire Breach', 'wcp-security-scanner'),
+                'description'    => __('Alerts when an unauthorized attacker attempts to authenticate as the dormant Ghost Admin canary or accesses decoy database honey options.', 'wcp-security-scanner'),
+                'severity'       => 'critical',
+            ],
             'attack_drill_completed' => [
                 'category'    => 'behavioral',
                 'category_label' => __('Behavioral WAF & Active Traps', 'wcp-security-scanner'),

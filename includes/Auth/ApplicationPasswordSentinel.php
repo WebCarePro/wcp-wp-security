@@ -30,6 +30,7 @@ class ApplicationPasswordSentinel {
     const OPTION_ADMIN_ONLY       = 'wcpscan_app_pass_admin_only';
     const OPTION_ALLOWED_DOMAINS  = 'wcpscan_app_pass_allowed_callback_domains';
     const OPTION_STRICT_CALLBACK  = 'wcpscan_app_pass_strict_callback';
+    const OPTION_REQUIRE_STEP_UP  = 'wcpscan_app_pass_require_step_up_2fa';
 
     /**
      * Initialize sentinel hooks
@@ -39,13 +40,16 @@ class ApplicationPasswordSentinel {
         add_filter('wp_is_application_passwords_available', [__CLASS__, 'filter_is_available'], 10, 1);
         add_filter('wp_is_application_passwords_available_for_user', [__CLASS__, 'filter_is_available_for_user'], 10, 2);
 
-        // 2. Intercept /wp-admin/authorize-application.php requests for callback phishing traps
+        // 2. Intercept /wp-admin/authorize-application.php requests for callback phishing traps & step-up 2FA
         add_filter('wp_authorize_application_password_request_errors', [__CLASS__, 'inspect_authorization_request'], 10, 3);
 
         // 3. Early screen on authorize-application page load
         add_action('load-authorize-application.php', [__CLASS__, 'on_load_authorize_screen']);
 
-        // 4. Hook password creation for forensic logging and telemetry
+        // 4. Render Step-Up 2FA / Password verification inside native authorize-application form
+        add_action('wp_authorize_application_password_form', [__CLASS__, 'render_step_up_2fa_form'], 10, 2);
+
+        // 5. Hook password creation for forensic logging and telemetry
         add_action('wp_create_application_password', [__CLASS__, 'on_application_password_created'], 20, 4);
     }
 
@@ -208,6 +212,106 @@ class ApplicationPasswordSentinel {
             }
         }
 
+        // 5. Enforce Step-Up 2FA / Identity Verification before approving credentials
+        $require_step_up = !empty(get_option(self::OPTION_REQUIRE_STEP_UP, 1));
+        $req_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) : '';
+
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verified upstream by WordPress core authorize-application flow
+        $is_approval_attempt = ($req_method === 'POST') && (
+            isset($_POST['approve']) ||
+            (isset($_POST['action']) && $_POST['action'] === 'authorize_application_password')
+        );
+
+        if ($require_step_up && $is_approval_attempt && $user instanceof \WP_User) {
+            $user_id = (int) $user->ID;
+            $has_2fa = class_exists(TwoFactorAuth::class) && TwoFactorAuth::is_user_enabled($user_id);
+
+            if ($has_2fa) {
+                $step_up_code = isset($_POST['wcpscan_step_up_totp']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_step_up_totp'])) : '';
+                if ($step_up_code === '') {
+                    $error->add(
+                        'wcpscan_step_up_totp_required',
+                        __('WCP Security Sentinel: Re-authentication required. Please enter your 6 or 8-digit Two-Factor Authentication (TOTP) code to authorize minting this Application Password.', 'wcp-security-scanner')
+                    );
+                    return $error;
+                }
+
+                $secret      = TwoFactorAuth::get_user_secret($user_id);
+                $user_algo   = (string) (get_user_meta($user_id, TwoFactorAuth::META_ALGORITHM, true) ?: 'sha1');
+                $user_digits = (int) (get_user_meta($user_id, TwoFactorAuth::META_DIGITS, true) ?: 6);
+
+                $totp_valid = $secret && TwoFactorAuth::verify_code($secret, $step_up_code, 1, $user_algo, $user_digits);
+
+                if (!$totp_valid && method_exists(TwoFactorAuth::class, 'verify_and_consume_backup_code')) {
+                    $totp_valid = TwoFactorAuth::verify_and_consume_backup_code($user_id, $step_up_code);
+                }
+
+                if (!$totp_valid) {
+                    $error->add(
+                        'wcpscan_step_up_totp_invalid',
+                        __('WCP Security Sentinel: Invalid Two-Factor Authentication code. Please verify the code in your authenticator app and try again.', 'wcp-security-scanner')
+                    );
+                    return $error;
+                }
+
+                if (class_exists(WcpActivityLogger::class)) {
+                    WcpActivityLogger::log(
+                        'app_password_step_up_verified',
+                        'auth',
+                        'info',
+                        [
+                            'user_id'     => $user_id,
+                            'username'    => $user->user_login,
+                            'method'      => 'totp',
+                            'description' => sprintf(
+                                /* translators: %s: username */
+                                __('User %s verified 2FA TOTP step-up for Application Password authorization.', 'wcp-security-scanner'),
+                                $user->user_login
+                            ),
+                        ]
+                    );
+                }
+            } else {
+                // Fallback step-up: Account password verification for accounts without TOTP
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must retain raw special characters for hash checking
+                $step_up_pass = isset($_POST['wcpscan_step_up_password']) ? (string) wp_unslash($_POST['wcpscan_step_up_password']) : '';
+                if ($step_up_pass === '') {
+                    $error->add(
+                        'wcpscan_step_up_password_required',
+                        __('WCP Security Sentinel: Re-authentication required. Please enter your WordPress account password to approve minting this Application Password.', 'wcp-security-scanner')
+                    );
+                    return $error;
+                }
+
+                if (!wp_check_password($step_up_pass, $user->user_pass, $user_id)) {
+                    $error->add(
+                        'wcpscan_step_up_password_invalid',
+                        __('WCP Security Sentinel: Incorrect account password entered for step-up identity verification.', 'wcp-security-scanner')
+                    );
+                    return $error;
+                }
+
+                if (class_exists(WcpActivityLogger::class)) {
+                    WcpActivityLogger::log(
+                        'app_password_step_up_verified',
+                        'auth',
+                        'info',
+                        [
+                            'user_id'     => $user_id,
+                            'username'    => $user->user_login,
+                            'method'      => 'password',
+                            'description' => sprintf(
+                                /* translators: %s: username */
+                                __('User %s verified account password step-up for Application Password authorization.', 'wcp-security-scanner'),
+                                $user->user_login
+                            ),
+                        ]
+                    );
+                }
+            }
+        }
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
+
         return $error;
     }
 
@@ -222,6 +326,67 @@ class ApplicationPasswordSentinel {
                 esc_html__('Authorization Blocked', 'wcp-security-scanner'),
                 ['response' => 403]
             );
+        }
+    }
+
+    /**
+     * Render Step-Up 2FA / Identity Verification UI inside native authorize-application form.
+     *
+     * @param array    $request Authorize request payload
+     * @param \WP_User $user Current user
+     */
+    public static function render_step_up_2fa_form($request, $user): void {
+        if (!empty(get_option(self::OPTION_DISABLED, 0))) {
+            return;
+        }
+
+        if (empty(get_option(self::OPTION_REQUIRE_STEP_UP, 1))) {
+            return;
+        }
+
+        if (!$user instanceof \WP_User) {
+            return;
+        }
+
+        $user_id = (int) $user->ID;
+        $has_2fa = class_exists(TwoFactorAuth::class) && TwoFactorAuth::is_user_enabled($user_id);
+
+        if ($has_2fa) {
+            ?>
+            <div class="wcp-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #c7d2fe; border-radius: 8px; background: #f8faff;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #4f46e5;"></span>
+                    <strong style="color: #1e1b4b; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up 2FA Verification Required', 'wcp-security-scanner'); ?></strong>
+                </div>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #4338ca; line-height: 1.5;">
+                    <?php esc_html_e('Because Application Passwords grant persistent REST API access, you must verify your identity with your Two-Factor Authentication (TOTP) code before minting this credential.', 'wcp-security-scanner'); ?>
+                </p>
+                <div class="form-field" style="margin-bottom: 0;">
+                    <label for="wcpscan_step_up_totp" style="font-weight: 600; display: block; margin-bottom: 6px;">
+                        <?php esc_html_e('Authenticator Code (6 or 8 Digits):', 'wcp-security-scanner'); ?>
+                    </label>
+                    <input type="text" name="wcpscan_step_up_totp" id="wcpscan_step_up_totp" class="regular-text" style="font-family: monospace; font-size: 16px; letter-spacing: 2px; width: 180px;" placeholder="123456" autocomplete="one-time-code" inputmode="numeric" required />
+                </div>
+            </div>
+            <?php
+        } else {
+            ?>
+            <div class="wcp-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #fed7aa; border-radius: 8px; background: #fffaf5;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ea580c;"></span>
+                    <strong style="color: #7c2d12; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up Identity Verification Required', 'wcp-security-scanner'); ?></strong>
+                </div>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #9a3412; line-height: 1.5;">
+                    <?php esc_html_e('To protect against 1-click consent traps and unattended session misuse, enter your account password before minting this Application Password.', 'wcp-security-scanner'); ?>
+                </p>
+                <div class="form-field" style="margin-bottom: 0;">
+                    <label for="wcpscan_step_up_password" style="font-weight: 600; display: block; margin-bottom: 6px;">
+                        <?php esc_html_e('Your WordPress Password:', 'wcp-security-scanner'); ?>
+                    </label>
+                    <input type="password" name="wcpscan_step_up_password" id="wcpscan_step_up_password" class="regular-text" style="width: 260px;" placeholder="••••••••••••" autocomplete="current-password" required />
+                </div>
+            </div>
+            <?php
         }
     }
 
@@ -513,6 +678,7 @@ class ApplicationPasswordSentinel {
         return [
             'disabled_globally'        => $disabled,
             'admin_only'               => $admin_only,
+            'require_step_up_2fa'      => (bool) get_option(self::OPTION_REQUIRE_STEP_UP, 1),
             'allowed_callback_domains' => array_values(array_unique(array_filter($allowed))),
             'canonical_hosts'          => array_values(array_unique([$home_host, $site_host, '127.0.0.1', 'localhost'])),
             'core_supports_app_pass'   => function_exists('wp_is_application_passwords_available') && wp_is_application_passwords_available(),
@@ -540,6 +706,10 @@ class ApplicationPasswordSentinel {
             update_option(self::OPTION_ADMIN_ONLY, !empty($params['admin_only']) ? 1 : 0);
         }
 
+        if (isset($params['require_step_up_2fa'])) {
+            update_option(self::OPTION_REQUIRE_STEP_UP, !empty($params['require_step_up_2fa']) ? 1 : 0);
+        }
+
         if (isset($params['allowed_callback_domains']) && is_array($params['allowed_callback_domains'])) {
             $cleaned = [];
             foreach ($params['allowed_callback_domains'] as $domain) {
@@ -562,9 +732,10 @@ class ApplicationPasswordSentinel {
                 'settings',
                 'info',
                 [
-                    'disabled_globally' => (bool) get_option(self::OPTION_DISABLED, 0),
-                    'admin_only'        => (bool) get_option(self::OPTION_ADMIN_ONLY, 1),
-                    'allowed_domains'   => get_option(self::OPTION_ALLOWED_DOMAINS, []),
+                    'disabled_globally'   => (bool) get_option(self::OPTION_DISABLED, 0),
+                    'admin_only'          => (bool) get_option(self::OPTION_ADMIN_ONLY, 1),
+                    'require_step_up_2fa' => (bool) get_option(self::OPTION_REQUIRE_STEP_UP, 1),
+                    'allowed_domains'     => get_option(self::OPTION_ALLOWED_DOMAINS, []),
                 ]
             );
         }

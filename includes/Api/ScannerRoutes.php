@@ -1426,6 +1426,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/behavioral/honeytoken/reseed-db-canaries', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reseed_db_canaries'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/behavioral/rate-limiter/settings', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'update_rate_limiter_settings'],
@@ -10181,6 +10187,14 @@ class ScannerRoutes {
             return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
         }
         $result = \WcpScanner\Firewall\HoneyTokenEngine::unban_bot_ip($ip);
+        return rest_ensure_response($result);
+    }
+
+    public static function reseed_db_canaries(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Firewall\HoneyTokenEngine')) {
+            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+        $result = \WcpScanner\Firewall\HoneyTokenEngine::reseed_db_canaries();
         return rest_ensure_response($result);
     }
 
