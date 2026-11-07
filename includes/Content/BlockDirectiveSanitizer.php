@@ -2,7 +2,7 @@
 namespace WcpScanner\Content;
 
 use WcpScanner\Findings\Finding;
-use WcpScanner\Activity\WcpActivityLogger;
+use WcpScanner\System\WcpActivityLogger;
 use WcpScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
@@ -110,7 +110,7 @@ class BlockDirectiveSanitizer {
             self::$neutralized_count += count($audit_result['threats']);
 
             // Log security incident
-            if (class_exists('\\WcpScanner\\Activity\\WcpActivityLogger')) {
+            if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
                 WcpActivityLogger::log(
                     'gutenberg_block_directive_neutralized',
                     'firewall',

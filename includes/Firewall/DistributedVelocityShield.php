@@ -704,16 +704,35 @@ class DistributedVelocityShield {
      * @param array $meta
      * @return array Pruned active events
      */
+    /**
+     * Append a sliding event into atomic memory (APCu) or bounded transient buffer.
+     *
+     * @param string $cache_key
+     * @param string $ip
+     * @param string $reason
+     * @param array  $meta
+     * @return array
+     */
     private static function append_sliding_event(string $cache_key, string $ip, string $reason = '', array $meta = []): array {
         $events = self::get_sliding_events($cache_key);
         $events[] = [
             'time'   => time(),
             'ip'     => $ip,
-            'reason' => $reason,
-            'meta'   => $meta,
+            'reason' => substr($reason, 0, 100),
+            'meta'   => !empty($meta) ? array_slice($meta, 0, 3) : [],
         ];
 
-        // Store back with 120-second TTL
+        // Keep ring buffer bounded to last 200 items in sliding window to prevent serialization bloat
+        if (count($events) > 200) {
+            $events = array_slice($events, -200);
+        }
+
+        // 1. High-concurrency APCu in-memory storage (zero DB row-lock contention)
+        if (function_exists('apcu_store') && ini_get('apc.enabled')) {
+            apcu_store('wcpscan_dvs_' . $cache_key, $events, 120);
+        }
+
+        // 2. Standard WordPress transient fallback
         set_transient($cache_key, $events, 120);
         return $events;
     }
@@ -725,7 +744,22 @@ class DistributedVelocityShield {
      * @return array
      */
     private static function get_sliding_events(string $cache_key): array {
-        $data = get_transient($cache_key);
+        $data = null;
+
+        // 1. Check APCu in-memory store first
+        if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
+            $success = false;
+            $apc_data = apcu_fetch('wcpscan_dvs_' . $cache_key, $success);
+            if ($success && is_array($apc_data)) {
+                $data = $apc_data;
+            }
+        }
+
+        // 2. Fallback to transient
+        if (!is_array($data)) {
+            $data = get_transient($cache_key);
+        }
+
         if (!is_array($data)) {
             return [];
         }

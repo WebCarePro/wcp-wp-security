@@ -27,6 +27,7 @@ if (!defined('ABSPATH')) {
 class ObjectCacheIntegritySentinel {
 
     const OPTION_LAST_AUDIT = 'wcpscan_object_cache_last_audit';
+    const OPTION_AUTO_HEAL   = 'wcpscan_object_cache_auto_heal';
 
     /**
      * Critical security-sensitive WordPress options to verify individually.
@@ -330,9 +331,62 @@ class ObjectCacheIntegritySentinel {
         // If active poisoning detected, trigger notifications and activity log
         if ($is_poisoned) {
             self::dispatch_poisoning_alert($report);
+
+            // Automated Auto-Heal: If critical navigation poisoning (siteurl, home, active_plugins) is detected,
+            // immediately purge poisoned keys and resynchronize from MySQL truth to stop visitor hijacking
+            $auto_heal_enabled = (bool) get_option(self::OPTION_AUTO_HEAL, 1);
+            if ($auto_heal_enabled) {
+                $critical_key_names = array_column($report['critical_issues'], 'option_name');
+                if (in_array('siteurl', $critical_key_names, true) || in_array('home', $critical_key_names, true) || in_array('active_plugins', $critical_key_names, true)) {
+                    self::resynchronize_and_flush();
+                    $report['auto_healed']          = true;
+                    $report['auto_heal_timestamp']  = time();
+
+                    if (class_exists(WcpActivityLogger::class)) {
+                        WcpActivityLogger::log(
+                            'object_cache_auto_healed',
+                            'integrity',
+                            'warning',
+                            [
+                                'backend'     => $report['environment']['backend_name'],
+                                'remediated'  => $critical_key_names,
+                                'description' => sprintf(
+                                    /* translators: %s: backend name */
+                                    __('Automatic remediation: In-memory cache poisoning on critical navigation keys was instantly neutralized and resynchronized from MySQL on %s.', 'wcp-security-scanner'),
+                                    $report['environment']['backend_name']
+                                ),
+                            ]
+                        );
+                    }
+                }
+            }
         }
 
         return $report;
+    }
+
+    /**
+     * Retrieve sentinel settings.
+     *
+     * @return array
+     */
+    public static function get_settings(): array {
+        return [
+            'auto_heal_critical_poisoning' => (bool) get_option(self::OPTION_AUTO_HEAL, 1),
+        ];
+    }
+
+    /**
+     * Update sentinel settings.
+     *
+     * @param array $params
+     * @return array
+     */
+    public static function update_settings(array $params): array {
+        if (isset($params['auto_heal_critical_poisoning'])) {
+            update_option(self::OPTION_AUTO_HEAL, !empty($params['auto_heal_critical_poisoning']) ? 1 : 0, false);
+        }
+        return self::get_settings();
     }
 
     /**
