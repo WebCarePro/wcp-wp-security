@@ -749,22 +749,30 @@ class MicroWafCompiler {
             }
         }
 
-        // Merge standard WooCommerce & Core guest AJAX safe-passes
-        $default_guest_ajax = [
-            'woocommerce_get_refreshed_fragments',
-            'woocommerce_apply_coupon',
-            'woocommerce_remove_coupon',
-            'woocommerce_update_shipping_method',
-            'woocommerce_get_cart_totals',
-            'woocommerce_update_order_review',
-            'woocommerce_add_to_cart',
-            'woocommerce_remove_from_cart',
-            'woocommerce_checkout',
-            'woocommerce_get_variation',
-            'woocommerce_get_customer_location',
-            'wcp_flush_cf_ban_queue',
-            'heartbeat',
-        ];
+        // Merge standard Core guest AJAX safe-passes + ecosystem-specific guest actions (CAF 2.0)
+        $default_guest_ajax = ['heartbeat', 'wcp_flush_cf_ban_queue'];
+        $has_woo = false;
+        if ($snapshot && is_array($snapshot->detected_ecosystems)) {
+            $has_woo = in_array('woocommerce', $snapshot->detected_ecosystems, true);
+        } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            $has_woo = \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce');
+        }
+
+        if ($has_woo) {
+            $default_guest_ajax = array_merge($default_guest_ajax, [
+                'woocommerce_get_refreshed_fragments',
+                'woocommerce_apply_coupon',
+                'woocommerce_remove_coupon',
+                'woocommerce_update_shipping_method',
+                'woocommerce_get_cart_totals',
+                'woocommerce_update_order_review',
+                'woocommerce_add_to_cart',
+                'woocommerce_remove_from_cart',
+                'woocommerce_checkout',
+                'woocommerce_get_variation',
+                'woocommerce_get_customer_location',
+            ]);
+        }
         $allowed_nopriv_actions = array_values(array_unique(array_merge($allowed_nopriv_actions, $default_guest_ajax)));
 
         $artifact_data = [

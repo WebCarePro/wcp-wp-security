@@ -383,6 +383,15 @@ class VirtualPatchManager {
                 continue;
             }
 
+            // CAF 2.0: Skip virtual patches for components/plugins not currently installed or active
+            $target_slug = strtolower((string) ($patch['target'] ?? ($patch['component'] ?? '')));
+            if (!empty($target_slug) && !in_array($target_slug, ['core', 'wordpress-core', 'generic', 'server', 'php'], true)) {
+                if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor') &&
+                    !\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::is_plugin_slug_active($target_slug)) {
+                    continue;
+                }
+            }
+
             $rule = $patch['php_rule'] ?? [];
             if (empty($rule)) {
                 continue;

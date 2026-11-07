@@ -23,11 +23,26 @@ if (!defined('ABSPATH')) {
  */
 class CloudflareIpListSynchronizer {
 
-    public const OPTION_BAN_QUEUE       = 'wcp_cf_pending_ban_queue';
-    public const OPTION_TOKEN_SCOPE     = 'wcp_cf_token_scope';
-    public const OPTION_ACCOUNT_LIST_ID = 'wcp_cf_account_list_id';
-    public const LIST_NAME              = 'wcp_threat_blocklist';
-    public const CRON_HOOK              = 'wcp_cloudflare_ip_sync_cron';
+    public const OPTION_BAN_QUEUE        = 'wcp_cf_pending_ban_queue';
+    public const OPTION_TOKEN_SCOPE      = 'wcp_cf_token_scope';
+    public const OPTION_ACCOUNT_LIST_ID  = 'wcp_cf_account_list_id';
+    public const OPTION_ACTIVE_EDGE_BANS = 'wcp_cf_active_edge_bans';
+    public const LIST_NAME               = 'wcp_threat_blocklist';
+    public const CRON_HOOK               = 'wcp_cloudflare_ip_sync_cron';
+
+    /**
+     * In-memory queue of bans to push to Cloudflare at PHP shutdown (post-response).
+     *
+     * @var array<string, array>
+     */
+    private static array $shutdown_immediate_queue = [];
+
+    /**
+     * Whether register_shutdown_function has been registered for this request.
+     *
+     * @var bool
+     */
+    private static bool $shutdown_registered = false;
 
     /**
      * Test whether the configured Cloudflare API token has Account List permissions or Zone Access Rule permissions.
@@ -79,7 +94,7 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
-     * Add a banned IP to the asynchronous queue in wp_options.
+     * Add a banned IP to the synchronization queue and schedule immediate edge push if under burst threshold.
      *
      * @param string $ip Client IPv4 or IPv6
      * @param string $reason Reason description
@@ -91,17 +106,51 @@ class CloudflareIpListSynchronizer {
             return;
         }
 
+        // Never push private/loopback/reserved IPs to Cloudflare
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return;
+        }
+
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['cloudflare_api_token']) || empty($settings['cloudflare_zone_id'])) {
+            return;
+        }
+
+        $entry = [
+            'ip'         => $ip,
+            'reason'     => substr(sanitize_text_field($reason), 0, 100),
+            'banned_at'  => time(),
+            'expires_at' => $ttl > 0 ? (time() + $ttl) : 0,
+        ];
+
+        // Burst limiter: Check how many instant bans were pushed in the current 10-second window
+        $burst_key = 'wcp_cf_instant_burst';
+        $burst_count = function_exists('apcu_fetch') && ini_get('apc.enabled')
+            ? (int) apcu_fetch($burst_key)
+            : (int) get_transient($burst_key);
+
+        if ($burst_count < 5) {
+            if (function_exists('apcu_store') && ini_get('apc.enabled')) {
+                apcu_store($burst_key, $burst_count + 1, 10);
+            } else {
+                set_transient($burst_key, $burst_count + 1, 10);
+            }
+
+            self::$shutdown_immediate_queue[$ip] = $entry;
+            if (!self::$shutdown_registered) {
+                self::$shutdown_registered = true;
+                register_shutdown_function([__CLASS__, 'flush_immediate_shutdown_bans']);
+            }
+            return;
+        }
+
+        // High-velocity swarm (>5 bans in 10s): add to batch queue for subnet aggregation and background flush
         $queue = get_option(self::OPTION_BAN_QUEUE, []);
         if (!is_array($queue)) {
             $queue = [];
         }
 
-        $queue[$ip] = [
-            'ip'         => $ip,
-            'reason'     => substr(sanitize_text_field($reason), 0, 100),
-            'banned_at'  => time(),
-            'expires_at' => time() + $ttl,
-        ];
+        $queue[$ip] = $entry;
 
         // Keep queue capped at 500 entries to prevent option bloat
         if (count($queue) > 500) {
@@ -115,6 +164,35 @@ class CloudflareIpListSynchronizer {
         // If queue exceeds 25 pending bans, immediately trigger background loopback flush.
         if (count($queue) >= 25) {
             self::trigger_background_queue_flush();
+        }
+    }
+
+    /**
+     * Flush immediate bans after sending the HTTP 403 response to the client (0ms visitor latency).
+     */
+    public static function flush_immediate_shutdown_bans(): void {
+        if (empty(self::$shutdown_immediate_queue)) {
+            return;
+        }
+
+        // Flush HTTP response buffer to client first so connection closes immediately
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        } elseif (function_exists('litespeed_finish_request')) {
+            @litespeed_finish_request();
+        }
+
+        $sync = new self();
+        $items_to_sync = self::$shutdown_immediate_queue;
+        self::$shutdown_immediate_queue = [];
+
+        $targets = $sync->aggregate_subnets($items_to_sync);
+        $scope = $sync->detect_api_scope();
+
+        if ($scope === 'account') {
+            $sync->sync_via_account_list($targets, $items_to_sync);
+        } elseif ($scope === 'zone') {
+            $sync->sync_via_zone_access_rules($targets, $items_to_sync);
         }
     }
 
@@ -246,11 +324,14 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
-     * Flush queued bans to Cloudflare Edge.
+     * Flush queued bans to Cloudflare Edge and prune expired temporary bans.
      *
      * @return int Number of synchronized items
      */
     public function process_sync_queue(): int {
+        // 1. Prune expired temporary edge bans
+        $this->prune_expired_bans();
+
         $queue = get_option(self::OPTION_BAN_QUEUE, []);
         if (empty($queue) || !is_array($queue)) {
             return 0;
@@ -270,9 +351,9 @@ class CloudflareIpListSynchronizer {
         $synced_count = 0;
 
         if ($scope === 'account') {
-            $synced_count = $this->sync_via_account_list($aggregated_targets);
+            $synced_count = $this->sync_via_account_list($aggregated_targets, $queue);
         } else {
-            $synced_count = $this->sync_via_zone_access_rules($aggregated_targets);
+            $synced_count = $this->sync_via_zone_access_rules($aggregated_targets, $queue);
         }
 
         // Clear queue upon processing
@@ -283,17 +364,21 @@ class CloudflareIpListSynchronizer {
 
     /**
      * Sync targets to Cloudflare Account Custom IP List.
+     *
+     * @param array $targets
+     * @param array $source_entries
+     * @return int
      */
-    private function sync_via_account_list(array $targets): int {
+    private function sync_via_account_list(array $targets, array $source_entries = []): int {
         $accounts_res = CloudflareService::request('accounts');
         if (empty($accounts_res['success']) || empty($accounts_res['result'][0]['id'])) {
-            return $this->sync_via_zone_access_rules($targets);
+            return $this->sync_via_zone_access_rules($targets, $source_entries);
         }
 
         $account_id = (string) $accounts_res['result'][0]['id'];
         $list_id = $this->ensure_account_list($account_id);
         if (empty($list_id)) {
-            return $this->sync_via_zone_access_rules($targets);
+            return $this->sync_via_zone_access_rules($targets, $source_entries);
         }
 
         // Build items payload (up to 10,000 items in single call)
@@ -315,7 +400,48 @@ class CloudflareIpListSynchronizer {
             $items
         );
 
-        return !empty($post_res['success']) ? count($items) : 0;
+        if (!empty($post_res['success'])) {
+            $active_bans = get_option(self::OPTION_ACTIVE_EDGE_BANS, []);
+            if (!is_array($active_bans)) {
+                $active_bans = [];
+            }
+
+            if (!empty($post_res['result']) && is_array($post_res['result'])) {
+                foreach ($post_res['result'] as $created) {
+                    $c_ip = (string) ($created['ip'] ?? '');
+                    $c_id = (string) ($created['id'] ?? '');
+                    if (!empty($c_ip)) {
+                        $active_bans[$c_ip] = [
+                            'target'     => $c_ip,
+                            'mode'       => 'account',
+                            'item_id'    => $c_id,
+                            'expires_at' => (int) ($source_entries[$c_ip]['expires_at'] ?? (time() + 86400)),
+                            'synced_at'  => time(),
+                        ];
+                    }
+                }
+            } else {
+                foreach ($targets as $t) {
+                    $tip = $t['target'];
+                    $active_bans[$tip] = [
+                        'target'     => $tip,
+                        'mode'       => 'account',
+                        'item_id'    => '',
+                        'expires_at' => (int) ($source_entries[$tip]['expires_at'] ?? (time() + 86400)),
+                        'synced_at'  => time(),
+                    ];
+                }
+            }
+
+            if (count($active_bans) > 2000) {
+                $active_bans = array_slice($active_bans, -2000, null, true);
+            }
+            update_option(self::OPTION_ACTIVE_EDGE_BANS, $active_bans, false);
+
+            return count($items);
+        }
+
+        return 0;
     }
 
     /**
@@ -361,12 +487,21 @@ class CloudflareIpListSynchronizer {
 
     /**
      * Fallback driver: sync targets via Zone IP Access Rules API.
+     *
+     * @param array $targets
+     * @param array $source_entries
+     * @return int
      */
-    private function sync_via_zone_access_rules(array $targets): int {
+    private function sync_via_zone_access_rules(array $targets, array $source_entries = []): int {
         $settings = SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
         if (empty($zone_id)) {
             return 0;
+        }
+
+        $active_bans = get_option(self::OPTION_ACTIVE_EDGE_BANS, []);
+        if (!is_array($active_bans)) {
+            $active_bans = [];
         }
 
         $synced = 0;
@@ -383,10 +518,170 @@ class CloudflareIpListSynchronizer {
             $res = CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);
             if (!empty($res['success'])) {
                 $synced++;
+                $rule_id = (string) ($res['result']['id'] ?? '');
+                $tip = $t['target'];
+                $active_bans[$tip] = [
+                    'target'     => $tip,
+                    'mode'       => 'zone',
+                    'item_id'    => $rule_id,
+                    'expires_at' => (int) ($source_entries[$tip]['expires_at'] ?? (time() + 86400)),
+                    'synced_at'  => time(),
+                ];
             }
         }
 
+        if ($synced > 0) {
+            if (count($active_bans) > 2000) {
+                $active_bans = array_slice($active_bans, -2000, null, true);
+            }
+            update_option(self::OPTION_ACTIVE_EDGE_BANS, $active_bans, false);
+        }
+
         return $synced;
+    }
+
+    /**
+     * Prune expired edge bans from Cloudflare and the active bans ledger.
+     *
+     * @return int Number of pruned items
+     */
+    public function prune_expired_bans(): int {
+        $active_bans = get_option(self::OPTION_ACTIVE_EDGE_BANS, []);
+        if (empty($active_bans) || !is_array($active_bans)) {
+            return 0;
+        }
+
+        $now = time();
+        $expired_items = [];
+        $remaining = [];
+
+        foreach ($active_bans as $target => $meta) {
+            $expires_at = (int) ($meta['expires_at'] ?? 0);
+            if ($expires_at > 0 && $now >= $expires_at) {
+                $expired_items[$target] = $meta;
+            } else {
+                $remaining[$target] = $meta;
+            }
+        }
+
+        if (empty($expired_items)) {
+            return 0;
+        }
+
+        // Save remaining ledger first
+        update_option(self::OPTION_ACTIVE_EDGE_BANS, $remaining, false);
+
+        // Delete expired items from Cloudflare
+        $settings = SettingsManager::get_settings();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+        $account_items_to_del = [];
+
+        foreach ($expired_items as $target => $meta) {
+            $mode = $meta['mode'] ?? 'zone';
+            $item_id = (string) ($meta['item_id'] ?? '');
+
+            if ($mode === 'account' && !empty($item_id)) {
+                $account_items_to_del[] = ['id' => $item_id];
+            } elseif ($mode === 'zone' && !empty($item_id) && !empty($zone_id)) {
+                CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules/{$item_id}", 'DELETE');
+            }
+        }
+
+        // Batch delete from account list if any
+        if (!empty($account_items_to_del)) {
+            $accounts_res = CloudflareService::request('accounts');
+            if (!empty($accounts_res['success']) && !empty($accounts_res['result'][0]['id'])) {
+                $account_id = (string) $accounts_res['result'][0]['id'];
+                $list_id = $this->ensure_account_list($account_id);
+                if (!empty($list_id)) {
+                    CloudflareService::request(
+                        "accounts/{$account_id}/rules/lists/{$list_id}/items",
+                        'DELETE',
+                        ['items' => $account_items_to_del]
+                    );
+                }
+            }
+        }
+
+        return count($expired_items);
+    }
+
+    /**
+     * Immediately unban an IP address from Cloudflare Edge (Zone Access Rules and Account Custom List)
+     * and clear it from active ledgers and pending queues.
+     *
+     * @param string $ip
+     * @return bool
+     */
+    public static function unban_ip_immediately(string $ip): bool {
+        $ip = trim($ip);
+        if (empty($ip)) {
+            return false;
+        }
+
+        // 1. Remove from in-memory shutdown queue if present
+        if (isset(self::$shutdown_immediate_queue[$ip])) {
+            unset(self::$shutdown_immediate_queue[$ip]);
+        }
+
+        // 2. Remove from pending batch queue if queued
+        $queue = get_option(self::OPTION_BAN_QUEUE, []);
+        if (is_array($queue) && isset($queue[$ip])) {
+            unset($queue[$ip]);
+            update_option(self::OPTION_BAN_QUEUE, $queue, false);
+        }
+
+        // 3. Remove from active edge bans ledger
+        $active_bans = get_option(self::OPTION_ACTIVE_EDGE_BANS, []);
+        $meta = is_array($active_bans) ? ($active_bans[$ip] ?? null) : null;
+        if (is_array($active_bans) && isset($active_bans[$ip])) {
+            unset($active_bans[$ip]);
+            update_option(self::OPTION_ACTIVE_EDGE_BANS, $active_bans, false);
+        }
+
+        // 4. Remove from Cloudflare Edge
+        $settings = SettingsManager::get_settings();
+        if (empty($settings['cloudflare_api_token'])) {
+            return true;
+        }
+
+        $sync = new self();
+        $scope = $sync->detect_api_scope();
+        $zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+        // If it was tracked in Account list
+        if ($scope === 'account' && !empty($meta['item_id'])) {
+            $accounts_res = CloudflareService::request('accounts');
+            if (!empty($accounts_res['success']) && !empty($accounts_res['result'][0]['id'])) {
+                $account_id = (string) $accounts_res['result'][0]['id'];
+                $list_id = $sync->ensure_account_list($account_id);
+                if (!empty($list_id)) {
+                    CloudflareService::request(
+                        "accounts/{$account_id}/rules/lists/{$list_id}/items",
+                        'DELETE',
+                        ['items' => [['id' => $meta['item_id']]]]
+                    );
+                }
+            }
+        }
+
+        // Delete from Zone IP Access Rules (by direct rule ID if known, or by searching value)
+        if (!empty($zone_id)) {
+            if (!empty($meta['item_id']) && ($meta['mode'] ?? '') === 'zone') {
+                CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules/{$meta['item_id']}", 'DELETE');
+            } else {
+                $search = CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules?configuration.value=" . rawurlencode($ip));
+                if (!empty($search['success']) && !empty($search['result']) && is_array($search['result'])) {
+                    foreach ($search['result'] as $r) {
+                        if (!empty($r['id'])) {
+                            CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules/{$r['id']}", 'DELETE');
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -34,6 +34,90 @@ final class AdaptiveFirewallAdvisor {
 	public const PROFILE_HIGH_SECURITY      = 'high_security_paranoid';
 	public const PROFILE_BALANCED           = 'balanced';
 
+	private static ?array $runtime_ecosystems = null;
+	private static ?array $runtime_active_slugs = null;
+	private static ?array $runtime_profile_rules = null;
+
+	/**
+	 * Fast O(1) check if a specific ecosystem ('woocommerce', 'commerce', 'lms_membership', 'page_builder', 'elementor', 'divi', 'forms') is active on this site.
+	 *
+	 * @param string $ecosystem
+	 * @return bool
+	 */
+	public static function has_ecosystem( string $ecosystem ): bool {
+		if ( self::$runtime_ecosystems === null ) {
+			$cached = get_option( self::OPTION_STACK_SNAPSHOT, [] );
+			if ( is_array( $cached ) && isset( $cached['detected_ecosystems'] ) && is_array( $cached['detected_ecosystems'] ) ) {
+				self::$runtime_ecosystems = $cached['detected_ecosystems'];
+			} else {
+				// Lightweight fallback before first snapshot is saved
+				$active = (array) get_option( 'active_plugins', [] );
+				$active_str = implode( ' ', $active );
+				$eco = [];
+				if ( str_contains( $active_str, 'woocommerce' ) ) {
+					$eco[] = 'woocommerce';
+					$eco[] = 'commerce';
+				}
+				if ( preg_match( '/(?:easy-digital-downloads|surecart|fluent-cart|give|wp-easycart)/i', $active_str ) ) {
+					$eco[] = 'commerce';
+				}
+				if ( preg_match( '/(?:learndash|sfwd-lms|memberpress|lifterlms|simple-membership|ultimate-member)/i', $active_str ) ) {
+					$eco[] = 'lms_membership';
+				}
+				if ( preg_match( '/(?:elementor|divi-builder|bricks|beaver-builder|bb-plugin|js_composer)/i', $active_str ) ) {
+					$eco[] = 'page_builder';
+				}
+				self::$runtime_ecosystems = $eco;
+			}
+		}
+		return in_array( $ecosystem, self::$runtime_ecosystems, true );
+	}
+
+	/**
+	 * Fast O(1) check if a plugin slug is currently installed and active.
+	 *
+	 * @param string $slug
+	 * @return bool
+	 */
+	public static function is_plugin_slug_active( string $slug ): bool {
+		if ( self::$runtime_active_slugs === null ) {
+			$cached = get_option( self::OPTION_STACK_SNAPSHOT, [] );
+			if ( is_array( $cached ) && ! empty( $cached['active_plugins'] ) && is_array( $cached['active_plugins'] ) ) {
+				self::$runtime_active_slugs = array_keys( $cached['active_plugins'] );
+			} else {
+				$active = (array) get_option( 'active_plugins', [] );
+				self::$runtime_active_slugs = array_map( static fn( $f ) => dirname( (string) $f ), $active );
+			}
+		}
+		return in_array( $slug, self::$runtime_active_slugs, true );
+	}
+
+	/**
+	 * Retrieve the active CAF profile's rule map in O(1) time.
+	 *
+	 * @return array
+	 */
+	public static function get_active_profile_rules(): array {
+		if ( self::$runtime_profile_rules === null ) {
+			$profile_id = (string) get_option( self::OPTION_ACTIVE_PROFILE, '' );
+			if ( $profile_id === '' ) {
+				$profile_id = self::has_ecosystem( 'woocommerce' ) ? self::PROFILE_ECOMMERCE_HARDENED : self::PROFILE_BALANCED;
+			}
+			$profile = ProfileManager::get_profile( $profile_id );
+			self::$runtime_profile_rules = is_array( $profile['rules'] ?? null ) ? $profile['rules'] : [];
+		}
+		return self::$runtime_profile_rules;
+	}
+
+	/**
+	 * Reset in-memory cached helpers when stack changes.
+	 */
+	public static function reset_runtime_cache(): void {
+		self::$runtime_ecosystems    = null;
+		self::$runtime_active_slugs  = null;
+		self::$runtime_profile_rules = null;
+	}
+
 	/**
 	 * Get full overview data for UI views and API consumers.
 	 *
@@ -115,13 +199,29 @@ final class AdaptiveFirewallAdvisor {
 				// Eco system detection tags
 				if ( 'woocommerce' === $slug || str_contains( $file, 'woocommerce' ) ) {
 					$detected_ecosystems[] = 'woocommerce';
-				} elseif ( 'elementor' === $slug || 'elementor-pro' === $slug ) {
+					$detected_ecosystems[] = 'commerce';
+				} elseif ( in_array( $slug, [ 'easy-digital-downloads', 'easy-digital-downloads-pro' ], true ) ) {
+					$detected_ecosystems[] = 'edd';
+					$detected_ecosystems[] = 'commerce';
+				} elseif ( 'surecart' === $slug ) {
+					$detected_ecosystems[] = 'surecart';
+					$detected_ecosystems[] = 'commerce';
+				} elseif ( in_array( $slug, [ 'fluent-cart', 'fluent-cart-pro' ], true ) ) {
+					$detected_ecosystems[] = 'fluentcart';
+					$detected_ecosystems[] = 'commerce';
+				} elseif ( in_array( $slug, [ 'give', 'wp-easycart' ], true ) ) {
+					$detected_ecosystems[] = 'commerce';
+				} elseif ( in_array( $slug, [ 'elementor', 'elementor-pro' ], true ) ) {
 					$detected_ecosystems[] = 'elementor';
+					$detected_ecosystems[] = 'page_builder';
 				} elseif ( 'divi-builder' === $slug ) {
 					$detected_ecosystems[] = 'divi';
-				} elseif ( in_array( $slug, [ 'gravityforms', 'wpforms-lite', 'wpforms', 'contact-form-7', 'fluentform' ], true ) ) {
+					$detected_ecosystems[] = 'page_builder';
+				} elseif ( in_array( $slug, [ 'bricks', 'beaver-builder-lite-version', 'bb-plugin', 'js_composer' ], true ) ) {
+					$detected_ecosystems[] = 'page_builder';
+				} elseif ( in_array( $slug, [ 'gravityforms', 'wpforms-lite', 'wpforms', 'contact-form-7', 'fluentform', 'ninja-forms', 'formidable' ], true ) ) {
 					$detected_ecosystems[] = 'forms';
-				} elseif ( in_array( $slug, [ 'sfwd-lms', 'learndash', 'memberpress', 'lifterlms', 'buddyboss-platform' ], true ) ) {
+				} elseif ( in_array( $slug, [ 'sfwd-lms', 'learndash', 'memberpress', 'lifterlms', 'buddyboss-platform', 'simple-membership', 'ultimate-member', 'paid-memberships-pro', 'restrict-content-pro' ], true ) ) {
 					$detected_ecosystems[] = 'lms_membership';
 				} elseif ( 'fluent-crm' === $slug ) {
 					$detected_ecosystems[] = 'fluent-crm';
@@ -157,6 +257,17 @@ final class AdaptiveFirewallAdvisor {
 			if ( $slug !== $current_theme->get_stylesheet() && ( ! $current_theme->parent() || $slug !== $current_theme->parent()->get_stylesheet() ) ) {
 				$inactive_themes[ $slug ] = $theme_obj->get( 'Version' ) ?: '0.0.0';
 			}
+		}
+
+		// Theme ecosystem detection (Divi, Bricks, etc.)
+		$active_theme_slug = strtolower( (string) ( $active_themes['active']['slug'] ?? '' ) );
+		$parent_theme_slug = strtolower( (string) ( $active_themes['parent']['slug'] ?? '' ) );
+		if ( in_array( 'divi', [ $active_theme_slug, $parent_theme_slug ], true ) ) {
+			$detected_ecosystems[] = 'divi';
+			$detected_ecosystems[] = 'page_builder';
+		} elseif ( in_array( 'bricks', [ $active_theme_slug, $parent_theme_slug ], true ) ) {
+			$detected_ecosystems[] = 'bricks';
+			$detected_ecosystems[] = 'page_builder';
 		}
 
 		// REST Namespaces
@@ -197,6 +308,7 @@ final class AdaptiveFirewallAdvisor {
 		);
 
 		update_option( self::OPTION_STACK_SNAPSHOT, $snapshot->to_array(), false );
+		self::reset_runtime_cache();
 
 		return $snapshot;
 	}

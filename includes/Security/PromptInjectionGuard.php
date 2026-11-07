@@ -94,8 +94,12 @@ class PromptInjectionGuard {
             add_filter('preprocess_comment', [__CLASS__, 'inspect_incoming_comment'], 10, 1);
         }
 
-        // 2. WooCommerce Checkout Order Notes
-        if (!empty($settings['inspect_woocommerce'])) {
+        // 2. WooCommerce Checkout Order Notes (CAF 2.0: Only hook if WooCommerce is active)
+        $has_woo = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+            : class_exists('WooCommerce');
+
+        if ($has_woo && !empty($settings['inspect_woocommerce'])) {
             add_action('woocommerce_checkout_create_order', [__CLASS__, 'inspect_woocommerce_order'], 10, 2);
             add_filter('woocommerce_new_order_data', [__CLASS__, 'filter_woocommerce_order_data'], 10, 1);
         }

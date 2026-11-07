@@ -80,25 +80,32 @@ class FirewallEngine {
         add_action('login_form_lostpassword', [__CLASS__, 'check_lostpassword_flood'], 0);
         add_action('lostpassword_post', [__CLASS__, 'check_lostpassword_submission'], 0);
 
-        // Rule #38: WooCommerce Carding Attack & Checkout Velocity Shield
-        add_action('woocommerce_checkout_process', [__CLASS__, 'inspect_woo_checkout_attempt'], 0);
-        add_action('woocommerce_after_checkout_validation', [__CLASS__, 'handle_woo_checkout_validation'], 999, 2);
-        add_action('woocommerce_order_status_failed', [__CLASS__, 'handle_woo_payment_failure'], 10, 1);
+        // Context-Adaptive Firewall (CAF 2.0): Only register WooCommerce firewall hooks when WooCommerce is active
+        $has_woocommerce = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+            : (class_exists('WooCommerce') || in_array('woocommerce/woocommerce.php', (array) get_option('active_plugins', []), true));
 
-        // Rule #39: WooCommerce Coupon Enumeration & Brute-Force Shield
-        add_action('woocommerce_applied_coupon', [__CLASS__, 'handle_woo_coupon_success'], 10, 1);
-        add_filter('woocommerce_coupon_error', [__CLASS__, 'handle_woo_coupon_error'], 999, 3);
-        add_filter('rest_request_after_callbacks', [__CLASS__, 'handle_woo_store_api_coupon_response'], 10, 3);
+        if ($has_woocommerce) {
+            // Rule #38: WooCommerce Carding Attack & Checkout Velocity Shield
+            add_action('woocommerce_checkout_process', [__CLASS__, 'inspect_woo_checkout_attempt'], 0);
+            add_action('woocommerce_after_checkout_validation', [__CLASS__, 'handle_woo_checkout_validation'], 999, 2);
+            add_action('woocommerce_order_status_failed', [__CLASS__, 'handle_woo_payment_failure'], 10, 1);
 
-        // Rule #40: WooCommerce Fake Customer Registration & Bot Shield
-        add_filter('woocommerce_registration_errors', [__CLASS__, 'validate_woo_customer_registration'], 10, 3);
-        add_action('woocommerce_created_customer', [__CLASS__, 'handle_woo_customer_created'], 10, 3);
+            // Rule #39: WooCommerce Coupon Enumeration & Brute-Force Shield
+            add_action('woocommerce_applied_coupon', [__CLASS__, 'handle_woo_coupon_success'], 10, 1);
+            add_filter('woocommerce_coupon_error', [__CLASS__, 'handle_woo_coupon_error'], 999, 3);
+            add_filter('rest_request_after_callbacks', [__CLASS__, 'handle_woo_store_api_coupon_response'], 10, 3);
 
-        // Rule #41: WooCommerce Cart Flooding & Denial of Inventory (DoI) Defense
-        add_filter('woocommerce_add_to_cart_validation', [__CLASS__, 'validate_woo_add_to_cart'], 10, 5);
+            // Rule #40: WooCommerce Fake Customer Registration & Bot Shield
+            add_filter('woocommerce_registration_errors', [__CLASS__, 'validate_woo_customer_registration'], 10, 3);
+            add_action('woocommerce_created_customer', [__CLASS__, 'handle_woo_customer_created'], 10, 3);
 
-        // Rule #42: WooCommerce Catalog & Price Scraping Mitigation
-        add_action('template_redirect', [__CLASS__, 'inspect_woo_catalog_scraping'], 1);
+            // Rule #41: WooCommerce Cart Flooding & Denial of Inventory (DoI) Defense
+            add_filter('woocommerce_add_to_cart_validation', [__CLASS__, 'validate_woo_add_to_cart'], 10, 5);
+
+            // Rule #42: WooCommerce Catalog & Price Scraping Mitigation
+            add_action('template_redirect', [__CLASS__, 'inspect_woo_catalog_scraping'], 1);
+        }
 
         // Rule #44: Runtime Privilege Escalation Guard (In-Memory RASP Hook Firewall)
         add_filter('pre_update_option', [__CLASS__, 'rasp_guard_critical_options'], 1, 3);
@@ -390,11 +397,13 @@ class FirewallEngine {
      */
     public static function is_authenticated_administrator(): bool {
         static $cached_result = null;
-        if ($cached_result !== null) {
-            return $cached_result;
+        if ($cached_result === true) {
+            return true;
+        }
+        if ($cached_result === false && function_exists('did_action') && did_action('init')) {
+            return false;
         }
 
-        $cached_result = false;
         $verified_user_id = 0;
 
         // Layer 1: Check standard WordPress authenticated session if available
@@ -444,14 +453,20 @@ class FirewallEngine {
         }
 
         if ($verified_user_id <= 0) {
-            return ($cached_result = false);
+            if (function_exists('did_action') && did_action('init')) {
+                $cached_result = false;
+            }
+            return false;
         }
 
         // Layer 3: Role and High-Privilege Capability Verification
         if (function_exists('get_userdata')) {
             $user = get_userdata($verified_user_id);
             if (!$user || empty($user->ID)) {
-                return ($cached_result = false);
+                if (function_exists('did_action') && did_action('init')) {
+                    $cached_result = false;
+                }
+                return false;
             }
 
             // Require administrator role or explicit manage_options capability
@@ -459,10 +474,16 @@ class FirewallEngine {
             $has_admin_role = in_array('administrator', (array) $user->roles, true);
 
             if (!$has_admin_cap && !$has_admin_role) {
-                return ($cached_result = false);
+                if (function_exists('did_action') && did_action('init')) {
+                    $cached_result = false;
+                }
+                return false;
             }
         } else {
-            return ($cached_result = false);
+            if (function_exists('did_action') && did_action('init')) {
+                $cached_result = false;
+            }
+            return false;
         }
 
         // Layer 4: Cryptographic Nonce Verification on REST API & AJAX Mutation Requests
@@ -474,7 +495,10 @@ class FirewallEngine {
             $nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE'])) : '';
             if (empty($nonce)) {
                 // REST mutation without nonce header is untrusted (protects against CSRF)
-                return ($cached_result = false);
+                if (function_exists('did_action') && did_action('init')) {
+                    $cached_result = false;
+                }
+                return false;
             }
 
             if (function_exists('wp_verify_nonce')) {
@@ -491,7 +515,10 @@ class FirewallEngine {
                 }
 
                 if (!$nonce_valid) {
-                    return ($cached_result = false);
+                    if (function_exists('did_action') && did_action('init')) {
+                        $cached_result = false;
+                    }
+                    return false;
                 }
             }
         }
@@ -606,31 +633,9 @@ class FirewallEngine {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early runtime WAF builder detection
         $ajax_action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
 
-        // 20 Popular WordPress Visual Builders & Block Suites:
-        // 1. Elementor, 2. Divi, 3. Beaver, 4. Bricks, 5. Breakdance, 6. Oxygen, 7. SeedProd,
-        // 8. Brizy, 9. Thrive Architect, 10. WPBakery, 11. Visual Composer, 12. Themify,
-        // 13. SiteOrigin, 14. Droip, 15. Live Composer, 16. WP Site Editor / Gutenberg FSE,
-        // 17. GenerateBlocks, 18. Kadence Blocks, 19. Spectra, 20. Avada Fusion Builder
-        $is_builder_ajax = in_array($ajax_action, [
-            // Elementor & Divi
-            'elementor_ajax', 'elementor_save_builder', 'et_fb_save_builder', 'et_fb_ajax_save',
-            // Beaver Builder & Bricks
-            'fl_builder_save_layout', 'bricks_save_post',
-            // Breakdance & Oxygen
-            'breakdance_save_document', 'ct_save_oxygen_data',
-            // SeedProd & Brizy
-            'seedprod_save_page', 'brizy_update_item', 'brizy_create_item',
-            // Thrive Architect & WPBakery
-            'tve_ajax_save_post', 'wpb_save_post', 'vc_save', 'vcv-ajax',
-            // Themify Builder & SiteOrigin
-            'themify_builder_save_data', 'so_panels_save',
-            // Droip & Live Composer
-            'droip_save_page', 'dslc-ajax-save-composer',
-            // Avada Fusion Builder
-            'fusion_app_save_post', 'fusion_save_post',
-            // Block Suites (Kadence, GenerateBlocks, Spectra)
-            'kadence_save_block', 'generateblocks_save', 'uagb_save_block',
-        ], true);
+        $has_builders = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('page_builder')
+            : true;
 
         $is_gutenberg_rest = (
             strpos($request_uri, '/wp-json/wp/v2/posts') !== false ||
@@ -640,38 +645,70 @@ class FirewallEngine {
             strpos($request_uri, '/wp-json/wp/v2/template-parts') !== false
         );
 
-        $is_builder_rest = (
-            strpos($request_uri, '/wp-json/elementor/') !== false ||
-            strpos($request_uri, '/wp-json/breakdance/') !== false ||
-            strpos($request_uri, '/wp-json/brizy/') !== false ||
-            strpos($request_uri, '/wp-json/seedprod/') !== false ||
-            strpos($request_uri, '/wp-json/droip/') !== false ||
-            strpos($request_uri, '/wp-json/generateblocks/') !== false ||
-            strpos($request_uri, '/wp-json/kadence/') !== false ||
-            strpos($request_uri, '/wp-json/uag/') !== false ||
-            strpos($request_uri, '/wp-json/fusion-builder/') !== false
-        );
+        $is_builder_ajax    = false;
+        $is_builder_rest    = false;
+        $is_builder_preview = false;
 
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Page builder preview detection at early runtime
-        $is_builder_preview = (
-            isset($_GET['elementor-preview']) ||
-            isset($_GET['et_fb']) ||
-            isset($_GET['fl_builder']) ||
-            isset($_GET['bricks']) ||
-            isset($_GET['breakdance']) ||
-            isset($_GET['ct_builder']) ||
-            isset($_GET['seedprod_builder']) ||
-            isset($_GET['brizy-edit']) ||
-            isset($_GET['tve']) ||
-            isset($_GET['vc_editable']) ||
-            isset($_GET['vcv-action']) ||
-            isset($_GET['tb_preview']) ||
-            isset($_GET['siteorigin_panels_live_editor']) ||
-            isset($_GET['droip_editor']) ||
-            isset($_GET['dslc']) ||
-            isset($_GET['fb-edit'])
-        );
-        // phpcs:enable WordPress.Security.NonceVerification.Recommended
+        if ($has_builders) {
+            // 20 Popular WordPress Visual Builders & Block Suites:
+            // 1. Elementor, 2. Divi, 3. Beaver, 4. Bricks, 5. Breakdance, 6. Oxygen, 7. SeedProd,
+            // 8. Brizy, 9. Thrive Architect, 10. WPBakery, 11. Visual Composer, 12. Themify,
+            // 13. SiteOrigin, 14. Droip, 15. Live Composer, 16. WP Site Editor / Gutenberg FSE,
+            // 17. GenerateBlocks, 18. Kadence Blocks, 19. Spectra, 20. Avada Fusion Builder
+            $is_builder_ajax = in_array($ajax_action, [
+                // Elementor & Divi
+                'elementor_ajax', 'elementor_save_builder', 'et_fb_save_builder', 'et_fb_ajax_save',
+                // Beaver Builder & Bricks
+                'fl_builder_save_layout', 'bricks_save_post',
+                // Breakdance & Oxygen
+                'breakdance_save_document', 'ct_save_oxygen_data',
+                // SeedProd & Brizy
+                'seedprod_save_page', 'brizy_update_item', 'brizy_create_item',
+                // Thrive Architect & WPBakery
+                'tve_ajax_save_post', 'wpb_save_post', 'vc_save', 'vcv-ajax',
+                // Themify Builder & SiteOrigin
+                'themify_builder_save_data', 'so_panels_save',
+                // Droip & Live Composer
+                'droip_save_page', 'dslc-ajax-save-composer',
+                // Avada Fusion Builder
+                'fusion_app_save_post', 'fusion_save_post',
+                // Block Suites (Kadence, GenerateBlocks, Spectra)
+                'kadence_save_block', 'generateblocks_save', 'uagb_save_block',
+            ], true);
+
+            $is_builder_rest = (
+                strpos($request_uri, '/wp-json/elementor/') !== false ||
+                strpos($request_uri, '/wp-json/breakdance/') !== false ||
+                strpos($request_uri, '/wp-json/brizy/') !== false ||
+                strpos($request_uri, '/wp-json/seedprod/') !== false ||
+                strpos($request_uri, '/wp-json/droip/') !== false ||
+                strpos($request_uri, '/wp-json/generateblocks/') !== false ||
+                strpos($request_uri, '/wp-json/kadence/') !== false ||
+                strpos($request_uri, '/wp-json/uag/') !== false ||
+                strpos($request_uri, '/wp-json/fusion-builder/') !== false
+            );
+
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Page builder preview detection at early runtime
+            $is_builder_preview = (
+                isset($_GET['elementor-preview']) ||
+                isset($_GET['et_fb']) ||
+                isset($_GET['fl_builder']) ||
+                isset($_GET['bricks']) ||
+                isset($_GET['breakdance']) ||
+                isset($_GET['ct_builder']) ||
+                isset($_GET['seedprod_builder']) ||
+                isset($_GET['brizy-edit']) ||
+                isset($_GET['tve']) ||
+                isset($_GET['vc_editable']) ||
+                isset($_GET['vcv-action']) ||
+                isset($_GET['tb_preview']) ||
+                isset($_GET['siteorigin_panels_live_editor']) ||
+                isset($_GET['droip_editor']) ||
+                isset($_GET['dslc']) ||
+                isset($_GET['fb-edit'])
+            );
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
+        }
         if ($is_builder_ajax || $is_gutenberg_rest || $is_builder_rest || $is_builder_preview) {
             return ($cached_builder_result = true);
         }
@@ -2313,14 +2350,26 @@ class FirewallEngine {
      * @return bool
      */
     public static function has_active_shopper_session(): bool {
+        // CAF 2.0: Instant O(1) short-circuit if site runs zero commerce or membership plugins
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            if (!\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('commerce') &&
+                !\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('lms_membership')) {
+                return false;
+            }
+        }
+
         if (empty($_COOKIE) || !is_array($_COOKIE)) {
             return false;
         }
 
+        $has_woo = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+            : true;
+
         foreach ($_COOKIE as $cookie_name => $cookie_val) {
             if (is_string($cookie_name)) {
                 // Cryptographically validated WooCommerce session cookie: customer_id||session_expiration||session_expiring||cookie_hash
-                if (strpos($cookie_name, 'wp_woocommerce_session_') !== false && is_string($cookie_val)) {
+                if ($has_woo && strpos($cookie_name, 'wp_woocommerce_session_') !== false && is_string($cookie_val)) {
                     $parts = explode('||', $cookie_val);
                     if (count($parts) >= 3 && (int) ($parts[1] ?? 0) > time()) {
                         return true;
@@ -2359,6 +2408,14 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_commerce_or_membership_request(string $uri): bool {
+        // CAF 2.0: Instant O(1) short-circuit if site runs zero commerce or membership plugins
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            if (!\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('commerce') &&
+                !\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('lms_membership')) {
+                return false;
+            }
+        }
+
         $parsed_path = strtolower(wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
         $query_string = isset($_SERVER['QUERY_STRING']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']))) : '';
 
@@ -4114,6 +4171,11 @@ class FirewallEngine {
         // 4. Clean up block metadata & lockout references
         self::delete_ip_block_meta($ip);
         delete_transient('wcpscan_lockout_ip_' . md5($ip));
+
+        // 5. Bi-Directional Cloudflare Unban Sync: Remove from Cloudflare Edge and queue
+        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::unban_ip_immediately($ip);
+        }
 
         return true;
     }
@@ -6266,9 +6328,41 @@ class FirewallEngine {
         $incident_id = 'WCP-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
         self::log_incident($rule, 'blocked', $incident_id);
 
-        // Record differential threat score event (CAF Phase 3)
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-            $rule_id_str = (string) ($rule['id'] ?? '');
+        // Record differential threat score event & trigger immediate Cloudflare Edge Ban on critical exploits
+        $rule_id_str = (string) ($rule['id'] ?? '');
+        $rule_cat    = (string) ($rule['category'] ?? '');
+        $critical_ban_categories = [
+            'SQL Injection',
+            'PHP Code Injection',
+            'Execution Armor',
+            'Path Traversal',
+            'Cross-Site Scripting (XSS)',
+            'Malicious File Upload',
+            'Virtual Patch',
+            'AI & Agent Defense',
+        ];
+
+        $is_instant_ban_exploit = in_array($rule_cat, $critical_ban_categories, true)
+            || str_contains($rule_id_str, 'VPATCH')
+            || str_contains($rule_id_str, 'SQLI')
+            || str_contains($rule_id_str, 'RCE')
+            || str_contains($rule_id_str, 'OBJECT-STREAM');
+
+        if ($is_instant_ban_exploit) {
+            $ban_reason = sprintf('[%s] %s', $rule_id_str ?: $rule_cat, $rule['description'] ?? 'Critical WAF exploit intercepted');
+            self::add_blocked_ip(
+                $client_ip,
+                $ban_reason,
+                86400,
+                $rule_id_str ?: 'WAF-CRITICAL',
+                $rule['name'] ?? $rule_cat,
+                $rule_cat,
+                $incident_id
+            );
+            if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+                \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'critical_exploit');
+            }
+        } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             $event_type = 'probe_404';
             if (str_contains($rule_id_str, 'HONEY') || str_contains($rule_id_str, 'SENSITIVE') || str_contains($rule_id_str, 'ENV') || str_contains($rule_id_str, 'GIT')) {
                 $event_type = 'honeypot';

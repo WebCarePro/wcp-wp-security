@@ -310,10 +310,12 @@ class HoneyTokenEngine {
 
         // Check if IP is in the central WAF Whitelist or belongs to server / local gateway
         $is_whitelisted = false;
+        if ((function_exists('current_user_can') && current_user_can('manage_options'))
+            || (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
+            return; // Never terminate or ban a verified active administrator
+        }
+
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            if (FirewallEngine::is_authenticated_administrator()) {
-                return; // Never terminate or ban a verified active administrator
-            }
             if (FirewallEngine::is_server_origin_or_loopback($client_ip)) {
                 return; // Never terminate or ban server origin or loopback/local dev gateways
             }
@@ -397,8 +399,12 @@ class HoneyTokenEngine {
      * @param int $duration_hours
      */
     public static function ban_bot_ip(string $ip, int $duration_hours = 24) {
+        if ((function_exists('current_user_can') && current_user_can('manage_options'))
+            || (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
+            return;
+        }
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            if (FirewallEngine::is_server_origin_or_loopback($ip) || FirewallEngine::is_authenticated_administrator()) {
+            if (FirewallEngine::is_server_origin_or_loopback($ip)) {
                 return;
             }
             FirewallEngine::add_blocked_ip(
@@ -812,11 +818,17 @@ class HoneyTokenEngine {
         }
 
         // If user is a verified administrator actively browsing wp-admin, bypass punitive termination
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator()) {
+        if ((function_exists('current_user_can') && current_user_can('manage_options'))
+            || (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
             return $pre_val;
         }
 
         $client_ip = self::get_client_ip();
+
+        // Local loopback and server origin IPs are always immune
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_server_origin_or_loopback($client_ip)) {
+            return $pre_val;
+        }
 
         self::trigger_trap('canary_option_access_breach', [
             'target'      => 'Database Honey Option (' . $option_name . ')',

@@ -54,12 +54,19 @@ class DistributedVelocityShield {
             return;
         }
 
-        // 1. Hook WooCommerce checkout validation failures and payment errors
-        add_action('woocommerce_after_checkout_validation', [__CLASS__, 'on_checkout_validation'], 20, 2);
-        add_action('woocommerce_order_status_failed', [__CLASS__, 'on_order_payment_failed'], 10, 1);
+        // Context-Adaptive Firewall (CAF 2.0): Only hook WooCommerce actions when WooCommerce is active
+        $has_woo = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+            : class_exists('WooCommerce');
 
-        // 2. Hook WooCommerce checkout process early for Under-Attack enforcement
-        add_action('woocommerce_checkout_process', [__CLASS__, 'enforce_checkout_guard'], 1);
+        if ($has_woo) {
+            // 1. Hook WooCommerce checkout validation failures and payment errors
+            add_action('woocommerce_after_checkout_validation', [__CLASS__, 'on_checkout_validation'], 20, 2);
+            add_action('woocommerce_order_status_failed', [__CLASS__, 'on_order_payment_failed'], 10, 1);
+
+            // 2. Hook WooCommerce checkout process early for Under-Attack enforcement
+            add_action('woocommerce_checkout_process', [__CLASS__, 'enforce_checkout_guard'], 1);
+        }
 
         // 3. Hook WordPress authentication failure
         add_action('wp_login_failed', [__CLASS__, 'on_login_failed'], 10, 2);

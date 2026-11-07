@@ -1,6 +1,6 @@
 {
   "version": "2.8.0",
-  "generated_at": "2026-11-07T19:25:23.408Z",
+  "generated_at": "2026-11-07T20:18:44.669Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -332,12 +332,12 @@
       "size": 27772
     },
     "includes/Firewall/CAF/AdaptiveFirewallAdvisor.php": {
-      "sha256": "1d37affe963e2bfa013dc40d84dfc019d0d0b6894c78ca7875ccd23c76917f6b",
-      "size": 17505
+      "sha256": "fff3dddb5e02645d3c18c8dfc2118aed04ade909752083d4fc64960178f5b391",
+      "size": 22330
     },
     "includes/Firewall/CAF/CloudflareIpListSynchronizer.php": {
-      "sha256": "5d6a4f72c4c81f752ea97ecc8298dbd4b72c2ef1dc65e30c42acc289de9f39aa",
-      "size": 15280
+      "sha256": "52e9c7b05ad35016d7b21281da0981a1ea1ed8d2ccc482f249147df327d9cb35",
+      "size": 26795
     },
     "includes/Firewall/CAF/CloudflareSlotOptimizer.php": {
       "sha256": "f80f974388b8bd0bbb0ae2e6ea12399741955d9ae959feb379c8ee60c5fddd3c",
@@ -364,24 +364,24 @@
       "size": 3070
     },
     "includes/Firewall/CAF/ThreatScoreTracker.php": {
-      "sha256": "276aeb468bb1ac6da6f712ba0201db587802ed603ff9ef36a3913ae7b0c90c74",
-      "size": 10830
+      "sha256": "0aa29db5f9b32a9e6d7a1910dde2a35f9eeb6f66938a0c5cebcdf7035bb1ec51",
+      "size": 11439
     },
     "includes/Firewall/CVEIntelligenceService.php": {
       "sha256": "9adcbdc67af67a974fd7fd217467d0f01925115586ba24904bb3831d51d29040",
       "size": 37906
     },
     "includes/Firewall/DistributedVelocityShield.php": {
-      "sha256": "a5a84e2f3c03bd07a9e4e4102e78b33fca7dd0d6ec7832a33e3717b827efa49a",
-      "size": 32664
+      "sha256": "1c9bd33e1f8df27d963582574972dda936155d85019802038bcb0808d87127f8",
+      "size": 33048
     },
     "includes/Firewall/DomainReputationMonitor.php": {
       "sha256": "637a3e43fb48a882017ebd5747d6a4cd37e48e6307b10f96d624bb09f00f630e",
       "size": 14194
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "52a44f228e6d405b5dfdd5efdeb489597ab592e25110d613395ad32b437dfabe",
-      "size": 413097
+      "sha256": "8f6201938582c8204b2c71e8c241c645724bcb7e99fb5193d4126325af59c371",
+      "size": 417747
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "a3ca3ac585deff3badcd521cb195b7ab29da6b2ae59bccf2335ac91dd292773d",
@@ -392,8 +392,8 @@
       "size": 14086
     },
     "includes/Firewall/HoneyTokenEngine.php": {
-      "sha256": "2fb40ecc3814524a7c1e4d8e3543a5c5270f3452b276b5d6e659be423ae6858f",
-      "size": 40171
+      "sha256": "146108473bc07536ef799abbe6309084473d9024289a1c1b7baa7319cccfb432",
+      "size": 40833
     },
     "includes/Firewall/HtaccessShield.php": {
       "sha256": "72dc6396389b442e6942ee0ab32ac254115b94e0e4df153a82ee5b4b0367d67a",
@@ -408,8 +408,8 @@
       "size": 15919
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "2404f1773b7baf6a8183462422ca36cfbddf447de08b4f8d043eb9f9496ffa87",
-      "size": 45161
+      "sha256": "4509022842754234e619674e7c7ea416e61bfe490ddf5f0fdca1f0aa56da808b",
+      "size": 45705
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "4f7debc51278c9ba0f59e0379737232bd241bf42e464f1483153b10d358e663b",
@@ -432,8 +432,8 @@
       "size": 20711
     },
     "includes/Firewall/VirtualPatchManager.php": {
-      "sha256": "671523ac42bf66e7142f71d34d7745239438524b53dca2f908ff4354fe3905da",
-      "size": 26572
+      "sha256": "7884c14c7169845448341f89615a977684a5e28d92e61f033357332ab930344f",
+      "size": 27167
     },
     "includes/Firewall/VirtualPatchSynthesizer.php": {
       "sha256": "3df34babbf9f96ac202abf0384f9a9f1d8dedd873cfdccbec672974a0f8bfdaf",
@@ -648,8 +648,8 @@
       "size": 26238
     },
     "includes/Security/PromptInjectionGuard.php": {
-      "sha256": "25aa079cc83d749aeddcbb90d7d1f7286d698bf4360c6d392e7b7c17c2459f1e",
-      "size": 24827
+      "sha256": "666828c840b772393105e62e777e442425a07cf4f26a9891275615810d1d9e0d",
+      "size": 25110
     },
     "includes/Security/SecretVault.php": {
       "sha256": "1bead5f0ed1373414fc8aec3bb952b0489e85a2ad2922dc9a969d55dc2f22f1a",

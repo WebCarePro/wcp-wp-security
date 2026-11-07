@@ -48,11 +48,12 @@ class ThreatScoreTracker {
     public const THRESHOLD_HARD_BAN   = 85.0;      // Hard drop & Cloudflare Ban Queue
 
     // Event Score Weights (\Delta S)
-    public const WEIGHT_HONEYPOT      = 25.0;
-    public const WEIGHT_DORMANT_SURF  = 15.0;
-    public const WEIGHT_AUTH_VIOLATE  = 10.0;
-    public const WEIGHT_PROBE_404     = 4.0;
-    public const WEIGHT_HEADER_ANOMALY= 15.0;
+    public const WEIGHT_CRITICAL_EXPLOIT = 85.0; // Immediate hard ban & Cloudflare Edge push on first exploit
+    public const WEIGHT_HONEYPOT         = 25.0;
+    public const WEIGHT_DORMANT_SURF     = 15.0;
+    public const WEIGHT_AUTH_VIOLATE     = 10.0;
+    public const WEIGHT_PROBE_404        = 4.0;
+    public const WEIGHT_HEADER_ANOMALY   = 15.0;
 
     /**
      * Record a security event for an IP and compute decayed threat score.
@@ -179,8 +180,18 @@ class ThreatScoreTracker {
      * Escalate an IP to local quarantine and push to Cloudflare Edge Ban Queue.
      */
     private static function escalate_to_hard_ban(string $ip, float $score, string $reason): void {
-        // Enqueue into Cloudflare Ban Queue (Phase 2 offload integration)
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+        // Enforce hard quarantine via central FirewallEngine
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            \WcpScanner\Firewall\FirewallEngine::add_blocked_ip(
+                $ip,
+                sprintf('ThreatScore %.1f: %s', $score, $reason),
+                86400,
+                null,
+                'CAF-THREAT-SCORE',
+                'CAF Autonomous Threat Score Ban',
+                'Context-Adaptive Firewall'
+            );
+        } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
             CloudflareIpListSynchronizer::queue_ip_ban($ip, sprintf('ThreatScore %.1f: %s', $score, $reason));
         }
 
@@ -231,12 +242,13 @@ class ThreatScoreTracker {
      */
     private static function get_event_weight(string $event_type): float {
         return match ($event_type) {
-            'honeypot'       => self::WEIGHT_HONEYPOT,
-            'dormant_surface'=> self::WEIGHT_DORMANT_SURF,
-            'auth_fail'      => self::WEIGHT_AUTH_VIOLATE,
-            'probe_404'      => self::WEIGHT_PROBE_404,
-            'header_anomaly' => self::WEIGHT_HEADER_ANOMALY,
-            default          => 5.0,
+            'critical_exploit' => self::WEIGHT_CRITICAL_EXPLOIT,
+            'honeypot'         => self::WEIGHT_HONEYPOT,
+            'dormant_surface'  => self::WEIGHT_DORMANT_SURF,
+            'auth_fail'        => self::WEIGHT_AUTH_VIOLATE,
+            'probe_404'        => self::WEIGHT_PROBE_404,
+            'header_anomaly'   => self::WEIGHT_HEADER_ANOMALY,
+            default            => 5.0,
         };
     }
 
