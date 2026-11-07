@@ -308,9 +308,15 @@ class HoneyTokenEngine {
             }
         }
 
-        // Check if IP is in the central WAF Whitelist
+        // Check if IP is in the central WAF Whitelist or belongs to server / local gateway
         $is_whitelisted = false;
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            if (FirewallEngine::is_authenticated_administrator()) {
+                return; // Never terminate or ban a verified active administrator
+            }
+            if (FirewallEngine::is_server_origin_or_loopback($client_ip)) {
+                return; // Never terminate or ban server origin or loopback/local dev gateways
+            }
             $waf_settings = SettingsManager::get_settings();
             $is_whitelisted = FirewallEngine::is_ip_whitelisted($client_ip, $waf_settings['waf_whitelisted_ips'] ?? '');
         }
@@ -392,6 +398,9 @@ class HoneyTokenEngine {
      */
     public static function ban_bot_ip(string $ip, int $duration_hours = 24) {
         if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            if (FirewallEngine::is_server_origin_or_loopback($ip) || FirewallEngine::is_authenticated_administrator()) {
+                return;
+            }
             FirewallEngine::add_blocked_ip(
                 $ip,
                 'Honeytoken trap triggered',
@@ -620,39 +629,51 @@ class HoneyTokenEngine {
             return;
         }
 
-        $existing = get_user_by('login', self::CANARY_ADMIN_USER);
-        if ($existing instanceof \WP_User) {
-            if (!get_user_meta($existing->ID, self::CANARY_USER_META, true)) {
-                update_user_meta($existing->ID, self::CANARY_USER_META, 1);
-            }
+        // Fast path: if already seeded, skip to prevent overhead on every request
+        if (get_option('_wcpscan_canary_admin_planted', false)) {
             return;
         }
 
-        // Generate impossible password hash
-        $impossible_pass = wp_hash_password(bin2hex(random_bytes(32))) . '!CANARY_LOCKED_' . bin2hex(random_bytes(8));
-        $site_slug       = substr(md5(home_url()), 0, 8);
-        $user_email      = 'security-canary-' . $site_slug . '@invalid.local';
-
-        $user_id = wp_insert_user([
-            'user_login'    => self::CANARY_ADMIN_USER,
-            'user_pass'     => $impossible_pass,
-            'user_email'    => $user_email,
-            'user_nicename' => 'security-canary',
-            'display_name'  => 'WCP Security Canary Admin',
-            'nickname'      => 'canary-admin',
-            'role'          => 'administrator',
-        ]);
-
-        if (!is_wp_error($user_id)) {
-            update_user_meta($user_id, self::CANARY_USER_META, 1);
-            update_user_meta($user_id, '_wcpscan_canary_created', time());
-
-            if (class_exists(AuditLogger::class)) {
-                AuditLogger::log(
-                    'canary_admin_seeded',
-                    sprintf('Seeded Ghost Admin canary user "%s" (ID: %d) as high-priority database tripwire.', self::CANARY_ADMIN_USER, $user_id)
-                );
+        self::$internal_audit_bypass = true;
+        try {
+            $existing = get_user_by('login', self::CANARY_ADMIN_USER);
+            if ($existing instanceof \WP_User) {
+                if (!get_user_meta($existing->ID, self::CANARY_USER_META, true)) {
+                    update_user_meta($existing->ID, self::CANARY_USER_META, 1);
+                }
+                update_option('_wcpscan_canary_admin_planted', time(), false);
+                return;
             }
+
+            // Generate impossible password hash
+            $impossible_pass = wp_hash_password(bin2hex(random_bytes(32))) . '!CANARY_LOCKED_' . bin2hex(random_bytes(8));
+            $site_slug       = substr(md5(home_url()), 0, 8);
+            $user_email      = 'security-canary-' . $site_slug . '@invalid.local';
+
+            $user_id = wp_insert_user([
+                'user_login'    => self::CANARY_ADMIN_USER,
+                'user_pass'     => $impossible_pass,
+                'user_email'    => $user_email,
+                'user_nicename' => 'security-canary',
+                'display_name'  => 'WCP Security Canary Admin',
+                'nickname'      => 'canary-admin',
+                'role'          => 'administrator',
+            ]);
+
+            if (!is_wp_error($user_id)) {
+                update_user_meta($user_id, self::CANARY_USER_META, 1);
+                update_user_meta($user_id, '_wcpscan_canary_created', time());
+                update_option('_wcpscan_canary_admin_planted', time(), false);
+
+                if (class_exists(AuditLogger::class)) {
+                    AuditLogger::log(
+                        'canary_admin_seeded',
+                        sprintf('Seeded Ghost Admin canary user "%s" (ID: %d) as high-priority database tripwire.', self::CANARY_ADMIN_USER, $user_id)
+                    );
+                }
+            }
+        } finally {
+            self::$internal_audit_bypass = false;
         }
     }
 
@@ -732,22 +753,45 @@ class HoneyTokenEngine {
             return;
         }
 
-        $salt     = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_canary_salt';
-        $site_key = substr(md5(home_url() . $salt), 0, 16);
-
-        $decoys = [
-            '_wcpscan_canary_aws_secret'    => 'AKIA' . strtoupper(substr(hash('sha256', 'aws:' . $site_key), 0, 16)) . ':' . bin2hex(random_bytes(20)),
-            '_wcpscan_canary_stripe_secret' => 'sk_live_canary_' . substr(hash('sha256', 'stripe:' . $site_key), 0, 24),
-            '_wcpscan_canary_vault_backup'  => 'https://vault-backup.internal/db-snap-' . $site_key . '.sql.enc',
-        ];
-
-        foreach ($decoys as $key => $val) {
-            if (get_option($key) === false) {
-                update_option($key, $val, false);
-            }
+        // Fast path: if already seeded, skip immediately to prevent query overhead
+        if (get_option(self::OPTION_CANARY_DB_PLANTED, false)) {
+            return;
         }
 
-        update_option(self::OPTION_CANARY_DB_PLANTED, time(), false);
+        self::$internal_audit_bypass = true;
+        try {
+            global $wpdb;
+            $salt     = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_canary_salt';
+            $site_key = substr(md5(home_url() . $salt), 0, 16);
+
+            $decoys = [
+                '_wcpscan_canary_aws_secret'    => 'AKIA' . strtoupper(substr(hash('sha256', 'aws:' . $site_key), 0, 16)) . ':' . bin2hex(random_bytes(20)),
+                '_wcpscan_canary_stripe_secret' => 'sk_live_canary_' . substr(hash('sha256', 'stripe:' . $site_key), 0, 24),
+                '_wcpscan_canary_vault_backup'  => 'https://vault-backup.internal/db-snap-' . $site_key . '.sql.enc',
+            ];
+
+            foreach ($decoys as $key => $val) {
+                // Direct SQL query in $wpdb completely bypasses get_option filters and traps
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Direct check required to bypass honeypot pre_option filters
+                $exists = $wpdb->get_var($wpdb->prepare("SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", $key));
+                if (!$exists) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Decoy option seeding must avoid triggering honeypot hooks
+                    $wpdb->insert(
+                        $wpdb->options,
+                        [
+                            'option_name'  => $key,
+                            'option_value' => $val,
+                            'autoload'     => 'no',
+                        ],
+                        ['%s', '%s', '%s']
+                    );
+                }
+            }
+
+            update_option(self::OPTION_CANARY_DB_PLANTED, time(), false);
+        } finally {
+            self::$internal_audit_bypass = false;
+        }
     }
 
     /**
@@ -759,6 +803,16 @@ class HoneyTokenEngine {
      */
     public static function trap_honey_option_access($pre_val, string $option_name) {
         if (self::$internal_audit_bypass) {
+            return $pre_val;
+        }
+
+        // Ignore internal CLI / cron executions
+        if ((defined('WP_CLI') && WP_CLI && !defined('WCPSCAN_TESTING')) || (defined('DOING_CRON') && DOING_CRON)) {
+            return $pre_val;
+        }
+
+        // If user is a verified administrator actively browsing wp-admin, bypass punitive termination
+        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator()) {
             return $pre_val;
         }
 
@@ -792,8 +846,16 @@ class HoneyTokenEngine {
      * @return array
      */
     public static function reseed_db_canaries(): array {
-        self::ensure_canary_admin_seeded();
-        self::ensure_honey_options_seeded();
+        delete_option(self::OPTION_CANARY_DB_PLANTED);
+        delete_option('_wcpscan_canary_admin_planted');
+
+        self::$internal_audit_bypass = true;
+        try {
+            self::ensure_canary_admin_seeded();
+            self::ensure_honey_options_seeded();
+        } finally {
+            self::$internal_audit_bypass = false;
+        }
 
         return [
             'success' => true,

@@ -2647,6 +2647,16 @@ class FirewallEngine {
             }
         }
 
+        // 4. Local Docker / Container bridge gateway in local environments
+        if (strpos($ip, '172.17.') === 0 || strpos($ip, '172.18.') === 0 || strpos($ip, '172.19.') === 0 || strpos($ip, '10.0.2.') === 0) {
+            $site_host = function_exists('home_url') ? (string) wp_parse_url(home_url(), PHP_URL_HOST) : '';
+            $req_host  = isset($_SERVER['HTTP_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])) : '';
+            $combined  = strtolower($site_host . ' ' . $req_host);
+            if (strpos($combined, 'localhost') !== false || strpos($combined, '127.0.0.1') !== false || strpos($combined, '.local') !== false || strpos($combined, '.test') !== false) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -3977,8 +3987,8 @@ class FirewallEngine {
             return false;
         }
 
-        // Safety Guard 1: Never block local loopback IPs
-        if (in_array($ip, ['127.0.0.1', '::1'], true)) {
+        // Safety Guard 1: Never block local loopback IPs or server origin / Docker dev gateways
+        if (in_array($ip, ['127.0.0.1', '::1'], true) || self::is_server_origin_or_loopback($ip)) {
             return false;
         }
 
