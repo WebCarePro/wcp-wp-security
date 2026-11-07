@@ -34,6 +34,10 @@ class Plugin {
         AdminMenu::register();
         \WcpScanner\System\Scheduler::register();
         
+        if (class_exists('\\WcpScanner\\Backup\\DatabaseBackup')) {
+            \WcpScanner\Backup\DatabaseBackup::init();
+        }
+
         if (class_exists('\\WcpScanner\\WordPress\\UserRemediationManager')) {
             \WcpScanner\WordPress\UserRemediationManager::init();
         }

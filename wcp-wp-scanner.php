@@ -106,6 +106,7 @@ register_deactivation_hook(__FILE__, function () {
 
     wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');
     wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
+    wp_clear_scheduled_hook('wcpscan_backup_step_worker');
 
     // Emergency fail-safe: Instantly revoke any active JIT elevations so no user is left with permanent administrator privileges
     $ephem_admins = get_option('wcpscan_ephemeral_admins', []);

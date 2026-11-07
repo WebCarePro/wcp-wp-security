@@ -169,6 +169,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/backup/active', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_active_backup'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/backup/session/cancel', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'cancel_backup_session'],
@@ -3708,6 +3714,16 @@ class ScannerRoutes {
             'success'   => true,
             'status'    => $state['status'],
             'state'     => $state,
+        ]);
+    }
+
+    public static function get_active_backup(\WP_REST_Request $request) {
+        $db_backup = new DatabaseBackup();
+        $active = $db_backup->get_active_session();
+        return rest_ensure_response([
+            'success'   => true,
+            'is_running'=> !empty($active) && ($active['status'] ?? '') === 'running',
+            'session'   => $active,
         ]);
     }
 

@@ -708,6 +708,7 @@ class WcpActivityLogger {
             'wcpscan_active_scan_lock_pid',
             'wcpscan_scan_progress',
             'wcpscan_live_scan_status',
+            'wcpscan_active_backup_session',
             'wcpscan_waf_events',
             'wcpscan_waf_blocked_ips',
 

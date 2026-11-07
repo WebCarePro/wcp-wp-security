@@ -7,7 +7,14 @@ if (!defined('ABSPATH')) {
 
 class DatabaseBackup {
 
+    const OPTION_ACTIVE_SESSION = 'wcpscan_active_backup_session';
+    const CRON_STEP_HOOK = 'wcpscan_backup_step_worker';
+
     private $backup_dir;
+
+    public static function init() {
+        add_action(self::CRON_STEP_HOOK, [__CLASS__, 'run_background_step']);
+    }
 
     public function __construct() {
         $uploads = wp_upload_dir();
@@ -475,6 +482,10 @@ class DatabaseBackup {
         ];
 
         $this->save_session_state($session_id, $state);
+        update_option(self::OPTION_ACTIVE_SESSION, $session_id, false);
+
+        // Schedule / dispatch initial background worker pulse
+        self::dispatch_background_worker($session_id);
 
         $telemetry = $this->collect_telemetry($state, null, null);
 
@@ -549,6 +560,8 @@ class DatabaseBackup {
             $state['stop_time'] = current_time('mysql');
             $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
             $state['error_details'] = $error_details;
+            delete_option(self::OPTION_ACTIVE_SESSION);
+            wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
             $this->save_session_state($session_id, $state);
 
             return [
@@ -710,6 +723,8 @@ class DatabaseBackup {
                 $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
                 $final_size = @filesize($filepath) ?: 0;
                 $state['final_size_mb'] = round($final_size / (1024 * 1024), 2);
+                delete_option(self::OPTION_ACTIVE_SESSION);
+                wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
 
                 if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
                     \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_completed', [
@@ -792,6 +807,8 @@ class DatabaseBackup {
             }
 
             $this->save_session_state($session_id, $state);
+            delete_option(self::OPTION_ACTIVE_SESSION);
+            wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
 
             return [
                 'success'   => false,
@@ -803,6 +820,12 @@ class DatabaseBackup {
         }
 
         $this->save_session_state($session_id, $state);
+
+        // Keep background worker primed if still running
+        if ($state['status'] === 'running') {
+            self::dispatch_background_worker($session_id);
+        }
+
         $telemetry = $this->collect_telemetry($state, $step_start, $step_ru_start);
 
         return [
@@ -826,6 +849,8 @@ class DatabaseBackup {
             $state['stop_time'] = current_time('mysql');
             $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
             $this->save_session_state($session_id, $state);
+            delete_option(self::OPTION_ACTIVE_SESSION);
+            wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
 
             // Remove partial file
             if (!empty($state['filepath']) && file_exists($state['filepath'])) {
@@ -944,6 +969,85 @@ class DatabaseBackup {
         }
 
         return null;
+    }
+
+    /**
+     * Get the active backup session state and telemetry if currently running or recently stopped.
+     *
+     * @return array|null
+     */
+    public function get_active_session(): ?array {
+        $session_id = get_option(self::OPTION_ACTIVE_SESSION);
+        if (!$session_id) {
+            return null;
+        }
+
+        $state = $this->get_session_state($session_id);
+        if (!$state) {
+            delete_option(self::OPTION_ACTIVE_SESSION);
+            return null;
+        }
+
+        // If marked completed, failed or cancelled, verify whether it stopped cleanly
+        if ($state['status'] !== 'running') {
+            delete_option(self::OPTION_ACTIVE_SESSION);
+        }
+
+        return [
+            'session_id' => $session_id,
+            'status'     => $state['status'],
+            'state'      => $state,
+            'telemetry'  => $this->collect_telemetry($state),
+        ];
+    }
+
+    /**
+     * Run a background worker step (triggered via WP-Cron or async loopback).
+     */
+    public static function run_background_step() {
+        $session_id = get_option(self::OPTION_ACTIVE_SESSION);
+        if (!$session_id) {
+            return;
+        }
+
+        // Increase limits for background execution
+        if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
+            @set_time_limit(0);
+        }
+
+        $backup = new self();
+        $state = $backup->get_session_state($session_id);
+        if (!$state || $state['status'] !== 'running') {
+            delete_option(self::OPTION_ACTIVE_SESSION);
+            wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
+            return;
+        }
+
+        // Run next chunk
+        $res = $backup->step_session($session_id);
+
+        // If still running after this step, self-dispatch or schedule the next step
+        if (!empty($res['success']) && ($res['status'] ?? '') === 'running') {
+            self::dispatch_background_worker($session_id);
+        }
+    }
+
+    /**
+     * Dispatch the background worker asynchronously so the backup continues unattended.
+     *
+     * @param string $session_id
+     */
+    public static function dispatch_background_worker(string $session_id) {
+        // 1. Schedule next WP-Cron single event as a reliable watchdog heartbeat
+        if (!wp_next_scheduled(self::CRON_STEP_HOOK)) {
+            wp_schedule_single_event(time() + 1, self::CRON_STEP_HOOK);
+        }
+
+        // 2. Spawn WP-Cron loopback immediately so background execution starts with zero delay
+        if (function_exists('spawn_cron')) {
+            spawn_cron();
+        }
     }
 
     /**
