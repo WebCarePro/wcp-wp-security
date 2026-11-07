@@ -862,59 +862,79 @@ class SettingsManager {
 
         // 11. DevSecOps Chat & Automation Webhooks (Slack, Discord, ClickUp, Asana, Zapier, Make, n8n - Encrypted with SecretVault)
         $clean['slack_enabled']                 = !empty($merged['slack_enabled']);
-        $in_slack                               = trim($input['slack_webhook_url'] ?? '');
-        $is_masked_slack                        = $in_slack === '' || strpos($in_slack, '••') !== false;
-        $old_slack_val                          = \WcpScanner\Security\SecretVault::decrypt($current['slack_webhook_url'] ?? '');
-        $slack_val                              = $is_masked_slack
-            ? $old_slack_val
-            : esc_url_raw($in_slack);
-        $clean['slack_webhook_url']             = ($slack_val === $old_slack_val && !empty($current['slack_webhook_url']))
-            ? $current['slack_webhook_url']
-            : \WcpScanner\Security\SecretVault::encrypt($slack_val);
+        $in_slack                               = isset($input['slack_webhook_url']) ? trim($input['slack_webhook_url']) : null;
+        if ($in_slack === '') {
+            $clean['slack_webhook_url'] = '';
+        } elseif ($in_slack !== null) {
+            $is_masked_slack = strpos($in_slack, '••') !== false;
+            $old_slack_val   = \WcpScanner\Security\SecretVault::decrypt($current['slack_webhook_url'] ?? '');
+            $slack_val       = $is_masked_slack ? $old_slack_val : esc_url_raw($in_slack);
+            $clean['slack_webhook_url'] = (!empty($slack_val))
+                ? (($slack_val === $old_slack_val && !empty($current['slack_webhook_url'])) ? $current['slack_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($slack_val))
+                : '';
+        } else {
+            $clean['slack_webhook_url'] = $current['slack_webhook_url'] ?? '';
+        }
 
         $clean['discord_enabled']               = !empty($merged['discord_enabled']);
-        $in_discord                             = trim($input['discord_webhook_url'] ?? '');
-        $is_masked_discord                      = $in_discord === '' || strpos($in_discord, '••') !== false;
-        $old_discord_val                        = \WcpScanner\Security\SecretVault::decrypt($current['discord_webhook_url'] ?? '');
-        $discord_val                            = $is_masked_discord
-            ? $old_discord_val
-            : esc_url_raw($in_discord);
-        $clean['discord_webhook_url']           = ($discord_val === $old_discord_val && !empty($current['discord_webhook_url']))
-            ? $current['discord_webhook_url']
-            : \WcpScanner\Security\SecretVault::encrypt($discord_val);
+        $in_discord                             = isset($input['discord_webhook_url']) ? trim($input['discord_webhook_url']) : null;
+        if ($in_discord === '') {
+            $clean['discord_webhook_url'] = '';
+        } elseif ($in_discord !== null) {
+            $is_masked_discord = strpos($in_discord, '••') !== false;
+            $old_discord_val   = \WcpScanner\Security\SecretVault::decrypt($current['discord_webhook_url'] ?? '');
+            $discord_val       = $is_masked_discord ? $old_discord_val : esc_url_raw($in_discord);
+            $clean['discord_webhook_url'] = (!empty($discord_val))
+                ? (($discord_val === $old_discord_val && !empty($current['discord_webhook_url'])) ? $current['discord_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($discord_val))
+                : '';
+        } else {
+            $clean['discord_webhook_url'] = $current['discord_webhook_url'] ?? '';
+        }
 
         $clean['clickup_enabled']               = !empty($merged['clickup_enabled']);
-        $in_clickup                             = trim($input['clickup_webhook_url'] ?? '');
-        $is_masked_clickup                      = $in_clickup === '' || strpos($in_clickup, '••') !== false;
-        $old_clickup_val                        = \WcpScanner\Security\SecretVault::decrypt($current['clickup_webhook_url'] ?? '');
-        $clickup_val                            = $is_masked_clickup
-            ? $old_clickup_val
-            : esc_url_raw($in_clickup);
-        $clean['clickup_webhook_url']           = ($clickup_val === $old_clickup_val && !empty($current['clickup_webhook_url']))
-            ? $current['clickup_webhook_url']
-            : \WcpScanner\Security\SecretVault::encrypt($clickup_val);
+        $in_clickup                             = isset($input['clickup_webhook_url']) ? trim($input['clickup_webhook_url']) : null;
+        if ($in_clickup === '') {
+            $clean['clickup_webhook_url'] = '';
+        } elseif ($in_clickup !== null) {
+            $is_masked_clickup = strpos($in_clickup, '••') !== false;
+            $old_clickup_val   = \WcpScanner\Security\SecretVault::decrypt($current['clickup_webhook_url'] ?? '');
+            $clickup_val       = $is_masked_clickup ? $old_clickup_val : esc_url_raw($in_clickup);
+            $clean['clickup_webhook_url'] = (!empty($clickup_val))
+                ? (($clickup_val === $old_clickup_val && !empty($current['clickup_webhook_url'])) ? $current['clickup_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($clickup_val))
+                : '';
+        } else {
+            $clean['clickup_webhook_url'] = $current['clickup_webhook_url'] ?? '';
+        }
 
         $clean['asana_enabled']                 = !empty($merged['asana_enabled']);
-        $in_asana                               = trim($input['asana_webhook_url'] ?? '');
-        $is_masked_asana                        = $in_asana === '' || strpos($in_asana, '••') !== false;
-        $old_asana_val                          = \WcpScanner\Security\SecretVault::decrypt($current['asana_webhook_url'] ?? '');
-        $asana_val                              = $is_masked_asana
-            ? $old_asana_val
-            : esc_url_raw($in_asana);
-        $clean['asana_webhook_url']             = ($asana_val === $old_asana_val && !empty($current['asana_webhook_url']))
-            ? $current['asana_webhook_url']
-            : \WcpScanner\Security\SecretVault::encrypt($asana_val);
+        $in_asana                               = isset($input['asana_webhook_url']) ? trim($input['asana_webhook_url']) : null;
+        if ($in_asana === '') {
+            $clean['asana_webhook_url'] = '';
+        } elseif ($in_asana !== null) {
+            $is_masked_asana = strpos($in_asana, '••') !== false;
+            $old_asana_val   = \WcpScanner\Security\SecretVault::decrypt($current['asana_webhook_url'] ?? '');
+            $asana_val       = $is_masked_asana ? $old_asana_val : esc_url_raw($in_asana);
+            $clean['asana_webhook_url'] = (!empty($asana_val))
+                ? (($asana_val === $old_asana_val && !empty($current['asana_webhook_url'])) ? $current['asana_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($asana_val))
+                : '';
+        } else {
+            $clean['asana_webhook_url'] = $current['asana_webhook_url'] ?? '';
+        }
 
         $clean['generic_webhook_enabled']       = !empty($merged['generic_webhook_enabled']);
-        $in_generic                             = trim($input['generic_webhook_url'] ?? '');
-        $is_masked_generic                      = $in_generic === '' || strpos($in_generic, '••') !== false;
-        $old_generic_val                        = \WcpScanner\Security\SecretVault::decrypt($current['generic_webhook_url'] ?? '');
-        $generic_val                            = $is_masked_generic
-            ? $old_generic_val
-            : esc_url_raw($in_generic);
-        $clean['generic_webhook_url']           = ($generic_val === $old_generic_val && !empty($current['generic_webhook_url']))
-            ? $current['generic_webhook_url']
-            : \WcpScanner\Security\SecretVault::encrypt($generic_val);
+        $in_generic                             = isset($input['generic_webhook_url']) ? trim($input['generic_webhook_url']) : null;
+        if ($in_generic === '') {
+            $clean['generic_webhook_url'] = '';
+        } elseif ($in_generic !== null) {
+            $is_masked_generic = strpos($in_generic, '••') !== false;
+            $old_generic_val   = \WcpScanner\Security\SecretVault::decrypt($current['generic_webhook_url'] ?? '');
+            $generic_val       = $is_masked_generic ? $old_generic_val : esc_url_raw($in_generic);
+            $clean['generic_webhook_url'] = (!empty($generic_val))
+                ? (($generic_val === $old_generic_val && !empty($current['generic_webhook_url'])) ? $current['generic_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($generic_val))
+                : '';
+        } else {
+            $clean['generic_webhook_url'] = $current['generic_webhook_url'] ?? '';
+        }
 
         $clean['webhook_notify_on_critical']    = !empty($merged['webhook_notify_on_critical']);
         $clean['webhook_notify_on_fim']         = !empty($merged['webhook_notify_on_fim']);

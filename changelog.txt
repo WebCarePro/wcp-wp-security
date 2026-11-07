@@ -1,4 +1,8 @@
 v:2.7.1 - 2026-11-07
+- Webhook Management & Inline Action Controls (SettingsPage.tsx, SettingsManager.php):
+  * Added dedicated inline "Save" and "Remove" controls directly adjacent to webhook URL input fields across all 5 integration cards (Slack, Discord, ClickUp, Asana, and Automation/Generic).
+  * Provided clean, instant action workflow: entering or editing a webhook URL allows saving and vault encryption directly with instant visual feedback (spin loader and saved indicator), while existing webhooks provide a prominent high-contrast "Remove" button with modal confirmation to safely purge the URL from encrypted vault storage and disable the integration.
+  * Resolved SettingsManager webhook value clearing so submitting an empty URL string properly wipes the secret from the encrypted vault and updates boolean integration status cleanly.
 - Dynamic Version Synchronization Across Notifications & Webhooks:
   * Replaced hardcoded "v1.5.0" in WebhookService.php across Slack, Discord, ClickUp, Asana, and Custom JSON test payloads with dynamic WCPSCAN_VERSION constant (e.g. "v2.7.1").
   * Added "Engine Version" field to Discord live notification embeds in NotificationDispatcher.php.

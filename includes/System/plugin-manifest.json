@@ -1,6 +1,6 @@
 {
   "version": "2.7.1",
-  "generated_at": "2026-11-07T11:11:06.659Z",
+  "generated_at": "2026-11-07T11:47:26.044Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -80,12 +80,12 @@
       "size": 854
     },
     "build/index.asset.php": {
-      "sha256": "a6f9addd3b1e280f73db46567ea96b4e020fd6832aa49d3183fa2a9a71c31d7f",
+      "sha256": "171b71f6beb27e3c41cbdccb6458da6d3e826bb7f59ac261065590cc3c5580b8",
       "size": 163
     },
     "build/index.js": {
-      "sha256": "f9ef84a985c5df5dbef0ffd1d90e04062f7f457149c46bb038fff7aa19473f85",
-      "size": 2315503
+      "sha256": "7c20f9653f17060728c345ae0f072c2890f9dc4d294b8bfa9f299bac98d0138f",
+      "size": 2322383
     },
     "build/notifications.asset.php": {
       "sha256": "f0db4adfca5faedfdded2f7886d85d5e0a6489b8e89f2f93e8b1d1ef56fe1dcf",
@@ -96,20 +96,20 @@
       "size": 113997
     },
     "build/scan.asset.php": {
-      "sha256": "8b68f28fe38ad12be1918fb97e219618f152f464366eb8204044331c461fa0ef",
+      "sha256": "c0babf58d19c287b9b2de1919ac6fdac4f63f630d96d22c920998d16a6eccb28",
       "size": 163
     },
     "build/scan.js": {
-      "sha256": "939dd80237e4ef27359060732578833cd558c19ae04a796b2f43f7acda52e7a4",
-      "size": 2314902
+      "sha256": "4eaf38a1148b125d52c9d987cfb2777ee43d841cbb2f346b8a628adfef47106a",
+      "size": 2321782
     },
     "build/settings.asset.php": {
-      "sha256": "c5891138c2b2a4fa51099a18fc5f285a0bda02e13aed6da7a1a748c174b43ba3",
+      "sha256": "d5211db87706e8de7f21fd22116a3cf98399342c03531d149e7df91a740f1420",
       "size": 163
     },
     "build/settings.js": {
-      "sha256": "ed0251c9a661593de4958b6caa6499a5138c8454c881d234ba1fdea4fc7a860e",
-      "size": 340546
+      "sha256": "f0c4fe14bf15834594ebb3dc3b0df960e0f2fc03986d68184f3c61a6bed22bb6",
+      "size": 347416
     },
     "build/vault.asset.php": {
       "sha256": "ef1d11eaffb2d9aeda25b3207cc1d4306f4002773d254d343222c1e7b6addec4",
@@ -708,8 +708,8 @@
       "size": 24854
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "3f325491c36eb0f7ecc4e28ddef7559d027ab05ebf0ec74caa8c5fb544300abc",
-      "size": 99027
+      "sha256": "2989e6e03db3b935ee7ae31a1b78a1fbe12bdd2887c62637ea9d46f3848ccace",
+      "size": 100042
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "a909948a81b7e94b0557f1a9bc5e2f73f992b2071189e3c7622546f3581ac067",
