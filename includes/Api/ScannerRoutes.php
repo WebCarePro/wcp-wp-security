@@ -1777,6 +1777,25 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // Pillar 2: In-Memory Object Cache (Redis / Memcached / APCu) Sentinel Endpoints
+        register_rest_route(self::NAMESPACE, '/integrity/object-cache/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_object_cache_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/integrity/object-cache/audit', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'run_object_cache_audit'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/integrity/object-cache/flush', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'flush_object_cache_resync'],
+            'permission_callback' => $permission,
+        ]);
+
 
 
         // Phase 6: Server Security Verification & Caddy
@@ -12106,6 +12125,61 @@ class ScannerRoutes {
             'passwords' => $passwords,
             'settings'  => $settings,
         ]);
+    }
+
+    /**
+     * Get In-Memory Object Cache Integrity status & environment.
+     */
+    public static function get_object_cache_status(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Object Cache Sentinel service not available.',
+            ], 500);
+        }
+
+        $audit = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
+
+        return rest_ensure_response([
+            'success' => true,
+            'report'  => $audit,
+        ]);
+    }
+
+    /**
+     * Run on-demand deep differential audit of RAM Object Cache vs MySQL disk.
+     */
+    public static function run_object_cache_audit(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Object Cache Sentinel service not available.',
+            ], 500);
+        }
+
+        $audit = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
+
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('Differential RAM vs Disk audit completed successfully.', 'wcp-security-scanner'),
+            'report'  => $audit,
+        ]);
+    }
+
+    /**
+     * 1-Click Surgical Flush & Resynchronization from MySQL Database Truth.
+     */
+    public static function flush_object_cache_resync(\WP_REST_Request $request) {
+        if (!class_exists(\WcpScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Object Cache Sentinel service not available.',
+            ], 500);
+        }
+
+        $result = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::resynchronize_and_flush();
+
+        return rest_ensure_response($result);
     }
 
 }

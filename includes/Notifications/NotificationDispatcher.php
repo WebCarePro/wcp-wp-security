@@ -255,6 +255,13 @@ class NotificationDispatcher {
                 'description' => __('Fires when the file integrity baseline checksum database is newly generated or recalculated.', 'wcp-security-scanner'),
                 'severity'    => 'info',
             ],
+            'object_cache_poisoning_detected' => [
+                'category'    => 'fim',
+                'category_label' => __('File Integrity Monitoring (FIM)', 'wcp-security-scanner'),
+                'title'       => __('In-Memory Object Cache Poisoning Detected', 'wcp-security-scanner'),
+                'description' => __('Critical alert when Redis, Memcached, or RAM object cache options diverge from MySQL database truth, indicating fileless in-memory tampering.', 'wcp-security-scanner'),
+                'severity'    => 'critical',
+            ],
 
             // Category: Vulnerabilities (CVE)
             'vuln_core_cve_detected' => [

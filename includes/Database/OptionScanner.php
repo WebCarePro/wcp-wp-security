@@ -65,6 +65,48 @@ class OptionScanner {
             }
         }
 
+        // 1b. In-Memory Object Cache (Redis / Memcached / APCu) RAM vs Disk Differential Audit
+        if (class_exists('\\WcpScanner\\Integrity\\ObjectCacheIntegritySentinel')) {
+            $cache_audit = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
+            if (!empty($cache_audit['critical_issues'])) {
+                foreach ($cache_audit['critical_issues'] as $crit) {
+                    $findings[] = new Finding([
+                        'engine'      => 'database-options',
+                        'type'        => 'object_cache_poisoning_detected',
+                        'severity'    => 'critical',
+                        'confidence'  => 100,
+                        'file_path'   => 'ram:object-cache:' . $crit['option_name'],
+                        'description' => sprintf(
+                            /* translators: 1: option name, 2: threat forensics */
+                            __('In-Memory Object Cache Poisoning on "%1$s": %2$s', 'wcp-security-scanner'),
+                            $crit['option_name'],
+                            $crit['forensics']
+                        ),
+                        'evidence'    => "Key: {$crit['option_name']} | DB Truth: {$crit['db_value']} | Live RAM: {$crit['ram_value']}",
+                    ]);
+                }
+            }
+            if (!empty($cache_audit['suspicious_sinks'])) {
+                foreach ($cache_audit['suspicious_sinks'] as $sink) {
+                    $findings[] = new Finding([
+                        'engine'      => 'database-options',
+                        'type'        => 'object_cache_execution_sink',
+                        'severity'    => 'critical',
+                        'confidence'  => 95,
+                        'file_path'   => 'ram:object-cache:' . $sink['option_name'],
+                        'description' => sprintf(
+                            /* translators: 1: option name, 2: sink message */
+                            __('Fileless Execution Sink in Object Cache "%1$s": %2$s', 'wcp-security-scanner'),
+                            $sink['option_name'],
+                            $sink['message']
+                        ),
+                        'evidence'    => 'Snippet: ' . $sink['snippet'],
+                        'code_snippet'=> substr($sink['snippet'], 0, 150),
+                    ]);
+                }
+            }
+        }
+
         // 2. Check for oversized autoloaded options (denial of service / hidden payloads)
         $large_options_sql = "SELECT option_name, LENGTH(option_value) AS value_len FROM `{$options_table}` WHERE autoload = 'yes' OR autoload = 'on' HAVING value_len > 500000 ORDER BY value_len DESC LIMIT 10";
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared

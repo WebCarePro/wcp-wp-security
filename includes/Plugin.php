@@ -62,6 +62,9 @@ class Plugin {
         if (class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
             \WcpScanner\Firewall\HtaccessVaultManager::register_cli();
         }
+        if (class_exists('\\WcpScanner\\Integrity\\ObjectCacheIntegritySentinel')) {
+            \WcpScanner\Integrity\ObjectCacheIntegritySentinel::init();
+        }
 
         if (class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager')) {
             \WcpScanner\Security\EmergencyContainmentManager::init();
