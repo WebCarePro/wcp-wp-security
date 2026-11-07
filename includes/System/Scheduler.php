@@ -11,12 +11,14 @@ if (!defined('ABSPATH')) {
 }
 
 class Scheduler {
-    const CRON_HOOK = 'wcpscan_scheduled_scan_event';
+    const CRON_HOOK   = 'wcpscan_scheduled_scan_event';
     const DIGEST_HOOK = 'wcpscan_weekly_digest_event';
+    const CANARY_HOOK = 'wcpscan_redirect_canary_event';
 
     public static function register() {
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_scan']);
         add_action(self::DIGEST_HOOK, [__CLASS__, 'run_weekly_digest']);
+        add_action(self::CANARY_HOOK, ['\\WcpScanner\\Firewall\\RedirectCanaryEngine', 'run_scheduled_canary']);
 
         // Schedule recurring Monday morning digest cron if not yet registered
         if (!wp_next_scheduled(self::DIGEST_HOOK)) {
@@ -27,7 +29,12 @@ class Scheduler {
             }
         }
 
-        // Custom cron intervals (e.g., weekly, 5-minutes)
+        // Schedule 15-minute synthetic redirect canary watchdog
+        if (!wp_next_scheduled(self::CANARY_HOOK)) {
+            wp_schedule_event(time() + 60, 'wcp_15min', self::CANARY_HOOK);
+        }
+
+        // Custom cron intervals (e.g., weekly, 5-minutes, 15-minutes)
         add_filter('cron_schedules', function ($schedules) {
             if (!isset($schedules['weekly'])) {
                 $schedules['weekly'] = [
@@ -39,6 +46,12 @@ class Scheduler {
                 $schedules['wcp_every_five_minutes'] = [
                     'interval' => 300,
                     'display'  => __('Every 5 Minutes (WCP Security)', 'wcp-security-scanner'),
+                ];
+            }
+            if (!isset($schedules['wcp_15min'])) {
+                $schedules['wcp_15min'] = [
+                    'interval' => 900,
+                    'display'  => __('Every 15 Minutes (WCP Redirect Canary)', 'wcp-security-scanner'),
                 ];
             }
             return $schedules;

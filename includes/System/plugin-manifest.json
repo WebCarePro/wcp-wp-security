@@ -1,6 +1,6 @@
 {
   "version": "2.7.2",
-  "generated_at": "2026-11-07T15:31:17.156Z",
+  "generated_at": "2026-11-07T15:39:54.170Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -272,8 +272,8 @@
       "size": 12439
     },
     "includes/Filesystem/PathValidator.php": {
-      "sha256": "456e6b259736bbdd5c7abed9d3733a0265d8d90e1221455d894cc1df684d76c4",
-      "size": 15752
+      "sha256": "5c40cf688375412b81f1afac7cdeec7afa793a08b3aaa3b50af1b9c06df94dc7",
+      "size": 15880
     },
     "includes/Filesystem/PermissionScanner.php": {
       "sha256": "dae70f00df54ecc673a97196fb750521c519019afbe0e1591faf823c6c72f942",
@@ -398,6 +398,10 @@
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "4f7debc51278c9ba0f59e0379737232bd241bf42e464f1483153b10d358e663b",
       "size": 31333
+    },
+    "includes/Firewall/RedirectCanaryEngine.php": {
+      "sha256": "4aaa1a7e9c3c5a482be48fc29abc77c4428b80149e3bbfa81cae476e6de08dcb",
+      "size": 39191
     },
     "includes/Firewall/ServerSecurityEngine.php": {
       "sha256": "4abadae031f7f35af91c56fc03e5449dc67b61819f678fcc02876e75804edda1",
@@ -664,8 +668,8 @@
       "size": 8930
     },
     "includes/System/ActivityLogs/ActivityHumanizer.php": {
-      "sha256": "d78ea96b68ad979e6cddc8e600575a4dfaa004af8f4f72a0ecd7e4167bcdf0cc",
-      "size": 21221
+      "sha256": "f5c8e0df4ffa6310bcb833ea6fd6b34868c17376d0053aaa1ba8281482c11cec",
+      "size": 21659
     },
     "includes/System/ActivityLogs/ActivityRateLimiter.php": {
       "sha256": "25d8281afd6d02d1d5463c10e1b1fe0f252939b6b7f460a557713c4369bdae31",
@@ -708,8 +712,8 @@
       "size": 6397
     },
     "includes/System/Scheduler.php": {
-      "sha256": "cf754c8cfa05ab7198fdd055505e17a05648ca05f679b5e9ba772e2551bfb375",
-      "size": 41613
+      "sha256": "f5498bf091739b6c8a51bea2d3eaff3c7bbb49c762f5862f30a9d6975cb5585e",
+      "size": 42273
     },
     "includes/System/ServerInfo.php": {
       "sha256": "eb777ddecef03c2a0faabf6e95ce16b34bb11de0d2d0c97b75cd70b97e623feb",
@@ -776,20 +780,20 @@
       "size": 429
     },
     "README.md": {
-      "sha256": "47b015292f16c60e81645f325b3a7de5c2d3f372515e425f0fd51e3d90d4cfbe",
-      "size": 63859
+      "sha256": "e1a36b9ab29d407c6921e74dddadc3307ace5f6b17c2c5be65044b6666060f65",
+      "size": 63298
     },
     "readme.txt": {
-      "sha256": "5155adab2ca787947d1f063b071a93c5aef75efbdfffbf5224a13c924335a6a8",
-      "size": 30310
+      "sha256": "08480c461c9faed335744db98e242f6846fd1222e9166ff351523a544a1be0d5",
+      "size": 29886
     },
     "uninstall.php": {
       "sha256": "5b8b2d618cc165e1c9166ed30ef269e7d47d9d3815addb155a303d69b4ea0348",
       "size": 9799
     },
     "wcp-wp-scanner.php": {
-      "sha256": "eff631d6fd2878a8a5effde910628fe2df73d505c909bc17aaed14a863f308ef",
-      "size": 7633
+      "sha256": "db1520ef8dd2d8929cb72181555f3270605247ecc2a978caabca1a020952582f",
+      "size": 7695
     }
   }
 }

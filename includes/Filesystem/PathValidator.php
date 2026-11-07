@@ -265,14 +265,15 @@ class PathValidator {
             return false;
         }
 
-        global $wp_filesystem;
-        if (empty($wp_filesystem)) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            WP_Filesystem();
-        }
-        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
-            $wp_filesystem->chmod($tmp_file, $perms);
-        } else {
+        try {
+            global $wp_filesystem;
+            if (!empty($wp_filesystem) && ($wp_filesystem instanceof \WP_Filesystem_Direct) && method_exists($wp_filesystem, 'chmod')) {
+                $wp_filesystem->chmod($tmp_file, $perms);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($tmp_file, $perms);
+            }
+        } catch (\Throwable $e) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
             @chmod($tmp_file, $perms);
         }

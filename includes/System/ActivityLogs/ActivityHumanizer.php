@@ -253,6 +253,14 @@ class ActivityHumanizer {
                 $badge_label = 'Redirect Defense';
                 break;
 
+            case 'database_core_urls_healed':
+                $home = $details['restored_home'] ?? '';
+                $title       = 'Database Core URLs Restored to Baseline';
+                $description = sprintf('Tampered "siteurl" and "home" database options were automatically restored back to baseline ("%s").', $home);
+                $badge       = 'clean';
+                $badge_label = 'Auto-Healing';
+                break;
+
             case 'policy_updated':
                 $option = $details['option'] ?? '';
                 if (str_contains($option, 'micro_waf_status')) {
