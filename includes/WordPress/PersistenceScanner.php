@@ -971,6 +971,76 @@ class PersistenceScanner {
                         return $result;
                     }
                 }
+
+                // 4. Early HTTP header or WordPress redirect in drop-in/mu-plugin
+                if ($type === T_STRING && in_array($str, ['header', 'wp_redirect', 'wp_safe_redirect'], true)) {
+                    $next_code = '';
+                    for ($j = $i + 1; $j < min($count, $i + 35); $j++) {
+                        $ntok = $tokens[$j];
+                        $next_code .= is_array($ntok) ? $ntok[1] : $ntok;
+                    }
+
+                    if ($str === 'header' && preg_match('/location\s*:/i', $next_code)) {
+                        $home_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+                        if (preg_match('/location\s*:\s*https?:\/\/([^\/\'"\s]+)/i', $next_code, $loc_m)) {
+                            $dest_host = strtolower($loc_m[1]);
+                            if ($home_host && $dest_host !== strtolower($home_host) && !str_ends_with($dest_host, '.' . strtolower($home_host))) {
+                                $result['is_malicious'] = true;
+                                /* translators: %s: external redirect hostname */
+                                $result['reason'] = sprintf(__('Early External HTTP Redirect: Drop-in or MU-plugin executes pre-WordPress Location header redirect to external host "%s".', 'wcp-security-scanner'), $dest_host);
+                                $result['snippet'] = substr($tok[1] . $next_code, 0, 160);
+                                $result['evidence'] = "Hostile early redirect: {$tok[1]}{$next_code}";
+                                return $result;
+                            }
+                        } elseif (preg_match('/location\s*:\s*[\'"]?\s*\.\s*\$/i', $next_code) || preg_match('/(\$_GET|\$_POST|\$_REQUEST|\$url|\$dest|\$target)/i', $next_code)) {
+                            $result['is_suspicious'] = true;
+                            $result['reason'] = __('Dynamic HTTP Location header redirect found in pre-WordPress boot stage.', 'wcp-security-scanner');
+                            $result['snippet'] = substr($tok[1] . $next_code, 0, 140);
+                            $result['evidence'] = "Dynamic redirect: {$tok[1]}{$next_code}";
+                        }
+                    } elseif (($str === 'wp_redirect' || $str === 'wp_safe_redirect') && !empty($file_path)) {
+                        $base_name = basename($file_path);
+                        if (in_array($base_name, ['db.php', 'object-cache.php', 'advanced-cache.php', 'sunrise.php'], true)) {
+                            $result['is_malicious'] = true;
+                            /* translators: %s: drop-in filename */
+                            $result['reason'] = sprintf(__('Early wp_redirect() inside drop-in "%s". Drop-ins run before WordPress routing and must never execute redirects.', 'wcp-security-scanner'), $base_name);
+                            $result['snippet'] = substr($tok[1] . $next_code, 0, 140);
+                            $result['evidence'] = "Early wp_redirect in drop-in: {$base_name}";
+                            return $result;
+                        }
+                    }
+                }
+
+                // 5. Output Buffer Redirect Injectors (ob_start with HTML replacement)
+                if ($type === T_STRING && $str === 'ob_start') {
+                    $next_code = '';
+                    for ($j = $i + 1; $j < min($count, $i + 45); $j++) {
+                        $ntok = $tokens[$j];
+                        $next_code .= is_array($ntok) ? $ntok[1] : $ntok;
+                    }
+                    if (preg_match('/(?:http-equiv=["\']?refresh|location\.replace|location\.href\s*=|window\.location)/i', $content)) {
+                        $result['is_malicious'] = true;
+                        $result['reason'] = __('Output Buffer Redirect Injector: ob_start() paired with DOM or meta-refresh redirect manipulation.', 'wcp-security-scanner');
+                        $result['snippet'] = substr($tok[1] . $next_code, 0, 150);
+                        $result['evidence'] = "ob_start redirect injection in {$file_path}";
+                        return $result;
+                    }
+                }
+
+                // 6. Remote C2 Redirect Fetchers (wp_remote_get / curl_exec feeding Location redirect)
+                if ($type === T_STRING && in_array($str, ['curl_exec', 'wp_remote_get', 'file_get_contents'], true)) {
+                    if (preg_match('/(?:header\s*\(\s*[\'"]Location:|\bwp_redirect\s*\()/i', $content)) {
+                        $base_name = basename($file_path);
+                        if (in_array($base_name, ['db.php', 'object-cache.php', 'advanced-cache.php', 'sunrise.php'], true) || str_contains($file_path, 'mu-plugins')) {
+                            $result['is_malicious'] = true;
+                            /* translators: %s: filename */
+                            $result['reason'] = sprintf(__('Remote C2 Redirect Fetcher: Remote HTTP request paired with Location header redirect in %s.', 'wcp-security-scanner'), $base_name ?: 'file');
+                            $result['snippet'] = substr($tok[1], 0, 120);
+                            $result['evidence'] = "Remote C2 redirect fetcher in {$base_name}";
+                            return $result;
+                        }
+                    }
+                }
             }
         }
 

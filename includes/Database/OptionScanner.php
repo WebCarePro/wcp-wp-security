@@ -26,7 +26,7 @@ class OptionScanner {
         $findings = [];
         $options_table = $wpdb->prefix . 'options';
 
-        // 1. Check home & siteurl options for suspicious external redirection
+        // 1. Check home & siteurl options for suspicious external redirection & baseline integrity
         $siteurl = get_option('siteurl');
         $home = get_option('home');
 
@@ -42,6 +42,25 @@ class OptionScanner {
                     'file_path'   => $options_table . ':siteurl/home',
                     'description' => "siteurl ($siteurl) does not match home ($home) host. Possible domain hijacking or redirection.",
                     'evidence'    => "siteurl host: $parsed_siteurl, home host: $parsed_home"
+                ]);
+            }
+        }
+
+        if (class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')) {
+            $baseline_check = \WcpScanner\Firewall\RedirectCanaryEngine::verify_database_core_urls();
+            if (!empty($baseline_check) && empty($baseline_check['clean']) && !empty($baseline_check['message'])) {
+                $findings[] = new Finding([
+                    'engine'      => 'database-options',
+                    'type'        => 'database_url_hijacking',
+                    'severity'    => 'critical',
+                    'confidence'  => 100,
+                    'file_path'   => $options_table . ':siteurl/home',
+                    'description' => sprintf(
+                        /* translators: %s: details */
+                        __('Core WordPress database URL hijacking detected! %s', 'wcp-security-scanner'),
+                        $baseline_check['message']
+                    ),
+                    'evidence'    => "siteurl: {$siteurl} | home: {$home}",
                 ]);
             }
         }
@@ -103,6 +122,66 @@ class OptionScanner {
                         'description' => "Active plugin entry references a non-existent file: '{$plugin_rel_path}'.",
                         'evidence'    => "Missing file: $full_path"
                     ]);
+                }
+            }
+        }
+
+        // 5. Inspect widget and script injection options for cloaked redirects, meta-refresh, and Web3 loaders
+        $target_option_patterns = [
+            'widget_text',
+            'widget_custom_html',
+            'widget_block',
+            'sidebars_widgets',
+            'insert_headers_and_footers',
+            'insert_headers_and_footers_scripts',
+            'wp_head_scripts',
+            'wp_footer_scripts',
+            'header_scripts',
+            'footer_scripts',
+            'custom_css_post_id',
+            'elementor_custom_snippets',
+            'genesis_header_scripts',
+            'genesis_footer_scripts',
+            'wp_scripts',
+            'custom_js',
+        ];
+
+        $escaped_options = "'" . implode("', '", array_map('esc_sql', $target_option_patterns)) . "'";
+        $script_options_sql = "SELECT option_name, option_value FROM `{$options_table}` WHERE option_name IN ({$escaped_options}) OR option_name LIKE 'widget_%' LIMIT 60";
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        $script_options = $wpdb->get_results($script_options_sql);
+
+        if (!empty($script_options)) {
+            $html_analyzer = new \WcpScanner\Content\HTMLAnalyzer();
+
+            foreach ($script_options as $s_opt) {
+                $raw_val = maybe_unserialize($s_opt->option_value);
+                $opt_text = stripslashes(is_array($raw_val) || is_object($raw_val) ? wp_json_encode($raw_val, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $raw_val);
+
+                if (empty($opt_text) || strlen($opt_text) < 15) {
+                    continue;
+                }
+
+                // Check HTML analyzer detections for meta refresh, base href, and inline redirects
+                $hits = $html_analyzer->detect_hidden_elements($opt_text);
+                foreach ($hits as $hit) {
+                    if (in_array($hit['type'], ['content_meta_refresh_redirect', 'content_base_href_hijack', 'content_dom_redirect', 'content_malicious_inline_js', 'hidden_iframe', 'remote_script_injection'], true)) {
+                        $findings[] = new Finding([
+                            'engine'      => 'database-options',
+                            'type'        => 'option_script_redirect_injection',
+                            'severity'    => 'critical',
+                            'confidence'  => 98,
+                            'file_path'   => $options_table . ':' . $s_opt->option_name,
+                            'description' => sprintf(
+                                /* translators: 1: option name, 2: threat description */
+                                __('Injected redirect or script exploit detected in database option "%1$s": %2$s', 'wcp-security-scanner'),
+                                $s_opt->option_name,
+                                $hit['desc']
+                            ),
+                            'evidence'    => 'Option: ' . $s_opt->option_name . ' | Snippet: ' . $hit['snippet'],
+                            'code_snippet'=> substr($hit['snippet'], 0, 150),
+                        ]);
+                    }
                 }
             }
         }

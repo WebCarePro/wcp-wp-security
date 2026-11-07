@@ -26,6 +26,9 @@ use WcpScanner\Forensics\AttackChainEngine;
 use WcpScanner\Firewall\VirtualPatchManager;
 use WcpScanner\Firewall\ThreatIntelNetwork;
 use WcpScanner\Firewall\VirtualPatchSynthesizer;
+use WcpScanner\Firewall\HtaccessVaultManager;
+use WcpScanner\Firewall\HtaccessShield;
+use WcpScanner\Firewall\RedirectCanaryEngine;
 use WcpScanner\Filesystem\PathValidator;
 use WcpScanner\Reports\IncidentReportEngine;
 
@@ -482,6 +485,43 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/firewall/server-security/deploy-htaccess', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'deploy_server_security_htaccess'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Redirect Hack Defense & .htaccess Armor Endpoints
+        register_rest_route(self::NAMESPACE, '/firewall/redirect-shield/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_redirect_shield_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/redirect-shield/probe', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'run_redirect_canary_probe'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/redirect-shield/restore', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'restore_htaccess_vault_snapshot'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/redirect-shield/lock', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_htaccess_lock'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/redirect-shield/heal-urls', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'heal_database_core_urls'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firewall/redirect-shield/snapshot', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'create_htaccess_vault_snapshot'],
             'permission_callback' => $permission,
         ]);
 
@@ -7505,6 +7545,131 @@ class ScannerRoutes {
         }
 
         return rest_ensure_response($result);
+    }
+
+    public static function get_redirect_shield_status() {
+        $htaccess_path = ABSPATH . '.htaccess';
+        $htaccess_exists = file_exists($htaccess_path);
+        $htaccess_content = $htaccess_exists ? (@file_get_contents($htaccess_path) ?: '') : '';
+        $htaccess_writable = $htaccess_exists ? is_writable($htaccess_path) : is_writable(ABSPATH);
+
+        $analysis = class_exists('\\WcpScanner\\Firewall\\HtaccessShield')
+            ? \WcpScanner\Firewall\HtaccessShield::analyze_htaccess_content($htaccess_content)
+            : ['score' => 0, 'hostile_count' => 0, 'findings' => [], 'summary' => ''];
+
+        $snapshots = class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')
+            ? \WcpScanner\Firewall\HtaccessVaultManager::list_snapshots()
+            : [];
+
+        $canary_state = get_option(\WcpScanner\Firewall\RedirectCanaryEngine::STATE_OPTION, []);
+
+        $db_urls = class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')
+            ? \WcpScanner\Firewall\RedirectCanaryEngine::verify_database_core_urls()
+            : ['clean' => true, 'siteurl' => get_option('siteurl'), 'home' => get_option('home')];
+
+        $auto_heal = (bool) \WcpScanner\System\SettingsManager::get('htaccess_auto_heal_enabled', false);
+        $next_canary = wp_next_scheduled('wcpscan_redirect_canary_event');
+
+        return rest_ensure_response([
+            'success'             => true,
+            'is_htaccess_active'  => $htaccess_exists,
+            'is_read_only_locked' => !$htaccess_writable,
+            'auto_heal_enabled'   => $auto_heal,
+            'file_size'           => strlen($htaccess_content),
+            'mtime'               => $htaccess_exists ? (int) @filemtime($htaccess_path) : 0,
+            'mtime_human'         => $htaccess_exists ? human_time_diff((int) @filemtime($htaccess_path), time()) . ' ago' : 'N/A',
+            'analysis'            => $analysis,
+            'snapshots'           => $snapshots,
+            'canary_state'        => $canary_state,
+            'database_urls'       => $db_urls,
+            'server_software'     => isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown',
+            'next_canary_ts'      => $next_canary ?: 0,
+            'next_canary_human'   => $next_canary ? human_time_diff(time(), $next_canary) . ' from now' : 'Not scheduled',
+        ]);
+    }
+
+    public static function run_redirect_canary_probe() {
+        if (!class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => __('RedirectCanaryEngine not loaded.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $report = \WcpScanner\Firewall\RedirectCanaryEngine::execute_probes();
+        $auto_heal_res = \WcpScanner\Firewall\RedirectCanaryEngine::evaluate_and_auto_heal($report);
+
+        return rest_ensure_response([
+            'success'   => true,
+            'report'    => $report,
+            'auto_heal' => $auto_heal_res,
+        ]);
+    }
+
+    public static function restore_htaccess_vault_snapshot(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => __('HtaccessVaultManager not loaded.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $version = isset($params['version']) ? max(1, min(5, (int) $params['version'])) : 1;
+
+        $res = \WcpScanner\Firewall\HtaccessVaultManager::restore_snapshot($version);
+        return rest_ensure_response($res);
+    }
+
+    public static function toggle_htaccess_lock(\WP_REST_Request $request) {
+        if (!class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => __('HtaccessVaultManager not loaded.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $locked = !empty($params['locked']);
+
+        $res = \WcpScanner\Firewall\HtaccessVaultManager::set_readonly_lock($locked);
+
+        if (isset($params['auto_heal'])) {
+            \WcpScanner\System\SettingsManager::set('htaccess_auto_heal_enabled', !empty($params['auto_heal']));
+        }
+
+        return rest_ensure_response([
+            'success'   => $res,
+            'is_locked' => $locked,
+            'auto_heal' => (bool) \WcpScanner\System\SettingsManager::get('htaccess_auto_heal_enabled', false),
+            'message'   => $locked
+                ? __('Root .htaccess locked to read-only (0444). Direct modification by processes is disabled.', 'wcp-security-scanner')
+                : __('Root .htaccess unlocked (0644). Caching and SEO plugins can write configuration updates.', 'wcp-security-scanner'),
+        ]);
+    }
+
+    public static function heal_database_core_urls() {
+        if (!class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => __('RedirectCanaryEngine not loaded.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $res = \WcpScanner\Firewall\RedirectCanaryEngine::restore_database_core_urls();
+        return rest_ensure_response($res);
+    }
+
+    public static function create_htaccess_vault_snapshot() {
+        if (!class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+            return rest_ensure_response([
+                'success' => false,
+                'message' => __('HtaccessVaultManager not loaded.', 'wcp-security-scanner'),
+            ]);
+        }
+
+        $res = \WcpScanner\Firewall\HtaccessVaultManager::snapshot_current_if_clean('manual_admin_cockpit');
+        return rest_ensure_response($res);
     }
 
     public static function get_micro_waf_status(\WP_REST_Request $request) {
