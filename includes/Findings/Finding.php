@@ -15,6 +15,7 @@ class Finding {
     public $code_snippet;
     public $evidence;
     public $description;
+    public $taint_chain;
 
     public function __construct($data = []) {
         $this->engine = $data['engine'] ?? 'unknown';
@@ -26,6 +27,7 @@ class Finding {
         $this->code_snippet = $data['code_snippet'] ?? null;
         $this->evidence = $data['evidence'] ?? null;
         $this->description = $data['description'] ?? '';
+        $this->taint_chain = $data['taint_chain'] ?? null;
     }
 
     public function to_array() {
@@ -39,6 +41,7 @@ class Finding {
             'code_snippet' => $this->code_snippet,
             'evidence' => $this->evidence,
             'description' => $this->description,
+            'taint_chain' => $this->taint_chain,
         ];
 
         if (class_exists('\\WcpScanner\\Findings\\FindingTranslator')) {

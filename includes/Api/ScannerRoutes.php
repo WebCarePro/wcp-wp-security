@@ -1457,6 +1457,19 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        // AST Source-to-Sink Taint Flow Engine (2026 AI-Era Defense Pillar 5)
+        register_rest_route(self::NAMESPACE, '/defense/taint-engine/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_taint_engine_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/defense/taint-engine/analyze', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'analyze_code_taint_flow'],
+            'permission_callback' => $permission,
+        ]);
+
         // 19. Zero-Trust Identity, Session Forensics & Ephemeral Elevation (Pillar 4)
         register_rest_route(self::NAMESPACE, '/identity/status', [
             'methods'             => 'GET',
@@ -10228,6 +10241,62 @@ class ScannerRoutes {
                 esc_html($type)
             ),
         ], $res));
+    }
+
+    /**
+     * Retrieve status and capabilities of the AST Taint Analysis Engine.
+     */
+    public static function get_taint_engine_status(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Malware\TaintAnalysisEngine')) {
+            return new \WP_Error('missing_module', __('TaintAnalysisEngine module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $engine = new \WcpScanner\Malware\TaintAnalysisEngine();
+        return rest_ensure_response(array_merge([
+            'success' => true,
+        ], $engine->get_telemetry()));
+    }
+
+    /**
+     * Run on-demand AST Source-to-Sink Taint Flow Analysis on PHP code or file.
+     */
+    public static function analyze_code_taint_flow(\WP_REST_Request $request) {
+        if (!class_exists('\WcpScanner\Malware\TaintAnalysisEngine')) {
+            return new \WP_Error('missing_module', __('TaintAnalysisEngine module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        }
+
+        $code = $request->get_param('code');
+        $file_path = $request->get_param('file_path');
+
+        $engine = new \WcpScanner\Malware\TaintAnalysisEngine();
+
+        if (!empty($file_path)) {
+            $sanitized_path = sanitize_text_field(wp_unslash($file_path));
+            $finding = $engine->analyze_file($sanitized_path);
+        } elseif (!empty($code)) {
+            $raw_code = (string) $request->get_param('code');
+            $finding = $engine->analyze_content($raw_code, 'sandbox_evaluation.php');
+        } else {
+            return new \WP_Error('missing_params', __('Please provide either "code" or "file_path" to analyze.', 'wcp-security-scanner'), ['status' => 400]);
+        }
+
+        if ($finding !== null) {
+            return rest_ensure_response([
+                'success'     => true,
+                'has_taint'   => true,
+                'finding'     => $finding->to_array(),
+                'taint_chain' => $finding->taint_chain,
+                'message'     => __('Polymorphic taint flow detected into execution sink!', 'wcp-security-scanner')
+            ]);
+        }
+
+        return rest_ensure_response([
+            'success'     => true,
+            'has_taint'   => false,
+            'finding'     => null,
+            'taint_chain' => [],
+            'message'     => __('Clean: No untrusted taint flow reached an execution sink.', 'wcp-security-scanner')
+        ]);
     }
 
     // ==========================================

@@ -1,6 +1,6 @@
 {
   "version": "2.7.2",
-  "generated_at": "2026-11-07T17:39:33.393Z",
+  "generated_at": "2026-11-07T17:58:03.332Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -56,12 +56,12 @@
       "size": 215758
     },
     "build/firewall.asset.php": {
-      "sha256": "3178db9986b3f2085b4283deb25ae6494612f69d875f1c2f7ae877ef465e9989",
+      "sha256": "5800bdcd3bec9112af23399c1d0fe31b39df85529bd9df49fd4581d70896f35d",
       "size": 163
     },
     "build/firewall.js": {
-      "sha256": "4d5cd2f6793e457ff7278c584dc16a869f939d9c736c321c27ebafa7d7f4d6dc",
-      "size": 826958
+      "sha256": "a0d508ede7c6ec7e2aa4f39dfd8eb97c1080476f7cfbc29abab23a06df8069a1",
+      "size": 843500
     },
     "build/global-rtl.css": {
       "sha256": "c394abc434b12946ee68ea0dc3ab91b9360f9b241afe8bd0e1b125f18b4924bd",
@@ -80,12 +80,12 @@
       "size": 854
     },
     "build/index.asset.php": {
-      "sha256": "9f1ae3f057e6a416fd82f8cba0ba390c60cccd32b75d2c0783c5f2c15e2215a1",
+      "sha256": "d6c750ace68d76a0b9b3375e27720c9a5b73a631991db5313053d5e79912626c",
       "size": 163
     },
     "build/index.js": {
-      "sha256": "6ada48da0e2092875ee7f37e9d0a39df80e329b31bae95719f1cc1ca4753c459",
-      "size": 2426729
+      "sha256": "3dfe7b63f84233465ab8e08ac18bfa3c66f4299c404d9859c602c9d2d4a6a841",
+      "size": 2446961
     },
     "build/notifications.asset.php": {
       "sha256": "b5fe48e2d05f4c82f0051f1145a164246df55d926556b5267003b8801ab62f23",
@@ -96,12 +96,12 @@
       "size": 115357
     },
     "build/scan.asset.php": {
-      "sha256": "7938bbdb24a4c9b066e3eafec1730f158678c0b02ca10b8499d03285e7305f2d",
+      "sha256": "338ddd832ba1615e480a4b019519441cee25ea83df0b3342f0a437f0f41090e0",
       "size": 163
     },
     "build/scan.js": {
-      "sha256": "69c88cec3cfe2dcf8099f0727693571c8c297388ea23b7a92abbfa1c62ce5321",
-      "size": 2426128
+      "sha256": "78dcff1c7cf9c5be71b4c3ed96856b5eff68b790d336f6b37c91be5b8f601199",
+      "size": 2446360
     },
     "build/settings.asset.php": {
       "sha256": "8d500d7e3b727e5fdf6b56144bf796e63aabd9ff34cdaf3499faa91e522eca04",
@@ -160,8 +160,8 @@
       "size": 75357
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "5ccc97ae09d714c24d085afa271fa1a6562e954ff8e16a5d3110b1478b3a427e",
-      "size": 602340
+      "sha256": "0c8f1199abea006b48924ac0ce75df52e1ddc18f66157e2ba394813946e57962",
+      "size": 605360
     },
     "includes/Auth/ApplicationPasswordSentinel.php": {
       "sha256": "d2cff50ec7ac8ef3c1906375a5ea8c497dd5939a52a30900cd686a1353eba303",
@@ -296,8 +296,8 @@
       "size": 23689
     },
     "includes/Findings/Finding.php": {
-      "sha256": "fa083f1fc98b1a75e73ce7c2ba5459f309204d6dc8d93a06bebf6e174add3954",
-      "size": 1526
+      "sha256": "345df8a4dff0717f1ee5619441f9e404522e08aec0c7aabbc32383bc3f6295ae",
+      "size": 1659
     },
     "includes/Findings/FindingsRepository.php": {
       "sha256": "27383956b510bd9aeaf10c410d84d1aad22b3764951d31f5d23d8818c0b1d861",
@@ -520,8 +520,8 @@
       "size": 12427
     },
     "includes/Malware/HeuristicEngine.php": {
-      "sha256": "abaa15ac7837d13e60671cfa85c5c31fadf236eefe442dccce5759b307799ddf",
-      "size": 5684
+      "sha256": "a08d3b41a8ff1fe28182194a0b3e61aea5937645c603eaf4a3fe72d4ded6f957",
+      "size": 6021
     },
     "includes/Malware/JavaScriptSecurityScanner.php": {
       "sha256": "fa5f670213b8786f3771ee6d47773bf452c924f35d1f2d5cde2a35c8e7b4433f",
@@ -543,9 +543,13 @@
       "sha256": "1a42b2f764799caa0353cc148a8094e2b9fdffe1903d0eb82d7b34c05f88fec8",
       "size": 4827
     },
+    "includes/Malware/TaintAnalysisEngine.php": {
+      "sha256": "76bf63b4f9179b9359acaa15555ce7cd9863327010e520a539238acf5af469c4",
+      "size": 35684
+    },
     "includes/Malware/WebshellDetector.php": {
-      "sha256": "64dd14806b6b0965f878a633f7b3e97fa0625b7608434646501d7ad24cf78f32",
-      "size": 14379
+      "sha256": "dacb9e78cf7b7e5617ed10b28ec75bfabb847754f9719f7407f884b197c95952",
+      "size": 14892
     },
     "includes/Notifications/NotificationDispatcher.php": {
       "sha256": "c3e7985c6c6f3fac083e7f82e77129d2b45f14ff1b40b45d3e755dccbf7e3993",
