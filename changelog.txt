@@ -47,6 +47,7 @@ v:2.7.1 - 2026-11-07
     - Search Crawler FCrDNS Immunity Optimization: Cleaned up redundant direct CIDR bypass checks in FirewallEngine.php to rely exclusively on BotReconDefense::is_genuine_search_engine, enforcing User-Agent inspection and FCrDNS verification before pardoning search crawlers.
     - HTTP/2 Pseudo-Header Anomaly Hardening: Gated HTTP/2 pseudo-header anomaly hard-blocking in FirewallEngine.php strictly behind waf_block_http2_anomalies or uppercase pseudo-headers, preserving ThreatScoreTracker scoring (+15) without returning premature 403 blocks for automation clients.
     - Large Quarantined File Stream Restore: Upgraded restore_file in QuarantineManager.php to stream vault files >20MB directly to disk via stream_copy_to_stream past the halt compiler header, eliminating PHP memory exhaustion (OOM) during large file recovery.
+    - Plugin Check (PCP) Filesystem Compliance: Implemented WP_Filesystem::move() and WP_Filesystem::chmod() in QuarantineManager::restore_file() with atomic fallback, and added PHPCS suppression annotations on memory-safe streaming operations (fread, fwrite) for full WordPress.org Plugin Check conformance.
     - MU-Plugin Guardian Uninstall Guarantee: Verified unconditional removal of wcp-jit-guardian.php in uninstall.php prior to data retention checks, ensuring no orphaned MU-plugins remain after uninstallation.
 
 v:2.6.0 - 2026-11-06

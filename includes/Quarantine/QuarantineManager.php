@@ -155,6 +155,7 @@ class QuarantineManager {
                 }
                 return ['success' => false, 'message' => 'Failed to isolate large file to vault storage. Permission denied.'];
             }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Stream write required for chunked processing of large files (>20MB) to prevent memory exhaustion
             fwrite($dst_fp, $guard_header);
             stream_copy_to_stream($src_fp, $dst_fp);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
@@ -346,6 +347,7 @@ class QuarantineManager {
             }
 
             // Seek past guard header
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Stream read required to inspect halt marker on large files (>20MB) without loading into memory
             $header_buffer = fread($src_fp, 2048);
             $halt_marker = '__halt_compiler(); ' . '?>';
             $pos = strpos($header_buffer, $halt_marker);
@@ -374,9 +376,30 @@ class QuarantineManager {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($dst_fp);
 
+            global $wp_filesystem;
+            if (empty($wp_filesystem)) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+
             $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
-            chmod($temp_dest, $perms);
-            if (!@rename($temp_dest, $dest_path)) {
+            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+                $wp_filesystem->chmod($temp_dest, $perms);
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($temp_dest, $perms);
+            }
+
+            $moved = false;
+            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'move')) {
+                $moved = $wp_filesystem->move($temp_dest, $dest_path, true);
+            }
+            if (!$moved) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic filesystem rename fallback when WP_Filesystem::move is unavailable
+                $moved = @rename($temp_dest, $dest_path);
+            }
+
+            if (!$moved) {
                 wp_delete_file($temp_dest);
                 return ['success' => false, 'message' => 'Failed to safely move restored large file to destination.'];
             }
