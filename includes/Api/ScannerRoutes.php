@@ -1615,6 +1615,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/defense/prompt-guard/test', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'test_prompt_injection'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/defense/attack-surface', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_attack_surface_inventory'],
@@ -11190,6 +11196,26 @@ class ScannerRoutes {
             'success' => $res,
             'message' => __('Prompt injection guard settings updated.', 'wcp-security-scanner'),
             'status'  => \WcpScanner\Security\PromptInjectionGuard::get_status(),
+        ]);
+    }
+
+    public static function test_prompt_injection(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $text    = !empty($params['text']) ? (string) $params['text'] : '';
+        $context = !empty($params['context']) ? sanitize_key($params['context']) : 'generic';
+
+        if (trim($text) === '') {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Prompt text is required for analysis.', 'wcp-security-scanner'),
+            ], 400);
+        }
+
+        $analysis = \WcpScanner\Security\PromptInjectionGuard::inspect_prompt($text, $context);
+
+        return rest_ensure_response([
+            'success'  => true,
+            'analysis' => $analysis,
         ]);
     }
 
