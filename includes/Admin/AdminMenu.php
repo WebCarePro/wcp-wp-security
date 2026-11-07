@@ -409,6 +409,7 @@ class AdminMenu {
         elseif (in_array($tab_param, ['firewall', 'vpatch', 'caf'], true) || in_array($current_page, ['wcp-scanner-firewall', 'wcp-scanner-vpatch', 'wcp-scanner-caf'], true)) $active_tab = 'firewall';
         elseif ($tab_param === 'auth' || $current_page === 'wcp-scanner-auth') $active_tab = 'auth';
         elseif ($tab_param === 'notifications' || $current_page === 'wcp-scanner-notifications') $active_tab = 'notifications';
+        elseif ($tab_param === 'activity_logs' || $current_page === 'wcp-scanner-activity-logs') $active_tab = 'activity_logs';
         elseif ($tab_param === 'settings' || $current_page === 'wcp-scanner-settings') $active_tab = 'settings';
         elseif ($tab_param === 'about' || $current_page === 'wcp-scanner-about') $active_tab = 'about';
         elseif ($tab_param === 'wizard' || $current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
@@ -444,8 +445,12 @@ class AdminMenu {
             $page_bundle = 'vault';
         } elseif ($active_tab === 'fim' && file_exists(WCPSCAN_PATH . 'build/fim.js')) {
             $page_bundle = 'fim';
-        } elseif (in_array($active_tab, ['settings', 'notifications'], true) && file_exists(WCPSCAN_PATH . 'build/settings.js')) {
+        } elseif ($active_tab === 'settings' && file_exists(WCPSCAN_PATH . 'build/settings.js')) {
             $page_bundle = 'settings';
+        } elseif ($active_tab === 'notifications' && file_exists(WCPSCAN_PATH . 'build/notifications.js')) {
+            $page_bundle = 'notifications';
+        } elseif ($active_tab === 'activity_logs' && file_exists(WCPSCAN_PATH . 'build/activity-logs.js')) {
+            $page_bundle = 'activity-logs';
         } elseif ($active_tab === 'wizard' && file_exists(WCPSCAN_PATH . 'build/wizard.js')) {
             $page_bundle = 'wizard';
         }

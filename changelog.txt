@@ -1,4 +1,8 @@
 v:2.7.1 - 2026-11-07
+- Dedicated Notification Center & Activity Logs Bundle Decoupling:
+  * Resolved Notification Center page loading issue where clicking "Notification Center 60+ EVENTS" or navigating to admin.php?page=wcp-scanner-notifications loaded the generic scan schedule settings instead of the full dedicated 60+ Event Notification Center.
+  * Added decoupled webpack entrypoints and compiled production bundles build/notifications.js and build/activity-logs.js.
+  * Updated AdminMenu.php script enqueue mapping and navigation routers in WcpShell.tsx and App.tsx so admin.php?page=wcp-scanner-notifications and admin.php?page=wcp-scanner-activity-logs reliably load their respective dedicated views.
 - Activity & Forensic Audit Log Humanization Suite (ActivityHumanizer.php, WcpActivityLogger.php, ActivityLogsPage.tsx):
   * Micro-WAF Pre-Boot Compilation Humanization: Transformed machine-oriented "Micro Waf Status Adjusted (2 settings)" log entries into dedicated, plain-English security records ("Pre-Boot Micro-WAF Engine Synchronized"). Explains clearly that the standalone pre-boot firewall script was recompiled into wp-content/micro-waf.php to apply updated firewall rules, IP blocklists, and Context-Adaptive Firewall (CAF) policies before WordPress core loads.
   * System Security Telemetry & Option Event Mapping: Added humanized titles, semantic badges, and non-technical explanations across all internal security options (IP Threat Reputation Cache, Firewall Blocklist Metadata Registry, Plugin Self-Defense Integrity Audit, Initial Security Onboarding, Site Archetype Calibration, Web Server Armor Directives, Filesystem Permission Hardening, Supply Chain Script Baseline Calibration, and Domain Health Audits).

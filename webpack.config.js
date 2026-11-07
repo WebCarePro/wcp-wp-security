@@ -13,6 +13,8 @@ module.exports = {
     'vault': path.resolve(__dirname, 'src/entries/vault.tsx'),
     'fim': path.resolve(__dirname, 'src/entries/fim.tsx'),
     'settings': path.resolve(__dirname, 'src/entries/settings.tsx'),
+    'notifications': path.resolve(__dirname, 'src/entries/notifications.tsx'),
+    'activity-logs': path.resolve(__dirname, 'src/entries/activity-logs.tsx'),
     'wizard': path.resolve(__dirname, 'src/entries/wizard.tsx'),
   },
   output: {
