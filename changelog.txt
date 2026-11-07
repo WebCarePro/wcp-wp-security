@@ -1,4 +1,9 @@
 v:2.7.1 - 2026-11-07
+- Dynamic Version Synchronization Across Notifications & Webhooks:
+  * Replaced hardcoded "v1.5.0" in WebhookService.php across Slack, Discord, ClickUp, Asana, and Custom JSON test payloads with dynamic WCPSCAN_VERSION constant (e.g. "v2.7.1").
+  * Added "Engine Version" field to Discord live notification embeds in NotificationDispatcher.php.
+  * Added "Scanner Version" (v2.7.1) directly into the Forensic Event Dossier table in email notifications.
+  * Synchronized the email footer template to explicitly display the active scanner engine version ("Dispatched by WCP Security Scanner v2.7.1").
 - Notification Center Event Verification & Alignment Suite:
   * Aligned "Zero-Trust Temporary Support Access Created" with current Just-In-Time (JIT) ephemeral administrator architecture: Renamed titles and descriptions to "JIT Ephemeral Administrator Elevation Granted" and "JIT Ephemeral Elevation Revoked / Expired". Connected expiration trigger in EphemeralAdminEngine.php so automatic time expirations dispatch alerts.
   * Synchronized SettingsManager notification defaults with NotificationDispatcher catalog (63/63 events aligned), adding the default matrix configuration for auth_application_password_created.

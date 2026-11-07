@@ -605,6 +605,9 @@ class NotificationDispatcher {
         $incoming_details = $payload['details'] ?? [];
 
         // 1. Triggered By (with Real Client IP)
+        $plugin_ver = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.7.1';
+        $enhanced_details['Scanner Version'] = 'v' . $plugin_ver;
+
         if (!empty($admin_username)) {
             $enhanced_details['Triggered By'] = sprintf('%s (%s)', $admin_username, $client_ip);
             // Mention device/browser only if triggered by an authenticated admin user (not system auto generated)
@@ -891,7 +894,8 @@ class NotificationDispatcher {
         $html .= 'WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.';
         $html .= '</p>';
         $html .= '<div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; font-size: 12px; color: #94a3b8; text-align: left; line-height: 1.6;">';
-        $html .= 'Dispatched by WCP Security Scanner on <strong style="color: #ffffff;">' . esc_html($time) . '</strong>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline;">Notifications</a></strong>.';
+        $plugin_ver_str = defined('WCPSCAN_VERSION') ? 'v' . WCPSCAN_VERSION : 'v2.7.1';
+        $html .= 'Dispatched by WCP Security Scanner <strong style="color: #38bdf8;">' . esc_html($plugin_ver_str) . '</strong> on <strong style="color: #ffffff;">' . esc_html($time) . '</strong>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline;">Notifications</a></strong>.';
         $html .= '</div></td></tr></table></td></tr>';
 
         $html .= '</table></td></tr></table></body></html>';
@@ -966,7 +970,6 @@ class NotificationDispatcher {
                     ]
                 ]
             ];
-            WebhookService::send_test('slack', null); // Or send directly
             self::post_webhook_direct($settings['slack_webhook_url'], $slack_payload);
         }
 
@@ -983,6 +986,7 @@ class NotificationDispatcher {
                         'fields' => [
                             ['name' => 'Site', 'value' => $site_name, 'inline' => true],
                             ['name' => 'Severity', 'value' => strtoupper($payload['severity']), 'inline' => true],
+                            ['name' => 'Engine Version', 'value' => 'v' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.7.1'), 'inline' => true],
                             ['name' => 'Event Key', 'value' => $payload['event_key'], 'inline' => true],
                         ],
                         'footer' => ['text' => 'WCP Security Scanner Notifications'],
