@@ -205,9 +205,85 @@ class ActivityHumanizer {
                 $badge_label = 'Settings';
                 break;
 
+            case 'permission_hardening':
+                $title       = 'Filesystem Permission Hardening';
+                $description = !empty($details['description']) ? $details['description'] : '1-Click filesystem permission repair applied: directories set to 0755 and sensitive files to 0644.';
+                $badge       = 'clean';
+                $badge_label = 'Filesystem Security';
+                break;
+
+            case 'script_baseline_calibrated':
+                $title       = 'Supply Chain Script Baseline Calibrated';
+                $description = !empty($details['description']) ? $details['description'] : 'Calibrated approved external domains and script integrity for supply chain monitoring.';
+                $badge       = 'clean';
+                $badge_label = 'Extension Security';
+                break;
+
+            case 'domain_reputation_anomaly':
+                $title       = 'Domain Reputation & Health Audit';
+                $description = !empty($details['description']) ? $details['description'] : 'Domain reputation check evaluated domain health and security blacklists.';
+                $badge       = 'info';
+                $badge_label = 'System Health';
+                break;
+
             case 'policy_updated':
                 $option = $details['option'] ?? '';
-                if (str_contains($option, 'circuit_breaker')) {
+                if (str_contains($option, 'micro_waf_status')) {
+                    $title       = 'Pre-Boot Micro-WAF Engine Synchronized';
+                    $description = 'Standalone Pre-Boot Micro-WAF script recompiled into wp-content/micro-waf.php to enforce active rules, IP blocklists, and Context-Adaptive Firewall (CAF) policies before WordPress loads.';
+                    $badge       = 'clean';
+                    $badge_label = 'Pre-Boot Firewall';
+                    $is_internal = true;
+                } elseif (str_contains($option, 'ip_reputation_log')) {
+                    $title       = 'IP Threat Reputation Cache Updated';
+                    $description = 'Threat risk scores and autonomous behavioral tiering updated for evaluated client IP addresses.';
+                    $badge       = 'info';
+                    $badge_label = 'Threat Intelligence';
+                    $is_internal = true;
+                } elseif (str_contains($option, 'blocked_ips_meta')) {
+                    $title       = 'Firewall IP Blocklist Registry Synchronized';
+                    $description = 'Ban duration, strike counter, and incident tracking metadata updated for blocked IP addresses.';
+                    $badge       = 'info';
+                    $badge_label = 'Firewall Policy';
+                    $is_internal = true;
+                } elseif (str_contains($option, 'self_defense_last_audit')) {
+                    $title       = 'Self-Defense Cryptographic Integrity Audit';
+                    $description = 'Automated integrity scanner verified core plugin file hashes and manifests against tampering.';
+                    $badge       = 'clean';
+                    $badge_label = 'Self-Defense';
+                    $is_internal = true;
+                } elseif (str_contains($option, 'wizard_completed')) {
+                    $title       = 'Initial Security Onboarding Completed';
+                    $description = sprintf('Initial security setup wizard completed by %1$s; recommended baseline hardening policies applied.', $user_login);
+                    $badge       = 'clean';
+                    $badge_label = 'Setup Wizard';
+                } elseif (str_contains($option, 'site_archetype')) {
+                    $arch = is_string($details['diff']['wcpscan_site_archetype']['new'] ?? null) ? $details['diff']['wcpscan_site_archetype']['new'] : 'Standard';
+                    $title       = sprintf('Site Archetype Profile Configured: %s', ucfirst($arch));
+                    $description = sprintf('Security scanner operational posture calibrated for site archetype "%1$s".', ucfirst($arch));
+                    $badge       = 'info';
+                    $badge_label = 'Site Profile';
+                } elseif (str_contains($option, 'server_security_options')) {
+                    $title       = 'Web Server Armor Configuration Updated';
+                    $description = 'Server-level hardening directives updated for web server rules (.htaccess / Nginx).';
+                    $badge       = 'clean';
+                    $badge_label = 'Server Armor';
+                } elseif (str_contains($option, 'waf_whitelisted_ips')) {
+                    $title       = 'Firewall Trusted IP Allowlist Updated';
+                    $description = sprintf('Trusted IP allowlist updated by %1$s. Permitted IP addresses bypass standard WAF filtering.', $user_login);
+                    $badge       = 'clean';
+                    $badge_label = 'Firewall Policy';
+                } elseif (str_contains($option, 'waf_settings')) {
+                    $title       = 'WAF Defense Settings Saved';
+                    $description = sprintf('Web Application Firewall inspection modes and detection thresholds were saved by %1$s.', $user_login);
+                    $badge       = 'info';
+                    $badge_label = 'Firewall Policy';
+                } elseif (str_contains($option, 'notification_settings')) {
+                    $title       = 'Security Alert Channels Configured';
+                    $description = sprintf('Security incident alert delivery channels and email notifications were updated by %1$s.', $user_login);
+                    $badge       = 'info';
+                    $badge_label = 'Notifications';
+                } elseif (str_contains($option, 'circuit_breaker')) {
                     $title       = 'CrashGuard Self-Preservation Engaged';
                     $description = 'CrashGuard temporarily paused firewall hook execution to prevent site downtime after an uncaught PHP error.';
                     $badge       = 'warning';

@@ -859,6 +859,37 @@ class WcpActivityLogger {
         if (str_contains($option, 'virtual_patches')) {
             return sprintf('Updated active virtual exploit shields (%d rule definition%s altered).', $count, $count === 1 ? '' : 's');
         }
+        if (str_contains($option, 'micro_waf_status')) {
+            return 'Standalone Pre-Boot Micro-WAF script recompiled into wp-content/micro-waf.php to enforce active rules, IP blocklists, and CAF policies.';
+        }
+        if (str_contains($option, 'ip_reputation_log')) {
+            return 'Updated threat risk scores and behavioral evaluation cache for client IP addresses.';
+        }
+        if (str_contains($option, 'blocked_ips_meta')) {
+            return 'Synchronized expiration timestamps and strike counters for blocked IP addresses.';
+        }
+        if (str_contains($option, 'self_defense_last_audit')) {
+            return 'Automated background audit verified plugin file hashes and manifests against tampering.';
+        }
+        if (str_contains($option, 'wizard_completed')) {
+            return 'Completed initial security onboarding setup wizard and applied baseline hardening.';
+        }
+        if (str_contains($option, 'site_archetype')) {
+            $arch = is_string($diff['wcpscan_site_archetype']['new'] ?? null) ? $diff['wcpscan_site_archetype']['new'] : 'Standard';
+            return sprintf('Configured security scanner posture for site profile "%s".', ucfirst($arch));
+        }
+        if (str_contains($option, 'server_security_options')) {
+            return 'Updated server armor security directives for .htaccess / Nginx.';
+        }
+        if (str_contains($option, 'waf_whitelisted_ips')) {
+            return sprintf('Updated trusted IP allowlist (%d IP address%s permitted to bypass WAF inspection).', $count, $count === 1 ? '' : 'es');
+        }
+        if (str_contains($option, 'waf_settings')) {
+            return sprintf('Updated Web Application Firewall inspection parameters (%d setting%s: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
+        }
+        if (str_contains($option, 'notification_settings')) {
+            return sprintf('Updated security alert delivery channels and email notifications (%d setting%s).', $count, $count === 1 ? '' : 's');
+        }
         if (str_contains($option, 'whitelist')) {
             return sprintf('Modified false positive suppression rules (%d rule%s adjusted: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
         }

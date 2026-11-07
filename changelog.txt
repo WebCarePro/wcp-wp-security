@@ -1,4 +1,8 @@
 v:2.7.1 - 2026-11-07
+- Activity & Forensic Audit Log Humanization Suite (ActivityHumanizer.php, WcpActivityLogger.php, ActivityLogsPage.tsx):
+  * Micro-WAF Pre-Boot Compilation Humanization: Transformed machine-oriented "Micro Waf Status Adjusted (2 settings)" log entries into dedicated, plain-English security records ("Pre-Boot Micro-WAF Engine Synchronized"). Explains clearly that the standalone pre-boot firewall script was recompiled into wp-content/micro-waf.php to apply updated firewall rules, IP blocklists, and Context-Adaptive Firewall (CAF) policies before WordPress core loads.
+  * System Security Telemetry & Option Event Mapping: Added humanized titles, semantic badges, and non-technical explanations across all internal security options (IP Threat Reputation Cache, Firewall Blocklist Metadata Registry, Plugin Self-Defense Integrity Audit, Initial Security Onboarding, Site Archetype Calibration, Web Server Armor Directives, Filesystem Permission Hardening, Supply Chain Script Baseline Calibration, and Domain Health Audits).
+  * Activity UI Plain-English Synchronization: Synchronized frontend formatActivitySummary in ActivityLogsPage.tsx to align with backend humanization, ensuring non-technical administrators and store owners receive clear, informative activity logs across both Simple View cards and technical forensic drawers.
 - Master Security, Reliability, Architecture & Performance Remediation (roadmap.md Phases 1-5 Complete):
   * Frontend UX & Scan Results Rendering Fix:
     - Fixed ReferenceError for BookOpen icon in SecurityScannerPage.tsx and recompiled scan bundle (build/scan.js), restoring immediate rendering of malware scan findings, code context preview, and remediation buttons.
