@@ -1,6 +1,6 @@
 {
   "version": "2.8.0",
-  "generated_at": "2026-11-07T20:24:46.591Z",
+  "generated_at": "2026-11-08T07:38:17.931Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -340,8 +340,8 @@
       "size": 26795
     },
     "includes/Firewall/CAF/CloudflareSlotOptimizer.php": {
-      "sha256": "f80f974388b8bd0bbb0ae2e6ea12399741955d9ae959feb379c8ee60c5fddd3c",
-      "size": 14669
+      "sha256": "c9241b5c12e459aa279dadf256dd641df797f3fc07555d3add3752fe8f0ea00b",
+      "size": 14678
     },
     "includes/Firewall/CAF/ConflictAvoidanceEngine.php": {
       "sha256": "5236874b29abf994e539b60d9d2288609bcf746556d3216727502989e47a9dfc",

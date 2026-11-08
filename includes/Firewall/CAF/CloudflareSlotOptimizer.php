@@ -284,8 +284,8 @@ class CloudflareSlotOptimizer {
                     continue;
                 }
 
-                // Strict Cloudflare Wirefilter syntax: double quotes around string literal
-                $candidate = sprintf('(starts_with(http.request.uri.path, %s))', wp_json_encode("/wp-content/plugins/{$slug}/"));
+                // Strict Cloudflare Wirefilter syntax: double quotes around string literal, unescaped forward slashes
+                $candidate = sprintf('(starts_with(http.request.uri.path, "/wp-content/plugins/%s/"))', $slug);
                 $projected = implode(' or ', array_merge($clauses, [$candidate]));
                 if (strlen($projected) > self::MAX_EXPRESSION_BYTES) {
                     break; // Graceful truncation: remaining inactive plugins handled by local WAF
