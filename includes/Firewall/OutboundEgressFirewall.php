@@ -55,11 +55,15 @@ class OutboundEgressFirewall {
         'api.cloudflare.com',
         'secure.gravatar.com',
         'api.github.com',
-        // Popular Transactional Mailers
+        // Popular Transactional Mailers & DevSecOps
         'api.sendgrid.com',
         'api.mailgun.net',
         'api.postmarkapp.com',
         'api.brevo.com',
+        'hooks.slack.com',
+        'slack.com',
+        'api.clickup.com',
+        'app.asana.com',
         // Google Services
         'googleapis.com',
         'accounts.google.com',
@@ -332,24 +336,24 @@ class OutboundEgressFirewall {
         }
 
         // 3. Raw-IP Outbound Monitor (Catch unverified C2 callback beacons)
-        if (!$threat && empty($settings['block_suspicious_tld'])) {
-            if (filter_var($host, FILTER_VALIDATE_IP)) {
-                $site_home_url = home_url();
-                $site_host = strtolower(wp_parse_url($site_home_url, PHP_URL_HOST) ?? '');
-                if ($host !== $site_host && !self::is_host_approved($host, $settings)) {
-                    $threat = 'raw_ip_egress';
-                    $reason = sprintf('Outbound network request targeting raw IP address (%s).', $host);
-                }
+        if (!$threat && filter_var($host, FILTER_VALIDATE_IP)) {
+            $site_home_url = home_url();
+            $site_host = strtolower(wp_parse_url($site_home_url, PHP_URL_HOST) ?? '');
+            if ($host !== $site_host && !self::is_host_approved($host, $settings)) {
+                $threat = 'raw_ip_egress';
+                $reason = sprintf('Outbound network request targeting raw IP address (%s).', $host);
             }
         }
 
         // 4. Known Exfiltration Webhooks Check
         if (!$threat && !empty($settings['block_exfil_webhooks'])) {
-            foreach (self::MALICIOUS_SINK_PATTERNS as $name => $pattern) {
-                if (preg_match($pattern, $url)) {
-                    $threat = 'exfiltration_webhook';
-                    $reason = sprintf('Unauthorized outbound exfiltration webhook or drop point detected: %s', $name);
-                    break;
+            if (!self::is_authorized_notification_webhook($url, $settings, $caller)) {
+                foreach (self::MALICIOUS_SINK_PATTERNS as $name => $pattern) {
+                    if (preg_match($pattern, $url)) {
+                        $threat = 'exfiltration_webhook';
+                        $reason = sprintf('Unauthorized outbound exfiltration webhook or drop point detected: %s', $name);
+                        break;
+                    }
                 }
             }
         }
@@ -396,30 +400,134 @@ class OutboundEgressFirewall {
     }
 
     /**
+     * Determine if an outbound webhook URL is an authorized administrative notification endpoint.
+     *
+     * @param string $url
+     * @param array  $settings Egress firewall settings
+     * @param array  $caller   Caller component metadata
+     * @return bool
+     */
+    public static function is_authorized_notification_webhook(string $url, array $settings = [], array $caller = []): bool {
+        if (empty($url)) {
+            return false;
+        }
+
+        $clean_target_url = strtolower(trim($url));
+        $parsed_url = wp_parse_url($url);
+        $host = strtolower($parsed_url['host'] ?? '');
+
+        // 1. If caller is WCP Security Scanner itself, verify if it's sending to an approved service or notification endpoint
+        if (!empty($caller['slug']) && $caller['slug'] === 'wcp-security-scanner') {
+            // Scanner sending to Discord, Slack, ClickUp, Asana, Cloudflare, AI providers, or WordPress.org is trusted
+            if (self::is_host_approved($host, $settings) ||
+                str_contains($clean_target_url, 'discord.com/api/webhooks/') ||
+                str_contains($clean_target_url, 'discordapp.com/api/webhooks/') ||
+                str_contains($clean_target_url, 'hooks.slack.com/services/') ||
+                str_contains($clean_target_url, 'api.telegram.org/bot')) {
+                return true;
+            }
+        }
+
+        // 2. Check against WCP Security Scanner's configured notification webhooks in SettingsManager
+        if (class_exists('\\WcpScanner\\System\\SettingsManager')) {
+            $wcp_settings = \WcpScanner\System\SettingsManager::get_settings();
+            $configured_keys = [
+                'discord_webhook_url',
+                'slack_webhook_url',
+                'clickup_webhook_url',
+                'asana_webhook_url',
+                'generic_webhook_url',
+            ];
+
+            foreach ($configured_keys as $key) {
+                $configured = strtolower(trim((string) ($wcp_settings[$key] ?? '')));
+                if (!empty($configured)) {
+                    // Exact match or prefix match
+                    if ($clean_target_url === $configured || str_starts_with($clean_target_url, $configured) || str_starts_with($configured, $clean_target_url)) {
+                        return true;
+                    }
+                    // For Discord: compare webhook ID if both are discord webhook URLs
+                    if (str_contains($clean_target_url, '/api/webhooks/') && str_contains($configured, '/api/webhooks/')) {
+                        $parts_target = explode('/api/webhooks/', $clean_target_url);
+                        $parts_config = explode('/api/webhooks/', $configured);
+                        if (!empty($parts_target[1]) && !empty($parts_config[1])) {
+                            $target_id = explode('/', $parts_target[1])[0] ?? '';
+                            $config_id = explode('/', $parts_config[1])[0] ?? '';
+                            if (!empty($target_id) && $target_id === $config_id) {
+                                return true;
+                            }
+                        }
+                    }
+                    // For Telegram: compare bot token ID
+                    if (str_contains($clean_target_url, 'api.telegram.org/bot') && str_contains($configured, 'api.telegram.org/bot')) {
+                        $parts_target = explode('api.telegram.org/bot', $clean_target_url);
+                        $parts_config = explode('api.telegram.org/bot', $configured);
+                        if (!empty($parts_target[1]) && !empty($parts_config[1])) {
+                            $target_bot = explode('/', $parts_target[1])[0] ?? '';
+                            $config_bot = explode('/', $parts_config[1])[0] ?? '';
+                            if (!empty($target_bot) && $target_bot === $config_bot) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Check if host is explicitly listed in approved/allowed hosts
+        if (self::is_host_approved($host, $settings)) {
+            return true;
+        }
+
+        // 4. Extensibility filter: allow other plugins to register approved webhook destinations
+        $approved_webhooks = apply_filters('wcp_approved_outbound_webhooks', []);
+        if (is_array($approved_webhooks)) {
+            foreach ($approved_webhooks as $approved_url) {
+                $clean_approved = strtolower(trim((string) $approved_url));
+                if (!empty($clean_approved) && (str_starts_with($clean_target_url, $clean_approved) || $clean_target_url === $clean_approved)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Extract the plugin, theme, or core file initiating the outbound call.
      *
      * @return array
      */
     private static function extract_calling_component(): array {
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Backtrace required to detect caller plugin for outbound egress firewalling.
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 12);
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 15);
         $caller = [
             'type' => 'core',
             'name' => 'WordPress Core',
             'file' => 'unknown',
+            'slug' => 'core',
             'line' => 0,
         ];
+
+        $plugin_dir = defined('WCPSCAN_PATH') ? str_replace('\\', '/', WCPSCAN_PATH) : '';
 
         foreach ($trace as $frame) {
             $file = $frame['file'] ?? '';
             $norm = str_replace('\\', '/', $file);
 
-            // Skip scanner's own code and core HTTP classes
-            if (str_contains($norm, '/plugins/wcp-security-scanner/')) {
+            // Skip egress firewall itself and core HTTP classes
+            if (str_contains($norm, 'OutboundEgressFirewall.php') || str_contains($norm, 'class-wp-http') || str_contains($norm, 'Requests/')) {
                 continue;
             }
-            if (str_contains($norm, 'class-wp-http') || str_contains($norm, 'Requests/')) {
-                continue;
+
+            // Detect calls initiated by WCP Security Scanner itself
+            if (($plugin_dir !== '' && str_starts_with($norm, $plugin_dir)) || str_contains($norm, '/plugins/wcp-security-scanner/') || str_contains($norm, 'wcp-security-scanner')) {
+                $caller['type'] = 'plugin';
+                $caller['name'] = 'WCP Security Scanner';
+                $caller['file'] = basename($norm);
+                $caller['slug'] = 'wcp-security-scanner';
+                $caller['line'] = $frame['line'] ?? 0;
+                break;
             }
 
             if (str_contains($norm, '/wp-content/plugins/')) {
@@ -428,6 +536,7 @@ class OutboundEgressFirewall {
                 $caller['type'] = 'plugin';
                 $caller['name'] = $sub[0] ?? 'Unknown Plugin';
                 $caller['file'] = $sub[0] ?? 'plugin';
+                $caller['slug'] = $sub[0] ?? 'unknown-plugin';
                 $caller['line'] = $frame['line'] ?? 0;
                 break;
             }
@@ -438,6 +547,7 @@ class OutboundEgressFirewall {
                 $caller['type'] = 'theme';
                 $caller['name'] = $sub[0] ?? 'Active Theme';
                 $caller['file'] = $sub[0] ?? 'theme';
+                $caller['slug'] = $sub[0] ?? 'theme';
                 $caller['line'] = $frame['line'] ?? 0;
                 break;
             }
