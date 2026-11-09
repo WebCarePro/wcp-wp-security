@@ -419,7 +419,7 @@ export const FirewallPage = ({
       badge: 'Edge Shield',
       description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.',
       action: 'block',
-      expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
+      expression: ''
     },
     compound_stackguard: {
       id: 'webcareproscan_compound_stackguard',
@@ -427,7 +427,7 @@ export const FirewallPage = ({
       badge: 'StackGuard',
       description: 'Automatically locks down all inactive/dormant plugin paths to neutralize zero-day scans, and deploys high-priority stack-scoped CVE virtual patches tailored to your active plugins.',
       action: 'block',
-      expression: '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")'
+      expression: ''
     },
     compound_login_bot: {
       id: 'webcareproscan_compound_login_bot',
@@ -435,7 +435,7 @@ export const FirewallPage = ({
       badge: 'Turnstile Challenge',
       description: 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and comment spam with Managed Challenge (Turnstile). Automatically escalates during active brute-force floods.',
       action: 'managed_challenge',
-      expression: '((http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/my-account"}) and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"})) or ((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot)) or (http.user_agent contains "sqlmap" or http.user_agent contains "wpscan" or http.user_agent contains "nuclei" or http.user_agent contains "nikto" or http.user_agent contains "masscan" or http.user_agent contains "python-requests")'
+      expression: ''
     },
     compound_sqli_lfi: {
       id: 'webcareproscan_compound_sqli_lfi',
@@ -443,7 +443,7 @@ export const FirewallPage = ({
       badge: 'Exploit Armor',
       description: 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark), directory traversal, LFI, and user enumeration before touching WordPress PHP or MySQL.',
       action: 'block',
-      expression: '((lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")) or ((http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")) or ((http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in")))'
+      expression: ''
     }
   });
   const [loadingCf, setLoadingCf] = useState<boolean>(false);
@@ -772,7 +772,7 @@ export const FirewallPage = ({
       description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
       action: 'block',
       action_label: 'Block',
-      expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
+      expression: ''
     },
     compound_stackguard: {
       id: 'webcare_compound_stackguard',
@@ -781,7 +781,7 @@ export const FirewallPage = ({
       description: 'Automatically locks down all inactive/dormant plugin paths to neutralize zero-day scans, and deploys high-priority stack-scoped CVE virtual patches tailored to your active plugins.',
       action: 'block',
       action_label: 'Block',
-      expression: '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")'
+      expression: ''
     },
     compound_login_bot: {
       id: 'webcare_compound_login_bot',
@@ -790,7 +790,7 @@ export const FirewallPage = ({
       description: 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
       action: 'managed_challenge',
       action_label: 'Managed Challenge',
-      expression: '((http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/my-account"}) and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"})) or ((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot)) or (http.user_agent contains "sqlmap" or http.user_agent contains "wpscan" or http.user_agent contains "nuclei" or http.user_agent contains "nikto" or http.user_agent contains "masscan" or http.user_agent contains "python-requests")'
+      expression: ''
     },
     compound_sqli_lfi: {
       id: 'webcare_compound_sqli_lfi',
@@ -799,7 +799,7 @@ export const FirewallPage = ({
       description: 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',
       action: 'block',
       action_label: 'Block',
-      expression: '((lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")) or ((http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")) or ((http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in")))'
+      expression: ''
     }
   });
   const [copiedRuleId, setCopiedRuleId] = useState<string | null>(null);
@@ -4372,8 +4372,8 @@ export const FirewallPage = ({
                   {[
                     { num: 1, key: 'waf_block_sqli', label: 'SQL Injection (SQLi) Defense', desc: 'Detects and neutralizes UNION SELECT, schema extraction, blind delays, hex payloads, and subqueries.' },
                     { num: 2, key: 'waf_block_xss', label: 'Cross-Site Scripting (XSS) Filter', desc: 'Blocks <script> injections, javascript: pseudo-protocols, onload handlers, and DOM tampering payloads.' },
-                    { num: 3, key: 'waf_block_traversal', label: 'Path Traversal & Local File Inclusion (LFI)', desc: 'Blocks ../ directory hops, /etc/passwd targets, and php://filter source disclosure vectors.' },
-                    { num: 4, key: 'waf_block_php_injection', label: 'PHP Script & Webshell Payload Injection', desc: 'Denies <?php tags, dangerous code execution, and shell calls inside query or post parameters.' },
+                    { num: 3, key: 'waf_block_traversal', label: 'Path Traversal & Local File Inclusion (LFI)', desc: 'Blocks ../ directory hops, sensitive file targets, and php://filter source disclosure vectors.' },
+                    { num: 4, key: 'waf_block_php_injection', label: 'PHP Script & Webshell Payload Injection', desc: 'Denies embedded script tags, dangerous code execution, and shell calls inside query or post parameters.' },
                     { num: 5, key: 'waf_disable_xmlrpc', label: 'Disable XML-RPC Endpoint (/xmlrpc.php)', desc: 'Completely blocks xmlrpc.php to neutralize pingback DDoS amplification and automated brute-force.' },
                     { num: 6, key: 'waf_block_malicious_uploads', label: 'Malicious File Upload Armor', desc: 'Real-time intercept for executable extensions, spoofed headers (PE/ELF/Mach-O), SVG XSS, and polyglots.' },
                     { num: 7, key: 'waf_block_empty_post_ua_referer', label: 'Block Blank POST Headers', desc: 'Drops automated POST requests missing both User-Agent and Referer headers (headless bot signature).' },
