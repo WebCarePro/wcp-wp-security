@@ -337,7 +337,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         setIsFixingAllPerms(true);
         try {
           const res: any = await apiRequest({
-            path: '/webcare-scanner/v1/permissions/fix-all',
+            path: '/webcare-pro-security/v1/permissions/fix-all',
             method: 'POST',
           });
           if (res?.success) {

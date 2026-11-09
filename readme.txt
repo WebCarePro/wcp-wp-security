@@ -57,19 +57,19 @@ If your IP address gets temporarily blocked by login rate-limiting, honeypot tra
 
 1. Emergency wp-config.php Whitelist (Fastest & Recommended):
 Add this single line to your wp-config.php file (above the "/* That's all, stop editing! */" line) with your public IP address:
-define('WCPSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1');
+define('WEBCAREPROSCAN_OVERRIDE_WHITELIST_IP', '203.0.113.1');
 This grants an instantaneous, zero-delay bypass across all WAF and login hardening checks even if the database is inaccessible.
 
 2. Emergency Firewall Bypass:
 To temporarily disable all WAF inspection rules without deactivating the plugin:
-define('WCPSCAN_DISABLE_WAF', true);
+define('WEBCAREPROSCAN_DISABLE_WAF', true);
 
 3. Reset Login Lockouts via WP-CLI:
 If you have SSH/terminal access, simply run:
-wp option delete wcpscan_login_lockouts
+wp option delete webcareproscan_login_lockouts
 
 4. Database / phpMyAdmin:
-In your database tool, browse the wp_options table and delete the option named wcpscan_login_lockouts.
+In your database tool, browse the wp_options table and delete the option named webcareproscan_login_lockouts.
 
 == External Services ==
 
