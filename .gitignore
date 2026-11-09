@@ -4,8 +4,8 @@ vendor/
 
 # Build and distribution archives
 *.zip
-!wcp-security-scanner.zip
-!wcp-security-scanner-v*.zip
+!webcare-pro-security.zip
+!webcare-pro-security-v*.zip
 
 
 # Environment & OS files

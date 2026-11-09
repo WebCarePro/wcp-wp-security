@@ -1,4 +1,4 @@
-# WCP Security Scanner
+# WebCare Pro Security & Firewall
 
 <p align="center">
   <img src="https://webcarespro.com/icon-192.png" alt="WebCare Pro Logo" width="180" onerror="this.style.display='none'"/>
@@ -14,7 +14,7 @@
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB.svg?logo=react" alt="React 18"/></a>
   <a href="https://github.com/WebCarePro/wcp-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
   <a href="https://www.upwork.com/freelancers/~0162afa9a578170c67"><img src="https://img.shields.io/badge/Upwork-Top%20Rated%20Plus%20★%20100%25%20JSS-14A800.svg?logo=upwork" alt="Upwork Top Rated Plus"/></a>
-  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v2.8.0-orange.svg" alt="Release Version"/></a>
+  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v2.9.0-orange.svg" alt="Release Version"/></a>
   <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Status-Public%20Beta%20%7C%20Active%20Dev-blue?style=flat&logo=git" alt="Status"/></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy%20%26%20Disclosure-blue.svg?logo=securityscorecard" alt="Security Policy"/></a>
   <a href="#22-model-context-protocol-mcp-agentic-surface-ai-secops-automation"><img src="https://img.shields.io/badge/Agentic-Model%20Context%20Protocol%20(MCP)-purple.svg?logo=anthropic" alt="MCP Ready"/></a>
@@ -25,13 +25,13 @@
 
 ## 🛡️ Overview
 
-**WCP Security Scanner** is a modern, high-performance WordPress security, malware detection, and forensic auditing plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)). 
+**WebCare Pro Security & Firewall** is a modern, high-performance WordPress security, malware detection, and forensic auditing plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)). 
 
 > [!NOTE]
-> **Active Engineering & Senior Architecture (v2.5.0)**  
-> WCP Security Scanner is actively developed and battle-tested by solo engineer **Mir Alamin**. Rapid architectural upgrades, engine hardening, and new security primitives are released continuously.
+> **Active Engineering & Senior Architecture (v2.9.0)**  
+> WebCare Pro Security & Firewall is actively developed and battle-tested by solo engineer **Mir Alamin**. Rapid architectural upgrades, engine hardening, and new security primitives are released continuously.
 
-Unlike heavy, bloated security plugins that degrade server performance with background overhead, WCP Security Scanner combines **memory-safe PHP batch auditing engines** with a responsive **React 18 single-page administrative dashboard**. It provides deep insight into your file system, WordPress core integrity, plugin and theme source code, database tables, cron jobs, active administrative sessions, runtime memory hooks, and server configurations—giving developers, sysadmins, and site owners complete visibility and control over their WordPress security posture.
+Unlike heavy, bloated security plugins that degrade server performance with background overhead, WebCare Pro Security & Firewall combines **memory-safe PHP batch auditing engines** with a responsive **React 18 single-page administrative dashboard**. It provides deep insight into your file system, WordPress core integrity, plugin and theme source code, database tables, cron jobs, active administrative sessions, runtime memory hooks, and server configurations—giving developers, sysadmins, and site owners complete visibility and control over their WordPress security posture.
 
 ---
 

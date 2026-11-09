@@ -1,6 +1,6 @@
 {
-  "name": "wcp/wp-scanner",
-  "description": "WordPress Security & Malware Scanner",
+  "name": "webcarepro/webcare-pro-security",
+  "description": "WebCare Pro Security & Firewall for WordPress",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "authors": [
@@ -13,7 +13,7 @@
   },
   "autoload": {
     "psr-4": {
-      "WcpScanner\\": "includes/"
+      "WebCareProScanner\\": "includes/"
     }
   }
 }

@@ -4,11 +4,11 @@ const { execSync } = require('child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
-const PLUGIN_SLUG = 'wcp-security-scanner';
+const PLUGIN_SLUG = 'webcare-pro-security';
 const PACKAGE_DIR = path.join(DIST_DIR, PLUGIN_SLUG);
 const ZIP_FILE = path.join(ROOT_DIR, `${PLUGIN_SLUG}.zip`);
 
-console.log('--- Packaging WCP Security Scanner for WordPress.org ---');
+console.log('--- Packaging WebCare Pro Security & Firewall for WordPress.org ---');
 
 // 0. Pre-Flight Manifest Uniformity Verification
 execSync(`node "${path.join(__dirname, 'verify-manifests.js')}"`, { stdio: 'inherit' });
@@ -25,7 +25,7 @@ if (fs.existsSync(ZIP_FILE)) {
 
 // 2. Define files and folders to include
 const includeFiles = [
-  'wcp-wp-scanner.php',
+  'webcare-pro-security.php',
   'readme.txt',
   'composer.json',
   'package.json',
@@ -206,12 +206,12 @@ for (const entry of rootEntries) {
 }
 console.log('✓ Root directory clean of unexpected markdown files');
 
-// Verify Text Domain in wcp-wp-scanner.php
-const mainPluginContent = fs.readFileSync(path.join(PACKAGE_DIR, 'wcp-wp-scanner.php'), 'utf8');
-if (!/Text Domain:\s*wcp-security-scanner/.test(mainPluginContent)) {
-  throw new Error('Text Domain header does not match slug: wcp-security-scanner');
+// Verify Text Domain in webcare-pro-security.php
+const mainPluginContent = fs.readFileSync(path.join(PACKAGE_DIR, 'webcare-pro-security.php'), 'utf8');
+if (!/Text Domain:\s*webcare-pro-security/.test(mainPluginContent)) {
+  throw new Error('Text Domain header does not match slug: webcare-pro-security');
 }
-console.log('✓ Text Domain header verified as wcp-security-scanner');
+console.log('✓ Text Domain header verified as webcare-pro-security');
 
 // 6. Create ZIP archive
 console.log('\n--- Generating Release Archive ---');

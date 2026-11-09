@@ -3,31 +3,35 @@ const path = require('path');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-console.log('--- WCP Manifest Uniformity & Version Synchronization Verification ---');
+console.log('--- WebCare Pro Manifest Uniformity & Version Synchronization Verification ---');
 
 const errors = [];
 const versions = {};
 const compatibility = {};
 
-// 1. Check wcp-wp-scanner.php
-const mainPhpPath = path.join(ROOT_DIR, 'wcp-wp-scanner.php');
+// 1. Check webcare-pro-security.php
+const mainPhpPath = fs.existsSync(path.join(ROOT_DIR, 'webcare-pro-security.php'))
+  ? path.join(ROOT_DIR, 'webcare-pro-security.php')
+  : path.join(ROOT_DIR, 'wcp-wp-scanner.php');
+const mainPhpFilename = path.basename(mainPhpPath);
+
 if (fs.existsSync(mainPhpPath)) {
   const content = fs.readFileSync(mainPhpPath, 'utf8');
   const headerVerMatch = content.match(/\*\s*Version:\s*([0-9]+\.[0-9]+\.[0-9]+)/i);
-  const constVerMatch = content.match(/define\(\s*['"]WCPSCAN_VERSION['"]\s*,\s*['"]([0-9]+\.[0-9]+\.[0-9]+)['"]\s*\)/i);
+  const constVerMatch = content.match(/define\(\s*['"](?:WEBCAREPROSCAN_VERSION|WCPSCAN_VERSION)['"]\s*,\s*['"]([0-9]+\.[0-9]+\.[0-9]+)['"]\s*\)/i);
   const reqWpMatch = content.match(/\*\s*Requires at least:\s*([0-9]+\.[0-9]+)/i);
   const reqPhpMatch = content.match(/\*\s*Requires PHP:\s*([0-9]+\.[0-9]+)/i);
 
-  if (headerVerMatch) versions['wcp-wp-scanner.php (Header)'] = headerVerMatch[1];
-  else errors.push('wcp-wp-scanner.php: Missing or invalid Version header');
+  if (headerVerMatch) versions[`${mainPhpFilename} (Header)`] = headerVerMatch[1];
+  else errors.push(`${mainPhpFilename}: Missing or invalid Version header`);
 
-  if (constVerMatch) versions['wcp-wp-scanner.php (Constant)'] = constVerMatch[1];
-  else errors.push('wcp-wp-scanner.php: Missing or invalid WCPSCAN_VERSION define');
+  if (constVerMatch) versions[`${mainPhpFilename} (Constant)`] = constVerMatch[1];
+  else errors.push(`${mainPhpFilename}: Missing or invalid Version define`);
 
-  if (reqWpMatch) compatibility['wcp-wp-scanner.php (Requires at least)'] = reqWpMatch[1];
-  if (reqPhpMatch) compatibility['wcp-wp-scanner.php (Requires PHP)'] = reqPhpMatch[1];
+  if (reqWpMatch) compatibility[`${mainPhpFilename} (Requires at least)`] = reqWpMatch[1];
+  if (reqPhpMatch) compatibility[`${mainPhpFilename} (Requires PHP)`] = reqPhpMatch[1];
 } else {
-  errors.push('wcp-wp-scanner.php not found');
+  errors.push('webcare-pro-security.php not found');
 }
 
 // 2. Check readme.txt

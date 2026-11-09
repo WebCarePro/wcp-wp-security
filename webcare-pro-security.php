@@ -1,15 +1,15 @@
 <?php
 /**
- * Plugin Name:       WCP Security Scanner
+ * Plugin Name:       WebCare Pro Security & Firewall
  * Description:       Advanced security & malware scanner with core file integrity checks, heuristic threat analysis, and modern React dashboard.
- * Version: 2.8.0
+ * Version:           2.9.0
  * Requires at least: 7.0
  * Requires PHP:      8.3
  * Author:            Mir Alamin
  * Author URI:        https://webcarespro.com
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       wcp-security-scanner
+ * Text Domain:       webcare-pro-security
  * Domain Path:       /languages
  */
 
@@ -17,22 +17,40 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('WCPSCAN_VERSION', '2.8.0');
-define('WCPSCAN_FILE', __FILE__);
-define('WCPSCAN_PATH', plugin_dir_path(__FILE__));
-define('WCPSCAN_URL', plugin_dir_url(__FILE__));
+define('WEBCAREPROSCAN_VERSION', '2.9.0');
+define('WEBCAREPROSCAN_FILE', __FILE__);
+define('WEBCAREPROSCAN_PATH', plugin_dir_path(__FILE__));
+define('WEBCAREPROSCAN_URL', plugin_dir_url(__FILE__));
 
-// Custom Autoloader for WcpScanner namespace
+// Transition aliases for internal constants
+if (!defined('WCPSCAN_VERSION')) {
+    define('WCPSCAN_VERSION', WEBCAREPROSCAN_VERSION);
+}
+if (!defined('WCPSCAN_FILE')) {
+    define('WCPSCAN_FILE', WEBCAREPROSCAN_FILE);
+}
+if (!defined('WCPSCAN_PATH')) {
+    define('WCPSCAN_PATH', WEBCAREPROSCAN_PATH);
+}
+if (!defined('WCPSCAN_URL')) {
+    define('WCPSCAN_URL', WEBCAREPROSCAN_URL);
+}
+
+// Custom Autoloader for WebCareProScanner (primary) and WcpScanner (transition fallback)
 spl_autoload_register(function ($class) {
-    $prefix = 'WcpScanner\\';
-    $base_dir = WCPSCAN_PATH . 'includes/';
+    $base_dir = WEBCAREPROSCAN_PATH . 'includes/';
+    $relative_class = null;
 
-    $len = strlen($prefix);
-    if (strncmp($prefix, $class, $len) !== 0) {
+    if (strncmp('WebCareProScanner\\', $class, 18) === 0) {
+        $relative_class = substr($class, 18);
+    } elseif (strncmp('WcpScanner\\', $class, 11) === 0) {
+        $relative_class = substr($class, 11);
+    }
+
+    if ($relative_class === null) {
         return;
     }
 
-    $relative_class = substr($class, $len);
     $rel_path = str_replace('\\', '/', $relative_class);
     $file = $base_dir . $rel_path . '.php';
 
@@ -58,6 +76,11 @@ spl_autoload_register(function ($class) {
         require_once $all_lower_file;
         return;
     }
+});
+
+// Load plugin text domain
+add_action('init', function () {
+    load_plugin_textdomain('webcare-pro-security', false, dirname(plugin_basename(__FILE__)) . '/languages');
 });
 
 // Composer Autoloader (if present)
@@ -88,7 +111,7 @@ register_deactivation_hook(__FILE__, function () {
                 'severity' => 'high',
                 'message'  => sprintf(
                     /* translators: %s: WordPress user login name */
-                    __('WCP Security Scanner was deactivated by user "%s".', 'wcp-security-scanner'),
+                    __('WebCare Pro Security & Firewall was deactivated by user "%s".', 'webcare-pro-security'),
                     $user->user_login ?: 'system/cron'
                 ),
                 'details'  => [

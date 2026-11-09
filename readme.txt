@@ -1,10 +1,10 @@
-=== WCP Security Scanner ===
+=== WebCare Pro Security & Firewall ===
 Contributors: miralamin
 Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 2.8.0
+Stable tag: 2.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Enterprise-grade WordPress security, malware detection, web application firewall
 
 == Description ==
 
-WCP Security Scanner gives you enterprise-grade malware detection, core integrity auditing, web application firewalling (WAF), session sentinel, rogue admin detection, and threat forensics inside an intuitive, modern React 18 single-page dashboard. Engineered by Mir Alamin (WebCare Pro) for high-performance WordPress sites, it provides deep visibility across your file system, WordPress core files, plugins, themes, database tables, cron jobs, active sessions, runtime hooks, and server configurations—without the performance bloat of traditional security tools.
+WebCare Pro Security & Firewall gives you enterprise-grade malware detection, core integrity auditing, web application firewalling (WAF), session sentinel, rogue admin detection, and threat forensics inside an intuitive, modern React 18 single-page dashboard. Engineered by Mir Alamin (WebCare Pro) for high-performance WordPress sites, it provides deep visibility across your file system, WordPress core files, plugins, themes, database tables, cron jobs, active sessions, runtime hooks, and server configurations—without the performance bloat of traditional security tools.
 
 Key highlights:
 * **Deep Malware & Heuristic Scanner**: Scans PHP files, uploads, and database for webshells, backdoors, obfuscated injections, and rogue admin accounts.
@@ -33,24 +33,24 @@ Key highlights:
 
 == Installation ==
 
-1. Upload the `wcp-security-scanner` folder to the `/wp-content/plugins/` directory, or install directly through the WordPress plugins dashboard.
+1. Upload the `webcare-pro-security` folder to the `/wp-content/plugins/` directory, or install directly through the WordPress plugins dashboard.
 2. Activate the plugin through the 'Plugins' menu in WordPress.
-3. Access your new cyber command center by clicking **WCP Security** in the admin sidebar.
+3. Access your new cyber command center by clicking **WebCare Pro** in the admin sidebar.
 4. Run your first Deep Audit from the Cyber Command Center.
 
 == Frequently Asked Questions ==
 
-= Does WCP Security Scanner slow down my website? =
+= Does WebCare Pro Security & Firewall slow down my website? =
 No. The scanner is built with a memory-safe batching engine that processes files in non-blocking chunks with zero impact on frontend visitors. The frontend admin interface runs on modern React 18 and only executes within the WordPress admin dashboard.
 
 = What makes the Cryptographic Secret Vault different from other plugins? =
-Standard WordPress plugins store sensitive credentials like webhook URLs and Cloudflare tokens in plaintext inside `wp_options`. WCP Security Scanner encrypts all sensitive data at rest using pure AES-256-GCM AEAD encryption with 128-bit integrity tags. If your database is exported or leaked, attackers see only ciphertext.
+Standard WordPress plugins store sensitive credentials like webhook URLs and Cloudflare tokens in plaintext inside `wp_options`. WebCare Pro Security & Firewall encrypts all sensitive data at rest using pure AES-256-GCM AEAD encryption with 128-bit integrity tags. If your database is exported or leaked, attackers see only ciphertext.
 
 = Can I use Cloudflare Free Plan with this plugin? =
-Yes! WCP Security Scanner provides 100% Free Plan compatible Cloudflare integration. It deploys 3 master compound rules, leaving 2 custom rule slots free for user rules, plus edge rate limiting and bi-directional auto-ban synchronization.
+Yes! WebCare Pro Security & Firewall provides 100% Free Plan compatible Cloudflare integration. It deploys 3 master compound rules, leaving 2 custom rule slots free for user rules, plus edge rate limiting and bi-directional auto-ban synchronization.
 
 = Does this plugin phone home or collect telemetry? =
-No. WCP Security Scanner contains zero tracking, zero telemetry, and zero analytics. All scans and security checks execute 100% locally on your server.
+No. WebCare Pro Security & Firewall contains zero tracking, zero telemetry, and zero analytics. All scans and security checks execute 100% locally on your server.
 
 = What if I get locked out? How do I unblock myself? =
 If your IP address gets temporarily blocked by login rate-limiting, honeypot traps, or firewall rules, you can immediately restore access using any of these simple methods:
@@ -324,7 +324,7 @@ To compile the React admin application from source:
 * Supply-Chain Install Risk Advisor Syntax Fix.
 * Just-In-Time Ephemeral Privilege Elevation Hardening & Anti-Tamper Shield.
 * Just-In-Time Ephemeral Elevation Candidate User Population Fix.
-* Unified Single Storage Directory Architecture under `wp-content/uploads/wcp-security-scanner/`.
+* Unified Single Storage Directory Architecture under `wp-content/uploads/webcare-pro-security/`.
 * False-Positive Immunity for Schema.org JSON-LD & Structured Data Islands.
 * Self-Exclusion & Immunity for Plugin Internal Telemetry, Forensic Tables & Quarantine Vault.
 * Real-Time CVE Intelligence & Local Site Inventory Correlator Engine.

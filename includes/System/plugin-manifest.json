@@ -1,6 +1,6 @@
 {
-  "version": "2.8.0",
-  "generated_at": "2026-11-08T07:48:20.354Z",
+  "version": "2.9.0",
+  "generated_at": "2026-11-09T02:49:29.204Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -136,8 +136,8 @@
       "size": 98452
     },
     "composer.json": {
-      "sha256": "9a4a611e03e82fa31968e71c5ce7e659e51587c3ec7919dfaee4718a9c7c9096",
-      "size": 324
+      "sha256": "c8da82c3bdaa6143faa9a2afb4bf49271716218c26dd822743de68066b642f46",
+      "size": 357
     },
     "includes/Admin/AdminMenu.php": {
       "sha256": "49ebe59bf41f72d70ad97da2a6b64e29405092a21aa40dc47e33862e6336297e",
@@ -800,24 +800,24 @@
       "size": 28
     },
     "package.json": {
-      "sha256": "f895f300c861b42fbd44ecaccf1f1b3e2ec2ef7ff1aa205800d56f16df0e5b95",
-      "size": 429
+      "sha256": "0c193b83898dac5d480fa3addcf2b6884dc668d7d96939b582309a4a96f58739",
+      "size": 437
     },
     "README.md": {
-      "sha256": "91bc3ce7f01ba47bcb716f59e9befd0a270022d88d3d5486ce21893bf904081f",
-      "size": 63298
+      "sha256": "2563ab28b7ce061585cf786960828f21d38765290968280eb034c08ac4fad636",
+      "size": 63342
     },
     "readme.txt": {
-      "sha256": "81d0d470a0d5ad4fd5f44cca0634274c9fb87caec42de73e35a574d1d27d847f",
-      "size": 29886
+      "sha256": "e1cf71ec508945a7e6340cb7ef701016628a71443f24226e105afee01a7849f4",
+      "size": 29951
     },
     "uninstall.php": {
       "sha256": "5b8b2d618cc165e1c9166ed30ef269e7d47d9d3815addb155a303d69b4ea0348",
       "size": 9799
     },
-    "wcp-wp-scanner.php": {
-      "sha256": "33dbbe940db324fe4d87e9e62a00e36f1d83bea05ae2ce94b76d701b3c11318e",
-      "size": 7695
+    "webcare-pro-security.php": {
+      "sha256": "7c8f8f28271e48b2874c6ebf0430592e43a4b3b5e971b1752b125c2c494eea4a",
+      "size": 8497
     }
   }
 }

@@ -1,3 +1,10 @@
+v:2.9.0 - 2026-11-09
+- WordPress.org Official Rebranding & Trademark Compliance (Phase 1):
+  * Official Plugin Identity: Rebranded plugin to 'WebCare Pro Security & Firewall' with permalink/slug 'webcare-pro-security' in accordance with WordPress.org trademark review requirements.
+  * Root Entry File Renaming: Renamed main plugin file from wcp-wp-scanner.php to webcare-pro-security.php with updated author attribution and text domain 'webcare-pro-security'.
+  * Architecture & Autoloader Modernization: Introduced WEBCAREPROSCAN_* core defines with dual autoloader resolving both WebCareProScanner\ and transition namespaces.
+  * Manifest Synchronization: Synchronized version 2.9.0 across readme.txt, package.json, composer.json, version.json, README.md, and changelog.txt.
+
 v:2.8.0 - 2026-11-08
 - Egress & SSRF Firewall Legitimate Webhook Whitelisting & Caller Attribution (OutboundEgressFirewall.php):
   * Authorized Notification Webhook Exemption: Implemented is_authorized_notification_webhook() in OutboundEgressFirewall to automatically exempt configured administrator DevSecOps notification webhooks (discord_webhook_url, slack_webhook_url, clickup_webhook_url, asana_webhook_url, generic_webhook_url) from the malicious exfiltration drop-point check (MALICIOUS_SINK_PATTERNS). Eliminates false-positive WAF incident logging against administrator sessions and legitimate IP addresses when dispatching security notifications.
