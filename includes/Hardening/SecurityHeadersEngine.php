@@ -240,7 +240,7 @@ class SecurityHeadersEngine {
             if (preg_match($pattern, $raw_uri) || preg_match($pattern, $normalized_uri)) {
                 status_header(403);
                 header('Content-Type: text/plain; charset=utf-8');
-                echo 'Access Denied: Sensitive system file inspection blocked by WCP Security Scanner.';
+                echo 'Access Denied: Sensitive system file inspection blocked by WebCare Pro Security.';
                 exit;
             }
         }

@@ -1,8 +1,8 @@
 /**
- * WCP Security Scanner - Global In-Page Action Modal & Popover Confirmation System
+ * WebCare Pro Security & Firewall - Global In-Page Action Modal & Popover Confirmation System
  *
  * Automatically intercepts or replaces native browser window.alert and window.confirm popups
- * on all WCP Security Scanner admin pages, rendering an elegant, accessible, theme-adaptive
+ * on all WebCare Pro Security admin pages, rendering an elegant, accessible, theme-adaptive
  * in-page popover dialog positioned right near the triggering action button (or centered in viewport).
  *
  * @author Mir Alamin (WebCare Pro)
@@ -535,7 +535,7 @@
     window.alert = function(msg) {
         // If we have an active trigger element, anchor near it
         window.wcpAlertPopover({
-            title: 'WCP Security Scanner',
+            title: 'WebCare Pro Security',
             message: String(msg || ''),
             variant: (String(msg).toLowerCase().includes('fail') || String(msg).toLowerCase().includes('error')) ? 'danger' : 'info',
             anchorEl: lastTriggerEl || document.activeElement

@@ -1343,7 +1343,7 @@ class SettingsManager {
     public static function export_settings(): array {
         $settings = get_option(self::OPTION_KEY, self::get_defaults());
         return [
-            'app'        => 'WCP Security Scanner',
+            'app'        => 'WebCare Pro Security & Firewall',
             'version'    => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.3.0',
             'exported_at'=> current_time('mysql'),
             'site_url'   => get_site_url(),

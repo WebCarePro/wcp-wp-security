@@ -196,9 +196,9 @@ class ServerSecurityEngine {
             $c .= "}\n\n";
         }
 
-        // Protect WCP Security Scanner Vault, Logs & Database Backups
+        // Protect WebCare Pro Security Vault, Logs & Database Backups
         if (!empty($opts['protect_wcp_data_dir'])) {
-            $c .= "# --- 5b. Shield WCP Security Scanner Data Directory (Logs, Vault, DB Backups) ---\n";
+            $c .= "# --- 5b. Shield WebCare Pro Security Data Directory (Logs, Vault, DB Backups) ---\n";
             $c .= "location ^~ /wp-content/uploads/webcare-pro-security/ {\n";
             $c .= "    deny all;\n";
             $c .= "    access_log off;\n";
@@ -379,9 +379,9 @@ class ServerSecurityEngine {
             $c .= "    RewriteRule ^wp-content/uploads/.*\\.(php|phtml|phar|sh|pl|py|exe)$ - [F,L,NC]\n\n";
         }
 
-        // Protect WCP Security Scanner Vault, Logs & Database Backups
+        // Protect WebCare Pro Security Vault, Logs & Database Backups
         if (!empty($opts['protect_wcp_data_dir'])) {
-            $c .= "    # Protect WCP Security Scanner Vault, Logs & Database Backups\n";
+            $c .= "    # Protect WebCare Pro Security Vault, Logs & Database Backups\n";
             $c .= "    RewriteRule ^wp-content/uploads/webcare-pro-security/ - [F,L,NC]\n\n";
         }
 
@@ -608,7 +608,7 @@ class ServerSecurityEngine {
         }
 
         if (!empty($opts['protect_wcp_data_dir'])) {
-            $c .= "    # Shield WCP Security Scanner Vault, Logs & Database Backups\n";
+            $c .= "    # Shield WebCare Pro Security Vault, Logs & Database Backups\n";
             $c .= "    @wcp_data_vault path /wp-content/uploads/webcare-pro-security/*\n";
             $c .= "    respond @wcp_data_vault 403\n\n";
         }

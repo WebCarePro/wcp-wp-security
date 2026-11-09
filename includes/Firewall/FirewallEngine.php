@@ -1211,7 +1211,7 @@ class FirewallEngine {
                 self::log_incident($rule_triggered, 'blocked');
                 status_header(403);
                 header('Content-Type: text/plain; charset=utf-8');
-                echo 'XML-RPC services are disabled on this WordPress installation by WCP Security Scanner.';
+                echo 'XML-RPC services are disabled on this WordPress installation by WebCare Pro Security.';
                 exit;
             }
         }
@@ -2054,7 +2054,7 @@ class FirewallEngine {
 
                 status_header(403);
                 header('Content-Type: text/plain; charset=utf-8');
-                echo 'XML-RPC services are disabled on this WordPress installation by WCP Security Scanner.';
+                echo 'XML-RPC services are disabled on this WordPress installation by WebCare Pro Security.';
                 exit;
             }
         }
@@ -5481,17 +5481,17 @@ class FirewallEngine {
                 if (!$is_fm_file && $ext === 'zip' && class_exists('ZipArchive')) {
                     $zip = new \ZipArchive();
                     if ($zip->open($tmp_path) === true) {
-                        // Check if this archive is WCP Security Scanner itself (self update / release package)
+                        // Check if this archive is WebCare Pro Security itself (self update / release package)
                         $is_self_package = false;
                         for ($j = 0; $j < $zip->numFiles; $j++) {
                             $check_name = $zip->getNameIndex($j);
-                            if (preg_match('/(?:^|\/)wcp-wp-scanner\.php$/i', $check_name)) {
+                            if (preg_match('/(?:^|\/)(?:webcare-pro-security|wcp-wp-scanner)\.php$/i', $check_name)) {
                                 $stream = $zip->getStream($check_name);
                                 if ($stream) {
                                     $chunk = stream_get_contents($stream, 2048);
                                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                                     fclose($stream);
-                                    if ($chunk && (stripos($chunk, 'WCP Security Scanner') !== false || stripos($chunk, 'WEBCAREPROSCAN_VERSION') !== false)) {
+                                    if ($chunk && (stripos($chunk, 'WebCare Pro Security') !== false || stripos($chunk, 'WCP Security Scanner') !== false || stripos($chunk, 'WEBCAREPROSCAN_VERSION') !== false)) {
                                         $is_self_package = true;
                                         break;
                                     }

@@ -361,7 +361,7 @@ class BotReconDefense {
             return $output;
         }
 
-        $ai_rules = "\n# WCP Security Scanner - AI Content Harvester Rules\n";
+        $ai_rules = "\n# WebCare Pro Security - AI Content Harvester Rules\n";
         $scrapers = ['GPTBot', 'ChatGPT-User', 'CCBot', 'Bytespider', 'anthropic-ai', 'ClaudeBot', 'PerplexityBot', 'Diffbot', 'Cohere-ai'];
 
         foreach ($scrapers as $bot) {

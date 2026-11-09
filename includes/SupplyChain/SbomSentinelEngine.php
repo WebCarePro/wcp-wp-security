@@ -291,8 +291,8 @@ class SbomSentinelEngine {
             return [
                 'is_recognized' => true,
                 'is_trusted'    => true,
-                'provider'      => 'WCP Security Scanner',
-                'label'         => 'Verified WCP Micro-WAF Preload',
+                'provider'      => 'WebCare Pro Security',
+                'label'         => 'Verified WebCare Pro Micro-WAF Preload',
                 'risk_level'    => 'none',
                 'description'   => __('Official WebCare Pro Micro-WAF pre-boot firewall engine.', 'webcare-pro-security'),
                 'sha256'        => $sha256,

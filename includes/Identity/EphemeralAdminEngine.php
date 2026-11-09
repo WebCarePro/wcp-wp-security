@@ -45,7 +45,7 @@ class EphemeralAdminEngine {
         // Admin bar badge notification for elevated user
         add_action('admin_bar_menu', [__CLASS__, 'render_admin_bar_badge'], 99);
 
-        // Protect WCP Security Scanner from deactivation & deletion by elevated users
+        // Protect WebCare Pro Security from deactivation & deletion by elevated users
         add_filter('plugin_action_links_' . plugin_basename(WEBCAREPROSCAN_FILE), [__CLASS__, 'filter_plugin_action_links'], 20);
         add_action('admin_init', [__CLASS__, 'intercept_unauthorized_plugin_actions'], 1);
         add_filter('map_meta_cap', [__CLASS__, 'restrict_elevated_admin_capabilities'], 10, 4);
@@ -214,12 +214,12 @@ class EphemeralAdminEngine {
         if ($is_targeting_wcp && in_array($action, ['deactivate', 'delete-selected', 'deactivate-selected'], true)) {
             AuditLogger::log(
                 'jit_tamper_attempt_blocked',
-                sprintf('Security alert: JIT elevated user (ID %d) attempted to deactivate or delete WCP Security Scanner. Action was blocked.', $user_id)
+                sprintf('Security alert: JIT elevated user (ID %d) attempted to deactivate or delete WebCare Pro Security. Action was blocked.', $user_id)
             );
 
             wp_die(
                 '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
-                '<p>' . esc_html__('Users with temporary Just-In-Time (JIT) Administrative elevation are strictly prohibited from deactivating or deleting WCP Security Scanner.', 'webcare-pro-security') . '</p>' .
+                '<p>' . esc_html__('Users with temporary Just-In-Time (JIT) Administrative elevation are strictly prohibited from deactivating or deleting WebCare Pro Security.', 'webcare-pro-security') . '</p>' .
                 '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'webcare-pro-security') . '</a></p>',
                 esc_html__('Security Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
@@ -241,7 +241,7 @@ class EphemeralAdminEngine {
             return $caps;
         }
 
-        // Prevent deactivating WCP Security Scanner
+        // Prevent deactivating WebCare Pro Security
         if ($cap === 'deactivate_plugin' || $cap === 'deactivate_plugins') {
             $target_plugin = !empty($args[0]) ? $args[0] : '';
             if (empty($target_plugin) || strpos($target_plugin, 'webcare-pro-security') !== false) {

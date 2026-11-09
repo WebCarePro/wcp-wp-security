@@ -1,6 +1,6 @@
 # Security Policy & Vulnerability Disclosure
 
-**WCP Security Scanner** is designed, engineered, and maintained by **Mir Alamin** ([WebCare Pro](https://webcarespro.com)), an individual solo Linux SysAdmin and Senior WordPress Security Engineer. 
+**WebCare Pro Security & Firewall** is designed, engineered, and maintained by **Mir Alamin** ([WebCare Pro](https://webcarespro.com)), an individual solo Linux SysAdmin and Senior WordPress Security Engineer. 
 
 Security integrity and responsible disclosure are paramount. If you discover a security vulnerability or potential risk within this plugin or its runtime engines, please follow this policy to report it responsibly.
 
@@ -8,11 +8,11 @@ Security integrity and responsible disclosure are paramount. If you discover a s
 
 ## Supported Versions
 
-WCP Security Scanner is maintained through active continuous delivery. Enhancements, security updates, and performance optimizations are rolled directly into the latest release line.
+WebCare Pro Security & Firewall is maintained through active continuous delivery. Enhancements, security updates, and performance optimizations are rolled directly into the latest release line.
 
 | Version | Status | Maintenance Policy |
 |:---|:---:|:---|
-| **2.7.1 (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
+| **2.9.0 (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
 | **Prior Releases** | 🔄 Upgrade Recommended | Feature-complete. Upgrading to the latest active release ensures access to current threat intelligence signatures and performance enhancements |
 
 ---
@@ -27,10 +27,10 @@ To report a vulnerability directly and privately to Mir Alamin:
 
 1. **Email:** Send full technical details to **`hello@webcarespro.com`**.
 2. **Direct WhatsApp Channel:** For direct 1-on-1 security coordination, connect via WhatsApp:  
-   👉 [**+880 1322-691090** (Click to start chat with prebuilt message)](https://wa.me/8801322691090?text=Hello%20Mir%20Alamin,%20I%20am%20reporting%20a%20security%20vulnerability%20regarding%20WCP%20Security%20Scanner)
+   👉 [**+880 1322-691090** (Click to start chat with prebuilt message)](https://wa.me/8801322691090?text=Hello%20Mir%20Alamin,%20I%20am%20reporting%20a%20security%20vulnerability%20regarding%20WebCare%20Pro%20Security)
 3. **Microsoft Teams:** Connect directly via MS Teams:  
    👉 [**Join Mir Alamin on Microsoft Teams**](https://teams.live.com/l/invite/FEAI60zv48mwbIKhA?v=g1)
-4. **Subject Line:** `[Vulnerability Report] WCP Security Scanner - <Brief Description>`
+4. **Subject Line:** `[Vulnerability Report] WebCare Pro Security - <Brief Description>`
 5. **Report Contents:**
    - Detailed description of the vulnerability and its potential impact.
    - Exact steps or proof-of-concept (PoC) code to reproduce the issue in a standard environment.
@@ -53,7 +53,7 @@ As an independent solo security engineer, I treat valid security disclosures wit
 
 ## Defensive Architecture & Safety Principles
 
-WCP Security Scanner is engineered with defensive architectural principles to minimize attack surfaces:
+WebCare Pro Security & Firewall is engineered with defensive architectural principles to minimize attack surfaces:
 
 1. **CrashGuard Circuit Breaker (`CrashGuard.php`):** Unhandled internal errors, TypeErrors, or fatal exceptions are trapped in an early Safe Mode envelope, preventing host fatal crashes or administrative lockouts.
 2. **Pure Cryptographic Secret Vault (`CryptoVault.php`):** All sensitive webhook credentials, Cloudflare API tokens, and 2FA secrets are encrypted at rest using AES-256-GCM AEAD encryption with randomized 12-byte IVs. Plaintext secrets are never stored in `wp_options` or written into SQL backups.

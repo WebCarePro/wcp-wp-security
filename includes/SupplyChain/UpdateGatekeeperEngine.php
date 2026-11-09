@@ -172,7 +172,7 @@ class UpdateGatekeeperEngine {
 
         $folder_name = basename(untrailingslashit($source));
 
-        // Self-Exclusion: Never intercept or flag WCP Security Scanner itself
+        // Self-Exclusion: Never intercept or flag WebCare Pro Security itself
         // (Internal attack simulation test suites, virtual patch synthesizers, and quarantine engines contain controlled exploit strings)
         if ($folder_name === 'webcare-pro-security') {
             return $source;

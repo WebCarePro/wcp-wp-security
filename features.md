@@ -1,6 +1,6 @@
-# WCP Security Scanner — Extended Features & Architecture Catalog
+# WebCare Pro Security & Firewall — Extended Features & Architecture Catalog
 
-**WCP Security Scanner** is an enterprise-grade, memory-efficient WordPress security, malware detection, forensic auditing, and edge defense plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)).
+**WebCare Pro Security & Firewall** is an enterprise-grade, memory-efficient WordPress security, malware detection, forensic auditing, and edge defense plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)).
 
 Built with a high-performance **React 18 + TypeScript** administrative single-page dashboard and memory-safe **PHP 8.3+ streaming engines**, the plugin provides comprehensive threat prevention, runtime defense, cryptographic isolation, and forensic remediation without degrading server performance.
 
@@ -532,7 +532,7 @@ Sometimes a custom script that you or your developer wrote gets flagged by the s
 ## 31. Granular Rule-Scoped & Category-Scoped IP Allowlisting & In-Place Policy Management
 
 ### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
-When troubleshooting legitimate visitor or developer blocks in traditional security plugins, whitelisting an IP address turns off all firewall protection for that IP. If an exempted computer later gets infected with malware or an attacker hijacks that IP, they can launch SQL injection or file upload attacks with zero protection. WCP Security Scanner introduces the **Principle of Least Privilege** to IP allowlisting: when you allow an IP from the firewall incident logs, you can allow it *only* for the specific rule that blocked it (like XML-RPC or a REST API endpoint), or for a specific group of rules. All other 30+ enterprise security rules remain 100% active. You can also restrict the exemption strictly to a single URL path, set an automatic expiration schedule (such as 24 hours), and edit active policies in place anytime without re-creating them.
+When troubleshooting legitimate visitor or developer blocks in traditional security plugins, whitelisting an IP address turns off all firewall protection for that IP. If an exempted computer later gets infected with malware or an attacker hijacks that IP, they can launch SQL injection or file upload attacks with zero protection. WebCare Pro Security introduces the **Principle of Least Privilege** to IP allowlisting: when you allow an IP from the firewall incident logs, you can allow it *only* for the specific rule that blocked it (like XML-RPC or a REST API endpoint), or for a specific group of rules. All other 30+ enterprise security rules remain 100% active. You can also restrict the exemption strictly to a single URL path, set an automatic expiration schedule (such as 24 hours), and edit active policies in place anytime without re-creating them.
 
 ### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Zero-Trust Principle of Least Privilege:** Completely replaces blunt, binary IP bypasses with granular, multi-tiered exemption scopes evaluated at sub-millisecond speeds in memory (FirewallEngine.php):
@@ -757,7 +757,7 @@ Web hosting companies run server-level antivirus tools (like Imunify360 or CPGua
 ## 48. Data Privacy, Safety Policies & Clean Uninstall Lifecycle
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Your privacy is sacred. WCP Security Scanner runs 100% locally on your own server. It never sends your visitor data, files, or browsing habits to any outside servers or third parties. Furthermore, if you ever decide to uninstall the plugin, it completely cleans up after itself—removing all custom database tables, settings, and temporary files so your website remains completely clean and clutter-free.
+Your privacy is sacred. WebCare Pro Security runs 100% locally on your own server. It never sends your visitor data, files, or browsing habits to any outside servers or third parties. Furthermore, if you ever decide to uninstall the plugin, it completely cleans up after itself—removing all custom database tables, settings, and temporary files so your website remains completely clean and clutter-free.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Non-Destructive Operations:** All Auto-Cure, Quarantine, and Remediation operations create automated pre-action safety snapshots in the local backup vault before modifying files on disk.
@@ -796,7 +796,7 @@ Many WordPress hacks happen when an otherwise legitimate plugin you already use 
 ## 51. Zero-SQL Partitioned WAF Incident Filesystem Engine
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Under high-volume bot attacks or brute-force scans, writing thousands of incident logs into your WordPress database can quickly slow down or crash your server. WCP Security Scanner includes a Zero-SQL Filesystem Logging Engine that writes blocked attacks into lightweight, daily compressed log files on your server. This gives you detailed forensic logs with zero database load.
+Under high-volume bot attacks or brute-force scans, writing thousands of incident logs into your WordPress database can quickly slow down or crash your server. WebCare Pro Security includes a Zero-SQL Filesystem Logging Engine that writes blocked attacks into lightweight, daily compressed log files on your server. This gives you detailed forensic logs with zero database load.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **High-Performance Filesystem Appending (`WafFileLogger.php`):** Blocked HTTP requests and WAF telemetry are streamed directly to partitioned daily JSON Lines logs (`wp-content/uploads/wcp-scanner-quarantine/waf-logs/waf-YYYY-MM-DD.json.gz` or `.log`) using atomic append operations (`LOCK_EX`).
@@ -903,7 +903,7 @@ Getting started with enterprise website security shouldn't require reading hundr
 ## 59. Unified Multi-Tier Log Export Engine & Domain-Stamped Forensic Archives
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-When you need to analyze attacks or keep records for compliance, downloading raw logs shouldn't be confusing or clutter your downloads folder with generic files like `logs.json`. WCP Security Scanner includes an interactive Export Modal across all three primary log ledgers (Firewall Incident Logs, Plugin Activity Logs, and Scan History). You can download everything, pick a specific calendar date, or export just the filtered records you are currently viewing. Even better, every downloaded file automatically stamps the website domain name, current date, and time right into the filename (e.g., `waf-logs-2026-11-03-031843-stealthformen-com-u9ohy.json`), making multi-site security management seamless.
+When you need to analyze attacks or keep records for compliance, downloading raw logs shouldn't be confusing or clutter your downloads folder with generic files like `logs.json`. WebCare Pro Security includes an interactive Export Modal across all three primary log ledgers (Firewall Incident Logs, Plugin Activity Logs, and Scan History). You can download everything, pick a specific calendar date, or export just the filtered records you are currently viewing. Even better, every downloaded file automatically stamps the website domain name, current date, and time right into the filename (e.g., `waf-logs-2026-11-03-031843-stealthformen-com-u9ohy.json`), making multi-site security management seamless.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Universal Interactive Export Modal (`exportUtils.ts`, `WafLogsPage.tsx`, `ActivityLogsPage.tsx`, `ScanLogsPage.tsx`):** Upgraded static in-memory exports to full interactive scope and calendar date selectors across all log engines.
@@ -918,7 +918,7 @@ When you need to analyze attacks or keep records for compliance, downloading raw
 ## 60. Granular Authentication Diagnostics & Login Failure Reason Forensics
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-When someone fails to log in, you need to know why: did a legitimate customer just mistype their password, or is an attacker guessing random usernames? WCP Security Scanner connects directly to WordPress's internal error engine to capture the exact failure reason in real-time. In your Firewall Incident Logs, you can instantly see whether the user entered an incorrect password for an existing account or if they tried an unknown username that doesn't exist on your site.
+When someone fails to log in, you need to know why: did a legitimate customer just mistype their password, or is an attacker guessing random usernames? WebCare Pro Security connects directly to WordPress's internal error engine to capture the exact failure reason in real-time. In your Firewall Incident Logs, you can instantly see whether the user entered an incorrect password for an existing account or if they tried an unknown username that doesn't exist on your site.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Two-Argument `wp_login_failed` Capture (`LoginHardening.php`):** Subscribes to WordPress core's dual-argument failure hook:
@@ -935,7 +935,7 @@ When someone fails to log in, you need to know why: did a legitimate customer ju
 ## 61. Authoritative Search Crawler CIDR Fallback & Automated False-Positive Ban Pruning
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Search engines like Google and Bing constantly crawl your website to keep your SEO rankings updated. Some web hosts or cloud firewalls block reverse-DNS lookups, which can cause security plugins to mistake Googlebot for a fake bot and accidentally ban it. WCP Security Scanner embeds official network IP ranges for Google and Bing directly into the plugin. Even if reverse DNS lookups fail, legitimate search engine crawlers are never banned, and if a crawler was mistakenly restricted earlier, the system automatically detects it and forgives the ban instantly.
+Search engines like Google and Bing constantly crawl your website to keep your SEO rankings updated. Some web hosts or cloud firewalls block reverse-DNS lookups, which can cause security plugins to mistake Googlebot for a fake bot and accidentally ban it. WebCare Pro Security embeds official network IP ranges for Google and Bing directly into the plugin. Even if reverse DNS lookups fail, legitimate search engine crawlers are never banned, and if a crawler was mistakenly restricted earlier, the system automatically detects it and forgives the ban instantly.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Authoritative Subnet Range Ingestion (`BotReconDefense.php`):** Embedded official Googlebot (`66.249.64.0/19`, `64.233.160.0/19`, `72.14.192.0/18`, `209.85.128.0/17`, `2001:4860::/32`) and Bingbot IPv4/IPv6 CIDR ranges directly into memory.
@@ -949,7 +949,7 @@ Search engines like Google and Bing constantly crawl your website to keep your S
 ## 62. ActionScheduler Persistence & Code Snippets Database Injection Armor
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Modern malware doesn't always hide in PHP files; attackers frequently inject malicious code directly into your WordPress database—especially inside custom code snippet plugins (like WPCode or Code Snippets) or scheduled WooCommerce background tasks (ActionScheduler). WCP Security Scanner scans these database tables directly, uncovering hidden PHP code, malicious terminal commands, and dangerous background jobs before they can harm your site.
+Modern malware doesn't always hide in PHP files; attackers frequently inject malicious code directly into your WordPress database—especially inside custom code snippet plugins (like WPCode or Code Snippets) or scheduled WooCommerce background tasks (ActionScheduler). WebCare Pro Security scans these database tables directly, uncovering hidden PHP code, malicious terminal commands, and dangerous background jobs before they can harm your site.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **ActionScheduler Persistence Trojan Scanner (`CronPersistenceScanner.php`):** Scans the WooCommerce `actionscheduler_actions` table for pending actions directly invoking dangerous PHP sinks (`system`, `exec`, `assert`, `eval`, `passthru`) or weaponized serialized payloads (`weaponized_cron_args`).
@@ -962,7 +962,7 @@ Modern malware doesn't always hide in PHP files; attackers frequently inject mal
 ## 63. Developer Performance Controls, Throttling & Background Worker Strategies
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Every web hosting environment is different. Shared hosting accounts often have strict CPU limits, while dedicated servers have plenty of power. WCP Security Scanner gives you complete control over scan speed and resource usage. You can slow down scans with micro-pauses to keep CPU usage low, choose between interactive or background scanning, skip bulky image files, and exclude huge database tables with a few clicks.
+Every web hosting environment is different. Shared hosting accounts often have strict CPU limits, while dedicated servers have plenty of power. WebCare Pro Security gives you complete control over scan speed and resource usage. You can slow down scans with micro-pauses to keep CPU usage low, choose between interactive or background scanning, skip bulky image files, and exclude huge database tables with a few clicks.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Configurable Inter-Batch CPU Throttling (`scan_batch_delay_ms`):** Introduces selectable rest pauses (0ms, 50ms, 150ms, 300ms, 500ms) between REST batches to keep CPU load low and prevent cPanel/CloudLinux LVE throttling.
@@ -976,7 +976,7 @@ Every web hosting environment is different. Shared hosting accounts often have s
 ## 64. Administrator Real-Time Access & Password Change Notification Matrix
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Account takeovers are the most dangerous security risk for any website. The moment any administrator logs in or has their password changed, you should know immediately. WCP Security Scanner sends instant alerts to your email or team chat channels (Slack, Discord, ClickUp, Asana) whenever an administrator signs in or updates their password, including the exact IP address, device, and timestamp.
+Account takeovers are the most dangerous security risk for any website. The moment any administrator logs in or has their password changed, you should know immediately. WebCare Pro Security sends instant alerts to your email or team chat channels (Slack, Discord, ClickUp, Asana) whenever an administrator signs in or updates their password, including the exact IP address, device, and timestamp.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Admin Authentication Alert Dispatch (`auth_admin_login`):** Automatically detects successful logins by accounts holding administrator privileges (`manage_options`). Dispatches instant notifications recording user ID, username, IP address, user agent, and timestamp.
@@ -992,7 +992,7 @@ Account takeovers are the most dangerous security risk for any website. The mome
 ## 65. WooCommerce Keyset Cursor Pagination & Safe Database Persistence Auditing
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-High-traffic WooCommerce stores process hundreds of background events every hour (scheduled orders, webhooks, customer emails). Traditional security scanners lock large database tables while scanning for malware, slowing down checkouts or freezing transactions. WCP Security Scanner utilizes frictionless keyset pagination that glides through scheduled tasks non-destructively, auditing background tasks for hidden malicious triggers without placing row locks or slowing down active customer purchases.
+High-traffic WooCommerce stores process hundreds of background events every hour (scheduled orders, webhooks, customer emails). Traditional security scanners lock large database tables while scanning for malware, slowing down checkouts or freezing transactions. WebCare Pro Security utilizes frictionless keyset pagination that glides through scheduled tasks non-destructively, auditing background tasks for hidden malicious triggers without placing row locks or slowing down active customer purchases.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Keyset Cursor Pagination (`CronPersistenceScanner.php`):** Replaces slow, table-locking `OFFSET` queries with primary key cursor pagination (`WHERE action_id > %d ORDER BY action_id ASC LIMIT 250`) across `wp_actionscheduler_actions` and high-churn session tables, completely eliminating InnoDB row-lock contention.
@@ -1004,7 +1004,7 @@ High-traffic WooCommerce stores process hundreds of background events every hour
 ## 66. Pre-Install Package Security Gatekeeper & Atomic Upgrade Shield
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-When you install or update a plugin, WordPress downloads a zip archive and unzips it directly into your website directories. If a malicious or compromised package is uploaded, malicious code can compromise your site before you even run a scan. WCP Security Scanner intercepts packages during extraction, auditing them for dangerous path traversal exploits and webshell patterns before they ever reach production. Additionally, it locks down site upgrade windows to prevent attackers from probing temporary installation files.
+When you install or update a plugin, WordPress downloads a zip archive and unzips it directly into your website directories. If a malicious or compromised package is uploaded, malicious code can compromise your site before you even run a scan. WebCare Pro Security intercepts packages during extraction, auditing them for dangerous path traversal exploits and webshell patterns before they ever reach production. Additionally, it locks down site upgrade windows to prevent attackers from probing temporary installation files.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Pre-Install Package Security Audit (`UpdateGatekeeperEngine.php`):** Inspects unzipped plugin/theme archives in temporary staging directories prior to production deployment, flagging zip-slip traversals (`../`), external directory symlinks, and obfuscated webshell markers.
@@ -1015,7 +1015,7 @@ When you install or update a plugin, WordPress downloads a zip archive and unzip
 ## 67. In-Memory Anonymous Closure Reflection & Gadget Sentinel
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Sophisticated WordPress backdoors no longer write obvious PHP files to disk. Instead, they inject fileless code into WordPress runtime memory, hooking into authentication processes or page loads using anonymous functions. WCP Security Scanner uses PHP Reflection to inspect anonymous functions directly in memory, identifying and neutralizing stealthy memory-only backdoors before they can intercept administrator logins.
+Sophisticated WordPress backdoors no longer write obvious PHP files to disk. Instead, they inject fileless code into WordPress runtime memory, hooking into authentication processes or page loads using anonymous functions. WebCare Pro Security uses PHP Reflection to inspect anonymous functions directly in memory, identifying and neutralizing stealthy memory-only backdoors before they can intercept administrator logins.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **In-Memory Closure Reflection (`HookInfiltrationSentinel.php`):** Leverages `ReflectionFunction` on anonymous Closures registered to critical runtime hooks (`authenticate`, `init`, `template_redirect`, `wp_authenticate`).
@@ -1026,7 +1026,7 @@ Sophisticated WordPress backdoors no longer write obvious PHP files to disk. Ins
 ## 68. REST API Batch-Route & Method-Override Normalization (CVE-2026-63030 Defense)
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-WordPress allows bundling multiple API requests into a single batch command (`/wp-json/wp/v2/batch`). Attackers frequently hide malicious requests—such as user enumeration or privilege tampering—inside nested batch requests or disguise them using method-override headers to bypass traditional security firewalls. WCP Security Scanner recursively unpacks and inspects all nested requests inside batches, canonicalizing route formats and neutralizing smuggled exploits before they execute.
+WordPress allows bundling multiple API requests into a single batch command (`/wp-json/wp/v2/batch`). Attackers frequently hide malicious requests—such as user enumeration or privilege tampering—inside nested batch requests or disguise them using method-override headers to bypass traditional security firewalls. WebCare Pro Security recursively unpacks and inspects all nested requests inside batches, canonicalizing route formats and neutralizing smuggled exploits before they execute.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Recursive Batch Extraction (`FirewallEngine.php`):** Unpacks `/wp-json/wp/v2/batch` and `/batch/v1` payloads, recursively walking nested `requests[]` arrays with strict depth and sub-request count boundaries to prevent resource exhaustion.
@@ -1037,7 +1037,7 @@ WordPress allows bundling multiple API requests into a single batch command (`/w
 ## 69. Outbound Egress DNS Pinning & Anti-Rebinding SSRF Shield
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-Server-Side Request Forgery (SSRF) occurs when a vulnerable plugin makes an outbound web request on behalf of an attacker, potentially leaking cloud server credentials or probing internal private networks. Attackers use DNS rebinding (TOCTOU) tricks where a domain resolves to a safe IP during initial checks, then switches to a private IP during execution. WCP Security Scanner resolves hostnames once, checks all IPv4 and IPv6 addresses, and pins the verified destination directly into the cURL transport to completely defeat DNS rebinding.
+Server-Side Request Forgery (SSRF) occurs when a vulnerable plugin makes an outbound web request on behalf of an attacker, potentially leaking cloud server credentials or probing internal private networks. Attackers use DNS rebinding (TOCTOU) tricks where a domain resolves to a safe IP during initial checks, then switches to a private IP during execution. WebCare Pro Security resolves hostnames once, checks all IPv4 and IPv6 addresses, and pins the verified destination directly into the cURL transport to completely defeat DNS rebinding.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Single-Pass DNS Resolution & Range Validation (`OutboundEgressFirewall.php`):** Resolves A and AAAA records via `dns_get_record()` and validates all returned IPs against RFC 1918, loopback, IPv6 unique-local (`fc00::/7`), and AWS/GCP/Alibaba cloud metadata ranges (`169.254.169.254`, `100.100.100.200`, `fd00:ec2::254`).
@@ -1049,7 +1049,7 @@ Server-Side Request Forgery (SSRF) occurs when a vulnerable plugin makes an outb
 ## 70. AI Agent & MCP Plugin Governance with AES-256-GCM Secret Vaulting
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-As WordPress sites adopt AI tools, chat agents, and autonomous assistants, many third-party plugins store sensitive OpenAI, Anthropic, or Gemini API keys in plaintext in the database or register public API routes without proper permission checks. WCP Security Scanner automatically discovers AI/MCP connectors, flags exposed routes missing authentication, and migrates plaintext API credentials into military-grade AES-256-GCM authenticated encrypted storage with 1 click.
+As WordPress sites adopt AI tools, chat agents, and autonomous assistants, many third-party plugins store sensitive OpenAI, Anthropic, or Gemini API keys in plaintext in the database or register public API routes without proper permission checks. WebCare Pro Security automatically discovers AI/MCP connectors, flags exposed routes missing authentication, and migrates plaintext API credentials into military-grade AES-256-GCM authenticated encrypted storage with 1 click.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Third-Party AI & MCP Discovery (`AiAgentInventoryScanner.php`):** Scans active plugins, database option keys (`wp_options`), and registered REST namespaces for autonomous agents, LLM integrations, and MCP tools.
@@ -1061,7 +1061,7 @@ As WordPress sites adopt AI tools, chat agents, and autonomous assistants, many 
 ## 71. Surgical In-File Remediation & Compressed Pristine Baseline Vaulting
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-When malware injects a small malicious snippet into an essential WordPress core or plugin file, legacy security tools quarantine or delete the entire file—frequently crashing the website or breaking critical functionality. WCP Security Scanner saves compressed pristine baselines of clean files in a hardened vault. When an altered file is detected, it surgically restores the file back to its pristine state while creating a safety snapshot and testing website health to prevent downtime.
+When malware injects a small malicious snippet into an essential WordPress core or plugin file, legacy security tools quarantine or delete the entire file—frequently crashing the website or breaking critical functionality. WebCare Pro Security saves compressed pristine baselines of clean files in a hardened vault. When an altered file is detected, it surgically restores the file back to its pristine state while creating a safety snapshot and testing website health to prevent downtime.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Pristine Gzip Baselines (`FimVaultManager.php`):** Stores gzip-compressed pristine file baselines inside a hardened directory (`fim-vault/baselines`) protected by strict Apache `.htaccess` (`Require all denied`) and silent PHP index files.
@@ -1075,7 +1075,7 @@ When malware injects a small malicious snippet into an essential WordPress core 
 ## 72. First-Time Protection Quickstart & 12-Step Calibration Wizard
 
 ### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
-Setting up an enterprise security plugin can feel overwhelming with dozens of unfamiliar technical settings. WCP Security Scanner features an interactive 12-Step Calibration Wizard that guides you step-by-step through configuring your site's defenses. It checks your server health and PHP requirements in real time, automatically protects your own computer's IP address from accidental lockouts, gives you a permanent 6-character emergency rescue code, discovers installed e-commerce and payment plugins to enable safe bypass rules in one click, and atomically configures your automated background scans—all explained in crystal-clear, non-technical language.
+Setting up an enterprise security plugin can feel overwhelming with dozens of unfamiliar technical settings. WebCare Pro Security features an interactive 12-Step Calibration Wizard that guides you step-by-step through configuring your site's defenses. It checks your server health and PHP requirements in real time, automatically protects your own computer's IP address from accidental lockouts, gives you a permanent 6-character emergency rescue code, discovers installed e-commerce and payment plugins to enable safe bypass rules in one click, and atomically configures your automated background scans—all explained in crystal-clear, non-technical language.
 
 ### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **12-Step Calibration Lifecycle (SetupWizard.tsx, wizard.tsx):** Built as an independent, lightweight React single-page onboarding application (uild/wizard.js, ~62 KB) that executes smoothly without loading or altering the locked main scanning engine.
@@ -1093,7 +1093,7 @@ Setting up an enterprise security plugin can feel overwhelming with dozens of un
 ## 73. Cloudflare Edge 1-Click API Token Provisioning & Automatic Zone ID Detection
 
 ### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
-Connecting your website to Cloudflare's free edge network stops malicious bots and massive DDoS attacks before they ever reach your web server. However, generating API tokens and finding 32-character Zone IDs inside Cloudflare's dashboard can be confusing. WCP Security Scanner makes this completely effortless: one click opens Cloudflare with all the required security permissions pre-selected. Once you paste your token, the plugin instantly contacts Cloudflare to discover your website's Zone ID automatically—no copy-pasting cryptic IDs required.
+Connecting your website to Cloudflare's free edge network stops malicious bots and massive DDoS attacks before they ever reach your web server. However, generating API tokens and finding 32-character Zone IDs inside Cloudflare's dashboard can be confusing. WebCare Pro Security makes this completely effortless: one click opens Cloudflare with all the required security permissions pre-selected. Once you paste your token, the plugin instantly contacts Cloudflare to discover your website's Zone ID automatically—no copy-pasting cryptic IDs required.
 
 ### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **1-Click Pre-Configured Token Generator (CloudflareEdgeTab.tsx):** Provides a direct deep-link to Cloudflare's API Token creation screen with pre-filled parameter permissions (Zone:Read, Zone WAF:Edit, Firewall Services:Edit, Analytics:Read, and Cache Purge), eliminating permission misconfiguration and 403 API rejections.
@@ -1105,7 +1105,7 @@ Connecting your website to Cloudflare's free edge network stops malicious bots a
 ## 74. Firewall Sub-Tab Navigation Consolidation & Advanced Tools Dropdown
 
 ### 👨‍🎓 Plain-English Overview (For Everyone & Non-Tech Users)
-As security features grew, having 11 different tabs across the top of the Firewall screen caused buttons to wrap into multiple rows, cluttering the screen on smaller laptops and tablets. WCP Security Scanner consolidates the firewall into a clean, modern single-line navigation bar. Primary daily tools—like Live Incident Logs, Firewall Rules, Cloudflare Edge, and AI Bot Defense—remain prominently visible, while advanced forensic and simulation tools are organized into an elegant **Advanced Tools** dropdown menu.
+As security features grew, having 11 different tabs across the top of the Firewall screen caused buttons to wrap into multiple rows, cluttering the screen on smaller laptops and tablets. WebCare Pro Security consolidates the firewall into a clean, modern single-line navigation bar. Primary daily tools—like Live Incident Logs, Firewall Rules, Cloudflare Edge, and AI Bot Defense—remain prominently visible, while advanced forensic and simulation tools are organized into an elegant **Advanced Tools** dropdown menu.
 
 ### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Single-Line Responsive Top Bar (FirewallPage.tsx):** Streamlines 11 tabs into 6 primary operational hubs: Live Stream (	ab=stream), Firewall Rules (	ab=rules), CAF StackGuard (	ab=caf), Cloudflare Edge (	ab=cloudflare), Behavioral WAF (	ab=behavioral), and 2026 AI Defense (	ab=ai_defense).
@@ -1114,7 +1114,7 @@ As security features grew, having 11 different tabs across the top of the Firewa
 
 ## 👨‍💻 Author & Engineering
 
-**WCP Security Scanner** is designed and engineered by **Mir Alamin** ([WebCare Pro](https://webcarespro.com)):
+**WebCare Pro Security** is designed and engineered by **Mir Alamin** ([WebCare Pro](https://webcarespro.com)):
 - **Upwork:** [Mir Alamin on Upwork](https://www.upwork.com/freelancers/~0162afa9a578170c67) — Top Rated Plus Freelancer, 100% Job Success Score
 - **Website:** [https://webcarespro.com](https://webcarespro.com)
 - **Direct Email:** [hello@webcarespro.com](mailto:hello@webcarespro.com)

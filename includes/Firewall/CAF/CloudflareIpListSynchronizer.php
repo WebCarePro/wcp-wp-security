@@ -471,7 +471,7 @@ class CloudflareIpListSynchronizer {
             'POST',
             [
                 'name'        => self::LIST_NAME,
-                'description' => 'WCP Security Scanner Autonomous Threat Blocklist',
+                'description' => 'WebCare Pro Security Autonomous Threat Blocklist',
                 'kind'        => 'ip',
             ]
         );

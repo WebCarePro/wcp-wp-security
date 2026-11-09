@@ -229,7 +229,7 @@ class AIService {
                 'detected_via'        => 'wp_ai_client() core function',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('WordPress native Core AI Client is active and connected. WCP Security Scanner can seamlessly run zero-key forensics through your WordPress AI infrastructure.', 'webcare-pro-security'),
+                'details'             => __('WordPress native Core AI Client is active and connected. WebCare Pro Security can seamlessly run zero-key forensics through your WordPress AI infrastructure.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -243,7 +243,7 @@ class AIService {
                 'detected_via'        => 'wp_ai_run_ability() Core Abilities API',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('WordPress AI Abilities runtime detected. WCP Security Scanner can dispatch suspicious file forensics directly through registered site abilities.', 'webcare-pro-security'),
+                'details'             => __('WordPress AI Abilities runtime detected. WebCare Pro Security can dispatch suspicious file forensics directly through registered site abilities.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -257,7 +257,7 @@ class AIService {
                 'detected_via'        => 'Meow_MWAI_Core plugin runtime',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('AI Engine plugin is active on your site. WCP Security Scanner is 100% compatible and will route malware de-obfuscation and code analysis through your AI Engine models.', 'webcare-pro-security'),
+                'details'             => __('AI Engine plugin is active on your site. WebCare Pro Security is 100% compatible and will route malware de-obfuscation and code analysis through your AI Engine models.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -271,7 +271,7 @@ class AIService {
                 'detected_via'        => 'WP_AI_Connect plugin class',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('WP AI Connect plugin detected on your site. WCP Security Scanner is fully compatible and will route threat forensics through your connected models.', 'webcare-pro-security'),
+                'details'             => __('WP AI Connect plugin detected on your site. WebCare Pro Security is fully compatible and will route threat forensics through your connected models.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -285,7 +285,7 @@ class AIService {
                 'detected_via'        => 'Jetpack AI Client',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('Jetpack AI subsystem detected. WCP Security Scanner is compatible with your Jetpack AI connected services.', 'webcare-pro-security'),
+                'details'             => __('Jetpack AI subsystem detected. WebCare Pro Security is compatible with your Jetpack AI connected services.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -299,7 +299,7 @@ class AIService {
                 'detected_via'        => 'Active webcareproscan_ai_analyze_code / wp_ai_prompt filter hook',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('A custom WordPress AI connector filter is registered on this site. WCP Security Scanner will dispatch code forensics directly through your custom AI pipeline.', 'webcare-pro-security'),
+                'details'             => __('A custom WordPress AI connector filter is registered on this site. WebCare Pro Security will dispatch code forensics directly through your custom AI pipeline.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -319,7 +319,7 @@ class AIService {
                 'has_connectors_page' => $has_connectors_api,
                 'details'             => sprintf(
                     /* translators: %s: Comma-separated list of environment constants */
-                    __('Pre-configured AI keys (%s) detected in your WordPress environment constants. WCP Security Scanner can seamlessly leverage these credentials without extra setup.', 'webcare-pro-security'),
+                    __('Pre-configured AI keys (%s) detected in your WordPress environment constants. WebCare Pro Security can seamlessly leverage these credentials without extra setup.', 'webcare-pro-security'),
                     implode(', ', $env_keys)
                 ),
                 'recommended_plugin'  => $recommended_plugin,

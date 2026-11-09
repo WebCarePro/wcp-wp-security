@@ -71,8 +71,8 @@ class AdminMenu {
 
         // Main Menu: Dashboard
         add_menu_page(
-            __('WCP Security Scanner', 'webcare-pro-security'),
-            __('WCP Security Scanner', 'webcare-pro-security'),
+            __('WebCare Pro Security & Firewall', 'webcare-pro-security'),
+            __('WebCare Pro', 'webcare-pro-security'),
             'manage_options',
             'webcare-pro-security',
             [__CLASS__, 'render_app_container'],
@@ -87,7 +87,7 @@ class AdminMenu {
         // 1. Submenu: Dashboard
         add_submenu_page(
             'webcare-pro-security',
-            __('Scanner Dashboard', 'webcare-pro-security'),
+            __('WebCare Pro Dashboard', 'webcare-pro-security'),
             __('Dashboard', 'webcare-pro-security'),
             'manage_options',
             'webcare-pro-security',
@@ -231,7 +231,7 @@ class AdminMenu {
         // Sub-Page: Onboarding & Protection Quickstart Wizard
         add_submenu_page(
             null,
-            __('WCP Security Protection Quickstart Wizard', 'webcare-pro-security'),
+            __('WebCare Pro Protection Quickstart Wizard', 'webcare-pro-security'),
             __('Protection Wizard', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-wizard',
@@ -299,13 +299,13 @@ class AdminMenu {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
             $title_map = [
-                'webcare-pro-security'       => __('WCP Security Scanner', 'webcare-pro-security'),
+                'webcare-pro-security'       => __('WebCare Pro Security & Firewall', 'webcare-pro-security'),
                 'wcp-scanner-scan'           => __('Security Scan & Findings', 'webcare-pro-security'),
                 'wcp-scanner-firewall'       => __('Web Application Firewall (WAF Lite)', 'webcare-pro-security'),
                 'wcp-scanner-caf'            => __('Context-Adaptive Firewall (CAF) & StackGuard', 'webcare-pro-security'),
                 'wcp-scanner-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'webcare-pro-security'),
                 'wcp-scanner-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'webcare-pro-security'),
-                'wcp-scanner-vault'          => __('WCP Vault & Safety Recoveries', 'webcare-pro-security'),
+                'wcp-scanner-vault'          => __('WebCare Pro Vault & Safety Recoveries', 'webcare-pro-security'),
                 'wcp-scanner-settings'       => __('Scanner Settings & AI Configuration', 'webcare-pro-security'),
                 'wcp-scanner-about'          => __('About WebCare Pro & Services', 'webcare-pro-security'),
                 'wcp-scanner-tools'          => __('Targeted Security Audits', 'webcare-pro-security'),
@@ -322,8 +322,8 @@ class AdminMenu {
 
             if (isset($title_map[$page])) {
                 $title = $title_map[$page];
-            } elseif (strpos($page, 'wcp-') !== false) {
-                $title = __('WCP Security Scanner', 'webcare-pro-security');
+            } elseif (strpos($page, 'wcp-') !== false || $page === 'webcare-pro-security') {
+                $title = __('WebCare Pro Security & Firewall', 'webcare-pro-security');
             }
         }
     }
@@ -334,7 +334,27 @@ class AdminMenu {
 
     public static function enqueue_assets($hook) {
         $valid_hooks = [
+            'toplevel_page_webcare-pro-security',
             'toplevel_page_wcp-security-scanner',
+            'webcare-pro-security_page_wcp-scanner-scan',
+            'webcare-pro-security_page_wcp-scanner-vault',
+            'webcare-pro-security_page_wcp-scanner-tools',
+            'webcare-pro-security_page_wcp-scanner-logs',
+            'webcare-pro-security_page_wcp-scanner-forensics',
+            'webcare-pro-security_page_wcp-scanner-quarantine',
+            'webcare-pro-security_page_wcp-scanner-backup',
+            'webcare-pro-security_page_wcp-scanner-server',
+            'webcare-pro-security_page_wcp-scanner-vulnerabilities',
+            'webcare-pro-security_page_wcp-scanner-firewall',
+            'webcare-pro-security_page_wcp-scanner-caf',
+            'webcare-pro-security_page_wcp-scanner-vpatch',
+            'webcare-pro-security_page_wcp-scanner-waf-logs',
+            'webcare-pro-security_page_wcp-scanner-fim',
+            'webcare-pro-security_page_wcp-scanner-auth',
+            'webcare-pro-security_page_wcp-scanner-notifications',
+            'webcare-pro-security_page_wcp-scanner-activity-logs',
+            'webcare-pro-security_page_wcp-scanner-settings',
+            'webcare-pro-security_page_wcp-scanner-about',
             'wcp-security-scanner_page_wcp-scanner-scan',
             'wcp-security-scanner_page_wcp-scanner-vault',
             'wcp-security-scanner_page_wcp-scanner-tools',
@@ -574,7 +594,7 @@ class AdminMenu {
     public static function enqueue_brand_styles(): void {
         $logo_url = self::get_menu_icon();
         $custom_css = "
-            /* WCP Security Scanner - Sidebar Menu Icon */
+            /* WebCare Pro Security - Sidebar Menu Icon */
             #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image img {
                 width: 20px !important;
                 height: 20px !important;
@@ -597,7 +617,7 @@ class AdminMenu {
                 opacity: 1;
                 transform: scale(1.1);
             }
-            /* WCP Security Scanner - Plugins List Page Brand Logo */
+            /* WebCare Pro Security - Plugins List Page Brand Logo */
             .plugins tr[data-plugin*=\"wcp-wp-scanner.php\"] .plugin-title strong::before,
             .plugins tr[data-plugin*=\"wcp-security-scanner.php\"] .plugin-title strong::before {
                 content: \"\";
@@ -633,7 +653,7 @@ class AdminMenu {
             $count = (int) sanitize_text_field(wp_unslash($_GET['webcareproscan_restored']));
             echo '<div class="notice notice-success is-dismissible" style="padding: 12px 18px; border-left: 4px solid #16a34a; background: #f0fdf4;">';
             echo '<p style="margin: 0; font-size: 13px; color: #14532d;">';
-            echo '<strong>' . esc_html__('WCP Security Scanner:', 'webcare-pro-security') . '</strong> ';
+            echo '<strong>' . esc_html__('WebCare Pro Security:', 'webcare-pro-security') . '</strong> ';
             /* translators: %d: count of restored administrator accounts */
             echo esc_html(sprintf(__('Successfully restored %d administrator account(s) to the WordPress database with full original capabilities and passwords.', 'webcare-pro-security'), $count));
             echo '</p></div>';
@@ -666,7 +686,7 @@ class AdminMenu {
         echo '<div id="wcpscan-quarantined-users-notice" class="notice notice-warning is-dismissible" data-nonce="' . esc_attr($ajax_dismiss_nonce) . '" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">';
         echo '<div style="font-size: 13px; color: #14532d;">';
-        echo '<strong>' . esc_html__('WCP Security Scanner:', 'webcare-pro-security') . '</strong> ';
+        echo '<strong>' . esc_html__('WebCare Pro Security:', 'webcare-pro-security') . '</strong> ';
         echo wp_kses(
             sprintf(
                 /* translators: %1$d: count, %2$s: usernames */
@@ -805,7 +825,7 @@ class AdminMenu {
     }
 
     /**
-     * Render the interactive modal on wp-admin/plugins.php when deleting WCP Security Scanner.
+     * Render the interactive modal on wp-admin/plugins.php when deleting WebCare Pro Security.
      * Reminds administrators about quarantined malware, firewall rules, and scan logs,
      * defaulting to KEEP ALL DATA.
      */
@@ -819,7 +839,7 @@ class AdminMenu {
         $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $is_purge_checked = !empty($settings['delete_data_on_uninstall']);
         ?>
-        <!-- WCP Security Scanner Uninstall Confirmation Modal -->
+        <!-- WebCare Pro Security Uninstall Confirmation Modal -->
         <div id="wcpscan-uninstall-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 100050; backdrop-filter: blur(3px); align-items: center; justify-content: center;">
             <div id="wcpscan-uninstall-modal" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 520px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif; border: 1px solid #e2e8f0; animation: wcpscanFadeIn 0.2s ease-out;">
                 
@@ -834,7 +854,7 @@ class AdminMenu {
                     </div>
                     <div>
                         <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; line-height: 1.3;">
-                            <?php echo esc_html__('Uninstalling WCP Security Scanner', 'webcare-pro-security'); ?>
+                            <?php echo esc_html__('Uninstalling WebCare Pro Security & Firewall', 'webcare-pro-security'); ?>
                         </h3>
                         <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">
                             <?php echo esc_html__('Please choose your data retention preference before deletion.', 'webcare-pro-security'); ?>
@@ -845,7 +865,7 @@ class AdminMenu {
                 <!-- Body Content -->
                 <div style="padding: 22px 24px; color: #334155; font-size: 13.5px; line-height: 1.55;">
                     <p style="margin: 0 0 16px 0;">
-                        <?php echo esc_html__('You are deleting WCP Security Scanner. If you reinstall the plugin later, keeping your data ensures your quarantined files and configurations remain intact.', 'webcare-pro-security'); ?>
+                        <?php echo esc_html__('You are deleting WebCare Pro Security & Firewall. If you reinstall the plugin later, keeping your data ensures your quarantined files and configurations remain intact.', 'webcare-pro-security'); ?>
                     </p>
 
                     <!-- Option 1: Retain Data (Recommended Default) -->

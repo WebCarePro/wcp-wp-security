@@ -71,7 +71,7 @@ class NotificationDispatcher {
                 'category'    => 'self_defense',
                 'category_label' => __('Plugin Self-Defense', 'webcare-pro-security'),
                 'title'       => __('Plugin File Tampering / Hash Mismatch', 'webcare-pro-security'),
-                'description' => __('Fires if any core file of WCP Security Scanner has been modified or injected with rogue code.', 'webcare-pro-security'),
+                'description' => __('Fires if any core file of WebCare Pro Security has been modified or injected with rogue code.', 'webcare-pro-security'),
                 'severity'    => 'critical',
             ],
             'plugin_file_missing' => [
@@ -85,14 +85,14 @@ class NotificationDispatcher {
                 'category'    => 'self_defense',
                 'category_label' => __('Plugin Self-Defense', 'webcare-pro-security'),
                 'title'       => __('Unauthorized Plugin Deactivation', 'webcare-pro-security'),
-                'description' => __('Alerts when an administrator or external script attempts to deactivate WCP Security Scanner.', 'webcare-pro-security'),
+                'description' => __('Alerts when an administrator or external script attempts to deactivate WebCare Pro Security.', 'webcare-pro-security'),
                 'severity'    => 'high',
             ],
             'plugin_uninstall' => [
                 'category'    => 'self_defense',
                 'category_label' => __('Plugin Self-Defense', 'webcare-pro-security'),
                 'title'       => __('Plugin Uninstallation Event', 'webcare-pro-security'),
-                'description' => __('Fires when WCP Security Scanner is deleted from WordPress plugins manager.', 'webcare-pro-security'),
+                'description' => __('Fires when WebCare Pro Security is deleted from WordPress plugins manager.', 'webcare-pro-security'),
                 'severity'    => 'high',
             ],
 
@@ -759,7 +759,7 @@ class NotificationDispatcher {
 
         $headers = [
             'Content-Type: text/html; charset=UTF-8',
-            'From: WCP Security Scanner <' . get_option('admin_email') . '>',
+            'From: WebCare Pro Security <' . get_option('admin_email') . '>',
         ];
 
         // Logo URL as requested: siteurl.tld/wp-content/plugins/webcare-pro-security/assets/logo.png
@@ -933,11 +933,11 @@ class NotificationDispatcher {
         $html .= '<a href="https://webcarespro.com" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">https://webcarespro.com</a>';
         $html .= '</div>';
         $html .= '<p style="margin: 0 0 16px 0; color: #cbd5e1; font-size: 12.5px; line-height: 1.6;">';
-        $html .= 'WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.';
+        $html .= 'Mir Alamin (WebCare Pro) helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—keeping your online presence fast, secure, and always available.';
         $html .= '</p>';
         $html .= '<div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; font-size: 12px; color: #94a3b8; text-align: left; line-height: 1.6;">';
-        $plugin_ver_str = defined('WEBCAREPROSCAN_VERSION') ? 'v' . WEBCAREPROSCAN_VERSION : 'v2.7.1';
-        $html .= 'Dispatched by WCP Security Scanner <strong style="color: #38bdf8;">' . esc_html($plugin_ver_str) . '</strong> on <strong style="color: #ffffff;">' . esc_html($time) . '</strong>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline;">Notifications</a></strong>.';
+        $plugin_ver_str = defined('WEBCAREPROSCAN_VERSION') ? 'v' . WEBCAREPROSCAN_VERSION : 'v2.9.0';
+        $html .= 'Dispatched by WebCare Pro Security &amp; Firewall <strong style="color: #38bdf8;">' . esc_html($plugin_ver_str) . '</strong> on <strong style="color: #ffffff;">' . esc_html($time) . '</strong>. You can manage granular notification preferences anytime under <strong>WebCare Pro &gt; <a href="' . esc_url($notif_url) . '" style="color: #38bdf8; text-decoration: underline;">Notifications</a></strong>.';
         $html .= '</div></td></tr></table></td></tr>';
 
         $html .= '</table></td></tr></table></body></html>';
@@ -1031,7 +1031,7 @@ class NotificationDispatcher {
                             ['name' => 'Engine Version', 'value' => 'v' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1'), 'inline' => true],
                             ['name' => 'Event Key', 'value' => $payload['event_key'], 'inline' => true],
                         ],
-                        'footer' => ['text' => 'WCP Security Scanner Notifications'],
+                        'footer' => ['text' => 'WebCare Pro Security Notifications'],
                         'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
                     ]
                 ]

@@ -61,7 +61,7 @@ class WafFileLogger {
         // Hardening 1: Apache/LiteSpeed .htaccess deny rules
         $htaccess_file = $dir . '/.htaccess';
         if (!file_exists($htaccess_file)) {
-            $htaccess_content = "# WCP Security Scanner - Protect WAF Forensic Logs\n"
+            $htaccess_content = "# WebCare Pro Security - Protect WAF Forensic Logs\n"
                 . "<IfModule mod_authz_core.c>\n"
                 . "    Require all denied\n"
                 . "</IfModule>\n"

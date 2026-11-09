@@ -416,7 +416,7 @@ class OutboundEgressFirewall {
         $parsed_url = wp_parse_url($url);
         $host = strtolower($parsed_url['host'] ?? '');
 
-        // 1. If caller is WCP Security Scanner itself, verify if it's sending to an approved service or notification endpoint
+        // 1. If caller is WebCare Pro Security itself, verify if it's sending to an approved service or notification endpoint
         if (!empty($caller['slug']) && $caller['slug'] === 'webcare-pro-security') {
             // Scanner sending to Discord, Slack, ClickUp, Asana, Cloudflare, AI providers, or WordPress.org is trusted
             if (self::is_host_approved($host, $settings) ||
@@ -428,7 +428,7 @@ class OutboundEgressFirewall {
             }
         }
 
-        // 2. Check against WCP Security Scanner's configured notification webhooks in SettingsManager
+        // 2. Check against WebCare Pro Security's configured notification webhooks in SettingsManager
         if (class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
             $wcp_settings = \WebCareProScanner\System\SettingsManager::get_settings();
             $configured_keys = [
@@ -520,10 +520,10 @@ class OutboundEgressFirewall {
                 continue;
             }
 
-            // Detect calls initiated by WCP Security Scanner itself
+            // Detect calls initiated by WebCare Pro Security itself
             if (($plugin_dir !== '' && str_starts_with($norm, $plugin_dir)) || str_contains($norm, '/plugins/webcare-pro-security/') || str_contains($norm, 'webcare-pro-security')) {
                 $caller['type'] = 'plugin';
-                $caller['name'] = 'WCP Security Scanner';
+                $caller['name'] = 'WebCare Pro Security';
                 $caller['file'] = basename($norm);
                 $caller['slug'] = 'webcare-pro-security';
                 $caller['line'] = $frame['line'] ?? 0;

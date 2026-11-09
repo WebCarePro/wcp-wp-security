@@ -77,6 +77,7 @@ function copyDirRecursive(src, dest) {
           content = content.replace(/^<\?php\s*/i, "<?php\nif ( ! defined( 'ABSPATH' ) ) {\n\texit;\n}\n\n");
         }
         fs.writeFileSync(destPath, content, { encoding: 'utf8' });
+        fs.writeFileSync(srcPath, content, { encoding: 'utf8' });
       } else {
         fs.copyFileSync(srcPath, destPath);
       }

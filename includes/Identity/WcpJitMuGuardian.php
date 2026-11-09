@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
  *
  * This watchdog guarantees:
  * 1. Security Plugin Anti-Tamper: ANY attempt by an ephemeral JIT administrator or
- *    temporary support user to deactivate, delete, or modify WCP Security Scanner is
+ *    temporary support user to deactivate, delete, or modify WebCare Pro Security is
  *    unconditionally blocked with a 403 Forbidden intercept at earliest execution.
  * 2. Temporary Support Sandboxing: Enforces strict Zero-Trust boundaries on external
  *    support technicians:
@@ -28,7 +28,7 @@ if (!defined('ABSPATH')) {
  *    - Protects Secret Vault from credential exfiltration.
  * 3. Infallible Expiration: On every request, expired JIT elevations and support
  *    sessions are auto-pruned and active user sessions instantly terminated.
- * 4. Emergency Fail-Safe: If WCP Security Scanner is deactivated, all active JIT elevations
+ * 4. Emergency Fail-Safe: If WebCare Pro Security is deactivated, all active JIT elevations
  *    and temporary support sessions are instantly revoked and destroyed.
  *
  * @package WebCareProScanner\Identity
@@ -277,7 +277,7 @@ class WcpJitMuGuardianRuntime {
         // Anti-Hijacking User Shield: disallow modifying credentials of support user or editing others
         add_filter('wp_pre_insert_user_data', [__CLASS__, 'guard_user_tampering'], 1, 4);
 
-        // Fail-Safe: If WCP Security Scanner is deactivated, instantly revoke all elevations and support sessions
+        // Fail-Safe: If WebCare Pro Security is deactivated, instantly revoke all elevations and support sessions
         add_action('deactivated_plugin', [__CLASS__, 'on_plugin_deactivated']);
 
         // Capabilities Lockdown: Block capability escalations, plugin modifications, and user tampering
@@ -482,11 +482,11 @@ class WcpJitMuGuardianRuntime {
             }
         }
 
-        // Rule 1 (Inviolable): Block deactivating or deleting WCP Security Scanner
+        // Rule 1 (Inviolable): Block deactivating or deleting WebCare Pro Security
         if ($is_targeting_wcp && in_array($target_action, ['deactivate', 'delete-selected', 'deactivate-selected', 'delete'], true)) {
             wp_die(
-                '<h1>' . esc_html__('Security Access Denied (WCP Anti-Tamper Shield)', 'webcare-pro-security') . '</h1>' .
-                '<p>' . esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from deactivating, modifying, or deleting WCP Security Scanner.', 'webcare-pro-security') . '</p>' .
+                '<h1>' . esc_html__('Security Access Denied (Anti-Tamper Shield)', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from deactivating, modifying, or deleting WebCare Pro Security.', 'webcare-pro-security') . '</p>' .
                 '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'webcare-pro-security') . '</a></p>',
                 esc_html__('Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
@@ -804,12 +804,12 @@ class WcpJitMuGuardianRuntime {
     }
 
     /**
-     * If WCP Security Scanner is deactivated, immediately demote JIT admins and terminate support sessions
+     * If WebCare Pro Security is deactivated, immediately demote JIT admins and terminate support sessions
      */
     public static function on_plugin_deactivated($plugin) {
         if (strpos($plugin, 'webcare-pro-security') !== false) {
-            self::revert_all_elevations('Emergency de-elevation: WCP Security Scanner plugin was deactivated.');
-            self::terminate_all_support_sessions('Emergency termination: WCP Security Scanner plugin was deactivated.');
+            self::revert_all_elevations('Emergency de-elevation: WebCare Pro Security plugin was deactivated.');
+            self::terminate_all_support_sessions('Emergency termination: WebCare Pro Security plugin was deactivated.');
         }
     }
 
@@ -831,7 +831,7 @@ class WcpJitMuGuardianRuntime {
             return $caps;
         }
 
-        // Rule 1 (Inviolable): Block deactivating or deleting WCP Security Scanner
+        // Rule 1 (Inviolable): Block deactivating or deleting WebCare Pro Security
         if (in_array($cap, ['deactivate_plugin', 'deactivate_plugins', 'delete_plugins'], true)) {
             $target_plugin = !empty($args[0]) ? (string) $args[0] : '';
             if (empty($target_plugin) || strpos($target_plugin, 'webcare-pro-security') !== false) {
@@ -926,7 +926,7 @@ class WcpJitMuGuardianRuntime {
 
         $is_wcp = (strpos($plugin_file, 'webcare-pro-security') !== false);
 
-        // Anti-Tamper: Remove Deactivate and Delete for WCP Security Scanner
+        // Anti-Tamper: Remove Deactivate and Delete for WebCare Pro Security
         if ($is_wcp) {
             unset($actions['deactivate'], $actions['delete']);
             $actions['wcp_anti_tamper'] = '<span style="color:#059669;font-weight:600;font-size:12px;">🛡️ Anti-Tamper Protected</span>';

@@ -801,7 +801,7 @@ class RemediationManager {
                 $depth += substr_count($line, '{');
                 $depth -= substr_count($line, '}');
                 if (!preg_match('/^\s*\/\//', $line)) {
-                    $output[] = '// [Disabled by WCP Security Scanner]: ' . $line;
+                    $output[] = '// [Disabled by WebCare Pro Security]: ' . $line;
                     $commented_directives++;
                 } else {
                     $output[] = $line;
@@ -820,11 +820,16 @@ class RemediationManager {
             );
 
             // Do not re-comment our own hardening block if already applied
-            $is_already_hardened = (strpos($line, 'Hardened by WCP Security Scanner') !== false || strpos($line, 'Disabled by WCP Security Scanner') !== false);
+            $is_already_hardened = (
+                strpos($line, 'Hardened by WebCare Pro Security') !== false ||
+                strpos($line, 'Hardened by WCP Security Scanner') !== false ||
+                strpos($line, 'Disabled by WebCare Pro Security') !== false ||
+                strpos($line, 'Disabled by WCP Security Scanner') !== false
+            );
 
             if ($is_debug_directive && !$is_already_hardened) {
                 if (!preg_match('/^\s*\/\//', $line)) {
-                    $output[] = '// [Disabled by WCP Security Scanner]: ' . $line;
+                    $output[] = '// [Disabled by WebCare Pro Security]: ' . $line;
                     $commented_directives++;
                     continue;
                 }
@@ -837,7 +842,7 @@ class RemediationManager {
 
         // Standardized, high-security production debugging lockdown block
         $hardened_block = implode("\n", [
-            "// [Hardened by WCP Security Scanner - Safe Production Debugging Lockdown]",
+            "// [Hardened by WebCare Pro Security - Safe Production Debugging Lockdown]",
             "define( 'WP_DEBUG', false );",
             "define( 'WP_DEBUG_LOG', false );",
             "define( 'WP_DEBUG_DISPLAY', false );",
@@ -847,10 +852,10 @@ class RemediationManager {
 
         $modified = $reconstructed;
 
-        // Check if an existing WCP hardening block exists to replace, otherwise insert cleanly before the stop-editing marker
-        if (strpos($modified, '// [Hardened by WCP Security Scanner - Safe Production Debugging Lockdown]') !== false) {
+        // Check if an existing hardening block exists to replace, otherwise insert cleanly before the stop-editing marker
+        if (strpos($modified, 'Safe Production Debugging Lockdown') !== false) {
             $modified = preg_replace(
-                '/\/\/\s*\[Hardened by WCP Security Scanner - Safe Production Debugging Lockdown\][\s\S]*?(?:@ini_set\s*\(\s*[\'\"]display_errors[\'\"]\s*,\s*[\'\"]0[\'\"]\s*\)\s*;|define\s*\(\s*[\'\"]WP_DEBUG_DISPLAY[\'\"]\s*,\s*false\s*\)\s*;)/i',
+                '/\/\/\s*\[Hardened by (?:WebCare Pro Security|WCP Security Scanner) - Safe Production Debugging Lockdown\][\s\S]*?(?:@ini_set\s*\(\s*[\'\"]display_errors[\'\"]\s*,\s*[\'\"]0[\'\"]\s*\)\s*;|define\s*\(\s*[\'\"]WP_DEBUG_DISPLAY[\'\"]\s*,\s*false\s*\)\s*;)/i',
                 $hardened_block,
                 $modified
             );

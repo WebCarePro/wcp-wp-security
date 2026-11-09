@@ -16,7 +16,8 @@ if (!defined('ABSPATH')) {
 class CloudflareService {
 
     const API_BASE = 'https://api.cloudflare.com/client/v4';
-    const WCP_RULE_TAG = '[WCP Security Scanner]';
+    const WCP_RULE_TAG = '[WebCare Pro Security]';
+    const WCP_LEGACY_RULE_TAG = '[WCP Security Scanner]';
 
     /**
      * Send authenticated HTTP request to Cloudflare API
@@ -45,7 +46,7 @@ class CloudflareService {
             'headers' => [
                 'Authorization' => 'Bearer ' . trim($token),
                 'Content-Type'  => 'application/json',
-                'User-Agent'    => 'WCP-WP-Security-Scanner/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1'),
+                'User-Agent'    => 'WebCare-Pro-Security/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.9.0'),
             ],
         ];
 
@@ -573,7 +574,7 @@ class CloudflareService {
 
         foreach ($rules as $r) {
             $desc = $r['description'] ?? '';
-            if (strpos($desc, self::WCP_RULE_TAG) === false) {
+            if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
                 continue;
             }
             foreach ($definitions as $key => $def) {
@@ -657,7 +658,7 @@ class CloudflareService {
         if (!empty($res['success']) && !empty($res['result']['rules'])) {
             foreach ($res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                $is_wcp = (strpos($desc, self::WCP_RULE_TAG) !== false);
+                $is_wcp = (strpos($desc, self::WCP_RULE_TAG) !== false || strpos($desc, self::WCP_LEGACY_RULE_TAG) !== false);
 
                 if ($is_wcp) {
                     $matched_key = '';
@@ -821,7 +822,7 @@ class CloudflareService {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
                 // Keep rules that do not belong to WCP
-                if (strpos($desc, self::WCP_RULE_TAG) === false) {
+                if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
                     $preserved_rules[] = $rule;
                     continue;
                 }
@@ -920,7 +921,7 @@ class CloudflareService {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
                 // Keep rules that do not belong to WCP
-                if (strpos($desc, self::WCP_RULE_TAG) === false) {
+                if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
                     $preserved_rules[] = $rule;
                 }
             }
@@ -1039,7 +1040,7 @@ class CloudflareService {
 
         foreach ($res['result']['rules'] as $rule) {
             $desc = $rule['description'] ?? '';
-            if (strpos($desc, self::WCP_RULE_TAG) !== false && !empty($rule['enabled'])) {
+            if ((strpos($desc, self::WCP_RULE_TAG) !== false || strpos($desc, self::WCP_LEGACY_RULE_TAG) !== false) && !empty($rule['enabled'])) {
                 $config['enabled'] = true;
                 if (!empty($rule['action'])) {
                     $config['action'] = $rule['action'];
@@ -1137,7 +1138,7 @@ class CloudflareService {
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                if (strpos($desc, self::WCP_RULE_TAG) === false) {
+                if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
                     $preserved_rules[] = $rule;
                 }
             }
@@ -1203,7 +1204,7 @@ class CloudflareService {
             if ($needs_timeout_fallback) {
                 $timeout = 10;
                 foreach ($preserved_rules as &$p_rule) {
-                    if (isset($p_rule['description']) && strpos($p_rule['description'], self::WCP_RULE_TAG) !== false) {
+                    if (isset($p_rule['description']) && (strpos($p_rule['description'], self::WCP_RULE_TAG) !== false || strpos($p_rule['description'], self::WCP_LEGACY_RULE_TAG) !== false)) {
                         $p_rule['ratelimit']['mitigation_timeout'] = 10;
                     }
                 }
@@ -1393,7 +1394,7 @@ class CloudflareService {
     }
 
     /**
-     * Retrieve list of IPs banned at Cloudflare Edge by WCP Security Scanner
+     * Retrieve list of IPs banned at Cloudflare Edge by WebCare Pro Security
      *
      * @param int $page
      * @param int $per_page
@@ -1418,8 +1419,8 @@ class CloudflareService {
             $rules = [];
             foreach ($res['result'] as $rule) {
                 $raw_notes = $rule['notes'] ?? '';
-                // Strip the [WCP Security Scanner] tag prefix to extract clean ban reason
-                $clean_reason = trim(str_replace(self::WCP_RULE_TAG, '', $raw_notes));
+                // Strip the tag prefix to extract clean ban reason
+                $clean_reason = trim(str_replace([self::WCP_RULE_TAG, self::WCP_LEGACY_RULE_TAG, '[WCP Security]'], '', $raw_notes));
                 if (empty($clean_reason)) {
                     $clean_reason = __('Malicious activity detected by WAF / Brute-force', 'webcare-pro-security');
                 }
@@ -1480,7 +1481,7 @@ class CloudflareService {
             $rules = [];
             foreach ($res['result'] as $rule) {
                 $raw_notes = $rule['notes'] ?? '';
-                $clean_notes = trim(str_replace(self::WCP_RULE_TAG, '', $raw_notes));
+                $clean_notes = trim(str_replace([self::WCP_RULE_TAG, self::WCP_LEGACY_RULE_TAG, '[WCP Security]'], '', $raw_notes));
                 if (empty($clean_notes)) {
                     $clean_notes = __('Administrator / Developer Whitelist', 'webcare-pro-security');
                 }

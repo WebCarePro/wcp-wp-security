@@ -137,7 +137,7 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
     slotsArray.push({ type: 'user', label: 'User Custom Rule', color: '#64748b' });
   }
   for (let i = 0; i < wcpSlots; i++) {
-    slotsArray.push({ type: 'wcp', label: `WCP Slot #${i + 1}`, color: '#ea580c' });
+    slotsArray.push({ type: 'wcp', label: `WebCare Slot #${i + 1}`, color: '#ea580c' });
   }
   for (let i = 0; i < unallocatedSlots; i++) {
     slotsArray.push({ type: 'free', label: 'Free Slot', color: '#10b981' });
@@ -222,7 +222,7 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
         <div style={{ marginBottom: '18px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px', color: 'var(--wcp-text-muted, #64748b)' }}>
             <span>
-              <strong>{userSlots}</strong> User Defined • <strong>{wcpSlots}</strong> WCP Managed • <strong>{unallocatedSlots}</strong> Available
+              <strong>{userSlots}</strong> User Defined • <strong>{wcpSlots}</strong> WebCare Managed • <strong>{unallocatedSlots}</strong> Available
             </span>
             <span>
               API Token Scope:{' '}
@@ -295,7 +295,7 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
                     </td>
                     <td style={{ textAlign: 'center', padding: '8px 12px' }}>
                       <span className={rule.is_wcp ? 'wcp-badge-pill wcp-badge-info' : 'wcp-badge-pill'}>
-                        {rule.is_wcp ? 'WCP' : 'User'}
+                        {rule.is_wcp ? 'WebCare' : 'User'}
                       </span>
                     </td>
                   </tr>

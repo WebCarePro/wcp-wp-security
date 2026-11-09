@@ -55,7 +55,7 @@ if (file_exists($webcareproscan_dispatcher_file) && file_exists($webcareproscan_
         try {
             \WebCareProScanner\Notifications\NotificationDispatcher::trigger('plugin_uninstall', [
                 'severity' => 'high',
-                'message'  => __('WCP Security Scanner is being uninstalled and deleted from WordPress plugins manager.', 'webcare-pro-security'),
+                'message'  => __('WebCare Pro Security & Firewall is being uninstalled and deleted from WordPress plugins manager.', 'webcare-pro-security'),
                 'details'  => [
                     'Event'        => 'Plugin Uninstallation',
                     'Triggered By' => function_exists('wp_get_current_user') && wp_get_current_user()->exists() ? wp_get_current_user()->user_login : 'admin',

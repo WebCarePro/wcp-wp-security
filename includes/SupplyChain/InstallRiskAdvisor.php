@@ -41,7 +41,7 @@ class InstallRiskAdvisor {
 
         $resolved_slug = $slug ?: basename($real_dir);
 
-        // Self-Exclusion: Never flag WCP Security Scanner itself
+        // Self-Exclusion: Never flag WebCare Pro Security itself
         if ($resolved_slug === 'webcare-pro-security') {
             return [
                 'success'      => true,

@@ -3605,7 +3605,7 @@ class ScannerRoutes {
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
                 fwrite($output, "# ====================================================================\r\n");
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-                fwrite($output, "# WCP Security Scanner Pro - Audit Findings Report\r\n");
+                fwrite($output, "# WebCare Pro Security & Firewall - Audit Findings Report\r\n");
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
                 fwrite($output, "# Auditor: Mir Alamin (WebCare Pro) - Senior Linux SysAdmin & WordPress Security Engineer\r\n");
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
@@ -3746,7 +3746,7 @@ class ScannerRoutes {
             'success'            => true,
             'format'             => 'json',
             'filename'           => $filename,
-            'report_generator'   => 'WCP Security Scanner Pro',
+            'report_generator'   => 'WebCare Pro Security & Firewall',
             'specialist'         => 'Mir Alamin (WebCare Pro)',
             'specialist_role'    => 'Senior Linux SysAdmin & WordPress Security Engineer',
             'site_url'           => get_site_url(),
@@ -6596,7 +6596,7 @@ class ScannerRoutes {
                 $key = $matches[2];
                 $val_quote = $matches[3];
                 $close = $matches[5];
-                return "define( {$quote}{$key}{$quote}, {$val_quote}••••••••••••••••{$val_quote}{$close} /* [REDACTED BY WCP SECURITY SCANNER] */";
+                return "define( {$quote}{$key}{$quote}, {$val_quote}••••••••••••••••{$val_quote}{$close} /* [REDACTED BY WEBCARE PRO SECURITY] */";
             },
             $content
         );
@@ -6610,7 +6610,7 @@ class ScannerRoutes {
                 $prefix = $matches[1];
                 $quote = $matches[3];
                 $suffix = $matches[5];
-                return "{$prefix}{$quote}••••••••••••••••{$quote}{$suffix} # [REDACTED BY WCP SECURITY SCANNER]";
+                return "{$prefix}{$quote}••••••••••••••••{$quote}{$suffix} # [REDACTED BY WEBCARE PRO SECURITY]";
             },
             $new_content
         );

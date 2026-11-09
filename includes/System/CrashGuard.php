@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) {
 /**
  * CrashGuard
  *
- * Enterprise-grade circuit breaker and self-preservation engine for WCP Security Scanner.
+ * Enterprise-grade circuit breaker and self-preservation engine for WebCare Pro Security & Firewall.
  * Ensures that unexpected PHP exceptions, TypeErrors, or fatal errors originating inside
  * the plugin do not cause persistent website crashes or recurring WSOD downtime.
  *
@@ -177,7 +177,7 @@ class CrashGuard {
         $error_file = wp_normalize_path($error['file']);
         $plugin_dir = wp_normalize_path(defined('WEBCAREPROSCAN_PATH') ? WEBCAREPROSCAN_PATH : dirname(__DIR__, 2) . '/');
 
-        // Verify if error originated inside WCP Security Scanner
+        // Verify if error originated inside WebCare Pro Security
         if (strpos($error_file, $plugin_dir) === false) {
             return; // Not our plugin, do not touch
         }
@@ -223,7 +223,7 @@ class CrashGuard {
                 deactivate_plugins(WEBCAREPROSCAN_FILE, true);
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log(sprintf(
-                    '[WCP CrashGuard] %d consecutive fatal crashes detected within 5 minutes. WCP Security Scanner automatically self-deactivated to preserve host stability.',
+                    '[WCP CrashGuard] %d consecutive fatal crashes detected within 5 minutes. WebCare Pro Security automatically self-deactivated to preserve host stability.',
                     count($history)
                 ));
             }
@@ -468,7 +468,7 @@ class CrashGuard {
                 </div>
                 <div style="flex: 1;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
-                        <strong style="font-size: 16px; color: #0f172a;">WCP Security Scanner &bull; Safe Mode Self-Preservation Engaged</strong>
+                        <strong style="font-size: 16px; color: #0f172a;">WebCare Pro Security &bull; Safe Mode Self-Preservation Engaged</strong>
                         <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;">
                             Interception Paused
                         </span>
@@ -488,7 +488,7 @@ class CrashGuard {
                     <?php endif; ?>
 
                     <p style="margin: 0 0 10px 0; font-size: 13px; color: #475569; line-height: 1.5;">
-                        WCP Security Scanner entered <strong>Safe Mode</strong> after catching an internal error (<code style="background: #f1f5f9; color: #b91c1c; font-weight: 600;"><?php echo esc_html($err_type); ?></code> in <code style="background: #f1f5f9; color: #0284c7;"><?php echo esc_html($err_file) . ':' . esc_html((string) $err_line); ?></code>). Safe Mode automatically paused high-privilege hooks so the rest of your website, WordPress admin, and visitor traffic continue running smoothly without blank screens (WSOD).
+                        WebCare Pro Security entered <strong>Safe Mode</strong> after catching an internal error (<code style="background: #f1f5f9; color: #b91c1c; font-weight: 600;"><?php echo esc_html($err_type); ?></code> in <code style="background: #f1f5f9; color: #0284c7;"><?php echo esc_html($err_file) . ':' . esc_html((string) $err_line); ?></code>). Safe Mode automatically paused high-privilege hooks so the rest of your website, WordPress admin, and visitor traffic continue running smoothly without blank screens (WSOD).
                     </p>
 
                     <div style="background: #0f172a; color: #f8fafc; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 12px; margin-bottom: 12px; max-width: 960px; overflow-x: auto;">

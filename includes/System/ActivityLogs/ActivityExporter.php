@@ -65,7 +65,7 @@ class ActivityExporter {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($out, "# =============================================================================\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            fwrite($out, "# WCP SECURITY SCANNER - AUDIT & ACTIVITY LOG EXPORT\r\n");
+            fwrite($out, "# WEBCARE PRO SECURITY & FIREWALL - AUDIT & ACTIVITY LOG EXPORT\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
             fwrite($out, "# Site Domain: " . ($telemetry['site']['domain'] ?? 'Unknown') . " | Real Server IP: " . ($telemetry['server']['real_ip'] ?? 'Unknown') . "\r\n");
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite

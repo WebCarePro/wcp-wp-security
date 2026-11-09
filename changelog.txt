@@ -1,10 +1,14 @@
 v:2.9.0 - 2026-11-09
-- WordPress.org Official Rebranding & Trademark Compliance (Phase 1, 2 & 3):
+- WordPress.org Official Rebranding & Trademark Compliance (Phases 1, 2, 3 & 4):
   * Official Plugin Identity: Rebranded plugin to 'WebCare Pro Security & Firewall' with permalink/slug 'webcare-pro-security' in accordance with WordPress.org trademark review requirements.
   * Root Entry File Renaming: Renamed main plugin file from wcp-wp-scanner.php to webcare-pro-security.php with updated author attribution and text domain 'webcare-pro-security'.
   * PHP Namespaces Modernization: Refactored all ~200 PHP classes, namespaces, use declarations, and inline static calls from legacy WcpScanner\ to WebCareProScanner\.
   * Database & Options Fresh Slate: Completely migrated all options, table schemas, transients, cron hooks, and canaries from wcpscan_* to webcareproscan_* (wp_webcareproscan_scans, wp_webcareproscan_scan_issues, webcareproscan_settings, etc.) as a clean-slate fresh installation with zero legacy migrations.
   * Constant & Defines Standardization: Standardized global constant prefixes to WEBCAREPROSCAN_* (WEBCAREPROSCAN_VERSION, WEBCAREPROSCAN_PATH, etc.).
+  * Admin Menus & UI Branding (Phase 4): Updated WordPress admin sidebar label to 'WebCare Pro' and primary menu page title to 'WebCare Pro Security & Firewall', updated submenus, notices, modals, and badges across all React cockpit components.
+  * Cloudflare Edge Firewall Branding (Phase 4): Transitioned Cloudflare WAF managed rule tags to '[WebCare Pro Security]' with seamless backward-compatible recognition for legacy rules, updated Cloudflare API User-Agent to 'WebCare-Pro-Security/2.9.0', and updated Autonomous Threat Blocklist metadata.
+  * Engine Diagnostics & Runtime Notices (Phase 4): Rebranded XML-RPC, HoneyToken, Outbound Egress caller signatures, Micro-WAF preloads, and CrashGuard alert templates to WebCare Pro branding with solo expert freelancer voice.
+  * Cryptographic Self-Defense & Release Synchronization: Updated packaging pipeline and compiled release archive 'webcare-pro-security.zip' with 204 verified files in 'includes/System/plugin-manifest.json', achieving 100% pristine baseline integrity.
   * Manifest Synchronization: Synchronized version 2.9.0 across readme.txt, package.json, composer.json, version.json, README.md, and changelog.txt.
 
 v:2.8.0 - 2026-11-08

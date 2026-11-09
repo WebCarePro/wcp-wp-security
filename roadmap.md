@@ -1,6 +1,6 @@
-# WCP Security Scanner (v2.6.0) — Complete Security, Bug Fix & Production-Readiness Roadmap
+# WebCare Pro Security & Firewall — Complete Security, Bug Fix & Production-Readiness Roadmap
 
-This engineering specification provides exact file paths, method names, line numbers, root-cause analyses, and drop-in PHP code replacements for every critical bug, security vulnerability, firewall rule bypass, false positive, and production-readiness gap identified in **WCP Security Scanner v2.6.0**.
+This engineering specification provides exact file paths, method names, line numbers, root-cause analyses, and drop-in PHP code replacements for every critical bug, security vulnerability, firewall rule bypass, false positive, and production-readiness gap identified in **WebCare Pro Security & Firewall**.
 
 ## Phase 1: P0 Showstopping Bugs & Security Vulnerabilities (Immediate Fixes)
 

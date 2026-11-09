@@ -39,11 +39,11 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 > [!IMPORTANT]
 > **Zero Plaintext Credentials in Database or SQL Backups with Authenticated AEAD Encryption.**  
-> Unlike typical WordPress security plugins that store third-party API keys and incoming webhooks as raw plaintext inside `wp_options`, WCP Security Scanner implements a dedicated **Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault**. Every webhook URL, Cloudflare API token, AI key, and 2FA user secret is encrypted at rest using modern Authenticated Encryption with Associated Data (AEAD), 128-bit integrity authentication tags, randomized 12-byte initialization vectors (`random_bytes(12)`), and dynamic 256-bit key derivation with optional server-level `WCP_VAULT_KEY` environment isolation.
+> Unlike typical WordPress security plugins that store third-party API keys and incoming webhooks as raw plaintext inside `wp_options`, WebCare Pro Security & Firewall implements a dedicated **Enterprise AES-256-GCM Authenticated Cryptographic Secret Vault**. Every webhook URL, Cloudflare API token, AI key, and 2FA user secret is encrypted at rest using modern Authenticated Encryption with Associated Data (AEAD), 128-bit integrity authentication tags, randomized 12-byte initialization vectors (`random_bytes(12)`), and dynamic 256-bit key derivation with optional server-level `WCP_VAULT_KEY` environment isolation.
 
 ### 🛡️ How the Cryptographic Secret Vault Protects Your Infrastructure:
 
-| Security Dimension | Standard WordPress Plugins | WCP Security Scanner Vault |
+| Security Dimension | Standard WordPress Plugins | WebCare Pro Security Vault |
 |:---|:---|:---|
 | **Database Storage (`wp_options`)** | ❌ Plaintext strings visible to anyone with database access | ✅ **AES-256-GCM Authenticated Ciphertext** (`wcp_gcm:...`) |
 | **Tamper & Bit-Flip Resistance** | ❌ None (or vulnerable to CBC padding oracle attacks) | ✅ **128-bit Cryptographic Authentication Tag** (tampering rejected immediately) |
@@ -404,13 +404,13 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 Security plugins solve overlapping problems through different architectures. This practical orientation highlights primary engineering models and operational trade-offs:
 
-| Dimension | **WCP Security Scanner** | **Wordfence** | **Sucuri Platform** | **Patchstack** |
+| Dimension | **WebCare Pro Security & Firewall** | **Wordfence** | **Sucuri Platform** | **Patchstack** |
 | :--- | :--- | :--- | :--- | :--- |
 | **Model** | **On-Server Suite**: Streaming Scan, WAF, Identity, Secret Vault, 4-Mirror Auto-Cure | **On-Server Suite**: Endpoint WAF + Signature Scanner + Login Hardening | **Cloud WAF/CDN** + Monitoring + Managed Human Response | **Vulnerability Intel & Rapid Virtual Patching** |
 | **Key Strength** | **Ultra-low RAM (~15-25MB batch delta)**, AES-256-GCM Vault, MCP AI agent governance, zero telemetry | Huge install base + proprietary threat research lab | Cloud edge blocking + managed malware cleanup retainers | Industry-fastest CVE intelligence & virtual patch loop |
 | **Trade-off** | Independent solo-vendor velocity; no 24/7 global SOC; uses origin CPU/RAM | Can be resource-heavy; free threat feed delayed ~30 days; database table bloat | Premium cost; DNS/proxy dependency; free plugin is limited | Not a complete malware scanner, cleaner, or traditional WAF |
 
-> **Honest Architectural Positioning**: WCP Security Scanner is not designed to replace globally distributed Anycast DDoS scrubbing networks (like Cloudflare Enterprise) or 24/7 human research SOCs. It is purpose-built for SysAdmins, developers, and store operators who demand deep on-server control, strict zero-telemetry privacy, and non-destructive surgical remediation.
+> **Honest Architectural Positioning**: WebCare Pro Security & Firewall is not designed to replace globally distributed Anycast DDoS scrubbing networks (like Cloudflare Enterprise) or 24/7 human research SOCs. It is purpose-built for SysAdmins, developers, and store operators who demand deep on-server control, strict zero-telemetry privacy, and non-destructive surgical remediation.
 >
 > 📖 **Read the comprehensive, balanced ecosystem comparison and technical breakdown:**  
 > [https://webcarespro.com/blog/post/wcp-wordpress-security-scanner](https://webcarespro.com/blog/post/wcp-wordpress-security-scanner)
@@ -443,11 +443,11 @@ Security plugins solve overlapping problems through different architectures. Thi
 - **PHP Extensions:** `OpenSSL`, `cURL`, `sodium`, `json`, `mbstring`, `zip`
 
 ### Installation Steps:
-1. Download `wcp-security-scanner.zip` from releases or build directly from source.
+1. Download `webcare-pro-security.zip` from releases or build directly from source.
 2. Navigate to **Plugins > Add New > Upload Plugin** in your WordPress administration panel.
-3. Select `wcp-security-scanner.zip` and click **Install Now**.
+3. Select `webcare-pro-security.zip` and click **Install Now**.
 4. Click **Activate Plugin**.
-5. Access your new cyber command center by clicking **WCP Security** in your WordPress sidebar.
+5. Access your new cyber command center by clicking **WebCare Pro** in your WordPress sidebar.
 
 ### Building from Source:
 ```bash
@@ -498,15 +498,15 @@ wp option delete wcpscan_login_lockouts
 ```
 
 ### Method 4: Clear Lockout via Database (phpMyAdmin / MySQL)
-Open phpMyAdmin or your MySQL client, navigate to your site's `wp_options` table, search for the option named `wcpscan_login_lockouts`, and delete or empty that row. Access is immediately restored upon next page reload.
+Open phpMyAdmin or your MySQL client, navigate to your site's `wp_options` table, search for the option named `webcareproscan_login_lockouts`, and delete or empty that row. Access is immediately restored upon next page reload.
 
 ---
 
 ## 🔒 Security & WordPress.org Directory Compliance
 
-WCP Security Scanner is strictly developed in adherence to the **WordPress.org Plugin Guidelines**:
+WebCare Pro Security & Firewall is strictly developed in adherence to the **WordPress.org Plugin Guidelines**:
 - **Non-Destructive Core Policy**: Does not blindly delete or modify core files. When core files are flagged as tampered, administrators can use 1-click Auto-Cure to restore clean, bit-for-bit official copies directly from WordPress.org with automated pre-restoration rollback backups, or leverage official WordPress update workflows (`update-core.php`) and WP-CLI (`wp core download --force`).
-- **Protected File Storage**: Quarantine vaults, audit logs, and compressed database backups are stored exclusively within `wp-content/uploads/wcp-security-scanner/`, guarded by Apache/LiteSpeed `.htaccess` (`Require all denied`) and silent PHP index files.
+- **Protected File Storage**: Quarantine vaults, audit logs, and compressed database backups are stored exclusively within `wp-content/uploads/webcare-pro-security/`, guarded by Apache/LiteSpeed `.htaccess` (`Require all denied`) and silent PHP index files.
 - **Directory Traversal Defense**: All quarantine, file inspection, and backup operations enforce strict path normalization and trailing-slash boundary checks against `ABSPATH`.
 - **Transparent Third-Party Services**: External API calls (official WordPress.org Checksum API, community threat feeds, and optional AI providers) are fully documented with explicit triggers, payload descriptions, and links to Terms of Service and Privacy Policies.
 
@@ -548,7 +548,7 @@ Have questions, need an emergency malware cleanup, or want to hire a certified S
 
 ## 🔒 Privacy, Zero Telemetry & Data Protection Guarantee
 
-- **Zero Tracking or Analytics:** WCP Security Scanner does NOT track, collect, store, or sell any personal data, analytics, or browsing habits from your WordPress website, its visitors, or its administrators.
+- **Zero Tracking or Analytics:** WebCare Pro Security & Firewall does NOT track, collect, store, or sell any personal data, analytics, or browsing habits from your WordPress website, its visitors, or its administrators.
 - **No Sensitive Data Transmission:** The plugin operates entirely on your local server. It does NOT transmit sensitive credentials, passwords, database records, client data, or private files to any third-party server or external cloud.
 - **100% On-Premise Execution:** Core scans, heuristic engines, File Integrity Monitoring (FIM), brute-force defenses, RFC 6238 TOTP 2FA generation, and firewall evaluations run 100% locally within your PHP environment.
 - **Explicit Administrator Integrations Only:** External connections (WordPress.org checksums, threat intelligence feeds, Cloudflare edge sync, AI forensic assistance, or Slack/Discord webhooks) only execute when explicitly configured or initiated by the site administrator, transmitting only non-sensitive diagnostic parameters strictly necessary for the requested feature.

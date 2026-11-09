@@ -8571,7 +8571,7 @@ export const FirewallPage = ({
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <strong style={{ fontSize: '14px', color: 'var(--wcp-text-primary, #0f172a)' }}>
-                              WCP Security Scanner Managed Rules ({wcpRules.length})
+                              WebCare Pro Security Managed Rules ({wcpRules.length})
                             </strong>
                             <span style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)' }}>
                               Synchronized with in-plugin 1-Click deployer
@@ -8997,7 +8997,7 @@ export const FirewallPage = ({
                     Active Cloudflare Edge Banned IPs ({bannedIpsTotal})
                   </h3>
                   <div style={{ fontSize: '12px', color: 'var(--wcp-text-muted, #64748b)' }}>
-                    IPs automatically synchronized or manually banned at Cloudflare Edge via WCP Security Scanner
+                    IPs automatically synchronized or manually banned at Cloudflare Edge via WebCare Pro Security
                   </div>
                 </div>
               </div>

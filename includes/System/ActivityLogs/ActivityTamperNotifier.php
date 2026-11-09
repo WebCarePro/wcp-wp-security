@@ -113,10 +113,10 @@ class ActivityTamperNotifier {
         $message .= "1. Log into your WordPress administrative dashboard to review the incident report:\n";
         $message .= "   " . admin_url('admin.php?page=wcp-scanner&tab=activity-logs') . "\n";
         $message .= "2. Inspect web server access logs around " . $time_utc . ".\n";
-        $message .= "3. Run a complete WCP Security Scanner Deep System & Malware Audit.\n";
+        $message .= "3. Run a complete WebCare Pro Security Deep System & Malware Audit.\n";
         $message .= "4. Check for newly created or modified administrator accounts.\n\n";
         $message .= "-------------------------------------------------------------------------\n";
-        $message .= "WCP Security Scanner Cryptographic Defense Engine\n";
+        $message .= "WebCare Pro Security Cryptographic Defense Engine\n";
 
         $headers = ['Content-Type: text/plain; charset=UTF-8'];
         @wp_mail($admin_email, $subject, $message, $headers);

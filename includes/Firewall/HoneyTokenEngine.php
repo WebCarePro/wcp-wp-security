@@ -387,7 +387,7 @@ class HoneyTokenEngine {
         if (php_sapi_name() !== 'cli' && !defined('WEBCAREPROSCAN_TESTING')) {
             status_header(403);
             header('Content-Type: text/plain; charset=utf-8');
-            echo 'Access Denied: Automated bot activity detected and quarantined by WCP Security Scanner.';
+            echo 'Access Denied: Automated bot activity detected and quarantined by WebCare Pro Security.';
             exit;
         }
     }

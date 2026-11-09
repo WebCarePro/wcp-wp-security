@@ -443,7 +443,7 @@ class SystemReadinessChecker {
             <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px; border-bottom: 1px solid #1e293b; padding-bottom: 16px;">
                 <div style="width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #10b581); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; color: white;">W</div>
                 <div>
-                    <h2 style="margin: 0; font-size: 20px; color: #f1f5f9; font-weight: 700;">WCP Security Scanner — Activation Pre-Check</h2>
+                    <h2 style="margin: 0; font-size: 20px; color: #f1f5f9; font-weight: 700;">WebCare Pro Security — Activation Pre-Check</h2>
                     <p style="margin: 2px 0 0; font-size: 12px; color: #94a3b8;">System Readiness & Environment Verification Gate</p>
                 </div>
             </div>
@@ -460,7 +460,7 @@ class SystemReadinessChecker {
         </div>';
 
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        wp_die($html, esc_html__('WCP Security Scanner — Compatibility Requirement Unmet', 'webcare-pro-security'), [
+        wp_die($html, esc_html__('WebCare Pro Security — Compatibility Requirement Unmet', 'webcare-pro-security'), [
             'response'  => 500,
             'back_link' => true,
         ]);

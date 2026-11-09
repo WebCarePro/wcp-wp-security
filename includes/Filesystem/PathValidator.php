@@ -324,7 +324,7 @@ class PathValidator {
                     if (function_exists('error_log')) {
                         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                         error_log(sprintf(
-                            '[WCP Security Scanner CRITICAL] Atomic write rollback failure for "%s". Original file preserved in backup "%s".',
+                            '[WebCare Pro Security CRITICAL] Atomic write rollback failure for "%s". Original file preserved in backup "%s".',
                             $path,
                             $dest_backup
                         ));

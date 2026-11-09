@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
  * PluginSelfDefense
  *
  * Provides cryptographic attestation, anti-tamper monitoring, and integrity defense
- * for the WCP Security Scanner plugin files. Detects missing files (e.g. deleted by host
+ * for the WebCare Pro Security & Firewall plugin files. Detects missing files (e.g. deleted by host
  * scanners / mod_security), altered code, and rogue files dropped into the plugin folder.
  */
 class PluginSelfDefense {
@@ -212,7 +212,7 @@ class PluginSelfDefense {
             if (preg_match('#^(\.git|tests|node_modules|dist|tmp|\.DS_Store)#i', $rel_path)) {
                 continue;
             }
-            if (substr($rel_path, -4) === '.map' || substr($rel_path, -4) === '.log') {
+            if (substr($rel_path, -4) === '.map' || substr($rel_path, -4) === '.log' || preg_match('#^assets/(icon|banner)-\d+x\d+\.(png|jpg)$#i', $rel_path)) {
                 continue;
             }
 
@@ -252,7 +252,7 @@ class PluginSelfDefense {
                 if (preg_match('#^(\.git|tests|node_modules|dist|tmp|\.system_generated|\.DS_Store)#i', $rel_path)) {
                     continue;
                 }
-                if ($rel_path === 'includes/System/plugin-manifest.json' || substr($rel_path, -4) === '.map' || substr($rel_path, -4) === '.log' || substr($rel_path, -4) === '.zip') {
+                if ($rel_path === 'includes/System/plugin-manifest.json' || substr($rel_path, -4) === '.map' || substr($rel_path, -4) === '.log' || substr($rel_path, -4) === '.zip' || preg_match('#^assets/(icon|banner)-\d+x\d+\.(png|jpg)$#i', $rel_path)) {
                     continue;
                 }
 
@@ -337,10 +337,10 @@ class PluginSelfDefense {
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
         /* translators: %s: site name */
-        $subject = sprintf(__('[%s Security Alert] WCP Security Scanner File Integrity Anomaly Detected', 'webcare-pro-security'), $site_name);
+        $subject = sprintf(__('[%s Security Alert] WebCare Pro Security File Integrity Anomaly Detected', 'webcare-pro-security'), $site_name);
 
         $body  = "Hello Administrator,\n\n";
-        $body .= "The WCP Security Scanner Self-Defense & Anti-Tamper Engine has detected that one or more of its own core files have been modified or deleted on your server.\n\n";
+        $body .= "The WebCare Pro Security Self-Defense & Anti-Tamper Engine has detected that one or more of its own core files have been modified or deleted on your server.\n\n";
         $body .= "This commonly happens when:\n";
         $body .= "1. A shared hosting auto-scanner or ModSecurity rule deleted legitimate plugin files (e.g. CloudflareService.php or REST handlers).\n";
         $body .= "2. A plugin zip archive was partially extracted or corrupted during upload.\n";
@@ -371,7 +371,7 @@ class PluginSelfDefense {
         $body .= "Please re-upload or update the official plugin zip in WordPress Admin (Plugins > Add New > Upload Plugin) to restore full security scanner protection.\n\n";
         $body .= "Best regards,\n";
         $body .= "Mir Alamin (WebCare Pro)\n";
-        $body .= "WCP Security Scanner Self-Defense Engine\n";
+        $body .= "WebCare Pro Security Self-Defense Engine\n";
 
         @wp_mail($to, $subject, $body, ['Content-Type: text/plain; charset=UTF-8']);
     }
@@ -396,7 +396,7 @@ class PluginSelfDefense {
         echo '<div class="notice notice-error" style="padding: 14px 18px; border-left: 4px solid #ef4444; background: #fff1f2; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.15); margin-top: 15px;">';
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">';
         echo '<div style="font-size: 13.5px; color: #991b1b; line-height: 1.5;">';
-        echo '<strong><span class="dashicons dashicons-shield" style="font-size: 18px; margin-right: 4px; vertical-align: -2px;"></span> ' . esc_html__('WCP Security Scanner Self-Defense Alert:', 'webcare-pro-security') . '</strong> ';
+        echo '<strong><span class="dashicons dashicons-shield" style="font-size: 18px; margin-right: 4px; vertical-align: -2px;"></span> ' . esc_html__('WebCare Pro Security Self-Defense Alert:', 'webcare-pro-security') . '</strong> ';
 
         if ($missing_count > 0 && $modified_count > 0) {
             /* translators: 1: number of missing files, 2: number of modified files */
