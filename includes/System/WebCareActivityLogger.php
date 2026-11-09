@@ -33,6 +33,11 @@ class WebCareActivityLogger {
     private static bool $is_logging = false;
 
     /**
+     * Suppression flag for bulk operations (e.g. setup wizard).
+     */
+    public static bool $suppress_option_watcher = false;
+
+    /**
      * Deduplication registry for option watcher within single request lifecycle.
      */
     private static array $logged_options_in_request = [];
@@ -637,6 +642,10 @@ class WebCareActivityLogger {
      * @param mixed  $value
      */
     public static function on_option_updated($option, $old_value, $value): void {
+        if (self::$suppress_option_watcher) {
+            return;
+        }
+
         if (!is_string($option) || !str_starts_with($option, 'webcareproscan_')) {
             return;
         }
@@ -654,6 +663,17 @@ class WebCareActivityLogger {
             'webcareproscan_scan_checkpoint',
             'webcareproscan_session_forensics_active_tokens',
             'webcareproscan_db_last_audit',
+            'webcareproscan_object_cache_last_audit',
+            'webcareproscan_fim_last_audit',
+            'webcareproscan_last_audit',
+            'webcareproscan_site_advisor_snapshot',
+            'webcareproscan_micro_waf_status',
+            'webcareproscan_canary_db_planted',
+            'webcareproscan_reinfection_alerts',
+            'webcareproscan_reinfection_watches',
+            'webcareproscan_hp_salt',
+            'webcareproscan_activation_redirect_wizard',
+            'webcareproscan_pow_enforced_ips',
             'webcareproscan_active_scan_lock',
             'webcareproscan_learning_route_profiles',
             'webcareproscan_quarantine_manifest',
@@ -882,14 +902,26 @@ class WebCareActivityLogger {
         if (str_contains($option, 'server_security_options')) {
             return 'Updated server armor security directives for .htaccess / Nginx.';
         }
+        if (str_contains($option, 'waf_log_retention_days')) {
+            $days = $diff['webcareproscan_waf_log_retention_days']['new'] ?? ($diff['old'] ?? 60);
+            return sprintf('Configured firewall incident log retention window to %d days.', is_numeric($days) ? (int)$days : 60);
+        }
         if (str_contains($option, 'waf_whitelisted_ips')) {
+            $new_ip = $diff['webcareproscan_waf_whitelisted_ips']['new'] ?? null;
+            if (is_string($new_ip) && filter_var(trim($new_ip), FILTER_VALIDATE_IP)) {
+                return sprintf('Permitted trusted IP address %s to bypass WAF inspection.', trim($new_ip));
+            }
             return sprintf('Updated trusted IP allowlist (%d IP address%s permitted to bypass WAF inspection).', $count, $count === 1 ? '' : 'es');
         }
         if (str_contains($option, 'waf_settings')) {
-            return sprintf('Updated Web Application Firewall inspection parameters (%d setting%s: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
+            return 'Updated core Web Application Firewall inspection modes (Bad Bot Blocker, Uploads Execution Armor, Brute-Force Shield, Virtual Patching).';
         }
         if (str_contains($option, 'notification_settings')) {
-            return sprintf('Updated security alert delivery channels and email notifications (%d setting%s).', $count, $count === 1 ? '' : 's');
+            $recip = $diff['webcareproscan_notification_settings']['new']['email_recipient'] ?? null;
+            if ($recip && is_string($recip)) {
+                return sprintf('Configured security incident email alert delivery for %s (Critical threats, Logins, and Panic containment).', $recip);
+            }
+            return 'Configured security incident alert delivery channels and email notifications.';
         }
         if (str_contains($option, 'whitelist')) {
             return sprintf('Modified false positive suppression rules (%d rule%s adjusted: %s).', $count, $count === 1 ? '' : 's', $keys_summary);

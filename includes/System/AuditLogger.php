@@ -227,12 +227,34 @@ class AuditLogger {
 
     public function log_plugin_activation($plugin, $network_wide) {
         $scope = $network_wide ? 'network-wide' : 'locally';
-        $this->write_log('PLUGIN_ACTIVATED', "Plugin '{$plugin}' was activated $scope.");
+        $plugin_name = $plugin;
+        if (!function_exists('get_plugin_data')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $plugin_file = defined('WP_PLUGIN_DIR') ? (WP_PLUGIN_DIR . '/' . $plugin) : '';
+        if ($plugin_file && file_exists($plugin_file)) {
+            $data = get_plugin_data($plugin_file, false, false);
+            if (!empty($data['Name'])) {
+                $plugin_name = $data['Name'];
+            }
+        }
+        $this->write_log('PLUGIN_ACTIVATED', "Plugin '{$plugin_name}' was activated $scope.");
     }
 
     public function log_plugin_deactivation($plugin, $network_wide) {
         $scope = $network_wide ? 'network-wide' : 'locally';
-        $this->write_log('PLUGIN_DEACTIVATED', "Plugin '{$plugin}' was deactivated $scope.");
+        $plugin_name = $plugin;
+        if (!function_exists('get_plugin_data')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $plugin_file = defined('WP_PLUGIN_DIR') ? (WP_PLUGIN_DIR . '/' . $plugin) : '';
+        if ($plugin_file && file_exists($plugin_file)) {
+            $data = get_plugin_data($plugin_file, false, false);
+            if (!empty($data['Name'])) {
+                $plugin_name = $data['Name'];
+            }
+        }
+        $this->write_log('PLUGIN_DEACTIVATED', "Plugin '{$plugin_name}' was deactivated $scope.");
     }
 
     public function log_theme_switch($new_name, $new_theme, $old_theme) {

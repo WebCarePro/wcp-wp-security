@@ -2030,126 +2030,160 @@ class ScannerRoutes {
     public static function save_wizard_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
 
-        // 1. Whitelist Owner IP
-        if (!empty($params['whitelist_ip'])) {
+        // Suppress fragmented option watcher entries so wizard produces 1 clean consolidated event
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::$suppress_option_watcher = true;
+        }
+
+        try {
+            // 1. Whitelist Owner IP
+            if (!empty($params['whitelist_ip'])) {
+                $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+                $existing_ips = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
+                if (strpos($existing_ips, $client_ip) === false) {
+                    $new_whitelist = trim($existing_ips . "\n" . $client_ip);
+                    update_option('webcareproscan_waf_whitelisted_ips', $new_whitelist);
+                }
+            }
+
+            // 2. Archetype & Profile
+            $archetype = sanitize_key($params['archetype'] ?? 'business');
+            update_option('webcareproscan_site_archetype', $archetype);
+
+            // 3. Firewall Toggles
+            $waf_settings = get_option('webcareproscan_waf_settings', []);
+            if (isset($params['firewall_settings']) && is_array($params['firewall_settings'])) {
+                foreach ($params['firewall_settings'] as $k => $v) {
+                    $waf_settings[sanitize_key($k)] = (bool) $v;
+                }
+                update_option('webcareproscan_waf_settings', $waf_settings);
+            }
+
+            // 4. Cloudflare Integration (if provided)
+            if (!empty($params['cloudflare']['api_token'])) {
+                $cf_token = sanitize_text_field($params['cloudflare']['api_token']);
+                $cf_zone  = !empty($params['cloudflare']['zone_id']) ? sanitize_text_field($params['cloudflare']['zone_id']) : '';
+
+                // If Zone ID is empty, attempt auto-detect via CloudflareService
+                if (empty($cf_zone) && class_exists('\WebCareProScanner\Cloudflare\CloudflareService')) {
+                    $verify = \WebCareProScanner\Cloudflare\CloudflareService::verify_zone(null, $cf_token);
+                    if (!empty($verify['success']) && !empty($verify['zone_id'])) {
+                        $cf_zone = $verify['zone_id'];
+                    }
+                }
+
+                if (!empty($cf_zone) && class_exists('\WebCareProScanner\System\SettingsManager')) {
+                    \WebCareProScanner\System\SettingsManager::save_settings([
+                        'cloudflare_enabled'        => true,
+                        'cloudflare_api_token'      => $cf_token,
+                        'cloudflare_zone_id'        => $cf_zone,
+                        'cloudflare_auto_sync_bans' => true,
+                    ]);
+                }
+            }
+
+            // 5. Scheduled Scan Frequency & Advanced Engine Settings
+            if (class_exists('\WebCareProScanner\System\SettingsManager')) {
+                $advanced_payload = [];
+
+                if (!empty($params['scan_schedule'])) {
+                    $freq = sanitize_key($params['scan_schedule']);
+                    if (in_array($freq, ['daily', 'weekly', 'manual'], true)) {
+                        $is_enabled = ($freq !== 'manual');
+                        $actual_freq = $is_enabled ? $freq : 'daily';
+                        $advanced_payload['schedule_enabled']   = $is_enabled;
+                        $advanced_payload['schedule_frequency'] = $actual_freq;
+                    }
+                }
+
+                if (isset($params['custom_scan_options']) && is_array($params['custom_scan_options'])) {
+                    $advanced_payload['custom_scan_options'] = $params['custom_scan_options'];
+                }
+
+                if (isset($params['scan_batch_size'])) {
+                    $advanced_payload['scan_batch_size'] = intval($params['scan_batch_size']);
+                }
+
+                if (isset($params['scan_memory_safety_envelope'])) {
+                    $advanced_payload['scan_memory_safety_envelope'] = sanitize_key($params['scan_memory_safety_envelope']);
+                }
+
+                if (isset($params['scan_adaptive_throttling'])) {
+                    $advanced_payload['scan_adaptive_throttling'] = (bool) $params['scan_adaptive_throttling'];
+                }
+
+                if (isset($params['scan_batch_delay_ms'])) {
+                    $advanced_payload['scan_batch_delay_ms'] = intval($params['scan_batch_delay_ms']);
+                }
+
+                if (isset($params['delete_data_on_uninstall'])) {
+                    $advanced_payload['delete_data_on_uninstall'] = (bool) $params['delete_data_on_uninstall'];
+                }
+
+                if (isset($params['uninstall_drop_tables'])) {
+                    $advanced_payload['uninstall_drop_tables'] = (bool) $params['uninstall_drop_tables'];
+                }
+
+                if (isset($params['uninstall_delete_options'])) {
+                    $advanced_payload['uninstall_delete_options'] = (bool) $params['uninstall_delete_options'];
+                }
+
+                if (isset($params['activity_log_settings']) && is_array($params['activity_log_settings'])) {
+                    $advanced_payload['activity_log_settings'] = $params['activity_log_settings'];
+                }
+
+                if (isset($params['waf_targeted_allowlist_rules'])) {
+                    $advanced_payload['waf_targeted_allowlist_rules'] = is_string($params['waf_targeted_allowlist_rules'])
+                        ? $params['waf_targeted_allowlist_rules']
+                        : wp_json_encode($params['waf_targeted_allowlist_rules']);
+                }
+
+                if (!empty($advanced_payload)) {
+                    \WebCareProScanner\System\SettingsManager::save_settings($advanced_payload);
+                }
+            }
+
+            // 6. Security Alert Notifications
+            if (!empty($params['alerts'])) {
+                $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
+                $notif_settings = get_option('webcareproscan_notification_settings', []);
+                $notif_settings['email_recipient'] = $alert_email;
+                $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
+                $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
+                $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
+                update_option('webcareproscan_notification_settings', $notif_settings);
+            }
+
+            // 7. Mark Wizard as Completed
+            update_option('webcareproscan_wizard_completed', true);
+        } finally {
+            if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+                \WebCareProScanner\System\WebCareActivityLogger::$suppress_option_watcher = false;
+            }
+        }
+
+        // Consolidated single master activity event for initial security onboarding
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
-            $existing_ips = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
-            if (strpos($existing_ips, $client_ip) === false) {
-                $new_whitelist = trim($existing_ips . "\n" . $client_ip);
-                update_option('webcareproscan_waf_whitelisted_ips', $new_whitelist);
-            }
-        }
-
-        // 2. Archetype & Profile
-        $archetype = sanitize_key($params['archetype'] ?? 'business');
-        update_option('webcareproscan_site_archetype', $archetype);
-
-        // 3. Firewall Toggles
-        $waf_settings = get_option('webcareproscan_waf_settings', []);
-        if (isset($params['firewall_settings']) && is_array($params['firewall_settings'])) {
-            foreach ($params['firewall_settings'] as $k => $v) {
-                $waf_settings[sanitize_key($k)] = (bool) $v;
-            }
-            update_option('webcareproscan_waf_settings', $waf_settings);
-        }
-
-        // 4. Cloudflare Integration (if provided)
-        if (!empty($params['cloudflare']['api_token'])) {
-            $cf_token = sanitize_text_field($params['cloudflare']['api_token']);
-            $cf_zone  = !empty($params['cloudflare']['zone_id']) ? sanitize_text_field($params['cloudflare']['zone_id']) : '';
-
-            // If Zone ID is empty, attempt auto-detect via CloudflareService
-            if (empty($cf_zone) && class_exists('\WebCareProScanner\Cloudflare\CloudflareService')) {
-                $verify = \WebCareProScanner\Cloudflare\CloudflareService::verify_zone(null, $cf_token);
-                if (!empty($verify['success']) && !empty($verify['zone_id'])) {
-                    $cf_zone = $verify['zone_id'];
-                }
-            }
-
-            if (!empty($cf_zone) && class_exists('\WebCareProScanner\System\SettingsManager')) {
-                \WebCareProScanner\System\SettingsManager::save_settings([
-                    'cloudflare_enabled'        => true,
-                    'cloudflare_api_token'      => $cf_token,
-                    'cloudflare_zone_id'        => $cf_zone,
-                    'cloudflare_auto_sync_bans' => true,
-                ]);
-            }
-        }
-
-        // 5. Scheduled Scan Frequency & Advanced Engine Settings
-        if (class_exists('\WebCareProScanner\System\SettingsManager')) {
-            $advanced_payload = [];
-
-            if (!empty($params['scan_schedule'])) {
-                $freq = sanitize_key($params['scan_schedule']);
-                if (in_array($freq, ['daily', 'weekly', 'manual'], true)) {
-                    $is_enabled = ($freq !== 'manual');
-                    $actual_freq = $is_enabled ? $freq : 'daily';
-                    $advanced_payload['schedule_enabled']   = $is_enabled;
-                    $advanced_payload['schedule_frequency'] = $actual_freq;
-                }
-            }
-
-            if (isset($params['custom_scan_options']) && is_array($params['custom_scan_options'])) {
-                $advanced_payload['custom_scan_options'] = $params['custom_scan_options'];
-            }
-
-            if (isset($params['scan_batch_size'])) {
-                $advanced_payload['scan_batch_size'] = intval($params['scan_batch_size']);
-            }
-
-            if (isset($params['scan_memory_safety_envelope'])) {
-                $advanced_payload['scan_memory_safety_envelope'] = sanitize_key($params['scan_memory_safety_envelope']);
-            }
-
-            if (isset($params['scan_adaptive_throttling'])) {
-                $advanced_payload['scan_adaptive_throttling'] = (bool) $params['scan_adaptive_throttling'];
-            }
-
-            if (isset($params['scan_batch_delay_ms'])) {
-                $advanced_payload['scan_batch_delay_ms'] = intval($params['scan_batch_delay_ms']);
-            }
-
-            if (isset($params['delete_data_on_uninstall'])) {
-                $advanced_payload['delete_data_on_uninstall'] = (bool) $params['delete_data_on_uninstall'];
-            }
-
-            if (isset($params['uninstall_drop_tables'])) {
-                $advanced_payload['uninstall_drop_tables'] = (bool) $params['uninstall_drop_tables'];
-            }
-
-            if (isset($params['uninstall_delete_options'])) {
-                $advanced_payload['uninstall_delete_options'] = (bool) $params['uninstall_delete_options'];
-            }
-
-            if (isset($params['activity_log_settings']) && is_array($params['activity_log_settings'])) {
-                $advanced_payload['activity_log_settings'] = $params['activity_log_settings'];
-            }
-
-            if (isset($params['waf_targeted_allowlist_rules'])) {
-                $advanced_payload['waf_targeted_allowlist_rules'] = is_string($params['waf_targeted_allowlist_rules'])
-                    ? $params['waf_targeted_allowlist_rules']
-                    : wp_json_encode($params['waf_targeted_allowlist_rules']);
-            }
-
-            if (!empty($advanced_payload)) {
-                \WebCareProScanner\System\SettingsManager::save_settings($advanced_payload);
-            }
-        }
-
-        // 6. Security Alert Notifications
-        if (!empty($params['alerts'])) {
             $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
-            $notif_settings = get_option('webcareproscan_notification_settings', []);
-            $notif_settings['email_recipient'] = $alert_email;
-            $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
-            $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
-            $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
-            update_option('webcareproscan_notification_settings', $notif_settings);
+            $arch_label = ucfirst($archetype ?? 'business');
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
+                'onboarding_wizard_completed',
+                'settings',
+                [
+                    'archetype'       => $archetype ?? 'business',
+                    'whitelisted_ip'  => !empty($params['whitelist_ip']) ? $client_ip : null,
+                    'alert_email'     => $alert_email,
+                    'firewall_active' => true,
+                    'description'     => sprintf(
+                        'Completed initial security onboarding setup with %1$s profile: enabled core firewall shields, whitelisted administrator IP (%2$s), and configured security alerts for %3$s.',
+                        $arch_label,
+                        $client_ip,
+                        $alert_email
+                    ),
+                ]
+            );
         }
-
-        // 8. Mark Wizard as Completed
-        update_option('webcareproscan_wizard_completed', true);
 
         return new \WP_REST_Response([
             'success' => true,

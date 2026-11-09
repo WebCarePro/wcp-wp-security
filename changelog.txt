@@ -1,3 +1,16 @@
+v:2.10.0 - 2026-11-10
+- Enterprise Activity & Forensic Audit Log Noise Elimination (WebCareActivityLogger.php):
+  * Suppressed Automated Telemetry & Diagnostic Scan Churn: Added webcareproscan_object_cache_last_audit, webcareproscan_fim_last_audit, webcareproscan_last_audit, and webcareproscan_site_advisor_snapshot to $ignored_patterns. Eliminates misleading "Object Cache Last Audit Updated" entries with unreadable 64-character SHA-256 hash diffs triggered during routine deep-audit health checks.
+  * Suppressed Routine Micro-WAF Recompilation Churn: Added webcareproscan_micro_waf_status to $ignored_patterns to stop routine standalone micro-WAF compilation timestamps from polluting the audit trail with repeated "Pre-Boot Micro-WAF Engine Synchronized" log entries.
+  * Suppressed Decoy Tripwire Heartbeats: Added webcareproscan_canary_db_planted to $ignored_patterns to eliminate confusing "Canary Db Planted Updated" heartbeat logs (decoy canary creation remains cleanly attributed as canary_admin_seeded).
+  * Suppressed Empty Cron Initializations & Volatile Salts: Added webcareproscan_reinfection_alerts, webcareproscan_reinfection_watches, webcareproscan_hp_salt, webcareproscan_activation_redirect_wizard, and webcareproscan_pow_enforced_ips to $ignored_patterns. Eliminates empty array cron updates and internal cryptographic salt setup logs.
+  * Bulk Onboarding Batch Suppression: Introduced $suppress_option_watcher re-entrancy flag in WebCareActivityLogger to mute individual option hooks during multi-option transactions.
+- Human-Readable Forensic Log Upgrades & Setup Wizard Consolidation (ActivityHumanizer.php & ScannerRoutes.php):
+  * Setup Wizard Single Master Milestone: Refactored save_wizard_settings() to consolidate 6 disjointed option updates into one authoritative onboarding_wizard_completed event: "Security Onboarding Completed ({Archetype} Profile)" detailing active firewall shields, whitelisted administrator IP, and alert recipient.
+  * Extension Activation & Deactivation Humanization: Enhanced ActivityHumanizer and AuditLogger to resolve clean plugin titles (e.g. "Plugin Activated: WebCare Pro Security & Firewall" and "Plugin Activated: Plugin Check (PCP)") via get_plugin_data() instead of raw filesystem paths.
+  * Decoy Tripwire & Allowlist Humanization: Formatted canary_admin_seeded to "Decoy Admin Tripwire Created: {Canary Name}" with clear security explanation, and formatted whitelist_policy_modified to "Trusted IP Added to Allowlist: {IP}".
+  * Meaningful Settings Titles & Descriptions: Formatted WAF log retention updates to "Firewall Incident Log Retention: {N} Days", WAF toggle saves to "Firewall Baseline Protection Policy Saved", and alert notifications to "Security Alert Notifications Configured".
+
 v:2.9.0 - 2026-11-09
 - AI Settings UI Refinement (SettingsPage.tsx):
   * Removed the third-party 'Install Compatible AI Engine Plugin' button from the AI Cybersecurity Intelligence Engine settings panel, keeping the configuration interface clean, minimal, and focused on native WordPress AI Connectors and direct AES-256-GCM vault-encrypted API credentials (Google Gemini, OpenAI, Claude).
