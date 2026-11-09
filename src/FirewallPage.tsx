@@ -2422,7 +2422,7 @@ export const FirewallPage = ({
               if (onNavigateToServerTelemetry) {
                 onNavigateToServerTelemetry();
               } else {
-                window.location.href = 'admin.php?page=webcare-scanner-server';
+                window.location.href = 'admin.php?page=webcare-pro-server';
               }
             }}
           >
@@ -2449,7 +2449,7 @@ export const FirewallPage = ({
               if (onNavigateToWafLogs) {
                 onNavigateToWafLogs();
               } else {
-                window.location.href = 'admin.php?page=webcare-scanner-waf-logs';
+                window.location.href = 'admin.php?page=webcare-pro-waf-logs';
               }
             }}
           >
@@ -2846,7 +2846,7 @@ export const FirewallPage = ({
             if (onNavigateToWafLogs) {
               onNavigateToWafLogs();
             } else {
-              window.location.href = 'admin.php?page=webcare-scanner-waf-logs';
+              window.location.href = 'admin.php?page=webcare-pro-waf-logs';
             }
           }}
           title="Open Dedicated Full-Page WAF Incident Logs & Attack Forensics"
@@ -2889,7 +2889,7 @@ export const FirewallPage = ({
                   if (onNavigateToWafLogs) {
                     onNavigateToWafLogs();
                   } else {
-                    window.location.href = 'admin.php?page=webcare-scanner-waf-logs';
+                    window.location.href = 'admin.php?page=webcare-pro-waf-logs';
                   }
                 }}
               >
@@ -7445,7 +7445,7 @@ export const FirewallPage = ({
               <button
                 type="button"
                 className="webcare-btn"
-                onClick={() => onNavigateToSettings ? onNavigateToSettings('cloudflare') : (window.location.href = 'admin.php?page=webcare-scanner-settings&tab=cloudflare')}
+                onClick={() => onNavigateToSettings ? onNavigateToSettings('cloudflare') : (window.location.href = 'admin.php?page=webcare-pro-settings&tab=cloudflare')}
                 style={{
                   background: cfStatus?.configured ? '#f8fafc' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
                   color: cfStatus?.configured ? '#0f172a' : '#ffffff',

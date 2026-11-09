@@ -329,7 +329,7 @@ class AdminMenu {
     }
 
     public static function render_app_container() {
-        echo '<div class="wrap"><div id="webcare-pro-root"></div></div>';
+        echo '<div class="wrap"><div id="webcare-scanner-root" class="webcare-scanner-root"></div></div>';
     }
 
     public static function enqueue_assets($hook) {
@@ -398,7 +398,7 @@ class AdminMenu {
         // Also check query param fallback
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        $is_webcare_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'webcare-pro-security') !== false || $current_page === 'webcare-pro-security';
+        $is_webcare_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'webcare-') !== false || $current_page === 'webcare-pro-security';
 
         if (!$is_webcare_page) {
             return;

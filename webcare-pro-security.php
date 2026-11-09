@@ -22,35 +22,15 @@ define('WEBCAREPROSCAN_FILE', __FILE__);
 define('WEBCAREPROSCAN_PATH', plugin_dir_path(__FILE__));
 define('WEBCAREPROSCAN_URL', plugin_dir_url(__FILE__));
 
-// Transition aliases for internal constants
-if (!defined('WEBCAREPROSCAN_VERSION')) {
-    define('WEBCAREPROSCAN_VERSION', WEBCAREPROSCAN_VERSION);
-}
-if (!defined('WEBCAREPROSCAN_FILE')) {
-    define('WEBCAREPROSCAN_FILE', WEBCAREPROSCAN_FILE);
-}
-if (!defined('WEBCAREPROSCAN_PATH')) {
-    define('WEBCAREPROSCAN_PATH', WEBCAREPROSCAN_PATH);
-}
-if (!defined('WEBCAREPROSCAN_URL')) {
-    define('WEBCAREPROSCAN_URL', WEBCAREPROSCAN_URL);
-}
-
-// Custom Autoloader for WebCareProScanner (primary) and WebCareProScanner (transition fallback)
+// Custom Autoloader for WebCareProScanner
 spl_autoload_register(function ($class) {
     $base_dir = WEBCAREPROSCAN_PATH . 'includes/';
-    $relative_class = null;
 
-    if (strncmp('WebCareProScanner\\', $class, 18) === 0) {
-        $relative_class = substr($class, 18);
-    } elseif (strncmp('WebCareProScanner\\', $class, 11) === 0) {
-        $relative_class = substr($class, 11);
-    }
-
-    if ($relative_class === null) {
+    if (strncmp('WebCareProScanner\\', $class, 18) !== 0) {
         return;
     }
 
+    $relative_class = substr($class, 18);
     $rel_path = str_replace('\\', '/', $relative_class);
     $file = $base_dir . $rel_path . '.php';
 
