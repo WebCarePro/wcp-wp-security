@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Findings;
+namespace WebCareProScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -44,8 +44,8 @@ class Finding {
             'taint_chain' => $this->taint_chain,
         ];
 
-        if (class_exists('\\WcpScanner\\Findings\\FindingTranslator')) {
-            $data['plain_english'] = \WcpScanner\Findings\FindingTranslator::translate($data);
+        if (class_exists('\\WebCareProScanner\\Findings\\FindingTranslator')) {
+            $data['plain_english'] = \WebCareProScanner\Findings\FindingTranslator::translate($data);
         }
 
         return $data;

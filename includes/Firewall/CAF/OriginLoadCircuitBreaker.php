@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
-use WcpScanner\Cloudflare\CloudflareService;
-use WcpScanner\Firewall\WafFileLogger;
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\Cloudflare\CloudflareService;
+use WebCareProScanner\Firewall\WafFileLogger;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;

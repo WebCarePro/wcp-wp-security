@@ -1,11 +1,11 @@
 <?php
-namespace WcpScanner\Reports;
+namespace WebCareProScanner\Reports;
 
-use WcpScanner\Findings\RiskScorer;
-use WcpScanner\System\ServerInfo;
-use WcpScanner\Forensics\AttackChainEngine;
-use WcpScanner\WordPress\PersistenceScanner;
-use WcpScanner\Firewall\VirtualPatchManager;
+use WebCareProScanner\Findings\RiskScorer;
+use WebCareProScanner\System\ServerInfo;
+use WebCareProScanner\Forensics\AttackChainEngine;
+use WebCareProScanner\WordPress\PersistenceScanner;
+use WebCareProScanner\Firewall\VirtualPatchManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -31,8 +31,8 @@ class IncidentReportEngine {
     public static function generate_report(array $options = []): array {
         global $wpdb;
 
-        $table_scans  = $wpdb->prefix . 'wcpscan_scans';
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_scans  = $wpdb->prefix . 'webcareproscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
 
         // 1. Fetch Latest Scan
         $scan_sql = "SELECT * FROM `{$table_scans}` WHERE scan_target IN ('plugins_themes', 'full') ORDER BY id DESC LIMIT 1";
@@ -217,7 +217,7 @@ class IncidentReportEngine {
             'report_id'    => $report_id,
             'generated_at' => gmdate('c'),
             'date_human'   => gmdate('F j, Y g:i A \U\T\C'),
-            'version'      => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.15.0',
+            'version'      => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.15.0',
             'client'       => [
                 'name'     => $site_name,
                 'site_url' => $site_url,

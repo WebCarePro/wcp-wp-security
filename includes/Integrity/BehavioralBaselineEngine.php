@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
  */
 class BehavioralBaselineEngine {
 
-    const OPTION_KEY = 'wcpscan_behavioral_baseline';
+    const OPTION_KEY = 'webcareproscan_behavioral_baseline';
 
     /**
      * Critical WordPress filter & action hooks to monitor for covert tampering.
@@ -97,7 +97,7 @@ class BehavioralBaselineEngine {
 
         return [
             'success'   => true,
-            'message'   => __('Behavioral baseline successfully calibrated.', 'wcp-security-scanner'),
+            'message'   => __('Behavioral baseline successfully calibrated.', 'webcare-pro-security'),
             'baseline'  => $snapshot,
             'stats'     => [
                 'tracked_hooks'        => count($snapshot['hooks']),
@@ -120,7 +120,7 @@ class BehavioralBaselineEngine {
             return [
                 'success'    => false,
                 'calibrated' => false,
-                'message'    => __('No behavioral baseline calibrated yet. Calibrate the system to enable deviation auditing.', 'wcp-security-scanner'),
+                'message'    => __('No behavioral baseline calibrated yet. Calibrate the system to enable deviation auditing.', 'webcare-pro-security'),
                 'deviations' => [],
                 'score'      => null,
             ];
@@ -160,12 +160,12 @@ class BehavioralBaselineEngine {
                         'hook'        => $hook,
                         'severity'    => $sev,
                         /* translators: %s: hook name */
-                        'title'       => sprintf(__('Unauthorized Callback Injected into %s', 'wcp-security-scanner'), $hook),
+                        'title'       => sprintf(__('Unauthorized Callback Injected into %s', 'webcare-pro-security'), $hook),
                         /* translators: 1: number of callbacks, 2: hook name */
-                        'description' => sprintf(__('%1$d unexpected callback(s) registered on hook "%2$s" since baseline calibration.', 'wcp-security-scanner'), count($added_callbacks), $hook),
+                        'description' => sprintf(__('%1$d unexpected callback(s) registered on hook "%2$s" since baseline calibration.', 'webcare-pro-security'), count($added_callbacks), $hook),
                         'added'       => array_values($added_callbacks),
                         'removed'     => array_values($removed_callbacks),
-                        'recommendation' => __('Inspect the callback origin. If legitimate developer changes were made, re-calibrate the baseline.', 'wcp-security-scanner'),
+                        'recommendation' => __('Inspect the callback origin. If legitimate developer changes were made, re-calibrate the baseline.', 'webcare-pro-security'),
                     ];
                 }
             }
@@ -184,10 +184,10 @@ class BehavioralBaselineEngine {
                     'hook'        => $cron_hook,
                     'severity'    => 'high',
                     /* translators: %s: cron hook name */
-                    'title'       => sprintf(__('Rogue Scheduled Cron Event: %s', 'wcp-security-scanner'), $cron_hook),
+                    'title'       => sprintf(__('Rogue Scheduled Cron Event: %s', 'webcare-pro-security'), $cron_hook),
                     /* translators: %s: cron hook name */
-                    'description' => sprintf(__('New background cron task "%s" was registered after baseline was established.', 'wcp-security-scanner'), $cron_hook),
-                    'recommendation' => __('Verify if this cron task belongs to an authorized plugin. Malicious plugins often schedule recurring persistence jobs.', 'wcp-security-scanner'),
+                    'description' => sprintf(__('New background cron task "%s" was registered after baseline was established.', 'webcare-pro-security'), $cron_hook),
+                    'recommendation' => __('Verify if this cron task belongs to an authorized plugin. Malicious plugins often schedule recurring persistence jobs.', 'webcare-pro-security'),
                 ];
             }
         }
@@ -204,10 +204,10 @@ class BehavioralBaselineEngine {
                     'target'      => $live_drop['path'],
                     'severity'    => 'critical',
                     /* translators: %s: drop-in file name */
-                    'title'       => sprintf(__('New Drop-In Implant Detected: %s', 'wcp-security-scanner'), $name),
+                    'title'       => sprintf(__('New Drop-In Implant Detected: %s', 'webcare-pro-security'), $name),
                     /* translators: %s: drop-in file name */
-                    'description' => sprintf(__('The drop-in file "%s" was created after baseline calibration. Drop-ins execute before plugins load and are a prime backdoor vector.', 'wcp-security-scanner'), $name),
-                    'recommendation' => __('Inspect file contents immediately. Quarantine if unrecognized.', 'wcp-security-scanner'),
+                    'description' => sprintf(__('The drop-in file "%s" was created after baseline calibration. Drop-ins execute before plugins load and are a prime backdoor vector.', 'webcare-pro-security'), $name),
+                    'recommendation' => __('Inspect file contents immediately. Quarantine if unrecognized.', 'webcare-pro-security'),
                 ];
             }
             // Modified drop-in file hash
@@ -218,10 +218,10 @@ class BehavioralBaselineEngine {
                     'target'      => $live_drop['path'],
                     'severity'    => 'critical',
                     /* translators: %s: drop-in file name */
-                    'title'       => sprintf(__('Drop-In File Modified: %s', 'wcp-security-scanner'), $name),
+                    'title'       => sprintf(__('Drop-In File Modified: %s', 'webcare-pro-security'), $name),
                     /* translators: %s: drop-in file name */
-                    'description' => sprintf(__('The cryptographic SHA-256 hash of drop-in "%s" changed from baseline.', 'wcp-security-scanner'), $name),
-                    'recommendation' => __('Review diff to ensure caching or object-cache drop-ins were not backdoored.', 'wcp-security-scanner'),
+                    'description' => sprintf(__('The cryptographic SHA-256 hash of drop-in "%s" changed from baseline.', 'webcare-pro-security'), $name),
+                    'recommendation' => __('Review diff to ensure caching or object-cache drop-ins were not backdoored.', 'webcare-pro-security'),
                 ];
             }
         }
@@ -240,10 +240,10 @@ class BehavioralBaselineEngine {
                     'severity'    => 'high',
                     'entropy'     => $item['entropy'],
                     /* translators: %s: file name */
-                    'title'       => sprintf(__('New High-Entropy PHP File Detected: %s', 'wcp-security-scanner'), basename($file)),
+                    'title'       => sprintf(__('New High-Entropy PHP File Detected: %s', 'webcare-pro-security'), basename($file)),
                     /* translators: %0.2f: entropy score */
-                    'description' => sprintf(__('File has Shannon entropy score of %0.2f (obfuscated or encrypted code typical of web shells). Not present in baseline.', 'wcp-security-scanner'), $item['entropy']),
-                    'recommendation' => __('Inspect code snippet for eval, base64_decode, or gzinflate obfuscation.', 'wcp-security-scanner'),
+                    'description' => sprintf(__('File has Shannon entropy score of %0.2f (obfuscated or encrypted code typical of web shells). Not present in baseline.', 'webcare-pro-security'), $item['entropy']),
+                    'recommendation' => __('Inspect code snippet for eval, base64_decode, or gzinflate obfuscation.', 'webcare-pro-security'),
                 ];
             } elseif ($base_entropy_files[$file] !== $live_hash) {
                 $penalty += 15;
@@ -253,10 +253,10 @@ class BehavioralBaselineEngine {
                     'severity'    => 'high',
                     'entropy'     => $item['entropy'],
                     /* translators: %s: file name */
-                    'title'       => sprintf(__('High-Entropy File Modified: %s', 'wcp-security-scanner'), basename($file)),
+                    'title'       => sprintf(__('High-Entropy File Modified: %s', 'webcare-pro-security'), basename($file)),
                     /* translators: %s: file name */
-                    'description' => sprintf(__('Cryptographic hash changed for high-entropy PHP file %s.', 'wcp-security-scanner'), basename($file)),
-                    'recommendation' => __('Review changes to ensure file was not re-injected with malicious payload.', 'wcp-security-scanner'),
+                    'description' => sprintf(__('Cryptographic hash changed for high-entropy PHP file %s.', 'webcare-pro-security'), basename($file)),
+                    'recommendation' => __('Review changes to ensure file was not re-injected with malicious payload.', 'webcare-pro-security'),
                 ];
             }
         }

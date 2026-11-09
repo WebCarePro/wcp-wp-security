@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
-use WcpScanner\Security\SecretVault;
+use WebCareProScanner\Security\SecretVault;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -28,20 +28,20 @@ class ActivityHashChain {
      * @return string 64-character lowercase hex string.
      */
     public static function get_genesis_hash(): string {
-        $genesis = get_option('wcpscan_activity_genesis_hash', '');
+        $genesis = get_option('webcareproscan_activity_genesis_hash', '');
         if (!empty($genesis) && strlen($genesis) === 64 && ctype_xdigit($genesis)) {
             return $genesis;
         }
 
         // Generate stable genesis once and persist permanently
-        $install_seed = get_option('wcpscan_install_hash', '');
+        $install_seed = get_option('webcareproscan_install_hash', '');
         if (empty($install_seed)) {
             $install_seed = wp_generate_password(32, true, true);
-            update_option('wcpscan_install_hash', $install_seed, false);
+            update_option('webcareproscan_install_hash', $install_seed, false);
         }
 
         $genesis = hash('sha256', 'WCP_ACTIVITY_GENESIS::' . $install_seed);
-        update_option('wcpscan_activity_genesis_hash', $genesis, false);
+        update_option('webcareproscan_activity_genesis_hash', $genesis, false);
         return $genesis;
     }
 
@@ -204,7 +204,7 @@ class ActivityHashChain {
      * @return int
      */
     public static function get_active_key_version(): int {
-        return (int) get_option('wcpscan_activity_key_version', 1);
+        return (int) get_option('webcareproscan_activity_key_version', 1);
     }
 
     /**
@@ -219,7 +219,7 @@ class ActivityHashChain {
         }
 
         // Check archived key store for rotated keys
-        $archived_keys = get_option('wcpscan_activity_keyring', []);
+        $archived_keys = get_option('webcareproscan_activity_keyring', []);
         if (isset($archived_keys[$version])) {
             $hex = (string) $archived_keys[$version];
             if (strlen($hex) === 64 && ctype_xdigit($hex)) {

@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -46,8 +46,8 @@ class OptionScanner {
             }
         }
 
-        if (class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')) {
-            $baseline_check = \WcpScanner\Firewall\RedirectCanaryEngine::verify_database_core_urls();
+        if (class_exists('\\WebCareProScanner\\Firewall\\RedirectCanaryEngine')) {
+            $baseline_check = \WebCareProScanner\Firewall\RedirectCanaryEngine::verify_database_core_urls();
             if (!empty($baseline_check) && empty($baseline_check['clean']) && !empty($baseline_check['message'])) {
                 $findings[] = new Finding([
                     'engine'      => 'database-options',
@@ -57,7 +57,7 @@ class OptionScanner {
                     'file_path'   => $options_table . ':siteurl/home',
                     'description' => sprintf(
                         /* translators: %s: details */
-                        __('Core WordPress database URL hijacking detected! %s', 'wcp-security-scanner'),
+                        __('Core WordPress database URL hijacking detected! %s', 'webcare-pro-security'),
                         $baseline_check['message']
                     ),
                     'evidence'    => "siteurl: {$siteurl} | home: {$home}",
@@ -66,8 +66,8 @@ class OptionScanner {
         }
 
         // 1b. In-Memory Object Cache (Redis / Memcached / APCu) RAM vs Disk Differential Audit
-        if (class_exists('\\WcpScanner\\Integrity\\ObjectCacheIntegritySentinel')) {
-            $cache_audit = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
+        if (class_exists('\\WebCareProScanner\\Integrity\\ObjectCacheIntegritySentinel')) {
+            $cache_audit = \WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
             if (!empty($cache_audit['critical_issues'])) {
                 foreach ($cache_audit['critical_issues'] as $crit) {
                     $findings[] = new Finding([
@@ -78,7 +78,7 @@ class OptionScanner {
                         'file_path'   => 'ram:object-cache:' . $crit['option_name'],
                         'description' => sprintf(
                             /* translators: 1: option name, 2: threat forensics */
-                            __('In-Memory Object Cache Poisoning on "%1$s": %2$s', 'wcp-security-scanner'),
+                            __('In-Memory Object Cache Poisoning on "%1$s": %2$s', 'webcare-pro-security'),
                             $crit['option_name'],
                             $crit['forensics']
                         ),
@@ -96,7 +96,7 @@ class OptionScanner {
                         'file_path'   => 'ram:object-cache:' . $sink['option_name'],
                         'description' => sprintf(
                             /* translators: 1: option name, 2: sink message */
-                            __('Fileless Execution Sink in Object Cache "%1$s": %2$s', 'wcp-security-scanner'),
+                            __('Fileless Execution Sink in Object Cache "%1$s": %2$s', 'webcare-pro-security'),
                             $sink['option_name'],
                             $sink['message']
                         ),
@@ -194,7 +194,7 @@ class OptionScanner {
         $script_options = $wpdb->get_results($script_options_sql);
 
         if (!empty($script_options)) {
-            $html_analyzer = new \WcpScanner\Content\HTMLAnalyzer();
+            $html_analyzer = new \WebCareProScanner\Content\HTMLAnalyzer();
 
             foreach ($script_options as $s_opt) {
                 $raw_val = maybe_unserialize($s_opt->option_value);
@@ -216,7 +216,7 @@ class OptionScanner {
                             'file_path'   => $options_table . ':' . $s_opt->option_name,
                             'description' => sprintf(
                                 /* translators: 1: option name, 2: threat description */
-                                __('Injected redirect or script exploit detected in database option "%1$s": %2$s', 'wcp-security-scanner'),
+                                __('Injected redirect or script exploit detected in database option "%1$s": %2$s', 'webcare-pro-security'),
                                 $s_opt->option_name,
                                 $hit['desc']
                             ),

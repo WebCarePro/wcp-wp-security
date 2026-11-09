@@ -6,15 +6,15 @@
  * Analyzes .htaccess directives by grouping contiguous RewriteCond with RewriteRules,
  * audits inside vendor blocks without blind trust, and intercepts guest runtime wp_redirect hijacks.
  *
- * @package WcpScanner\Firewall
+ * @package WebCareProScanner\Firewall
  * @author  Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer
  */
 
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\WcpActivityLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -22,9 +22,9 @@ if (!defined('ABSPATH')) {
 
 final class HtaccessShield {
 
-    public const FLUSH_GRACE_TRANSIENT    = 'wcpscan_htaccess_flush_grace';
-    public const RUNTIME_REDIRECT_OPTION  = 'wcpscan_block_runtime_redirects';
-    public const APPROVED_HOSTS_OPTION    = 'wcpscan_redirect_approved_hosts';
+    public const FLUSH_GRACE_TRANSIENT    = 'webcareproscan_htaccess_flush_grace';
+    public const RUNTIME_REDIRECT_OPTION  = 'webcareproscan_block_runtime_redirects';
+    public const APPROVED_HOSTS_OPTION    = 'webcareproscan_redirect_approved_hosts';
 
     /**
      * Known vendor block identifiers for contextual auditing.
@@ -114,7 +114,7 @@ final class HtaccessShield {
         self::mark_legitimate_flush_window(300);
 
         // Automatically archive newly generated .htaccess if verified clean
-        if (class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')) {
             HtaccessVaultManager::snapshot_current_if_clean('rewrite_rules_flush');
         }
     }
@@ -134,7 +134,7 @@ final class HtaccessShield {
      * @return void
      */
     public static function handle_send_headers(): void {
-        if (!is_admin() && get_transient('wcpscan_emit_clear_site_data')) {
+        if (!is_admin() && get_transient('webcareproscan_emit_clear_site_data')) {
             if (!headers_sent()) {
                 header('Clear-Site-Data: "cache"');
             }
@@ -279,7 +279,7 @@ final class HtaccessShield {
                         'external_target' => $target_host,
                         'description'     => sprintf(
                             /* translators: 1: line number, 2: redirect type, 3: target URL */
-                            __('Line %1$d: Direct %2$s redirects visitors to external target "%3$s".', 'wcp-security-scanner'),
+                            __('Line %1$d: Direct %2$s redirects visitors to external target "%3$s".', 'webcare-pro-security'),
                             $line_num,
                             $redir_type,
                             $redir_target
@@ -305,7 +305,7 @@ final class HtaccessShield {
                         'block'       => $current_block,
                         'description' => sprintf(
                             /* translators: 1: line number, 2: directive */
-                            __('Line %1$d: Rogue PHP handler directive "%2$s" executes non-PHP static files as executable PHP code.', 'wcp-security-scanner'),
+                            __('Line %1$d: Rogue PHP handler directive "%2$s" executes non-PHP static files as executable PHP code.', 'webcare-pro-security'),
                             $line_num,
                             $line
                         ),
@@ -332,7 +332,7 @@ final class HtaccessShield {
                         'block'       => $current_block,
                         'description' => sprintf(
                             /* translators: 1: line number, 2: directive name, 3: file path */
-                            __('Line %1$d: Unauthorized %2$s directive injects external script "%3$s" into every PHP request.', 'wcp-security-scanner'),
+                            __('Line %1$d: Unauthorized %2$s directive injects external script "%3$s" into every PHP request.', 'webcare-pro-security'),
                             $line_num,
                             $directive_name,
                             $target_path
@@ -442,10 +442,10 @@ final class HtaccessShield {
                 'block'           => $current_block,
                 'description'     => sprintf(
                     /* translators: 1: line number, 2: target host, 3: cloaking factor */
-                    __('Line %1$d: Malicious cloaked redirect targeting external destination "%2$s" conditioned on %3$s.', 'wcp-security-scanner'),
+                    __('Line %1$d: Malicious cloaked redirect targeting external destination "%2$s" conditioned on %3$s.', 'webcare-pro-security'),
                     $line_num,
                     $target_host ?: $target,
-                    $referer_cloak ? __('Search Engine Referer', 'wcp-security-scanner') : __('Mobile / Crawler User-Agent', 'wcp-security-scanner')
+                    $referer_cloak ? __('Search Engine Referer', 'webcare-pro-security') : __('Mobile / Crawler User-Agent', 'webcare-pro-security')
                 ),
             ];
             return ['findings' => $findings];
@@ -466,7 +466,7 @@ final class HtaccessShield {
                 'block'           => $current_block,
                 'description'     => sprintf(
                     /* translators: 1: line number, 2: rewrite pattern, 3: destination host */
-                    __('Line %1$d: Catch-all rewrite pattern "%2$s" redirects all incoming traffic to external host "%3$s".', 'wcp-security-scanner'),
+                    __('Line %1$d: Catch-all rewrite pattern "%2$s" redirects all incoming traffic to external host "%3$s".', 'webcare-pro-security'),
                     $line_num,
                     $pattern,
                     $target_host
@@ -490,7 +490,7 @@ final class HtaccessShield {
                 'block'           => $current_block,
                 'description'     => sprintf(
                     /* translators: 1: line number, 2: external host */
-                    __('Line %1$d: RewriteRule redirects visitors to unapproved external host "%2$s".', 'wcp-security-scanner'),
+                    __('Line %1$d: RewriteRule redirects visitors to unapproved external host "%2$s".', 'webcare-pro-security'),
                     $line_num,
                     $target_host
                 ),
@@ -683,7 +683,7 @@ final class HtaccessShield {
         $attribution = sprintf('%s:%d', $offending_file, $offending_line);
 
         // Log forensic activity
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
             WcpActivityLogger::log(
                 'waf_runtime_redirect_intercepted',
                 'firewall',
@@ -698,12 +698,12 @@ final class HtaccessShield {
         }
 
         // Dispatch out-of-band notification
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             NotificationDispatcher::trigger('redirect_hack_detected', [
                 'severity' => 'critical',
                 'message'  => sprintf(
                     /* translators: 1: target destination, 2: attributed PHP file */
-                    __('Unauthorized guest runtime redirect intercepted by WCP Redirect Firewall: "%1$s" initiated by "%2$s".', 'wcp-security-scanner'),
+                    __('Unauthorized guest runtime redirect intercepted by WCP Redirect Firewall: "%1$s" initiated by "%2$s".', 'webcare-pro-security'),
                     $trimmed,
                     $attribution
                 ),

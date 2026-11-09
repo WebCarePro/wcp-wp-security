@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Filesystem;
+namespace WebCareProScanner\Filesystem;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\Malware\HeuristicEngine;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\Malware\HeuristicEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -21,7 +21,7 @@ class FileScanner {
         $this->permission_scanner = new PermissionScanner();
         $this->hasher = new FileHasher();
         $this->heuristic_engine = new HeuristicEngine();
-        $this->js_scanner = new \WcpScanner\Malware\JavaScriptSecurityScanner();
+        $this->js_scanner = new \WebCareProScanner\Malware\JavaScriptSecurityScanner();
     }
 
     /**
@@ -41,19 +41,19 @@ class FileScanner {
         // Self-Exclusion: Do not scan the scanner's own plugin files or tests
         $norm_path = str_replace('\\', '/', $file_path);
         // Exclude scanner's own plugin files
-        if (strpos($norm_path, '/plugins/wcp-security-scanner/') !== false) {
+        if (strpos($norm_path, '/plugins/webcare-pro-security/') !== false) {
             return $findings;
         }
 
         // Respect user-defined excluded paths / patterns
-        if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($norm_path)) {
+        if (class_exists('\\WebCareProScanner\\System\\SettingsManager') && \WebCareProScanner\System\SettingsManager::is_path_excluded($norm_path)) {
             return $findings;
         }
 
         // Uploads Cryptographic Hash Whitelist Check (0 database queries via local JSON registry):
         // If file resides in wp-content/uploads/ and matches an authentic verified file hash, skip heuristics and threat scans.
         if (strpos($norm_path, '/wp-content/uploads/') !== false) {
-            if (class_exists('\\WcpScanner\\Findings\\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::is_uploads_hash_whitelisted($file_path)) {
+            if (class_exists('\\WebCareProScanner\\Findings\\WhitelistManager') && \WebCareProScanner\Findings\WhitelistManager::is_uploads_hash_whitelisted($file_path)) {
                 return $findings;
             }
         }
@@ -76,14 +76,14 @@ class FileScanner {
         $norm_path = str_replace('\\', '/', $file_path);
         if (strpos($norm_path, '/wp-content/uploads/') !== false) {
             // Exclude plugin's internal secure storage (quarantine, logs, backups, fim-vault, etc.) and user exclusions
-            if (!preg_match('#/(wcp-security-scanner|wcp-scanner-quarantine|wcp-vault|wcp-waf|wcp-quarantine|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WcpScanner\System\SettingsManager::is_path_excluded($norm_path)) {
+            if (!preg_match('#/(wcp-security-scanner|wcp-scanner-quarantine|wcp-vault|wcp-waf|wcp-quarantine|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WebCareProScanner\System\SettingsManager::is_path_excluded($norm_path)) {
                 $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
                 $basename = strtolower(basename($file_path));
                 if (in_array($ext, ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar'], true)) {
                     // Check if harmless WordPress directory listing prevention placeholder
-                    if (($basename === 'index.php' || $basename === 'index.html' || $basename === 'index.htm') && \WcpScanner\System\SettingsManager::is_safe_directory_index($file_path)) {
+                    if (($basename === 'index.php' || $basename === 'index.html' || $basename === 'index.htm') && \WebCareProScanner\System\SettingsManager::is_safe_directory_index($file_path)) {
                         // Harmless directory silence placeholder, ignore
-                    } elseif (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($file_path)) {
+                    } elseif (\WebCareProScanner\System\SettingsManager::is_legitimate_uploads_cache_file($file_path)) {
                         // Legitimate verified plugin cache file (e.g. MailPoet Twig template cache) with 0 malware
                     } else {
                         $findings[] = new Finding([
@@ -146,7 +146,7 @@ class FileScanner {
         $findings = [];
 
         // 1. Core & Root Integrity Verification
-        $core_check = \WcpScanner\Integrity\ChecksumProvider::verify_core_file($file_path);
+        $core_check = \WebCareProScanner\Integrity\ChecksumProvider::verify_core_file($file_path);
         if ($core_check['status'] === 'modified') {
             $findings[] = new Finding([
                 'engine'      => 'integrity-core',
@@ -166,7 +166,7 @@ class FileScanner {
                 return $findings;
             }
             if ($basename_lower === '.htaccess') {
-                if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_safe_protective_htaccess($file_path)) {
+                if (class_exists('\\WebCareProScanner\\System\\SettingsManager') && \WebCareProScanner\System\SettingsManager::is_safe_protective_htaccess($file_path)) {
                     return $findings;
                 }
             }
@@ -193,7 +193,7 @@ class FileScanner {
         }
 
         // 2. Official Plugins Integrity Verification
-        $plugin_check = \WcpScanner\Integrity\ChecksumProvider::verify_plugin_file($file_path);
+        $plugin_check = \WebCareProScanner\Integrity\ChecksumProvider::verify_plugin_file($file_path);
         if ($plugin_check['status'] === 'modified') {
             $findings[] = new Finding([
                 'engine'      => 'integrity-plugin',
@@ -219,7 +219,7 @@ class FileScanner {
         }
 
         // 3. Official Themes Integrity Verification
-        $theme_check = \WcpScanner\Integrity\ChecksumProvider::verify_theme_file($file_path);
+        $theme_check = \WebCareProScanner\Integrity\ChecksumProvider::verify_theme_file($file_path);
         if ($theme_check['status'] === 'modified') {
             $findings[] = new Finding([
                 'engine'      => 'integrity-theme',

@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -190,7 +190,7 @@ class BotReconDefense {
             return false;
         }
 
-        $transient_key = 'wcpscan_bot_dns_' . md5($ip . '_' . $bot_key);
+        $transient_key = 'webcareproscan_bot_dns_' . md5($ip . '_' . $bot_key);
         $cached = get_transient($transient_key);
         if ($cached !== false) {
             return ($cached === 'genuine');
@@ -247,7 +247,7 @@ class BotReconDefense {
         }
 
         foreach ($cidrs as $cidr) {
-            if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::ip_in_range($ip, $cidr)) {
+            if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && FirewallEngine::ip_in_range($ip, $cidr)) {
                 return true;
             }
         }
@@ -314,7 +314,7 @@ class BotReconDefense {
         }
 
         // Validate via cached DNS PTR / Forward A record check
-        $transient_key = 'wcpscan_monitor_dns_' . md5($ip . '_' . $matched_key);
+        $transient_key = 'webcareproscan_monitor_dns_' . md5($ip . '_' . $matched_key);
         $cached = get_transient($transient_key);
         if ($cached !== false) {
             return ($cached === 'genuine');
@@ -619,13 +619,13 @@ class BotReconDefense {
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title><?php esc_html_e('Security Verification', 'wcp-security-scanner'); ?></title>
+            <title><?php esc_html_e('Security Verification', 'webcare-pro-security'); ?></title>
         </head>
         <body style="font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#f8fafc;">
             <div style="text-align:center;max-width:420px;padding:32px;background:#1e293b;border-radius:12px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
                 <div style="font-size:36px;margin-bottom:12px;">🛡️</div>
-                <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:600;"><?php esc_html_e('Browser Integrity Verification', 'wcp-security-scanner'); ?></h2>
-                <p id="wcp-status" style="color:#94a3b8;font-size:14px;margin:0 0 20px 0;line-height:1.5;"><?php esc_html_e('Verifying browser cryptographic environment to prevent automated scraping...', 'wcp-security-scanner'); ?></p>
+                <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:600;"><?php esc_html_e('Browser Integrity Verification', 'webcare-pro-security'); ?></h2>
+                <p id="wcp-status" style="color:#94a3b8;font-size:14px;margin:0 0 20px 0;line-height:1.5;"><?php esc_html_e('Verifying browser cryptographic environment to prevent automated scraping...', 'webcare-pro-security'); ?></p>
                 <div style="height:4px;width:100%;background:#334155;border-radius:2px;overflow:hidden;position:relative;">
                     <div style="height:100%;width:50%;background:#4f46e5;border-radius:2px;animation:wcpPulse 1.2s infinite ease-in-out;"></div>
                 </div>

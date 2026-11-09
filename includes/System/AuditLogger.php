@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -13,7 +13,7 @@ class AuditLogger {
     public function __construct() {
         $upload_dir = wp_upload_dir();
         // Dot-prefixed protected directory blocked by Nginx /\.(?!well-known).* rules
-        $this->log_dir = untrailingslashit($upload_dir['basedir']) . '/wcp-security-scanner/.logs';
+        $this->log_dir = untrailingslashit($upload_dir['basedir']) . '/webcare-pro-security/.logs';
         $this->log_file = $this->log_dir . '/audit.log.php';
     }
 
@@ -57,8 +57,8 @@ class AuditLogger {
 
     private function write_log($event_type, $message) {
         $timestamp = gmdate('Y-m-d H:i:s');
-        $raw_ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+        $raw_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
         $ip_address = filter_var($raw_ip, FILTER_VALIDATE_IP) ? $raw_ip : 'UNKNOWN';
         
@@ -92,7 +92,7 @@ class AuditLogger {
      * @param mixed  $message
      */
     public static function bridge_to_wcp_activity_logger($event_type, $message): void {
-        if (!class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+        if (!class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
             return;
         }
 
@@ -140,7 +140,7 @@ class AuditLogger {
             ];
         }
 
-        \WcpScanner\System\WcpActivityLogger::log($clean_action, $category, $severity, $details);
+        \WebCareProScanner\System\WcpActivityLogger::log($clean_action, $category, $severity, $details);
     }
 
     /**
@@ -181,18 +181,18 @@ class AuditLogger {
      */
     private static function map_event_to_severity(string $action): string {
         if (str_contains($action, 'failed') || str_contains($action, 'breach') || str_contains($action, 'quarantine') || str_contains($action, 'blocked') || str_contains($action, 'lockout') || str_contains($action, 'containment')) {
-            return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_WARNING;
+            return \WebCareProScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_WARNING;
         }
 
         if (str_contains($action, 'tamper') || str_contains($action, 'compromise') || str_contains($action, 'critical')) {
-            return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_CRITICAL;
+            return \WebCareProScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_CRITICAL;
         }
 
         if (str_contains($action, 'applied') || str_contains($action, 'removed') || str_contains($action, 'updated') || str_contains($action, 'switched') || str_contains($action, 'activated') || str_contains($action, 'deactivated') || str_contains($action, 'created') || str_contains($action, 'deleted')) {
-            return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_NOTICE;
+            return \WebCareProScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_NOTICE;
         }
 
-        return \WcpScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_INFO;
+        return \WebCareProScanner\System\ActivityLogs\ActivityEventSchema::SEVERITY_INFO;
     }
 
     public function log_user_login($user_login, $user) {
@@ -211,8 +211,8 @@ class AuditLogger {
         // Failed logins are security/firewall traffic events handled by WAF & Identity Sentinel
         // Write only to raw emergency audit.log if needed, but DO NOT bridge to WcpActivityLogger
         $timestamp = gmdate('Y-m-d H:i:s');
-        $raw_ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+        $raw_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
         $ip_address = filter_var($raw_ip, FILTER_VALIDATE_IP) ? $raw_ip : 'UNKNOWN';
 

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,7 +16,7 @@ class AIService {
                 if (!$status['is_available']) {
                     return [
                         'success' => false,
-                        'error'   => __('No active WordPress Native AI Connect client or plugin detected. You can install a compatible AI plugin like AI Engine or configure an API key below.', 'wcp-security-scanner'),
+                        'error'   => __('No active WordPress Native AI Connect client or plugin detected. You can install a compatible AI plugin like AI Engine or configure an API key below.', 'webcare-pro-security'),
                         'provider'=> 'wp_ai_connect',
                     ];
                 }
@@ -28,7 +28,7 @@ class AIService {
                     'success' => true,
                     'message' => sprintf(
                         /* translators: %s: AI engine name */
-                        __('WordPress Native AI Connect verified successfully (%s)!', 'wcp-security-scanner'),
+                        __('WordPress Native AI Connect verified successfully (%s)!', 'webcare-pro-security'),
                         $status['engine_name']
                     ),
                     'provider'=> 'wp_ai_connect',
@@ -42,7 +42,7 @@ class AIService {
                         'success' => true,
                         'message' => sprintf(
                             /* translators: %s: AI engine name */
-                            __('WordPress AI subsystem detected (%s) and ready for threat forensics.', 'wcp-security-scanner'),
+                            __('WordPress AI subsystem detected (%s) and ready for threat forensics.', 'webcare-pro-security'),
                             $status['engine_name']
                         ),
                         'provider'=> 'wp_ai_connect',
@@ -63,7 +63,7 @@ class AIService {
             if ($status['is_available']) {
                 return self::test_connection('wp_ai_connect', '', $model);
             }
-            return ['success' => false, 'error' => __('API key is required.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('API key is required.', 'webcare-pro-security')];
         }
 
         $prompt = 'Ping test. Reply with OK.';
@@ -73,7 +73,7 @@ class AIService {
             $response = self::call_provider($provider, $api_key, $model, 'You are an AI diagnostic tester.', $prompt, 0.1, 16, 6);
             return [
                 'success' => true,
-                'message' => __('AI connection established successfully!', 'wcp-security-scanner'),
+                'message' => __('AI connection established successfully!', 'webcare-pro-security'),
                 'provider'=> $provider,
                 'model'   => $model,
                 'preview' => trim(substr($response, 0, 100)),
@@ -119,7 +119,7 @@ class AIService {
                 $model = $ai_status['engine_slug'];
             } else {
                 // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
-                throw new \Exception(esc_html__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect WordPress Native AI Connect.', 'wcp-security-scanner'));
+                throw new \Exception(esc_html__('AI Provider API key is missing. Please configure it in Security Scanner Settings or connect WordPress Native AI Connect.', 'webcare-pro-security'));
             }
         }
 
@@ -130,7 +130,7 @@ class AIService {
 
         if (empty($code)) {
             // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
-            throw new \Exception(esc_html__('No code snippet provided for AI forensic analysis.', 'wcp-security-scanner'));
+            throw new \Exception(esc_html__('No code snippet provided for AI forensic analysis.', 'webcare-pro-security'));
         }
 
         // Limit code sent to avoid excessive token costs
@@ -200,7 +200,7 @@ class AIService {
             'slug'        => 'ai-engine',
             'author'      => 'Jordy Meow',
             'install_url' => admin_url('plugin-install.php?s=ai-engine&tab=search&type=term'),
-            'description' => __('The leading WordPress AI connector with 80,000+ active installs. Connects your WordPress site to OpenAI, Gemini, Claude, and local LLMs natively with unified APIs.', 'wcp-security-scanner'),
+            'description' => __('The leading WordPress AI connector with 80,000+ active installs. Connects your WordPress site to OpenAI, Gemini, Claude, and local LLMs natively with unified APIs.', 'webcare-pro-security'),
         ];
 
         $connectors_url = admin_url('options-connectors.php');
@@ -216,7 +216,7 @@ class AIService {
                 'connectors_url'      => $connectors_url,
                 'supported_models'    => ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gpt-6.1-sol', 'claude-sonnet-5-5'],
                 'preferred_model'     => 'gemini-3.5-flash-lite',
-                'description'         => __('WordPress core AI Client configured via the native Site Connectors screen.', 'wcp-security-scanner'),
+                'description'         => __('WordPress core AI Client configured via the native Site Connectors screen.', 'webcare-pro-security'),
             ];
         }
 
@@ -229,7 +229,7 @@ class AIService {
                 'detected_via'        => 'wp_ai_client() core function',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('WordPress native Core AI Client is active and connected. WCP Security Scanner can seamlessly run zero-key forensics through your WordPress AI infrastructure.', 'wcp-security-scanner'),
+                'details'             => __('WordPress native Core AI Client is active and connected. WCP Security Scanner can seamlessly run zero-key forensics through your WordPress AI infrastructure.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -243,7 +243,7 @@ class AIService {
                 'detected_via'        => 'wp_ai_run_ability() Core Abilities API',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('WordPress AI Abilities runtime detected. WCP Security Scanner can dispatch suspicious file forensics directly through registered site abilities.', 'wcp-security-scanner'),
+                'details'             => __('WordPress AI Abilities runtime detected. WCP Security Scanner can dispatch suspicious file forensics directly through registered site abilities.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -257,7 +257,7 @@ class AIService {
                 'detected_via'        => 'Meow_MWAI_Core plugin runtime',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('AI Engine plugin is active on your site. WCP Security Scanner is 100% compatible and will route malware de-obfuscation and code analysis through your AI Engine models.', 'wcp-security-scanner'),
+                'details'             => __('AI Engine plugin is active on your site. WCP Security Scanner is 100% compatible and will route malware de-obfuscation and code analysis through your AI Engine models.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -271,7 +271,7 @@ class AIService {
                 'detected_via'        => 'WP_AI_Connect plugin class',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('WP AI Connect plugin detected on your site. WCP Security Scanner is fully compatible and will route threat forensics through your connected models.', 'wcp-security-scanner'),
+                'details'             => __('WP AI Connect plugin detected on your site. WCP Security Scanner is fully compatible and will route threat forensics through your connected models.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -285,21 +285,21 @@ class AIService {
                 'detected_via'        => 'Jetpack AI Client',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('Jetpack AI subsystem detected. WCP Security Scanner is compatible with your Jetpack AI connected services.', 'wcp-security-scanner'),
+                'details'             => __('Jetpack AI subsystem detected. WCP Security Scanner is compatible with your Jetpack AI connected services.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
 
         // 7. Check Active Filters or Extensible Hooks
-        if (has_filter('wcpscan_ai_analyze_code') || has_filter('wp_ai_prompt')) {
+        if (has_filter('webcareproscan_ai_analyze_code') || has_filter('wp_ai_prompt')) {
             return [
                 'is_available'        => true,
                 'engine_name'         => 'Custom WordPress AI Hook Bridge',
                 'engine_slug'         => 'wp_custom_hook',
-                'detected_via'        => 'Active wcpscan_ai_analyze_code / wp_ai_prompt filter hook',
+                'detected_via'        => 'Active webcareproscan_ai_analyze_code / wp_ai_prompt filter hook',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => $has_connectors_api,
-                'details'             => __('A custom WordPress AI connector filter is registered on this site. WCP Security Scanner will dispatch code forensics directly through your custom AI pipeline.', 'wcp-security-scanner'),
+                'details'             => __('A custom WordPress AI connector filter is registered on this site. WCP Security Scanner will dispatch code forensics directly through your custom AI pipeline.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -319,7 +319,7 @@ class AIService {
                 'has_connectors_page' => $has_connectors_api,
                 'details'             => sprintf(
                     /* translators: %s: Comma-separated list of environment constants */
-                    __('Pre-configured AI keys (%s) detected in your WordPress environment constants. WCP Security Scanner can seamlessly leverage these credentials without extra setup.', 'wcp-security-scanner'),
+                    __('Pre-configured AI keys (%s) detected in your WordPress environment constants. WCP Security Scanner can seamlessly leverage these credentials without extra setup.', 'webcare-pro-security'),
                     implode(', ', $env_keys)
                 ),
                 'recommended_plugin'  => $recommended_plugin,
@@ -335,7 +335,7 @@ class AIService {
                 'detected_via'        => 'WordPress Core Connectors API (options-connectors.php)',
                 'connectors_url'      => $connectors_url,
                 'has_connectors_page' => true,
-                'details'             => __('WordPress Native AI Connectors (options-connectors.php) is available on your site, but no AI credentials are saved yet. You can configure Google Gemini, OpenAI, or Claude in WordPress.', 'wcp-security-scanner'),
+                'details'             => __('WordPress Native AI Connectors (options-connectors.php) is available on your site, but no AI credentials are saved yet. You can configure Google Gemini, OpenAI, or Claude in WordPress.', 'webcare-pro-security'),
                 'recommended_plugin'  => $recommended_plugin,
             ];
         }
@@ -348,7 +348,7 @@ class AIService {
             'detected_via'        => 'none',
             'connectors_url'      => $connectors_url,
             'has_connectors_page' => false,
-            'details'             => __('No WordPress Native AI Connect or AI connector plugin is currently active on this WordPress site.', 'wcp-security-scanner'),
+            'details'             => __('No WordPress Native AI Connect or AI connector plugin is currently active on this WordPress site.', 'webcare-pro-security'),
             'recommended_plugin'  => $recommended_plugin,
         ];
     }
@@ -368,7 +368,7 @@ class AIService {
      */
     public static function call_native_ai_connect(string $system, string $user, float $temp = 0.2, int $max_tokens = 1200, int $timeout = 45): string {
         // 1. Allow third-party plugins to intercept directly via filter
-        $filtered = apply_filters('wcpscan_ai_analyze_code', null, [
+        $filtered = apply_filters('webcareproscan_ai_analyze_code', null, [
             'system'      => $system,
             'prompt'      => $user,
             'temperature' => $temp,
@@ -471,7 +471,7 @@ class AIService {
 
         // 5. Generic WordPress AI prompt filter (used by various plugins)
         // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
-        $prompt_filtered = apply_filters('wcpscan_ai_prompt', null, $user, $system);
+        $prompt_filtered = apply_filters('webcareproscan_ai_prompt', null, $user, $system);
         if (!empty($prompt_filtered) && is_string($prompt_filtered)) {
             return $prompt_filtered;
         }
@@ -500,7 +500,7 @@ class AIService {
             return self::call_claude(constant('ANTHROPIC_API_KEY'), 'claude-sonnet-5-5', $system, $user, $temp, $max_tokens);
         }
 
-        throw new \Exception(esc_html__('WordPress Native AI Connect is not yet configured or did not return a response. Please ensure your WordPress AI connector plugin is active and has credentials configured.', 'wcp-security-scanner'));
+        throw new \Exception(esc_html__('WordPress Native AI Connect is not yet configured or did not return a response. Please ensure your WordPress AI connector plugin is active and has credentials configured.', 'webcare-pro-security'));
     }
 
     /**
@@ -684,7 +684,7 @@ class AIService {
      * Get available model registry for all providers
      */
     public static function get_available_models(): array {
-        $transient_key = 'wcpscan_ai_models_catalog';
+        $transient_key = 'webcareproscan_ai_models_catalog';
         $cached = get_transient($transient_key);
         if ($cached && is_array($cached)) {
             return $cached;
@@ -870,7 +870,7 @@ class AIService {
         }
 
         // Cache catalog for 24 hours
-        set_transient('wcpscan_ai_models_catalog', $catalog, 24 * HOUR_IN_SECONDS);
+        set_transient('webcareproscan_ai_models_catalog', $catalog, 24 * HOUR_IN_SECONDS);
 
         // Auto-upgrade user settings to latest defaults if requested and newer version exists
         if ($auto_upgrade_active_settings) {
@@ -892,7 +892,7 @@ class AIService {
 
         return [
             'success'     => true,
-            'message'     => __('AI Agent models updated to the latest available releases.', 'wcp-security-scanner'),
+            'message'     => __('AI Agent models updated to the latest available releases.', 'webcare-pro-security'),
             'catalog'     => $catalog,
             'discovered'  => $discovered,
             'updated_at'  => current_time('mysql'),

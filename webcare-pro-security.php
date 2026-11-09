@@ -23,27 +23,27 @@ define('WEBCAREPROSCAN_PATH', plugin_dir_path(__FILE__));
 define('WEBCAREPROSCAN_URL', plugin_dir_url(__FILE__));
 
 // Transition aliases for internal constants
-if (!defined('WCPSCAN_VERSION')) {
-    define('WCPSCAN_VERSION', WEBCAREPROSCAN_VERSION);
+if (!defined('WEBCAREPROSCAN_VERSION')) {
+    define('WEBCAREPROSCAN_VERSION', WEBCAREPROSCAN_VERSION);
 }
-if (!defined('WCPSCAN_FILE')) {
-    define('WCPSCAN_FILE', WEBCAREPROSCAN_FILE);
+if (!defined('WEBCAREPROSCAN_FILE')) {
+    define('WEBCAREPROSCAN_FILE', WEBCAREPROSCAN_FILE);
 }
-if (!defined('WCPSCAN_PATH')) {
-    define('WCPSCAN_PATH', WEBCAREPROSCAN_PATH);
+if (!defined('WEBCAREPROSCAN_PATH')) {
+    define('WEBCAREPROSCAN_PATH', WEBCAREPROSCAN_PATH);
 }
-if (!defined('WCPSCAN_URL')) {
-    define('WCPSCAN_URL', WEBCAREPROSCAN_URL);
+if (!defined('WEBCAREPROSCAN_URL')) {
+    define('WEBCAREPROSCAN_URL', WEBCAREPROSCAN_URL);
 }
 
-// Custom Autoloader for WebCareProScanner (primary) and WcpScanner (transition fallback)
+// Custom Autoloader for WebCareProScanner (primary) and WebCareProScanner (transition fallback)
 spl_autoload_register(function ($class) {
     $base_dir = WEBCAREPROSCAN_PATH . 'includes/';
     $relative_class = null;
 
     if (strncmp('WebCareProScanner\\', $class, 18) === 0) {
         $relative_class = substr($class, 18);
-    } elseif (strncmp('WcpScanner\\', $class, 11) === 0) {
+    } elseif (strncmp('WebCareProScanner\\', $class, 11) === 0) {
         $relative_class = substr($class, 11);
     }
 
@@ -84,30 +84,30 @@ add_action('init', function () {
 });
 
 // Composer Autoloader (if present)
-if (file_exists(WCPSCAN_PATH . 'vendor/autoload.php')) {
-    require_once WCPSCAN_PATH . 'vendor/autoload.php';
+if (file_exists(WEBCAREPROSCAN_PATH . 'vendor/autoload.php')) {
+    require_once WEBCAREPROSCAN_PATH . 'vendor/autoload.php';
 }
 
 // Activation & Deactivation hooks
 register_activation_hook(__FILE__, function () {
     // 1. Run Pre-Flight Environment & Cryptographic Requirements Gate
-    \WcpScanner\System\SystemReadinessChecker::run_activation_check();
+    \WebCareProScanner\System\SystemReadinessChecker::run_activation_check();
 
     // 2. Install Database Schema
-    \WcpScanner\Database\Migration::install();
+    \WebCareProScanner\Database\Migration::install();
 
     // 3. Queue First-Time Onboarding Wizard Redirect
-    if (!get_option('wcpscan_wizard_completed', false)) {
-        add_option('wcpscan_activation_redirect_wizard', true);
+    if (!get_option('webcareproscan_wizard_completed', false)) {
+        add_option('webcareproscan_activation_redirect_wizard', true);
     }
 });
 
 register_deactivation_hook(__FILE__, function () {
     // Notify via NotificationDispatcher before cleaning up crons (defensively caught so broken mailer plugins cannot block deactivation)
-    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+    if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
         try {
             $user = wp_get_current_user();
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_deactivate_attempt', [
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('plugin_deactivate_attempt', [
                 'severity' => 'high',
                 'message'  => sprintf(
                     /* translators: %s: WordPress user login name */
@@ -127,15 +127,15 @@ register_deactivation_hook(__FILE__, function () {
         }
     }
 
-    wp_clear_scheduled_hook('wcpscan_scheduled_scan_cron');
-    wp_clear_scheduled_hook('wcpscan_threat_intel_cron_sync');
-    wp_clear_scheduled_hook('wcpscan_backup_step_worker');
-    wp_clear_scheduled_hook('wcpscan_redirect_canary_event');
+    wp_clear_scheduled_hook('webcareproscan_scheduled_scan_cron');
+    wp_clear_scheduled_hook('webcareproscan_threat_intel_cron_sync');
+    wp_clear_scheduled_hook('webcareproscan_backup_step_worker');
+    wp_clear_scheduled_hook('webcareproscan_redirect_canary_event');
 
     // Emergency fail-safe: Instantly revoke any active JIT elevations so no user is left with permanent administrator privileges
-    $ephem_admins = get_option('wcpscan_ephemeral_admins', []);
+    $ephem_admins = get_option('webcareproscan_ephemeral_admins', []);
     if (is_array($ephem_admins) && !empty($ephem_admins)) {
-        $history = get_option('wcpscan_ephemeral_admin_history', []);
+        $history = get_option('webcareproscan_ephemeral_admin_history', []);
         if (!is_array($history)) {
             $history = [];
         }
@@ -145,7 +145,7 @@ register_deactivation_hook(__FILE__, function () {
             if ($u) {
                 $u->set_role($baseline_role);
             }
-            wp_clear_scheduled_hook('wcpscan_ephemeral_admin_expire', [(int) $uid]);
+            wp_clear_scheduled_hook('webcareproscan_ephemeral_admin_expire', [(int) $uid]);
             $entry['status'] = 'revoked';
             $entry['revoked_at'] = time();
             $entry['revoke_reason'] = 'Plugin deactivation triggered';
@@ -154,34 +154,34 @@ register_deactivation_hook(__FILE__, function () {
         if (count($history) > 100) {
             $history = array_slice($history, 0, 100);
         }
-        update_option('wcpscan_ephemeral_admin_history', $history);
-        delete_option('wcpscan_ephemeral_admins');
+        update_option('webcareproscan_ephemeral_admin_history', $history);
+        delete_option('webcareproscan_ephemeral_admins');
     }
 
     // Emergency fail-safe: Terminate all active temporary support sessions
-    $support_users = get_option('wcpscan_support_active_users', []);
+    $support_users = get_option('webcareproscan_support_active_users', []);
     if (is_array($support_users) && !empty($support_users)) {
         foreach ($support_users as $uid => $conf) {
-            delete_user_meta((int) $uid, 'wcpscan_is_temporary_support');
+            delete_user_meta((int) $uid, 'webcareproscan_is_temporary_support');
             if (class_exists('\\WP_Session_Tokens')) {
                 $manager = \WP_Session_Tokens::get_instance((int) $uid);
                 $manager->destroy_all();
             }
         }
-        delete_option('wcpscan_support_active_users');
+        delete_option('webcareproscan_support_active_users');
     }
 
     // Clean up Micro-WAF preloads and server security rules on deactivation to prevent site breakage
-    if (class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+    if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
         try {
-            \WcpScanner\Firewall\MicroWafCompiler::uninstall_preload();
+            \WebCareProScanner\Firewall\MicroWafCompiler::uninstall_preload();
         } catch (\Throwable $e) {
             // Fail safely
         }
     }
-    if (class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
+    if (class_exists('\\WebCareProScanner\\Firewall\\ServerSecurityEngine')) {
         try {
-            \WcpScanner\Firewall\ServerSecurityEngine::remove_rules();
+            \WebCareProScanner\Firewall\ServerSecurityEngine::remove_rules();
         } catch (\Throwable $e) {
             // Fail safely
         }
@@ -203,10 +203,10 @@ register_deactivation_hook(__FILE__, function () {
 // ensures the client website remains 100% online without interruption.
 // =========================================================================
 
-\WcpScanner\System\CrashGuard::register_protection();
+\WebCareProScanner\System\CrashGuard::register_protection();
 
-\WcpScanner\System\CrashGuard::run_guarded(function () {
+\WebCareProScanner\System\CrashGuard::run_guarded(function () {
     // Initialize the plugin early so WAF inspection hooks into plugins_loaded priority 0
-    \WcpScanner\Plugin::get_instance();
+    \WebCareProScanner\Plugin::get_instance();
 });
 

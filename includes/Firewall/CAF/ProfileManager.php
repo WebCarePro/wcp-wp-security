@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Defines and manages Context-Adaptive Firewall (CAF) smart protection profiles,
  * sensitivities, rate limit thresholds, and environmental adaptions.
  *
- * @package WcpScanner\Firewall\CAF
+ * @package WebCareProScanner\Firewall\CAF
  * @author  Mir Alamin (WebCare Pro)
  */
 final class ProfileManager {

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -9,15 +9,15 @@ if (!defined('ABSPATH')) {
  * WafFileLogger
  *
  * High-performance, filesystem-partitioned WAF incident logging engine.
- * Writes zero-SQL, append-only daily JSON files under /uploads/wcp-security-scanner/waf-logs/
+ * Writes zero-SQL, append-only daily JSON files under /uploads/webcare-pro-security/waf-logs/
  * to eliminate MySQL lockups and database connection exhaustion during brute-force attacks.
  */
 class WafFileLogger {
 
     const SUBDIR = 'wcp-security-scanner/.waf-logs';
-    const RETENTION_OPTION = 'wcpscan_waf_log_retention_days';
+    const RETENTION_OPTION = 'webcareproscan_waf_log_retention_days';
     const DEFAULT_RETENTION_DAYS = 60;
-    const CRON_HOOK = 'wcpscan_waf_log_retention_prune';
+    const CRON_HOOK = 'webcareproscan_waf_log_retention_prune';
 
     /**
      * Bootstrap WAF File Logger hooks and daily cron maintenance
@@ -127,20 +127,20 @@ class WafFileLogger {
      * @return string|null Incident ID or null if skipped
      */
     public static function log_incident(array $rule, string $action, ?string $incident_id = null): ?string {
-        $ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+        $ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
         // Red Team Synthetic Attack Drill probe suppression
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
-        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
+        if (!empty($drill_token) && class_exists('\\WebCareProScanner\\Security\\AttackSimulationEngine') && \WebCareProScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
             return null;
         }
 
         // Server Origin IP Safety: Never log server's own outbound IP
-        $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo')
-            ? \WcpScanner\System\ServerInfo::get_server_ip()
+        $server_ip = class_exists('\\WebCareProScanner\\System\\ServerInfo')
+            ? \WebCareProScanner\System\ServerInfo::get_server_ip()
             : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
         if (!empty($server_ip) && $ip === $server_ip) {
             return null;
@@ -745,7 +745,7 @@ class WafFileLogger {
      * @return int
      */
     public static function get_retention_days(): int {
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         if (isset($settings['waf_log_retention_days'])) {
             return (int) $settings['waf_log_retention_days'];
         }
@@ -764,9 +764,9 @@ class WafFileLogger {
             $days = self::DEFAULT_RETENTION_DAYS;
         }
         $updated = update_option(self::RETENTION_OPTION, $days);
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $settings['waf_log_retention_days'] = $days;
-        \WcpScanner\System\SettingsManager::save_settings($settings);
+        \WebCareProScanner\System\SettingsManager::save_settings($settings);
         return $updated || true;
     }
 

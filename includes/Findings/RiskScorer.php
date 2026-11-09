@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Findings;
+namespace WebCareProScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -100,7 +100,7 @@ class RiskScorer {
      */
     public function get_site_health(): array {
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         $issues = [];
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_issues)) === $table_issues) {

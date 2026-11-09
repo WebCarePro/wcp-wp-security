@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Quarantine;
+namespace WebCareProScanner\Quarantine;
 
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Firewall\WafFileLogger;
-use WcpScanner\Filesystem\PathValidator;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Firewall\WafFileLogger;
+use WebCareProScanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -21,9 +21,9 @@ if (!defined('ABSPATH')) {
  */
 class ReinfectionWatchdog {
 
-    public const OPTION_WATCHES   = 'wcpscan_reinfection_watches';
-    public const OPTION_ALERTS    = 'wcpscan_reinfection_alerts';
-    public const CRON_HOOK        = 'wcpscan_reinfection_hourly_check';
+    public const OPTION_WATCHES   = 'webcareproscan_reinfection_watches';
+    public const OPTION_ALERTS    = 'webcareproscan_reinfection_alerts';
+    public const CRON_HOOK        = 'webcareproscan_reinfection_hourly_check';
     public const WATCH_DURATION   = 259200; // 72 hours in seconds (72 * 3600)
 
     /**
@@ -38,7 +38,7 @@ class ReinfectionWatchdog {
         }
 
         // Automatic registration hooks when quarantine or auto-cure occurs
-        add_action('wcpscan_file_quarantined', [__CLASS__, 'on_file_quarantined'], 10, 2);
+        add_action('webcareproscan_file_quarantined', [__CLASS__, 'on_file_quarantined'], 10, 2);
     }
 
     /**
@@ -104,7 +104,7 @@ class ReinfectionWatchdog {
             'watch_id'=> $id,
             'message' => sprintf(
                 /* translators: %s: relative file path */
-                __('Surveillance activated: "%s" will be monitored for reinfection over the next 72 hours.', 'wcp-security-scanner'),
+                __('Surveillance activated: "%s" will be monitored for reinfection over the next 72 hours.', 'webcare-pro-security'),
                 $rel_path
             ),
         ];
@@ -162,7 +162,7 @@ class ReinfectionWatchdog {
                     $mtime = @filemtime($path) ?: $now;
                     $trigger_reason = sprintf(
                         /* translators: 1: file size in bytes, 2: formatted time */
-                        __('Deleted malware file resurrected on disk! Current size: %1$d bytes, modified at %2$s.', 'wcp-security-scanner'),
+                        __('Deleted malware file resurrected on disk! Current size: %1$d bytes, modified at %2$s.', 'webcare-pro-security'),
                         $size,
                         gmdate('Y-m-d H:i:s', $mtime)
                     );
@@ -176,7 +176,7 @@ class ReinfectionWatchdog {
                             $reinfection_triggered = true;
                             $trigger_reason = sprintf(
                                 /* translators: 1: clean hash, 2: current hash */
-                                __('Cleaned file was re-modified or injected! Expected hash %1$s, found %2$s.', 'wcp-security-scanner'),
+                                __('Cleaned file was re-modified or injected! Expected hash %1$s, found %2$s.', 'webcare-pro-security'),
                                 substr($watch['clean_hash'], 0, 12),
                                 substr($current_hash, 0, 12)
                             );
@@ -185,7 +185,7 @@ class ReinfectionWatchdog {
                 } else {
                     // Unexpected deletion of cleaned legitimate file
                     $reinfection_triggered = true;
-                    $trigger_reason = __('Cleaned file was unexpectedly removed or altered by external script.', 'wcp-security-scanner');
+                    $trigger_reason = __('Cleaned file was unexpectedly removed or altered by external script.', 'webcare-pro-security');
                 }
             }
 
@@ -219,7 +219,7 @@ class ReinfectionWatchdog {
                     sprintf('CRITICAL: 72-Hour Watchdog detected malware resurrection: %s (%s)', $watch['rel_path'], $trigger_reason)
                 );
 
-                if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
                     WafFileLogger::log_incident([
                         'category'    => 'malware_reinfection_loop',
                         'rule_id'     => 'wcp_watchdog_resurrection',
@@ -229,9 +229,9 @@ class ReinfectionWatchdog {
                 }
 
                 // Safely re-quarantine the resurrected/re-injected file to neutralize persistence loops
-                if (file_exists($path) && class_exists('\\WcpScanner\\Quarantine\\QuarantineManager')) {
+                if (file_exists($path) && class_exists('\\WebCareProScanner\\Quarantine\\QuarantineManager')) {
                     try {
-                        $qm = new \WcpScanner\Quarantine\QuarantineManager();
+                        $qm = new \WebCareProScanner\Quarantine\QuarantineManager();
                         $quarantine_res = $qm->quarantine_file($path);
                         if (!empty($quarantine_res['success'])) {
                             AuditLogger::log(
@@ -244,11 +244,11 @@ class ReinfectionWatchdog {
                     }
                 }
 
-                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('forensics_reinfection_resurrection', [
+                if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('forensics_reinfection_resurrection', [
                         'severity' => 'critical',
                         /* translators: 1: monitored file relative path, 2: trigger reason */
-                        'message'  => sprintf(__('CRITICAL 72-Hour Watchdog: Malware resurrection loop intercepted on "%1$s": %2$s', 'wcp-security-scanner'), $watch['rel_path'], $trigger_reason),
+                        'message'  => sprintf(__('CRITICAL 72-Hour Watchdog: Malware resurrection loop intercepted on "%1$s": %2$s', 'webcare-pro-security'), $watch['rel_path'], $trigger_reason),
                         'details'  => [
                             'Monitored Path' => $watch['rel_path'],
                             'Watch Reason'   => $watch['reason'] ?? 'remediated_malware',
@@ -256,7 +256,7 @@ class ReinfectionWatchdog {
                             'Watch ID'       => $id,
                         ],
                     ]);
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
                         'threat_count' => 1,
                         'message'      => sprintf('CRITICAL: 72-Hour Watchdog detected malware resurrection on %s: %s', $watch['rel_path'], $trigger_reason),
                     ]);

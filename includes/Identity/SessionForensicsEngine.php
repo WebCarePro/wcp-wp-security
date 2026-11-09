@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Identity;
+namespace WebCareProScanner\Identity;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Firewall\FirewallEngine;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Firewall\FirewallEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -20,9 +20,9 @@ if (!defined('ABSPATH')) {
  */
 class SessionForensicsEngine {
 
-    const OPTION_SETTINGS      = 'wcpscan_identity_forensics_settings';
-    const OPTION_TRAVEL_ALERTS = 'wcpscan_impossible_travel_alerts';
-    const META_SESSION_FINGERPRINTS = 'wcpscan_session_fingerprints';
+    const OPTION_SETTINGS      = 'webcareproscan_identity_forensics_settings';
+    const OPTION_TRAVEL_ALERTS = 'webcareproscan_impossible_travel_alerts';
+    const META_SESSION_FINGERPRINTS = 'webcareproscan_session_fingerprints';
 
     /**
      * Bootstrap Session Forensics Hooks.
@@ -69,9 +69,9 @@ class SessionForensicsEngine {
         update_option(self::OPTION_SETTINGS, $updated);
 
         // Audit Trail: Log Session Sentinel policy change
-        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'session_forensics_settings_updated',
                 'settings',
                 [
@@ -241,11 +241,11 @@ class SessionForensicsEngine {
                         )
                     );
 
-                    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                        \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_session_hijack_flag', [
+                    if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                        \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_session_hijack_flag', [
                             'severity' => 'high',
                             /* translators: 1: username */
-                            'message'  => sprintf(__('Session IP/User-Agent shift detected on active session for user "%1$s". Session auto-terminated.', 'wcp-security-scanner'), $user->user_login),
+                            'message'  => sprintf(__('Session IP/User-Agent shift detected on active session for user "%1$s". Session auto-terminated.', 'webcare-pro-security'), $user->user_login),
                             'details'  => [
                                 'Affected User'   => $user->user_login,
                                 'Original Agent'  => substr($fingerprints[$token_key]['user_agent'] ?? '', 0, 60),
@@ -315,11 +315,11 @@ class SessionForensicsEngine {
             )
         );
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_impossible_travel_flag', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_impossible_travel_flag', [
                 'severity' => 'critical',
                 /* translators: 1: username, 2: new country, 3: previous country, 4: minutes */
-                'message'  => sprintf(__('Impossible Geo-Velocity Travel detected for user "%1$s": Authenticated from %2$s within %4$d minutes of session in %3$s.', 'wcp-security-scanner'), $alert_data['user_login'] ?? 'user', $alert_data['new_country'] ?? '', $alert_data['prev_country'] ?? '', (int) ($alert_data['delta_minutes'] ?? 0)),
+                'message'  => sprintf(__('Impossible Geo-Velocity Travel detected for user "%1$s": Authenticated from %2$s within %4$d minutes of session in %3$s.', 'webcare-pro-security'), $alert_data['user_login'] ?? 'user', $alert_data['new_country'] ?? '', $alert_data['prev_country'] ?? '', (int) ($alert_data['delta_minutes'] ?? 0)),
                 'details'  => [
                     'User Account'   => $alert_data['user_login'] ?? 'user',
                     'Origin Location'=> ($alert_data['prev_country'] ?? 'Unknown') . ' (' . ($alert_data['prev_ip'] ?? '') . ')',
@@ -471,7 +471,7 @@ class SessionForensicsEngine {
 
         return [
             'success' => true,
-            'message' => __('Session was successfully revoked and terminated.', 'wcp-security-scanner'),
+            'message' => __('Session was successfully revoked and terminated.', 'webcare-pro-security'),
         ];
     }
 
@@ -493,7 +493,7 @@ class SessionForensicsEngine {
 
         return [
             'success' => true,
-            'message' => __('All sessions for this user have been terminated.', 'wcp-security-scanner'),
+            'message' => __('All sessions for this user have been terminated.', 'webcare-pro-security'),
         ];
     }
 
@@ -593,8 +593,8 @@ class SessionForensicsEngine {
      * Safe client IP resolution with FirewallEngine proxy awareness.
      */
     private static function get_client_ip(): string {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            return \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            return \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
         }
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
             return sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));

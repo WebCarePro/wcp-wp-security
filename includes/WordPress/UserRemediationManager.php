@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -22,12 +22,12 @@ class UserRemediationManager {
 
     private $backup_dir;
 
-    const DISMISSED_BACKUPS_OPTION = 'wcpscan_dismissed_user_backups';
+    const DISMISSED_BACKUPS_OPTION = 'webcareproscan_dismissed_user_backups';
 
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
+        $this->backup_dir = $base . '/webcare-pro-security/.backups/remediation';
         $this->ensure_backup_directory();
     }
 
@@ -137,14 +137,14 @@ class UserRemediationManager {
 
         // Prevent demoting currently authenticated user if they are an administrator
         if ($user_id === get_current_user_id() && in_array('administrator', (array) $user->roles, true) && $target_role !== 'administrator') {
-            return ['success' => false, 'error' => __('Cannot demote the currently logged in administrator account. Please update your password instead.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('Cannot demote the currently logged in administrator account. Please update your password instead.', 'webcare-pro-security')];
         }
 
         // Protect primary site administrator if it is the only admin
         if (in_array('administrator', (array) $user->roles, true) && $target_role !== 'administrator' && function_exists('get_users')) {
             $admin_count = count(get_users(['role' => 'administrator']));
             if ($admin_count <= 1) {
-                return ['success' => false, 'error' => __('Cannot demote the only remaining Administrator on this website.', 'wcp-security-scanner')];
+                return ['success' => false, 'error' => __('Cannot demote the only remaining Administrator on this website.', 'webcare-pro-security')];
             }
         }
 
@@ -171,7 +171,7 @@ class UserRemediationManager {
             'backup_file' => $backup_file,
             'message'     => sprintf(
                 /* translators: 1: username, 2: user ID, 3: new role */
-                __('User \'%1$s\' (ID #%2$d) assigned role \'%3$s\' successfully.', 'wcp-security-scanner'),
+                __('User \'%1$s\' (ID #%2$d) assigned role \'%3$s\' successfully.', 'webcare-pro-security'),
                 $user->user_login,
                 $user_id,
                 $target_role
@@ -237,7 +237,7 @@ class UserRemediationManager {
             'backup_file'   => $backup_file,
             'message'       => sprintf(
                 /* translators: 1: number of capabilities, 2: username, 3: role */
-                __('Stripped %1$d unauthorized capability entries from user \'%2$s\'. Role preserved as \'%3$s\'.', 'wcp-security-scanner'),
+                __('Stripped %1$d unauthorized capability entries from user \'%2$s\'. Role preserved as \'%3$s\'.', 'webcare-pro-security'),
                 count($stripped_caps),
                 $user->user_login,
                 $primary_role
@@ -296,7 +296,7 @@ class UserRemediationManager {
             'backup_file' => $backup_file,
             'message'     => sprintf(
                 /* translators: 1: username, 2: user ID, 3: backup file name */
-                __('User \'%1$s\' (ID #%2$d) deleted successfully. Auto-backup snapshot saved as %3$s.', 'wcp-security-scanner'),
+                __('User \'%1$s\' (ID #%2$d) deleted successfully. Auto-backup snapshot saved as %3$s.', 'webcare-pro-security'),
                 $user->user_login,
                 $user_id,
                 $backup_file
@@ -319,9 +319,9 @@ class UserRemediationManager {
             $base = untrailingslashit($uploads['basedir']);
             $candidate_dirs = [
                 $this->backup_dir,
-                $base . '/wcp-security-scanner/.backups/remediation',
-                $base . '/wcp-security-scanner/.backups',
-                $base . '/wcp-security-scanner/transactions',
+                $base . '/webcare-pro-security/.backups/remediation',
+                $base . '/webcare-pro-security/.backups',
+                $base . '/webcare-pro-security/transactions',
                 $base . '/wcp-security-scanner',
                 $base . '/wcp-scanner-quarantine/transactions',
                 $base . '/wcp-scanner-quarantine',
@@ -336,14 +336,14 @@ class UserRemediationManager {
 
         if (!file_exists($filepath)) {
             /* translators: %s: backup file name */
-            return ['success' => false, 'error' => sprintf(__('User backup file not found: %s', 'wcp-security-scanner'), basename($backup_file))];
+            return ['success' => false, 'error' => sprintf(__('User backup file not found: %s', 'webcare-pro-security'), basename($backup_file))];
         }
 
         $raw = @file_get_contents($filepath);
         $snapshot = json_decode((string) $raw, true);
 
         if (!is_array($snapshot) || empty($snapshot['user']) || !is_array($snapshot['user'])) {
-            return ['success' => false, 'error' => __('Invalid or corrupted user backup snapshot.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('Invalid or corrupted user backup snapshot.', 'webcare-pro-security')];
         }
 
         $user_row = $snapshot['user'];
@@ -351,7 +351,7 @@ class UserRemediationManager {
         $user_id = (int) ($user_row['ID'] ?? 0);
 
         if ($user_id <= 0) {
-            return ['success' => false, 'error' => __('Invalid user ID in backup snapshot.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('Invalid user ID in backup snapshot.', 'webcare-pro-security')];
         }
 
         $users_table    = $wpdb->prefix . 'users';
@@ -441,7 +441,7 @@ class UserRemediationManager {
             'user_email'  => $user_row['user_email'],
             'message'     => sprintf(
                 /* translators: 1: username, 2: user ID */
-                __('User account \'%1$s\' (ID #%2$d) restored successfully with full administrator capabilities and credentials.', 'wcp-security-scanner'),
+                __('User account \'%1$s\' (ID #%2$d) restored successfully with full administrator capabilities and credentials.', 'webcare-pro-security'),
                 $user_row['user_login'],
                 $user_id
             ),
@@ -459,9 +459,9 @@ class UserRemediationManager {
 
         $candidate_dirs = array_unique([
             $this->backup_dir,
-            $base . '/wcp-security-scanner/.backups/remediation',
-            $base . '/wcp-security-scanner/.backups',
-            $base . '/wcp-security-scanner/transactions',
+            $base . '/webcare-pro-security/.backups/remediation',
+            $base . '/webcare-pro-security/.backups',
+            $base . '/webcare-pro-security/transactions',
             $base . '/wcp-security-scanner',
             $base . '/wcp-scanner-quarantine/transactions',
             $base . '/wcp-scanner-quarantine',
@@ -649,7 +649,7 @@ class UserRemediationManager {
     public function delete_backup_file(string $backup_file): array {
         $filename = basename(sanitize_file_name($backup_file));
         if (empty($filename) || strpos($filename, 'user_') !== 0 || substr($filename, -5) !== '.json') {
-            return ['success' => false, 'error' => __('Invalid backup file name.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('Invalid backup file name.', 'webcare-pro-security')];
         }
 
         $backups = $this->list_user_backups();
@@ -662,7 +662,7 @@ class UserRemediationManager {
         }
 
         if (!$target || empty($target['filepath']) || !file_exists($target['filepath'])) {
-            return ['success' => false, 'error' => __('Backup snapshot file not found on disk.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('Backup snapshot file not found on disk.', 'webcare-pro-security')];
         }
 
         $deleted = wp_delete_file($target['filepath']);
@@ -685,7 +685,7 @@ class UserRemediationManager {
         return [
             'success' => true,
             /* translators: %s: backup file name */
-            'message' => sprintf(__('Permanently deleted backup snapshot %s.', 'wcp-security-scanner'), $filename),
+            'message' => sprintf(__('Permanently deleted backup snapshot %s.', 'webcare-pro-security'), $filename),
         ];
     }
 
@@ -726,7 +726,7 @@ class UserRemediationManager {
             }
         }
         /* translators: %d: user ID */
-        return ['success' => false, 'error' => sprintf(__('No backup snapshot found for user ID #%d.', 'wcp-security-scanner'), $user_id)];
+        return ['success' => false, 'error' => sprintf(__('No backup snapshot found for user ID #%d.', 'webcare-pro-security'), $user_id)];
     }
 
     /**
@@ -753,7 +753,7 @@ class UserRemediationManager {
                 $restored[] = $b['user_login'];
             } else {
                 /* translators: 1: username, 2: error message */
-                $errors[] = sprintf(__('Failed to restore %1$s: %2$s', 'wcp-security-scanner'), $b['user_login'], $res['error'] ?? '');
+                $errors[] = sprintf(__('Failed to restore %1$s: %2$s', 'webcare-pro-security'), $b['user_login'], $res['error'] ?? '');
             }
         }
 
@@ -762,7 +762,7 @@ class UserRemediationManager {
             'restored' => $restored,
             'errors'   => $errors,
             /* translators: %d: number of users */
-            'message'  => sprintf(__('Restored %d user accounts from backup vault.', 'wcp-security-scanner'), count($restored)),
+            'message'  => sprintf(__('Restored %d user accounts from backup vault.', 'webcare-pro-security'), count($restored)),
         ];
     }
 
@@ -777,7 +777,7 @@ class UserRemediationManager {
         global $wpdb;
 
         if ($orphaned_author_id <= 0) {
-            return ['success' => false, 'error' => __('Invalid orphaned author ID.', 'wcp-security-scanner')];
+            return ['success' => false, 'error' => __('Invalid orphaned author ID.', 'webcare-pro-security')];
         }
 
         if (empty($target_user_id)) {
@@ -793,7 +793,7 @@ class UserRemediationManager {
         $target_user = get_userdata($target_user_id);
         if (!$target_user) {
             /* translators: %d: user ID */
-            return ['success' => false, 'error' => sprintf(__('Target user ID #%d not found.', 'wcp-security-scanner'), $target_user_id)];
+            return ['success' => false, 'error' => sprintf(__('Target user ID #%d not found.', 'webcare-pro-security'), $target_user_id)];
         }
 
         $posts_table = $wpdb->posts;
@@ -810,7 +810,7 @@ class UserRemediationManager {
                 'reassigned_count' => 0,
                 'target_user_id' => $target_user_id,
                 'target_user_login' => $target_user->user_login,
-                'message' => __('No posts found matching this orphaned author ID.', 'wcp-security-scanner'),
+                'message' => __('No posts found matching this orphaned author ID.', 'webcare-pro-security'),
             ];
         }
 
@@ -833,7 +833,7 @@ class UserRemediationManager {
             'reassigned_count' => $count,
             'message' => sprintf(
                 /* translators: 1: number of posts, 2: author ID, 3: target user display name, 4: target user ID */
-                __('Successfully reassigned %1$d post(s) from missing author #%2$d to %3$s (#%4$d).', 'wcp-security-scanner'),
+                __('Successfully reassigned %1$d post(s) from missing author #%2$d to %3$s (#%4$d).', 'webcare-pro-security'),
                 $count,
                 $orphaned_author_id,
                 $target_user->display_name ?: $target_user->user_login,

@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\Filesystem\FileHasher;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\Filesystem\FileHasher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -110,7 +110,7 @@ class CoreIntegrity {
         $normalized_abs = str_replace('\\', '/', rtrim(ABSPATH, '/\\') . '/');
 
         // Check if user has excluded paths configured
-        $has_settings_manager = class_exists('\\WcpScanner\\System\\SettingsManager');
+        $has_settings_manager = class_exists('\\WebCareProScanner\\System\\SettingsManager');
 
         foreach ($core_dirs as $core_dir) {
             if (!is_dir($core_dir)) {
@@ -137,7 +137,7 @@ class CoreIntegrity {
                         continue;
                     }
 
-                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($normalized_item)) {
+                    if ($has_settings_manager && \WebCareProScanner\System\SettingsManager::is_path_excluded($normalized_item)) {
                         continue;
                     }
 
@@ -194,7 +194,7 @@ class CoreIntegrity {
                     }
 
                     // Respect user-defined excluded paths / patterns
-                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($normalized_item_path)) {
+                    if ($has_settings_manager && \WebCareProScanner\System\SettingsManager::is_path_excluded($normalized_item_path)) {
                         continue;
                     }
 
@@ -245,7 +245,7 @@ class CoreIntegrity {
                                     $child_full_path = $child_item->getPathname();
                                     $normalized_child = str_replace('\\', '/', $child_full_path);
 
-                                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($normalized_child)) {
+                                    if ($has_settings_manager && \WebCareProScanner\System\SettingsManager::is_path_excluded($normalized_child)) {
                                         continue;
                                     }
 
@@ -263,7 +263,7 @@ class CoreIntegrity {
                                         if ($child_ext === 'conf') {
                                             continue;
                                         }
-                                        if ($child_item->getBasename() === 'index.php' && \WcpScanner\System\SettingsManager::is_safe_directory_index($child_full_path)) {
+                                        if ($child_item->getBasename() === 'index.php' && \WebCareProScanner\System\SettingsManager::is_safe_directory_index($child_full_path)) {
                                             continue;
                                         }
                                     }

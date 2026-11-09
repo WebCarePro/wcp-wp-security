@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -31,7 +31,7 @@ class PluginIntegrity {
         $plugins = get_plugins();
 
         $processed_slugs = [];
-        $scanner_basename = plugin_basename(WCPSCAN_FILE);
+        $scanner_basename = plugin_basename(WEBCAREPROSCAN_FILE);
         $scanner_slug = dirname($scanner_basename);
 
         // Fetch WordPress official update transient to resolve canonical slugs
@@ -44,7 +44,7 @@ class PluginIntegrity {
             // Exclude scanner's own code
             if (
                 $plugin_dir_name === $scanner_slug ||
-                $plugin_dir_name === 'wcp-security-scanner' ||
+                $plugin_dir_name === 'webcare-pro-security' ||
                 strpos($plugin_file, 'wcp-') === 0
             ) {
                 continue;

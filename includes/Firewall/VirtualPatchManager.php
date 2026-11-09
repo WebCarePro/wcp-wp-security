@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Cloudflare\CloudflareService;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Cloudflare\CloudflareService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
  */
 class VirtualPatchManager {
 
-    const OPTION_PATCHES = 'wcpscan_virtual_patches';
+    const OPTION_PATCHES = 'webcareproscan_virtual_patches';
     const CF_TAG = '[WCP Virtual Patch]';
 
     /**
@@ -180,7 +180,7 @@ class VirtualPatchManager {
 
         if (!$patch) {
             /* translators: %s: patch ID */
-            return ['success' => false, 'message' => sprintf(__('Unknown patch template: %s', 'wcp-security-scanner'), $patch_id)];
+            return ['success' => false, 'message' => sprintf(__('Unknown patch template: %s', 'webcare-pro-security'), $patch_id)];
         }
 
         $active = self::get_active_patches();
@@ -202,20 +202,20 @@ class VirtualPatchManager {
                 $patch['deployed_to_cloudflare'] = true;
                 $patch['cloudflare_rule_id'] = $cf_res['rule_id'] ?? null;
                 $cf_deployed = true;
-                $cf_msg = __(' (Active on Cloudflare Global Edge + PHP WAF Lite)', 'wcp-security-scanner');
+                $cf_msg = __(' (Active on Cloudflare Global Edge + PHP WAF Lite)', 'webcare-pro-security');
             } else {
-                $cf_msg = ' (' . __('Local PHP WAF Lite Active; Cloudflare Edge: ', 'wcp-security-scanner') . ($cf_res['message'] ?? 'Not connected') . ')';
+                $cf_msg = ' (' . __('Local PHP WAF Lite Active; Cloudflare Edge: ', 'webcare-pro-security') . ($cf_res['message'] ?? 'Not connected') . ')';
             }
         } else {
-            $cf_msg = __(' (Active on Local PHP WAF Lite)', 'wcp-security-scanner');
+            $cf_msg = __(' (Active on Local PHP WAF Lite)', 'webcare-pro-security');
         }
 
         $active[$patch_id] = $patch;
         update_option(self::OPTION_PATCHES, $active, false);
 
         // Record Audit Log with Rich Details
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice('virtual_patch_applied', 'firewall', [
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice('virtual_patch_applied', 'firewall', [
                 'patch_id'   => $patch_id,
                 'title'      => $patch['title'] ?? $patch_id,
                 'cve_id'     => $patch['cve_id'] ?? $patch_id,
@@ -235,7 +235,7 @@ class VirtualPatchManager {
                 ],
                 'description' => sprintf(
                     /* translators: 1: patch title, 2: patch ID, 3: deployment message */
-                    __('Activated Virtual Shield "%1$s" (%2$s)%3$s', 'wcp-security-scanner'),
+                    __('Activated Virtual Shield "%1$s" (%2$s)%3$s', 'webcare-pro-security'),
                     $patch['title'],
                     $patch_id,
                     $cf_msg
@@ -247,7 +247,7 @@ class VirtualPatchManager {
             'virtual_patch_applied',
             sprintf(
                 /* translators: 1: patch title, 2: patch ID, 3: deployment message */
-                __('Applied Virtual Patch "%1$s" (%2$s)%3$s', 'wcp-security-scanner'),
+                __('Applied Virtual Patch "%1$s" (%2$s)%3$s', 'webcare-pro-security'),
                 $patch['title'],
                 $patch_id,
                 $cf_msg
@@ -258,7 +258,7 @@ class VirtualPatchManager {
             'success'                => true,
             'message'                => sprintf(
                 /* translators: 1: patch title, 2: deployment message */
-                __('Virtual Patch "%1$s" applied successfully!%2$s', 'wcp-security-scanner'),
+                __('Virtual Patch "%1$s" applied successfully!%2$s', 'webcare-pro-security'),
                 $patch['title'],
                 $cf_msg
             ),
@@ -276,7 +276,7 @@ class VirtualPatchManager {
     public static function remove_patch(string $patch_id): array {
         $active = self::get_active_patches();
         if (!isset($active[$patch_id])) {
-            return ['success' => false, 'message' => __('Virtual Patch is not active.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Virtual Patch is not active.', 'webcare-pro-security')];
         }
 
         $patch = $active[$patch_id];
@@ -289,8 +289,8 @@ class VirtualPatchManager {
         unset($active[$patch_id]);
         update_option(self::OPTION_PATCHES, $active, false);
 
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice('virtual_patch_deactivated', 'firewall', [
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice('virtual_patch_deactivated', 'firewall', [
                 'patch_id'   => $patch_id,
                 'title'      => $patch['title'] ?? $patch_id,
                 'cve_id'     => $patch['cve_id'] ?? $patch_id,
@@ -305,7 +305,7 @@ class VirtualPatchManager {
                 ],
                 'description' => sprintf(
                     /* translators: 1: patch title, 2: patch ID */
-                    __('Deactivated Virtual Shield "%1$s" (%2$s)', 'wcp-security-scanner'),
+                    __('Deactivated Virtual Shield "%1$s" (%2$s)', 'webcare-pro-security'),
                     $patch['title'],
                     $patch_id
                 ),
@@ -316,7 +316,7 @@ class VirtualPatchManager {
             'virtual_patch_removed',
             sprintf(
                 /* translators: 1: patch title, 2: patch ID */
-                __('Removed Virtual Patch "%1$s" (%2$s)', 'wcp-security-scanner'),
+                __('Removed Virtual Patch "%1$s" (%2$s)', 'webcare-pro-security'),
                 $patch['title'],
                 $patch_id
             )
@@ -325,7 +325,7 @@ class VirtualPatchManager {
         return [
             'success' => true,
             /* translators: %s: patch title */
-            'message' => sprintf(__('Virtual Patch "%s" has been deactivated.', 'wcp-security-scanner'), $patch['title']),
+            'message' => sprintf(__('Virtual Patch "%s" has been deactivated.', 'webcare-pro-security'), $patch['title']),
         ];
     }
 
@@ -335,8 +335,8 @@ class VirtualPatchManager {
      * @return bool
      */
     public static function is_authenticated_administrator(): bool {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            return \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator();
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            return \WebCareProScanner\Firewall\FirewallEngine::is_authenticated_administrator();
         }
 
         if (function_exists('is_user_logged_in') && function_exists('current_user_can')) {
@@ -386,8 +386,8 @@ class VirtualPatchManager {
             // CAF 2.0: Skip virtual patches for components/plugins not currently installed or active
             $target_slug = strtolower((string) ($patch['target'] ?? ($patch['component'] ?? '')));
             if (!empty($target_slug) && !in_array($target_slug, ['core', 'wordpress-core', 'generic', 'server', 'php'], true)) {
-                if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor') &&
-                    !\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::is_plugin_slug_active($target_slug)) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor') &&
+                    !\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::is_plugin_slug_active($target_slug)) {
                     continue;
                 }
             }
@@ -494,18 +494,18 @@ class VirtualPatchManager {
         $token = $settings['cloudflare_api_token'] ?? '';
 
         if (empty($zone_id) || empty($token)) {
-            return ['success' => false, 'message' => __('Cloudflare API Token or Zone ID is not configured in Settings.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare API Token or Zone ID is not configured in Settings.', 'webcare-pro-security')];
         }
 
-        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-            $cf_file = defined('WCPSCAN_PATH') ? WCPSCAN_PATH . 'includes/Cloudflare/CloudflareService.php' : dirname(__DIR__) . '/Cloudflare/CloudflareService.php';
+        if (!class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
+            $cf_file = defined('WEBCAREPROSCAN_PATH') ? WEBCAREPROSCAN_PATH . 'includes/Cloudflare/CloudflareService.php' : dirname(__DIR__) . '/Cloudflare/CloudflareService.php';
             if (file_exists($cf_file)) {
                 require_once $cf_file;
             }
         }
 
-        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-            return ['success' => false, 'message' => __('Cloudflare integration service is unavailable.', 'wcp-security-scanner')];
+        if (!class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
+            return ['success' => false, 'message' => __('Cloudflare integration service is unavailable.', 'webcare-pro-security')];
         }
 
         // Fetch existing ruleset
@@ -547,11 +547,11 @@ class VirtualPatchManager {
             return [
                 'success' => true,
                 'rule_id' => $patch['patch_id'],
-                'message' => __('Cloudflare Edge Rule synced successfully.', 'wcp-security-scanner'),
+                'message' => __('Cloudflare Edge Rule synced successfully.', 'webcare-pro-security'),
             ];
         }
 
-        $err = $put_res['errors'][0]['message'] ?? __('Cloudflare API rejected rule expression.', 'wcp-security-scanner');
+        $err = $put_res['errors'][0]['message'] ?? __('Cloudflare API rejected rule expression.', 'webcare-pro-security');
         return ['success' => false, 'message' => $err];
     }
 
@@ -565,14 +565,14 @@ class VirtualPatchManager {
             return false;
         }
 
-        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-            $cf_file = defined('WCPSCAN_PATH') ? WCPSCAN_PATH . 'includes/Cloudflare/CloudflareService.php' : dirname(__DIR__) . '/Cloudflare/CloudflareService.php';
+        if (!class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
+            $cf_file = defined('WEBCAREPROSCAN_PATH') ? WEBCAREPROSCAN_PATH . 'includes/Cloudflare/CloudflareService.php' : dirname(__DIR__) . '/Cloudflare/CloudflareService.php';
             if (file_exists($cf_file)) {
                 require_once $cf_file;
             }
         }
 
-        if (!class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+        if (!class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
             return false;
         }
 

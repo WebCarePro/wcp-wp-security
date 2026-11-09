@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Immutable Value Object / DTO representing the fingerprinted state of the WordPress installation,
  * including active/inactive plugins, active/inactive themes, registered REST namespaces, and detected ecosystems.
  *
- * @package WcpScanner\Firewall\CAF
+ * @package WebCareProScanner\Firewall\CAF
  * @author  Mir Alamin (WebCare Pro)
  */
 final class StackSnapshot {

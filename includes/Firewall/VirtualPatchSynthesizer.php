@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Cloudflare\CloudflareService;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Cloudflare\CloudflareService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) {
  */
 class VirtualPatchSynthesizer {
 
-    const OPTION_SYNTHESIZED_PATCHES = 'wcpscan_synthesized_virtual_patches';
+    const OPTION_SYNTHESIZED_PATCHES = 'webcareproscan_synthesized_virtual_patches';
     const CF_TAG                     = '[WCP Synthesized Patch]';
 
     /**
@@ -95,7 +95,7 @@ class VirtualPatchSynthesizer {
             if (@preg_match($custom_reg, '') === false) {
                 return [
                     'success' => false,
-                    'message' => __('Invalid custom regular expression pattern provided.', 'wcp-security-scanner'),
+                    'message' => __('Invalid custom regular expression pattern provided.', 'webcare-pro-security'),
                 ];
             }
             $compiled_regex = $custom_reg;
@@ -171,7 +171,7 @@ class VirtualPatchSynthesizer {
             'vector_type'            => $vector_type,
             'description'            => sprintf(
                 /* translators: 1: component slug, 2: vector type */
-                __('Automated virtual hotpatch shielding %1$s against %2$s exploits.', 'wcp-security-scanner'),
+                __('Automated virtual hotpatch shielding %1$s against %2$s exploits.', 'webcare-pro-security'),
                 $component,
                 strtoupper($vector_type)
             ),
@@ -199,7 +199,7 @@ class VirtualPatchSynthesizer {
             'simulation' => $simulation_report,
             'message'    => sprintf(
                 /* translators: 1: patch ID, 2: match rate */
-                __('Synthesized hotpatch %1$s compiled successfully with %2$s match rate in dry-run simulation.', 'wcp-security-scanner'),
+                __('Synthesized hotpatch %1$s compiled successfully with %2$s match rate in dry-run simulation.', 'webcare-pro-security'),
                 $patch_id,
                 $simulation_report['attack_match_rate'] . '%'
             ),
@@ -370,7 +370,7 @@ class VirtualPatchSynthesizer {
     public static function save_synthesized_patch(array $patch, bool $deploy_cf = false): array {
         $patch_id = sanitize_text_field($patch['patch_id'] ?? '');
         if (empty($patch_id)) {
-            return ['success' => false, 'message' => __('Invalid patch ID.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Invalid patch ID.', 'webcare-pro-security')];
         }
 
         $all = self::get_synthesized_patches();
@@ -390,12 +390,12 @@ class VirtualPatchSynthesizer {
             if ($cf_res['success']) {
                 $patch['deployed_to_cloudflare'] = true;
                 $patch['cloudflare_rule_id'] = $cf_res['rule_id'] ?? null;
-                $cf_msg = __(' (Active on Cloudflare Edge + Local PHP WAF Lite)', 'wcp-security-scanner');
+                $cf_msg = __(' (Active on Cloudflare Edge + Local PHP WAF Lite)', 'webcare-pro-security');
             } else {
-                $cf_msg = ' (' . __('Local PHP WAF Lite Active; Cloudflare: ', 'wcp-security-scanner') . ($cf_res['message'] ?? 'Not connected') . ')';
+                $cf_msg = ' (' . __('Local PHP WAF Lite Active; Cloudflare: ', 'webcare-pro-security') . ($cf_res['message'] ?? 'Not connected') . ')';
             }
         } else {
-            $cf_msg = __(' (Active on Local PHP WAF Lite)', 'wcp-security-scanner');
+            $cf_msg = __(' (Active on Local PHP WAF Lite)', 'webcare-pro-security');
         }
 
         $all[$patch_id] = $patch;
@@ -416,7 +416,7 @@ class VirtualPatchSynthesizer {
             'patch'   => $patch,
             'message' => sprintf(
                 /* translators: 1: patch title, 2: deployment message */
-                __('Synthesized hotpatch "%1$s" activated!%2$s', 'wcp-security-scanner'),
+                __('Synthesized hotpatch "%1$s" activated!%2$s', 'webcare-pro-security'),
                 $patch['title'],
                 $cf_msg
             ),
@@ -433,7 +433,7 @@ class VirtualPatchSynthesizer {
     public static function toggle_synthesized_patch(string $patch_id, bool $enable): array {
         $all = self::get_synthesized_patches();
         if (!isset($all[$patch_id])) {
-            return ['success' => false, 'message' => __('Synthesized patch not found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Synthesized patch not found.', 'webcare-pro-security')];
         }
 
         $patch = $all[$patch_id];
@@ -464,7 +464,7 @@ class VirtualPatchSynthesizer {
             'patch'   => $patch,
             'message' => sprintf(
                 /* translators: 1: patch title, 2: state */
-                __('Synthesized hotpatch "%1$s" is now %2$s.', 'wcp-security-scanner'),
+                __('Synthesized hotpatch "%1$s" is now %2$s.', 'webcare-pro-security'),
                 $patch['title'],
                 $enable ? 'active' : 'deactivated'
             ),
@@ -480,7 +480,7 @@ class VirtualPatchSynthesizer {
     public static function delete_synthesized_patch(string $patch_id): array {
         $all = self::get_synthesized_patches();
         if (!isset($all[$patch_id])) {
-            return ['success' => false, 'message' => __('Synthesized patch not found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Synthesized patch not found.', 'webcare-pro-security')];
         }
 
         $patch = $all[$patch_id];
@@ -500,7 +500,7 @@ class VirtualPatchSynthesizer {
             'success' => true,
             'message' => sprintf(
                 /* translators: %s: patch title */
-                __('Synthesized hotpatch "%s" deleted successfully.', 'wcp-security-scanner'),
+                __('Synthesized hotpatch "%s" deleted successfully.', 'webcare-pro-security'),
                 $patch['title']
             ),
         ];

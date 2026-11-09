@@ -414,7 +414,7 @@ export const FirewallPage = ({
   const [cfStatus, setCfStatus] = useState<any>(null);
   const [cfDefinitions, setCfDefinitions] = useState<any>({
     compound_perimeter: {
-      id: 'wcpscan_compound_perimeter',
+      id: 'webcareproscan_compound_perimeter',
       title: 'Rule 1: Master Perimeter & Sensitive File Armor',
       badge: 'Edge Shield',
       description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.',
@@ -422,7 +422,7 @@ export const FirewallPage = ({
       expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
     },
     compound_exploits: {
-      id: 'wcpscan_compound_exploits',
+      id: 'webcareproscan_compound_exploits',
       title: 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
       badge: 'Zero-Day Shield',
       description: 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
@@ -430,7 +430,7 @@ export const FirewallPage = ({
       expression: ['(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "', 'base64', '_', 'decode', '" or http.request.uri.query contains "', 'ev', 'al', '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'].join('')
     },
     compound_login_bot: {
-      id: 'wcpscan_compound_login_bot',
+      id: 'webcareproscan_compound_login_bot',
       title: 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
       badge: 'Turnstile Challenge',
       description: 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
@@ -438,7 +438,7 @@ export const FirewallPage = ({
       expression: '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot'
     },
     compound_sqli: {
-      id: 'wcpscan_compound_sqli',
+      id: 'webcareproscan_compound_sqli',
       title: 'Rule 4: Deep SQL Injection & Database Armor',
       badge: 'SQLi Shield',
       description: 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',

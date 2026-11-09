@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
-use WcpScanner\Advisor\SiteCapabilityProfiler;
-use WcpScanner\Firewall\VirtualPatchManager;
-use WcpScanner\Firewall\MicroWafCompiler;
+use WebCareProScanner\Advisor\SiteCapabilityProfiler;
+use WebCareProScanner\Firewall\VirtualPatchManager;
+use WebCareProScanner\Firewall\MicroWafCompiler;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Inspects WordPress site anatomy via StackSnapshot, cross-references active/inactive
  * plugins, evaluates version-scoped virtual patches, and recommends/applies optimized WAF profiles.
  *
- * @package WcpScanner\Firewall\CAF
+ * @package WebCareProScanner\Firewall\CAF
  * @author  Mir Alamin (WebCare Pro)
  */
 final class AdaptiveFirewallAdvisor {
@@ -127,7 +127,7 @@ final class AdaptiveFirewallAdvisor {
 		$snapshot = $this->get_stack_snapshot();
 		$matrix   = $this->get_recommendations_matrix( $snapshot );
 
-		$killswitch_file = defined( 'WP_CONTENT_DIR' ) ? ( WP_CONTENT_DIR . '/uploads/wcp-security-scanner/.killswitch' ) : '';
+		$killswitch_file = defined( 'WP_CONTENT_DIR' ) ? ( WP_CONTENT_DIR . '/uploads/webcare-pro-security/.killswitch' ) : '';
 		$is_killed = ( defined( 'WCP_CAF_DISABLE_PRELOAD' ) && WCP_CAF_DISABLE_PRELOAD ) || ( $killswitch_file && file_exists( $killswitch_file ) );
 
 		return [
@@ -458,7 +458,7 @@ final class AdaptiveFirewallAdvisor {
 		$auto_enabled = [];
 
 		if ( self::PROFILE_ECOMMERCE_HARDENED === $profile_id ) {
-			$settings = get_option( 'wcpscan_settings', [] );
+			$settings = get_option( 'webcareproscan_settings', [] );
 			$changed  = false;
 
 			// Auto-enable 1: Smart Shields & Verified Integrations (False-Positive Prevention)
@@ -483,7 +483,7 @@ final class AdaptiveFirewallAdvisor {
 			}
 
 			if ( $changed ) {
-				update_option( 'wcpscan_settings', $settings, false );
+				update_option( 'webcareproscan_settings', $settings, false );
 			}
 		}
 

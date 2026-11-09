@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;

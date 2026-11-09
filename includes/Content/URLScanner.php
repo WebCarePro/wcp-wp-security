@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Content;
+namespace WebCareProScanner\Content;
 
 if (!defined('ABSPATH')) {
     exit;

@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\Resource\ResourceMonitor;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\Resource\ResourceMonitor;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -34,33 +34,33 @@ class DatabaseScanner {
     public function scan($scan_id, $batch_size = 100) {
         $findings = [];
         $monitor = new ResourceMonitor(70, 20, 'balanced');
-        $configured_db_batch = (int) (\WcpScanner\System\SettingsManager::get('scan_db_batch_size', 500) ?: $batch_size);
+        $configured_db_batch = (int) (\WebCareProScanner\System\SettingsManager::get('scan_db_batch_size', 500) ?: $batch_size);
         $adaptive_row_batch = $monitor->get_adaptive_batch_size($configured_db_batch);
 
         // 1. Audit wp_options first
         if (!empty($scan_id)) {
-            set_transient("wcpscan_active_scan_file_{$scan_id}", 'MySQL Database: Scanning wp_options & core settings...', 120);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", 'MySQL Database: Scanning wp_options & core settings...', 120);
         }
         $option_findings = $this->option_scanner->scan_options($scan_id);
         $findings = array_merge($findings, $option_findings);
 
         // 2. Audit Rogue Administrators & Database Micro-Anomalies
         if (!empty($scan_id)) {
-            set_transient("wcpscan_active_scan_file_{$scan_id}", 'MySQL Database: Inspecting rogue administrators & user meta anomalies...', 120);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", 'MySQL Database: Inspecting rogue administrators & user meta anomalies...', 120);
         }
         $rogue_findings = $this->rogue_admin_detector->scan((string) $scan_id);
         $findings = array_merge($findings, $rogue_findings);
 
         // 3. Audit Rogue MySQL Triggers (Ultimate Database-Level Persistence)
         if (!empty($scan_id)) {
-            set_transient("wcpscan_active_scan_file_{$scan_id}", 'MySQL Database: Auditing engine triggers for database-level persistence...', 120);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", 'MySQL Database: Auditing engine triggers for database-level persistence...', 120);
         }
         $trigger_findings = $this->scan_rogue_triggers((string) $scan_id);
         $findings = array_merge($findings, $trigger_findings);
 
         // 4. Audit WP-Cron & Scheduled Hook Persistence
         if (!empty($scan_id)) {
-            set_transient("wcpscan_active_scan_file_{$scan_id}", 'WP-Cron Sentinel: Auditing scheduled hooks & persistence backdoors...', 120);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", 'WP-Cron Sentinel: Auditing scheduled hooks & persistence backdoors...', 120);
         }
         try {
             $cron_findings = $this->cron_persistence_scanner->scan((string) $scan_id);
@@ -69,7 +69,7 @@ class DatabaseScanner {
 
         // 5. Audit Database-Stored Code Snippets & Custom Headers/Footers
         if (!empty($scan_id)) {
-            set_transient("wcpscan_active_scan_file_{$scan_id}", 'Database Snippet Auditor: Inspecting Code Snippets & header/footer scripts...', 120);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Database Snippet Auditor: Inspecting Code Snippets & header/footer scripts...', 120);
         }
         try {
             $snippet_findings = $this->snippet_code_auditor->scan((string) $scan_id);
@@ -96,7 +96,7 @@ class DatabaseScanner {
             }
 
             // Respect developer table exclusion list
-            if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_table_excluded($table)) {
+            if (class_exists('\\WebCareProScanner\\System\\SettingsManager') && \WebCareProScanner\System\SettingsManager::is_table_excluded($table)) {
                 continue;
             }
 
@@ -119,8 +119,8 @@ class DatabaseScanner {
                     $table_approx_rows > 0 ? ' / ' . number_format($table_approx_rows) : ''
                 );
                 $rows_left = max(0, $grand_total_rows - $total_rows_scanned);
-                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
-                set_transient("wcpscan_scan_db_progress_{$scan_id}", [
+                set_transient("webcareproscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                set_transient("webcareproscan_scan_db_progress_{$scan_id}", [
                     'current_table'        => $table,
                     'table_index'          => $table_num,
                     'total_tables'         => $total_tables,
@@ -162,8 +162,8 @@ class DatabaseScanner {
                         $table_approx_rows > 0 ? ' / ' . number_format($table_approx_rows) : ''
                     );
                     $rows_left = max(0, $grand_total_rows - $total_rows_scanned);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
-                    set_transient("wcpscan_scan_db_progress_{$scan_id}", [
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                    set_transient("webcareproscan_scan_db_progress_{$scan_id}", [
                         'current_table'        => $table,
                         'table_index'          => $table_num,
                         'total_tables'         => $total_tables,
@@ -186,7 +186,7 @@ class DatabaseScanner {
 
         if (!empty($scan_id)) {
             // Retain the final completion summary for 120 seconds so frontend poller never misses it
-            set_transient("wcpscan_scan_db_progress_{$scan_id}", [
+            set_transient("webcareproscan_scan_db_progress_{$scan_id}", [
                 'current_table'        => 'All MySQL Tables',
                 'table_index'          => $total_tables,
                 'total_tables'         => $total_tables,

@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,8 +17,8 @@ if (!defined('ABSPATH')) {
  */
 class DomainReputationMonitor {
 
-    public const OPTION_REPORT  = 'wcpscan_domain_reputation_report';
-    public const CRON_HOOK      = 'wcpscan_domain_reputation_daily_check';
+    public const OPTION_REPORT  = 'webcareproscan_domain_reputation_report';
+    public const CRON_HOOK      = 'webcareproscan_domain_reputation_daily_check';
 
     // Leading DNSBL blacklists to query against
     private const IP_DNSBLS = [
@@ -78,7 +78,7 @@ class DomainReputationMonitor {
             $issues[] = [
                 'type'     => 'ssl_expired',
                 'severity' => 'critical',
-                'message'  => esc_html__('SSL Certificate has expired! Visitors will see browser security warning screens.', 'wcp-security-scanner'),
+                'message'  => esc_html__('SSL Certificate has expired! Visitors will see browser security warning screens.', 'webcare-pro-security'),
             ];
         } elseif ($ssl_info['status'] === 'expiring_soon') {
             $score -= 15;
@@ -87,7 +87,7 @@ class DomainReputationMonitor {
                 'severity' => 'warning',
                 'message'  => sprintf(
                     /* translators: %d: days remaining */
-                    esc_html__('SSL Certificate expires in %d days. Ensure automated renewal succeeds.', 'wcp-security-scanner'),
+                    esc_html__('SSL Certificate expires in %d days. Ensure automated renewal succeeds.', 'webcare-pro-security'),
                     $ssl_info['days_remaining']
                 ),
             ];
@@ -101,7 +101,7 @@ class DomainReputationMonitor {
                 'severity' => 'critical',
                 'message'  => sprintf(
                     /* translators: 1: number of listings, 2: comma-separated list names */
-                    esc_html__('Site domain or server IP is listed on %1$d threat blocklist(s): %2$s.', 'wcp-security-scanner'),
+                    esc_html__('Site domain or server IP is listed on %1$d threat blocklist(s): %2$s.', 'webcare-pro-security'),
                     $dnsbl_info['total_listed'],
                     implode(', ', $dnsbl_info['listed_names'])
                 ),
@@ -114,7 +114,7 @@ class DomainReputationMonitor {
             $issues[] = [
                 'type'     => 'missing_dmarc',
                 'severity' => 'warning',
-                'message'  => esc_html__('No DMARC record found for this domain. Attackers may spoof outbound emails from your domain.', 'wcp-security-scanner'),
+                'message'  => esc_html__('No DMARC record found for this domain. Attackers may spoof outbound emails from your domain.', 'webcare-pro-security'),
             ];
         }
 

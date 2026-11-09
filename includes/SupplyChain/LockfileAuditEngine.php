@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\SupplyChain;
+namespace WebCareProScanner\SupplyChain;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
  */
 class LockfileAuditEngine {
 
-    const CACHE_OPTION = 'wcpscan_lockfile_audit_cache';
+    const CACHE_OPTION = 'webcareproscan_lockfile_audit_cache';
 
     /**
      * Known vulnerability advisory database (offline signature feed).
@@ -233,11 +233,11 @@ class LockfileAuditEngine {
             'anomalies'        => $anomalies,
         ];
 
-        if (!empty($vulnerabilities) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_lockfile_cve', [
+        if (!empty($vulnerabilities) && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('supply_chain_lockfile_cve', [
                 'severity' => ($crit_count > 0) ? 'critical' : 'high',
                 /* translators: 1: total CVE count, 2: lockfile count */
-                'message'  => sprintf(__('Supply-Chain Advisory: %1$d known vulnerable package(s) detected across %2$d lockfile(s).', 'wcp-security-scanner'), count($vulnerabilities), count($discovered)),
+                'message'  => sprintf(__('Supply-Chain Advisory: %1$d known vulnerable package(s) detected across %2$d lockfile(s).', 'webcare-pro-security'), count($vulnerabilities), count($discovered)),
                 'details'  => [
                     'Vulnerabilities' => count($vulnerabilities),
                     'Critical'        => $crit_count,
@@ -280,7 +280,7 @@ class LockfileAuditEngine {
                     if ($current->isDir()) {
                         $name = $current->getFilename();
                         // Skip internal node_modules and vendor directories to avoid redundant nested lockfiles
-                        if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'wcp-security-scanner'], true)) {
+                        if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'webcare-pro-security'], true)) {
                             return false;
                         }
                     }
@@ -295,7 +295,7 @@ class LockfileAuditEngine {
                         if (isset($filenames[$name])) {
                             $path = wp_normalize_path($item->getPathname());
                             // Self-Exclusion: Skip scanner's own lockfiles
-                            if (str_contains($path, '/plugins/wcp-security-scanner/')) {
+                            if (str_contains($path, '/plugins/webcare-pro-security/')) {
                                 continue;
                             }
 

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Scan;
+namespace WebCareProScanner\Scan;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 class ScanLock {
 
-    const LOCK_OPTION = 'wcpscan_active_scan_lock';
+    const LOCK_OPTION = 'webcareproscan_active_scan_lock';
     const LOCK_TIMEOUT_SECONDS = 300; // 5 minutes timeout for auto recovery
 
     /**

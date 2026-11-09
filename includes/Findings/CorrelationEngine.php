@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Findings;
+namespace WebCareProScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -131,7 +131,7 @@ class CorrelationEngine {
         // -------------------------------------------------------------
 
         // Fact Source A: Open Scan Issues
-        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
             $query = "SELECT id, engine, type, severity, confidence, file_path, line_number, evidence, description, created_at FROM {$issues_table} WHERE status = 'open' ORDER BY id DESC LIMIT 50";
@@ -155,7 +155,7 @@ class CorrelationEngine {
 
         // Fact Source B: Recent Daily Partitioned WAF Logs (from WafFileLogger)
         $upload_dir = wp_upload_dir();
-        $waf_dir = $upload_dir['basedir'] . '/wcp-security-scanner/waf-logs';
+        $waf_dir = $upload_dir['basedir'] . '/webcare-pro-security/waf-logs';
         if (is_dir($waf_dir)) {
             $today_log = $waf_dir . '/' . strtolower(gmdate('F-j-Y')) . '-waf-logs.json';
             if (file_exists($today_log)) {
@@ -178,7 +178,7 @@ class CorrelationEngine {
                             'client_ip'    => $entry['ip'] ?? '0.0.0.0',
                             'detail'       => sprintf(
                                 /* translators: 1: HTTP Method, 2: Target URI, 3: Rule Name */
-                                __('WAF blocked %1$s request to %2$s via rule %3$s', 'wcp-security-scanner'),
+                                __('WAF blocked %1$s request to %2$s via rule %3$s', 'webcare-pro-security'),
                                 $entry['method'] ?? 'GET',
                                 $entry['uri'] ?? '/',
                                 $entry['rule_name'] ?? 'WAF Rule'
@@ -191,7 +191,7 @@ class CorrelationEngine {
         }
 
         // Fact Source C: Decoy Ghost Route & Canary Traps
-        $ghost_traps = get_option('wcpscan_ghost_route_traps', []);
+        $ghost_traps = get_option('webcareproscan_ghost_route_traps', []);
         if (is_array($ghost_traps) && !empty($ghost_traps)) {
             foreach (array_slice(array_reverse($ghost_traps), 0, 15) as $idx => $trap) {
                 $facts[] = [
@@ -205,7 +205,7 @@ class CorrelationEngine {
                     'client_ip'    => $trap['ip'] ?? '0.0.0.0',
                     'detail'       => sprintf(
                         /* translators: 1: IP Address, 2: Honeypot Route */
-                        __('Autonomous bot or vulnerability scanner probe intercepted at canary route %2$s from IP %1$s', 'wcp-security-scanner'),
+                        __('Autonomous bot or vulnerability scanner probe intercepted at canary route %2$s from IP %1$s', 'webcare-pro-security'),
                         $trap['ip'] ?? 'Unknown',
                         $trap['route'] ?? 'Ghost Route'
                     ),
@@ -215,7 +215,7 @@ class CorrelationEngine {
         }
 
         // Fact Source D: 72-Hour Reinfection Watchdog Alerts
-        $reinfection_alerts = get_option('wcpscan_reinfection_incidents', []);
+        $reinfection_alerts = get_option('webcareproscan_reinfection_incidents', []);
         if (is_array($reinfection_alerts) && !empty($reinfection_alerts)) {
             foreach ($reinfection_alerts as $idx => $alert) {
                 $facts[] = [
@@ -228,7 +228,7 @@ class CorrelationEngine {
                     'target'       => $alert['path'] ?? '',
                     'detail'       => sprintf(
                         /* translators: 1: File Path, 2: Detection Type */
-                        __('Previously quarantined/cleaned file resurrected on disk: %1$s (%2$s)', 'wcp-security-scanner'),
+                        __('Previously quarantined/cleaned file resurrected on disk: %1$s (%2$s)', 'webcare-pro-security'),
                         $alert['path'] ?? '',
                         $alert['type'] ?? 'resurrection'
                     ),
@@ -296,7 +296,7 @@ class CorrelationEngine {
                     'indicator_ids'  => array_unique($ind_ids),
                     'description'    => sprintf(
                         /* translators: 1: IP address, 2: Indicator count */
-                        __('Multiple adversarial indicators converged on origin IP %1$s (%2$d distinct events).', 'wcp-security-scanner'),
+                        __('Multiple adversarial indicators converged on origin IP %1$s (%2$d distinct events).', 'webcare-pro-security'),
                         $ip,
                         count($ind_ids)
                     ),
@@ -317,7 +317,7 @@ class CorrelationEngine {
                     'indicator_ids'  => array_unique($ind_ids),
                     'description'    => sprintf(
                         /* translators: 1: File path, 2: Event count */
-                        __('Compound compromise indicators converged on file target %1$s (%2$d distinct events).', 'wcp-security-scanner'),
+                        __('Compound compromise indicators converged on file target %1$s (%2$d distinct events).', 'webcare-pro-security'),
                         basename($file),
                         count($ind_ids)
                     ),
@@ -343,41 +343,41 @@ class CorrelationEngine {
         if ($has_rce && $has_reinfection) {
             $hypotheses[] = [
                 'hypothesis_id' => 'hyp-001',
-                'title'         => __('Persistent Dropper Re-infection Loop', 'wcp-security-scanner'),
+                'title'         => __('Persistent Dropper Re-infection Loop', 'webcare-pro-security'),
                 'kill_chain'    => ['Exploitation', 'Dropper Staging', 'Persistence Loop'],
                 'confidence'    => 96,
                 'severity'      => 'critical',
-                'narrative'     => __('Attacker established a self-healing memory-resident or cron-based persistence mechanism that recreates remediated backdoors upon deletion.', 'wcp-security-scanner'),
+                'narrative'     => __('Attacker established a self-healing memory-resident or cron-based persistence mechanism that recreates remediated backdoors upon deletion.', 'webcare-pro-security'),
                 'blast_radius'  => 85,
             ];
         } elseif ($has_recon && $has_rce) {
             $hypotheses[] = [
                 'hypothesis_id' => 'hyp-002',
-                'title'         => __('Targeted Reconnaissance Leading to Code Execution', 'wcp-security-scanner'),
+                'title'         => __('Targeted Reconnaissance Leading to Code Execution', 'webcare-pro-security'),
                 'kill_chain'    => ['Reconnaissance', 'Vulnerability Probe', 'Arbitrary Code Execution'],
                 'confidence'    => 92,
                 'severity'      => 'critical',
-                'narrative'     => __('Adversary performed automated endpoint reconnaissance probing canary routes and subsequently delivered an executable payload.', 'wcp-security-scanner'),
+                'narrative'     => __('Adversary performed automated endpoint reconnaissance probing canary routes and subsequently delivered an executable payload.', 'webcare-pro-security'),
                 'blast_radius'  => 70,
             ];
         } elseif (!empty($facts)) {
             $hypotheses[] = [
                 'hypothesis_id' => 'hyp-003',
-                'title'         => __('Isolated Perimeter Exploit Attempts Intercepted', 'wcp-security-scanner'),
+                'title'         => __('Isolated Perimeter Exploit Attempts Intercepted', 'webcare-pro-security'),
                 'kill_chain'    => ['Initial Access Attempt'],
                 'confidence'    => 80,
                 'severity'      => 'medium',
-                'narrative'     => __('Perimeter defenses and WAF successfully deflected inbound automated probes. No lateral breach confirmed.', 'wcp-security-scanner'),
+                'narrative'     => __('Perimeter defenses and WAF successfully deflected inbound automated probes. No lateral breach confirmed.', 'webcare-pro-security'),
                 'blast_radius'  => 15,
             ];
         } else {
             $hypotheses[] = [
                 'hypothesis_id' => 'hyp-clean',
-                'title'         => __('Zero Active Threat Convergence', 'wcp-security-scanner'),
+                'title'         => __('Zero Active Threat Convergence', 'webcare-pro-security'),
                 'kill_chain'    => ['Clean State'],
                 'confidence'    => 100,
                 'severity'      => 'safe',
-                'narrative'     => __('All monitoring subsystems (Filesystem, WAF, Identity, Network) report normal baseline activity. No compromise detected.', 'wcp-security-scanner'),
+                'narrative'     => __('All monitoring subsystems (Filesystem, WAF, Identity, Network) report normal baseline activity. No compromise detected.', 'webcare-pro-security'),
                 'blast_radius'  => 0,
             ];
         }
@@ -388,40 +388,40 @@ class CorrelationEngine {
         if ($has_reinfection || $has_rce) {
             $outcomes[] = [
                 'action_id'   => 'act-containment',
-                'title'       => __('Activate 1-Click Emergency Incident Containment', 'wcp-security-scanner'),
+                'title'       => __('Activate 1-Click Emergency Incident Containment', 'webcare-pro-security'),
                 'type'        => 'containment',
                 'priority'    => 'P0_IMMEDIATE',
-                'description' => __('Freeze filesystem write channels, purge non-admin sessions, and isolate origin blast radius.', 'wcp-security-scanner'),
+                'description' => __('Freeze filesystem write channels, purge non-admin sessions, and isolate origin blast radius.', 'webcare-pro-security'),
                 'endpoint'    => '/wcp-scanner/v1/containment/toggle',
                 'method'      => 'POST',
                 'payload'     => ['action' => 'activate', 'reason' => 'Correlated Multi-Engine Threat Outbreak'],
             ];
             $outcomes[] = [
                 'action_id'   => 'act-quarantine-all',
-                'title'       => __('Execute Surgical Attack-Chain Eradication', 'wcp-security-scanner'),
+                'title'       => __('Execute Surgical Attack-Chain Eradication', 'webcare-pro-security'),
                 'type'        => 'eradication',
                 'priority'    => 'P1_HIGH',
-                'description' => __('Quarantine all correlated dropper files, delete rogue options, and flush malicious crons in one atomic transaction.', 'wcp-security-scanner'),
+                'description' => __('Quarantine all correlated dropper files, delete rogue options, and flush malicious crons in one atomic transaction.', 'webcare-pro-security'),
                 'endpoint'    => '/wcp-scanner/v1/attack-chain/eradicate',
                 'method'      => 'POST',
             ];
         } elseif (!empty($facts)) {
             $outcomes[] = [
                 'action_id'   => 'act-harden',
-                'title'       => __('Review WAF Logs & Reinforce Edge IP Defenses', 'wcp-security-scanner'),
+                'title'       => __('Review WAF Logs & Reinforce Edge IP Defenses', 'webcare-pro-security'),
                 'type'        => 'hardening',
                 'priority'    => 'P2_RECOMMENDED',
-                'description' => __('Sync discovered adversarial probe IPs to Cloudflare Edge IP Lists and review server security headers.', 'wcp-security-scanner'),
+                'description' => __('Sync discovered adversarial probe IPs to Cloudflare Edge IP Lists and review server security headers.', 'webcare-pro-security'),
                 'endpoint'    => '/wcp-scanner/v1/cloudflare/sync',
                 'method'      => 'POST',
             ];
         } else {
             $outcomes[] = [
                 'action_id'   => 'act-snapshot',
-                'title'       => __('Calibrate Local "Time-Machine" Baseline Snapshot', 'wcp-security-scanner'),
+                'title'       => __('Calibrate Local "Time-Machine" Baseline Snapshot', 'webcare-pro-security'),
                 'type'        => 'maintenance',
                 'priority'    => 'P3_ROUTINE',
-                'description' => __('Capture a fresh compressed baseline archive of active bespoke plugins and themes for future integrity tracking.', 'wcp-security-scanner'),
+                'description' => __('Capture a fresh compressed baseline archive of active bespoke plugins and themes for future integrity tracking.', 'webcare-pro-security'),
                 'endpoint'    => '/wcp-scanner/v1/snapshots/create',
                 'method'      => 'POST',
             ];

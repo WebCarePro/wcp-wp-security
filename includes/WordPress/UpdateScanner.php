@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -76,11 +76,11 @@ class UpdateScanner {
                 'code_snippet' => !empty($core_cves) ? 'CVE References: ' . implode(', ', array_column($core_cves, 'cve_id')) : "Current: {$wp_version}, Available: {$core_latest}"
             ]);
 
-            if (!empty($core_cves) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('vuln_core_cve_detected', [
+            if (!empty($core_cves) && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vuln_core_cve_detected', [
                     'severity' => 'critical',
                     /* translators: 1: version number, 2: CVE count */
-                    'message'  => sprintf(__('Critical CVE Alert: Installed WordPress core (v%1$s) has %2$d known CVE vulnerability advisory(s).', 'wcp-security-scanner'), $wp_version, count($core_cves)),
+                    'message'  => sprintf(__('Critical CVE Alert: Installed WordPress core (v%1$s) has %2$d known CVE vulnerability advisory(s).', 'webcare-pro-security'), $wp_version, count($core_cves)),
                     'details'  => [
                         'WordPress Version' => $wp_version,
                         'CVE Count'         => count($core_cves),
@@ -151,11 +151,11 @@ class UpdateScanner {
                     'code_snippet' => !empty($plugin_cves) ? 'CVE References: ' . implode(', ', array_column($plugin_cves, 'cve_id')) : "Installed: v{$cur_version}, Latest: v{$new_version}"
                 ]);
 
-                if (!empty($plugin_cves) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('vuln_plugin_theme_cve', [
+                if (!empty($plugin_cves) && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vuln_plugin_theme_cve', [
                         'severity' => 'high',
                         /* translators: 1: plugin name, 2: version number, 3: CVE count */
-                        'message'  => sprintf(__('Vulnerability Alert: Plugin "%1$s" (v%2$s) has %3$d documented CVE security advisory(s).', 'wcp-security-scanner'), $plugin_name, $cur_version, count($plugin_cves)),
+                        'message'  => sprintf(__('Vulnerability Alert: Plugin "%1$s" (v%2$s) has %3$d documented CVE security advisory(s).', 'webcare-pro-security'), $plugin_name, $cur_version, count($plugin_cves)),
                         'details'  => [
                             'Component'   => $plugin_name,
                             'Slug'        => $plugin_slug,
@@ -223,11 +223,11 @@ class UpdateScanner {
                     'code_snippet' => !empty($theme_cves) ? 'CVE References: ' . implode(', ', array_column($theme_cves, 'cve_id')) : "Installed: v{$cur_version}, Latest: v{$new_version}"
                 ]);
 
-                if (!empty($theme_cves) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('vuln_plugin_theme_cve', [
+                if (!empty($theme_cves) && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vuln_plugin_theme_cve', [
                         'severity' => 'high',
                         /* translators: 1: theme name, 2: version number, 3: CVE count */
-                        'message'  => sprintf(__('Vulnerability Alert: Theme "%1$s" (v%2$s) has %3$d documented CVE security advisory(s).', 'wcp-security-scanner'), $theme_name, $cur_version, count($theme_cves)),
+                        'message'  => sprintf(__('Vulnerability Alert: Theme "%1$s" (v%2$s) has %3$d documented CVE security advisory(s).', 'webcare-pro-security'), $theme_name, $cur_version, count($theme_cves)),
                         'details'  => [
                             'Component'   => $theme_name,
                             'Slug'        => $theme_slug,
@@ -330,11 +330,11 @@ class UpdateScanner {
             $is_abandoned = false;
             if (!empty($update_plugins->response[$plugin_file]) && empty($update_plugins->response[$plugin_file]->package)) {
                 $is_abandoned = true;
-                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('vuln_abandoned_extension', [
+                if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vuln_abandoned_extension', [
                         'severity' => 'warning',
                         /* translators: %s: plugin name */
-                        'message'  => sprintf(__('Plugin "%s" appears to be abandoned, closed, or removed from the official WordPress directory.', 'wcp-security-scanner'), $plugin_name),
+                        'message'  => sprintf(__('Plugin "%s" appears to be abandoned, closed, or removed from the official WordPress directory.', 'webcare-pro-security'), $plugin_name),
                         'details'  => [
                             'Plugin Name' => $plugin_name,
                             'Plugin Slug' => $plugin_slug,
@@ -350,7 +350,7 @@ class UpdateScanner {
             }
 
             // 2. Query checksum provider for official release manifest
-            $checksum_provider = new \WcpScanner\Integrity\ChecksumProvider();
+            $checksum_provider = new \WebCareProScanner\Integrity\ChecksumProvider();
             $checksums = $checksum_provider->get_plugin_checksums($plugin_slug, $cur_version);
             if ($checksums !== null) {
                 $is_official = true;
@@ -449,7 +449,7 @@ class UpdateScanner {
             }
 
             // Check if bundled default theme or official WP.org theme
-            $checksum_provider = new \WcpScanner\Integrity\ChecksumProvider();
+            $checksum_provider = new \WebCareProScanner\Integrity\ChecksumProvider();
             $theme_checksums = $checksum_provider->get_theme_checksums($theme_slug, $cur_version);
             if ($theme_checksums !== null) {
                 $is_official = true;
@@ -572,7 +572,7 @@ class UpdateScanner {
      * @return array
      */
     public static function get_core_cves($version) {
-        $cache_key = 'wcpscan_cve_core_' . sanitize_key($version);
+        $cache_key = 'webcareproscan_cve_core_' . sanitize_key($version);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -608,7 +608,7 @@ class UpdateScanner {
      * @return array
      */
     public static function get_plugin_cves($slug, $version, $name = '') {
-        $cache_key = 'wcpscan_cve_plugin_' . sanitize_key($slug . '_' . $version);
+        $cache_key = 'webcareproscan_cve_plugin_' . sanitize_key($slug . '_' . $version);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -646,7 +646,7 @@ class UpdateScanner {
      * @return array
      */
     public static function get_theme_cves($slug, $version, $name = '') {
-        $cache_key = 'wcpscan_cve_theme_' . sanitize_key($slug . '_' . $version);
+        $cache_key = 'webcareproscan_cve_theme_' . sanitize_key($slug . '_' . $version);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;

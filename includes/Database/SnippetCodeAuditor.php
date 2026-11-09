@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\Malware\WebshellDetector;
-use WcpScanner\Malware\JavaScriptSecurityScanner;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\Malware\WebshellDetector;
+use WebCareProScanner\Malware\JavaScriptSecurityScanner;
 
 if (!defined('ABSPATH')) {
     exit;

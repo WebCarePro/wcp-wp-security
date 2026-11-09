@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Content;
+namespace WebCareProScanner\Content;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\System\WcpActivityLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
  *
  * Engineered by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer.
  *
- * @package WcpScanner\Content
+ * @package WebCareProScanner\Content
  */
 class BlockDirectiveSanitizer {
 
@@ -46,7 +46,7 @@ class BlockDirectiveSanitizer {
      * Forbidden meta keys for non-admin block bindings.
      */
     const SENSITIVE_META_PATTERNS = [
-        '/^_wcpscan_/i',
+        '/^_webcareproscan_/i',
         '/^_secret_/i',
         '/^_auth_/i',
         '/^_token/i',
@@ -110,14 +110,14 @@ class BlockDirectiveSanitizer {
             self::$neutralized_count += count($audit_result['threats']);
 
             // Log security incident
-            if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+            if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
                 WcpActivityLogger::log(
                     'gutenberg_block_directive_neutralized',
                     'firewall',
                     'high',
                     sprintf(
                         /* translators: %1$d: post ID, %2$d: threat count */
-                        __('Neutralized %2$d hostile Interactivity API directive(s) in Post #%1$d.', 'wcp-security-scanner'),
+                        __('Neutralized %2$d hostile Interactivity API directive(s) in Post #%1$d.', 'webcare-pro-security'),
                         $post_id,
                         count($audit_result['threats'])
                     ),
@@ -167,10 +167,10 @@ class BlockDirectiveSanitizer {
             $threat_summary = implode(', ', array_column($detections, 'type'));
 
             return new \WP_Error(
-                'wcpscan_interactivity_directive_blocked',
+                'webcareproscan_interactivity_directive_blocked',
                 sprintf(
                     /* translators: %s: threat summary */
-                    __('WCP Block Security: Submission blocked due to unauthorized or hostile Interactivity API directive (%s).', 'wcp-security-scanner'),
+                    __('WCP Block Security: Submission blocked due to unauthorized or hostile Interactivity API directive (%s).', 'webcare-pro-security'),
                     esc_html($threat_summary)
                 ),
                 ['status' => 403]

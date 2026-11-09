@@ -1,11 +1,11 @@
 <?php
-namespace WcpScanner\Advisor;
+namespace WebCareProScanner\Advisor;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-use WcpScanner\Firewall\FirewallEngine;
+use WebCareProScanner\Firewall\FirewallEngine;
 
 /**
  * SiteCapabilityProfiler
@@ -13,7 +13,7 @@ use WcpScanner\Firewall\FirewallEngine;
  * Fast, 0ms-network local profiler that inspects active plugins, active/parent themes,
  * and proxy topology to produce a rich, evidence-backed capability bag.
  *
- * @package WcpScanner\Advisor
+ * @package WebCareProScanner\Advisor
  * @author Mir Alamin (WebCare Pro)
  */
 class SiteCapabilityProfiler {

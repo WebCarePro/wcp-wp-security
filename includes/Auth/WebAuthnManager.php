@@ -6,14 +6,14 @@
  * for WordPress site owners (TouchID, FaceID, Windows Hello, Android Biometrics, YubiKeys).
  * Zero external dependencies: utilizes native PHP OpenSSL and cryptographic primitives.
  *
- * @package WcpScanner\Auth
+ * @package WebCareProScanner\Auth
  * @author  Mir Alamin (WebCare Pro)
  */
 
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -21,10 +21,10 @@ if (!defined('ABSPATH')) {
 
 class WebAuthnManager {
 
-    const META_CREDENTIALS = 'wcpscan_webauthn_credentials';
-    const OPTION_CREDENTIAL_INDEX = 'wcpscan_webauthn_index';
-    const TRANSIENT_REG_PREFIX = 'wcpscan_webauthn_reg_';
-    const TRANSIENT_AUTH_PREFIX = 'wcpscan_webauthn_auth_';
+    const META_CREDENTIALS = 'webcareproscan_webauthn_credentials';
+    const OPTION_CREDENTIAL_INDEX = 'webcareproscan_webauthn_index';
+    const TRANSIENT_REG_PREFIX = 'webcareproscan_webauthn_reg_';
+    const TRANSIENT_AUTH_PREFIX = 'webcareproscan_webauthn_auth_';
 
     /**
      * Bootstrap WebAuthn Manager.
@@ -106,11 +106,11 @@ class WebAuthnManager {
      * @return bool True if within rate limit, false if exceeded
      */
     public static function check_ip_rate_limit(string $action = 'verify', int $max_attempts = 15, int $window_seconds = 300): bool {
-        $ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+        $ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-        $transient_key = 'wcpscan_wa_rl_' . md5($action . '_' . $ip);
+        $transient_key = 'webcareproscan_wa_rl_' . md5($action . '_' . $ip);
         $attempts = (int) get_transient($transient_key);
 
         if ($attempts >= $max_attempts) {
@@ -130,7 +130,7 @@ class WebAuthnManager {
     public static function generate_registration_options(int $user_id): array {
         $user = get_userdata($user_id);
         if (!$user || !$user->exists()) {
-            return ['success' => false, 'message' => __('Invalid user.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Invalid user.', 'webcare-pro-security')];
         }
 
         $rp_id = self::get_rp_id();
@@ -206,7 +206,7 @@ class WebAuthnManager {
         if (!$stored || empty($stored['challenge'])) {
             return [
                 'success' => false,
-                'message' => __('Registration challenge expired or missing. Please try again.', 'wcp-security-scanner'),
+                'message' => __('Registration challenge expired or missing. Please try again.', 'webcare-pro-security'),
             ];
         }
 
@@ -218,7 +218,7 @@ class WebAuthnManager {
         if (empty($client_data_json_b64) || empty($attestation_obj_b64) || empty($credential_id)) {
             return [
                 'success' => false,
-                'message' => __('Missing WebAuthn registration payload parameters.', 'wcp-security-scanner'),
+                'message' => __('Missing WebAuthn registration payload parameters.', 'webcare-pro-security'),
             ];
         }
 
@@ -228,14 +228,14 @@ class WebAuthnManager {
         if (!is_array($client_data) || ($client_data['type'] ?? '') !== 'webauthn.create') {
             return [
                 'success' => false,
-                'message' => __('Invalid clientDataJSON type for registration.', 'wcp-security-scanner'),
+                'message' => __('Invalid clientDataJSON type for registration.', 'webcare-pro-security'),
             ];
         }
 
         if (($client_data['challenge'] ?? '') !== $stored['challenge']) {
             return [
                 'success' => false,
-                'message' => __('Registration challenge verification mismatch.', 'wcp-security-scanner'),
+                'message' => __('Registration challenge verification mismatch.', 'webcare-pro-security'),
             ];
         }
 
@@ -246,14 +246,14 @@ class WebAuthnManager {
         if (empty($client_origin_host) || empty($expected_origin_host)) {
             return [
                 'success' => false,
-                'message' => __('Registration origin verification failed: missing or invalid origin.', 'wcp-security-scanner'),
+                'message' => __('Registration origin verification failed: missing or invalid origin.', 'webcare-pro-security'),
             ];
         }
         $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
         if (strtolower($client_origin_host) !== strtolower($expected_origin_host) && !$is_dev_env) {
             return [
                 'success' => false,
-                'message' => __('WebAuthn registration origin mismatch.', 'wcp-security-scanner'),
+                'message' => __('WebAuthn registration origin mismatch.', 'webcare-pro-security'),
             ];
         }
 
@@ -280,7 +280,7 @@ class WebAuthnManager {
                     if (!hash_equals($expected_rp_hash, $incoming_rp_hash)) {
                         return [
                             'success' => false,
-                            'message' => __('WebAuthn registration RP ID verification failed.', 'wcp-security-scanner'),
+                            'message' => __('WebAuthn registration RP ID verification failed.', 'webcare-pro-security'),
                         ];
                     }
                 }
@@ -300,7 +300,7 @@ class WebAuthnManager {
         if (empty($public_key_pem) || strpos($public_key_pem, '-----BEGIN PUBLIC KEY-----') === false) {
             return [
                 'success' => false,
-                'message' => __('Registration failed: Could not extract a valid cryptographic public key from authenticator.', 'wcp-security-scanner'),
+                'message' => __('Registration failed: Could not extract a valid cryptographic public key from authenticator.', 'webcare-pro-security'),
             ];
         }
 
@@ -328,9 +328,9 @@ class WebAuthnManager {
         );
 
         NotificationDispatcher::trigger('auth_passkey_registered', [
-            'title'   => __('FIDO2 / WebAuthn Biometric Passkey Enrolled', 'wcp-security-scanner'),
+            'title'   => __('FIDO2 / WebAuthn Biometric Passkey Enrolled', 'webcare-pro-security'),
             /* translators: 1: device name, 2: user login or ID */
-            'message' => sprintf(__('Biometric passkey (%1$s) enrolled for user "%2$s".', 'wcp-security-scanner'), $device_name, $user ? $user->user_login : 'ID #' . $user_id),
+            'message' => sprintf(__('Biometric passkey (%1$s) enrolled for user "%2$s".', 'webcare-pro-security'), $device_name, $user ? $user->user_login : 'ID #' . $user_id),
             'details' => [
                 'triggered_by' => $user ? $user->user_login : 'ID #' . $user_id,
                 'device_name'  => $device_name,
@@ -341,7 +341,7 @@ class WebAuthnManager {
         return [
             'success'     => true,
             'device_name' => $device_name,
-            'message'     => __('Biometric Passkey registered successfully! You can now sign in using TouchID, FaceID, or Windows Hello.', 'wcp-security-scanner'),
+            'message'     => __('Biometric Passkey registered successfully! You can now sign in using TouchID, FaceID, or Windows Hello.', 'webcare-pro-security'),
         ];
     }
 
@@ -355,7 +355,7 @@ class WebAuthnManager {
         if (!self::check_ip_rate_limit('options', 25, 300)) {
             return [
                 'success' => false,
-                'message' => __('Too many passkey requests. Please wait a few minutes.', 'wcp-security-scanner'),
+                'message' => __('Too many passkey requests. Please wait a few minutes.', 'webcare-pro-security'),
             ];
         }
 
@@ -399,7 +399,7 @@ class WebAuthnManager {
         if (!self::check_ip_rate_limit('verify', 10, 300)) {
             return [
                 'success' => false,
-                'message' => __('Too many failed authentication attempts. Please try again in 5 minutes.', 'wcp-security-scanner'),
+                'message' => __('Too many failed authentication attempts. Please try again in 5 minutes.', 'webcare-pro-security'),
             ];
         }
 
@@ -410,7 +410,7 @@ class WebAuthnManager {
         if (!$stored || empty($stored['challenge'])) {
             return [
                 'success' => false,
-                'message' => __('Authentication challenge expired or invalid. Please try again.', 'wcp-security-scanner'),
+                'message' => __('Authentication challenge expired or invalid. Please try again.', 'webcare-pro-security'),
             ];
         }
 
@@ -423,7 +423,7 @@ class WebAuthnManager {
         if (empty($credential_id) || empty($client_data_b64)) {
             return [
                 'success' => false,
-                'message' => __('Incomplete WebAuthn assertion payload.', 'wcp-security-scanner'),
+                'message' => __('Incomplete WebAuthn assertion payload.', 'webcare-pro-security'),
             ];
         }
 
@@ -433,14 +433,14 @@ class WebAuthnManager {
         if (!is_array($client_data) || ($client_data['type'] ?? '') !== 'webauthn.get') {
             return [
                 'success' => false,
-                'message' => __('Invalid clientDataJSON type for login assertion.', 'wcp-security-scanner'),
+                'message' => __('Invalid clientDataJSON type for login assertion.', 'webcare-pro-security'),
             ];
         }
 
         if (!hash_equals((string) $stored['challenge'], (string) ($client_data['challenge'] ?? ''))) {
             return [
                 'success' => false,
-                'message' => __('Authentication challenge verification failed.', 'wcp-security-scanner'),
+                'message' => __('Authentication challenge verification failed.', 'webcare-pro-security'),
             ];
         }
 
@@ -451,14 +451,14 @@ class WebAuthnManager {
         if (empty($client_origin_host) || empty($expected_host)) {
             return [
                 'success' => false,
-                'message' => __('WebAuthn assertion origin invalid or missing.', 'wcp-security-scanner'),
+                'message' => __('WebAuthn assertion origin invalid or missing.', 'webcare-pro-security'),
             ];
         }
         $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
         if (strtolower($client_origin_host) !== strtolower($expected_host) && !$is_dev_env) {
             return [
                 'success' => false,
-                'message' => __('WebAuthn assertion origin mismatch.', 'wcp-security-scanner'),
+                'message' => __('WebAuthn assertion origin mismatch.', 'webcare-pro-security'),
             ];
         }
 
@@ -481,7 +481,7 @@ class WebAuthnManager {
         if (!$matched_user_id || !$matched_cred) {
             return [
                 'success' => false,
-                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'webcare-pro-security'),
             ];
         }
 
@@ -489,7 +489,7 @@ class WebAuthnManager {
         if (!$user || !$user->exists()) {
             return [
                 'success' => false,
-                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'webcare-pro-security'),
             ];
         }
 
@@ -497,7 +497,7 @@ class WebAuthnManager {
         if (empty($auth_data_b64) || empty($signature_b64)) {
             return [
                 'success' => false,
-                'message' => __('Incomplete assertion: authenticator data or signature missing.', 'wcp-security-scanner'),
+                'message' => __('Incomplete assertion: authenticator data or signature missing.', 'webcare-pro-security'),
             ];
         }
 
@@ -505,7 +505,7 @@ class WebAuthnManager {
         if (empty($stored_pubkey) || strpos($stored_pubkey, '-----BEGIN PUBLIC KEY-----') === false) {
             return [
                 'success' => false,
-                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'webcare-pro-security'),
             ];
         }
 
@@ -518,7 +518,7 @@ class WebAuthnManager {
         if (strlen($auth_data_bin) < 37) {
             return [
                 'success' => false,
-                'message' => __('Authenticator data truncated or invalid.', 'wcp-security-scanner'),
+                'message' => __('Authenticator data truncated or invalid.', 'webcare-pro-security'),
             ];
         }
 
@@ -529,7 +529,7 @@ class WebAuthnManager {
         if (!hash_equals($expected_rp_hash, $incoming_rp_hash)) {
             return [
                 'success' => false,
-                'message' => __('WebAuthn RP ID hash mismatch for login assertion.', 'wcp-security-scanner'),
+                'message' => __('WebAuthn RP ID hash mismatch for login assertion.', 'webcare-pro-security'),
             ];
         }
 
@@ -538,7 +538,7 @@ class WebAuthnManager {
         if (!$user_present) {
             return [
                 'success' => false,
-                'message' => __('User presence verification flag was not set by authenticator.', 'wcp-security-scanner'),
+                'message' => __('User presence verification flag was not set by authenticator.', 'webcare-pro-security'),
             ];
         }
 
@@ -557,7 +557,7 @@ class WebAuthnManager {
             );
             return [
                 'success' => false,
-                'message' => __('Authentication rejected: Authenticator sequence anomaly detected (potential clone).', 'wcp-security-scanner'),
+                'message' => __('Authentication rejected: Authenticator sequence anomaly detected (potential clone).', 'webcare-pro-security'),
             ];
         }
 
@@ -566,7 +566,7 @@ class WebAuthnManager {
         if ($verified !== 1) {
             return [
                 'success' => false,
-                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'wcp-security-scanner'),
+                'message' => __('Passkey authentication failed. Invalid credential or signature.', 'webcare-pro-security'),
             ];
         }
 
@@ -582,12 +582,12 @@ class WebAuthnManager {
         wp_clear_auth_cookie();
         wp_set_current_user($matched_user_id);
 
-        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-            $pk_name = !empty($user_creds[$matched_cred_idx]['name']) ? $user_creds[$matched_cred_idx]['name'] : __('FIDO2 / Windows Hello', 'wcp-security-scanner');
-            \WcpScanner\Auth\SessionSentinel::$pending_auth_type = 'passkey';
+        if (class_exists('\\WebCareProScanner\\Auth\\SessionSentinel')) {
+            $pk_name = !empty($user_creds[$matched_cred_idx]['name']) ? $user_creds[$matched_cred_idx]['name'] : __('FIDO2 / Windows Hello', 'webcare-pro-security');
+            \WebCareProScanner\Auth\SessionSentinel::$pending_auth_type = 'passkey';
             /* translators: %s: name or model of the passkey authenticator */
-            \WcpScanner\Auth\SessionSentinel::$pending_auth_label = sprintf(__('Passkey (%s)', 'wcp-security-scanner'), $pk_name);
-            \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+            \WebCareProScanner\Auth\SessionSentinel::$pending_auth_label = sprintf(__('Passkey (%s)', 'webcare-pro-security'), $pk_name);
+            \WebCareProScanner\Auth\SessionSentinel::$pending_auth_details = [
                 'type'          => 'passkey',
                 'device_name'   => $pk_name,
                 'credential_id' => substr((string) $credential_id, 0, 16) . '...',
@@ -609,7 +609,7 @@ class WebAuthnManager {
             'success'      => true,
             'redirect_url' => admin_url('admin.php?page=wcp-security-scanner'),
             'username'     => $user->user_login,
-            'message'      => __('Biometric authentication verified. Redirecting to Security Console...', 'wcp-security-scanner'),
+            'message'      => __('Biometric authentication verified. Redirecting to Security Console...', 'webcare-pro-security'),
         ];
     }
 
@@ -655,9 +655,9 @@ class WebAuthnManager {
             $u = get_userdata($user_id);
             $u_login = $u ? $u->user_login : ('user #' . $user_id);
             NotificationDispatcher::trigger('auth_passkey_revoked', [
-                'title'   => __('WebAuthn Hardware Passkey Revoked / Deleted', 'wcp-security-scanner'),
+                'title'   => __('WebAuthn Hardware Passkey Revoked / Deleted', 'webcare-pro-security'),
                 /* translators: %s: user login or ID */
-            'message' => sprintf(__('Biometric passkey revoked for user "%s".', 'wcp-security-scanner'), $u_login),
+            'message' => sprintf(__('Biometric passkey revoked for user "%s".', 'webcare-pro-security'), $u_login),
                 'details' => [
                     'triggered_by'    => $u_login,
                     'credential_stub' => substr($credential_id, 0, 16) . '...',
@@ -879,7 +879,7 @@ class WebAuthnManager {
         ?>
         <div style="margin: 14px 0 10px; text-align: center;">
             <button type="button" id="wcp-passkey-login-btn" class="button button-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; padding: 6px 12px; height: auto; min-height: 38px; cursor: pointer; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: all 0.2s ease;">
-                <span style="font-size: 16px;">🔑</span> <?php esc_html_e('Sign in with Passkey / Biometrics', 'wcp-security-scanner'); ?>
+                <span style="font-size: 16px;">🔑</span> <?php esc_html_e('Sign in with Passkey / Biometrics', 'webcare-pro-security'); ?>
             </button>
         </div>
         <?php
@@ -946,12 +946,12 @@ class WebAuthnManager {
                 e.preventDefault();
 
                 if (!isSupported) {
-                    showNotice('<?php echo esc_js(__('WebAuthn Passkeys are not supported by this browser, or require HTTPS.', 'wcp-security-scanner')); ?>', false);
+                    showNotice('<?php echo esc_js(__('WebAuthn Passkeys are not supported by this browser, or require HTTPS.', 'webcare-pro-security')); ?>', false);
                     return;
                 }
 
                 if (!window.isSecureContext) {
-                    showNotice('<?php echo esc_js(__('Passkeys require a secure HTTPS connection or localhost.', 'wcp-security-scanner')); ?>', false);
+                    showNotice('<?php echo esc_js(__('Passkeys require a secure HTTPS connection or localhost.', 'webcare-pro-security')); ?>', false);
                     return;
                 }
 
@@ -966,7 +966,7 @@ class WebAuthnManager {
 
                 var origHtml = btn.innerHTML;
                 btn.disabled = true;
-                btn.innerHTML = '<span style="display: inline-block;">⏳</span> <?php echo esc_js(__('Connecting to Windows Hello / Passkey...', 'wcp-security-scanner')); ?>';
+                btn.innerHTML = '<span style="display: inline-block;">⏳</span> <?php echo esc_js(__('Connecting to Windows Hello / Passkey...', 'webcare-pro-security')); ?>';
 
                 var userLoginInput = document.getElementById('user_login');
                 var username = userLoginInput ? userLoginInput.value.trim() : '';
@@ -982,7 +982,7 @@ class WebAuthnManager {
                     var optData = await optRes.json();
 
                     if (!optData || !optData.success || !optData.options) {
-                        throw new Error(optData && optData.message ? optData.message : '<?php echo esc_js(__('Failed to initialize passkey challenge.', 'wcp-security-scanner')); ?>');
+                        throw new Error(optData && optData.message ? optData.message : '<?php echo esc_js(__('Failed to initialize passkey challenge.', 'webcare-pro-security')); ?>');
                     }
 
                     var opts = optData.options;
@@ -1006,10 +1006,10 @@ class WebAuthnManager {
                         signal: activeAbortCtrl.signal
                     });
                     if (!assertion) {
-                        throw new Error('<?php echo esc_js(__('Authentication cancelled by user.', 'wcp-security-scanner')); ?>');
+                        throw new Error('<?php echo esc_js(__('Authentication cancelled by user.', 'webcare-pro-security')); ?>');
                     }
 
-                    btn.innerHTML = '<span>🔑</span> <?php echo esc_js(__('Verifying credential signature...', 'wcp-security-scanner')); ?>';
+                    btn.innerHTML = '<span>🔑</span> <?php echo esc_js(__('Verifying credential signature...', 'webcare-pro-security')); ?>';
 
                     // 3. Prepare assertion payload
                     var assertionPayload = {
@@ -1036,13 +1036,13 @@ class WebAuthnManager {
                     var verifyData = await verifyRes.json();
 
                     if (!verifyData || !verifyData.success) {
-                        throw new Error(verifyData && verifyData.message ? verifyData.message : '<?php echo esc_js(__('Biometric verification failed.', 'wcp-security-scanner')); ?>');
+                        throw new Error(verifyData && verifyData.message ? verifyData.message : '<?php echo esc_js(__('Biometric verification failed.', 'webcare-pro-security')); ?>');
                     }
 
                     btn.style.background = '#46b450';
                     btn.style.color = '#ffffff';
                     btn.style.borderColor = '#46b450';
-                    btn.innerHTML = '✓ <?php echo esc_js(__('Authenticated! Redirecting...', 'wcp-security-scanner')); ?>';
+                    btn.innerHTML = '✓ <?php echo esc_js(__('Authenticated! Redirecting...', 'webcare-pro-security')); ?>';
 
                     var redirectTo = verifyData.redirect_url || '<?php echo esc_url($default_redirect); ?>';
                     window.location.href = redirectTo;
@@ -1059,9 +1059,9 @@ class WebAuthnManager {
                     btn.disabled = false;
                     btn.innerHTML = origHtml;
 
-                    var msg = err.message || '<?php echo esc_js(__('Passkey authentication failed.', 'wcp-security-scanner')); ?>';
+                    var msg = err.message || '<?php echo esc_js(__('Passkey authentication failed.', 'webcare-pro-security')); ?>';
                     if (err.name === 'NotAllowedError') {
-                        msg = '<?php echo esc_js(__('Windows Hello / Passkey prompt was cancelled or timed out.', 'wcp-security-scanner')); ?>';
+                        msg = '<?php echo esc_js(__('Windows Hello / Passkey prompt was cancelled or timed out.', 'webcare-pro-security')); ?>';
                     }
                     showNotice(msg, false);
                 } finally {

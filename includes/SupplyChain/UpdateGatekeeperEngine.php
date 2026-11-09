@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\SupplyChain;
+namespace WebCareProScanner\SupplyChain;
 
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -18,9 +18,9 @@ if (!defined('ABSPATH')) {
  */
 class UpdateGatekeeperEngine {
 
-    const OPTION_LOGS      = 'wcpscan_gatekeeper_logs';
-    const OPTION_SNAPSHOTS = 'wcpscan_gatekeeper_snapshots';
-    const OPTION_SETTINGS  = 'wcpscan_gatekeeper_settings';
+    const OPTION_LOGS      = 'webcareproscan_gatekeeper_logs';
+    const OPTION_SNAPSHOTS = 'webcareproscan_gatekeeper_snapshots';
+    const OPTION_SETTINGS  = 'webcareproscan_gatekeeper_settings';
     const LOCK_OPTION_KEY  = 'wcp_atomic_upgrade_lock';
     const LOCK_TTL         = 180;
 
@@ -70,8 +70,8 @@ class UpdateGatekeeperEngine {
     public static function release_lock_and_rebaseline($upgrader, array $hook_extra = []): void {
         self::release_upgrade_lock();
 
-        if (class_exists('\\WcpScanner\\Integrity\\FileIntegrityMonitor') && method_exists('\\WcpScanner\\Integrity\\FileIntegrityMonitor', 'schedule_immediate_baseline_sync')) {
-            \WcpScanner\Integrity\FileIntegrityMonitor::schedule_immediate_baseline_sync($hook_extra);
+        if (class_exists('\\WebCareProScanner\\Integrity\\FileIntegrityMonitor') && method_exists('\\WebCareProScanner\\Integrity\\FileIntegrityMonitor', 'schedule_immediate_baseline_sync')) {
+            \WebCareProScanner\Integrity\FileIntegrityMonitor::schedule_immediate_baseline_sync($hook_extra);
         }
     }
 
@@ -134,9 +134,9 @@ class UpdateGatekeeperEngine {
         update_option(self::OPTION_SETTINGS, $updated);
 
         // Audit Trail: Log Update Gatekeeper settings change
-        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'gatekeeper_settings_updated',
                 'settings',
                 [
@@ -174,7 +174,7 @@ class UpdateGatekeeperEngine {
 
         // Self-Exclusion: Never intercept or flag WCP Security Scanner itself
         // (Internal attack simulation test suites, virtual patch synthesizers, and quarantine engines contain controlled exploit strings)
-        if ($folder_name === 'wcp-security-scanner') {
+        if ($folder_name === 'webcare-pro-security') {
             return $source;
         }
 
@@ -193,7 +193,7 @@ class UpdateGatekeeperEngine {
                     // 1. Block Zip-Slip / Path Traversal & Null Bytes
                     if (str_contains($item_path, "\0") || str_contains($item_path, '..')) {
                         self::release_upgrade_lock();
-                        return new \WP_Error('wcp_upgrade_zip_slip', __('Blocked package containing path traversal sequences or null bytes.', 'wcp-security-scanner'));
+                        return new \WP_Error('wcp_upgrade_zip_slip', __('Blocked package containing path traversal sequences or null bytes.', 'webcare-pro-security'));
                     }
 
                     // 2. Block External Symlinks inside packages
@@ -207,7 +207,7 @@ class UpdateGatekeeperEngine {
                                 'wcp_upgrade_malicious_symlink',
                                 sprintf(
                                     /* translators: %s: symlink name */
-                                    __('Blocked package containing external symlink: %s', 'wcp-security-scanner'),
+                                    __('Blocked package containing external symlink: %s', 'webcare-pro-security'),
                                     esc_html(basename($item_path))
                                 )
                             );
@@ -223,7 +223,7 @@ class UpdateGatekeeperEngine {
                                 'wcp_upgrade_backdoor_detected',
                                 sprintf(
                                     /* translators: %s: file name */
-                                    __('Blocked package containing backdoor signature in %s.', 'wcp-security-scanner'),
+                                    __('Blocked package containing backdoor signature in %s.', 'webcare-pro-security'),
                                     esc_html(basename($item_path))
                                 )
                             );
@@ -285,9 +285,9 @@ class UpdateGatekeeperEngine {
                 );
 
                 NotificationDispatcher::trigger('supply_chain_gatekeeper_blocked', [
-                    'title'   => __('Hostile Plugin Update Intercepted by Gatekeeper', 'wcp-security-scanner'),
+                    'title'   => __('Hostile Plugin Update Intercepted by Gatekeeper', 'webcare-pro-security'),
                     /* translators: 1%$s: plugin slug, 2%$d: risk score out of 100 */
-                    'message' => sprintf(__('Hostile update intercepted for "%1$s" (Risk Score: %2$d/100). Production files protected.', 'wcp-security-scanner'), $folder_name, $analysis['score']),
+                    'message' => sprintf(__('Hostile update intercepted for "%1$s" (Risk Score: %2$d/100). Production files protected.', 'webcare-pro-security'), $folder_name, $analysis['score']),
                     'details' => [
                         'plugin_slug'     => $folder_name,
                         'risk_score'      => $analysis['score'] . '/100',
@@ -300,8 +300,8 @@ class UpdateGatekeeperEngine {
                     : 'Critical supply-chain security anomaly detected.';
 
                 // Log incident to centralized WAF Incident Stream
-                if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-                    \WcpScanner\Firewall\FirewallEngine::log_incident([
+                if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+                    \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                         'id'          => 'WAF-SUPPLY-CHAIN-GATEKEEPER',
                         'name'        => 'Supply-Chain Update Gatekeeper Intercept',
                         'category'    => 'Supply-Chain Defense',
@@ -316,7 +316,7 @@ class UpdateGatekeeperEngine {
                     'wcp_gatekeeper_update_blocked',
                     sprintf(
                         /* translators: 1: plugin folder name, 2: block reason */
-                        __('WCP Update Gatekeeper Security Intercept: The incoming update for "%1$s" was BLOCKED because critical supply-chain risks were detected: %2$s. Your production files were protected.', 'wcp-security-scanner'),
+                        __('WCP Update Gatekeeper Security Intercept: The incoming update for "%1$s" was BLOCKED because critical supply-chain risks were detected: %2$s. Your production files were protected.', 'webcare-pro-security'),
                         esc_html($folder_name),
                         esc_html($reason)
                     )
@@ -365,8 +365,8 @@ class UpdateGatekeeperEngine {
                     : 'Critical security risk patterns detected';
 
                 // Log incident to centralized WAF Incident Stream
-                if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-                    \WcpScanner\Firewall\FirewallEngine::log_incident([
+                if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+                    \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                         'id'          => 'WAF-SUPPLY-CHAIN-GATEKEEPER',
                         'name'        => 'Supply-Chain Update Gatekeeper Intercept',
                         'category'    => 'Supply-Chain Defense',
@@ -378,9 +378,9 @@ class UpdateGatekeeperEngine {
                 }
 
                 NotificationDispatcher::trigger('supply_chain_gatekeeper_blocked', [
-                    'title'   => __('Hostile Plugin Installation Intercepted by Gatekeeper', 'wcp-security-scanner'),
+                    'title'   => __('Hostile Plugin Installation Intercepted by Gatekeeper', 'webcare-pro-security'),
                     /* translators: 1%$s: plugin slug, 2%$d: risk score out of 100 */
-                    'message' => sprintf(__('Hostile installation intercepted for "%1$s" (Risk Score: %2$d/100). System protected.', 'wcp-security-scanner'), $folder_name, $analysis['score']),
+                    'message' => sprintf(__('Hostile installation intercepted for "%1$s" (Risk Score: %2$d/100). System protected.', 'webcare-pro-security'), $folder_name, $analysis['score']),
                     'details' => [
                         'plugin_slug'     => $folder_name,
                         'risk_score'      => $analysis['score'] . '/100',
@@ -392,7 +392,7 @@ class UpdateGatekeeperEngine {
                     'wcp_gatekeeper_install_blocked',
                     sprintf(
                         /* translators: %s: plugin folder name */
-                        __('WCP Update Gatekeeper Security Intercept: Installation of "%s" was BLOCKED due to critical security risk patterns detected in package.', 'wcp-security-scanner'),
+                        __('WCP Update Gatekeeper Security Intercept: Installation of "%s" was BLOCKED due to critical security risk patterns detected in package.', 'webcare-pro-security'),
                         esc_html($folder_name)
                     )
                 );
@@ -478,7 +478,7 @@ class UpdateGatekeeperEngine {
      */
     public static function create_rollback_snapshot(string $slug, string $source_dir): ?string {
         $uploads = wp_upload_dir();
-        $base_snapshots = wp_normalize_path($uploads['basedir'] . '/wcp-security-scanner/gatekeeper');
+        $base_snapshots = wp_normalize_path($uploads['basedir'] . '/webcare-pro-security/gatekeeper');
 
         if (!is_dir($base_snapshots)) {
             wp_mkdir_p($base_snapshots);
@@ -550,7 +550,7 @@ class UpdateGatekeeperEngine {
         if (!is_dir($snap_path)) {
             // Check migrated location
             $uploads = wp_upload_dir();
-            $migrated = wp_normalize_path($uploads['basedir'] . '/wcp-security-scanner/gatekeeper/' . basename($snap_path));
+            $migrated = wp_normalize_path($uploads['basedir'] . '/webcare-pro-security/gatekeeper/' . basename($snap_path));
             if (is_dir($migrated)) {
                 $snap_path = $migrated;
             }
@@ -576,9 +576,9 @@ class UpdateGatekeeperEngine {
         );
 
         NotificationDispatcher::trigger('supply_chain_gatekeeper_rollback', [
-            'title'   => __('Pre-Install Gatekeeper Rollback Executed', 'wcp-security-scanner'),
+            'title'   => __('Pre-Install Gatekeeper Rollback Executed', 'webcare-pro-security'),
             /* translators: 1%$s: plugin slug, 2%$s: snapshot identifier */
-            'message' => sprintf(__('Plugin "%1$s" was successfully rolled back to pre-update snapshot "%2$s".', 'wcp-security-scanner'), $slug, $snapshot_id),
+            'message' => sprintf(__('Plugin "%1$s" was successfully rolled back to pre-update snapshot "%2$s".', 'webcare-pro-security'), $slug, $snapshot_id),
             'details' => [
                 'plugin_slug' => $slug,
                 'snapshot_id' => $snapshot_id,

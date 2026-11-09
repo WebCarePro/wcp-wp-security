@@ -1,10 +1,10 @@
 <?php
-namespace WcpScanner\Scan;
+namespace WebCareProScanner\Scan;
 
-use WcpScanner\Resource\ResourceMonitor;
-use WcpScanner\Filesystem\DirectoryWalker;
-use WcpScanner\Filesystem\FileScanner;
-use WcpScanner\Findings\FindingsRepository;
+use WebCareProScanner\Resource\ResourceMonitor;
+use WebCareProScanner\Filesystem\DirectoryWalker;
+use WebCareProScanner\Filesystem\FileScanner;
+use WebCareProScanner\Findings\FindingsRepository;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -73,8 +73,8 @@ class ScanManager {
             if (!empty($file_findings)) {
                 foreach ($file_findings as $finding) {
                     $item = method_exists($finding, 'to_array') ? $finding->to_array() : (array) $finding;
-                    if (class_exists('\\WcpScanner\\Findings\\WhitelistManager')) {
-                        $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+                    if (class_exists('\\WebCareProScanner\\Findings\\WhitelistManager')) {
+                        $matched_rule = \WebCareProScanner\Findings\WhitelistManager::match_finding($item);
                         if ($matched_rule !== null) {
                             $item['status'] = 'ignored';
                             $item['whitelisted'] = true;

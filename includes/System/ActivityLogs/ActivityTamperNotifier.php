@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -52,7 +52,7 @@ class ActivityTamperNotifier {
         self::write_alert_state($alert_state);
 
         // Also set persistent option so admin notices hook catches it everywhere
-        update_option('wcpscan_activity_tamper_active', [
+        update_option('webcareproscan_activity_tamper_active', [
             'detected_at' => $now,
             'details'     => $details,
             'incident_id' => $incident_id,
@@ -91,7 +91,7 @@ class ActivityTamperNotifier {
         $time_utc  = gmdate('Y-m-d H:i:s \U\T\C');
 
         /* translators: %s: Site name */
-        $subject = sprintf(__('[CRITICAL SECURITY ALERT] Cryptographic Activity Log Tampering Detected on %s', 'wcp-security-scanner'), $site_name);
+        $subject = sprintf(__('[CRITICAL SECURITY ALERT] Cryptographic Activity Log Tampering Detected on %s', 'webcare-pro-security'), $site_name);
 
         $message = "=========================================================================\n";
         $message .= " CRITICAL SECURITY ALERT: IMMUTABLE AUDIT LOG TAMPERING DETECTED\n";
@@ -129,7 +129,7 @@ class ActivityTamperNotifier {
      * @param array  $details
      */
     private static function dispatch_webhook(string $status, array $details): void {
-        $settings = get_option('wcpscan_activity_log_settings', []);
+        $settings = get_option('webcareproscan_activity_log_settings', []);
         $webhook_url = $settings['tamper_webhook_url'] ?? '';
         if (empty($webhook_url) || !filter_var($webhook_url, FILTER_VALIDATE_URL)) {
             return;
@@ -198,7 +198,7 @@ class ActivityTamperNotifier {
             $state[$incident_id]['acknowledged_at'] = time();
             self::write_alert_state($state);
         }
-        delete_option('wcpscan_activity_tamper_active');
+        delete_option('webcareproscan_activity_tamper_active');
         return true;
     }
 }

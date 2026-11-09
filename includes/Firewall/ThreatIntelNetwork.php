@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -31,10 +31,10 @@ if (!defined('ABSPATH')) {
  */
 class ThreatIntelNetwork {
 
-    const OPTION_NETWORK_META    = 'wcpscan_threat_intel_network_meta';
-    const OPTION_CONSENSUS_RING  = 'wcpscan_threat_consensus_ring';
-    const OPTION_TOR_EXIT_NODES  = 'wcpscan_tor_exit_nodes';
-    const OPTION_REPUTATION_LOG  = 'wcpscan_ip_reputation_log';
+    const OPTION_NETWORK_META    = 'webcareproscan_threat_intel_network_meta';
+    const OPTION_CONSENSUS_RING  = 'webcareproscan_threat_consensus_ring';
+    const OPTION_TOR_EXIT_NODES  = 'webcareproscan_tor_exit_nodes';
+    const OPTION_REPUTATION_LOG  = 'webcareproscan_ip_reputation_log';
     const MAX_CONSENSUS_BEACONS  = 60;
 
     /**
@@ -190,11 +190,11 @@ class ThreatIntelNetwork {
             )
         );
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('vuln_feed_synced', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vuln_feed_synced', [
                 'severity' => 'info',
                 /* translators: 1: feed count, 2: IP count */
-                'message'  => sprintf(__('Threat Intelligence network synchronized (%1$d feeds, %2$d community malicious IPs indexed).', 'wcp-security-scanner'), count($synced_feeds), count($all_ips)),
+                'message'  => sprintf(__('Threat Intelligence network synchronized (%1$d feeds, %2$d community malicious IPs indexed).', 'webcare-pro-security'), count($synced_feeds), count($all_ips)),
                 'details'  => [
                     'Feeds Synced'   => count($synced_feeds),
                     'Active IPs'     => number_format(count($all_ips)),

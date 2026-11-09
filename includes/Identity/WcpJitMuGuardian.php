@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Identity;
+namespace WebCareProScanner\Identity;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -31,15 +31,15 @@ if (!defined('ABSPATH')) {
  * 4. Emergency Fail-Safe: If WCP Security Scanner is deactivated, all active JIT elevations
  *    and temporary support sessions are instantly revoked and destroyed.
  *
- * @package WcpScanner\Identity
+ * @package WebCareProScanner\Identity
  * @author  Mir Alamin (WebCare Pro)
  */
 class WcpJitMuGuardian {
 
     const MU_FILENAME          = 'wcp-jit-guardian.php';
-    const OPTION_ELEVATIONS    = 'wcpscan_ephemeral_admins';
-    const OPTION_HISTORY       = 'wcpscan_ephemeral_admin_history';
-    const OPTION_SUPPORT_USERS = 'wcpscan_support_active_users';
+    const OPTION_ELEVATIONS    = 'webcareproscan_ephemeral_admins';
+    const OPTION_HISTORY       = 'webcareproscan_ephemeral_admin_history';
+    const OPTION_SUPPORT_USERS = 'webcareproscan_support_active_users';
 
     /**
      * Ensure the MU watchdog file is deployed and matches current code.
@@ -163,7 +163,7 @@ class WcpJitMuGuardian {
             update_option(self::OPTION_SUPPORT_USERS, $support_users, true);
         }
 
-        delete_user_meta($user_id, 'wcpscan_is_temporary_support');
+        delete_user_meta($user_id, 'webcareproscan_is_temporary_support');
 
         if (class_exists('\\WP_Session_Tokens')) {
             $manager = \WP_Session_Tokens::get_instance($user_id);
@@ -188,7 +188,7 @@ class WcpJitMuGuardian {
                 unset($support_users[$uid]);
                 $changed = true;
 
-                delete_user_meta((int) $uid, 'wcpscan_is_temporary_support');
+                delete_user_meta((int) $uid, 'webcareproscan_is_temporary_support');
                 if (class_exists('\\WP_Session_Tokens')) {
                     $manager = \WP_Session_Tokens::get_instance((int) $uid);
                     $manager->destroy_all();
@@ -244,9 +244,9 @@ if (!defined('ABSPATH')) {
  */
 class WcpJitMuGuardianRuntime {
 
-    const OPTION_ELEVATIONS    = 'wcpscan_ephemeral_admins';
-    const OPTION_HISTORY       = 'wcpscan_ephemeral_admin_history';
-    const OPTION_SUPPORT_USERS = 'wcpscan_support_active_users';
+    const OPTION_ELEVATIONS    = 'webcareproscan_ephemeral_admins';
+    const OPTION_HISTORY       = 'webcareproscan_ephemeral_admin_history';
+    const OPTION_SUPPORT_USERS = 'webcareproscan_support_active_users';
 
     public static function init() {
         // Emergency bypass constant: define('WCP_DISABLE_JIT', true); in wp-config.php completely disables runtime restrictions
@@ -354,7 +354,7 @@ class WcpJitMuGuardianRuntime {
             if (strpos($route, $blocked_route) !== false) {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from accessing administrative escalation, 2FA, backup, database, or sensitive file routes.', 'wcp-security-scanner'),
+                    esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from accessing administrative escalation, 2FA, backup, database, or sensitive file routes.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
@@ -365,14 +365,14 @@ class WcpJitMuGuardianRuntime {
             if (strpos($route, '/wcp-scanner/v1/settings') !== false && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Temporary Support Technicians are operating in read-only diagnostic mode and cannot modify security settings.', 'wcp-security-scanner'),
+                    esc_html__('Temporary Support Technicians are operating in read-only diagnostic mode and cannot modify security settings.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
             if (strpos($route, '/wcp-scanner/v1/whitelist') !== false && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Temporary Support Technicians are prohibited from modifying false-positive whitelist rules.', 'wcp-security-scanner'),
+                    esc_html__('Temporary Support Technicians are prohibited from modifying false-positive whitelist rules.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
@@ -383,7 +383,7 @@ class WcpJitMuGuardianRuntime {
             if (strpos($route, '/wcp-scanner/v1/database') !== false && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Temporary Support Technicians are prohibited from deleting or cleansing database records.', 'wcp-security-scanner'),
+                    esc_html__('Temporary Support Technicians are prohibited from deleting or cleansing database records.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
@@ -394,7 +394,7 @@ class WcpJitMuGuardianRuntime {
             if ((strpos($route, '/wcp-scanner/v1/remediation') !== false || strpos($route, '/wcp-scanner/v1/user/remediate') !== false) && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Remediation file deletion and user repairs are restricted during temporary support sessions.', 'wcp-security-scanner'),
+                    esc_html__('Remediation file deletion and user repairs are restricted during temporary support sessions.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
@@ -404,7 +404,7 @@ class WcpJitMuGuardianRuntime {
         if (strpos($route, '/wcp-scanner/v1/updater') !== false && $method === 'POST') {
             return new \WP_Error(
                 'rest_forbidden',
-                esc_html__('Plugin updates and rollbacks are restricted to permanent administrators.', 'wcp-security-scanner'),
+                esc_html__('Plugin updates and rollbacks are restricted to permanent administrators.', 'webcare-pro-security'),
                 ['status' => 403]
             );
         }
@@ -414,7 +414,7 @@ class WcpJitMuGuardianRuntime {
             if (strpos($route, '/wp/v2/users') !== false && in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Temporary support technicians cannot create, modify, or delete user accounts via the REST API.', 'wcp-security-scanner'),
+                    esc_html__('Temporary support technicians cannot create, modify, or delete user accounts via the REST API.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
@@ -425,7 +425,7 @@ class WcpJitMuGuardianRuntime {
             if ((strpos($route, '/wp/v2/plugins') !== false || strpos($route, '/wp/v2/themes') !== false) && in_array($method, ['POST', 'DELETE'], true)) {
                 return new \WP_Error(
                     'rest_forbidden',
-                    esc_html__('Temporary support technicians cannot install or delete plugins or themes via the REST API.', 'wcp-security-scanner'),
+                    esc_html__('Temporary support technicians cannot install or delete plugins or themes via the REST API.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
@@ -469,13 +469,13 @@ class WcpJitMuGuardianRuntime {
         $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
 
         $is_targeting_wcp = false;
-        if ($plugin && strpos($plugin, 'wcp-security-scanner') !== false) {
+        if ($plugin && strpos($plugin, 'webcare-pro-security') !== false) {
             $is_targeting_wcp = true;
         }
 
         if (!empty($checked)) {
             foreach ($checked as $p) {
-                if (strpos($p, 'wcp-security-scanner') !== false) {
+                if (strpos($p, 'webcare-pro-security') !== false) {
                     $is_targeting_wcp = true;
                     break;
                 }
@@ -485,10 +485,10 @@ class WcpJitMuGuardianRuntime {
         // Rule 1 (Inviolable): Block deactivating or deleting WCP Security Scanner
         if ($is_targeting_wcp && in_array($target_action, ['deactivate', 'delete-selected', 'deactivate-selected', 'delete'], true)) {
             wp_die(
-                '<h1>' . esc_html__('Security Access Denied (WCP Anti-Tamper Shield)', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from deactivating, modifying, or deleting WCP Security Scanner.', 'wcp-security-scanner') . '</p>' .
-                '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'wcp-security-scanner') . '</a></p>',
-                esc_html__('Access Denied', 'wcp-security-scanner'),
+                '<h1>' . esc_html__('Security Access Denied (WCP Anti-Tamper Shield)', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from deactivating, modifying, or deleting WCP Security Scanner.', 'webcare-pro-security') . '</p>' .
+                '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'webcare-pro-security') . '</a></p>',
+                esc_html__('Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -499,20 +499,20 @@ class WcpJitMuGuardianRuntime {
 
             if (!empty($cfg['block_plugin_deactivation']) && in_array($target_action, ['deactivate', 'deactivate-selected'], true)) {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Your temporary support access is sandboxed. Deactivating plugins is restricted by the site administrator.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Your temporary support access is sandboxed. Deactivating plugins is restricted by the site administrator.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
 
             if (!empty($cfg['block_plugin_deletion']) && in_array($target_action, ['delete-selected', 'delete'], true)) {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Your temporary support access is sandboxed. Deleting or uninstalling plugins is strictly restricted.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Your temporary support access is sandboxed. Deleting or uninstalling plugins is strictly restricted.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
@@ -550,10 +550,10 @@ class WcpJitMuGuardianRuntime {
         // 1. Unconditional Lockout: options.php
         if ($pagenow === 'options.php') {
             wp_die(
-                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('Direct modification of WordPress database options via options.php is strictly blocked for temporary support technicians.', 'wcp-security-scanner') . '</p>' .
-                '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
-                esc_html__('Access Denied', 'wcp-security-scanner'),
+                '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('Direct modification of WordPress database options via options.php is strictly blocked for temporary support technicians.', 'webcare-pro-security') . '</p>' .
+                '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'webcare-pro-security') . '</a></p>',
+                esc_html__('Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -566,10 +566,10 @@ class WcpJitMuGuardianRuntime {
             ];
             if (in_array($pagenow, $blocked_options_pages, true)) {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Modifying core WordPress site settings and database options is restricted during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Modifying core WordPress site settings and database options is restricted during temporary support sessions.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
@@ -579,10 +579,10 @@ class WcpJitMuGuardianRuntime {
         if (!empty($cfg['block_plugin_install'])) {
             if (in_array($pagenow, ['plugin-install.php', 'theme-install.php'], true)) {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Installing or uploading new plugins and themes is strictly disabled during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Installing or uploading new plugins and themes is strictly disabled during temporary support sessions.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
@@ -591,9 +591,9 @@ class WcpJitMuGuardianRuntime {
                 $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
                 if (in_array($action, ['upload-plugin', 'upload-theme', 'install-plugin', 'install-theme', 'upload-plugin-cancel'], true)) {
                     wp_die(
-                        '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                        '<p>' . esc_html__('Uploading or installing packages is strictly prohibited for temporary support technicians.', 'wcp-security-scanner') . '</p>',
-                        esc_html__('Access Denied', 'wcp-security-scanner'),
+                        '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                        '<p>' . esc_html__('Uploading or installing packages is strictly prohibited for temporary support technicians.', 'webcare-pro-security') . '</p>',
+                        esc_html__('Access Denied', 'webcare-pro-security'),
                         ['response' => 403]
                     );
                 }
@@ -607,10 +607,10 @@ class WcpJitMuGuardianRuntime {
             ];
             if (in_array($pagenow, $blocked_tools_pages, true)) {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Core tools, database exports, and data import operations are restricted during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Core tools, database exports, and data import operations are restricted during temporary support sessions.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
@@ -619,10 +619,10 @@ class WcpJitMuGuardianRuntime {
         // 5. Block File Editors
         if (!empty($cfg['block_file_editor']) && in_array($pagenow, ['plugin-editor.php', 'theme-editor.php'], true)) {
             wp_die(
-                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('File editors (Plugin & Theme Editor) are strictly disabled for temporary support sessions.', 'wcp-security-scanner') . '</p>' .
-                '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
-                esc_html__('Access Denied', 'wcp-security-scanner'),
+                '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('File editors (Plugin & Theme Editor) are strictly disabled for temporary support sessions.', 'webcare-pro-security') . '</p>' .
+                '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'webcare-pro-security') . '</a></p>',
+                esc_html__('Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -631,10 +631,10 @@ class WcpJitMuGuardianRuntime {
         if (!empty($cfg['block_user_management'])) {
             if ($pagenow === 'user-new.php') {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Creating new user accounts is disabled during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Creating new user accounts is disabled during temporary support sessions.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('index.php')) . '">' . esc_html__('← Return to Dashboard', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
@@ -643,10 +643,10 @@ class WcpJitMuGuardianRuntime {
             $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
             if ($pagenow === 'users.php' && in_array($action, ['delete', 'dodelete', 'delete-selected'], true)) {
                 wp_die(
-                    '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('Deleting user accounts is strictly prohibited during temporary support sessions.', 'wcp-security-scanner') . '</p>' .
-                    '<p><a href="' . esc_url(admin_url('users.php')) . '">' . esc_html__('← Return to Users', 'wcp-security-scanner') . '</a></p>',
-                    esc_html__('Access Denied', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('Deleting user accounts is strictly prohibited during temporary support sessions.', 'webcare-pro-security') . '</p>' .
+                    '<p><a href="' . esc_url(admin_url('users.php')) . '">' . esc_html__('← Return to Users', 'webcare-pro-security') . '</a></p>',
+                    esc_html__('Access Denied', 'webcare-pro-security'),
                     ['response' => 403]
                 );
             }
@@ -706,7 +706,7 @@ class WcpJitMuGuardianRuntime {
 
         if (in_array($action, $blocked_ajax, true)) {
             wp_send_json_error([
-                'message' => esc_html__('This action is strictly prohibited during temporary support sessions.', 'wcp-security-scanner')
+                'message' => esc_html__('This action is strictly prohibited during temporary support sessions.', 'webcare-pro-security')
             ], 403);
         }
     }
@@ -739,7 +739,7 @@ class WcpJitMuGuardianRuntime {
                 'active_plugins', 'permalink_structure', 'category_base', 'tag_base',
                 'WPLANG', 'blogname', 'blogdescription'
             ];
-            if (in_array($option, $guarded_options, true) || strpos($option, 'wcpscan_') === 0) {
+            if (in_array($option, $guarded_options, true) || strpos($option, 'webcareproscan_') === 0) {
                 return $old_value;
             }
         }
@@ -782,9 +782,9 @@ class WcpJitMuGuardianRuntime {
         // Rule 1: Temporary support technician and ephemeral admins cannot edit other user accounts
         if ($acting_uid !== (int) $user_id) {
             wp_die(
-                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('Temporary support technicians and ephemeral administrators are prohibited from modifying other user accounts.', 'wcp-security-scanner') . '</p>',
-                esc_html__('Access Denied', 'wcp-security-scanner'),
+                '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('Temporary support technicians and ephemeral administrators are prohibited from modifying other user accounts.', 'webcare-pro-security') . '</p>',
+                esc_html__('Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -807,7 +807,7 @@ class WcpJitMuGuardianRuntime {
      * If WCP Security Scanner is deactivated, immediately demote JIT admins and terminate support sessions
      */
     public static function on_plugin_deactivated($plugin) {
-        if (strpos($plugin, 'wcp-security-scanner') !== false) {
+        if (strpos($plugin, 'webcare-pro-security') !== false) {
             self::revert_all_elevations('Emergency de-elevation: WCP Security Scanner plugin was deactivated.');
             self::terminate_all_support_sessions('Emergency termination: WCP Security Scanner plugin was deactivated.');
         }
@@ -834,7 +834,7 @@ class WcpJitMuGuardianRuntime {
         // Rule 1 (Inviolable): Block deactivating or deleting WCP Security Scanner
         if (in_array($cap, ['deactivate_plugin', 'deactivate_plugins', 'delete_plugins'], true)) {
             $target_plugin = !empty($args[0]) ? (string) $args[0] : '';
-            if (empty($target_plugin) || strpos($target_plugin, 'wcp-security-scanner') !== false) {
+            if (empty($target_plugin) || strpos($target_plugin, 'webcare-pro-security') !== false) {
                 return ['do_not_allow'];
             }
         }
@@ -924,7 +924,7 @@ class WcpJitMuGuardianRuntime {
             return $actions;
         }
 
-        $is_wcp = (strpos($plugin_file, 'wcp-security-scanner') !== false);
+        $is_wcp = (strpos($plugin_file, 'webcare-pro-security') !== false);
 
         // Anti-Tamper: Remove Deactivate and Delete for WCP Security Scanner
         if ($is_wcp) {
@@ -966,8 +966,8 @@ class WcpJitMuGuardianRuntime {
         $remaining_str = $remaining > 0 ? human_time_diff(time(), $cfg['expires_at']) : 'expired';
 
         echo '<div class="notice notice-info" style="border-left: 4px solid #0284c7; background: #f0f9ff; color: #0369a1; padding: 12px 16px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">';
-        echo '<div><strong>🛡️ WCP Security Sandboxed Session:</strong> ' . esc_html__('Authenticated via Temporary Support Access', 'wcp-security-scanner') . ' (<em>' . esc_html($cfg['label'] ?? 'Technician') . '</em>). ' . esc_html__('Session valid for', 'wcp-security-scanner') . ' <strong>' . esc_html($remaining_str) . '</strong>. ' . esc_html__('Zero-Trust MU Guardian is actively enforcing anti-tamper plugin locks and security boundaries.', 'wcp-security-scanner') . '</div>';
-        echo '<span style="background: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">' . esc_html__('MU Protected', 'wcp-security-scanner') . '</span>';
+        echo '<div><strong>🛡️ WCP Security Sandboxed Session:</strong> ' . esc_html__('Authenticated via Temporary Support Access', 'webcare-pro-security') . ' (<em>' . esc_html($cfg['label'] ?? 'Technician') . '</em>). ' . esc_html__('Session valid for', 'webcare-pro-security') . ' <strong>' . esc_html($remaining_str) . '</strong>. ' . esc_html__('Zero-Trust MU Guardian is actively enforcing anti-tamper plugin locks and security boundaries.', 'webcare-pro-security') . '</div>';
+        echo '<span style="background: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">' . esc_html__('MU Protected', 'webcare-pro-security') . '</span>';
         echo '</div>';
     }
 
@@ -1028,7 +1028,7 @@ class WcpJitMuGuardianRuntime {
                     unset($support_users[$uid]);
                     $support_changed = true;
 
-                    delete_user_meta((int) $uid, 'wcpscan_is_temporary_support');
+                    delete_user_meta((int) $uid, 'webcareproscan_is_temporary_support');
                     if (class_exists('\\WP_Session_Tokens')) {
                         $manager = \WP_Session_Tokens::get_instance((int) $uid);
                         $manager->destroy_all();
@@ -1098,7 +1098,7 @@ class WcpJitMuGuardianRuntime {
         }
 
         foreach ($support_users as $uid => $cfg) {
-            delete_user_meta((int) $uid, 'wcpscan_is_temporary_support');
+            delete_user_meta((int) $uid, 'webcareproscan_is_temporary_support');
             if (class_exists('\\WP_Session_Tokens')) {
                 $manager = \WP_Session_Tokens::get_instance((int) $uid);
                 $manager->destroy_all();

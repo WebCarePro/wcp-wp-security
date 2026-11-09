@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
-use WcpScanner\Security\SecretVault;
-use WcpScanner\Firewall\FirewallEngine;
+use WebCareProScanner\Security\SecretVault;
+use WebCareProScanner\Firewall\FirewallEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
  */
 class LoginHistoryManager {
 
-    const TABLE_NAME = 'wcpscan_login_history';
+    const TABLE_NAME = 'webcareproscan_login_history';
 
     private static $last_auth_token = '';
 
@@ -51,17 +51,17 @@ class LoginHistoryManager {
      * Inject screen size detector hidden inputs into login form
      */
     public static function render_login_screen_detector() {
-        echo '<input type="hidden" name="wcpscan_screen_res" id="wcpscan_screen_res" value="">' . "\n";
-        echo '<input type="hidden" name="wcpscan_client_tz" id="wcpscan_client_tz" value="">' . "\n";
+        echo '<input type="hidden" name="webcareproscan_screen_res" id="webcareproscan_screen_res" value="">' . "\n";
+        echo '<input type="hidden" name="webcareproscan_client_tz" id="webcareproscan_client_tz" value="">' . "\n";
     }
 
     /**
      * Enqueue client-side display telemetry script using official WordPress script APIs
      */
     public static function enqueue_login_screen_detector() {
-        wp_register_script('wcpscan-login-detector', false, [], (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.19.0'), true);
+        wp_register_script('wcpscan-login-detector', false, [], (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.19.0'), true);
         wp_enqueue_script('wcpscan-login-detector');
-        wp_add_inline_script('wcpscan-login-detector', '(function(){try{var s=document.getElementById("wcpscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("wcpscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();');
+        wp_add_inline_script('wcpscan-login-detector', '(function(){try{var s=document.getElementById("webcareproscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("webcareproscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();');
     }
 
     /**
@@ -79,7 +79,7 @@ class LoginHistoryManager {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if (!$table_exists) {
-            \WcpScanner\Database\Migration::install();
+            \WebCareProScanner\Database\Migration::install();
         }
 
         $session_token = !empty(self::$last_auth_token) ? self::$last_auth_token : wp_get_session_token();
@@ -96,19 +96,19 @@ class LoginHistoryManager {
         $ip            = FirewallEngine::get_client_ip();
         $ua            = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
         // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        $screen_raw    = isset($_POST['wcpscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_screen_res'])) : '';
+        $screen_raw    = isset($_POST['webcareproscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['webcareproscan_screen_res'])) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        $tz_raw        = isset($_POST['wcpscan_client_tz']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_client_tz'])) : '';
+        $tz_raw        = isset($_POST['webcareproscan_client_tz']) ? sanitize_text_field(wp_unslash($_POST['webcareproscan_client_tz'])) : '';
 
         $parsed = self::parse_device_details($ua, $screen_raw);
 
         $auth_method = 'Username & Password';
-        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel') && !empty(\WcpScanner\Auth\SessionSentinel::$pending_auth_label)) {
-            $auth_method = \WcpScanner\Auth\SessionSentinel::$pending_auth_label;
+        if (class_exists('\\WebCareProScanner\\Auth\\SessionSentinel') && !empty(\WebCareProScanner\Auth\SessionSentinel::$pending_auth_label)) {
+            $auth_method = \WebCareProScanner\Auth\SessionSentinel::$pending_auth_label;
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection during wp_login hook to determine if 2FA code was supplied
-        } elseif (!empty($_POST['wcpscan_2fa_code'])) {
+        } elseif (!empty($_POST['webcareproscan_2fa_code'])) {
             $auth_method = 'Password + 2FA TOTP Verified';
-        } elseif (get_user_meta($user->ID, 'wcpscan_is_temporary_support', true)) {
+        } elseif (get_user_meta($user->ID, 'webcareproscan_is_temporary_support', true)) {
             $auth_method = 'Magic Support Link (Zero-Trust JIT)';
         } elseif (defined('XMLRPC_REQUEST') && XMLRPC_REQUEST) {
             $auth_method = 'XML-RPC Protocol';
@@ -234,7 +234,7 @@ class LoginHistoryManager {
         }
 
         // Failsafe: Ignore loopback or empty IPs
-        if ($new_ip === '127.0.0.1' || $new_ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($new_ip)) {
+        if ($new_ip === '127.0.0.1' || $new_ip === '::1' || \WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($new_ip)) {
             return false;
         }
 
@@ -389,7 +389,7 @@ class LoginHistoryManager {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
         if (!$table_exists) {
-            \WcpScanner\Database\Migration::install();
+            \WebCareProScanner\Database\Migration::install();
         }
 
         // Calculate query limit: 0 or values >= 1000 retrieve full history
@@ -408,7 +408,7 @@ class LoginHistoryManager {
         $current_token = wp_get_session_token();
 
         // Retrieve current active sessions metadata to check for active tokens
-        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+        $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true) ?: [];
 
         $history = [];
         $total_active_seconds = 0;
@@ -541,7 +541,7 @@ class LoginHistoryManager {
                         array_unshift($history, [
                             'id'                 => 0,
                             'login_time'         => current_time('mysql'),
-                            'login_time_human'   => __('Active connection', 'wcp-security-scanner'),
+                            'login_time_human'   => __('Active connection', 'webcare-pro-security'),
                             'logout_time'        => null,
                             'last_seen'          => current_time('mysql'),
                             'duration_seconds'   => 1,
@@ -599,10 +599,10 @@ class LoginHistoryManager {
 
         $parts = [];
         if ($days > 0) {
-            $parts[] = $days . ' ' . _n('day', 'days', $days, 'wcp-security-scanner');
+            $parts[] = $days . ' ' . _n('day', 'days', $days, 'webcare-pro-security');
         }
         if ($hours > 0) {
-            $parts[] = $hours . ' ' . _n('hour', 'hours', $hours, 'wcp-security-scanner');
+            $parts[] = $hours . ' ' . _n('hour', 'hours', $hours, 'webcare-pro-security');
         }
         if ($minutes > 0) {
             $parts[] = $minutes . ' min';

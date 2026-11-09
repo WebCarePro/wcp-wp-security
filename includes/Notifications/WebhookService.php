@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Notifications;
+namespace WebCareProScanner\Notifications;
 
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -32,12 +32,12 @@ class WebhookService {
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress';
         $site_url  = get_site_url();
         $dashboard_url = admin_url('admin.php?page=wcp-security-scanner');
-        $plugin_version = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.7.1';
+        $plugin_version = defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1';
 
         if ($platform === 'slack') {
             $url = !empty($custom_url) ? trim($custom_url) : ($settings['slack_webhook_url'] ?? '');
             if (empty($url)) {
-                return ['success' => false, 'code' => 400, 'message' => __('No Slack Webhook URL provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'code' => 400, 'message' => __('No Slack Webhook URL provided.', 'webcare-pro-security')];
             }
 
             $payload = [
@@ -78,7 +78,7 @@ class WebhookService {
         } elseif ($platform === 'discord') {
             $url = !empty($custom_url) ? trim($custom_url) : ($settings['discord_webhook_url'] ?? '');
             if (empty($url)) {
-                return ['success' => false, 'code' => 400, 'message' => __('No Discord Webhook URL provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'code' => 400, 'message' => __('No Discord Webhook URL provided.', 'webcare-pro-security')];
             }
 
             $payload = [
@@ -105,7 +105,7 @@ class WebhookService {
         } elseif ($platform === 'clickup') {
             $url = !empty($custom_url) ? trim($custom_url) : ($settings['clickup_webhook_url'] ?? '');
             if (empty($url)) {
-                return ['success' => false, 'code' => 400, 'message' => __('No ClickUp Webhook URL provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'code' => 400, 'message' => __('No ClickUp Webhook URL provided.', 'webcare-pro-security')];
             }
 
             $payload = [
@@ -126,7 +126,7 @@ class WebhookService {
         } elseif ($platform === 'asana') {
             $url = !empty($custom_url) ? trim($custom_url) : ($settings['asana_webhook_url'] ?? '');
             if (empty($url)) {
-                return ['success' => false, 'code' => 400, 'message' => __('No Asana Webhook URL provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'code' => 400, 'message' => __('No Asana Webhook URL provided.', 'webcare-pro-security')];
             }
 
             $payload = [
@@ -147,7 +147,7 @@ class WebhookService {
         } elseif ($platform === 'generic') {
             $url = !empty($custom_url) ? trim($custom_url) : ($settings['generic_webhook_url'] ?? '');
             if (empty($url)) {
-                return ['success' => false, 'code' => 400, 'message' => __('No Automation Webhook URL provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'code' => 400, 'message' => __('No Automation Webhook URL provided.', 'webcare-pro-security')];
             }
 
             $payload = [
@@ -166,7 +166,7 @@ class WebhookService {
             return self::post_webhook($url, $payload, 'Automation Webhook');
         }
 
-        return ['success' => false, 'code' => 400, 'message' => __('Unsupported platform.', 'wcp-security-scanner')];
+        return ['success' => false, 'code' => 400, 'message' => __('Unsupported platform.', 'webcare-pro-security')];
     }
 
     /**
@@ -201,7 +201,7 @@ class WebhookService {
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress';
         $site_url  = get_site_url();
         $dashboard_url = admin_url('admin.php?page=wcp-security-scanner');
-        $plugin_version = defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.7.1';
+        $plugin_version = defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1';
 
         $is_danger = ($critical_count > 0 || $high_count > 0);
         $color_hex = $is_danger ? self::COLOR_CRITICAL : ($total_issues > 0 ? self::COLOR_WARNING : self::COLOR_SUCCESS);
@@ -502,7 +502,7 @@ class WebhookService {
         }
 
         // Rate-limit WAF webhooks to at most 1 per 60 seconds to avoid spamming team channels during DDoS/floods
-        $rate_key = 'wcpscan_waf_webhook_rate_limit';
+        $rate_key = 'webcareproscan_waf_webhook_rate_limit';
         if (get_transient($rate_key)) {
             return;
         }
@@ -642,7 +642,7 @@ class WebhookService {
                 'success' => false,
                 'code'    => 500,
                 /* translators: 1: platform name, 2: error message */
-                'message' => sprintf(__('%1$s delivery error: %2$s', 'wcp-security-scanner'), $platform_name, $response->get_error_message()),
+                'message' => sprintf(__('%1$s delivery error: %2$s', 'webcare-pro-security'), $platform_name, $response->get_error_message()),
             ];
         }
 
@@ -652,7 +652,7 @@ class WebhookService {
                 'success' => true,
                 'code'    => $code,
                 /* translators: 1: platform name, 2: HTTP status code */
-                'message' => sprintf(__('%1$s alert delivered successfully (HTTP %2$d).', 'wcp-security-scanner'), $platform_name, $code),
+                'message' => sprintf(__('%1$s alert delivered successfully (HTTP %2$d).', 'webcare-pro-security'), $platform_name, $code),
             ];
         }
 
@@ -661,7 +661,7 @@ class WebhookService {
             'success' => false,
             'code'    => $code,
             /* translators: 1: platform name, 2: HTTP status code, 3: response body snippet */
-            'message' => sprintf(__('%1$s returned HTTP %2$d: %3$s', 'wcp-security-scanner'), $platform_name, $code, substr($body, 0, 120)),
+            'message' => sprintf(__('%1$s returned HTTP %2$d: %3$s', 'webcare-pro-security'), $platform_name, $code, substr($body, 0, 120)),
         ];
     }
 }

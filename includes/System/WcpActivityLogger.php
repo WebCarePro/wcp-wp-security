@@ -1,15 +1,15 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
-use WcpScanner\System\ActivityLogs\ActivityCanonicalizer;
-use WcpScanner\System\ActivityLogs\ActivityEventSchema;
-use WcpScanner\System\ActivityLogs\ActivityHashChain;
-use WcpScanner\System\ActivityLogs\ActivityHumanizer;
-use WcpScanner\System\ActivityLogs\ActivityRateLimiter;
-use WcpScanner\System\ActivityLogs\ActivityRecovery;
-use WcpScanner\System\ActivityLogs\ActivityRetention;
-use WcpScanner\System\ActivityLogs\ActivityStorage;
-use WcpScanner\System\ActivityLogs\ActivityTamperNotifier;
+use WebCareProScanner\System\ActivityLogs\ActivityCanonicalizer;
+use WebCareProScanner\System\ActivityLogs\ActivityEventSchema;
+use WebCareProScanner\System\ActivityLogs\ActivityHashChain;
+use WebCareProScanner\System\ActivityLogs\ActivityHumanizer;
+use WebCareProScanner\System\ActivityLogs\ActivityRateLimiter;
+use WebCareProScanner\System\ActivityLogs\ActivityRecovery;
+use WebCareProScanner\System\ActivityLogs\ActivityRetention;
+use WebCareProScanner\System\ActivityLogs\ActivityStorage;
+use WebCareProScanner\System\ActivityLogs\ActivityTamperNotifier;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -46,7 +46,7 @@ class WcpActivityLogger {
      * Initialize listeners and hooks.
      */
     public static function init(): void {
-        // Universal WordPress Option Watcher for all wcpscan_* plugin state changes
+        // Universal WordPress Option Watcher for all webcareproscan_* plugin state changes
         add_action('updated_option', [__CLASS__, 'on_option_updated'], 10, 3);
         add_action('added_option', [__CLASS__, 'on_option_added'], 10, 2);
     }
@@ -637,93 +637,93 @@ class WcpActivityLogger {
      * @param mixed  $value
      */
     public static function on_option_updated($option, $old_value, $value): void {
-        if (!is_string($option) || !str_starts_with($option, 'wcpscan_')) {
+        if (!is_string($option) || !str_starts_with($option, 'webcareproscan_')) {
             return;
         }
 
         // Ignore internal high-frequency operational / ledger / telemetry / volatile lock pointers
         // Also ignore options already explicitly instrumented with rich before/after activity logging
         $ignored_patterns = [
-            'wcpscan_activity_',
-            'wcpscan_install_hash',
-            'wcpscan_transient_',
-            'wcpscan_rate_limit_',
+            'webcareproscan_activity_',
+            'webcareproscan_install_hash',
+            'webcareproscan_transient_',
+            'webcareproscan_rate_limit_',
             '_transient_',
-            'wcpscan_active_visitor_',
-            'wcpscan_last_scan_state',
-            'wcpscan_scan_checkpoint',
-            'wcpscan_session_forensics_active_tokens',
-            'wcpscan_db_last_audit',
-            'wcpscan_active_scan_lock',
-            'wcpscan_learning_route_profiles',
-            'wcpscan_quarantine_manifest',
-            'wcpscan_quarantine_remediation_journal',
-            'wcpscan_circuit_breaker_',
-            'wcpscan_crashguard_last_incident',
-            'wcpscan_crash_history',
-            'wcpscan_tor_exit_nodes',
-            'wcpscan_threat_intel_network_meta',
-            'wcpscan_threat_intel_consensus_ring',
-            'wcpscan_threat_intel_reputation_log',
-            'wcpscan_server_security_state',
-            'wcpscan_gatekeeper_snapshots',
-            'wcpscan_gatekeeper_logs',
-            'wcpscan_gatekeeper_audit_logs',
-            'wcpscan_outbound_egress_events',
-            'wcpscan_prompt_injection_catches',
-            'wcpscan_ghost_route_catches',
-            'wcpscan_ghost_trap_catches',
-            'wcpscan_blocked_ips_meta',
-            'wcpscan_whitelisted_ips_meta',
-            'wcpscan_webauthn_index',
-            'wcpscan_threat_intel_ips',
-            'wcpscan_threat_intel_meta',
-            'wcpscan_threat_intel_cves',
-            'wcpscan_self_defense_hashes',
-            'wcpscan_self_defense_last_audit',
-            'wcpscan_honeytoken_catches',
-            'wcpscan_login_lockouts',
-            'wcpscan_script_inventory_alerts',
-            'wcpscan_script_inventory',
-            'wcpscan_domain_reputation_report',
-            'wcpscan_form_spam_stats',
-            'wcpscan_form_spam_session_salt',
-            'wcpscan_mcp_agent_audit',
-            'wcpscan_mcp_staged_actions',
-            'wcpscan_cf_deployed_edge_rules',
-            'wcpscan_cloudflare_rate_limit_config',
-            'wcpscan_remediation_backups',
-            'wcpscan_vault_salt',
-            'wcpscan_micro_waf_bypass_token',
-            'wcpscan_micro_waf_chained_file',
-            'wcpscan_ephemeral_admin_history',
-            'wcpscan_dismissed_backups',
-            'wcpscan_welcome_dismissed',
-            'wcpscan_db_version',
-            'wcpscan_activity_log_settings',
-            'wcpscan_bot_ban_',
-            'wcpscan_active_scan_lock',
-            'wcpscan_learning_route_profiles',
-            'wcpscan_learning_mode_profiles',
-            'wcpscan_active_scan_lock_pid',
-            'wcpscan_scan_progress',
-            'wcpscan_live_scan_status',
-            'wcpscan_active_backup_session',
-            'wcpscan_waf_events',
-            'wcpscan_waf_blocked_ips',
+            'webcareproscan_active_visitor_',
+            'webcareproscan_last_scan_state',
+            'webcareproscan_scan_checkpoint',
+            'webcareproscan_session_forensics_active_tokens',
+            'webcareproscan_db_last_audit',
+            'webcareproscan_active_scan_lock',
+            'webcareproscan_learning_route_profiles',
+            'webcareproscan_quarantine_manifest',
+            'webcareproscan_quarantine_remediation_journal',
+            'webcareproscan_circuit_breaker_',
+            'webcareproscan_crashguard_last_incident',
+            'webcareproscan_crash_history',
+            'webcareproscan_tor_exit_nodes',
+            'webcareproscan_threat_intel_network_meta',
+            'webcareproscan_threat_intel_consensus_ring',
+            'webcareproscan_threat_intel_reputation_log',
+            'webcareproscan_server_security_state',
+            'webcareproscan_gatekeeper_snapshots',
+            'webcareproscan_gatekeeper_logs',
+            'webcareproscan_gatekeeper_audit_logs',
+            'webcareproscan_outbound_egress_events',
+            'webcareproscan_prompt_injection_catches',
+            'webcareproscan_ghost_route_catches',
+            'webcareproscan_ghost_trap_catches',
+            'webcareproscan_blocked_ips_meta',
+            'webcareproscan_whitelisted_ips_meta',
+            'webcareproscan_webauthn_index',
+            'webcareproscan_threat_intel_ips',
+            'webcareproscan_threat_intel_meta',
+            'webcareproscan_threat_intel_cves',
+            'webcareproscan_self_defense_hashes',
+            'webcareproscan_self_defense_last_audit',
+            'webcareproscan_honeytoken_catches',
+            'webcareproscan_login_lockouts',
+            'webcareproscan_script_inventory_alerts',
+            'webcareproscan_script_inventory',
+            'webcareproscan_domain_reputation_report',
+            'webcareproscan_form_spam_stats',
+            'webcareproscan_form_spam_session_salt',
+            'webcareproscan_mcp_agent_audit',
+            'webcareproscan_mcp_staged_actions',
+            'webcareproscan_cf_deployed_edge_rules',
+            'webcareproscan_cloudflare_rate_limit_config',
+            'webcareproscan_remediation_backups',
+            'webcareproscan_vault_salt',
+            'webcareproscan_micro_waf_bypass_token',
+            'webcareproscan_micro_waf_chained_file',
+            'webcareproscan_ephemeral_admin_history',
+            'webcareproscan_dismissed_backups',
+            'webcareproscan_welcome_dismissed',
+            'webcareproscan_db_version',
+            'webcareproscan_activity_log_settings',
+            'webcareproscan_bot_ban_',
+            'webcareproscan_active_scan_lock',
+            'webcareproscan_learning_route_profiles',
+            'webcareproscan_learning_mode_profiles',
+            'webcareproscan_active_scan_lock_pid',
+            'webcareproscan_scan_progress',
+            'webcareproscan_live_scan_status',
+            'webcareproscan_active_backup_session',
+            'webcareproscan_waf_events',
+            'webcareproscan_waf_blocked_ips',
 
             // Subsystems that manage their own rich activity log emissions (prevent duplicate option watcher events)
-            'wcpscan_settings',
-            'wcpscan_rate_limiter_settings',
-            'wcpscan_ghost_trap_settings',
-            'wcpscan_honeytoken_settings',
-            'wcpscan_learning_settings',
-            'wcpscan_egress_settings',
-            'wcpscan_prompt_guard_settings',
-            'wcpscan_identity_forensics_settings',
-            'wcpscan_gatekeeper_settings',
-            'wcpscan_attack_surface_settings',
-            'wcpscan_virtual_patches',
+            'webcareproscan_settings',
+            'webcareproscan_rate_limiter_settings',
+            'webcareproscan_ghost_trap_settings',
+            'webcareproscan_honeytoken_settings',
+            'webcareproscan_learning_settings',
+            'webcareproscan_egress_settings',
+            'webcareproscan_prompt_guard_settings',
+            'webcareproscan_identity_forensics_settings',
+            'webcareproscan_gatekeeper_settings',
+            'webcareproscan_attack_surface_settings',
+            'webcareproscan_virtual_patches',
         ];
 
         foreach ($ignored_patterns as $pattern) {
@@ -791,7 +791,7 @@ class WcpActivityLogger {
      * @param mixed  $value
      */
     public static function on_option_added($option, $value): void {
-        if (!is_string($option) || !str_starts_with($option, 'wcpscan_')) {
+        if (!is_string($option) || !str_starts_with($option, 'webcareproscan_')) {
             return;
         }
 
@@ -876,7 +876,7 @@ class WcpActivityLogger {
             return 'Completed initial security onboarding setup wizard and applied baseline hardening.';
         }
         if (str_contains($option, 'site_archetype')) {
-            $arch = is_string($diff['wcpscan_site_archetype']['new'] ?? null) ? $diff['wcpscan_site_archetype']['new'] : 'Standard';
+            $arch = is_string($diff['webcareproscan_site_archetype']['new'] ?? null) ? $diff['webcareproscan_site_archetype']['new'] : 'Standard';
             return sprintf('Configured security scanner posture for site profile "%s".', ucfirst($arch));
         }
         if (str_contains($option, 'server_security_options')) {
@@ -901,6 +901,6 @@ class WcpActivityLogger {
             return sprintf('Updated plugin security parameters (%d setting%s: %s).', $count, $count === 1 ? '' : 's', $keys_summary);
         }
 
-        return sprintf('Configuration adjusted for %s (%d parameter%s: %s).', str_replace('wcpscan_', '', $option), $count, $count === 1 ? '' : 's', $keys_summary);
+        return sprintf('Configuration adjusted for %s (%d parameter%s: %s).', str_replace('webcareproscan_', '', $option), $count, $count === 1 ? '' : 's', $keys_summary);
     }
 }

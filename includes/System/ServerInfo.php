@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -93,7 +93,7 @@ class ServerInfo {
             if ($compute_filesystem) {
                 $filesystem = self::get_filesystem_metrics(false);
             } else {
-                $cached_fs = function_exists('get_transient') ? get_transient('wcpscan_server_filesystem_metrics') : false;
+                $cached_fs = function_exists('get_transient') ? get_transient('webcareproscan_server_filesystem_metrics') : false;
                 $filesystem = is_array($cached_fs) ? $cached_fs : null;
             }
 
@@ -236,7 +236,7 @@ class ServerInfo {
         }
 
         // Fast-path: Check WordPress persistent transient cache (12 hours)
-        $transient_key = 'wcpscan_server_ips_cache';
+        $transient_key = 'webcareproscan_server_ips_cache';
         if (function_exists('get_transient')) {
             $transient_ips = get_transient($transient_key);
             if (is_array($transient_ips) && !empty($transient_ips)) {
@@ -433,7 +433,7 @@ class ServerInfo {
      * @return array
      */
     public static function get_filesystem_metrics(bool $force_refresh = false): array {
-        $transient_key = 'wcpscan_server_filesystem_metrics';
+        $transient_key = 'webcareproscan_server_filesystem_metrics';
         if (!$force_refresh) {
             $cached = function_exists('get_transient') ? get_transient($transient_key) : false;
             if ($cached && is_array($cached)) {

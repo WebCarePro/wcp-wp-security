@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -56,8 +56,8 @@ class ActivityExporter {
         fwrite($out, "\xEF\xBB\xBF");
 
         // Optional System Diagnostic & Environmental Preheader
-        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
-            $telemetry = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        if ($include_system_info && class_exists('\\WebCareProScanner\\System\\TelemetrySnapshot')) {
+            $telemetry = \WebCareProScanner\System\TelemetrySnapshot::get_snapshot();
             $cf_text   = !empty($telemetry['edge_network']['powered_by_cloudflare']) ? 'YES (' . ($telemetry['edge_network']['cloudflare_status'] ?? 'Cloudflare Edge') . ')' : 'NO (Direct Origin)';
             $act_plugins = !empty($telemetry['plugins']['active_plugins']) ? array_column($telemetry['plugins']['active_plugins'], 'name') : [];
             $act_plugins_str = implode(', ', array_slice($act_plugins, 0, 15)) . (count($act_plugins) > 15 ? sprintf(' ... (+%d more)', count($act_plugins) - 15) : '');
@@ -101,7 +101,7 @@ class ActivityExporter {
         ]);
 
         foreach ($records as $rec) {
-            if (class_exists('\\WcpScanner\\System\\ActivityLogs\\ActivityHumanizer')) {
+            if (class_exists('\\WebCareProScanner\\System\\ActivityLogs\\ActivityHumanizer')) {
                 $rec = ActivityHumanizer::humanize_record($rec);
             }
 
@@ -162,8 +162,8 @@ class ActivityExporter {
             'total_count'     => count($records),
         ];
 
-        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
-            $payload['environment_snapshot'] = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        if ($include_system_info && class_exists('\\WebCareProScanner\\System\\TelemetrySnapshot')) {
+            $payload['environment_snapshot'] = \WebCareProScanner\System\TelemetrySnapshot::get_snapshot();
         }
 
         echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

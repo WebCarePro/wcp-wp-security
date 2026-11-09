@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner;
+namespace WebCareProScanner;
 
-use WcpScanner\Admin\AdminMenu;
-use WcpScanner\Api\ScannerRoutes;
+use WebCareProScanner\Admin\AdminMenu;
+use WebCareProScanner\Api\ScannerRoutes;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -24,125 +24,125 @@ class Plugin {
 
     private function init() {
         // Performance optimization: check cached in-memory alloptions db version first (0 queries)
-        if (get_option('wcpscan_db_version') !== '1.12.0') {
-            \WcpScanner\Database\Migration::install();
+        if (get_option('webcareproscan_db_version') !== '1.12.0') {
+            \WebCareProScanner\Database\Migration::install();
         }
 
         // Ensure root uploads/wcp-security-scanner storage directory has an index.php directory silence guard
         self::ensure_uploads_storage_protected();
 
         AdminMenu::register();
-        \WcpScanner\System\Scheduler::register();
+        \WebCareProScanner\System\Scheduler::register();
         
-        if (class_exists('\\WcpScanner\\Backup\\DatabaseBackup')) {
-            \WcpScanner\Backup\DatabaseBackup::init();
+        if (class_exists('\\WebCareProScanner\\Backup\\DatabaseBackup')) {
+            \WebCareProScanner\Backup\DatabaseBackup::init();
         }
 
-        if (class_exists('\\WcpScanner\\WordPress\\UserRemediationManager')) {
-            \WcpScanner\WordPress\UserRemediationManager::init();
+        if (class_exists('\\WebCareProScanner\\WordPress\\UserRemediationManager')) {
+            \WebCareProScanner\WordPress\UserRemediationManager::init();
         }
 
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::init();
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::init();
         }
 
-        $audit_logger = new \WcpScanner\System\AuditLogger();
+        $audit_logger = new \WebCareProScanner\System\AuditLogger();
         $audit_logger->init();
 
         // Firewall & Edge Security Services
-        if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
-            \WcpScanner\Firewall\WafFileLogger::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
+            \WebCareProScanner\Firewall\WafFileLogger::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            \WcpScanner\Firewall\FirewallEngine::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            \WebCareProScanner\Firewall\FirewallEngine::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\HtaccessShield')) {
-            \WcpScanner\Firewall\HtaccessShield::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\HtaccessShield')) {
+            \WebCareProScanner\Firewall\HtaccessShield::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
-            \WcpScanner\Firewall\HtaccessVaultManager::register_cli();
+        if (class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')) {
+            \WebCareProScanner\Firewall\HtaccessVaultManager::register_cli();
         }
-        if (class_exists('\\WcpScanner\\Integrity\\ObjectCacheIntegritySentinel')) {
-            \WcpScanner\Integrity\ObjectCacheIntegritySentinel::init();
-        }
-
-        if (class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager')) {
-            \WcpScanner\Security\EmergencyContainmentManager::init();
+        if (class_exists('\\WebCareProScanner\\Integrity\\ObjectCacheIntegritySentinel')) {
+            \WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::init();
         }
 
-        if (class_exists('\\WcpScanner\\Hardening\\SecurityHeadersEngine')) {
-            \WcpScanner\Hardening\SecurityHeadersEngine::init();
+        if (class_exists('\\WebCareProScanner\\Security\\EmergencyContainmentManager')) {
+            \WebCareProScanner\Security\EmergencyContainmentManager::init();
         }
-        if (class_exists('\\WcpScanner\\Auth\\TwoFactorAuth')) {
-            \WcpScanner\Auth\TwoFactorAuth::init();
+
+        if (class_exists('\\WebCareProScanner\\Hardening\\SecurityHeadersEngine')) {
+            \WebCareProScanner\Hardening\SecurityHeadersEngine::init();
         }
-        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
-            \WcpScanner\Auth\LoginHardening::init();
+        if (class_exists('\\WebCareProScanner\\Auth\\TwoFactorAuth')) {
+            \WebCareProScanner\Auth\TwoFactorAuth::init();
         }
-        if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-            \WcpScanner\Auth\SessionSentinel::init();
+        if (class_exists('\\WebCareProScanner\\Auth\\LoginHardening')) {
+            \WebCareProScanner\Auth\LoginHardening::init();
         }
-        if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
-            \WcpScanner\Auth\LoginHistoryManager::init();
+        if (class_exists('\\WebCareProScanner\\Auth\\SessionSentinel')) {
+            \WebCareProScanner\Auth\SessionSentinel::init();
         }
-        if (class_exists('\\WcpScanner\\Auth\\ApplicationPasswordSentinel')) {
-            \WcpScanner\Auth\ApplicationPasswordSentinel::init();
+        if (class_exists('\\WebCareProScanner\\Auth\\LoginHistoryManager')) {
+            \WebCareProScanner\Auth\LoginHistoryManager::init();
         }
-        if (class_exists('\\WcpScanner\\Security\\PluginSelfDefense')) {
-            \WcpScanner\Security\PluginSelfDefense::init();
+        if (class_exists('\\WebCareProScanner\\Auth\\ApplicationPasswordSentinel')) {
+            \WebCareProScanner\Auth\ApplicationPasswordSentinel::init();
         }
-        if (class_exists('\\WcpScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
-            \WcpScanner\SupplyChain\UpdateGatekeeperEngine::init();
+        if (class_exists('\\WebCareProScanner\\Security\\PluginSelfDefense')) {
+            \WebCareProScanner\Security\PluginSelfDefense::init();
         }
-        if (class_exists('\\WcpScanner\\Content\\ScriptInventoryMonitor')) {
-            \WcpScanner\Content\ScriptInventoryMonitor::init();
+        if (class_exists('\\WebCareProScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
+            \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::init();
         }
-        if (class_exists('\\WcpScanner\\Identity\\SessionForensicsEngine')) {
-            \WcpScanner\Identity\SessionForensicsEngine::init();
+        if (class_exists('\\WebCareProScanner\\Content\\ScriptInventoryMonitor')) {
+            \WebCareProScanner\Content\ScriptInventoryMonitor::init();
         }
-        if (class_exists('\\WcpScanner\\Identity\\EphemeralAdminEngine')) {
-            \WcpScanner\Identity\EphemeralAdminEngine::init();
+        if (class_exists('\\WebCareProScanner\\Identity\\SessionForensicsEngine')) {
+            \WebCareProScanner\Identity\SessionForensicsEngine::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\GhostRouteTrap')) {
-            \WcpScanner\Firewall\GhostRouteTrap::init();
+        if (class_exists('\\WebCareProScanner\\Identity\\EphemeralAdminEngine')) {
+            \WebCareProScanner\Identity\EphemeralAdminEngine::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\FormSpamProtectionEngine')) {
-            \WcpScanner\Firewall\FormSpamProtectionEngine::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\GhostRouteTrap')) {
+            \WebCareProScanner\Firewall\GhostRouteTrap::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\OutboundEgressFirewall')) {
-            \WcpScanner\Firewall\OutboundEgressFirewall::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\FormSpamProtectionEngine')) {
+            \WebCareProScanner\Firewall\FormSpamProtectionEngine::init();
         }
-        if (class_exists('\\WcpScanner\\Security\\PromptInjectionGuard')) {
-            \WcpScanner\Security\PromptInjectionGuard::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\OutboundEgressFirewall')) {
+            \WebCareProScanner\Firewall\OutboundEgressFirewall::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')) {
-            \WcpScanner\Firewall\DistributedVelocityShield::init();
+        if (class_exists('\\WebCareProScanner\\Security\\PromptInjectionGuard')) {
+            \WebCareProScanner\Security\PromptInjectionGuard::init();
         }
-        if (class_exists('\\WcpScanner\\Content\\BlockDirectiveSanitizer')) {
-            \WcpScanner\Content\BlockDirectiveSanitizer::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\DistributedVelocityShield')) {
+            \WebCareProScanner\Firewall\DistributedVelocityShield::init();
         }
-        if (class_exists('\\WcpScanner\\WordPress\\RestApiInventory')) {
-            \WcpScanner\WordPress\RestApiInventory::init();
+        if (class_exists('\\WebCareProScanner\\Content\\BlockDirectiveSanitizer')) {
+            \WebCareProScanner\Content\BlockDirectiveSanitizer::init();
         }
-        if (class_exists('\\WcpScanner\\Quarantine\\ReinfectionWatchdog')) {
-            \WcpScanner\Quarantine\ReinfectionWatchdog::init();
+        if (class_exists('\\WebCareProScanner\\WordPress\\RestApiInventory')) {
+            \WebCareProScanner\WordPress\RestApiInventory::init();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\DomainReputationMonitor')) {
-            \WcpScanner\Firewall\DomainReputationMonitor::init();
+        if (class_exists('\\WebCareProScanner\\Quarantine\\ReinfectionWatchdog')) {
+            \WebCareProScanner\Quarantine\ReinfectionWatchdog::init();
         }
-        if (class_exists('\\WcpScanner\\Auth\\WebAuthnManager')) {
-            \WcpScanner\Auth\WebAuthnManager::init();
+        if (class_exists('\\WebCareProScanner\\Firewall\\DomainReputationMonitor')) {
+            \WebCareProScanner\Firewall\DomainReputationMonitor::init();
         }
-        if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
-            \WcpScanner\Identity\WcpJitMuGuardian::ensure_installed();
+        if (class_exists('\\WebCareProScanner\\Auth\\WebAuthnManager')) {
+            \WebCareProScanner\Auth\WebAuthnManager::init();
+        }
+        if (class_exists('\\WebCareProScanner\\Identity\\WcpJitMuGuardian')) {
+            \WebCareProScanner\Identity\WcpJitMuGuardian::ensure_installed();
         }
 
         // Context-Adaptive Firewall (CAF) Lifecycle Observers & Edge Cron
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
-            \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::register_lifecycle_hooks();
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::register_lifecycle_hooks();
         }
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
-            \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::register_cron();
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer::register_cron();
         }
 
         add_action('rest_api_init', function () {

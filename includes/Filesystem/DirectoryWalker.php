@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Filesystem;
+namespace WebCareProScanner\Filesystem;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -18,7 +18,7 @@ class DirectoryWalker {
         'caches',
         'wfcache',
         'updraft',
-        'wcp-security-scanner',
+        'webcare-pro-security',
         'wcp-scanner-quarantine',
         'wcp-vault',
         'wcp-waf',
@@ -153,7 +153,7 @@ class DirectoryWalker {
         }
 
         // Check user-configured excluded paths and patterns
-        if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
+        if (class_exists('\\WebCareProScanner\\System\\SettingsManager') && \WebCareProScanner\System\SettingsManager::is_path_excluded($pathname)) {
             return true;
         }
 

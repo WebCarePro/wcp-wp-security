@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -29,7 +29,7 @@ class MicroWafCompiler {
     const COMPILED_DIR_REL = 'wcp-security-scanner/waf-compiled';
     const COMPILED_FILE_NAME = 'micro-waf-compiled.php';
     const FAIL2BAN_LOG_REL = 'wcp-security-scanner/waf-logs/fail2ban.log';
-    const OPTION_STATUS = 'wcpscan_micro_waf_status';
+    const OPTION_STATUS = 'webcareproscan_micro_waf_status';
     const CAF_COMPILED_FILE_NAME = 'wcp-caf-compiled-rules.php';
     const OPTION_CAF_HMAC = 'wcp_caf_compiled_hmac';
 
@@ -136,7 +136,7 @@ class MicroWafCompiler {
 
     public static function compile(?string $chained_file = null): array {
         if ($chained_file === null) {
-            $chained_file = (string) get_option('wcpscan_micro_waf_chained_file', '');
+            $chained_file = (string) get_option('webcareproscan_micro_waf_chained_file', '');
         }
 
         $dir = self::get_compiled_dir();
@@ -165,8 +165,8 @@ class MicroWafCompiler {
         }
 
         // Add curated botnet seed CIDRs from ThreatIntelService if enabled
-        if (!empty($settings['waf_block_threat_intel_ips']) && class_exists('\\WcpScanner\\Firewall\\ThreatIntelService')) {
-            $seed_ips = array_keys(\WcpScanner\Firewall\ThreatIntelService::get_seed_blacklisted_ips());
+        if (!empty($settings['waf_block_threat_intel_ips']) && class_exists('\\WebCareProScanner\\Firewall\\ThreatIntelService')) {
+            $seed_ips = array_keys(\WebCareProScanner\Firewall\ThreatIntelService::get_seed_blacklisted_ips());
             $blocked_ips = array_unique(array_merge($blocked_ips, $seed_ips));
         }
 
@@ -191,10 +191,10 @@ class MicroWafCompiler {
         ];
 
         // 3. Generate emergency bypass token
-        $bypass_token = get_option('wcpscan_micro_waf_bypass_token', '');
+        $bypass_token = get_option('webcareproscan_micro_waf_bypass_token', '');
         if (empty($bypass_token)) {
             $bypass_token = wp_generate_password(32, false, false);
-            update_option('wcpscan_micro_waf_bypass_token', $bypass_token);
+            update_option('webcareproscan_micro_waf_bypass_token', $bypass_token);
         }
 
                 // 4. Compile CAF (Context-Adaptive Firewall) Phase 1 Rules
@@ -203,7 +203,7 @@ class MicroWafCompiler {
         // 5. Resolve .htaccess mtime and emergency vault for Anti-Deadlock Watchdog
         $htaccess_path = ABSPATH . '.htaccess';
         $htaccess_mtime = file_exists($htaccess_path) ? (int) @filemtime($htaccess_path) : 0;
-        $emergency_vault = class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')
+        $emergency_vault = class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')
             ? HtaccessVaultManager::get_vault_dir() . '/' . HtaccessVaultManager::EMERGENCY_FILE_NAME
             : '';
         if (!empty($emergency_vault) && !file_exists($emergency_vault) && file_exists($htaccess_path)) {
@@ -227,7 +227,7 @@ class MicroWafCompiler {
         if ($written === false) {
             return [
                 'success' => false,
-                'message' => __('Failed to write temporary Micro-WAF file to uploads directory.', 'wcp-security-scanner'),
+                'message' => __('Failed to write temporary Micro-WAF file to uploads directory.', 'webcare-pro-security'),
             ];
         }
 
@@ -237,7 +237,7 @@ class MicroWafCompiler {
             wp_delete_file($temp_file);
             return [
                 'success' => false,
-                'message' => __('Failed to atomically deploy compiled Micro-WAF script.', 'wcp-security-scanner'),
+                'message' => __('Failed to atomically deploy compiled Micro-WAF script.', 'webcare-pro-security'),
             ];
         }
 
@@ -259,7 +259,7 @@ class MicroWafCompiler {
 
         return [
             'success'     => true,
-            'message'     => __('WCP Preload Micro-WAF successfully compiled.', 'wcp-security-scanner'),
+            'message'     => __('WCP Preload Micro-WAF successfully compiled.', 'webcare-pro-security'),
             'status_data' => $status_data,
         ];
     }
@@ -561,7 +561,7 @@ class MicroWafCompiler {
             $detected = trim(!empty($m[1]) ? $m[1] : ($m[2] ?? ''));
             if (!empty($detected) && !str_contains($detected, self::COMPILED_FILE_NAME) && file_exists($detected)) {
                 $chained_file = $detected;
-                update_option('wcpscan_micro_waf_chained_file', $chained_file);
+                update_option('webcareproscan_micro_waf_chained_file', $chained_file);
             }
         }
 
@@ -598,7 +598,7 @@ class MicroWafCompiler {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %s: file path */
-                    __('Unable to write preload directive into %s. Please verify file permissions.', 'wcp-security-scanner'),
+                    __('Unable to write preload directive into %s. Please verify file permissions.', 'webcare-pro-security'),
                     $target_file
                 ),
             ];
@@ -615,7 +615,7 @@ class MicroWafCompiler {
             'success'     => true,
             'message'     => sprintf(
                 /* translators: 1: filename, 2: environment description */
-                __('Preload Micro-WAF installed successfully into %1$s (%2$s).', 'wcp-security-scanner'),
+                __('Preload Micro-WAF installed successfully into %1$s (%2$s).', 'webcare-pro-security'),
                 $target_info['filename'],
                 $target_info['reason']
             ),
@@ -639,8 +639,8 @@ class MicroWafCompiler {
         $begin_marker = '### BEGIN WCP_MICRO_WAF';
         $end_marker   = '### END WCP_MICRO_WAF';
         $modified_count = 0;
-        $chained_file = (string) get_option('wcpscan_micro_waf_chained_file', '');
-        delete_option('wcpscan_micro_waf_chained_file');
+        $chained_file = (string) get_option('webcareproscan_micro_waf_chained_file', '');
+        delete_option('webcareproscan_micro_waf_chained_file');
 
         foreach ($files as $file) {
             if (file_exists($file) && wp_is_writable($file)) {
@@ -667,7 +667,7 @@ class MicroWafCompiler {
 
         return [
             'success' => true,
-            'message' => __('WCP Preload Micro-WAF uninstalled successfully.', 'wcp-security-scanner'),
+            'message' => __('WCP Preload Micro-WAF uninstalled successfully.', 'webcare-pro-security'),
         ];
     }
 
@@ -683,7 +683,7 @@ class MicroWafCompiler {
         $target_info = self::detect_server_target();
 
         $saved_status = get_option(self::OPTION_STATUS, []);
-        $bypass_token = get_option('wcpscan_micro_waf_bypass_token', '');
+        $bypass_token = get_option('webcareproscan_micro_waf_bypass_token', '');
         $fail2ban_log = self::get_fail2ban_log_path();
 
         $recent_drops = [];
@@ -722,8 +722,8 @@ class MicroWafCompiler {
         $conflict_exemptions = [];
         $scoped_patches = [];
 
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
-            $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
             $snapshot = $advisor->get_stack_snapshot();
             $matrix   = $advisor->get_recommendations_matrix($snapshot);
 
@@ -754,8 +754,8 @@ class MicroWafCompiler {
         $has_woo = false;
         if ($snapshot && is_array($snapshot->detected_ecosystems)) {
             $has_woo = in_array('woocommerce', $snapshot->detected_ecosystems, true);
-        } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
-            $has_woo = \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce');
+        } elseif (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            $has_woo = \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce');
         }
 
         if ($has_woo) {
@@ -776,7 +776,7 @@ class MicroWafCompiler {
         $allowed_nopriv_actions = array_values(array_unique(array_merge($allowed_nopriv_actions, $default_guest_ajax)));
 
         $artifact_data = [
-            'version'                => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.4.0',
+            'version'                => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.4.0',
             'generated_at'           => time(),
             'snapshot_hash'          => $snapshot_hash,
             'active_profile'         => $active_profile,

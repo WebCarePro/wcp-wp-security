@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
-use WcpScanner\Cloudflare\CloudflareService;
+use WebCareProScanner\Cloudflare\CloudflareService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -167,7 +167,7 @@ class CloudflareSlotOptimizer {
         if (empty($zone_id)) {
             return [
                 'success' => false,
-                'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner'),
+                'message' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security'),
             ];
         }
 
@@ -187,7 +187,7 @@ class CloudflareSlotOptimizer {
         if ($slot_budget === 0) {
             return [
                 'success'     => false,
-                'message'     => __('All 5 Cloudflare Free Plan custom rules are occupied by user-defined rules. WCP cannot deploy edge rules without overwriting custom rules.', 'wcp-security-scanner'),
+                'message'     => __('All 5 Cloudflare Free Plan custom rules are occupied by user-defined rules. WCP cannot deploy edge rules without overwriting custom rules.', 'webcare-pro-security'),
                 'user_rules'  => count($user_rules),
                 'slot_budget' => 0,
             ];
@@ -201,7 +201,7 @@ class CloudflareSlotOptimizer {
 
         // 4. Check if Account Custom IP List is available
         $has_custom_ip_list = false;
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
             $sync = new CloudflareIpListSynchronizer();
             $has_custom_ip_list = ($sync->detect_api_scope() === 'account');
         }
@@ -242,7 +242,7 @@ class CloudflareSlotOptimizer {
                 'success'     => true,
                 'message'     => sprintf(
                     /* translators: %1$d: WCP rule count, %2$d: preserved user rule count */
-                    __('Successfully synchronized %1$d WCP-managed rule(s) to Cloudflare Edge (%2$d user rule(s) safely preserved).', 'wcp-security-scanner'),
+                    __('Successfully synchronized %1$d WCP-managed rule(s) to Cloudflare Edge (%2$d user rule(s) safely preserved).', 'webcare-pro-security'),
                     count($wcp_rules),
                     count($user_rules)
                 ),
@@ -252,7 +252,7 @@ class CloudflareSlotOptimizer {
             ];
         }
 
-        $error_msg = !empty($res['errors'][0]['message']) ? $res['errors'][0]['message'] : __('Cloudflare API ruleset update rejected.', 'wcp-security-scanner');
+        $error_msg = !empty($res['errors'][0]['message']) ? $res['errors'][0]['message'] : __('Cloudflare API ruleset update rejected.', 'webcare-pro-security');
         return [
             'success' => false,
             'message' => $error_msg,

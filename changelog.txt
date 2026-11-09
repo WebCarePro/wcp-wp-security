@@ -1,8 +1,10 @@
 v:2.9.0 - 2026-11-09
-- WordPress.org Official Rebranding & Trademark Compliance (Phase 1):
+- WordPress.org Official Rebranding & Trademark Compliance (Phase 1, 2 & 3):
   * Official Plugin Identity: Rebranded plugin to 'WebCare Pro Security & Firewall' with permalink/slug 'webcare-pro-security' in accordance with WordPress.org trademark review requirements.
   * Root Entry File Renaming: Renamed main plugin file from wcp-wp-scanner.php to webcare-pro-security.php with updated author attribution and text domain 'webcare-pro-security'.
-  * Architecture & Autoloader Modernization: Introduced WEBCAREPROSCAN_* core defines with dual autoloader resolving both WebCareProScanner\ and transition namespaces.
+  * PHP Namespaces Modernization: Refactored all ~200 PHP classes, namespaces, use declarations, and inline static calls from legacy WcpScanner\ to WebCareProScanner\.
+  * Database & Options Fresh Slate: Completely migrated all options, table schemas, transients, cron hooks, and canaries from wcpscan_* to webcareproscan_* (wp_webcareproscan_scans, wp_webcareproscan_scan_issues, webcareproscan_settings, etc.) as a clean-slate fresh installation with zero legacy migrations.
+  * Constant & Defines Standardization: Standardized global constant prefixes to WEBCAREPROSCAN_* (WEBCAREPROSCAN_VERSION, WEBCAREPROSCAN_PATH, etc.).
   * Manifest Synchronization: Synchronized version 2.9.0 across readme.txt, package.json, composer.json, version.json, README.md, and changelog.txt.
 
 v:2.8.0 - 2026-11-08

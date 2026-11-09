@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Cloudflare;
+namespace WebCareProScanner\Cloudflare;
 
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -34,7 +34,7 @@ class CloudflareService {
         if (empty($token)) {
             return [
                 'success' => false,
-                'errors'  => [['message' => __('Cloudflare API Token is missing.', 'wcp-security-scanner')]],
+                'errors'  => [['message' => __('Cloudflare API Token is missing.', 'webcare-pro-security')]],
             ];
         }
 
@@ -45,7 +45,7 @@ class CloudflareService {
             'headers' => [
                 'Authorization' => 'Bearer ' . trim($token),
                 'Content-Type'  => 'application/json',
-                'User-Agent'    => 'WCP-WP-Security-Scanner/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '2.7.1'),
+                'User-Agent'    => 'WCP-WP-Security-Scanner/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1'),
             ],
         ];
 
@@ -70,7 +70,7 @@ class CloudflareService {
             return [
                 'success' => false,
                 // translators: %d: HTTP status code
-                'errors'  => [['message' => sprintf(__('Invalid response from Cloudflare API (HTTP %d).', 'wcp-security-scanner'), $code)]],
+                'errors'  => [['message' => sprintf(__('Invalid response from Cloudflare API (HTTP %d).', 'webcare-pro-security'), $code)]],
             ];
         }
 
@@ -132,7 +132,7 @@ class CloudflareService {
                 ];
             }
 
-            $msg = $res['errors'][0]['message'] ?? __('Failed to verify Cloudflare Zone credentials.', 'wcp-security-scanner');
+            $msg = $res['errors'][0]['message'] ?? __('Failed to verify Cloudflare Zone credentials.', 'webcare-pro-security');
             return [
                 'success' => false,
                 'message' => $msg,
@@ -163,7 +163,7 @@ class CloudflareService {
         }
 
         if (empty($res['success']) || !isset($res['result']) || !is_array($res['result'])) {
-            $msg = $res['errors'][0]['message'] ?? __('Could not list zones. Please provide Zone ID manually.', 'wcp-security-scanner');
+            $msg = $res['errors'][0]['message'] ?? __('Could not list zones. Please provide Zone ID manually.', 'webcare-pro-security');
             return [
                 'success' => false,
                 'message' => $msg,
@@ -176,7 +176,7 @@ class CloudflareService {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %s: candidate domain or site host */
-                    __('No matching Cloudflare zone found for "%s". Ensure your token has "Zone > Zone: Read" permissions for this domain, or enter your Zone ID manually.', 'wcp-security-scanner'),
+                    __('No matching Cloudflare zone found for "%s". Ensure your token has "Zone > Zone: Read" permissions for this domain, or enter your Zone ID manually.', 'webcare-pro-security'),
                     $candidate_domain ?: $site_host
                 ),
             ];
@@ -223,7 +223,7 @@ class CloudflareService {
             'success' => false,
             'message' => sprintf(
                 /* translators: %1$s: candidate domain, %2$s: comma-separated list of available zones */
-                __('Could not auto-match "%1$s". Available zones: %2$s. Please enter your Zone ID manually.', 'wcp-security-scanner'),
+                __('Could not auto-match "%1$s". Available zones: %2$s. Please enter your Zone ID manually.', 'webcare-pro-security'),
                 $candidate_domain,
                 implode(', ', $available_names)
             ),
@@ -340,7 +340,7 @@ class CloudflareService {
                         $detection_method = 'api_dns_record';
                         $details = sprintf(
                             /* translators: %1$s: DNS record name, %2$s: DNS record type, %3$s: proxy status */
-                            __('DNS Record: %1$s (%2$s) → Proxied: %3$s', 'wcp-security-scanner'),
+                            __('DNS Record: %1$s (%2$s) → Proxied: %3$s', 'webcare-pro-security'),
                             $record['name'] ?? $site_host,
                             $record['type'] ?? 'A',
                             $is_proxied ? 'Orange Cloud (Active)' : 'Grey Cloud (DNS Only)'
@@ -356,7 +356,7 @@ class CloudflareService {
             if ($has_cf_headers) {
                 $is_proxied = true;
                 $detection_method = 'server_headers';
-                $details = __('Active web requests are arriving via Cloudflare Edge (CF-Ray / CF-Connecting-IP verified).', 'wcp-security-scanner');
+                $details = __('Active web requests are arriving via Cloudflare Edge (CF-Ray / CF-Connecting-IP verified).', 'webcare-pro-security');
             } else {
                 // Check resolved A records of site_host
                 $records = @dns_get_record($site_host, DNS_A);
@@ -373,11 +373,11 @@ class CloudflareService {
                 if ($found_cf_ip) {
                     $is_proxied = true;
                     $detection_method = 'resolved_ip_range';
-                    $details = __('Site host resolves to Cloudflare Anycast IP proxy network.', 'wcp-security-scanner');
+                    $details = __('Site host resolves to Cloudflare Anycast IP proxy network.', 'webcare-pro-security');
                 } else {
                     $is_proxied = false;
                     $detection_method = 'resolved_ip_range';
-                    $details = __('Domain DNS resolves directly to origin server (Grey Cloud / Not Proxied). Cloudflare Edge WAF rules will not intercept traffic until proxying is enabled.', 'wcp-security-scanner');
+                    $details = __('Domain DNS resolves directly to origin server (Grey Cloud / Not Proxied). Cloudflare Edge WAF rules will not intercept traffic until proxying is enabled.', 'webcare-pro-security');
                 }
             }
         }
@@ -396,7 +396,7 @@ class CloudflareService {
      * @return array
      */
     public static function get_cloudflare_ip_ranges(): array {
-        return \WcpScanner\Firewall\FirewallEngine::get_cloudflare_ip_ranges();
+        return \WebCareProScanner\Firewall\FirewallEngine::get_cloudflare_ip_ranges();
     }
 
     /**
@@ -406,7 +406,7 @@ class CloudflareService {
      * @return bool
      */
     public static function is_cloudflare_ip(string $ip): bool {
-        return \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip);
+        return \WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip);
     }
 
     /**
@@ -424,8 +424,8 @@ class CloudflareService {
         $is_shared_candidate = $is_apache_or_litespeed || (intval($memory_limit) <= 512);
 
         $savings_estimate = $has_cloudflare
-            ? __('Active: Cloudflare Edge is currently dropping perimeter attacks with 0ms server CPU/RAM overhead.', 'wcp-security-scanner')
-            : __('Up to 90% reduction in malicious PHP worker invocations on your hosting plan.', 'wcp-security-scanner');
+            ? __('Active: Cloudflare Edge is currently dropping perimeter attacks with 0ms server CPU/RAM overhead.', 'webcare-pro-security')
+            : __('Up to 90% reduction in malicious PHP worker invocations on your hosting plan.', 'webcare-pro-security');
 
         $settings = SettingsManager::get_settings();
         $api_configured = !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
@@ -448,9 +448,9 @@ class CloudflareService {
             'plan'              => $plan_name,
             'memory_limit'      => $memory_limit,
             'savings_estimate'  => $savings_estimate,
-            'headline'          => __('Shared Hosting & Resource Optimization Advisory', 'wcp-security-scanner'),
-            'summary'           => __('On shared cPanel, Plesk, or CloudLinux hosting, running deep PHP inspection for high-volume bot probes can exhaust strictly throttled CPU and RAM limits (often triggering 508 Resource Limit Reached). Offloading perimeter protection to Cloudflare Free Edge blocks 90%+ of automated probes before they ever reach your hosting server.', 'wcp-security-scanner'),
-            'expert_note'       => __('Advisory by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer. Offload perimeter probes to Cloudflare Free Edge, while WCP local origin firewall handles authenticated WordPress sessions and deep POST payloads.', 'wcp-security-scanner'),
+            'headline'          => __('Shared Hosting & Resource Optimization Advisory', 'webcare-pro-security'),
+            'summary'           => __('On shared cPanel, Plesk, or CloudLinux hosting, running deep PHP inspection for high-volume bot probes can exhaust strictly throttled CPU and RAM limits (often triggering 508 Resource Limit Reached). Offloading perimeter protection to Cloudflare Free Edge blocks 90%+ of automated probes before they ever reach your hosting server.', 'webcare-pro-security'),
+            'expert_note'       => __('Advisory by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer. Offload perimeter probes to Cloudflare Free Edge, while WCP local origin firewall handles authenticated WordPress sessions and deep POST payloads.', 'webcare-pro-security'),
         ];
     }
 
@@ -462,7 +462,7 @@ class CloudflareService {
     public static function get_compound_rule_definitions(): array {
         return [
             'compound_perimeter' => [
-                'id'           => 'wcpscan_compound_perimeter',
+                'id'           => 'webcareproscan_compound_perimeter',
                 'title'        => 'Rule 1: Master Perimeter & Sensitive File Armor',
                 'badge'        => 'Edge Shield',
                 'description'  => 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
@@ -471,7 +471,7 @@ class CloudflareService {
                 'expression'   => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
             'compound_exploits' => [
-                'id'           => 'wcpscan_compound_exploits',
+                'id'           => 'webcareproscan_compound_exploits',
                 'title'        => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
                 'badge'        => 'Zero-Day Shield',
                 'description'  => 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
@@ -480,7 +480,7 @@ class CloudflareService {
                 'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))',
             ],
             'compound_login_bot' => [
-                'id'           => 'wcpscan_compound_login_bot',
+                'id'           => 'webcareproscan_compound_login_bot',
                 'title'        => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
                 'badge'        => 'Turnstile Challenge',
                 'description'  => 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
@@ -489,7 +489,7 @@ class CloudflareService {
                 'expression'   => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
             ],
             'compound_sqli' => [
-                'id'           => 'wcpscan_compound_sqli',
+                'id'           => 'webcareproscan_compound_sqli',
                 'title'        => 'Rule 4: Deep SQL Injection & Database Armor',
                 'badge'        => 'SQLi Shield',
                 'description'  => 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',
@@ -510,34 +510,34 @@ class CloudflareService {
     public static function get_rule_definitions(): array {
         return [
             'compound_perimeter' => [
-                'id'          => 'wcpscan_compound_perimeter',
+                'id'          => 'webcareproscan_compound_perimeter',
                 'title'       => 'Rule 1: Master Perimeter & Sensitive File Armor',
                 'badge'       => 'Edge Shield',
-                'description' => __('Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.', 'wcp-security-scanner'),
+                'description' => __('Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.', 'webcare-pro-security'),
                 'action'      => 'block',
                 'expression'  => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
             'compound_exploits' => [
-                'id'          => 'wcpscan_compound_exploits',
+                'id'          => 'webcareproscan_compound_exploits',
                 'title'       => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
                 'badge'       => 'Zero-Day Shield',
-                'description' => __('Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.', 'wcp-security-scanner'),
+                'description' => __('Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.', 'webcare-pro-security'),
                 'action'      => 'block',
                 'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))',
             ],
             'compound_login_bot' => [
-                'id'          => 'wcpscan_compound_login_bot',
+                'id'          => 'webcareproscan_compound_login_bot',
                 'title'       => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
                 'badge'       => 'Turnstile Challenge',
-                'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'wcp-security-scanner'),
+                'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'webcare-pro-security'),
                 'action'      => 'managed_challenge',
                 'expression'  => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
             ],
             'compound_sqli' => [
-                'id'          => 'wcpscan_compound_sqli',
+                'id'          => 'webcareproscan_compound_sqli',
                 'title'       => 'Rule 4: Deep SQL Injection & Database Armor',
                 'badge'       => 'SQLi Shield',
-                'description' => __('Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.', 'wcp-security-scanner'),
+                'description' => __('Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.', 'webcare-pro-security'),
                 'action'      => 'block',
                 'expression'  => '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")',
             ],
@@ -547,7 +547,7 @@ class CloudflareService {
     /**
      * Option key for storing deployed Cloudflare Edge rule mappings
      */
-    const DEPLOYED_RULES_OPTION = 'wcpscan_cf_deployed_edge_rules';
+    const DEPLOYED_RULES_OPTION = 'webcareproscan_cf_deployed_edge_rules';
 
     /**
      * Retrieve currently deployed WCP rules from the zone entrypoint ruleset
@@ -628,7 +628,7 @@ class CloudflareService {
         if (empty($zone_id) || empty($token)) {
             return [
                 'success' => false,
-                'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner'),
+                'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security'),
                 'max_slots' => 5,
                 'total_used' => 0,
                 'free_slots' => 5,
@@ -679,7 +679,7 @@ class CloudflareService {
                 } else {
                     $user_rules[] = [
                         'id'          => $rule['id'] ?? '',
-                        'description' => !empty($desc) ? $desc : __('Custom Dashboard Rule', 'wcp-security-scanner'),
+                        'description' => !empty($desc) ? $desc : __('Custom Dashboard Rule', 'webcare-pro-security'),
                         'action'      => $rule['action'] ?? 'block',
                         'expression'  => $rule['expression'] ?? '',
                         'enabled'     => !empty($rule['enabled']),
@@ -717,7 +717,7 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
-            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security')];
         }
 
         $ip = trim($ip);
@@ -735,7 +735,7 @@ class CloudflareService {
                     return [
                         'success' => false,
                         // translators: %s: requested CIDR
-                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv4 ranges of /16 or /24 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv4 ranges of /16 or /24 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'webcare-pro-security'), $prefix)
                     ];
                 }
                 $target = 'ip_range';
@@ -744,16 +744,16 @@ class CloudflareService {
                     return [
                         'success' => false,
                         // translators: %s: requested CIDR
-                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv6 ranges of /32, /48, or /64 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv6 ranges of /32, /48, or /64 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'webcare-pro-security'), $prefix)
                     ];
                 }
                 $target = 'ip_range';
             } else {
-                return ['success' => false, 'message' => __('Invalid CIDR subnet address.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid CIDR subnet address.', 'webcare-pro-security')];
             }
         } else {
             if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-                return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid IP address.', 'webcare-pro-security')];
             }
             $target = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
         }
@@ -773,16 +773,16 @@ class CloudflareService {
             return [
                 'success' => true,
                 // translators: %s: IP address
-                'message' => sprintf(__('IP %s successfully whitelisted at Cloudflare Edge (Mode: Allow).', 'wcp-security-scanner'), $ip),
+                'message' => sprintf(__('IP %s successfully whitelisted at Cloudflare Edge (Mode: Allow).', 'webcare-pro-security'), $ip),
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to whitelist IP at Cloudflare Edge.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to whitelist IP at Cloudflare Edge.', 'webcare-pro-security');
         if (stripos($err, 'already exists') !== false || stripos($err, 'duplicate_of_existing') !== false) {
             return [
                 'success' => true,
                 // translators: %s: IP address
-                'message' => sprintf(__('IP %s is already allowed at Cloudflare Edge.', 'wcp-security-scanner'), $ip),
+                'message' => sprintf(__('IP %s is already allowed at Cloudflare Edge.', 'webcare-pro-security'), $ip),
             ];
         }
 
@@ -802,12 +802,12 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id)) {
-            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security')];
         }
 
         $definitions = self::get_rule_definitions();
         if (!isset($definitions[$rule_key])) {
-            return ['success' => false, 'message' => __('Invalid rule key specified.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Invalid rule key specified.', 'webcare-pro-security')];
         }
 
         $target_def = $definitions[$rule_key];
@@ -865,11 +865,11 @@ class CloudflareService {
         $update_res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint", 'PUT', $payload);
 
         if (!empty($update_res['success'])) {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
                     'severity' => 'info',
                     /* translators: %s: rule title */
-                    'message'  => sprintf(__('Cloudflare Edge Firewall Rule "%s" was successfully synchronized.', 'wcp-security-scanner'), $target_title),
+                    'message'  => sprintf(__('Cloudflare Edge Firewall Rule "%s" was successfully synchronized.', 'webcare-pro-security'), $target_title),
                     'details'  => [
                         'Rule Title' => $target_title,
                         'Rule Key'   => $rule_key,
@@ -882,16 +882,16 @@ class CloudflareService {
                 'success' => true,
                 'message' => $enable
                     // translators: %s: rule title
-                    ? sprintf(__('Successfully pushed rule "%s" to Cloudflare Edge.', 'wcp-security-scanner'), $target_title)
+                    ? sprintf(__('Successfully pushed rule "%s" to Cloudflare Edge.', 'webcare-pro-security'), $target_title)
                     // translators: %s: rule title
-                    : sprintf(__('Successfully removed rule "%s" from Cloudflare Edge.', 'wcp-security-scanner'), $target_title),
+                    : sprintf(__('Successfully removed rule "%s" from Cloudflare Edge.', 'webcare-pro-security'), $target_title),
                 'active_rules' => self::get_deployed_custom_rules($zone_id),
                 'rule_key'     => $rule_key,
                 'enabled'      => $enable,
             ];
         }
 
-        $err = $update_res['errors'][0]['message'] ?? __('Failed to update Cloudflare Edge rule.', 'wcp-security-scanner');
+        $err = $update_res['errors'][0]['message'] ?? __('Failed to update Cloudflare Edge rule.', 'webcare-pro-security');
         return [
             'success' => false,
             'message' => $err,
@@ -909,7 +909,7 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id)) {
-            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security')];
         }
 
         // 1. Fetch existing phase ruleset to avoid overwriting user's non-WCP rules
@@ -978,11 +978,11 @@ class CloudflareService {
         );
 
         if (!empty($update_res['success'])) {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
                     'severity' => 'info',
                     /* translators: %d: count of synced rules */
-                    'message'  => sprintf(__('%d Cloudflare Edge WAF rules were successfully deployed and synchronized.', 'wcp-security-scanner'), count($new_wcp_rules)),
+                    'message'  => sprintf(__('%d Cloudflare Edge WAF rules were successfully deployed and synchronized.', 'webcare-pro-security'), count($new_wcp_rules)),
                     'details'  => [
                         'Synced Rules Count' => count($new_wcp_rules),
                         'Zone ID'            => $zone_id,
@@ -993,14 +993,14 @@ class CloudflareService {
                 'success' => true,
                 'message' => sprintf(
                     /* translators: %d: count of synced rules */
-                    __('Successfully synced %d Cloudflare Edge WAF rules.', 'wcp-security-scanner'),
+                    __('Successfully synced %d Cloudflare Edge WAF rules.', 'webcare-pro-security'),
                     count($new_wcp_rules)
                 ),
                 'active_rules' => self::get_deployed_custom_rules($zone_id),
             ];
         }
 
-        $err = $update_res['errors'][0]['message'] ?? __('Failed to update Cloudflare Edge rules.', 'wcp-security-scanner');
+        $err = $update_res['errors'][0]['message'] ?? __('Failed to update Cloudflare Edge rules.', 'webcare-pro-security');
         return [
             'success' => false,
             'message' => $err,
@@ -1014,7 +1014,7 @@ class CloudflareService {
      * @return array
      */
     public static function get_rate_limiting_info(string $zone_id): array {
-        $saved = get_option('wcpscan_cloudflare_rate_limit_config', []);
+        $saved = get_option('webcareproscan_cloudflare_rate_limit_config', []);
         $default_config = [
             'enabled'            => false,
             'requests'           => 5,
@@ -1083,7 +1083,7 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id)) {
-            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security')];
         }
 
         // Validate and sanitize customized options (Default: 5 requests / 10 seconds / 10s timeout for Cloudflare Free tier)
@@ -1121,7 +1121,7 @@ class CloudflareService {
         $bypass_ips = isset($custom_config['bypass_ips']) ? trim((string) $custom_config['bypass_ips']) : '';
 
         // Save current configuration for UI state persistence
-        update_option('wcpscan_cloudflare_rate_limit_config', [
+        update_option('webcareproscan_cloudflare_rate_limit_config', [
             'enabled'            => $enable,
             'requests'           => $requests,
             'period'             => $period,
@@ -1213,7 +1213,7 @@ class CloudflareService {
                 $res = self::request("zones/{$zone_id}/rulesets/phases/http_ratelimit/entrypoint", 'PUT', $retry_payload);
 
                 if (!empty($res['success'])) {
-                    update_option('wcpscan_cloudflare_rate_limit_config', [
+                    update_option('webcareproscan_cloudflare_rate_limit_config', [
                         'enabled'            => true,
                         'requests'           => $requests,
                         'period'             => $period,
@@ -1229,7 +1229,7 @@ class CloudflareService {
                         'rate_limit_info' => self::get_rate_limiting_info($zone_id),
                         'message' => sprintf(
                             /* translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name */
-                            __('Cloudflare Free Rate Limiter active (%1$d req / %2$ds, action: %3$s, penalty: 10s). Adjusted penalty to 10s per Cloudflare Free Plan requirements. For 12h/24h bans, enable Real-time WAF Auto-Ban Sync.', 'wcp-security-scanner'),
+                            __('Cloudflare Free Rate Limiter active (%1$d req / %2$ds, action: %3$s, penalty: 10s). Adjusted penalty to 10s per Cloudflare Free Plan requirements. For 12h/24h bans, enable Real-time WAF Auto-Ban Sync.', 'webcare-pro-security'),
                             $requests,
                             $period,
                             strtoupper($action)
@@ -1247,18 +1247,18 @@ class CloudflareService {
                 'message' => $enable
                     ? sprintf(
                         /* translators: %1$d: request limit, %2$d: period in seconds, %3$s: action name, %4$d: penalty timeout in seconds, %5$s: target path */
-                        __('Cloudflare Free Rate Limiter deployed (%1$d req / %2$ds, action: %3$s, penalty: %4$ds) for %5$s.', 'wcp-security-scanner'),
+                        __('Cloudflare Free Rate Limiter deployed (%1$d req / %2$ds, action: %3$s, penalty: %4$ds) for %5$s.', 'webcare-pro-security'),
                         $requests,
                         $period,
                         strtoupper($action),
                         $timeout,
                         esc_html($saved_path_string)
                     )
-                    : __('Cloudflare Edge Rate Limiter removed.', 'wcp-security-scanner'),
+                    : __('Cloudflare Edge Rate Limiter removed.', 'webcare-pro-security'),
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to configure Rate Limiting rule.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to configure Rate Limiting rule.', 'webcare-pro-security');
         return ['success' => false, 'message' => $err];
     }
 
@@ -1288,7 +1288,7 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
-            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security')];
         }
 
         $ip = trim($ip);
@@ -1307,7 +1307,7 @@ class CloudflareService {
                     return [
                         'success' => false,
                         // translators: %s: requested CIDR
-                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv4 ranges of /16 or /24 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv4 ranges of /16 or /24 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'webcare-pro-security'), $prefix)
                     ];
                 }
                 $target = 'ip_range';
@@ -1317,16 +1317,16 @@ class CloudflareService {
                     return [
                         'success' => false,
                         // translators: %s: requested CIDR
-                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv6 ranges of /32, /48, or /64 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'wcp-security-scanner'), $prefix)
+                        'message' => sprintf(__('Cloudflare IP Access Rules only allow IPv6 ranges of /32, /48, or /64 (requested /%d). Use Cloudflare WAF Custom Rules for other CIDR sizes.', 'webcare-pro-security'), $prefix)
                     ];
                 }
                 $target = 'ip_range';
             } else {
-                return ['success' => false, 'message' => __('Invalid CIDR subnet address.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid CIDR subnet address.', 'webcare-pro-security')];
             }
         } else {
             if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-                return ['success' => false, 'message' => __('Invalid IP address.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid IP address.', 'webcare-pro-security')];
             }
             $target = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
         }
@@ -1335,29 +1335,29 @@ class CloudflareService {
         $check_ip = $is_cidr ? explode('/', $ip)[0] : $ip;
         $is_loopback = in_array($check_ip, ['127.0.0.1', '::1'], true) || !filter_var($check_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
         if ($is_loopback) {
-            return ['success' => false, 'message' => __('Cannot ban private/loopback IP address or subnet.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cannot ban private/loopback IP address or subnet.', 'webcare-pro-security')];
         }
 
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            $current_client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
-            $is_admin = \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator();
-            $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($check_ip, $settings['waf_whitelisted_ips'] ?? '');
-            $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            $current_client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+            $is_admin = \WebCareProScanner\Firewall\FirewallEngine::is_authenticated_administrator();
+            $is_whitelisted = \WebCareProScanner\Firewall\FirewallEngine::is_ip_whitelisted($check_ip, $settings['waf_whitelisted_ips'] ?? '');
+            $server_ip = class_exists('\\WebCareProScanner\\System\\ServerInfo') ? \WebCareProScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
 
             if ($check_ip === $current_client_ip || ($is_admin && $check_ip === $current_client_ip) || $is_whitelisted || (!empty($server_ip) && $check_ip === $server_ip)) {
                 // translators: %s: IP address
-                return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to server origin, administrator, or active whitelist; cannot ban.', 'wcp-security-scanner'), $ip)];
+                return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s belongs to server origin, administrator, or active whitelist; cannot ban.', 'webcare-pro-security'), $ip)];
             }
 
             // CRITICAL SAFETY GUARD: Immutable protection for verified search engine crawlers (Googlebot, Bingbot).
             // Never push legitimate search crawler IPs to Cloudflare Edge IP block rules.
-            if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+            if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                 $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-                if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($check_ip, $ua) ||
-                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($check_ip, 'googlebot') ||
-                    \WcpScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($check_ip, 'bingbot')) {
+                if (\WebCareProScanner\Firewall\BotReconDefense::is_genuine_search_engine($check_ip, $ua) ||
+                    \WebCareProScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($check_ip, 'googlebot') ||
+                    \WebCareProScanner\Firewall\BotReconDefense::is_search_bot_in_official_cidrs($check_ip, 'bingbot')) {
                     // translators: %s: IP address
-                    return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s is a verified legitimate search crawler (Googlebot / Bingbot) and cannot be blocked.', 'wcp-security-scanner'), $ip)];
+                    return ['success' => false, 'message' => sprintf(__('Safety Guard: IP %s is a verified legitimate search crawler (Googlebot / Bingbot) and cannot be blocked.', 'webcare-pro-security'), $ip)];
                 }
             }
         }
@@ -1377,13 +1377,13 @@ class CloudflareService {
             return [
                 'success' => true,
                 // translators: %s: IP address
-                'message' => sprintf(__('IP %s successfully blocked at Cloudflare Edge.', 'wcp-security-scanner'), $ip),
+                'message' => sprintf(__('IP %s successfully blocked at Cloudflare Edge.', 'webcare-pro-security'), $ip),
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to block IP at Cloudflare Edge.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to block IP at Cloudflare Edge.', 'webcare-pro-security');
         if (stripos($err, 'Authentication error') !== false || stripos($err, 'actor does not have permission') !== false) {
-            $err .= ' ' . __('Ensure your Cloudflare API Token has "Zone > Firewall Services: Edit" permission.', 'wcp-security-scanner');
+            $err .= ' ' . __('Ensure your Cloudflare API Token has "Zone > Firewall Services: Edit" permission.', 'webcare-pro-security');
         }
 
         return [
@@ -1406,7 +1406,7 @@ class CloudflareService {
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
             return [
                 'success' => false,
-                'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner'),
+                'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security'),
                 'rules'   => [],
                 'total'   => 0,
             ];
@@ -1421,7 +1421,7 @@ class CloudflareService {
                 // Strip the [WCP Security Scanner] tag prefix to extract clean ban reason
                 $clean_reason = trim(str_replace(self::WCP_RULE_TAG, '', $raw_notes));
                 if (empty($clean_reason)) {
-                    $clean_reason = __('Malicious activity detected by WAF / Brute-force', 'wcp-security-scanner');
+                    $clean_reason = __('Malicious activity detected by WAF / Brute-force', 'webcare-pro-security');
                 }
 
                 $rules[] = [
@@ -1445,7 +1445,7 @@ class CloudflareService {
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to fetch banned IP rules from Cloudflare.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to fetch banned IP rules from Cloudflare.', 'webcare-pro-security');
         return [
             'success' => false,
             'message' => $err,
@@ -1468,7 +1468,7 @@ class CloudflareService {
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
             return [
                 'success' => false,
-                'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner'),
+                'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security'),
                 'rules'   => [],
                 'total'   => 0,
             ];
@@ -1482,7 +1482,7 @@ class CloudflareService {
                 $raw_notes = $rule['notes'] ?? '';
                 $clean_notes = trim(str_replace(self::WCP_RULE_TAG, '', $raw_notes));
                 if (empty($clean_notes)) {
-                    $clean_notes = __('Administrator / Developer Whitelist', 'wcp-security-scanner');
+                    $clean_notes = __('Administrator / Developer Whitelist', 'webcare-pro-security');
                 }
 
                 $rules[] = [
@@ -1506,7 +1506,7 @@ class CloudflareService {
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to fetch whitelisted IP rules from Cloudflare.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to fetch whitelisted IP rules from Cloudflare.', 'webcare-pro-security');
         return [
             'success' => false,
             'message' => $err,
@@ -1526,21 +1526,21 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
-            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security')];
         }
 
         if (empty($rule_id)) {
-            return ['success' => false, 'message' => __('Invalid rule ID.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Invalid rule ID.', 'webcare-pro-security')];
         }
 
         $res = self::request("zones/{$zone_id}/firewall/access_rules/rules/{$rule_id}", 'DELETE');
 
         if (!empty($res['success'])) {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_rule_deleted', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_rule_deleted', [
                     'severity' => 'warning',
                     /* translators: %s: rule ID */
-                    'message'  => sprintf(__('Cloudflare Edge Access Rule #%s was unblocked/removed.', 'wcp-security-scanner'), $rule_id),
+                    'message'  => sprintf(__('Cloudflare Edge Access Rule #%s was unblocked/removed.', 'webcare-pro-security'), $rule_id),
                     'details'  => [
                         'Rule ID' => $rule_id,
                         'Zone ID' => $zone_id,
@@ -1549,11 +1549,11 @@ class CloudflareService {
             }
             return [
                 'success' => true,
-                'message' => __('IP successfully unbanned from Cloudflare Edge.', 'wcp-security-scanner'),
+                'message' => __('IP successfully unbanned from Cloudflare Edge.', 'webcare-pro-security'),
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to unban IP from Cloudflare Edge.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to unban IP from Cloudflare Edge.', 'webcare-pro-security');
         return ['success' => false, 'message' => $err];
     }
 
@@ -1573,13 +1573,13 @@ class CloudflareService {
             $parts = explode('/', $ip);
             $subnet_ip = trim($parts[0]);
             if (!filter_var($subnet_ip, FILTER_VALIDATE_IP)) {
-                return ['success' => false, 'message' => __('Invalid CIDR range provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid CIDR range provided.', 'webcare-pro-security')];
             }
             $target_param = 'ip_range';
             $target_val = $ip;
         } else {
             if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
-                return ['success' => false, 'message' => __('Invalid IP address provided.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid IP address provided.', 'webcare-pro-security')];
             }
             $target_param = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'ip6' : 'ip';
             $target_val = $ip;
@@ -1589,7 +1589,7 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
-            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare credentials not configured.', 'webcare-pro-security')];
         }
 
         // Query Cloudflare for access rules matching this specific target value
@@ -1611,7 +1611,7 @@ class CloudflareService {
                 return [
                     'success' => true,
                     /* translators: %s: unblocked IP or CIDR */
-                    'message' => sprintf(__('IP/Range %s successfully unblocked from Cloudflare Edge.', 'wcp-security-scanner'), $target_val),
+                    'message' => sprintf(__('IP/Range %s successfully unblocked from Cloudflare Edge.', 'webcare-pro-security'), $target_val),
                 ];
             }
         }
@@ -1620,7 +1620,7 @@ class CloudflareService {
         return [
             'success' => true,
             /* translators: %s: unblocked IP or CIDR */
-            'message' => sprintf(__('IP/Range %s is not currently blocked at Cloudflare Edge.', 'wcp-security-scanner'), $target_val),
+            'message' => sprintf(__('IP/Range %s is not currently blocked at Cloudflare Edge.', 'webcare-pro-security'), $target_val),
         ];
     }
 
@@ -1635,7 +1635,7 @@ class CloudflareService {
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id)) {
-            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security')];
         }
 
         $payload = empty($files) ? ['purge_everything' => true] : ['files' => $files];
@@ -1645,12 +1645,12 @@ class CloudflareService {
             return [
                 'success' => true,
                 'message' => empty($files)
-                    ? __('Cloudflare CDN Edge Cache purged completely.', 'wcp-security-scanner')
-                    : __('Selected files purged from Cloudflare Edge Cache.', 'wcp-security-scanner'),
+                    ? __('Cloudflare CDN Edge Cache purged completely.', 'webcare-pro-security')
+                    : __('Selected files purged from Cloudflare Edge Cache.', 'webcare-pro-security'),
             ];
         }
 
-        $err = $res['errors'][0]['message'] ?? __('Failed to purge Cloudflare cache.', 'wcp-security-scanner');
+        $err = $res['errors'][0]['message'] ?? __('Failed to purge Cloudflare cache.', 'webcare-pro-security');
         return ['success' => false, 'message' => $err];
     }
 
@@ -1669,7 +1669,7 @@ class CloudflareService {
 
         return [
             'success' => true,
-            'message' => __('Cloudflare disconnected and API token removed successfully.', 'wcp-security-scanner'),
+            'message' => __('Cloudflare disconnected and API token removed successfully.', 'webcare-pro-security'),
         ];
     }
 
@@ -1681,7 +1681,7 @@ class CloudflareService {
     public static function get_vault_events_filepath(): string {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        $vault_dir = $base . '/wcp-security-scanner/.vault';
+        $vault_dir = $base . '/webcare-pro-security/.vault';
 
         if (!is_dir($vault_dir)) {
             wp_mkdir_p($vault_dir);
@@ -1770,7 +1770,7 @@ class CloudflareService {
 
         return [
             'success'      => true,
-            'message'      => __('All stored Cloudflare edge security events have been cleared from local JSON vault.', 'wcp-security-scanner'),
+            'message'      => __('All stored Cloudflare edge security events have been cleared from local JSON vault.', 'webcare-pro-security'),
             'total_stored' => 0,
             'events'       => [],
             'last_synced'  => null,
@@ -1791,7 +1791,7 @@ class CloudflareService {
         if (empty($token) || empty($zone_id)) {
             return [
                 'success' => false,
-                'message' => __('Cloudflare API credentials not configured. Please connect your API token and Zone ID in Settings.', 'wcp-security-scanner'),
+                'message' => __('Cloudflare API credentials not configured. Please connect your API token and Zone ID in Settings.', 'webcare-pro-security'),
             ];
         }
 
@@ -1850,7 +1850,7 @@ class CloudflareService {
                 return [
                     'success'            => false,
                     'missing_permission' => true,
-                    'message'            => __('Cloudflare API Token lacks "Zone.Analytics: Read" permission. Please edit your API token in the Cloudflare dashboard to include Zone > Analytics > Read.', 'wcp-security-scanner'),
+                    'message'            => __('Cloudflare API Token lacks "Zone.Analytics: Read" permission. Please edit your API token in the Cloudflare dashboard to include Zone > Analytics > Read.', 'webcare-pro-security'),
                 ];
             }
 
@@ -1864,7 +1864,7 @@ class CloudflareService {
         if (empty($zones) || !isset($zones[0]['firewallEventsAdaptive'])) {
             return [
                 'success' => false,
-                'message' => __('No firewall analytics data returned from Cloudflare GraphQL endpoint.', 'wcp-security-scanner'),
+                'message' => __('No firewall analytics data returned from Cloudflare GraphQL endpoint.', 'webcare-pro-security'),
             ];
         }
 

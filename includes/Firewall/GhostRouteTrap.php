@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Cloudflare\CloudflareService;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Cloudflare\CloudflareService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -19,8 +19,8 @@ if (!defined('ABSPATH')) {
  */
 class GhostRouteTrap {
 
-    const OPTION_SETTINGS    = 'wcpscan_ghost_trap_settings';
-    const OPTION_CATCHES     = 'wcpscan_ghost_trap_catches';
+    const OPTION_SETTINGS    = 'webcareproscan_ghost_trap_settings';
+    const OPTION_CATCHES     = 'webcareproscan_ghost_trap_catches';
     const CANARY_QUERY_VAR   = 'wcp_canary_trap';
     const CANARY_PATH_PREFIX = 'wcp-internal-canary-bot-trap';
 
@@ -94,9 +94,9 @@ class GhostRouteTrap {
         $res = update_option(self::OPTION_SETTINGS, $final, false);
 
         // Audit Trail: Log Ghost Route Decoy changes
-        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $final);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $final);
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'ghost_route_settings_updated',
                 'firewall',
                 [
@@ -177,7 +177,7 @@ class GhostRouteTrap {
         }
 
         $is_genuine_crawler = false;
-        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
             $is_genuine_crawler = BotReconDefense::is_genuine_search_engine($ip, $user_agent)
                 || BotReconDefense::is_genuine_uptime_monitor($ip, $user_agent, $settings);
         }
@@ -214,7 +214,7 @@ class GhostRouteTrap {
         update_option(self::OPTION_CATCHES, $catches, false);
 
         // 2. Forensic Incident Logging
-        if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
             WafFileLogger::log_incident([
                 'category'    => 'ghost_route_trap',
                 'rule_id'     => 'wcp_canary_ai_trap',
@@ -229,7 +229,7 @@ class GhostRouteTrap {
         );
 
         // 3. Block client IP if enabled
-        if (!empty($settings['block_client_ip']) && class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (!empty($settings['block_client_ip']) && class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             FirewallEngine::add_blocked_ip(
                 $ip,
                 sprintf('Decoy canary trap probed: %s', $target_surface),
@@ -242,7 +242,7 @@ class GhostRouteTrap {
         }
 
         // 4. Sync to Cloudflare Edge IP Lists if configured
-        if (!empty($settings['sync_cloudflare_edge']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+        if (!empty($settings['sync_cloudflare_edge']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
             try {
                 CloudflareService::block_ip($ip, 'WCP Decoy Ghost Trap Probed');
             } catch (\Throwable $e) {
@@ -326,7 +326,7 @@ class GhostRouteTrap {
      * @return string
      */
     private static function get_client_ip(): string {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             return FirewallEngine::get_client_ip();
         }
         $raw = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1';

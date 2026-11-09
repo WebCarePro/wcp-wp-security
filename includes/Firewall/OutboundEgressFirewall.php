@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,8 +16,8 @@ if (!defined('ABSPATH')) {
  */
 class OutboundEgressFirewall {
 
-    const OPTION_SETTINGS = 'wcpscan_egress_settings';
-    const OPTION_EVENTS   = 'wcpscan_egress_events';
+    const OPTION_SETTINGS = 'webcareproscan_egress_settings';
+    const OPTION_EVENTS   = 'webcareproscan_egress_events';
 
     /**
      * Known dangerous exfiltration drop points and webhook APIs.
@@ -119,7 +119,7 @@ class OutboundEgressFirewall {
             // Throw exception or terminate connection to prevent following malicious redirect hop
             wp_die(
                 esc_html($res->get_error_message()),
-                esc_html__('SSRF Redirect Blocked', 'wcp-security-scanner'),
+                esc_html__('SSRF Redirect Blocked', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -231,9 +231,9 @@ class OutboundEgressFirewall {
         $res = update_option(self::OPTION_SETTINGS, $final, false);
 
         // Audit Trail: Log Outbound Egress policy changes
-        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $final);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $final);
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'egress_firewall_settings_updated',
                 'firewall',
                 [
@@ -369,7 +369,7 @@ class OutboundEgressFirewall {
         }
 
         // 5. Emergency Containment Lockdown Enforcement
-        $is_containment = class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager') && \WcpScanner\Security\EmergencyContainmentManager::is_active();
+        $is_containment = class_exists('\\WebCareProScanner\\Security\\EmergencyContainmentManager') && \WebCareProScanner\Security\EmergencyContainmentManager::is_active();
         if ($is_containment && !$threat) {
             $is_core_host = ($host === 'api.wordpress.org' || $host === 'wordpress.org' || $host === 'downloads.wordpress.org');
             if (!$is_core_host && !self::is_host_approved($host, $settings)) {
@@ -390,7 +390,7 @@ class OutboundEgressFirewall {
                 return new \WP_Error(
                     'wcp_egress_blocked',
                     /* translators: %s: Security reason description */
-                    sprintf(__('Outbound network connection blocked by WCP Egress Firewall. Reason: %s', 'wcp-security-scanner'), esc_html($reason)),
+                    sprintf(__('Outbound network connection blocked by WCP Egress Firewall. Reason: %s', 'webcare-pro-security'), esc_html($reason)),
                     ['status' => 403]
                 );
             }
@@ -417,7 +417,7 @@ class OutboundEgressFirewall {
         $host = strtolower($parsed_url['host'] ?? '');
 
         // 1. If caller is WCP Security Scanner itself, verify if it's sending to an approved service or notification endpoint
-        if (!empty($caller['slug']) && $caller['slug'] === 'wcp-security-scanner') {
+        if (!empty($caller['slug']) && $caller['slug'] === 'webcare-pro-security') {
             // Scanner sending to Discord, Slack, ClickUp, Asana, Cloudflare, AI providers, or WordPress.org is trusted
             if (self::is_host_approved($host, $settings) ||
                 str_contains($clean_target_url, 'discord.com/api/webhooks/') ||
@@ -429,8 +429,8 @@ class OutboundEgressFirewall {
         }
 
         // 2. Check against WCP Security Scanner's configured notification webhooks in SettingsManager
-        if (class_exists('\\WcpScanner\\System\\SettingsManager')) {
-            $wcp_settings = \WcpScanner\System\SettingsManager::get_settings();
+        if (class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
+            $wcp_settings = \WebCareProScanner\System\SettingsManager::get_settings();
             $configured_keys = [
                 'discord_webhook_url',
                 'slack_webhook_url',
@@ -509,7 +509,7 @@ class OutboundEgressFirewall {
             'line' => 0,
         ];
 
-        $plugin_dir = defined('WCPSCAN_PATH') ? str_replace('\\', '/', WCPSCAN_PATH) : '';
+        $plugin_dir = defined('WEBCAREPROSCAN_PATH') ? str_replace('\\', '/', WEBCAREPROSCAN_PATH) : '';
 
         foreach ($trace as $frame) {
             $file = $frame['file'] ?? '';
@@ -521,11 +521,11 @@ class OutboundEgressFirewall {
             }
 
             // Detect calls initiated by WCP Security Scanner itself
-            if (($plugin_dir !== '' && str_starts_with($norm, $plugin_dir)) || str_contains($norm, '/plugins/wcp-security-scanner/') || str_contains($norm, 'wcp-security-scanner')) {
+            if (($plugin_dir !== '' && str_starts_with($norm, $plugin_dir)) || str_contains($norm, '/plugins/webcare-pro-security/') || str_contains($norm, 'webcare-pro-security')) {
                 $caller['type'] = 'plugin';
                 $caller['name'] = 'WCP Security Scanner';
                 $caller['file'] = basename($norm);
-                $caller['slug'] = 'wcp-security-scanner';
+                $caller['slug'] = 'webcare-pro-security';
                 $caller['line'] = $frame['line'] ?? 0;
                 break;
             }
@@ -780,7 +780,7 @@ class OutboundEgressFirewall {
         }
         update_option(self::OPTION_EVENTS, $events, false);
 
-        if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
             WafFileLogger::log_incident([
                 'category'    => 'egress_firewall_intercept',
                 'rule_id'     => 'wcp_egress_' . $threat,

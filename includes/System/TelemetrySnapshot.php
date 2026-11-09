@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
-use WcpScanner\Firewall\FirewallEngine;
-use WcpScanner\Cloudflare\CloudflareService;
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\Firewall\FirewallEngine;
+use WebCareProScanner\Cloudflare\CloudflareService;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -40,11 +40,11 @@ class TelemetrySnapshot {
         }
 
         // 2. Server IP & Infrastructure
-        $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo')
+        $server_ip = class_exists('\\WebCareProScanner\\System\\ServerInfo')
             ? ServerInfo::get_server_ip()
             : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : 'Unknown');
 
-        $all_ips = class_exists('\\WcpScanner\\System\\ServerInfo')
+        $all_ips = class_exists('\\WebCareProScanner\\System\\ServerInfo')
             ? ServerInfo::get_all_server_ips()
             : [$server_ip];
 
@@ -94,7 +94,7 @@ class TelemetrySnapshot {
                 'site_url'            => $site_url,
                 'home_url'            => $home_url,
                 'is_multisite'        => is_multisite(),
-                'ssl_active'          => class_exists('\\WcpScanner\\System\\ServerInfo') ? ServerInfo::is_ssl_active() : is_ssl(),
+                'ssl_active'          => class_exists('\\WebCareProScanner\\System\\ServerInfo') ? ServerInfo::is_ssl_active() : is_ssl(),
             ],
             'server' => [
                 'real_ip'             => $server_ip,

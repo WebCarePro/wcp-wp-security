@@ -1,36 +1,36 @@
 <?php
-namespace WcpScanner\Api;
+namespace WebCareProScanner\Api;
 
-use WcpScanner\Scanner\Engine;
-use WcpScanner\Filesystem\FileScanner;
-use WcpScanner\Integrity\CoreIntegrity;
-use WcpScanner\Integrity\ImportantFileFIM;
-use WcpScanner\Integrity\PluginIntegrity;
-use WcpScanner\Integrity\ThemeIntegrity;
-use WcpScanner\Database\DatabaseScanner;
-use WcpScanner\Content\ContentScanner;
-use WcpScanner\WordPress\WordPressSecurityScanner;
-use WcpScanner\WordPress\UserScanner;
-use WcpScanner\WordPress\UpdateScanner;
-use WcpScanner\System\ServerInfo;
-use WcpScanner\Backup\DatabaseBackup;
-use WcpScanner\Findings\CorrelationEngine;
-use WcpScanner\Findings\RiskScorer;
-use WcpScanner\Quarantine\QuarantineManager;
-use WcpScanner\Quarantine\CoreRepairManager;
-use WcpScanner\Scan\ScanLock;
-use WcpScanner\Filesystem\UploadsScanner;
-use WcpScanner\WordPress\CronScanner;
-use WcpScanner\WordPress\PersistenceScanner;
-use WcpScanner\Forensics\AttackChainEngine;
-use WcpScanner\Firewall\VirtualPatchManager;
-use WcpScanner\Firewall\ThreatIntelNetwork;
-use WcpScanner\Firewall\VirtualPatchSynthesizer;
-use WcpScanner\Firewall\HtaccessVaultManager;
-use WcpScanner\Firewall\HtaccessShield;
-use WcpScanner\Firewall\RedirectCanaryEngine;
-use WcpScanner\Filesystem\PathValidator;
-use WcpScanner\Reports\IncidentReportEngine;
+use WebCareProScanner\Scanner\Engine;
+use WebCareProScanner\Filesystem\FileScanner;
+use WebCareProScanner\Integrity\CoreIntegrity;
+use WebCareProScanner\Integrity\ImportantFileFIM;
+use WebCareProScanner\Integrity\PluginIntegrity;
+use WebCareProScanner\Integrity\ThemeIntegrity;
+use WebCareProScanner\Database\DatabaseScanner;
+use WebCareProScanner\Content\ContentScanner;
+use WebCareProScanner\WordPress\WordPressSecurityScanner;
+use WebCareProScanner\WordPress\UserScanner;
+use WebCareProScanner\WordPress\UpdateScanner;
+use WebCareProScanner\System\ServerInfo;
+use WebCareProScanner\Backup\DatabaseBackup;
+use WebCareProScanner\Findings\CorrelationEngine;
+use WebCareProScanner\Findings\RiskScorer;
+use WebCareProScanner\Quarantine\QuarantineManager;
+use WebCareProScanner\Quarantine\CoreRepairManager;
+use WebCareProScanner\Scan\ScanLock;
+use WebCareProScanner\Filesystem\UploadsScanner;
+use WebCareProScanner\WordPress\CronScanner;
+use WebCareProScanner\WordPress\PersistenceScanner;
+use WebCareProScanner\Forensics\AttackChainEngine;
+use WebCareProScanner\Firewall\VirtualPatchManager;
+use WebCareProScanner\Firewall\ThreatIntelNetwork;
+use WebCareProScanner\Firewall\VirtualPatchSynthesizer;
+use WebCareProScanner\Firewall\HtaccessVaultManager;
+use WebCareProScanner\Firewall\HtaccessShield;
+use WebCareProScanner\Firewall\RedirectCanaryEngine;
+use WebCareProScanner\Filesystem\PathValidator;
+use WebCareProScanner\Reports\IncidentReportEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -1219,7 +1219,7 @@ class ScannerRoutes {
 
         // 16. Model Context Protocol (MCP) Agent Service Surface
         $mcp_permission = function (\WP_REST_Request $request) {
-            $mcp_enabled = (bool) \WcpScanner\System\SettingsManager::get('mcp_enabled', false);
+            $mcp_enabled = (bool) \WebCareProScanner\System\SettingsManager::get('mcp_enabled', false);
             if (!$mcp_enabled) {
                 return false;
             }
@@ -1229,7 +1229,7 @@ class ScannerRoutes {
             $auth_header = $request->get_header('Authorization');
             if (!empty($auth_header) && preg_match('/Bearer\s+(\S+)/i', $auth_header, $matches)) {
                 $token = $matches[1];
-                $expected = \WcpScanner\System\SettingsManager::get('mcp_token', '');
+                $expected = \WebCareProScanner\System\SettingsManager::get('mcp_token', '');
                 if (!empty($expected) && hash_equals($expected, $token)) {
                     return true;
                 }
@@ -1947,7 +1947,7 @@ class ScannerRoutes {
      * @return \WP_REST_Response
      */
     public static function get_wizard_status(\WP_REST_Request $request) {
-        $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
         
         // Detect live Cloudflare edge proxy
         $is_cloudflare = !empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
@@ -1961,28 +1961,28 @@ class ScannerRoutes {
             $archetype = 'membership';
         }
 
-        $waf_settings = get_option('wcpscan_waf_settings', []);
-        $current_whitelist = (string) get_option('wcpscan_waf_whitelisted_ips', '');
+        $waf_settings = get_option('webcareproscan_waf_settings', []);
+        $current_whitelist = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
         $is_whitelisted = strpos($current_whitelist, $client_ip) !== false;
 
         $uid = get_current_user_id();
         $support_code = '#WCP-' . strtoupper(substr(md5((string) $uid . wp_salt('auth')), 0, 4));
 
         $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
-        $root_domain = class_exists('\WcpScanner\Cloudflare\CloudflareService')
-            ? \WcpScanner\Cloudflare\CloudflareService::extract_root_domain($site_host)
+        $root_domain = class_exists('\WebCareProScanner\Cloudflare\CloudflareService')
+            ? \WebCareProScanner\Cloudflare\CloudflareService::extract_root_domain($site_host)
             : $site_host;
 
-        $server_info = class_exists('\WcpScanner\System\ServerInfo')
-            ? \WcpScanner\System\ServerInfo::get_info(false)
+        $server_info = class_exists('\WebCareProScanner\System\ServerInfo')
+            ? \WebCareProScanner\System\ServerInfo::get_info(false)
             : null;
 
-        $global_settings = class_exists('\WcpScanner\System\SettingsManager')
-            ? \WcpScanner\System\SettingsManager::get_settings()
+        $global_settings = class_exists('\WebCareProScanner\System\SettingsManager')
+            ? \WebCareProScanner\System\SettingsManager::get_settings()
             : [];
 
-        $active_plugin_slugs = class_exists('\WcpScanner\Firewall\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_active_plugin_slugs()
+        $active_plugin_slugs = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_active_plugin_slugs()
             : [];
 
         return new \WP_REST_Response([
@@ -1996,7 +1996,7 @@ class ScannerRoutes {
             'site_domain'          => $site_host,
             'root_domain'          => $root_domain,
             'detected_archetype'   => $archetype,
-            'wizard_completed'     => (bool) get_option('wcpscan_wizard_completed', false),
+            'wizard_completed'     => (bool) get_option('webcareproscan_wizard_completed', false),
             'support_code'         => $support_code,
             'waf_settings'         => $waf_settings,
             'server_info'          => $server_info,
@@ -2032,25 +2032,25 @@ class ScannerRoutes {
 
         // 1. Whitelist Owner IP
         if (!empty($params['whitelist_ip'])) {
-            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
-            $existing_ips = (string) get_option('wcpscan_waf_whitelisted_ips', '');
+            $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+            $existing_ips = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
             if (strpos($existing_ips, $client_ip) === false) {
                 $new_whitelist = trim($existing_ips . "\n" . $client_ip);
-                update_option('wcpscan_waf_whitelisted_ips', $new_whitelist);
+                update_option('webcareproscan_waf_whitelisted_ips', $new_whitelist);
             }
         }
 
         // 2. Archetype & Profile
         $archetype = sanitize_key($params['archetype'] ?? 'business');
-        update_option('wcpscan_site_archetype', $archetype);
+        update_option('webcareproscan_site_archetype', $archetype);
 
         // 3. Firewall Toggles
-        $waf_settings = get_option('wcpscan_waf_settings', []);
+        $waf_settings = get_option('webcareproscan_waf_settings', []);
         if (isset($params['firewall_settings']) && is_array($params['firewall_settings'])) {
             foreach ($params['firewall_settings'] as $k => $v) {
                 $waf_settings[sanitize_key($k)] = (bool) $v;
             }
-            update_option('wcpscan_waf_settings', $waf_settings);
+            update_option('webcareproscan_waf_settings', $waf_settings);
         }
 
         // 4. Cloudflare Integration (if provided)
@@ -2059,15 +2059,15 @@ class ScannerRoutes {
             $cf_zone  = !empty($params['cloudflare']['zone_id']) ? sanitize_text_field($params['cloudflare']['zone_id']) : '';
 
             // If Zone ID is empty, attempt auto-detect via CloudflareService
-            if (empty($cf_zone) && class_exists('\WcpScanner\Cloudflare\CloudflareService')) {
-                $verify = \WcpScanner\Cloudflare\CloudflareService::verify_zone(null, $cf_token);
+            if (empty($cf_zone) && class_exists('\WebCareProScanner\Cloudflare\CloudflareService')) {
+                $verify = \WebCareProScanner\Cloudflare\CloudflareService::verify_zone(null, $cf_token);
                 if (!empty($verify['success']) && !empty($verify['zone_id'])) {
                     $cf_zone = $verify['zone_id'];
                 }
             }
 
-            if (!empty($cf_zone) && class_exists('\WcpScanner\System\SettingsManager')) {
-                \WcpScanner\System\SettingsManager::save_settings([
+            if (!empty($cf_zone) && class_exists('\WebCareProScanner\System\SettingsManager')) {
+                \WebCareProScanner\System\SettingsManager::save_settings([
                     'cloudflare_enabled'        => true,
                     'cloudflare_api_token'      => $cf_token,
                     'cloudflare_zone_id'        => $cf_zone,
@@ -2077,7 +2077,7 @@ class ScannerRoutes {
         }
 
         // 5. Scheduled Scan Frequency & Advanced Engine Settings
-        if (class_exists('\WcpScanner\System\SettingsManager')) {
+        if (class_exists('\WebCareProScanner\System\SettingsManager')) {
             $advanced_payload = [];
 
             if (!empty($params['scan_schedule'])) {
@@ -2133,27 +2133,27 @@ class ScannerRoutes {
             }
 
             if (!empty($advanced_payload)) {
-                \WcpScanner\System\SettingsManager::save_settings($advanced_payload);
+                \WebCareProScanner\System\SettingsManager::save_settings($advanced_payload);
             }
         }
 
         // 6. Security Alert Notifications
         if (!empty($params['alerts'])) {
             $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
-            $notif_settings = get_option('wcpscan_notification_settings', []);
+            $notif_settings = get_option('webcareproscan_notification_settings', []);
             $notif_settings['email_recipient'] = $alert_email;
             $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
             $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
             $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
-            update_option('wcpscan_notification_settings', $notif_settings);
+            update_option('webcareproscan_notification_settings', $notif_settings);
         }
 
         // 8. Mark Wizard as Completed
-        update_option('wcpscan_wizard_completed', true);
+        update_option('webcareproscan_wizard_completed', true);
 
         return new \WP_REST_Response([
             'success' => true,
-            'message' => __('WCP Protection Quickstart successfully configured.', 'wcp-security-scanner'),
+            'message' => __('WCP Protection Quickstart successfully configured.', 'webcare-pro-security'),
         ], 200);
     }
 
@@ -2163,7 +2163,7 @@ class ScannerRoutes {
         // Check for concurrent active scan lock
         $locked_id = ScanLock::get_locked_scan_id();
         if ($locked_id) {
-            $table_scans = $wpdb->prefix . 'wcpscan_scans';
+            $table_scans = $wpdb->prefix . 'webcareproscan_scans';
             $exist_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $existing_scan = $wpdb->get_row(
@@ -2174,7 +2174,7 @@ class ScannerRoutes {
             if (!$existing_scan || $existing_scan['status'] !== 'running') {
                 ScanLock::release($locked_id);
             } else {
-                $remaining = \WcpScanner\Scan\ScanQueueManager::get_remaining_count($locked_id);
+                $remaining = \WebCareProScanner\Scan\ScanQueueManager::get_remaining_count($locked_id);
                 return rest_ensure_response([
                     'success'       => true,
                     'scan_id'       => $locked_id,
@@ -2191,16 +2191,16 @@ class ScannerRoutes {
         $target = sanitize_text_field($request->get_param('target') ?: 'plugins_themes');
         $custom_options = $request->get_param('custom_options');
         if (!is_array($custom_options)) {
-            $settings = \WcpScanner\System\SettingsManager::get_settings();
-            $custom_options = $settings['custom_scan_options'] ?? \WcpScanner\System\SettingsManager::get_default_custom_scan_options();
+            $settings = \WebCareProScanner\System\SettingsManager::get_settings();
+            $custom_options = $settings['custom_scan_options'] ?? \WebCareProScanner\System\SettingsManager::get_default_custom_scan_options();
         } else {
-            $custom_options = \WcpScanner\System\SettingsManager::sanitize_custom_scan_options($custom_options);
+            $custom_options = \WebCareProScanner\System\SettingsManager::sanitize_custom_scan_options($custom_options);
         }
         
         $paths = [];
 
         // Determine scannable filesystem files based on scan profile (0 = unlimited)
-        $file_limit = (int) apply_filters('wcpscan_file_limit', 0, $target);
+        $file_limit = (int) apply_filters('webcareproscan_file_limit', 0, $target);
 
         if ($target === 'custom') {
             $has_filesystem_scan = !empty($custom_options['scan_known_malware'])
@@ -2245,7 +2245,7 @@ class ScannerRoutes {
             $paths[] = get_theme_root();
         }
 
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
         $now_exact = self::now_fractional_mysql();
         $start_micro = microtime(true);
 
@@ -2273,7 +2273,7 @@ class ScannerRoutes {
         // Initialize high-performance streaming session queue on disk
         $total_files = 0;
         if (!empty($paths)) {
-            $total_files = \WcpScanner\Scan\ScanQueueManager::init_queue($scan_id, $paths, $file_limit);
+            $total_files = \WebCareProScanner\Scan\ScanQueueManager::init_queue($scan_id, $paths, $file_limit);
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -2282,13 +2282,13 @@ class ScannerRoutes {
         ], ['id' => $scan_id]);
 
         if ($target === 'custom' && !empty($custom_options)) {
-            set_transient("wcpscan_custom_options_{$scan_id}", $custom_options, HOUR_IN_SECONDS);
+            set_transient("webcareproscan_custom_options_{$scan_id}", $custom_options, HOUR_IN_SECONDS);
         }
 
-        set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
+        set_transient("webcareproscan_scan_start_micro_{$scan_id}", $start_micro, HOUR_IN_SECONDS);
 
         $init_telemetry = self::get_realtime_resource_stats(null, null, 0, $total_files, 0, 0.0);
-        set_transient("wcpscan_scan_live_telemetry_{$scan_id}", $init_telemetry, 600);
+        set_transient("webcareproscan_scan_live_telemetry_{$scan_id}", $init_telemetry, 600);
 
         return rest_ensure_response([
             'success'     => true,
@@ -2304,7 +2304,7 @@ class ScannerRoutes {
         global $wpdb;
 
         $scan_id = (int) $request->get_param('scan_id');
-        $configured_batch = (int) \WcpScanner\System\SettingsManager::get('scan_batch_size', 50);
+        $configured_batch = (int) \WebCareProScanner\System\SettingsManager::get('scan_batch_size', 50);
         $param_batch = (int) $request->get_param('batch_size');
         $batch_size = $param_batch > 0 ? max($param_batch, $configured_batch) : $configured_batch;
         $batch_start = microtime(true);
@@ -2314,24 +2314,24 @@ class ScannerRoutes {
         ScanLock::heartbeat($scan_id);
 
         // Initialize Dynamic Resource Governor
-        $governor = new \WcpScanner\Resource\ResourceMonitor(70, 18, 'balanced');
+        $governor = new \WebCareProScanner\Resource\ResourceMonitor(70, 18, 'balanced');
         $effective_batch_size = $governor->get_adaptive_batch_size($batch_size);
 
-        $batch_data = \WcpScanner\Scan\ScanQueueManager::get_batch($scan_id, $effective_batch_size);
+        $batch_data = \WebCareProScanner\Scan\ScanQueueManager::get_batch($scan_id, $effective_batch_size);
         $files_to_process = $batch_data['files'];
         $line_bytes = $batch_data['line_bytes'];
         $remaining = $batch_data['remaining'];
 
         if (empty($files_to_process)) {
             // Check if scan exists in DB to prevent hard 404 failure
-            $check_sql = "SELECT id FROM {$wpdb->prefix}wcpscan_scans WHERE id = %d";
+            $check_sql = "SELECT id FROM {$wpdb->prefix}webcareproscan_scans WHERE id = %d";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $scan_exists = $wpdb->get_var(
                 // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
                 $wpdb->prepare($check_sql, $scan_id)
             );
             if ($scan_exists) {
-                \WcpScanner\Scan\ScanQueueManager::cleanup($scan_id);
+                \WebCareProScanner\Scan\ScanQueueManager::cleanup($scan_id);
                 return rest_ensure_response([
                     'success'     => true,
                     'is_finished' => true,
@@ -2343,9 +2343,9 @@ class ScannerRoutes {
             return new \WP_Error('scan_not_found', 'Scan queue expired or not found', ['status' => 404]);
         }
 
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $table_files = $wpdb->prefix . 'wcpscan_scan_files';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $table_files = $wpdb->prefix . 'webcareproscan_scan_files';
 
         $file_scanner = new FileScanner();
         $processed_count = 0;
@@ -2360,10 +2360,10 @@ class ScannerRoutes {
             }
 
             // Update live heartbeat and last active file path
-            set_transient("wcpscan_active_scan_file_{$scan_id}", $filepath, 120);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", $filepath, 120);
 
             // Factor in file complexity weight
-            $weight = \WcpScanner\Resource\ResourceMonitor::get_file_weight($filepath);
+            $weight = \WebCareProScanner\Resource\ResourceMonitor::get_file_weight($filepath);
             $accumulated_weight += $weight;
 
             // If heavy files filled the batch weight budget early, save remaining and yield
@@ -2389,7 +2389,7 @@ class ScannerRoutes {
 
             foreach ($findings as $f) {
                 $item = $f->to_array();
-                $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+                $matched_rule = \WebCareProScanner\Findings\WhitelistManager::match_finding($item);
                 $status = ($matched_rule !== null) ? 'ignored' : 'open';
 
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -2434,7 +2434,7 @@ class ScannerRoutes {
             );
         }
 
-        $remaining = \WcpScanner\Scan\ScanQueueManager::advance($scan_id, $processed_count, $bytes_consumed);
+        $remaining = \WebCareProScanner\Scan\ScanQueueManager::advance($scan_id, $processed_count, $bytes_consumed);
         $is_finished = ($remaining === 0);
 
 
@@ -2476,7 +2476,7 @@ class ScannerRoutes {
             'issues_found'  => $current_issues_total,
         ], ['id' => $scan_id]);
 
-        $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
+        $start_micro = get_transient("webcareproscan_scan_start_micro_{$scan_id}");
         $elapsed_sec = ($start_micro && is_numeric($start_micro)) ? max(0.1, microtime(true) - (float) $start_micro) : 0.0;
         $telemetry = self::get_realtime_resource_stats(
             $batch_start,
@@ -2487,7 +2487,7 @@ class ScannerRoutes {
             $elapsed_sec,
             $governor
         );
-        set_transient("wcpscan_scan_live_telemetry_{$scan_id}", $telemetry, 600);
+        set_transient("webcareproscan_scan_live_telemetry_{$scan_id}", $telemetry, 600);
 
         return rest_ensure_response([
             'success'        => true,
@@ -2518,8 +2518,8 @@ class ScannerRoutes {
         $target = sanitize_text_field($request->get_param('target') ?: '');
         $admins_only = (bool) $request->get_param('admins_only');
 
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
 
         // Keep lock alive
         ScanLock::heartbeat($scan_id);
@@ -2596,13 +2596,13 @@ class ScannerRoutes {
                 $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
             } elseif ($target === 'rogue_admin') {
                 // Rogue Administrator & Database Micro-Anomaly Audit
-                $rogue_detector = new \WcpScanner\Database\RogueAdminAnomalyDetector();
+                $rogue_detector = new \WebCareProScanner\Database\RogueAdminAnomalyDetector();
                 $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
                 $user_scanner = new UserScanner();
                 $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
             } elseif ($target === 'hook_sentinel') {
                 // Living-off-the-Land (LotL) Native Hook Infiltration Sentinel
-                $hook_sentinel = new \WcpScanner\WordPress\HookInfiltrationSentinel();
+                $hook_sentinel = new \WebCareProScanner\WordPress\HookInfiltrationSentinel();
                 $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
                 $persistence_scanner = new PersistenceScanner();
                 $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
@@ -2652,14 +2652,14 @@ class ScannerRoutes {
                     }
                 }
             } elseif ($target === 'custom') {
-                $custom_options = get_transient("wcpscan_custom_options_{$scan_id}");
+                $custom_options = get_transient("webcareproscan_custom_options_{$scan_id}");
                 if (!is_array($custom_options)) {
                     $req_custom = $request->get_param('custom_options');
                     if (is_array($req_custom)) {
-                        $custom_options = \WcpScanner\System\SettingsManager::sanitize_custom_scan_options($req_custom);
+                        $custom_options = \WebCareProScanner\System\SettingsManager::sanitize_custom_scan_options($req_custom);
                     } else {
-                        $settings = \WcpScanner\System\SettingsManager::get_settings();
-                        $custom_options = $settings['custom_scan_options'] ?? \WcpScanner\System\SettingsManager::get_default_custom_scan_options();
+                        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
+                        $custom_options = $settings['custom_scan_options'] ?? \WebCareProScanner\System\SettingsManager::get_default_custom_scan_options();
                     }
                 }
 
@@ -2696,7 +2696,7 @@ class ScannerRoutes {
                 if (!empty($custom_options['scan_public_config'])) {
                     $important_fim = new ImportantFileFIM();
                     $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
-                    $config_scanner = new \WcpScanner\WordPress\ConfigScanner();
+                    $config_scanner = new \WebCareProScanner\WordPress\ConfigScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $config_scanner->scan((string) $scan_id));
                     $exposed = self::audit_exposed_sensitive_files((string) $scan_id);
                     $all_deep_findings = array_merge($all_deep_findings, $exposed);
@@ -2728,7 +2728,7 @@ class ScannerRoutes {
 
                 // 10. Scan WordPress core, plugin, and theme options
                 if (!empty($custom_options['scan_options_content'])) {
-                    $option_scanner = new \WcpScanner\Database\OptionScanner();
+                    $option_scanner = new \WebCareProScanner\Database\OptionScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $option_scanner->scan_options((string) $scan_id));
                 }
 
@@ -2740,7 +2740,7 @@ class ScannerRoutes {
 
                 // 12. Scan for suspicious admin users created outside of WordPress
                 if (!empty($custom_options['scan_rogue_admins'])) {
-                    $rogue_detector = new \WcpScanner\Database\RogueAdminAnomalyDetector();
+                    $rogue_detector = new \WebCareProScanner\Database\RogueAdminAnomalyDetector();
                     $all_deep_findings = array_merge($all_deep_findings, $rogue_detector->scan((string) $scan_id));
                     $user_scanner = new UserScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
@@ -2781,27 +2781,27 @@ class ScannerRoutes {
                 // Full or plugins_themes: execute deep audit engines with heartbeat & fault isolation
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Core Integrity: Verifying WordPress core files against official WP.org API checksums...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Core Integrity: Verifying WordPress core files against official WP.org API checksums...', 120);
                     $core_integrity = new CoreIntegrity();
                     $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'File Integrity: Checking critical system files (wp-config.php, .htaccess, index.php)...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'File Integrity: Checking critical system files (wp-config.php, .htaccess, index.php)...', 120);
                     $important_fim = new ImportantFileFIM();
                     $all_deep_findings = array_merge($all_deep_findings, $important_fim->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Plugin Integrity: Verifying installed plugins against official WordPress.org checksums...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Plugin Integrity: Verifying installed plugins against official WordPress.org checksums...', 120);
                     $plugin_integrity = new PluginIntegrity();
                     $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Theme Integrity: Verifying active and installed themes against repository checksums...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Theme Integrity: Verifying active and installed themes against repository checksums...', 120);
                     $theme_integrity = new ThemeIntegrity();
                     $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
                 } catch (\Throwable $e) {}
@@ -2814,35 +2814,35 @@ class ScannerRoutes {
 
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Content & Post Scanner: Inspecting published posts and comments for hidden SEO spam and XSS...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Content & Post Scanner: Inspecting published posts and comments for hidden SEO spam and XSS...', 120);
                     $content_scanner = new ContentScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'User & Auth Sentinel: Auditing user accounts, administrator privileges, and password strength...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'User & Auth Sentinel: Auditing user accounts, administrator privileges, and password strength...', 120);
                     $wp_security = new WordPressSecurityScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Vulnerability Intelligence: Checking installed plugins, themes, and WP Core against CVE database...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Vulnerability Intelligence: Checking installed plugins, themes, and WP Core against CVE database...', 120);
                     $update_scanner = new UpdateScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 try {
                     ScanLock::heartbeat($scan_id);
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Media & Uploads Audit: Inspecting image metadata and attachments for embedded PHP code...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Media & Uploads Audit: Inspecting image metadata and attachments for embedded PHP code...', 120);
                     $uploads_scanner = new UploadsScanner();
                     $all_deep_findings = array_merge($all_deep_findings, $uploads_scanner->scan((string) $scan_id));
                 } catch (\Throwable $e) {}
 
                 // Quick reputation check (skips if non-responsive or local)
                 try {
-                    set_transient("wcpscan_active_scan_file_{$scan_id}", 'Reputation Intel: Verifying domain blocklists, Google Safe Browsing, and spamvertising...', 120);
+                    set_transient("webcareproscan_active_scan_file_{$scan_id}", 'Reputation Intel: Verifying domain blocklists, Google Safe Browsing, and spamvertising...', 120);
                     $reputation_findings = self::audit_reputation_checks((string) $scan_id, [
                         'check_domain_blocklist' => true,
                         'check_spamvertised'     => true,
@@ -2883,7 +2883,7 @@ class ScannerRoutes {
                 }
                 $inserted_signatures[$sig] = true;
 
-                $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+                $matched_rule = \WebCareProScanner\Findings\WhitelistManager::match_finding($item);
                 $status = ($matched_rule !== null) ? 'ignored' : 'open';
 
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -2937,7 +2937,7 @@ class ScannerRoutes {
             );
             $client_duration_ms = (int) $request->get_param('client_duration_ms');
             $client_duration = (int) $request->get_param('client_duration');
-            $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
+            $start_micro = get_transient("webcareproscan_scan_start_micro_{$scan_id}");
             $completed_at_exact = self::now_fractional_mysql();
 
             $duration_ms = 0;
@@ -2986,7 +2986,7 @@ class ScannerRoutes {
                 $duration_sec = 1;
             }
 
-            delete_transient("wcpscan_scan_start_micro_{$scan_id}");
+            delete_transient("webcareproscan_scan_start_micro_{$scan_id}");
 
             $started_at_db = !empty($scan_row['started_at']) ? $scan_row['started_at'] : ($scan_row['created_at'] ?? $completed_at_exact);
 
@@ -3041,13 +3041,13 @@ class ScannerRoutes {
             ScanLock::release($scan_id);
 
             // Dispatch granular event notifications via NotificationDispatcher
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 $is_targeted = ($target && !in_array($target, ['full', 'full_filesystem', 'plugins_themes', 'custom'], true));
                 if ($is_targeted) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_targeted_complete', [
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_targeted_complete', [
                         'severity' => ($open_issues_count > 0) ? 'high' : 'info',
                         /* translators: 1: scan ID, 2: target name, 3: issues found, 4: risk score */
-                        'message'  => sprintf(__('Targeted scan #%1$d finished for target "%2$s". %3$d issue(s) identified (Risk Score: %4$d/100).', 'wcp-security-scanner'), $scan_id, $target, $open_issues_count, $summary['score']),
+                        'message'  => sprintf(__('Targeted scan #%1$d finished for target "%2$s". %3$d issue(s) identified (Risk Score: %4$d/100).', 'webcare-pro-security'), $scan_id, $target, $open_issues_count, $summary['score']),
                         'details'  => [
                             'Scan ID'        => $scan_id,
                             'Target'         => $target,
@@ -3058,10 +3058,10 @@ class ScannerRoutes {
                         ],
                     ]);
                 } else {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_manual_complete', [
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_manual_complete', [
                         'severity' => ($open_issues_count > 0) ? 'high' : 'info',
                         /* translators: 1: scan ID, 2: issues found, 3: risk score */
-                        'message'  => sprintf(__('Manual scan #%1$d finished. %2$d issue(s) identified (Risk Score: %3$d/100).', 'wcp-security-scanner'), $scan_id, $open_issues_count, $summary['score']),
+                        'message'  => sprintf(__('Manual scan #%1$d finished. %2$d issue(s) identified (Risk Score: %3$d/100).', 'webcare-pro-security'), $scan_id, $open_issues_count, $summary['score']),
                         'details'  => [
                             'Scan ID'        => $scan_id,
                             'Target'         => $target,
@@ -3079,10 +3079,10 @@ class ScannerRoutes {
                     return in_array($sev, ['critical', 'high'], true);
                 });
                 if (!empty($critical_or_high)) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
                         'severity' => 'critical',
                         /* translators: 1: scan ID, 2: threat count */
-                        'message'  => sprintf(__('Critical or high-priority security threats were detected during scan #%1$d (%2$d threats).', 'wcp-security-scanner'), $scan_id, count($critical_or_high)),
+                        'message'  => sprintf(__('Critical or high-priority security threats were detected during scan #%1$d (%2$d threats).', 'webcare-pro-security'), $scan_id, count($critical_or_high)),
                         'details'  => [
                             'Scan ID'        => $scan_id,
                             'Critical Threats' => count($critical_or_high),
@@ -3093,8 +3093,8 @@ class ScannerRoutes {
             }
 
             // Dispatch DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Generic)
-            if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
-                \WcpScanner\Notifications\WebhookService::send_scan_alert($scan_id, $open_issues_count, $summary['score'], $target, $enriched_issues);
+            if (class_exists('\\WebCareProScanner\\Notifications\\WebhookService')) {
+                \WebCareProScanner\Notifications\WebhookService::send_scan_alert($scan_id, $open_issues_count, $summary['score'], $target, $enriched_issues);
             }
 
             return rest_ensure_response([
@@ -3112,7 +3112,7 @@ class ScannerRoutes {
             return new \WP_Error(
                 'audit_error',
                 /* translators: %s: error message */
-                sprintf(__('Audit failed: %s', 'wcp-security-scanner'), $e->getMessage()),
+                sprintf(__('Audit failed: %s', 'webcare-pro-security'), $e->getMessage()),
                 ['status' => 500]
             );
         }
@@ -3121,9 +3121,9 @@ class ScannerRoutes {
     public static function get_latest_scan(\WP_REST_Request $request) {
         global $wpdb;
 
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $table_files = $wpdb->prefix . 'wcpscan_scan_files';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $table_files = $wpdb->prefix . 'webcareproscan_scan_files';
 
         // Retrieve available scans for the Dashboard scan ID switcher (comprehensive, custom & targeted scans)
         $avail_sql = "SELECT id, scan_target, status, started_at, completed_at, total_files, scanned_files, issues_found, risk_score FROM `{$table_scans}` ORDER BY id DESC LIMIT 50";
@@ -3266,7 +3266,7 @@ class ScannerRoutes {
         $issue_id = (int) $request->get_param('id');
         $status = sanitize_text_field($request->get_param('status') ?: 'ignored');
 
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         $iss_row_sql = "SELECT * FROM {$table_issues} WHERE id = %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $issue = $wpdb->get_row(
@@ -3275,14 +3275,14 @@ class ScannerRoutes {
         );
 
         if ($status === 'open' && $issue && !empty($issue->file_path)) {
-            \WcpScanner\Findings\WhitelistManager::revoke_rules_for_target($issue->file_path, $issue->type ?? '');
+            \WebCareProScanner\Findings\WhitelistManager::revoke_rules_for_target($issue->file_path, $issue->type ?? '');
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $updated = $wpdb->update($table_issues, ['status' => $status], ['id' => $issue_id]);
 
         if ($issue && !empty($issue->scan_id)) {
-            $table_scans = $wpdb->prefix . 'wcpscan_scans';
+            $table_scans = $wpdb->prefix . 'webcareproscan_scans';
             $open_iss_sql = "SELECT COUNT(*) FROM {$table_issues} WHERE scan_id = %d AND status = 'open'";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $open_issues = (int) $wpdb->get_var(
@@ -3347,7 +3347,7 @@ class ScannerRoutes {
 
     public static function get_scan_history(\WP_REST_Request $request) {
         global $wpdb;
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
         $limit = (int) ($request->get_param('limit') ?: 50);
         $hist_sql = "SELECT * FROM `{$table_scans}` ORDER BY id DESC LIMIT %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -3379,7 +3379,7 @@ class ScannerRoutes {
                 $row = self::enrich_scan_row_timestamps($row);
 
                 if (in_array($row['status'], ['interrupted', 'aborted', 'failed'], true)) {
-                    $row['interruption'] = \WcpScanner\Scan\ScanInterruptionForensics::get($row['id']);
+                    $row['interruption'] = \WebCareProScanner\Scan\ScanInterruptionForensics::get($row['id']);
                 }
 
                 $scans[] = $row;
@@ -3395,9 +3395,9 @@ class ScannerRoutes {
 
     public static function clear_scan_history(\WP_REST_Request $request) {
         global $wpdb;
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $table_files = $wpdb->prefix . 'wcpscan_scan_files';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $table_files = $wpdb->prefix . 'webcareproscan_scan_files';
 
         // 1. Identify any scans that are actively running or in progress
         $run_sql = "SELECT id FROM `{$table_scans}` WHERE status = 'running'";
@@ -3438,7 +3438,7 @@ class ScannerRoutes {
                 'active_scan_id' => reset($running_ids),
                 'message'        => sprintf(
                     /* translators: %s: running scan IDs */
-                    __('Past scan logs cleared successfully. Actively running scan (#%s) was preserved and continues executing uninterrupted.', 'wcp-security-scanner'),
+                    __('Past scan logs cleared successfully. Actively running scan (#%s) was preserved and continues executing uninterrupted.', 'webcare-pro-security'),
                     implode(', #', $running_ids)
                 ),
             ]);
@@ -3460,16 +3460,16 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success'    => true,
             'has_active' => false,
-            'message'    => __('All old scan logs and history records cleared successfully.', 'wcp-security-scanner'),
+            'message'    => __('All old scan logs and history records cleared successfully.', 'webcare-pro-security'),
         ]);
     }
 
     public static function get_scan_log_detail(\WP_REST_Request $request) {
         global $wpdb;
         $scan_id = (int) $request->get_param('id');
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $table_files = $wpdb->prefix . 'wcpscan_scan_files';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $table_files = $wpdb->prefix . 'webcareproscan_scan_files';
 
         $get_scan_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -3517,7 +3517,7 @@ class ScannerRoutes {
 
         $interruption = null;
         if (in_array($scan['status'], ['interrupted', 'aborted', 'failed'], true)) {
-            $interruption = \WcpScanner\Scan\ScanInterruptionForensics::get($scan_id);
+            $interruption = \WebCareProScanner\Scan\ScanInterruptionForensics::get($scan_id);
         }
 
         return rest_ensure_response([
@@ -3536,8 +3536,8 @@ class ScannerRoutes {
         $scan_id = (int) $request->get_param('scan_id');
         $format  = sanitize_key($request->get_param('format') ?: 'json');
 
-        $table_scans  = $wpdb->prefix . 'wcpscan_scans';
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_scans  = $wpdb->prefix . 'webcareproscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
 
         if ($scan_id > 0) {
             $get_s_sql = "SELECT * FROM `{$table_scans}` WHERE id = %d";
@@ -3597,7 +3597,7 @@ class ScannerRoutes {
                 $php_info = 'PHP ' . $diagnostics['php_version'] . ' (' . $diagnostics['php_sapi'] . ') | Max Execution: ' . ($diagnostics['php_max_execution_time'] ?? '30') . 's';
                 $db_info = 'MySQL ' . ($diagnostics['database_version'] ?? 'N/A');
 
-                $telemetry = class_exists('\\WcpScanner\\System\\TelemetrySnapshot') ? \WcpScanner\System\TelemetrySnapshot::get_snapshot() : null;
+                $telemetry = class_exists('\\WebCareProScanner\\System\\TelemetrySnapshot') ? \WebCareProScanner\System\TelemetrySnapshot::get_snapshot() : null;
                 $cf_text = !empty($telemetry['edge_network']['powered_by_cloudflare']) ? 'YES (' . ($telemetry['edge_network']['cloudflare_status'] ?? 'Cloudflare Edge') . ')' : 'NO (Direct Origin)';
                 $act_plugins = !empty($telemetry['plugins']['active_plugins']) ? array_column($telemetry['plugins']['active_plugins'], 'name') : [];
                 $act_plugins_str = implode(', ', array_slice($act_plugins, 0, 15)) . (count($act_plugins) > 15 ? sprintf(' ... (+%d more)', count($act_plugins) - 15) : '');
@@ -3781,8 +3781,8 @@ class ScannerRoutes {
             'findings'           => $issues,
         ];
 
-        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
-            $response_data['environment_snapshot'] = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        if ($include_system_info && class_exists('\\WebCareProScanner\\System\\TelemetrySnapshot')) {
+            $response_data['environment_snapshot'] = \WebCareProScanner\System\TelemetrySnapshot::get_snapshot();
         }
 
         return rest_ensure_response($response_data);
@@ -3791,7 +3791,7 @@ class ScannerRoutes {
     public static function get_server_info(\WP_REST_Request $request) {
         $refresh = (bool) $request->get_param('refresh');
         if ($refresh && function_exists('delete_transient')) {
-            delete_transient('wcpscan_server_filesystem_metrics');
+            delete_transient('webcareproscan_server_filesystem_metrics');
         }
         return rest_ensure_response([
             'success' => true,
@@ -3803,8 +3803,8 @@ class ScannerRoutes {
      * Get diagnostic telemetry snapshot for log export & incident triage.
      */
     public static function get_telemetry_snapshot(\WP_REST_Request $request): \WP_REST_Response {
-        $snapshot = class_exists('\\WcpScanner\\System\\TelemetrySnapshot')
-            ? \WcpScanner\System\TelemetrySnapshot::get_snapshot()
+        $snapshot = class_exists('\\WebCareProScanner\\System\\TelemetrySnapshot')
+            ? \WebCareProScanner\System\TelemetrySnapshot::get_snapshot()
             : [];
 
         return rest_ensure_response([
@@ -3817,7 +3817,7 @@ class ScannerRoutes {
      * Get comprehensive system readiness & compatibility audit report.
      */
     public static function get_system_readiness(\WP_REST_Request $request): \WP_REST_Response {
-        $report = \WcpScanner\System\SystemReadinessChecker::check_all();
+        $report = \WebCareProScanner\System\SystemReadinessChecker::check_all();
         return rest_ensure_response([
             'success' => true,
             'report'  => $report,
@@ -3828,10 +3828,10 @@ class ScannerRoutes {
      * Dismiss first-time welcome modal.
      */
     public static function dismiss_welcome_modal(\WP_REST_Request $request): \WP_REST_Response {
-        \WcpScanner\System\SystemReadinessChecker::dismiss_welcome();
+        \WebCareProScanner\System\SystemReadinessChecker::dismiss_welcome();
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Welcome dialog dismissed successfully.', 'wcp-security-scanner'),
+            'message' => __('Welcome dialog dismissed successfully.', 'webcare-pro-security'),
         ]);
     }
 
@@ -3954,7 +3954,7 @@ class ScannerRoutes {
     public static function get_active_scan(\WP_REST_Request $request) {
         global $wpdb;
 
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
         $locked_id = ScanLock::get_locked_scan_id();
 
         // If no lock option exists, check if there is an active scan record in the DB created recently
@@ -3966,7 +3966,7 @@ class ScannerRoutes {
             if (!empty($stale_scans)) {
                 foreach ($stale_scans as $stale_row) {
                     $stale_id = (int) $stale_row['id'];
-                    \WcpScanner\Scan\ScanInterruptionForensics::record($stale_id, \WcpScanner\Scan\ScanInterruptionForensics::REASON_STALE_HEARTBEAT);
+                    \WebCareProScanner\Scan\ScanInterruptionForensics::record($stale_id, \WebCareProScanner\Scan\ScanInterruptionForensics::REASON_STALE_HEARTBEAT);
                 }
             }
 
@@ -4009,14 +4009,14 @@ class ScannerRoutes {
         $total = (int) $running_scan['total_files'];
         $scanned = (int) $running_scan['scanned_files'];
         $trigger_type = !empty($running_scan['trigger_type']) ? $running_scan['trigger_type'] : 'manual';
-        $remaining = \WcpScanner\Scan\ScanQueueManager::get_remaining_count($locked_id);
+        $remaining = \WebCareProScanner\Scan\ScanQueueManager::get_remaining_count($locked_id);
         if ($remaining === 0 && $total > $scanned) {
             $remaining = max(0, $total - $scanned);
         }
-        $last_file = get_transient("wcpscan_active_scan_file_{$locked_id}") ?: '';
-        $db_progress = get_transient("wcpscan_scan_db_progress_{$locked_id}");
+        $last_file = get_transient("webcareproscan_active_scan_file_{$locked_id}") ?: '';
+        $db_progress = get_transient("webcareproscan_scan_db_progress_{$locked_id}");
 
-        $live_telemetry = get_transient("wcpscan_scan_live_telemetry_{$locked_id}");
+        $live_telemetry = get_transient("webcareproscan_scan_live_telemetry_{$locked_id}");
         if (!$live_telemetry || !is_array($live_telemetry)) {
             $live_telemetry = self::get_realtime_resource_stats(null, null, $scanned, $total, (int) $running_scan['issues_found'], 0.0);
         }
@@ -4040,7 +4040,7 @@ class ScannerRoutes {
             'created_at'     => $running_scan['created_at'],
             'started_at'     => $running_scan['started_at'] ?? $running_scan['created_at'],
             'elapsed'        => (function() use ($running_scan, $locked_id) {
-                $start_micro = get_transient("wcpscan_scan_start_micro_{$locked_id}");
+                $start_micro = get_transient("webcareproscan_scan_start_micro_{$locked_id}");
                 if ($start_micro && is_numeric($start_micro)) {
                     $diff = microtime(true) - (float) $start_micro;
                     if ($diff > 0) return max(1, (int) round($diff));
@@ -4061,7 +4061,7 @@ class ScannerRoutes {
                 return 1;
             })(),
             'elapsed_ms'     => (function() use ($running_scan, $locked_id) {
-                $start_micro = get_transient("wcpscan_scan_start_micro_{$locked_id}");
+                $start_micro = get_transient("webcareproscan_scan_start_micro_{$locked_id}");
                 if ($start_micro && is_numeric($start_micro)) {
                     $diff = microtime(true) - (float) $start_micro;
                     if ($diff > 0) return (int) round($diff * 1000);
@@ -4082,7 +4082,7 @@ class ScannerRoutes {
     public static function abort_scan(\WP_REST_Request $request) {
         global $wpdb;
 
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
         $scan_id = (int) $request->get_param('scan_id');
         if (!$scan_id) {
             $scan_id = ScanLock::get_locked_scan_id();
@@ -4091,7 +4091,7 @@ class ScannerRoutes {
         $now_exact = self::now_fractional_mysql();
 
         if ($scan_id) {
-            $start_micro = get_transient("wcpscan_scan_start_micro_{$scan_id}");
+            $start_micro = get_transient("webcareproscan_scan_start_micro_{$scan_id}");
             $duration_ms = 0;
             $duration_sec = 0;
             if ($start_micro && is_numeric($start_micro)) {
@@ -4101,11 +4101,11 @@ class ScannerRoutes {
                     $duration_sec = max(1, (int) round($calc_diff));
                 }
             }
-            $last_file = get_transient("wcpscan_active_scan_file_{$scan_id}") ?: '';
-            delete_transient("wcpscan_scan_start_micro_{$scan_id}");
+            $last_file = get_transient("webcareproscan_active_scan_file_{$scan_id}") ?: '';
+            delete_transient("webcareproscan_scan_start_micro_{$scan_id}");
 
             // Record manual abort forensic details
-            \WcpScanner\Scan\ScanInterruptionForensics::record($scan_id, \WcpScanner\Scan\ScanInterruptionForensics::REASON_MANUAL_ABORT, [
+            \WebCareProScanner\Scan\ScanInterruptionForensics::record($scan_id, \WebCareProScanner\Scan\ScanInterruptionForensics::REASON_MANUAL_ABORT, [
                 'last_file' => $last_file,
             ]);
 
@@ -4116,7 +4116,7 @@ class ScannerRoutes {
                 'duration_ms'  => $duration_ms,
                 'completed_at' => $now_exact,
             ], ['id' => $scan_id]);
-            \WcpScanner\Scan\ScanQueueManager::cleanup($scan_id);
+            \WebCareProScanner\Scan\ScanQueueManager::cleanup($scan_id);
             ScanLock::release($scan_id);
         }
 
@@ -4184,11 +4184,11 @@ class ScannerRoutes {
                 if (!empty($evidence_data['display_title'])) {
                     $item['display_title'] = $evidence_data['display_title'];
                 } elseif ($is_child) {
-                    $item['display_title'] = __('Custom Child Theme', 'wcp-security-scanner');
+                    $item['display_title'] = __('Custom Child Theme', 'webcare-pro-security');
                 } elseif ($is_premium) {
-                    $item['display_title'] = __('Premium Theme', 'wcp-security-scanner');
+                    $item['display_title'] = __('Premium Theme', 'webcare-pro-security');
                 } else {
-                    $item['display_title'] = __('Custom or Premium Theme', 'wcp-security-scanner');
+                    $item['display_title'] = __('Custom or Premium Theme', 'webcare-pro-security');
                 }
 
                 $meta = self::get_theme_forensics_meta($filePath, is_array($evidence_data) ? $evidence_data : []);
@@ -4219,9 +4219,9 @@ class ScannerRoutes {
                 if (!empty($evidence_data['display_title'])) {
                     $item['display_title'] = $evidence_data['display_title'];
                 } elseif ($is_premium) {
-                    $item['display_title'] = __('Premium Plugin', 'wcp-security-scanner');
+                    $item['display_title'] = __('Premium Plugin', 'webcare-pro-security');
                 } else {
-                    $item['display_title'] = __('Custom or Premium Plugin', 'wcp-security-scanner');
+                    $item['display_title'] = __('Custom or Premium Plugin', 'webcare-pro-security');
                 }
 
                 $meta = self::get_plugin_forensics_meta($filePath, is_array($evidence_data) ? $evidence_data : []);
@@ -4244,7 +4244,7 @@ class ScannerRoutes {
                 if ($post) {
                     $item['is_post'] = true;
                     $item['post_id'] = $postId;
-                    $item['post_title'] = $post->post_title ?: __('(Untitled)', 'wcp-security-scanner');
+                    $item['post_title'] = $post->post_title ?: __('(Untitled)', 'webcare-pro-security');
                     $item['post_type'] = $post->post_type;
                     $item['view_url'] = get_permalink($postId) ?: '';
                     $item['edit_url'] = get_edit_post_link($postId, 'raw') ?: admin_url("post.php?post={$postId}&action=edit");
@@ -4262,7 +4262,7 @@ class ScannerRoutes {
 
                 if ($comment) {
                     $item['author_id'] = (int) $comment->user_id;
-                    $item['author_name'] = $comment->comment_author ?: __('(Anonymous)', 'wcp-security-scanner');
+                    $item['author_name'] = $comment->comment_author ?: __('(Anonymous)', 'webcare-pro-security');
                     $item['author_email'] = $comment->comment_author_email ?: '';
                     $item['author_url'] = $comment->comment_author_url ?: '';
                     $item['author_ip'] = $comment->comment_author_IP ?: '';
@@ -4273,13 +4273,13 @@ class ScannerRoutes {
                     }
                     $postId = (int) $comment->comment_post_ID;
                     $item['post_id'] = $postId;
-                    $item['post_title'] = $postId > 0 ? (get_the_title($postId) ?: __('(Untitled Post)', 'wcp-security-scanner')) : '';
+                    $item['post_title'] = $postId > 0 ? (get_the_title($postId) ?: __('(Untitled Post)', 'webcare-pro-security')) : '';
                     $item['post_url'] = $postId > 0 ? (get_permalink($postId) ?: '') : '';
                     $item['view_url'] = get_comment_link($comment) ?: '';
                     $item['edit_url'] = admin_url("comment.php?action=editcomment&c={$commentId}");
                 } else {
                     $item['author_id'] = 0;
-                    $item['author_name'] = preg_match('/by\s+(.+)$/i', $filePath, $am) ? trim($am[1]) : __('Unknown Author', 'wcp-security-scanner');
+                    $item['author_name'] = preg_match('/by\s+(.+)$/i', $filePath, $am) ? trim($am[1]) : __('Unknown Author', 'webcare-pro-security');
                     $item['author_email'] = '';
                     $item['author_url'] = '';
                     $item['author_ip'] = '';
@@ -4429,7 +4429,7 @@ class ScannerRoutes {
                         $samplePost = get_post($sampleId);
                         if ($samplePost) {
                             $item['sample_post_id'] = $sampleId;
-                            $item['sample_post_title'] = !empty($samplePost->post_title) ? $samplePost->post_title : __('(Untitled Post)', 'wcp-security-scanner');
+                            $item['sample_post_title'] = !empty($samplePost->post_title) ? $samplePost->post_title : __('(Untitled Post)', 'webcare-pro-security');
                             $item['sample_post_slug'] = !empty($samplePost->post_name) ? $samplePost->post_name : '';
                             $item['sample_post_type'] = $samplePost->post_type;
                             $item['sample_post_status'] = $samplePost->post_status;
@@ -4499,7 +4499,7 @@ class ScannerRoutes {
 
                 // Pre-load full row data if available
                 if ($tableName && $rowId) {
-                    $mgr = new \WcpScanner\Database\DatabaseRemediationManager();
+                    $mgr = new \WebCareProScanner\Database\DatabaseRemediationManager();
                     $dbRow = $mgr->get_row($tableName, $rowId);
                     if ($dbRow) {
                         $item['db_row'] = $dbRow;
@@ -4515,7 +4515,7 @@ class ScannerRoutes {
                         if ($post) {
                             $item['is_post'] = true;
                             $item['post_id'] = (int) $rowId;
-                            $item['post_title'] = !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'wcp-security-scanner');
+                            $item['post_title'] = !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'webcare-pro-security');
                             $item['post_slug'] = !empty($post->post_name) ? $post->post_name : '';
                             $item['post_status'] = !empty($post->post_status) ? $post->post_status : 'publish';
                             $item['post_type'] = !empty($post->post_type) ? $post->post_type : 'post';
@@ -4572,7 +4572,7 @@ class ScannerRoutes {
                 }
 
                 $realPath = realpath($fullPath);
-                $isInsideRoot = $realPath && \WcpScanner\Filesystem\PathValidator::is_inside_root($realPath, ABSPATH);
+                $isInsideRoot = $realPath && \WebCareProScanner\Filesystem\PathValidator::is_inside_root($realPath, ABSPATH);
 
                 $item['file_exists'] = $isInsideRoot && file_exists($realPath);
                 if (!isset($item['is_dir'])) {
@@ -4606,7 +4606,7 @@ class ScannerRoutes {
                             if (!empty($item['id'])) {
                                 global $wpdb;
                                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                                $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                                $wpdb->update($wpdb->prefix . 'webcareproscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         }
                     }
@@ -4689,31 +4689,31 @@ class ScannerRoutes {
                         'parent_perms'          => $parent_perms,
                         'file_extension'        => strtolower(pathinfo($realPath, PATHINFO_EXTENSION)),
                         'mime_type'             => function_exists('mime_content_type') ? @mime_content_type($realPath) : null,
-                        'is_safe_directory_index' => in_array(strtolower(basename($realPath)), ['index.php', 'index.html', 'index.htm'], true) && \WcpScanner\System\SettingsManager::is_safe_directory_index($realPath),
+                        'is_safe_directory_index' => in_array(strtolower(basename($realPath)), ['index.php', 'index.html', 'index.htm'], true) && \WebCareProScanner\System\SettingsManager::is_safe_directory_index($realPath),
                     ];
 
                     // Real-Time Directory Protection Index Reconciliation: If executable_in_uploads finding but file is a benign silence/protection index or legitimate plugin cache file
                     if (($item['type'] ?? '') === 'executable_in_uploads' && ($item['status'] ?? 'open') === 'open') {
                         $file_basename = strtolower(basename($realPath));
-                        if (in_array($file_basename, ['index.php', 'index.html', 'index.htm'], true) && \WcpScanner\System\SettingsManager::is_safe_directory_index($realPath)) {
+                        if (in_array($file_basename, ['index.php', 'index.html', 'index.htm'], true) && \WebCareProScanner\System\SettingsManager::is_safe_directory_index($realPath)) {
                             $item['status'] = 'repaired';
                             $item['is_repaired'] = true;
                             $item['auto_reconciled'] = true;
-                            $item['reconciliation_reason'] = __('Benign directory listing protection index file (Silence is Golden / Directory Browsing Prevention).', 'wcp-security-scanner');
+                            $item['reconciliation_reason'] = __('Benign directory listing protection index file (Silence is Golden / Directory Browsing Prevention).', 'webcare-pro-security');
                             if (!empty($item['id'])) {
                                 global $wpdb;
                                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                                $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                                $wpdb->update($wpdb->prefix . 'webcareproscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
-                        } elseif (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($realPath)) {
+                        } elseif (\WebCareProScanner\System\SettingsManager::is_legitimate_uploads_cache_file($realPath)) {
                             $item['status'] = 'repaired';
                             $item['is_repaired'] = true;
                             $item['auto_reconciled'] = true;
-                            $item['reconciliation_reason'] = __('Benign plugin compiled cache file (e.g. MailPoet Twig template cache) verified free of malware/webshells.', 'wcp-security-scanner');
+                            $item['reconciliation_reason'] = __('Benign plugin compiled cache file (e.g. MailPoet Twig template cache) verified free of malware/webshells.', 'webcare-pro-security');
                             if (!empty($item['id'])) {
                                 global $wpdb;
                                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                                $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                                $wpdb->update($wpdb->prefix . 'webcareproscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         }
                     }
@@ -4727,7 +4727,7 @@ class ScannerRoutes {
                             if (!empty($item['id'])) {
                                 global $wpdb;
                                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                                $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
+                                $wpdb->update($wpdb->prefix . 'webcareproscan_scan_issues', ['status' => 'repaired'], ['id' => (int) $item['id']]);
                             }
                         }
                     }
@@ -4760,29 +4760,29 @@ class ScannerRoutes {
                     if ($item['type'] === 'vulnerable_plugin') {
                         $item['display_title'] = !empty($item['component_name']) 
                             /* translators: %s: plugin name */
-                            ? sprintf(__('Vulnerable Plugin: %s', 'wcp-security-scanner'), $item['component_name']) 
-                            : __('Vulnerable Plugin', 'wcp-security-scanner');
+                            ? sprintf(__('Vulnerable Plugin: %s', 'webcare-pro-security'), $item['component_name']) 
+                            : __('Vulnerable Plugin', 'webcare-pro-security');
                     } elseif ($item['type'] === 'outdated_plugin') {
                         $item['display_title'] = !empty($item['component_name']) 
                             /* translators: %s: plugin name */
-                            ? sprintf(__('Outdated Plugin: %s', 'wcp-security-scanner'), $item['component_name']) 
-                            : __('Outdated Plugin', 'wcp-security-scanner');
+                            ? sprintf(__('Outdated Plugin: %s', 'webcare-pro-security'), $item['component_name']) 
+                            : __('Outdated Plugin', 'webcare-pro-security');
                     } elseif ($item['type'] === 'vulnerable_theme') {
                         $item['display_title'] = !empty($item['component_name']) 
                             /* translators: %s: theme name */
-                            ? sprintf(__('Vulnerable Theme: %s', 'wcp-security-scanner'), $item['component_name']) 
-                            : __('Vulnerable Theme', 'wcp-security-scanner');
+                            ? sprintf(__('Vulnerable Theme: %s', 'webcare-pro-security'), $item['component_name']) 
+                            : __('Vulnerable Theme', 'webcare-pro-security');
                     } elseif ($item['type'] === 'outdated_theme') {
                         $item['display_title'] = !empty($item['component_name']) 
                             /* translators: %s: theme name */
-                            ? sprintf(__('Outdated Theme: %s', 'wcp-security-scanner'), $item['component_name']) 
-                            : __('Outdated Theme', 'wcp-security-scanner');
+                            ? sprintf(__('Outdated Theme: %s', 'webcare-pro-security'), $item['component_name']) 
+                            : __('Outdated Theme', 'webcare-pro-security');
                     } elseif ($item['type'] === 'vulnerable_core') {
-                        $item['display_title'] = __('Vulnerable WordPress Core', 'wcp-security-scanner');
+                        $item['display_title'] = __('Vulnerable WordPress Core', 'webcare-pro-security');
                     } elseif ($item['type'] === 'outdated_core') {
-                        $item['display_title'] = __('Outdated WordPress Core', 'wcp-security-scanner');
+                        $item['display_title'] = __('Outdated WordPress Core', 'webcare-pro-security');
                     } else {
-                        $item['display_title'] = __('Software Update Available', 'wcp-security-scanner');
+                        $item['display_title'] = __('Software Update Available', 'webcare-pro-security');
                     }
                 } elseif (!empty($item['component_meta']['classification'])) {
                     if (empty($item['display_title'])) {
@@ -4813,54 +4813,54 @@ class ScannerRoutes {
 
             if (empty($item['display_title'])) {
                 $type_map = [
-                    'weak_password_detected'         => __('Weak User Password', 'wcp-security-scanner'),
-                    'weak_admin_password'            => __('Weak Administrator Password', 'wcp-security-scanner'),
-                    'weak_user_password'             => __('Weak User Password', 'wcp-security-scanner'),
-                    'username_enumeration_risk'      => __('Username Enumeration Vulnerability', 'wcp-security-scanner'),
-                    'generic_admin_username'         => __('Generic Admin Username', 'wcp-security-scanner'),
-                    'user_missing_capabilities'      => __('User Account Missing Role Capabilities', 'wcp-security-scanner'),
-                    'suspicious_user_capabilities'   => __('Suspicious User Capabilities', 'wcp-security-scanner'),
-                    'injected_user_capabilities'     => __('Injected User Capabilities', 'wcp-security-scanner'),
-                    'tampered_role_definition'       => __('Tampered Role Definition', 'wcp-security-scanner'),
-                    'orphaned_post_author'           => __('Orphaned Post Author', 'wcp-security-scanner'),
-                    'webshell_pattern'               => __('Webshell Signature Pattern', 'wcp-security-scanner'),
-                    'obfuscated_malware_payload'     => __('Obfuscated Malware Payload', 'wcp-security-scanner'),
-                    'suspicious_strings'             => __('Suspicious Remote Code Strings', 'wcp-security-scanner'),
-                    'obfuscation_detected'           => __('Code Obfuscation Detected', 'wcp-security-scanner'),
-                    'executable_in_uploads'          => __('Executable Script in Uploads Directory', 'wcp-security-scanner'),
-                    'unsafe_permissions'             => __('Unsafe File Permissions', 'wcp-security-scanner'),
-                    'symlink_detected'               => __('Filesystem Symbolic Link', 'wcp-security-scanner'),
-                    'unknown_core_file'              => __('Unrecognized Core Directory File', 'wcp-security-scanner'),
-                    'unknown_wp_admin_file'          => __('Unrecognized WP-Admin File', 'wcp-security-scanner'),
-                    'unknown_wp_includes_file'       => __('Unrecognized WP-Includes File', 'wcp-security-scanner'),
-                    'modified_core_file'             => __('Modified WordPress Core File', 'wcp-security-scanner'),
-                    'modified_theme_file'            => __('Modified Theme File', 'wcp-security-scanner'),
-                    'modified_plugin_file'           => __('Modified Plugin File', 'wcp-security-scanner'),
-                    'missing_core_file'              => __('Missing WordPress Core File', 'wcp-security-scanner'),
-                    'eval_in_options'                => __('PHP Code in WordPress Options', 'wcp-security-scanner'),
-                    'base64_in_options'              => __('Base64 Payload in Options', 'wcp-security-scanner'),
-                    'serialized_injection'           => __('Serialized Object Injection', 'wcp-security-scanner'),
-                    'malicious_cron_hook'            => __('Suspicious Scheduled Cron Hook', 'wcp-security-scanner'),
-                    'malicious_cron_hook_name'       => __('Suspicious Scheduled Cron Hook', 'wcp-security-scanner'),
-                    'orphaned_cron_hook'             => __('Orphaned Scheduled Cron Hook', 'wcp-security-scanner'),
-                    'malicious_system_crontab'       => __('Malicious System Crontab Entry', 'wcp-security-scanner'),
-                    'suspicious_crontab_execution'   => __('Suspicious Crontab Execution', 'wcp-security-scanner'),
-                    'hidden_directory_crontab'       => __('Hidden Directory Crontab Task', 'wcp-security-scanner'),
-                    'malicious_mu_plugin'            => __('Suspicious Must-Use (MU) Plugin', 'wcp-security-scanner'),
-                    'mu_plugin_warning'              => __('Unverified Must-Use Plugin', 'wcp-security-scanner'),
-                    'unexpected_wp_content_file'     => __('Unexpected File in WP-Content', 'wcp-security-scanner'),
-                    'malicious_dropin'               => __('Malicious WordPress Drop-in', 'wcp-security-scanner'),
-                    'unauthorized_dropin'            => __('Unauthorized WordPress Drop-in', 'wcp-security-scanner'),
-                    'db_autoload_malware_anchor'     => __('Autoload Database Malware Anchor', 'wcp-security-scanner'),
-                    'self_healing_malware_resurrection' => __('Self-Healing Malware Persistence', 'wcp-security-scanner'),
-                    'rogue_server_preloader'         => __('Rogue Server Auto-Preloader', 'wcp-security-scanner'),
-                    'ini_auto_prepend'               => __('PHP INI auto_prepend_file Injection', 'wcp-security-scanner'),
-                    'ini_auto_append'                => __('PHP INI auto_append_file Injection', 'wcp-security-scanner'),
-                    'user_ini_preloader'             => __('User INI Preload Injection', 'wcp-security-scanner'),
-                    'htaccess_preloader'             => __('htaccess Preload Injection', 'wcp-security-scanner'),
-                    'core_checksums_unavailable'     => __('WordPress Core Checksums Unavailable', 'wcp-security-scanner'),
-                    'theme_checksums_unavailable'    => __('Theme Checksums Unavailable', 'wcp-security-scanner'),
-                    'plugin_checksums_unavailable'   => __('Plugin Checksums Unavailable', 'wcp-security-scanner'),
+                    'weak_password_detected'         => __('Weak User Password', 'webcare-pro-security'),
+                    'weak_admin_password'            => __('Weak Administrator Password', 'webcare-pro-security'),
+                    'weak_user_password'             => __('Weak User Password', 'webcare-pro-security'),
+                    'username_enumeration_risk'      => __('Username Enumeration Vulnerability', 'webcare-pro-security'),
+                    'generic_admin_username'         => __('Generic Admin Username', 'webcare-pro-security'),
+                    'user_missing_capabilities'      => __('User Account Missing Role Capabilities', 'webcare-pro-security'),
+                    'suspicious_user_capabilities'   => __('Suspicious User Capabilities', 'webcare-pro-security'),
+                    'injected_user_capabilities'     => __('Injected User Capabilities', 'webcare-pro-security'),
+                    'tampered_role_definition'       => __('Tampered Role Definition', 'webcare-pro-security'),
+                    'orphaned_post_author'           => __('Orphaned Post Author', 'webcare-pro-security'),
+                    'webshell_pattern'               => __('Webshell Signature Pattern', 'webcare-pro-security'),
+                    'obfuscated_malware_payload'     => __('Obfuscated Malware Payload', 'webcare-pro-security'),
+                    'suspicious_strings'             => __('Suspicious Remote Code Strings', 'webcare-pro-security'),
+                    'obfuscation_detected'           => __('Code Obfuscation Detected', 'webcare-pro-security'),
+                    'executable_in_uploads'          => __('Executable Script in Uploads Directory', 'webcare-pro-security'),
+                    'unsafe_permissions'             => __('Unsafe File Permissions', 'webcare-pro-security'),
+                    'symlink_detected'               => __('Filesystem Symbolic Link', 'webcare-pro-security'),
+                    'unknown_core_file'              => __('Unrecognized Core Directory File', 'webcare-pro-security'),
+                    'unknown_wp_admin_file'          => __('Unrecognized WP-Admin File', 'webcare-pro-security'),
+                    'unknown_wp_includes_file'       => __('Unrecognized WP-Includes File', 'webcare-pro-security'),
+                    'modified_core_file'             => __('Modified WordPress Core File', 'webcare-pro-security'),
+                    'modified_theme_file'            => __('Modified Theme File', 'webcare-pro-security'),
+                    'modified_plugin_file'           => __('Modified Plugin File', 'webcare-pro-security'),
+                    'missing_core_file'              => __('Missing WordPress Core File', 'webcare-pro-security'),
+                    'eval_in_options'                => __('PHP Code in WordPress Options', 'webcare-pro-security'),
+                    'base64_in_options'              => __('Base64 Payload in Options', 'webcare-pro-security'),
+                    'serialized_injection'           => __('Serialized Object Injection', 'webcare-pro-security'),
+                    'malicious_cron_hook'            => __('Suspicious Scheduled Cron Hook', 'webcare-pro-security'),
+                    'malicious_cron_hook_name'       => __('Suspicious Scheduled Cron Hook', 'webcare-pro-security'),
+                    'orphaned_cron_hook'             => __('Orphaned Scheduled Cron Hook', 'webcare-pro-security'),
+                    'malicious_system_crontab'       => __('Malicious System Crontab Entry', 'webcare-pro-security'),
+                    'suspicious_crontab_execution'   => __('Suspicious Crontab Execution', 'webcare-pro-security'),
+                    'hidden_directory_crontab'       => __('Hidden Directory Crontab Task', 'webcare-pro-security'),
+                    'malicious_mu_plugin'            => __('Suspicious Must-Use (MU) Plugin', 'webcare-pro-security'),
+                    'mu_plugin_warning'              => __('Unverified Must-Use Plugin', 'webcare-pro-security'),
+                    'unexpected_wp_content_file'     => __('Unexpected File in WP-Content', 'webcare-pro-security'),
+                    'malicious_dropin'               => __('Malicious WordPress Drop-in', 'webcare-pro-security'),
+                    'unauthorized_dropin'            => __('Unauthorized WordPress Drop-in', 'webcare-pro-security'),
+                    'db_autoload_malware_anchor'     => __('Autoload Database Malware Anchor', 'webcare-pro-security'),
+                    'self_healing_malware_resurrection' => __('Self-Healing Malware Persistence', 'webcare-pro-security'),
+                    'rogue_server_preloader'         => __('Rogue Server Auto-Preloader', 'webcare-pro-security'),
+                    'ini_auto_prepend'               => __('PHP INI auto_prepend_file Injection', 'webcare-pro-security'),
+                    'ini_auto_append'                => __('PHP INI auto_append_file Injection', 'webcare-pro-security'),
+                    'user_ini_preloader'             => __('User INI Preload Injection', 'webcare-pro-security'),
+                    'htaccess_preloader'             => __('htaccess Preload Injection', 'webcare-pro-security'),
+                    'core_checksums_unavailable'     => __('WordPress Core Checksums Unavailable', 'webcare-pro-security'),
+                    'theme_checksums_unavailable'    => __('Theme Checksums Unavailable', 'webcare-pro-security'),
+                    'plugin_checksums_unavailable'   => __('Plugin Checksums Unavailable', 'webcare-pro-security'),
                 ];
 
                 if (!empty($item['type']) && isset($type_map[$item['type']])) {
@@ -4872,14 +4872,14 @@ class ScannerRoutes {
             }
 
             // 6. Whitelist & False-Positive Rule Matching (Auto-suppression)
-            $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($item);
+            $matched_rule = \WebCareProScanner\Findings\WhitelistManager::match_finding($item);
             if ($matched_rule !== null) {
                 $item['is_whitelisted'] = true;
                 $item['whitelist_rule'] = $matched_rule;
                 if (!empty($item['id']) && ($item['status'] ?? '') === 'open') {
                     global $wpdb;
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                    $wpdb->update($wpdb->prefix . 'wcpscan_scan_issues', ['status' => 'ignored'], ['id' => (int) $item['id']]);
+                    $wpdb->update($wpdb->prefix . 'webcareproscan_scan_issues', ['status' => 'ignored'], ['id' => (int) $item['id']]);
                 }
                 $item['status']         = 'ignored';
             } else {
@@ -4893,8 +4893,8 @@ class ScannerRoutes {
             }
 
             // Non-Technical Owner Suite: Plain-English Translation Schema
-            if (class_exists('\\WcpScanner\\Findings\\FindingTranslator')) {
-                $item['plain_english'] = \WcpScanner\Findings\FindingTranslator::translate($item);
+            if (class_exists('\\WebCareProScanner\\Findings\\FindingTranslator')) {
+                $item['plain_english'] = \WebCareProScanner\Findings\FindingTranslator::translate($item);
             }
         }
         unset($item);
@@ -4950,8 +4950,8 @@ class ScannerRoutes {
      */
     public static function prune_duplicate_issues(int $scan_id): int {
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
 
         if ($scan_id <= 0) {
             return 0;
@@ -5114,13 +5114,13 @@ class ScannerRoutes {
         }
 
         if ($is_wporg) {
-            $classification = __('Official WordPress Theme', 'wcp-security-scanner');
+            $classification = __('Official WordPress Theme', 'webcare-pro-security');
         } elseif (!empty($evidence_data['display_title'])) {
             $classification = $evidence_data['display_title'];
         } elseif ($is_child) {
-            $classification = __('Custom Child Theme', 'wcp-security-scanner');
+            $classification = __('Custom Child Theme', 'webcare-pro-security');
         } else {
-            $classification = $is_premium ? __('Premium Theme', 'wcp-security-scanner') : __('Custom or Premium Theme', 'wcp-security-scanner');
+            $classification = $is_premium ? __('Premium Theme', 'webcare-pro-security') : __('Custom or Premium Theme', 'webcare-pro-security');
         }
 
         // File stats and timestamps
@@ -5295,13 +5295,13 @@ class ScannerRoutes {
         }
 
         if ($is_wporg) {
-            $classification = __('Official WordPress Plugin', 'wcp-security-scanner');
+            $classification = __('Official WordPress Plugin', 'webcare-pro-security');
         } elseif (!empty($evidence_data['display_title'])) {
             $classification = $evidence_data['display_title'];
         } elseif ($is_premium) {
-            $classification = __('Premium Plugin', 'wcp-security-scanner');
+            $classification = __('Premium Plugin', 'webcare-pro-security');
         } else {
-            $classification = __('Custom or Premium Plugin', 'wcp-security-scanner');
+            $classification = __('Custom or Premium Plugin', 'webcare-pro-security');
         }
 
         // Timestamps
@@ -5508,7 +5508,7 @@ class ScannerRoutes {
 
         // --- STEP 1: Attempt to retrieve latest version changelog from WordPress Update Manager / Vendor API / Official Repository ---
         if ($type === 'plugin' && (!empty($slug) || !empty($target_dir))) {
-            $cache_key = 'wcpscan_up_cl_pl_' . substr(md5(($slug ?: basename($target_dir)) . '_' . $latest_ver), 0, 16);
+            $cache_key = 'webcareproscan_up_cl_pl_' . substr(md5(($slug ?: basename($target_dir)) . '_' . $latest_ver), 0, 16);
             $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
             if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
                 $latest_changelog_found = true;
@@ -5665,7 +5665,7 @@ class ScannerRoutes {
                 }
             }
         } elseif ($type === 'theme' && !empty($slug)) {
-            $cache_key = 'wcpscan_up_cl_th_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
+            $cache_key = 'webcareproscan_up_cl_th_' . substr(md5($slug . '_' . $latest_ver), 0, 16);
             $cached = function_exists('get_transient') ? get_transient($cache_key) : false;
             if (!empty($cached) && is_array($cached) && !empty($cached['content'])) {
                 $latest_changelog_found = true;
@@ -5716,7 +5716,7 @@ class ScannerRoutes {
                 'latest_not_found'  => false,
                 'source'            => 'upstream_latest',
                 /* translators: 1: version label, 2: source title */
-                'source_label'      => sprintf(__('Latest Upstream Version (%1$s) from %2$s', 'wcp-security-scanner'), $version_label, $source_title),
+                'source_label'      => sprintf(__('Latest Upstream Version (%1$s) from %2$s', 'webcare-pro-security'), $version_label, $source_title),
                 'filename'          => "{$source_title} {$version_label} Release Notes",
                 'file_size'         => strlen($latest_content),
                 'version_shown'     => $resolved_latest_version ?: ($latest_ver ?: 'Latest'),
@@ -5751,7 +5751,7 @@ class ScannerRoutes {
                             'source'            => 'local_installed',
                             'source_label'      => sprintf(
                                 /* translators: %s: installed version label */
-                                __('Currently Installed Version (%s) [Local Disk]', 'wcp-security-scanner'),
+                                __('Currently Installed Version (%s) [Local Disk]', 'webcare-pro-security'),
                                 $installed_label
                             ),
                             'filename'          => $changelog['filename'],
@@ -5763,7 +5763,7 @@ class ScannerRoutes {
                             'content'           => $content,
                             'notice'            => sprintf(
                                 /* translators: 1: target version label, 2: installed version label */
-                                __('Latest version (%1$s) changelog was not found on remote repositories or plugin update manager. Displaying currently installed version (%2$s) changelog from local disk below.', 'wcp-security-scanner'),
+                                __('Latest version (%1$s) changelog was not found on remote repositories or plugin update manager. Displaying currently installed version (%2$s) changelog from local disk below.', 'webcare-pro-security'),
                                 $target_label,
                                 $installed_label
                             ),
@@ -5784,7 +5784,7 @@ class ScannerRoutes {
             'content'           => '',
             'message'           => sprintf(
                 /* translators: %s: latest version label */
-                __('Latest version (%s) changelog was not found on WordPress.org, and no local changelog file (changelog.txt, readme.txt, or changelog.md) exists in the installed component folder.', 'wcp-security-scanner'),
+                __('Latest version (%s) changelog was not found on WordPress.org, and no local changelog file (changelog.txt, readme.txt, or changelog.md) exists in the installed component folder.', 'webcare-pro-security'),
                 $latest_ver ? "v{$latest_ver}" : 'upstream'
             ),
         ]);
@@ -6037,7 +6037,7 @@ class ScannerRoutes {
      */
     public static function build_scan_diagnostics(array $scan) {
         $scan_id = (int) ($scan['id'] ?? 0);
-        $cached_diag = $scan_id > 0 ? get_transient("wcpscan_diag_{$scan_id}") : null;
+        $cached_diag = $scan_id > 0 ? get_transient("webcareproscan_diag_{$scan_id}") : null;
 
         // Peak Memory
         $peak_bytes = memory_get_peak_usage(true);
@@ -6165,7 +6165,7 @@ class ScannerRoutes {
      * @param int $total_files
      * @param int $issues_found
      * @param float $elapsed_sec
-     * @param \WcpScanner\Resource\ResourceMonitor|null $governor
+     * @param \WebCareProScanner\Resource\ResourceMonitor|null $governor
      * @return array
      */
     public static function get_realtime_resource_stats($batch_start_time = null, $batch_ru_start = null, $scanned_files = 0, $total_files = 0, $issues_found = 0, $elapsed_sec = 0.0, $governor = null) {
@@ -6241,10 +6241,10 @@ class ScannerRoutes {
 
         // 5. Dynamic Governor Telemetry & Visitor Protection Diagnostics
         $governor_info = null;
-        if ($governor instanceof \WcpScanner\Resource\ResourceMonitor) {
+        if ($governor instanceof \WebCareProScanner\Resource\ResourceMonitor) {
             $governor_info = $governor->get_telemetry_payload();
         } else {
-            $temp_gov = new \WcpScanner\Resource\ResourceMonitor(70, 18, 'balanced');
+            $temp_gov = new \WebCareProScanner\Resource\ResourceMonitor(70, 18, 'balanced');
             $governor_info = $temp_gov->get_telemetry_payload();
         }
 
@@ -6276,7 +6276,7 @@ class ScannerRoutes {
     public static function view_file_content(\WP_REST_Request $request) {
         $raw_path = sanitize_text_field($request->get_param('file_path') ?: ($request->get_param('path') ?: ''));
         if (empty($raw_path)) {
-            return new \WP_Error('missing_path', __('File path parameter is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_path', __('File path parameter is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         // Clean path and ensure inside ABSPATH
@@ -6294,21 +6294,21 @@ class ScannerRoutes {
         }
 
         if (empty($target_full) || !file_exists($target_full)) {
-            return new \WP_Error('file_not_found', __('File does not exist or has been removed from server.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('file_not_found', __('File does not exist or has been removed from server.', 'webcare-pro-security'), ['status' => 404]);
         }
 
         // Canonical directory boundary check: Enforce trailing slash on root to eliminate sibling directory escapes
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($target_full, ABSPATH)) {
-            return new \WP_Error('forbidden_path', __('Access to this file path is restricted outside WordPress root.', 'wcp-security-scanner'), ['status' => 403]);
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($target_full, ABSPATH)) {
+            return new \WP_Error('forbidden_path', __('Access to this file path is restricted outside WordPress root.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         $real_path = realpath($target_full);
         if (!$real_path || !is_file($real_path)) {
-            return new \WP_Error('not_a_file', __('The requested path is a directory or special file, not a viewable file.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('not_a_file', __('The requested path is a directory or special file, not a viewable file.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         if (!is_readable($real_path)) {
-            return new \WP_Error('unreadable_file', __('File is not readable due to server permissions.', 'wcp-security-scanner'), ['status' => 403]);
+            return new \WP_Error('unreadable_file', __('File is not readable due to server permissions.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         $file_size = (int) filesize($real_path);
@@ -6317,7 +6317,7 @@ class ScannerRoutes {
 
         $content = file_get_contents($real_path, false, null, 0, $max_read);
         if ($content === false) {
-            return new \WP_Error('read_error', __('Failed to read file content.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('read_error', __('Failed to read file content.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         $perms = substr(sprintf('%o', fileperms($real_path)), -4);
@@ -6634,18 +6634,18 @@ class ScannerRoutes {
         }
 
         if (!$post_id) {
-            return new \WP_Error('missing_post_id', __('Valid post ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_post_id', __('Valid post ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $post = get_post($post_id);
         if (!$post) {
-            return new \WP_Error('post_not_found', __('The requested post or page was not found.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('post_not_found', __('The requested post or page was not found.', 'webcare-pro-security'), ['status' => 404]);
         }
 
         return rest_ensure_response([
             'success'      => true,
             'post_id'      => $post_id,
-            'title'        => $post->post_title ?: __('(Untitled)', 'wcp-security-scanner'),
+            'title'        => $post->post_title ?: __('(Untitled)', 'webcare-pro-security'),
             'post_type'    => $post->post_type,
             'post_status'  => $post->post_status,
             'author'       => get_the_author_meta('display_name', $post->post_author),
@@ -6661,7 +6661,7 @@ class ScannerRoutes {
      * Helper to build schedule time info payload
      */
     public static function build_schedule_time_info() {
-        $next_run_timestamp = wp_next_scheduled(\WcpScanner\System\SettingsManager::CRON_HOOK);
+        $next_run_timestamp = wp_next_scheduled(\WebCareProScanner\System\SettingsManager::CRON_HOOK);
         $now_utc = time();
         $diff_seconds = $next_run_timestamp ? max(0, $next_run_timestamp - $now_utc) : 0;
 
@@ -6693,15 +6693,15 @@ class ScannerRoutes {
      * Get plugin settings
      */
     public static function get_settings(\WP_REST_Request $request) {
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $time_info = self::build_schedule_time_info();
 
         $uid = get_current_user_id();
         $is_support = false;
         $restrictions = [];
         if ($uid) {
-            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-            $is_support = !empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
+            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $is_support = !empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
             if ($is_support && is_array($support_users) && isset($support_users[$uid])) {
                 $restrictions = $support_users[$uid];
             }
@@ -6727,7 +6727,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success'                        => true,
             'settings'                       => $settings,
-            'ai_connect_status'              => \WcpScanner\System\AIService::get_ai_connect_status(),
+            'ai_connect_status'              => \WebCareProScanner\System\AIService::get_ai_connect_status(),
             'next_scheduled'                 => $time_info['next_scheduled_wp'],
             'schedule_time'                  => $time_info,
             'current_time'                   => $time_info['current_wp_time'],
@@ -6742,13 +6742,13 @@ class ScannerRoutes {
     public static function save_settings(\WP_REST_Request $request) {
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 $cfg = $support_users[$uid] ?? [];
                 if (!isset($cfg['block_settings_modification']) || !empty($cfg['block_settings_modification'])) {
                     return new \WP_Error(
                         'rest_forbidden',
-                        __('Access Denied: Temporary support technicians are prohibited from modifying security settings.', 'wcp-security-scanner'),
+                        __('Access Denied: Temporary support technicians are prohibited from modifying security settings.', 'webcare-pro-security'),
                         ['status' => 403]
                     );
                 }
@@ -6760,19 +6760,19 @@ class ScannerRoutes {
             $params = $request->get_body_params();
         }
 
-        $old_settings = \WcpScanner\System\SettingsManager::get_settings();
-        $saved = \WcpScanner\System\SettingsManager::save_settings((array) $params);
+        $old_settings = \WebCareProScanner\System\SettingsManager::get_settings();
+        $saved = \WebCareProScanner\System\SettingsManager::save_settings((array) $params);
         $time_info = self::build_schedule_time_info();
 
         // Check toggles for Webhooks, AI Forensics, and MCP Service
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             $old_webhook = !empty($old_settings['generic_webhook_enabled']) || !empty($old_settings['slack_enabled']) || !empty($old_settings['discord_enabled']);
             $new_webhook = !empty($saved['generic_webhook_enabled']) || !empty($saved['slack_enabled']) || !empty($saved['discord_enabled']);
             if ($old_webhook !== $new_webhook) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('webhook_status_toggled', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('webhook_status_toggled', [
                     'severity' => 'info',
                     /* translators: %s: status string */
-                    'message'  => sprintf(__('DevSecOps Webhook channels were %s.', 'wcp-security-scanner'), $new_webhook ? __('enabled', 'wcp-security-scanner') : __('disabled', 'wcp-security-scanner')),
+                    'message'  => sprintf(__('DevSecOps Webhook channels were %s.', 'webcare-pro-security'), $new_webhook ? __('enabled', 'webcare-pro-security') : __('disabled', 'webcare-pro-security')),
                     'details'  => [
                         'State' => $new_webhook ? 'Enabled' : 'Disabled',
                     ],
@@ -6781,10 +6781,10 @@ class ScannerRoutes {
 
             if (!empty($old_settings['ai_enabled']) !== !empty($saved['ai_enabled'])) {
                 $ai_on = !empty($saved['ai_enabled']);
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('ai_forensics_toggled', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('ai_forensics_toggled', [
                     'severity' => 'info',
                     /* translators: %s: status string */
-                    'message'  => sprintf(__('AI Code Forensics engine was %s.', 'wcp-security-scanner'), $ai_on ? __('enabled', 'wcp-security-scanner') : __('disabled', 'wcp-security-scanner')),
+                    'message'  => sprintf(__('AI Code Forensics engine was %s.', 'webcare-pro-security'), $ai_on ? __('enabled', 'webcare-pro-security') : __('disabled', 'webcare-pro-security')),
                     'details'  => [
                         'State'    => $ai_on ? 'Enabled' : 'Disabled',
                         'Provider' => $saved['ai_provider'] ?? 'gemini',
@@ -6794,10 +6794,10 @@ class ScannerRoutes {
 
             if (!empty($old_settings['mcp_enabled']) !== !empty($saved['mcp_enabled'])) {
                 $mcp_on = !empty($saved['mcp_enabled']);
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('mcp_service_toggled', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('mcp_service_toggled', [
                     'severity' => 'info',
                     /* translators: %s: status string */
-                    'message'  => sprintf(__('Model Context Protocol (MCP) Agent Service was %s.', 'wcp-security-scanner'), $mcp_on ? __('enabled', 'wcp-security-scanner') : __('disabled', 'wcp-security-scanner')),
+                    'message'  => sprintf(__('Model Context Protocol (MCP) Agent Service was %s.', 'webcare-pro-security'), $mcp_on ? __('enabled', 'webcare-pro-security') : __('disabled', 'webcare-pro-security')),
                     'details'  => [
                         'State' => $mcp_on ? 'Enabled' : 'Disabled',
                     ],
@@ -6807,9 +6807,9 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'success'           => true,
-            'message'           => __('Settings successfully saved.', 'wcp-security-scanner'),
+            'message'           => __('Settings successfully saved.', 'webcare-pro-security'),
             'settings'          => $saved,
-            'ai_connect_status' => \WcpScanner\System\AIService::get_ai_connect_status(),
+            'ai_connect_status' => \WebCareProScanner\System\AIService::get_ai_connect_status(),
             'next_scheduled'    => $time_info['next_scheduled_wp'],
             'schedule_time'     => $time_info,
         ]);
@@ -6819,7 +6819,7 @@ class ScannerRoutes {
      * Export settings as downloadable JSON payload
      */
     public static function export_settings(\WP_REST_Request $request) {
-        $data = \WcpScanner\System\SettingsManager::export_settings();
+        $data = \WebCareProScanner\System\SettingsManager::export_settings();
         return rest_ensure_response([
             'success' => true,
             'export'  => $data,
@@ -6841,26 +6841,26 @@ class ScannerRoutes {
             }
         }
         if (empty($payload) || !is_array($payload)) {
-            return new \WP_Error('invalid_import', __('Invalid JSON data.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_import', __('Invalid JSON data.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 return new \WP_Error(
                     'rest_forbidden',
-                    __('Temporary support technicians are strictly prohibited from importing or overwriting plugin settings.', 'wcp-security-scanner'),
+                    __('Temporary support technicians are strictly prohibited from importing or overwriting plugin settings.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
         }
 
         try {
-            $imported = \WcpScanner\System\SettingsManager::import_settings($payload);
+            $imported = \WebCareProScanner\System\SettingsManager::import_settings($payload);
             return rest_ensure_response([
                 'success'  => true,
-                'message'  => __('Settings successfully imported and applied.', 'wcp-security-scanner'),
+                'message'  => __('Settings successfully imported and applied.', 'webcare-pro-security'),
                 'settings' => $imported,
             ]);
         } catch (\Exception $e) {
@@ -6874,20 +6874,20 @@ class ScannerRoutes {
     public static function reset_settings(\WP_REST_Request $request) {
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 return new \WP_Error(
                     'rest_forbidden',
-                    __('Temporary support technicians are strictly prohibited from resetting plugin settings to factory defaults.', 'wcp-security-scanner'),
+                    __('Temporary support technicians are strictly prohibited from resetting plugin settings to factory defaults.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
         }
 
-        $defaults = \WcpScanner\System\SettingsManager::reset_defaults();
+        $defaults = \WebCareProScanner\System\SettingsManager::reset_defaults();
         return rest_ensure_response([
             'success'  => true,
-            'message'  => __('Settings have been reset to factory defaults.', 'wcp-security-scanner'),
+            'message'  => __('Settings have been reset to factory defaults.', 'webcare-pro-security'),
             'settings' => $defaults,
         ]);
     }
@@ -6902,7 +6902,7 @@ class ScannerRoutes {
                 'scan_locked',
                 sprintf(
                     /* translators: %d: active scan ID */
-                    __('A scan is already actively running (ID: %d).', 'wcp-security-scanner'),
+                    __('A scan is already actively running (ID: %d).', 'webcare-pro-security'),
                     $locked_id
                 ),
                 ['status' => 409]
@@ -6911,10 +6911,10 @@ class ScannerRoutes {
 
         // Run scheduled scan synchronously or trigger the hook
         try {
-            \WcpScanner\System\Scheduler::run_scheduled_scan();
+            \WebCareProScanner\System\Scheduler::run_scheduled_scan();
             return rest_ensure_response([
                 'success' => true,
-                'message' => __('Scheduled security scan was triggered and executed successfully.', 'wcp-security-scanner'),
+                'message' => __('Scheduled security scan was triggered and executed successfully.', 'webcare-pro-security'),
             ]);
         } catch (\Throwable $e) {
             return new \WP_Error('cron_trigger_failed', $e->getMessage(), ['status' => 500]);
@@ -6925,7 +6925,7 @@ class ScannerRoutes {
      * Audit HTTP security headers & site hardening status
      */
     public static function get_hardening_audit(\WP_REST_Request $request) {
-        $audit = \WcpScanner\Hardening\SecurityHeadersEngine::audit_hardening_status();
+        $audit = \WebCareProScanner\Hardening\SecurityHeadersEngine::audit_hardening_status();
         return rest_ensure_response([
             'success' => true,
             'audit'   => $audit,
@@ -6936,7 +6936,7 @@ class ScannerRoutes {
      * Apply recommended A+ hardening preset
      */
     public static function apply_hardening_preset(\WP_REST_Request $request) {
-        $current = \WcpScanner\System\SettingsManager::get_settings();
+        $current = \WebCareProScanner\System\SettingsManager::get_settings();
         
         $preset = [
             'header_hsts'                      => true,
@@ -6957,12 +6957,12 @@ class ScannerRoutes {
         ];
 
         $updated = array_merge($current, $preset);
-        $saved = \WcpScanner\System\SettingsManager::save_settings($updated);
-        $audit = \WcpScanner\Hardening\SecurityHeadersEngine::audit_hardening_status();
+        $saved = \WebCareProScanner\System\SettingsManager::save_settings($updated);
+        $audit = \WebCareProScanner\Hardening\SecurityHeadersEngine::audit_hardening_status();
 
         return rest_ensure_response([
             'success'  => true,
-            'message'  => __('Recommended A+ Security Hardening preset applied successfully.', 'wcp-security-scanner'),
+            'message'  => __('Recommended A+ Security Hardening preset applied successfully.', 'webcare-pro-security'),
             'settings' => $saved,
             'audit'    => $audit,
         ]);
@@ -6978,7 +6978,7 @@ class ScannerRoutes {
         $model    = sanitize_text_field($params['model'] ?? '');
 
         if ($provider === 'wp_ai_connect') {
-            $result = \WcpScanner\System\AIService::test_connection($provider, '', $model);
+            $result = \WebCareProScanner\System\AIService::test_connection($provider, '', $model);
             if (empty($result['success'])) {
                 return new \WP_Error('ai_test_failed', $result['error'] ?? 'WordPress Native AI Connect Test Failed', ['status' => 400]);
             }
@@ -6987,7 +6987,7 @@ class ScannerRoutes {
 
         // If key is masked or empty, fall back to stored key
         if ($api_key === '' || $api_key === '••••••••') {
-            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            $settings = \WebCareProScanner\System\SettingsManager::get_settings();
             if ($provider === 'gemini') {
                 $api_key = $settings['gemini_api_key'] ?? '';
                 if (!$model) $model = $settings['gemini_model'] ?? 'gemini-3.8-flash';
@@ -7000,7 +7000,7 @@ class ScannerRoutes {
             }
         }
 
-        $result = \WcpScanner\System\AIService::test_connection($provider, $api_key, $model);
+        $result = \WebCareProScanner\System\AIService::test_connection($provider, $api_key, $model);
         if (empty($result['success'])) {
             return new \WP_Error('ai_test_failed', $result['error'] ?? 'AI Test Connection Failed', ['status' => 400]);
         }
@@ -7014,7 +7014,7 @@ class ScannerRoutes {
     public static function analyze_code_with_ai(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         try {
-            $analysis = \WcpScanner\System\AIService::analyze_code($params);
+            $analysis = \WebCareProScanner\System\AIService::analyze_code($params);
             return rest_ensure_response($analysis);
         } catch (\Exception $e) {
             return new \WP_Error('ai_analysis_error', $e->getMessage(), ['status' => 400]);
@@ -7025,7 +7025,7 @@ class ScannerRoutes {
      * Get available AI model catalog
      */
     public static function get_ai_models(\WP_REST_Request $request) {
-        $catalog = \WcpScanner\System\AIService::get_available_models();
+        $catalog = \WebCareProScanner\System\AIService::get_available_models();
         return rest_ensure_response([
             'success' => true,
             'catalog' => $catalog,
@@ -7039,8 +7039,8 @@ class ScannerRoutes {
         try {
             $params = $request->get_json_params() ?: [];
             $auto_upgrade = !isset($params['auto_upgrade']) || !empty($params['auto_upgrade']);
-            $result = \WcpScanner\System\AIService::check_and_update_models($auto_upgrade);
-            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            $result = \WebCareProScanner\System\AIService::check_and_update_models($auto_upgrade);
+            $settings = \WebCareProScanner\System\SettingsManager::get_settings();
             $result['settings'] = $settings;
             return rest_ensure_response($result);
         } catch (\Exception $e) {
@@ -7064,7 +7064,7 @@ class ScannerRoutes {
 
         if ($result['success'] && $issue_id) {
             global $wpdb;
-            $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
@@ -7073,7 +7073,7 @@ class ScannerRoutes {
     }
 
     public static function get_firewall_status() {
-        return rest_ensure_response(\WcpScanner\Firewall\FirewallEngine::get_status());
+        return rest_ensure_response(\WebCareProScanner\Firewall\FirewallEngine::get_status());
     }
 
     public static function get_firewall_logs(\WP_REST_Request $request) {
@@ -7106,13 +7106,13 @@ class ScannerRoutes {
             'is_export'   => $is_export,
         ]);
 
-        $res = \WcpScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);
-        $res['current_client_ip'] = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
-        $res['retention_days']    = \WcpScanner\Firewall\WafFileLogger::get_retention_days();
+        $res = \WebCareProScanner\Firewall\FirewallEngine::get_logs($limit, $offset, $filters);
+        $res['current_client_ip'] = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+        $res['retention_days']    = \WebCareProScanner\Firewall\WafFileLogger::get_retention_days();
         $res['active_range']      = $range;
 
-        if ($include_system_info && class_exists('\\WcpScanner\\System\\TelemetrySnapshot')) {
-            $res['environment_snapshot'] = \WcpScanner\System\TelemetrySnapshot::get_snapshot();
+        if ($include_system_info && class_exists('\\WebCareProScanner\\System\\TelemetrySnapshot')) {
+            $res['environment_snapshot'] = \WebCareProScanner\System\TelemetrySnapshot::get_snapshot();
         }
 
         return rest_ensure_response($res);
@@ -7121,38 +7121,38 @@ class ScannerRoutes {
     public static function get_firewall_log_stats(\WP_REST_Request $request) {
         $range = sanitize_key((string) ($request->get_param('range') ?: 'today'));
         return rest_ensure_response([
-            'stats'          => \WcpScanner\Firewall\FirewallEngine::get_log_stats($range),
-            'retention_days' => \WcpScanner\Firewall\WafFileLogger::get_retention_days(),
+            'stats'          => \WebCareProScanner\Firewall\FirewallEngine::get_log_stats($range),
+            'retention_days' => \WebCareProScanner\Firewall\WafFileLogger::get_retention_days(),
         ]);
     }
 
     public static function get_firewall_log_files() {
         return rest_ensure_response([
-            'files'          => \WcpScanner\Firewall\WafFileLogger::get_available_files(),
-            'storage_dir'    => \WcpScanner\Firewall\WafFileLogger::get_storage_dir(),
-            'retention_days' => \WcpScanner\Firewall\WafFileLogger::get_retention_days(),
+            'files'          => \WebCareProScanner\Firewall\WafFileLogger::get_available_files(),
+            'storage_dir'    => \WebCareProScanner\Firewall\WafFileLogger::get_storage_dir(),
+            'retention_days' => \WebCareProScanner\Firewall\WafFileLogger::get_retention_days(),
         ]);
     }
 
     public static function update_firewall_log_retention(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         $days   = (int) ($params['retention_days'] ?? 30);
-        $saved  = \WcpScanner\Firewall\WafFileLogger::set_retention_days($days);
+        $saved  = \WebCareProScanner\Firewall\WafFileLogger::set_retention_days($days);
         return rest_ensure_response([
             'success'        => $saved,
-            'retention_days' => \WcpScanner\Firewall\WafFileLogger::get_retention_days(),
-            'message'        => $saved ? __('WAF log retention period updated.', 'wcp-security-scanner') : __('Failed to update retention period.', 'wcp-security-scanner'),
+            'retention_days' => \WebCareProScanner\Firewall\WafFileLogger::get_retention_days(),
+            'message'        => $saved ? __('WAF log retention period updated.', 'webcare-pro-security') : __('Failed to update retention period.', 'webcare-pro-security'),
         ]);
     }
 
     public static function prune_firewall_logs() {
-        $pruned = \WcpScanner\Firewall\WafFileLogger::prune_expired_logs();
+        $pruned = \WebCareProScanner\Firewall\WafFileLogger::prune_expired_logs();
         return rest_ensure_response([
             'success'      => true,
             'pruned_count' => $pruned,
             'message'      => sprintf(
                 /* translators: %d: number of pruned daily log files */
-                _n('%d expired daily WAF log file pruned.', '%d expired daily WAF log files pruned.', $pruned, 'wcp-security-scanner'),
+                _n('%d expired daily WAF log file pruned.', '%d expired daily WAF log files pruned.', $pruned, 'webcare-pro-security'),
                 $pruned
             ),
         ]);
@@ -7164,7 +7164,7 @@ class ScannerRoutes {
             return new \WP_Error('invalid_file', 'Valid daily WAF log filename is required.', ['status' => 400]);
         }
 
-        $dir      = \WcpScanner\Firewall\WafFileLogger::get_storage_dir();
+        $dir      = \WebCareProScanner\Firewall\WafFileLogger::get_storage_dir();
         $filepath = $dir . '/' . $filename;
         if (!file_exists($filepath) || !is_readable($filepath)) {
             return new \WP_Error('not_found', 'Log file does not exist on disk.', ['status' => 404]);
@@ -7194,7 +7194,7 @@ class ScannerRoutes {
         if (empty($id)) {
             return new \WP_Error('invalid_id', 'Valid log ID is required', ['status' => 400]);
         }
-        $deleted = \WcpScanner\Firewall\FirewallEngine::delete_log($id);
+        $deleted = \WebCareProScanner\Firewall\FirewallEngine::delete_log($id);
         return rest_ensure_response([
             'success' => $deleted,
             'message' => $deleted ? 'Log entry deleted successfully.' : 'Failed to delete log entry.',
@@ -7208,12 +7208,12 @@ class ScannerRoutes {
             return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
         }
 
-        $current_client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
-        if ($ip === $current_client_ip && \WcpScanner\Firewall\FirewallEngine::is_authenticated_administrator()) {
+        $current_client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+        if ($ip === $current_client_ip && \WebCareProScanner\Firewall\FirewallEngine::is_authenticated_administrator()) {
             return new \WP_Error(
                 'self_ban_prohibited',
                 /* translators: %s: current IP address */
-                sprintf(__('Safety Guard: IP %s is your active administrator connection. You cannot block your own IP to prevent site lockout.', 'wcp-security-scanner'), $ip),
+                sprintf(__('Safety Guard: IP %s is your active administrator connection. You cannot block your own IP to prevent site lockout.', 'webcare-pro-security'), $ip),
                 ['status' => 400]
             );
         }
@@ -7223,7 +7223,7 @@ class ScannerRoutes {
         $current_user = wp_get_current_user();
         $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
 
-        $added = \WcpScanner\Firewall\FirewallEngine::add_blocked_ip(
+        $added = \WebCareProScanner\Firewall\FirewallEngine::add_blocked_ip(
             $ip,
             !empty($reason) ? $reason : sprintf('Blocked manually by administrator "%s"', $user_login),
             $duration_seconds,
@@ -7234,10 +7234,10 @@ class ScannerRoutes {
             $user_login
         );
 
-        if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        if ($added && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'firewall_ip_blocked',
                 'firewall',
                 [
@@ -7250,7 +7250,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => $added,
             'message' => $added ? sprintf('IP %s added to custom WAF blocklist.', $ip) : 'Failed to add IP.',
-            'locked_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips(),
+            'locked_ips' => \WebCareProScanner\Firewall\FirewallEngine::get_all_locked_ips(),
         ]);
     }
 
@@ -7261,13 +7261,13 @@ class ScannerRoutes {
             return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
         }
 
-        $unblocked = \WcpScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
-        if ($unblocked && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        $unblocked = \WebCareProScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
+        if ($unblocked && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+            $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'firewall_ip_unblocked',
                 'firewall',
                 [
@@ -7280,8 +7280,8 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => $unblocked,
             /* translators: %s: unblocked IP address */
-            'message' => sprintf(__('IP %s has been unblocked. Standard WAF protection remains active.', 'wcp-security-scanner'), $ip),
-            'locked_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips(),
+            'message' => sprintf(__('IP %s has been unblocked. Standard WAF protection remains active.', 'webcare-pro-security'), $ip),
+            'locked_ips' => \WebCareProScanner\Firewall\FirewallEngine::get_all_locked_ips(),
         ]);
     }
 
@@ -7291,7 +7291,7 @@ class ScannerRoutes {
     public static function lookup_customer_lockout(\WP_REST_Request $request) {
         $query = strtoupper(trim($request->get_param('code') ?? ''));
         if (empty($query)) {
-            return new \WP_Error('missing_code', __('Support Code or IP address is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_code', __('Support Code or IP address is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         // Clean code formatting: allow #WCP-492A, WCP-492A, or 492A
@@ -7301,16 +7301,16 @@ class ScannerRoutes {
         }
 
         // 1. Try finding by support reference code
-        $data = get_transient('wcpscan_lockout_' . $clean_code);
+        $data = get_transient('webcareproscan_lockout_' . $clean_code);
 
         // 2. Fallback: Try finding by IP address if user entered an IP
         if (!$data && filter_var($query, FILTER_VALIDATE_IP)) {
-            $data = get_transient('wcpscan_lockout_ip_' . md5($query));
+            $data = get_transient('webcareproscan_lockout_ip_' . md5($query));
         }
 
         // 3. Fallback: Search recent filesystem logs if transient expired
-        if (!$data && class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
-            $file_query = \WcpScanner\Firewall\WafFileLogger::query_logs([
+        if (!$data && class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
+            $file_query = \WebCareProScanner\Firewall\WafFileLogger::query_logs([
                 'search' => $query,
                 'action' => 'blocked',
             ], 1);
@@ -7334,23 +7334,23 @@ class ScannerRoutes {
         if (!$data) {
             return rest_ensure_response([
                 'found'   => false,
-                'message' => __('No active lockout record found for this Support Reference Code or IP. The visitor may already be unblocked or the block event expired.', 'wcp-security-scanner'),
+                'message' => __('No active lockout record found for this Support Reference Code or IP. The visitor may already be unblocked or the block event expired.', 'webcare-pro-security'),
             ]);
         }
 
         // Translate reason into customer-friendly plain English
-        $friendly_reason = __('Security shield temporarily held the request due to suspicious request signatures.', 'wcp-security-scanner');
+        $friendly_reason = __('Security shield temporarily held the request due to suspicious request signatures.', 'webcare-pro-security');
         $cat = strtolower($data['rule_category'] ?? '');
         $desc = strtolower($data['description'] ?? '');
 
         if (strpos($cat, 'coupon') !== false || strpos($desc, 'coupon') !== false) {
-            $friendly_reason = __('Customer was temporarily held because invalid discount coupon codes were attempted multiple times in a short window.', 'wcp-security-scanner');
+            $friendly_reason = __('Customer was temporarily held because invalid discount coupon codes were attempted multiple times in a short window.', 'webcare-pro-security');
         } elseif (strpos($cat, 'checkout') !== false || strpos($desc, 'checkout') !== false) {
-            $friendly_reason = __('Customer was rate-limited during checkout due to rapid order submissions or repeated card payment verification attempts.', 'wcp-security-scanner');
+            $friendly_reason = __('Customer was rate-limited during checkout due to rapid order submissions or repeated card payment verification attempts.', 'webcare-pro-security');
         } elseif (strpos($cat, 'login') !== false || strpos($desc, 'login') !== false) {
-            $friendly_reason = __('Customer was held because an account password was entered incorrectly multiple times.', 'wcp-security-scanner');
+            $friendly_reason = __('Customer was held because an account password was entered incorrectly multiple times.', 'webcare-pro-security');
         } elseif (strpos($cat, 'rate') !== false || strpos($desc, 'rate') !== false) {
-            $friendly_reason = __('Customer refreshed or requested store pages faster than normal browsing velocity.', 'wcp-security-scanner');
+            $friendly_reason = __('Customer refreshed or requested store pages faster than normal browsing velocity.', 'webcare-pro-security');
         }
 
         return rest_ensure_response([
@@ -7376,27 +7376,27 @@ class ScannerRoutes {
             if (!str_starts_with($clean_code, 'WCP-') && strlen($clean_code) === 4) {
                 $clean_code = 'WCP-' . $clean_code;
             }
-            $t = get_transient('wcpscan_lockout_' . $clean_code);
+            $t = get_transient('webcareproscan_lockout_' . $clean_code);
             if (!empty($t['client_ip'])) {
                 $ip = $t['client_ip'];
             }
         }
 
         if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
-            return new \WP_Error('invalid_ip', __('Valid client IP is required to unblock.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_ip', __('Valid client IP is required to unblock.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         // 1. Remove all active rate limiters and blocklists
-        \WcpScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
+        \WebCareProScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
 
         // 2. Grant temporary 24-hour bypass allowlist
-        set_transient('wcpscan_temp_allow_' . md5($ip), 1, 24 * HOUR_IN_SECONDS);
+        set_transient('webcareproscan_temp_allow_' . md5($ip), 1, 24 * HOUR_IN_SECONDS);
 
         // 3. Log audit event
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'customer_lockout_unblocked',
                 'firewall',
                 [
@@ -7412,14 +7412,14 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             /* translators: %s: customer IP address */
-            'message' => sprintf(__('Customer IP %s has been successfully unblocked and granted 24-hour checkout access.', 'wcp-security-scanner'), $ip),
+            'message' => sprintf(__('Customer IP %s has been successfully unblocked and granted 24-hour checkout access.', 'webcare-pro-security'), $ip),
             'client_ip' => $ip,
         ]);
     }
 
     public static function get_firewall_blocklist(\WP_REST_Request $request) {
-        $locked_ips = \WcpScanner\Firewall\FirewallEngine::get_all_locked_ips();
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $locked_ips = \WebCareProScanner\Firewall\FirewallEngine::get_all_locked_ips();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         return rest_ensure_response([
             'success'          => true,
             'locked_ips'       => $locked_ips,
@@ -7447,14 +7447,14 @@ class ScannerRoutes {
             'expires_in'    => isset($params['expires_in']) ? intval($params['expires_in']) : 0,
         ];
 
-        $added = \WcpScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip, $reason, $user_login, $scope_args);
-        if ($added && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+        $added = \WebCareProScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip, $reason, $user_login, $scope_args);
+        if ($added && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
             $scope_desc = $scope_args['scope'] === 'rule' 
                 ? sprintf('Rule: %s', implode(', ', $scope_args['allowed_rules'])) 
                 : ($scope_args['scope'] === 'category' ? sprintf('Category: %s', implode(', ', $scope_args['allowed_cats'])) : 'Global Bypass');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'firewall_ip_whitelisted',
                 'firewall',
                 [
@@ -7474,7 +7474,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success'         => $added,
             'message'         => $added ? $success_msg : 'Failed to whitelist IP.',
-            'whitelisted_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
+            'whitelisted_ips' => \WebCareProScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
         ]);
     }
 
@@ -7485,13 +7485,13 @@ class ScannerRoutes {
             return new \WP_Error('invalid_ip', 'Valid IP address is required', ['status' => 400]);
         }
 
-        $removed = \WcpScanner\Firewall\FirewallEngine::remove_whitelisted_ip($ip);
-        if ($removed && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        $removed = \WebCareProScanner\Firewall\FirewallEngine::remove_whitelisted_ip($ip);
+        if ($removed && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
+            $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'firewall_ip_whitelist_removed',
                 'firewall',
                 [
@@ -7504,14 +7504,14 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => $removed,
             'message' => sprintf('IP %s removed from trusted WAF allowlist.', $ip),
-            'whitelisted_ips' => \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
+            'whitelisted_ips' => \WebCareProScanner\Firewall\FirewallEngine::get_all_whitelisted_ips(),
         ]);
     }
 
     public static function get_firewall_whitelist(\WP_REST_Request $request) {
-        $whitelisted_ips = \WcpScanner\Firewall\FirewallEngine::get_all_whitelisted_ips();
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
-        $rules_catalog = \WcpScanner\Firewall\FirewallEngine::get_firewall_rules_catalog();
+        $whitelisted_ips = \WebCareProScanner\Firewall\FirewallEngine::get_all_whitelisted_ips();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
+        $rules_catalog = \WebCareProScanner\Firewall\FirewallEngine::get_firewall_rules_catalog();
         return rest_ensure_response([
             'success'             => true,
             'whitelisted_ips'     => $whitelisted_ips,
@@ -7522,15 +7522,15 @@ class ScannerRoutes {
     }
 
     public static function clear_firewall_logs() {
-        $cleared = \WcpScanner\Firewall\FirewallEngine::clear_logs();
-        if ($cleared && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        $cleared = \WebCareProScanner\Firewall\FirewallEngine::clear_logs();
+        if ($cleared && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'firewall_logs_cleared',
                 'firewall',
                 [
@@ -7548,19 +7548,19 @@ class ScannerRoutes {
     public static function toggle_firewall(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         $enabled = !empty($params['enabled']);
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $settings['waf_enabled'] = $enabled;
         if ($enabled && ($settings['waf_mode'] ?? '') === 'disabled') {
             $settings['waf_mode'] = 'enabled';
         } elseif (!$enabled) {
             $settings['waf_mode'] = 'disabled';
         }
-        \WcpScanner\System\SettingsManager::save_settings($settings);
+        \WebCareProScanner\System\SettingsManager::save_settings($settings);
 
         return rest_ensure_response([
             'success' => true,
             'enabled' => $enabled,
-            'status'  => \WcpScanner\Firewall\FirewallEngine::get_status(),
+            'status'  => \WebCareProScanner\Firewall\FirewallEngine::get_status(),
         ]);
     }
 
@@ -7575,7 +7575,7 @@ class ScannerRoutes {
         }
 
         $val = $params['value'] ?? null;
-        $saved = \WcpScanner\System\SettingsManager::save_settings([$key => $val]);
+        $saved = \WebCareProScanner\System\SettingsManager::save_settings([$key => $val]);
         return rest_ensure_response([
             'success'  => true,
             'message'  => sprintf('Rule "%s" successfully saved.', $key),
@@ -7591,21 +7591,21 @@ class ScannerRoutes {
     public static function get_firewall_roles() {
         return rest_ensure_response([
             'success' => true,
-            'roles'   => \WcpScanner\Firewall\FirewallEngine::get_available_roles(),
+            'roles'   => \WebCareProScanner\Firewall\FirewallEngine::get_available_roles(),
         ]);
     }
 
     public static function get_server_security_config() {
-        if (!class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\ServerSecurityEngine')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
             if (file_exists($f)) {
                 require_once $f;
             }
         }
-        $options = \WcpScanner\Firewall\ServerSecurityEngine::get_options();
-        $file_info = \WcpScanner\Firewall\ServerSecurityEngine::get_file_info();
-        $nginx_content = \WcpScanner\Firewall\ServerSecurityEngine::generate_nginx_config($options);
-        $apache_content = \WcpScanner\Firewall\ServerSecurityEngine::generate_apache_config($options);
+        $options = \WebCareProScanner\Firewall\ServerSecurityEngine::get_options();
+        $file_info = \WebCareProScanner\Firewall\ServerSecurityEngine::get_file_info();
+        $nginx_content = \WebCareProScanner\Firewall\ServerSecurityEngine::generate_nginx_config($options);
+        $apache_content = \WebCareProScanner\Firewall\ServerSecurityEngine::generate_apache_config($options);
 
         return rest_ensure_response([
             'options'        => $options,
@@ -7616,8 +7616,8 @@ class ScannerRoutes {
     }
 
     public static function save_server_security_config(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\ServerSecurityEngine')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
             if (file_exists($f)) {
                 require_once $f;
             }
@@ -7626,16 +7626,16 @@ class ScannerRoutes {
         $server_type = !empty($params['server_type']) ? sanitize_key($params['server_type']) : 'nginx';
         $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
 
-        $result = \WcpScanner\Firewall\ServerSecurityEngine::save_config_file($server_type, $options);
+        $result = \WebCareProScanner\Firewall\ServerSecurityEngine::save_config_file($server_type, $options);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'server_security_saved',
                 'firewall',
                 [
@@ -7649,8 +7649,8 @@ class ScannerRoutes {
     }
 
     public static function deploy_server_security_htaccess(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\ServerSecurityEngine')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\ServerSecurityEngine')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/ServerSecurityEngine.php';
             if (file_exists($f)) {
                 require_once $f;
             }
@@ -7658,16 +7658,16 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $options = !empty($params['options']) && is_array($params['options']) ? $params['options'] : [];
 
-        $result = \WcpScanner\Firewall\ServerSecurityEngine::deploy_to_htaccess($options);
+        $result = \WebCareProScanner\Firewall\ServerSecurityEngine::deploy_to_htaccess($options);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'server_security_htaccess_deployed',
                 'firewall',
                 [
@@ -7685,22 +7685,22 @@ class ScannerRoutes {
         $htaccess_content = $htaccess_exists ? (@file_get_contents($htaccess_path) ?: '') : '';
         $htaccess_writable = $htaccess_exists ? wp_is_writable($htaccess_path) : wp_is_writable(ABSPATH);
 
-        $analysis = class_exists('\\WcpScanner\\Firewall\\HtaccessShield')
-            ? \WcpScanner\Firewall\HtaccessShield::analyze_htaccess_content($htaccess_content)
+        $analysis = class_exists('\\WebCareProScanner\\Firewall\\HtaccessShield')
+            ? \WebCareProScanner\Firewall\HtaccessShield::analyze_htaccess_content($htaccess_content)
             : ['score' => 0, 'hostile_count' => 0, 'findings' => [], 'summary' => ''];
 
-        $snapshots = class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')
-            ? \WcpScanner\Firewall\HtaccessVaultManager::list_snapshots()
+        $snapshots = class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')
+            ? \WebCareProScanner\Firewall\HtaccessVaultManager::list_snapshots()
             : [];
 
-        $canary_state = get_option(\WcpScanner\Firewall\RedirectCanaryEngine::STATE_OPTION, []);
+        $canary_state = get_option(\WebCareProScanner\Firewall\RedirectCanaryEngine::STATE_OPTION, []);
 
-        $db_urls = class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')
-            ? \WcpScanner\Firewall\RedirectCanaryEngine::verify_database_core_urls()
+        $db_urls = class_exists('\\WebCareProScanner\\Firewall\\RedirectCanaryEngine')
+            ? \WebCareProScanner\Firewall\RedirectCanaryEngine::verify_database_core_urls()
             : ['clean' => true, 'siteurl' => get_option('siteurl'), 'home' => get_option('home')];
 
-        $auto_heal = (bool) \WcpScanner\System\SettingsManager::get('htaccess_auto_heal_enabled', false);
-        $next_canary = wp_next_scheduled('wcpscan_redirect_canary_event');
+        $auto_heal = (bool) \WebCareProScanner\System\SettingsManager::get('htaccess_auto_heal_enabled', false);
+        $next_canary = wp_next_scheduled('webcareproscan_redirect_canary_event');
 
         return rest_ensure_response([
             'success'             => true,
@@ -7721,15 +7721,15 @@ class ScannerRoutes {
     }
 
     public static function run_redirect_canary_probe() {
-        if (!class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RedirectCanaryEngine')) {
             return rest_ensure_response([
                 'success' => false,
-                'message' => __('RedirectCanaryEngine not loaded.', 'wcp-security-scanner'),
+                'message' => __('RedirectCanaryEngine not loaded.', 'webcare-pro-security'),
             ]);
         }
 
-        $report = \WcpScanner\Firewall\RedirectCanaryEngine::execute_probes();
-        $auto_heal_res = \WcpScanner\Firewall\RedirectCanaryEngine::evaluate_and_auto_heal($report);
+        $report = \WebCareProScanner\Firewall\RedirectCanaryEngine::execute_probes();
+        $auto_heal_res = \WebCareProScanner\Firewall\RedirectCanaryEngine::evaluate_and_auto_heal($report);
 
         return rest_ensure_response([
             'success'   => true,
@@ -7739,112 +7739,112 @@ class ScannerRoutes {
     }
 
     public static function restore_htaccess_vault_snapshot(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')) {
             return rest_ensure_response([
                 'success' => false,
-                'message' => __('HtaccessVaultManager not loaded.', 'wcp-security-scanner'),
+                'message' => __('HtaccessVaultManager not loaded.', 'webcare-pro-security'),
             ]);
         }
 
         $params = $request->get_json_params() ?: [];
         $version = isset($params['version']) ? max(1, min(5, (int) $params['version'])) : 1;
 
-        $res = \WcpScanner\Firewall\HtaccessVaultManager::restore_snapshot($version);
+        $res = \WebCareProScanner\Firewall\HtaccessVaultManager::restore_snapshot($version);
         return rest_ensure_response($res);
     }
 
     public static function toggle_htaccess_lock(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')) {
             return rest_ensure_response([
                 'success' => false,
-                'message' => __('HtaccessVaultManager not loaded.', 'wcp-security-scanner'),
+                'message' => __('HtaccessVaultManager not loaded.', 'webcare-pro-security'),
             ]);
         }
 
         $params = $request->get_json_params() ?: [];
         $locked = !empty($params['locked']);
 
-        $res = \WcpScanner\Firewall\HtaccessVaultManager::set_readonly_lock($locked);
+        $res = \WebCareProScanner\Firewall\HtaccessVaultManager::set_readonly_lock($locked);
 
         if (isset($params['auto_heal'])) {
-            \WcpScanner\System\SettingsManager::set('htaccess_auto_heal_enabled', !empty($params['auto_heal']));
+            \WebCareProScanner\System\SettingsManager::set('htaccess_auto_heal_enabled', !empty($params['auto_heal']));
         }
 
         return rest_ensure_response([
             'success'   => $res,
             'is_locked' => $locked,
-            'auto_heal' => (bool) \WcpScanner\System\SettingsManager::get('htaccess_auto_heal_enabled', false),
+            'auto_heal' => (bool) \WebCareProScanner\System\SettingsManager::get('htaccess_auto_heal_enabled', false),
             'message'   => $locked
-                ? __('Root .htaccess locked to read-only (0444). Direct modification by processes is disabled.', 'wcp-security-scanner')
-                : __('Root .htaccess unlocked (0644). Caching and SEO plugins can write configuration updates.', 'wcp-security-scanner'),
+                ? __('Root .htaccess locked to read-only (0444). Direct modification by processes is disabled.', 'webcare-pro-security')
+                : __('Root .htaccess unlocked (0644). Caching and SEO plugins can write configuration updates.', 'webcare-pro-security'),
         ]);
     }
 
     public static function heal_database_core_urls() {
-        if (!class_exists('\\WcpScanner\\Firewall\\RedirectCanaryEngine')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RedirectCanaryEngine')) {
             return rest_ensure_response([
                 'success' => false,
-                'message' => __('RedirectCanaryEngine not loaded.', 'wcp-security-scanner'),
+                'message' => __('RedirectCanaryEngine not loaded.', 'webcare-pro-security'),
             ]);
         }
 
-        $res = \WcpScanner\Firewall\RedirectCanaryEngine::restore_database_core_urls();
+        $res = \WebCareProScanner\Firewall\RedirectCanaryEngine::restore_database_core_urls();
         return rest_ensure_response($res);
     }
 
     public static function create_htaccess_vault_snapshot() {
-        if (!class_exists('\\WcpScanner\\Firewall\\HtaccessVaultManager')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\HtaccessVaultManager')) {
             return rest_ensure_response([
                 'success' => false,
-                'message' => __('HtaccessVaultManager not loaded.', 'wcp-security-scanner'),
+                'message' => __('HtaccessVaultManager not loaded.', 'webcare-pro-security'),
             ]);
         }
 
-        $res = \WcpScanner\Firewall\HtaccessVaultManager::snapshot_current_if_clean('manual_admin_cockpit');
+        $res = \WebCareProScanner\Firewall\HtaccessVaultManager::snapshot_current_if_clean('manual_admin_cockpit');
         return rest_ensure_response($res);
     }
 
     public static function get_micro_waf_status(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
             if (file_exists($f)) {
                 require_once $f;
             }
         }
-        $status = \WcpScanner\Firewall\MicroWafCompiler::get_status();
+        $status = \WebCareProScanner\Firewall\MicroWafCompiler::get_status();
         return rest_ensure_response($status);
     }
 
     public static function compile_micro_waf(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
             if (file_exists($f)) {
                 require_once $f;
             }
         }
-        $result = \WcpScanner\Firewall\MicroWafCompiler::compile();
+        $result = \WebCareProScanner\Firewall\MicroWafCompiler::compile();
         return rest_ensure_response($result);
     }
 
     public static function install_micro_waf_preload(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
             if (file_exists($f)) {
                 require_once $f;
             }
         }
-        $result = \WcpScanner\Firewall\MicroWafCompiler::install_preload();
+        $result = \WebCareProScanner\Firewall\MicroWafCompiler::install_preload();
         return rest_ensure_response($result);
     }
 
     public static function uninstall_micro_waf_preload(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
-            $f = WCPSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
+        if (!class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            $f = WEBCAREPROSCAN_PATH . 'includes/Firewall/MicroWafCompiler.php';
             if (file_exists($f)) {
                 require_once $f;
             }
         }
-        $result = \WcpScanner\Firewall\MicroWafCompiler::uninstall_preload();
+        $result = \WebCareProScanner\Firewall\MicroWafCompiler::uninstall_preload();
         return rest_ensure_response($result);
     }
 
@@ -7853,14 +7853,14 @@ class ScannerRoutes {
         $category = sanitize_key($request->get_param('category') ?: 'all');
         $limit = (int) ($request->get_param('limit') ?: 150);
 
-        $fim = new \WcpScanner\Integrity\FileIntegrityMonitor();
+        $fim = new \WebCareProScanner\Integrity\FileIntegrityMonitor();
         $data = $fim->get_recent_changes($hours, $category, $limit);
 
         return rest_ensure_response($data);
     }
 
     public static function get_integrity_vault_status(\WP_REST_Request $request) {
-        $status = \WcpScanner\Integrity\FimVaultManager::get_vault_status();
+        $status = \WebCareProScanner\Integrity\FimVaultManager::get_vault_status();
         return rest_ensure_response($status);
     }
 
@@ -7874,13 +7874,13 @@ class ScannerRoutes {
             @ini_set('memory_limit', '512M');
         }
         try {
-            $result = \WcpScanner\Integrity\FimDriftDetector::calibrate_all();
+            $result = \WebCareProScanner\Integrity\FimDriftDetector::calibrate_all();
 
-            if (!empty($result['success']) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_baseline_refreshed', [
+            if (!empty($result['success']) && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('fim_baseline_refreshed', [
                     'severity' => 'info',
                     /* translators: %d: count of files indexed */
-                    'message'  => sprintf(__('FIM Integrity Baseline snapshot refreshed (%d files indexed across all scopes).', 'wcp-security-scanner'), (int) ($result['total_files'] ?? 0)),
+                    'message'  => sprintf(__('FIM Integrity Baseline snapshot refreshed (%d files indexed across all scopes).', 'webcare-pro-security'), (int) ($result['total_files'] ?? 0)),
                     'details'  => [
                         'Indexed Files'   => number_format((int) ($result['total_files'] ?? 0)),
                         'Duration'        => ($result['duration_sec'] ?? 0) . 's',
@@ -7914,7 +7914,7 @@ class ScannerRoutes {
             $category = sanitize_key($request->get_param('category') ?: 'all');
             $limit = (int) ($request->get_param('limit') ?: 250);
 
-            $result = \WcpScanner\Integrity\FimDriftDetector::audit_drift($category, $limit);
+            $result = \WebCareProScanner\Integrity\FimDriftDetector::audit_drift($category, $limit);
             return rest_ensure_response($result);
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
@@ -7930,12 +7930,12 @@ class ScannerRoutes {
     public static function get_integrity_file_diff(\WP_REST_Request $request) {
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-            if (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
+            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 $cfg = $support_users[$uid] ?? [];
                 $scope = $cfg['scope'] ?? 'read_only';
                 if ($scope === 'quarantine_only') {
-                    return new \WP_Error('jit_access_denied', __('Temporary support sessions with quarantine-only scope cannot inspect source diffs.', 'wcp-security-scanner'), ['status' => 403]);
+                    return new \WP_Error('jit_access_denied', __('Temporary support sessions with quarantine-only scope cannot inspect source diffs.', 'webcare-pro-security'), ['status' => 403]);
                 }
             }
         }
@@ -7951,7 +7951,7 @@ class ScannerRoutes {
         }
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_file_path', __('Missing required file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_file_path', __('Missing required file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $file_path = sanitize_text_field(wp_unslash($file_path));
@@ -7969,7 +7969,7 @@ class ScannerRoutes {
             }
         }
 
-        $fim = new \WcpScanner\Integrity\FileIntegrityMonitor();
+        $fim = new \WebCareProScanner\Integrity\FileIntegrityMonitor();
         $diff_data = $fim->get_file_diff($file_path);
 
         return rest_ensure_response($diff_data);
@@ -7981,10 +7981,10 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->strip_malware_injection($file_path, $issue_id);
 
         return rest_ensure_response($result);
@@ -7996,10 +7996,10 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->restore_official_plugin_file($file_path, $issue_id);
 
         return rest_ensure_response($result);
@@ -8011,10 +8011,10 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->restore_official_theme_file($file_path, $issue_id);
 
         return rest_ensure_response($result);
@@ -8026,10 +8026,10 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->restore_official_core_file($file_path, $issue_id);
 
         return rest_ensure_response($result);
@@ -8042,10 +8042,10 @@ class ScannerRoutes {
         $target_perm = !empty($params['target_perm']) ? sanitize_text_field(wp_unslash($params['target_perm'])) : null;
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->fix_permissions($file_path, $target_perm, $issue_id);
 
         return rest_ensure_response($result);
@@ -8057,10 +8057,10 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->delete_file($file_path, $issue_id);
 
         return rest_ensure_response($result);
@@ -8071,26 +8071,26 @@ class ScannerRoutes {
         $file_path = !empty($params['file_path']) ? sanitize_text_field(wp_unslash($params['file_path'])) : '';
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->disable_wp_debug($file_path, $issue_id);
 
         return rest_ensure_response($result);
     }
 
     public static function permissions_audit(\WP_REST_Request $request) {
-        $manager = new \WcpScanner\Hardening\PermissionHardeningManager();
+        $manager = new \WebCareProScanner\Hardening\PermissionHardeningManager();
         $result = $manager->audit();
         return rest_ensure_response($result);
     }
 
     public static function permissions_fix_all(\WP_REST_Request $request) {
-        $manager = new \WcpScanner\Hardening\PermissionHardeningManager();
+        $manager = new \WebCareProScanner\Hardening\PermissionHardeningManager();
         $result = $manager->fix_all();
         return rest_ensure_response($result);
     }
 
     public static function persistence_audit(\WP_REST_Request $request) {
-        $scanner = new \WcpScanner\WordPress\PersistenceScanner();
+        $scanner = new \WebCareProScanner\WordPress\PersistenceScanner();
         $result = $scanner->audit_full();
         return rest_ensure_response($result);
     }
@@ -8101,7 +8101,7 @@ class ScannerRoutes {
         $id = sanitize_text_field(wp_unslash($params['id'] ?? ''));
         $bulk = !empty($params['bulk']);
 
-        $scanner = new \WcpScanner\WordPress\PersistenceScanner();
+        $scanner = new \WebCareProScanner\WordPress\PersistenceScanner();
 
         if ($bulk) {
             $result = $scanner->neutralize_all();
@@ -8109,7 +8109,7 @@ class ScannerRoutes {
         }
 
         if (empty($type) || empty($id)) {
-            return new \WP_Error('missing_params', __('Type and identifier are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Type and identifier are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $result = $scanner->neutralize_item($type, $id);
@@ -8121,7 +8121,7 @@ class ScannerRoutes {
     }
 
     public static function attack_chain_audit(\WP_REST_Request $request) {
-        $engine = new \WcpScanner\Forensics\AttackChainEngine();
+        $engine = new \WebCareProScanner\Forensics\AttackChainEngine();
         $result = $engine->audit_attack_chains();
         return rest_ensure_response($result);
     }
@@ -8132,19 +8132,19 @@ class ScannerRoutes {
         $plan = is_array($params['plan'] ?? null) ? $params['plan'] : [];
 
         if (empty($chain_id)) {
-            return new \WP_Error('missing_chain_id', __('Chain ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_chain_id', __('Chain ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $engine = new \WcpScanner\Forensics\AttackChainEngine();
+        $engine = new \WebCareProScanner\Forensics\AttackChainEngine();
         $result = $engine->eradicate_chain($chain_id, $plan);
         return rest_ensure_response($result);
     }
 
     public static function virtual_patch_list(\WP_REST_Request $request) {
-        $catalog = \WcpScanner\Firewall\VirtualPatchManager::get_patch_catalog();
-        $active = \WcpScanner\Firewall\VirtualPatchManager::get_active_patches();
+        $catalog = \WebCareProScanner\Firewall\VirtualPatchManager::get_patch_catalog();
+        $active = \WebCareProScanner\Firewall\VirtualPatchManager::get_active_patches();
         
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $cf_ready = !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
 
         return rest_ensure_response([
@@ -8161,10 +8161,10 @@ class ScannerRoutes {
         $custom_config = is_array($params['custom_config'] ?? null) ? $params['custom_config'] : [];
 
         if (empty($patch_id)) {
-            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\Firewall\VirtualPatchManager::apply_patch($patch_id, $custom_config);
+        $result = \WebCareProScanner\Firewall\VirtualPatchManager::apply_patch($patch_id, $custom_config);
         if (!$result['success']) {
             return new \WP_Error('patch_failed', $result['message'], ['status' => 500]);
         }
@@ -8177,10 +8177,10 @@ class ScannerRoutes {
         $patch_id = sanitize_text_field(wp_unslash($params['patch_id'] ?? ''));
 
         if (empty($patch_id)) {
-            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\Firewall\VirtualPatchManager::remove_patch($patch_id);
+        $result = \WebCareProScanner\Firewall\VirtualPatchManager::remove_patch($patch_id);
         if (!$result['success']) {
             return new \WP_Error('remove_failed', $result['message'], ['status' => 500]);
         }
@@ -8212,7 +8212,7 @@ class ScannerRoutes {
     }
 
     public static function get_remediation_backups() {
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         return rest_ensure_response([
             'backups' => $manager->get_backups(),
         ]);
@@ -8223,10 +8223,10 @@ class ScannerRoutes {
         $backup_id = !empty($params['backup_id']) ? sanitize_text_field(wp_unslash($params['backup_id'])) : '';
 
         if (empty($backup_id)) {
-            return new \WP_Error('missing_param', __('Missing backup_id parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing backup_id parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $manager = new \WcpScanner\Remediation\RemediationManager();
+        $manager = new \WebCareProScanner\Remediation\RemediationManager();
         $result = $manager->rollback_remediation($backup_id);
 
         return rest_ensure_response($result);
@@ -8247,7 +8247,7 @@ class ScannerRoutes {
         }
 
         if (empty($hook_name)) {
-            return new \WP_Error('missing_param', __('Missing hook_name parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing hook_name parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         // Safety check: protect essential WordPress core cron hooks from being cleared
@@ -8262,7 +8262,7 @@ class ScannerRoutes {
         ];
 
         if (in_array($hook_name, $protected_core_crons, true)) {
-            return new \WP_Error('protected_core_hook', __('Cannot delete essential WordPress core system cron hooks.', 'wcp-security-scanner'), ['status' => 403]);
+            return new \WP_Error('protected_core_hook', __('Cannot delete essential WordPress core system cron hooks.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         // Clear all scheduled instances of this cron hook
@@ -8270,7 +8270,7 @@ class ScannerRoutes {
 
         if ($issue_id) {
             global $wpdb;
-            $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table = $wpdb->prefix . 'webcareproscan_scan_issues';
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table, ['status' => 'repaired'], ['id' => $issue_id]);
         }
@@ -8278,7 +8278,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             /* translators: %s: cron hook name */
-            'message' => sprintf(__('Scheduled cron hook "%s" was successfully removed from the WordPress database.', 'wcp-security-scanner'), $hook_name),
+            'message' => sprintf(__('Scheduled cron hook "%s" was successfully removed from the WordPress database.', 'webcare-pro-security'), $hook_name),
             'cleared' => $cleared,
             'hook'    => $hook_name,
         ]);
@@ -8294,12 +8294,12 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (!$comment_id) {
-            return new \WP_Error('missing_comment_id', __('Valid comment ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_comment_id', __('Valid comment ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $comment = get_comment($comment_id);
         if (!$comment && $action !== 'delete') {
-            return new \WP_Error('comment_not_found', __('Comment not found or already deleted.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('comment_not_found', __('Comment not found or already deleted.', 'webcare-pro-security'), ['status' => 404]);
         }
 
         $success = false;
@@ -8309,34 +8309,34 @@ class ScannerRoutes {
             case 'trash':
                 $success = (bool) wp_trash_comment($comment_id);
                 /* translators: %d: comment ID */
-                $message = sprintf(__('Comment #%d has been moved to Trash (quarantined from public view).', 'wcp-security-scanner'), $comment_id);
+                $message = sprintf(__('Comment #%d has been moved to Trash (quarantined from public view).', 'webcare-pro-security'), $comment_id);
                 break;
 
             case 'spam':
                 $success = (bool) wp_spam_comment($comment_id);
                 /* translators: %d: comment ID */
-                $message = sprintf(__('Comment #%d has been marked as Spam and delisted.', 'wcp-security-scanner'), $comment_id);
+                $message = sprintf(__('Comment #%d has been marked as Spam and delisted.', 'webcare-pro-security'), $comment_id);
                 break;
 
             case 'delete':
                 $success = (bool) wp_delete_comment($comment_id, true);
                 /* translators: %d: comment ID */
-                $message = sprintf(__('Comment #%d has been permanently deleted from the database.', 'wcp-security-scanner'), $comment_id);
+                $message = sprintf(__('Comment #%d has been permanently deleted from the database.', 'webcare-pro-security'), $comment_id);
                 break;
 
             case 'approve':
                 $success = (bool) wp_set_comment_status($comment_id, 'approve');
                 /* translators: %d: comment ID */
-                $message = sprintf(__('Comment #%d status updated to approved.', 'wcp-security-scanner'), $comment_id);
+                $message = sprintf(__('Comment #%d status updated to approved.', 'webcare-pro-security'), $comment_id);
                 break;
 
             default:
-                return new \WP_Error('invalid_action', __('Invalid moderation action. Supported: trash, spam, delete.', 'wcp-security-scanner'), ['status' => 400]);
+                return new \WP_Error('invalid_action', __('Invalid moderation action. Supported: trash, spam, delete.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         if ($success) {
             global $wpdb;
-            $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table = $wpdb->prefix . 'webcareproscan_scan_issues';
             if ($issue_id) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update($table, ['status' => 'repaired'], ['id' => $issue_id]);
@@ -8363,9 +8363,9 @@ class ScannerRoutes {
      */
     public static function remediate_database_row(\WP_REST_Request $request) {
         $uid = get_current_user_id();
-        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
-            return new \WP_Error('rest_forbidden', __('Access Denied: Database row remediation and deletion is prohibited during temporary support sessions.', 'wcp-security-scanner'), ['status' => 403]);
+        $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Database row remediation and deletion is prohibited during temporary support sessions.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         $params = $request->get_json_params() ?: [];
@@ -8376,20 +8376,20 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if (empty($table) || empty($row_id)) {
-            return new \WP_Error('missing_params', __('Table name and Row ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Table name and Row ID are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $mgr = new \WcpScanner\Database\DatabaseRemediationManager();
+        $mgr = new \WebCareProScanner\Database\DatabaseRemediationManager();
 
         if ($action === 'delete_row') {
             $result = $mgr->delete_row_with_backup($table, $row_id, $column, $issue_id);
         } elseif ($action === 'cleanse_field') {
             if (empty($column)) {
-                return new \WP_Error('missing_column', __('Column name is required for field cleansing.', 'wcp-security-scanner'), ['status' => 400]);
+                return new \WP_Error('missing_column', __('Column name is required for field cleansing.', 'webcare-pro-security'), ['status' => 400]);
             }
             $result = $mgr->cleanse_field_with_backup($table, $column, $row_id, $issue_id);
         } else {
-            return new \WP_Error('invalid_action', __('Invalid database remediation action.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_action', __('Invalid database remediation action.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         if (!$result['success']) {
@@ -8407,15 +8407,15 @@ class ScannerRoutes {
         $row_id = sanitize_text_field($request->get_param('row_id') ?: '');
 
         if (empty($table) || empty($row_id)) {
-            return new \WP_Error('missing_params', __('Table and Row ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Table and Row ID are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $mgr = new \WcpScanner\Database\DatabaseRemediationManager();
+        $mgr = new \WebCareProScanner\Database\DatabaseRemediationManager();
         $pk = $mgr->get_primary_key($table);
         $row = $mgr->get_row($table, $row_id);
 
         if (!$row) {
-            return new \WP_Error('row_not_found', __('Database record not found or already deleted.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('row_not_found', __('Database record not found or already deleted.', 'webcare-pro-security'), ['status' => 404]);
         }
 
         $is_log_table = (bool) preg_match('/(log|logs|redirection|audit|history|stat|stats|traffic|404)/i', $table);
@@ -8442,19 +8442,19 @@ class ScannerRoutes {
      */
     public static function restore_database_row(\WP_REST_Request $request) {
         $uid = get_current_user_id();
-        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
-            return new \WP_Error('rest_forbidden', __('Access Denied: Database restoration is prohibited during temporary support sessions.', 'wcp-security-scanner'), ['status' => 403]);
+        $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: Database restoration is prohibited during temporary support sessions.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         $params = $request->get_json_params() ?: [];
         $backup_id = !empty($params['backup_id']) ? sanitize_text_field($params['backup_id']) : '';
 
         if (empty($backup_id)) {
-            return new \WP_Error('missing_backup_id', __('Backup ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_backup_id', __('Backup ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $mgr = new \WcpScanner\Database\DatabaseRemediationManager();
+        $mgr = new \WebCareProScanner\Database\DatabaseRemediationManager();
         $result = $mgr->restore_backup($backup_id);
 
         if (!$result['success']) {
@@ -8474,9 +8474,9 @@ class ScannerRoutes {
      */
     public static function remediate_user(\WP_REST_Request $request) {
         $uid = get_current_user_id();
-        $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
-        if ($uid && (!empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
-            return new \WP_Error('rest_forbidden', __('Access Denied: User account remediation is prohibited during temporary support sessions.', 'wcp-security-scanner'), ['status' => 403]);
+        $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        if ($uid && (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
+            return new \WP_Error('rest_forbidden', __('Access Denied: User account remediation is prohibited during temporary support sessions.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         global $wpdb;
@@ -8489,10 +8489,10 @@ class ScannerRoutes {
         $issue_id = !empty($params['issue_id']) ? (int) $params['issue_id'] : null;
 
         if ($user_id <= 0) {
-            return new \WP_Error('invalid_user_id', __('Valid User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_user_id', __('Valid User ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
 
         if ($action === 'assign_default_role') {
             $result = $mgr->assign_default_role($user_id, $role);
@@ -8505,15 +8505,15 @@ class ScannerRoutes {
         } elseif ($action === 'reassign_orphaned_posts') {
             $result = $mgr->reassign_orphaned_posts($user_id, $reassign_to);
         } else {
-            return new \WP_Error('invalid_action', __('Invalid user remediation action.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_action', __('Invalid user remediation action.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         if (empty($result['success'])) {
-            return new \WP_Error('remediation_failed', $result['error'] ?? __('User remediation failed.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('remediation_failed', $result['error'] ?? __('User remediation failed.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         // Mark associated scan issue as repaired if issue_id is provided
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         if ($issue_id > 0) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
@@ -8540,7 +8540,7 @@ class ScannerRoutes {
      * Get all quarantined or backed-up user accounts.
      */
     public static function get_user_backups(\WP_REST_Request $request) {
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
         $backups = $mgr->list_user_backups();
         return rest_ensure_response([
             'success' => true,
@@ -8558,7 +8558,7 @@ class ScannerRoutes {
         $user_id = !empty($params['user_id']) ? (int) $params['user_id'] : 0;
         $restore_all = !empty($params['all']);
 
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
 
         if ($restore_all) {
             $result = $mgr->restore_all_user_backups();
@@ -8570,11 +8570,11 @@ class ScannerRoutes {
         } elseif ($user_id > 0) {
             $result = $mgr->restore_user_by_id($user_id);
         } else {
-            return new \WP_Error('missing_param', __('Specify backup_file or user_id or all.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Specify backup_file or user_id or all.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         if (empty($result['success'])) {
-            return new \WP_Error('restore_failed', $result['error'] ?? __('Failed to restore user account.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('restore_failed', $result['error'] ?? __('Failed to restore user account.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         return rest_ensure_response($result);
@@ -8590,14 +8590,14 @@ class ScannerRoutes {
         $user_id = !empty($params['user_id']) ? (int) $params['user_id'] : 0;
         $dismiss_all = !empty($params['all']);
 
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
 
         if ($dismiss_all) {
             $count = $mgr->dismiss_all_missing_backups();
             return rest_ensure_response([
                 'success' => true,
                 /* translators: %d: count */
-                'message' => sprintf(__('Dismissed %d missing user backup notifications.', 'wcp-security-scanner'), $count),
+                'message' => sprintf(__('Dismissed %d missing user backup notifications.', 'webcare-pro-security'), $count),
             ]);
         }
 
@@ -8613,7 +8613,7 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'success' => true,
-            'message' => __('User backup alert dismissed successfully.', 'wcp-security-scanner'),
+            'message' => __('User backup alert dismissed successfully.', 'webcare-pro-security'),
         ]);
     }
 
@@ -8625,14 +8625,14 @@ class ScannerRoutes {
         $backup_file = !empty($params['backup_file']) ? sanitize_text_field($params['backup_file']) : '';
 
         if (empty($backup_file)) {
-            return new \WP_Error('missing_param', __('Specify backup_file to delete.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Specify backup_file to delete.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
         $result = $mgr->delete_backup_file($backup_file);
 
         if (empty($result['success'])) {
-            return new \WP_Error('delete_failed', $result['error'] ?? __('Failed to delete user backup file.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('delete_failed', $result['error'] ?? __('Failed to delete user backup file.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         return rest_ensure_response($result);
@@ -8642,14 +8642,14 @@ class ScannerRoutes {
      * Threat Intelligence: Get Status
      */
     public static function get_threat_intel_status() {
-        return rest_ensure_response(\WcpScanner\Firewall\ThreatIntelService::get_status());
+        return rest_ensure_response(\WebCareProScanner\Firewall\ThreatIntelService::get_status());
     }
 
     /**
      * Threat Intelligence: Sync live data
      */
     public static function sync_threat_intel() {
-        $result = \WcpScanner\Firewall\ThreatIntelService::sync_threat_data();
+        $result = \WebCareProScanner\Firewall\ThreatIntelService::sync_threat_data();
         return rest_ensure_response($result);
     }
 
@@ -8658,7 +8658,7 @@ class ScannerRoutes {
      */
     public static function get_threat_intel_cves() {
         return rest_ensure_response([
-            'cves' => \WcpScanner\Firewall\ThreatIntelService::get_cve_catalog(),
+            'cves' => \WebCareProScanner\Firewall\ThreatIntelService::get_cve_catalog(),
         ]);
     }
 
@@ -8666,7 +8666,7 @@ class ScannerRoutes {
      * Auth Security: Get Status & Lockouts
      */
     public static function get_auth_security_status() {
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $user_id  = get_current_user_id();
         $user     = wp_get_current_user();
 
@@ -8685,19 +8685,19 @@ class ScannerRoutes {
             'login_lockout_duration'    => (int) ($settings['login_lockout_duration'] ?? 15),
             'session_sentinel_enabled'  => !empty($settings['session_sentinel_enabled']),
             'session_block_concurrent'  => !empty($settings['session_block_concurrent']),
-            'user_2fa_enabled'          => \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
-            'user_2fa_algorithm'        => \WcpScanner\Auth\TwoFactorAuth::get_user_algorithm($user_id),
-            'user_2fa_digits'           => \WcpScanner\Auth\TwoFactorAuth::get_user_digits($user_id),
-            'user_compliance'           => \WcpScanner\Auth\TwoFactorAuth::get_user_compliance_status($user_id),
+            'user_2fa_enabled'          => \WebCareProScanner\Auth\TwoFactorAuth::is_user_enabled($user_id),
+            'user_2fa_algorithm'        => \WebCareProScanner\Auth\TwoFactorAuth::get_user_algorithm($user_id),
+            'user_2fa_digits'           => \WebCareProScanner\Auth\TwoFactorAuth::get_user_digits($user_id),
+            'user_compliance'           => \WebCareProScanner\Auth\TwoFactorAuth::get_user_compliance_status($user_id),
             'user_login'                => $user ? $user->user_login : '',
             'user_email'                => $user ? $user->user_email : '',
-            'trusted_devices_count'     => count(\WcpScanner\Auth\TwoFactorAuth::get_trusted_devices($user_id)),
-            'trusted_devices'           => \WcpScanner\Auth\TwoFactorAuth::get_trusted_devices($user_id),
-            'lockouts'                  => array_values(\WcpScanner\Auth\LoginHardening::get_locked_ips()),
-            'stats'                     => \WcpScanner\Auth\LoginHardening::get_stats(),
-            'active_sessions'           => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
-            'backup_codes_count'        => \WcpScanner\Auth\TwoFactorAuth::get_remaining_backup_codes_count($user_id),
-            'current_ip'                => \WcpScanner\Firewall\FirewallEngine::get_client_ip(),
+            'trusted_devices_count'     => count(\WebCareProScanner\Auth\TwoFactorAuth::get_trusted_devices($user_id)),
+            'trusted_devices'           => \WebCareProScanner\Auth\TwoFactorAuth::get_trusted_devices($user_id),
+            'lockouts'                  => array_values(\WebCareProScanner\Auth\LoginHardening::get_locked_ips()),
+            'stats'                     => \WebCareProScanner\Auth\LoginHardening::get_stats(),
+            'active_sessions'           => \WebCareProScanner\Auth\SessionSentinel::get_active_sessions(),
+            'backup_codes_count'        => \WebCareProScanner\Auth\TwoFactorAuth::get_remaining_backup_codes_count($user_id),
+            'current_ip'                => \WebCareProScanner\Firewall\FirewallEngine::get_client_ip(),
         ]);
     }
 
@@ -8708,18 +8708,18 @@ class ScannerRoutes {
         $user_id = get_current_user_id();
         $user    = wp_get_current_user();
 
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $algo     = !empty($settings['auth_2fa_algorithm']) ? (string) $settings['auth_2fa_algorithm'] : 'sha1';
         $digits   = (!empty($settings['auth_2fa_digits']) && (int) $settings['auth_2fa_digits'] === 8 || $algo === 'sha512') ? 8 : 6;
         $secretLen = ($algo === 'sha512') ? 64 : 16;
 
-        $secret           = \WcpScanner\Auth\TwoFactorAuth::generate_secret($secretLen);
-        $provisioning_uri = \WcpScanner\Auth\TwoFactorAuth::get_provisioning_uri($secret, $user->user_login, $algo, $digits);
-        $qr_data_uri      = \WcpScanner\Auth\TwoFactorAuth::get_qr_data_uri($provisioning_uri);
-        $backup_bundle    = \WcpScanner\Auth\TwoFactorAuth::generate_backup_codes(8);
+        $secret           = \WebCareProScanner\Auth\TwoFactorAuth::generate_secret($secretLen);
+        $provisioning_uri = \WebCareProScanner\Auth\TwoFactorAuth::get_provisioning_uri($secret, $user->user_login, $algo, $digits);
+        $qr_data_uri      = \WebCareProScanner\Auth\TwoFactorAuth::get_qr_data_uri($provisioning_uri);
+        $backup_bundle    = \WebCareProScanner\Auth\TwoFactorAuth::generate_backup_codes(8);
 
         // Store setup state in transient for 10 minutes
-        set_transient('wcpscan_2fa_setup_' . $user_id, [
+        set_transient('webcareproscan_2fa_setup_' . $user_id, [
             'secret'       => $secret,
             'algorithm'    => $algo,
             'digits'       => $digits,
@@ -8744,9 +8744,9 @@ class ScannerRoutes {
         $params  = $request->get_json_params() ?: [];
         $code    = sanitize_text_field($params['code'] ?? '');
 
-        $setup_state = get_transient('wcpscan_2fa_setup_' . $user_id);
+        $setup_state = get_transient('webcareproscan_2fa_setup_' . $user_id);
         if (!$setup_state || empty($setup_state['secret'])) {
-            return new \WP_Error('session_expired', __('2FA setup session expired. Please click "Setup 2FA" again.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('session_expired', __('2FA setup session expired. Please click "Setup 2FA" again.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         // Always read the pending secret strictly from server storage; never trust client-supplied secret overrides
@@ -8754,20 +8754,20 @@ class ScannerRoutes {
         $algo          = $setup_state['algorithm'] ?? 'sha1';
         $digits        = (int) ($setup_state['digits'] ?? 6);
 
-        if (!\WcpScanner\Auth\TwoFactorAuth::verify_code($active_secret, $code, 1, $algo, $digits)) {
+        if (!\WebCareProScanner\Auth\TwoFactorAuth::verify_code($active_secret, $code, 1, $algo, $digits)) {
             return new \WP_Error('invalid_code', sprintf(
                 /* translators: %d: count of digits expected */
-                __('The %d-digit verification code you entered is invalid. Please check your authenticator clock and try again.', 'wcp-security-scanner'),
+                __('The %d-digit verification code you entered is invalid. Please check your authenticator clock and try again.', 'webcare-pro-security'),
                 $digits
             ), ['status' => 400]);
         }
 
-        \WcpScanner\Auth\TwoFactorAuth::enable_user($user_id, $active_secret, $setup_state['hashed_codes'], $algo, $digits);
-        delete_transient('wcpscan_2fa_setup_' . $user_id);
+        \WebCareProScanner\Auth\TwoFactorAuth::enable_user($user_id, $active_secret, $setup_state['hashed_codes'], $algo, $digits);
+        delete_transient('webcareproscan_2fa_setup_' . $user_id);
 
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Two-Factor Authentication (2FA) is now active on your account!', 'wcp-security-scanner'),
+            'message' => __('Two-Factor Authentication (2FA) is now active on your account!', 'webcare-pro-security'),
         ]);
     }
 
@@ -8776,10 +8776,10 @@ class ScannerRoutes {
      */
     public static function disable_2fa_for_user() {
         $user_id = get_current_user_id();
-        \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
+        \WebCareProScanner\Auth\TwoFactorAuth::disable_user($user_id);
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Two-Factor Authentication (2FA) has been disabled.', 'wcp-security-scanner'),
+            'message' => __('Two-Factor Authentication (2FA) has been disabled.', 'webcare-pro-security'),
         ]);
     }
 
@@ -8788,10 +8788,10 @@ class ScannerRoutes {
      */
     public static function revoke_2fa_trusted_devices() {
         $user_id = get_current_user_id();
-        \WcpScanner\Auth\TwoFactorAuth::revoke_all_trusted_devices($user_id);
+        \WebCareProScanner\Auth\TwoFactorAuth::revoke_all_trusted_devices($user_id);
         return rest_ensure_response([
             'success' => true,
-            'message' => __('All remembered/trusted devices have been revoked. 2FA verification will be required on all browsers.', 'wcp-security-scanner'),
+            'message' => __('All remembered/trusted devices have been revoked. 2FA verification will be required on all browsers.', 'webcare-pro-security'),
         ]);
     }
 
@@ -8802,24 +8802,24 @@ class ScannerRoutes {
         $user_id = get_current_user_id();
         $user    = wp_get_current_user();
 
-        if (!\WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
-            return new \WP_Error('2fa_not_enabled', __('Two-Factor Authentication is not enabled for your account.', 'wcp-security-scanner'), ['status' => 400]);
+        if (!\WebCareProScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
+            return new \WP_Error('2fa_not_enabled', __('Two-Factor Authentication is not enabled for your account.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         try {
-            $bundle = \WcpScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
+            $bundle = \WebCareProScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
 
-            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log_event(
+            if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+                \WebCareProScanner\System\AuditLogger::log_event(
                     '2fa_backup_codes_regenerated',
                     /* translators: %s: username */
-                    sprintf(__('Administrator %s regenerated 2FA emergency backup codes.', 'wcp-security-scanner'), $user->user_login)
+                    sprintf(__('Administrator %s regenerated 2FA emergency backup codes.', 'webcare-pro-security'), $user->user_login)
                 );
             }
 
             return rest_ensure_response([
                 'success'            => true,
-                'message'            => __('New 2FA emergency backup codes generated successfully.', 'wcp-security-scanner'),
+                'message'            => __('New 2FA emergency backup codes generated successfully.', 'webcare-pro-security'),
                 'backup_codes'       => $bundle['backup_codes'],
                 'backup_codes_count' => $bundle['count'],
             ]);
@@ -8836,14 +8836,14 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $ip = sanitize_text_field($params['ip'] ?? '');
         if (empty($ip)) {
-            return new \WP_Error('missing_ip', __('Missing IP parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_ip', __('Missing IP parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
-        \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
+        \WebCareProScanner\Auth\LoginHardening::unlock_ip($ip);
         return rest_ensure_response([
             'success' => true,
             'message' => sprintf(
                 /* translators: %s: IP address */
-                __('IP %s has been unlocked.', 'wcp-security-scanner'),
+                __('IP %s has been unlocked.', 'webcare-pro-security'),
                 $ip
             ),
         ]);
@@ -8853,10 +8853,10 @@ class ScannerRoutes {
      * Auth Security: Clear all lockouts
      */
     public static function clear_all_lockouts() {
-        \WcpScanner\Auth\LoginHardening::clear_all_lockouts();
+        \WebCareProScanner\Auth\LoginHardening::clear_all_lockouts();
         return rest_ensure_response([
             'success' => true,
-            'message' => __('All temporary IP lockouts have been cleared.', 'wcp-security-scanner'),
+            'message' => __('All temporary IP lockouts have been cleared.', 'webcare-pro-security'),
         ]);
     }
 
@@ -8864,8 +8864,8 @@ class ScannerRoutes {
      * Auth Security: Get Administrator Directory & 2FA Compliance Status
      */
     public static function get_admin_directory_status() {
-        $admins = \WcpScanner\Auth\TwoFactorAuth::get_administrators_status();
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $admins = \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
 
         return rest_ensure_response([
             'success'            => true,
@@ -8887,22 +8887,22 @@ class ScannerRoutes {
         $user_id = (int) ($params['user_id'] ?? 0);
 
         if (!$user_id) {
-            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $user = get_user_by('id', $user_id);
         if (!$user) {
-            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('user_not_found', __('User does not exist.', 'webcare-pro-security'), ['status' => 404]);
         }
 
-        \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
+        \WebCareProScanner\Auth\TwoFactorAuth::disable_user($user_id);
 
-        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-            \WcpScanner\System\AuditLogger::log_event(
+        if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+            \WebCareProScanner\System\AuditLogger::log_event(
                 'admin_2fa_disabled',
                 sprintf(
                     /* translators: 1: admin username, 2: target username, 3: user ID */
-                    __('Administrator %1$s disabled 2FA for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'),
+                    __('Administrator %1$s disabled 2FA for user "%2$s" (ID: %3$d).', 'webcare-pro-security'),
                     wp_get_current_user()->user_login,
                     $user->user_login,
                     $user_id
@@ -8914,10 +8914,10 @@ class ScannerRoutes {
             'success' => true,
             'message' => sprintf(
                 /* translators: %s: username */
-                __('2FA has been disabled and unlocked for administrator %s.', 'wcp-security-scanner'),
+                __('2FA has been disabled and unlocked for administrator %s.', 'webcare-pro-security'),
                 $user->user_login
             ),
-            'admins'  => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            'admins'  => \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status(),
         ]);
     }
 
@@ -8929,29 +8929,29 @@ class ScannerRoutes {
         $user_id = (int) ($params['user_id'] ?? 0);
 
         if (!$user_id) {
-            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $user = get_user_by('id', $user_id);
         if (!$user) {
-            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('user_not_found', __('User does not exist.', 'webcare-pro-security'), ['status' => 404]);
         }
 
         $current_uid = get_current_user_id();
         // If resetting another administrator, reset their 2FA and require self-enrollment on next login
         // to prevent immediate lockout and cross-admin secret exposure
         if ($user_id !== $current_uid) {
-            \WcpScanner\Auth\TwoFactorAuth::disable_user($user_id);
-            update_user_meta($user_id, 'wcpscan_force_2fa_setup', 1);
-            delete_user_meta($user_id, 'wcpscan_2fa_secret');
-            delete_user_meta($user_id, 'wcpscan_2fa_backup_codes');
+            \WebCareProScanner\Auth\TwoFactorAuth::disable_user($user_id);
+            update_user_meta($user_id, 'webcareproscan_force_2fa_setup', 1);
+            delete_user_meta($user_id, 'webcareproscan_2fa_secret');
+            delete_user_meta($user_id, 'webcareproscan_2fa_backup_codes');
 
-            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log_event(
+            if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+                \WebCareProScanner\System\AuditLogger::log_event(
                     'admin_2fa_reset',
                     sprintf(
                         /* translators: 1: admin username, 2: target username, 3: user ID */
-                        __('Administrator %1$s reset 2FA policy for user "%2$s" (ID: %3$d), requiring re-enrollment on next login.', 'wcp-security-scanner'),
+                        __('Administrator %1$s reset 2FA policy for user "%2$s" (ID: %3$d), requiring re-enrollment on next login.', 'webcare-pro-security'),
                         wp_get_current_user()->user_login,
                         $user->user_login,
                         $user_id
@@ -8963,23 +8963,23 @@ class ScannerRoutes {
                 'success'       => true,
                 'message'       => sprintf(
                     /* translators: %s: username */
-                    __('2FA has been reset for administrator %s. They will be prompted to safely enroll their own authenticator upon next login.', 'wcp-security-scanner'),
+                    __('2FA has been reset for administrator %s. They will be prompted to safely enroll their own authenticator upon next login.', 'webcare-pro-security'),
                     $user->user_login
                 ),
                 'setup_package' => null,
-                'admins'        => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+                'admins'        => \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status(),
             ]);
         }
 
         try {
-            $setup_pkg = \WcpScanner\Auth\TwoFactorAuth::reset_user_2fa($user_id);
+            $setup_pkg = \WebCareProScanner\Auth\TwoFactorAuth::reset_user_2fa($user_id);
 
-            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log_event(
+            if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+                \WebCareProScanner\System\AuditLogger::log_event(
                     'admin_2fa_reset',
                     sprintf(
                         /* translators: 1: admin username, 2: target username, 3: user ID */
-                        __('Administrator %1$s regenerated 2FA credentials for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'),
+                        __('Administrator %1$s regenerated 2FA credentials for user "%2$s" (ID: %3$d).', 'webcare-pro-security'),
                         wp_get_current_user()->user_login,
                         $user->user_login,
                         $user_id
@@ -8991,11 +8991,11 @@ class ScannerRoutes {
                 'success'       => true,
                 'message'       => sprintf(
                     /* translators: %s: username */
-                    __('New 2FA credentials generated for %s.', 'wcp-security-scanner'),
+                    __('New 2FA credentials generated for %s.', 'webcare-pro-security'),
                     $user->user_login
                 ),
                 'setup_package' => $setup_pkg,
-                'admins'        => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+                'admins'        => \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status(),
             ]);
         } catch (\Throwable $e) {
             return new \WP_Error('reset_failed', $e->getMessage(), ['status' => 500]);
@@ -9010,20 +9010,20 @@ class ScannerRoutes {
         $user_id = (int) ($params['user_id'] ?? 0);
 
         if (!$user_id) {
-            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $user = get_user_by('id', $user_id);
         if (!$user) {
-            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('user_not_found', __('User does not exist.', 'webcare-pro-security'), ['status' => 404]);
         }
 
-        if (!\WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
+        if (!\WebCareProScanner\Auth\TwoFactorAuth::is_user_enabled($user_id)) {
             return new \WP_Error(
                 '2fa_not_enabled',
                 sprintf(
                     /* translators: %s: username */
-                    __('2FA is not enabled for user %s.', 'wcp-security-scanner'),
+                    __('2FA is not enabled for user %s.', 'webcare-pro-security'),
                     $user->user_login
                 ),
                 ['status' => 400]
@@ -9031,14 +9031,14 @@ class ScannerRoutes {
         }
 
         try {
-            $bundle = \WcpScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
+            $bundle = \WebCareProScanner\Auth\TwoFactorAuth::regenerate_backup_codes($user_id, 8);
 
-            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log_event(
+            if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+                \WebCareProScanner\System\AuditLogger::log_event(
                     'admin_2fa_backup_codes_regenerated',
                     sprintf(
                         /* translators: 1: admin username, 2: target username, 3: user ID */
-                        __('Administrator %1$s regenerated backup codes for user "%2$s" (ID: %3$d).', 'wcp-security-scanner'),
+                        __('Administrator %1$s regenerated backup codes for user "%2$s" (ID: %3$d).', 'webcare-pro-security'),
                         wp_get_current_user()->user_login,
                         $user->user_login,
                         $user_id
@@ -9050,13 +9050,13 @@ class ScannerRoutes {
                 'success'            => true,
                 'message'            => sprintf(
                     /* translators: %s: username */
-                    __('New backup codes generated for administrator %s.', 'wcp-security-scanner'),
+                    __('New backup codes generated for administrator %s.', 'webcare-pro-security'),
                     $user->user_login
                 ),
                 'user_login'         => $user->user_login,
                 'backup_codes'       => $bundle['backup_codes'],
                 'backup_codes_count' => $bundle['count'],
-                'admins'             => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+                'admins'             => \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status(),
             ]);
         } catch (\Throwable $e) {
             return new \WP_Error('regen_failed', $e->getMessage(), ['status' => 500]);
@@ -9071,26 +9071,26 @@ class ScannerRoutes {
         $user_id = (int) ($params['user_id'] ?? 0);
 
         if (!$user_id) {
-            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_user', __('Valid user ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $user = get_user_by('id', $user_id);
         if (!$user) {
-            return new \WP_Error('user_not_found', __('User does not exist.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('user_not_found', __('User does not exist.', 'webcare-pro-security'), ['status' => 404]);
         }
 
-        $res = \WcpScanner\Auth\TwoFactorAuth::unlock_user_lockouts($user_id);
+        $res = \WebCareProScanner\Auth\TwoFactorAuth::unlock_user_lockouts($user_id);
 
         return rest_ensure_response([
             'success'          => true,
             'message'          => sprintf(
                 /* translators: %s: username */
-                __('Login lockouts and rate-limiting blocks cleared for user %s.', 'wcp-security-scanner'),
+                __('Login lockouts and rate-limiting blocks cleared for user %s.', 'webcare-pro-security'),
                 $user->user_login
             ),
             'unlocked_ips'     => $res['unlocked_ips'],
-            'admins'           => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
-            'lockouts'         => array_values(\WcpScanner\Auth\LoginHardening::get_locked_ips()),
+            'admins'           => \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            'lockouts'         => array_values(\WebCareProScanner\Auth\LoginHardening::get_locked_ips()),
         ]);
     }
 
@@ -9102,7 +9102,7 @@ class ScannerRoutes {
         if (empty($params)) {
             $params = $request->get_params();
         }
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
 
         $enforce_admins = !empty($params['auth_2fa_enforce_admins']);
         $raw_mode       = sanitize_key($params['auth_2fa_policy_mode'] ?? 'remind_login');
@@ -9119,14 +9119,14 @@ class ScannerRoutes {
             $settings['auth_2fa_enforce_since'] = 0;
         }
 
-        \WcpScanner\System\SettingsManager::save_settings($settings);
+        \WebCareProScanner\System\SettingsManager::save_settings($settings);
 
-        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-            \WcpScanner\System\AuditLogger::log_event(
+        if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+            \WebCareProScanner\System\AuditLogger::log_event(
                 'auth_policy_updated',
                 sprintf(
                     /* translators: 1: enforce status, 2: policy mode, 3: grace days */
-                    __('Administrator 2FA policy updated: Enforce=%1$s, Mode=%2$s, Grace Days=%3$d.', 'wcp-security-scanner'),
+                    __('Administrator 2FA policy updated: Enforce=%1$s, Mode=%2$s, Grace Days=%3$d.', 'webcare-pro-security'),
                     $enforce_admins ? 'YES' : 'NO',
                     strtoupper($policy_mode),
                     $grace_days
@@ -9136,14 +9136,14 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'success' => true,
-            'message' => __('2FA enforcement policy updated successfully.', 'wcp-security-scanner'),
+            'message' => __('2FA enforcement policy updated successfully.', 'webcare-pro-security'),
             'policy'  => [
                 'enforce_admins' => $enforce_admins,
                 'policy_mode'    => $policy_mode,
                 'grace_days'     => $grace_days,
                 'enforce_since'  => $settings['auth_2fa_enforce_since'],
             ],
-            'admins'  => \WcpScanner\Auth\TwoFactorAuth::get_administrators_status(),
+            'admins'  => \WebCareProScanner\Auth\TwoFactorAuth::get_administrators_status(),
         ]);
     }
 
@@ -9153,8 +9153,8 @@ class ScannerRoutes {
     public static function get_active_sessions_list() {
         return rest_ensure_response([
             'success'    => true,
-            'sessions'   => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
-            'current_ip' => \WcpScanner\Firewall\FirewallEngine::get_client_ip(),
+            'sessions'   => \WebCareProScanner\Auth\SessionSentinel::get_active_sessions(),
+            'current_ip' => \WebCareProScanner\Firewall\FirewallEngine::get_client_ip(),
         ]);
     }
 
@@ -9170,24 +9170,24 @@ class ScannerRoutes {
 
             if ($revoke_others) {
                 $target_user_id = $user_id ?: 0;
-                \WcpScanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id, empty($user_id));
+                \WebCareProScanner\Auth\SessionSentinel::terminate_all_other_sessions($target_user_id, empty($user_id));
                 return rest_ensure_response([
                     'success' => true,
-                    'message' => __('All other active sessions have been terminated.', 'wcp-security-scanner'),
-                    'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+                    'message' => __('All other active sessions have been terminated.', 'webcare-pro-security'),
+                    'sessions' => \WebCareProScanner\Auth\SessionSentinel::get_active_sessions(),
                 ]);
             }
 
             if (empty($token) || empty($user_id)) {
-                return new \WP_Error('missing_params', __('Session token and user ID are required.', 'wcp-security-scanner'), ['status' => 400]);
+                return new \WP_Error('missing_params', __('Session token and user ID are required.', 'webcare-pro-security'), ['status' => 400]);
             }
 
-            \WcpScanner\Auth\SessionSentinel::terminate_session($user_id, $token, 'Revoked by administrator via Session Sentinel.');
+            \WebCareProScanner\Auth\SessionSentinel::terminate_session($user_id, $token, 'Revoked by administrator via Session Sentinel.');
 
             return rest_ensure_response([
                 'success'  => true,
-                'message'  => __('Session successfully revoked.', 'wcp-security-scanner'),
-                'sessions' => \WcpScanner\Auth\SessionSentinel::get_active_sessions(),
+                'message'  => __('Session successfully revoked.', 'webcare-pro-security'),
+                'sessions' => \WebCareProScanner\Auth\SessionSentinel::get_active_sessions(),
             ]);
         } catch (\Throwable $e) {
             return new \WP_Error('session_revoke_error', $e->getMessage(), ['status' => 500]);
@@ -9212,7 +9212,7 @@ class ScannerRoutes {
             $limit = 10;
         }
 
-        $result = \WcpScanner\Auth\LoginHistoryManager::get_user_history($user_id, $limit);
+        $result = \WebCareProScanner\Auth\LoginHistoryManager::get_user_history($user_id, $limit);
 
         return rest_ensure_response($result);
     }
@@ -9223,20 +9223,20 @@ class ScannerRoutes {
     public static function record_client_telemetry(\WP_REST_Request $request) {
         $user_id = get_current_user_id();
         if (!$user_id) {
-            return new \WP_Error('unauthorized', __('Unauthorized', 'wcp-security-scanner'), ['status' => 401]);
+            return new \WP_Error('unauthorized', __('Unauthorized', 'webcare-pro-security'), ['status' => 401]);
         }
 
         // Rate-limiting: Max 5 submissions per user per 60 seconds to prevent telemetry flooding
-        $transient_key = 'wcpscan_telemetry_rate_' . $user_id;
+        $transient_key = 'webcareproscan_telemetry_rate_' . $user_id;
         $hit_count = (int) get_transient($transient_key);
         if ($hit_count >= 5) {
-            return new \WP_Error('too_many_requests', __('Telemetry submission rate limit exceeded. Please wait a minute.', 'wcp-security-scanner'), ['status' => 429]);
+            return new \WP_Error('too_many_requests', __('Telemetry submission rate limit exceeded. Please wait a minute.', 'webcare-pro-security'), ['status' => 429]);
         }
         set_transient($transient_key, $hit_count + 1, 60);
 
         $params = $request->get_json_params();
         if (!is_array($params)) {
-            return new \WP_Error('invalid_payload', __('Invalid JSON payload structure.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_payload', __('Invalid JSON payload structure.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         // Strict input sanitization and length bounds
@@ -9255,7 +9255,7 @@ class ScannerRoutes {
             'timezone'          => $clean_tz,
         ];
 
-        \WcpScanner\Auth\LoginHistoryManager::update_session_telemetry($user_id, $telemetry);
+        \WebCareProScanner\Auth\LoginHistoryManager::update_session_telemetry($user_id, $telemetry);
 
         return rest_ensure_response([
             'success' => true,
@@ -9266,7 +9266,7 @@ class ScannerRoutes {
      * Database: Get Rogue Administrator & Micro-Anomaly Audit
      */
     public static function get_rogue_admin_audit(\WP_REST_Request $request) {
-        $audit = \WcpScanner\Database\RogueAdminAnomalyDetector::audit_users_and_anomalies();
+        $audit = \WebCareProScanner\Database\RogueAdminAnomalyDetector::audit_users_and_anomalies();
         return rest_ensure_response([
             'success' => true,
             'audit'   => $audit,
@@ -9277,7 +9277,7 @@ class ScannerRoutes {
      * Living-off-the-Land (LotL) Hook Infiltration Audit
      */
     public static function get_hook_sentinel_audit(\WP_REST_Request $request) {
-        $sentinel = new \WcpScanner\WordPress\HookInfiltrationSentinel();
+        $sentinel = new \WebCareProScanner\WordPress\HookInfiltrationSentinel();
         $findings = $sentinel->scan('manual_api_' . time());
         $results = [];
         foreach ($findings as $f) {
@@ -9298,7 +9298,7 @@ class ScannerRoutes {
         $platform = sanitize_text_field($params['platform'] ?? 'slack');
         $url      = !empty($params['webhook_url']) ? esc_url_raw(trim($params['webhook_url'])) : null;
 
-        $result = \WcpScanner\Notifications\WebhookService::send_test($platform, $url);
+        $result = \WebCareProScanner\Notifications\WebhookService::send_test($platform, $url);
         return rest_ensure_response($result);
     }
 
@@ -9306,13 +9306,13 @@ class ScannerRoutes {
      * Get granular notification settings & catalog
      */
     public static function get_notification_settings(\WP_REST_Request $request) {
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
-        $catalog  = \WcpScanner\Notifications\NotificationDispatcher::get_event_catalog();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
+        $catalog  = \WebCareProScanner\Notifications\NotificationDispatcher::get_event_catalog();
 
         return rest_ensure_response([
             'success'                     => true,
             'notification_master_enabled' => !empty($settings['notification_master_enabled']),
-            'notification_events'         => $settings['notification_events'] ?? \WcpScanner\System\SettingsManager::get_default_notification_events(),
+            'notification_events'         => $settings['notification_events'] ?? \WebCareProScanner\System\SettingsManager::get_default_notification_events(),
             'catalog'                     => $catalog,
             'alert_emails'                => $settings['alert_emails'] ?? get_option('admin_email'),
             'webhooks_configured'         => [
@@ -9330,23 +9330,23 @@ class ScannerRoutes {
      */
     public static function save_notification_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $current = \WcpScanner\System\SettingsManager::get_settings();
+        $current = \WebCareProScanner\System\SettingsManager::get_settings();
 
         if (isset($params['notification_master_enabled'])) {
             $current['notification_master_enabled'] = !empty($params['notification_master_enabled']);
         }
         if (isset($params['notification_events']) && is_array($params['notification_events'])) {
-            $current['notification_events'] = \WcpScanner\System\SettingsManager::sanitize_notification_events($params['notification_events']);
+            $current['notification_events'] = \WebCareProScanner\System\SettingsManager::sanitize_notification_events($params['notification_events']);
         }
         if (isset($params['alert_emails'])) {
             $current['alert_emails'] = sanitize_text_field($params['alert_emails']);
         }
 
-        $saved = \WcpScanner\System\SettingsManager::save_settings($current);
+        $saved = \WebCareProScanner\System\SettingsManager::save_settings($current);
 
         return rest_ensure_response([
             'success'                     => true,
-            'message'                     => __('Notification settings saved successfully.', 'wcp-security-scanner'),
+            'message'                     => __('Notification settings saved successfully.', 'webcare-pro-security'),
             'notification_master_enabled' => !empty($saved['notification_master_enabled']),
             'notification_events'         => $saved['notification_events'],
         ]);
@@ -9360,19 +9360,19 @@ class ScannerRoutes {
         $event_key = sanitize_text_field($params['event_key'] ?? '');
 
         if (empty($event_key)) {
-            return new \WP_Error('missing_event', __('Event key is required for notification testing.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_event', __('Event key is required for notification testing.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $catalog = \WcpScanner\Notifications\NotificationDispatcher::get_event_catalog();
+        $catalog = \WebCareProScanner\Notifications\NotificationDispatcher::get_event_catalog();
         if (!isset($catalog[$event_key])) {
-            return new \WP_Error('invalid_event', __('Unknown security event identifier.', 'wcp-security-scanner'), ['status' => 404]);
+            return new \WP_Error('invalid_event', __('Unknown security event identifier.', 'webcare-pro-security'), ['status' => 404]);
         }
 
-        $result = \WcpScanner\Notifications\NotificationDispatcher::trigger($event_key, [
+        $result = \WebCareProScanner\Notifications\NotificationDispatcher::trigger($event_key, [
             /* translators: %s: event title */
-            'title'   => sprintf(__('[TEST] %s', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'title'   => sprintf(__('[TEST] %s', 'webcare-pro-security'), $catalog[$event_key]['title']),
             /* translators: %s: event title */
-            'message' => sprintf(__('This is an instant verification alert triggered from the WCP Notification Center for "%s".', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'message' => sprintf(__('This is an instant verification alert triggered from the WCP Notification Center for "%s".', 'webcare-pro-security'), $catalog[$event_key]['title']),
             'details' => [
                 'triggered_by' => wp_get_current_user()->user_login ?: 'admin',
                 'event_code'   => $event_key,
@@ -9383,7 +9383,7 @@ class ScannerRoutes {
         return rest_ensure_response([
             'success' => true,
             /* translators: %s: event title */
-            'message' => sprintf(__('Test notification dispatched for event: %s', 'wcp-security-scanner'), $catalog[$event_key]['title']),
+            'message' => sprintf(__('Test notification dispatched for event: %s', 'webcare-pro-security'), $catalog[$event_key]['title']),
             'result'  => $result,
         ]);
     }
@@ -9392,11 +9392,11 @@ class ScannerRoutes {
      * Helper to load CloudflareService reliably
      */
     private static function ensure_cloudflare_service(): bool {
-        if (!class_exists('\WcpScanner\Cloudflare\CloudflareService')) {
+        if (!class_exists('\WebCareProScanner\Cloudflare\CloudflareService')) {
             $candidates = [
-                WCPSCAN_PATH . 'includes/Cloudflare/CloudflareService.php',
-                WCPSCAN_PATH . 'includes/cloudflare/CloudflareService.php',
-                WCPSCAN_PATH . 'includes/Firewall/CloudflareService.php',
+                WEBCAREPROSCAN_PATH . 'includes/Cloudflare/CloudflareService.php',
+                WEBCAREPROSCAN_PATH . 'includes/cloudflare/CloudflareService.php',
+                WEBCAREPROSCAN_PATH . 'includes/Firewall/CloudflareService.php',
             ];
             foreach ($candidates as $file) {
                 if (file_exists($file)) {
@@ -9405,7 +9405,7 @@ class ScannerRoutes {
                 }
             }
         }
-        return class_exists('\WcpScanner\Cloudflare\CloudflareService');
+        return class_exists('\WebCareProScanner\Cloudflare\CloudflareService');
     }
 
     /**
@@ -9413,12 +9413,12 @@ class ScannerRoutes {
      */
     public static function get_cloudflare_status(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing on this installation.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing on this installation.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $status = \WcpScanner\Cloudflare\CloudflareService::get_status();
-        $definitions = \WcpScanner\Cloudflare\CloudflareService::get_rule_definitions();
-        $compound_rules = \WcpScanner\Cloudflare\CloudflareService::get_compound_rule_definitions();
-        $edge_advisor = \WcpScanner\Cloudflare\CloudflareService::get_edge_advisor();
+        $status = \WebCareProScanner\Cloudflare\CloudflareService::get_status();
+        $definitions = \WebCareProScanner\Cloudflare\CloudflareService::get_rule_definitions();
+        $compound_rules = \WebCareProScanner\Cloudflare\CloudflareService::get_compound_rule_definitions();
+        $edge_advisor = \WebCareProScanner\Cloudflare\CloudflareService::get_edge_advisor();
         return rest_ensure_response([
             'success'        => true,
             'status'         => $status,
@@ -9430,33 +9430,33 @@ class ScannerRoutes {
 
     public static function verify_cloudflare_credentials(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing on this installation. Please reinstall or update the plugin zip.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing on this installation. Please reinstall or update the plugin zip.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params  = $request->get_json_params() ?: [];
         $token   = !empty($params['token']) ? trim(sanitize_text_field($params['token'])) : null;
         $zone_id = !empty($params['zone_id']) ? trim(sanitize_text_field($params['zone_id'])) : null;
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::verify_zone($zone_id, $token);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::verify_zone($zone_id, $token);
         return rest_ensure_response($result);
     }
 
     public static function deploy_cloudflare_rules(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params = $request->get_json_params() ?: [];
         $rules  = is_array($params['rules'] ?? null) ? $params['rules'] : [];
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::deploy_custom_rules($rules);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::deploy_custom_rules($rules);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_rules_deployed',
                 'firewall',
                 [
@@ -9471,24 +9471,24 @@ class ScannerRoutes {
 
     public static function deploy_single_cloudflare_rule(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params   = $request->get_json_params() ?: [];
         $rule_key = sanitize_key($params['rule_key'] ?? '');
         $config   = is_array($params['config'] ?? null) ? $params['config'] : [];
         $enable   = !isset($params['enabled']) || !empty($params['enabled']);
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::deploy_single_rule($rule_key, $config, $enable);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::deploy_single_rule($rule_key, $config, $enable);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $action_state = $enable ? 'enabled' : 'disabled';
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_rule_modified',
                 'firewall',
                 [
@@ -9504,23 +9504,23 @@ class ScannerRoutes {
 
     public static function toggle_cloudflare_rate_limiting(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params  = $request->get_json_params() ?: [];
         $enable  = !empty($params['enabled']);
         $options = is_array($params['options'] ?? null) ? $params['options'] : [];
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable, $options);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable, $options);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $state_text = $enable ? 'activated' : 'paused';
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_rate_limiting_toggled',
                 'firewall',
                 [
@@ -9535,22 +9535,22 @@ class ScannerRoutes {
 
     public static function block_cloudflare_ip(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params = $request->get_json_params() ?: [];
         $ip     = sanitize_text_field($params['ip'] ?? '');
         $reason = sanitize_text_field($params['reason'] ?? 'Manual block via Security Scanner');
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::block_ip($ip, $reason);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::block_ip($ip, $reason);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_ip_blocked',
                 'firewall',
                 [
@@ -9567,36 +9567,36 @@ class ScannerRoutes {
 
     public static function get_cloudflare_banned_ips(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $page     = max(1, (int) $request->get_param('page'));
         $per_page = max(1, min(100, (int) ($request->get_param('per_page') ?: 50)));
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::get_banned_ips($page, $per_page);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::get_banned_ips($page, $per_page);
         return rest_ensure_response($result);
     }
 
     public static function unblock_cloudflare_ip(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params  = $request->get_json_params() ?: [];
         $rule_id = sanitize_text_field($params['rule_id'] ?? '');
         $target_ip = sanitize_text_field(trim($params['ip'] ?? ''));
 
         if (!empty($rule_id)) {
-            $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
+            $result = \WebCareProScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
         } elseif (!empty($target_ip)) {
-            $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip_by_address($target_ip);
+            $result = \WebCareProScanner\Cloudflare\CloudflareService::unblock_ip_by_address($target_ip);
         } else {
-            return new \WP_Error('invalid_param', __('Either rule_id or ip is required to unblock.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_param', __('Either rule_id or ip is required to unblock.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $ip_text = !empty($target_ip) ? sprintf('IP %s', $target_ip) : sprintf('Rule %s', $rule_id);
@@ -9604,7 +9604,7 @@ class ScannerRoutes {
                 ? sprintf('Cloudflare Edge block rule for IP %s removed by %s from IP %s (Rule ID: %s).', $target_ip, $user_login, $client_ip, $rule_id)
                 : sprintf('Cloudflare Edge block rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip);
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_ip_unblocked',
                 'firewall',
                 [
@@ -9620,22 +9620,22 @@ class ScannerRoutes {
 
     public static function purge_cloudflare_cache(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params = $request->get_json_params() ?: [];
         $files  = !empty($params['files']) && is_array($params['files']) ? array_map('esc_url_raw', $params['files']) : null;
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::purge_cache($files);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::purge_cache($files);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $target_desc = !empty($files) ? sprintf('%d specific file(s)', count($files)) : 'all cached assets (Everything)';
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_cache_purged',
                 'firewall',
                 [
@@ -9650,49 +9650,49 @@ class ScannerRoutes {
 
     public static function inspect_cloudflare_rules(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
-        $result = \WcpScanner\Cloudflare\CloudflareService::inspect_edge_rules($zone_id);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::inspect_edge_rules($zone_id);
         return rest_ensure_response($result);
     }
 
     public static function get_cloudflare_whitelisted_ips(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $page     = max(1, (int) $request->get_param('page'));
         $per_page = max(1, min(100, (int) ($request->get_param('per_page') ?: 50)));
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::get_whitelisted_ips($page, $per_page);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::get_whitelisted_ips($page, $per_page);
         return rest_ensure_response($result);
     }
 
     public static function remove_cloudflare_whitelisted_ip(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params  = $request->get_json_params() ?: [];
         $rule_id = sanitize_text_field($params['rule_id'] ?? '');
         $target_ip = sanitize_text_field(trim($params['ip'] ?? ''));
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::unblock_ip($rule_id);
         if (!empty($result['success'])) {
-            $result['message'] = __('Whitelisted IP rule successfully removed from Cloudflare Edge.', 'wcp-security-scanner');
+            $result['message'] = __('Whitelisted IP rule successfully removed from Cloudflare Edge.', 'webcare-pro-security');
 
-            if (class_exists('\WcpScanner\System\WcpActivityLogger')) {
+            if (class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
                 $current_user = wp_get_current_user();
                 $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-                $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                    ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                    ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                     : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
                 $desc = !empty($target_ip)
                     ? sprintf('Cloudflare Edge allowlist rule for IP %s removed by %s from IP %s (Rule ID: %s).', $target_ip, $user_login, $client_ip, $rule_id)
                     : sprintf('Cloudflare Edge allowlist rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip);
 
-                \WcpScanner\System\WcpActivityLogger::notice(
+                \WebCareProScanner\System\WcpActivityLogger::notice(
                     'cloudflare_whitelist_removed',
                     'firewall',
                     [
@@ -9708,22 +9708,22 @@ class ScannerRoutes {
 
     public static function whitelist_cloudflare_ip(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params = $request->get_json_params() ?: [];
         $ip     = sanitize_text_field($params['ip'] ?? '');
         $notes  = sanitize_text_field($params['notes'] ?? 'Administrator / Developer Whitelist via WCP');
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::whitelist_ip($ip, $notes);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::whitelist_ip($ip, $notes);
 
-        if (!empty($result['success']) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            $client_ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+            $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WcpScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'cloudflare_ip_whitelisted',
                 'firewall',
                 [
@@ -9740,36 +9740,36 @@ class ScannerRoutes {
 
     public static function disconnect_cloudflare(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $result = \WcpScanner\Cloudflare\CloudflareService::disconnect();
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::disconnect();
         return rest_ensure_response($result);
     }
 
     public static function get_cloudflare_firewall_events(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $result = \WcpScanner\Cloudflare\CloudflareService::get_stored_firewall_events();
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::get_stored_firewall_events();
         return rest_ensure_response($result);
     }
 
     public static function fetch_cloudflare_firewall_events(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params = $request->get_json_params() ?: [];
         $limit  = isset($params['limit']) ? intval($params['limit']) : 100;
 
-        $result = \WcpScanner\Cloudflare\CloudflareService::fetch_and_store_firewall_events($limit);
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::fetch_and_store_firewall_events($limit);
         return rest_ensure_response($result);
     }
 
     public static function clear_cloudflare_firewall_events(\WP_REST_Request $request) {
         if (!self::ensure_cloudflare_service()) {
-            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'wcp-security-scanner'), ['status' => 500]);
+            return new \WP_Error('service_unavailable', __('Cloudflare service file is missing.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $result = \WcpScanner\Cloudflare\CloudflareService::clear_stored_firewall_events();
+        $result = \WebCareProScanner\Cloudflare\CloudflareService::clear_stored_firewall_events();
         return rest_ensure_response($result);
     }
 
@@ -9778,7 +9778,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_whitelist_rules(\WP_REST_Request $request) {
-        $rules = \WcpScanner\Findings\WhitelistManager::get_whitelist_rules(false);
+        $rules = \WebCareProScanner\Findings\WhitelistManager::get_whitelist_rules(false);
         return rest_ensure_response([
             'success' => true,
             'rules'   => $rules,
@@ -9788,7 +9788,7 @@ class ScannerRoutes {
 
     public static function add_whitelist_rule(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: $request->get_params();
-        $result = \WcpScanner\Findings\WhitelistManager::add_rule($params);
+        $result = \WebCareProScanner\Findings\WhitelistManager::add_rule($params);
         return rest_ensure_response($result);
     }
 
@@ -9797,14 +9797,14 @@ class ScannerRoutes {
         $rule_id = sanitize_text_field($params['id'] ?? $params['rule_id'] ?? '');
 
         if (empty($rule_id)) {
-            return new \WP_Error('missing_param', __('Rule ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Rule ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $removed = \WcpScanner\Findings\WhitelistManager::remove_rule($rule_id);
+        $removed = \WebCareProScanner\Findings\WhitelistManager::remove_rule($rule_id);
         return rest_ensure_response([
             'success' => $removed,
             'rule_id' => $rule_id,
-            'message' => $removed ? __('Whitelist rule revoked successfully.', 'wcp-security-scanner') : __('Rule not found or could not be revoked.', 'wcp-security-scanner'),
+            'message' => $removed ? __('Whitelist rule revoked successfully.', 'webcare-pro-security') : __('Rule not found or could not be revoked.', 'webcare-pro-security'),
         ]);
     }
 
@@ -9813,7 +9813,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_baseline_status(\WP_REST_Request $request) {
-        $baseline = \WcpScanner\Integrity\BehavioralBaselineEngine::get_baseline();
+        $baseline = \WebCareProScanner\Integrity\BehavioralBaselineEngine::get_baseline();
         return rest_ensure_response([
             'success'    => true,
             'calibrated' => ($baseline !== null),
@@ -9822,12 +9822,12 @@ class ScannerRoutes {
     }
 
     public static function calibrate_baseline(\WP_REST_Request $request) {
-        $result = \WcpScanner\Integrity\BehavioralBaselineEngine::calibrate();
+        $result = \WebCareProScanner\Integrity\BehavioralBaselineEngine::calibrate();
         return rest_ensure_response($result);
     }
 
     public static function audit_baseline_deviations(\WP_REST_Request $request) {
-        $result = \WcpScanner\Integrity\BehavioralBaselineEngine::audit_baseline();
+        $result = \WebCareProScanner\Integrity\BehavioralBaselineEngine::audit_baseline();
         return rest_ensure_response($result);
     }
 
@@ -9837,7 +9837,7 @@ class ScannerRoutes {
 
     public static function get_remediation_transactions(\WP_REST_Request $request) {
         $limit = max(1, min(100, intval($request->get_param('limit') ?: 30)));
-        $list  = \WcpScanner\Remediation\TransactionalRemediation::list_transactions($limit);
+        $list  = \WebCareProScanner\Remediation\TransactionalRemediation::list_transactions($limit);
         return rest_ensure_response([
             'success'      => true,
             'transactions' => $list,
@@ -9849,10 +9849,10 @@ class ScannerRoutes {
         $tx_id  = sanitize_text_field($params['tx_id'] ?? '');
 
         if (empty($tx_id)) {
-            return new \WP_Error('missing_param', __('Transaction ID (tx_id) is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Transaction ID (tx_id) is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\Remediation\TransactionalRemediation::rollback_transaction($tx_id);
+        $result = \WebCareProScanner\Remediation\TransactionalRemediation::rollback_transaction($tx_id);
         return rest_ensure_response($result);
     }
 
@@ -9861,7 +9861,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_mcp_tools(\WP_REST_Request $request) {
-        $catalog = \WcpScanner\Api\MCPAgentService::get_tools_catalog();
+        $catalog = \WebCareProScanner\Api\MCPAgentService::get_tools_catalog();
         return rest_ensure_response($catalog);
     }
 
@@ -9871,10 +9871,10 @@ class ScannerRoutes {
         $args   = is_array($params['arguments'] ?? null) ? $params['arguments'] : (is_array($params['args'] ?? null) ? $params['args'] : []);
 
         if (empty($tool)) {
-            return new \WP_Error('missing_tool', __('Tool name is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_tool', __('Tool name is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\Api\MCPAgentService::execute_tool($tool, $args);
+        $result = \WebCareProScanner\Api\MCPAgentService::execute_tool($tool, $args);
         return rest_ensure_response($result);
     }
 
@@ -9882,15 +9882,15 @@ class ScannerRoutes {
         $limit = max(10, min(150, intval($request->get_param('limit') ?? 50)));
         return rest_ensure_response([
             'success' => true,
-            'entries' => \WcpScanner\Api\MCPAgentService::get_audit_log($limit),
+            'entries' => \WebCareProScanner\Api\MCPAgentService::get_audit_log($limit),
         ]);
     }
 
     public static function clear_mcp_audit(\WP_REST_Request $request) {
-        \WcpScanner\Api\MCPAgentService::clear_audit_log();
+        \WebCareProScanner\Api\MCPAgentService::clear_audit_log();
         return rest_ensure_response([
             'success' => true,
-            'message' => __('MCP agent audit trail cleared.', 'wcp-security-scanner'),
+            'message' => __('MCP agent audit trail cleared.', 'webcare-pro-security'),
         ]);
     }
 
@@ -9898,27 +9898,27 @@ class ScannerRoutes {
         $status = sanitize_text_field($request->get_param('status') ?? 'all');
         return rest_ensure_response([
             'success' => true,
-            'actions' => \WcpScanner\Api\MCPAgentService::get_staged_actions($status),
+            'actions' => \WebCareProScanner\Api\MCPAgentService::get_staged_actions($status),
         ]);
     }
 
     public static function approve_mcp_staged_action(\WP_REST_Request $request) {
         $staged_id = sanitize_text_field($request->get_param('staged_id') ?? '');
         if (empty($staged_id)) {
-            return new \WP_Error('missing_param', __('Staged action ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Staged action ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Api\MCPAgentService::approve_staged_action($staged_id, get_current_user_id());
+        $res = \WebCareProScanner\Api\MCPAgentService::approve_staged_action($staged_id, get_current_user_id());
         return rest_ensure_response($res);
     }
 
     public static function reject_mcp_staged_action(\WP_REST_Request $request) {
         $staged_id = sanitize_text_field($request->get_param('staged_id') ?? '');
         if (empty($staged_id)) {
-            return new \WP_Error('missing_param', __('Staged action ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Staged action ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Api\MCPAgentService::reject_staged_action($staged_id, get_current_user_id());
+        $res = \WebCareProScanner\Api\MCPAgentService::reject_staged_action($staged_id, get_current_user_id());
         return rest_ensure_response($res);
     }
 
@@ -9926,19 +9926,19 @@ class ScannerRoutes {
         if ($request->get_method() === 'POST') {
             $params = $request->get_json_params() ?: [];
             $matrix = is_array($params['matrix'] ?? null) ? $params['matrix'] : [];
-            $clean_matrix = \WcpScanner\System\SettingsManager::sanitize_mcp_tool_matrix($matrix);
-            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            $clean_matrix = \WebCareProScanner\System\SettingsManager::sanitize_mcp_tool_matrix($matrix);
+            $settings = \WebCareProScanner\System\SettingsManager::get_settings();
             $settings['mcp_tool_matrix'] = $clean_matrix;
-            \WcpScanner\System\SettingsManager::save_settings($settings);
+            \WebCareProScanner\System\SettingsManager::save_settings($settings);
 
             return rest_ensure_response([
                 'success' => true,
                 'matrix'  => $clean_matrix,
-                'message' => __('MCP tool policy governance matrix saved.', 'wcp-security-scanner'),
+                'message' => __('MCP tool policy governance matrix saved.', 'webcare-pro-security'),
             ]);
         }
 
-        $matrix = \WcpScanner\System\SettingsManager::get('mcp_tool_matrix', \WcpScanner\System\SettingsManager::get_default_mcp_tool_matrix());
+        $matrix = \WebCareProScanner\System\SettingsManager::get('mcp_tool_matrix', \WebCareProScanner\System\SettingsManager::get_default_mcp_tool_matrix());
         return rest_ensure_response([
             'success' => true,
             'matrix'  => $matrix,
@@ -9948,7 +9948,7 @@ class ScannerRoutes {
     public static function run_security_drill(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         $vectors = is_array($params['vectors'] ?? null) ? $params['vectors'] : [];
-        $report = \WcpScanner\Security\AttackSimulationEngine::run_simulation($vectors);
+        $report = \WebCareProScanner\Security\AttackSimulationEngine::run_simulation($vectors);
 
         return rest_ensure_response([
             'success' => true,
@@ -9957,7 +9957,7 @@ class ScannerRoutes {
     }
 
     public static function get_security_drill_results(\WP_REST_Request $request) {
-        $report = \WcpScanner\Security\AttackSimulationEngine::get_latest_results();
+        $report = \WebCareProScanner\Security\AttackSimulationEngine::get_latest_results();
         return rest_ensure_response([
             'success' => true,
             'report'  => $report,
@@ -9967,7 +9967,7 @@ class ScannerRoutes {
     public static function get_containment_status(\WP_REST_Request $request) {
         return rest_ensure_response([
             'success' => true,
-            'status'  => \WcpScanner\Security\EmergencyContainmentManager::get_status(),
+            'status'  => \WebCareProScanner\Security\EmergencyContainmentManager::get_status(),
         ]);
     }
 
@@ -9978,14 +9978,14 @@ class ScannerRoutes {
         $maintenance = !empty($params['maintenance_enabled']);
 
         if ($action === 'activate') {
-            $res = \WcpScanner\Security\EmergencyContainmentManager::activate([
+            $res = \WebCareProScanner\Security\EmergencyContainmentManager::activate([
                 'reason'              => $reason,
                 'maintenance_enabled' => $maintenance,
             ]);
         } elseif ($action === 'deactivate') {
-            $res = \WcpScanner\Security\EmergencyContainmentManager::deactivate(get_current_user_id());
+            $res = \WebCareProScanner\Security\EmergencyContainmentManager::deactivate(get_current_user_id());
         } else {
-            return new \WP_Error('invalid_action', __('Invalid containment action. Must be "activate" or "deactivate".', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('invalid_action', __('Invalid containment action. Must be "activate" or "deactivate".', 'webcare-pro-security'), ['status' => 400]);
         }
 
         return rest_ensure_response($res);
@@ -9996,7 +9996,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_supply_chain_sbom(\WP_REST_Request $request) {
-        $report = \WcpScanner\SupplyChain\SbomSentinelEngine::check_drift();
+        $report = \WebCareProScanner\SupplyChain\SbomSentinelEngine::check_drift();
         return rest_ensure_response([
             'success' => true,
             'report'  => $report,
@@ -10004,7 +10004,7 @@ class ScannerRoutes {
     }
 
     public static function calibrate_supply_chain_sbom(\WP_REST_Request $request) {
-        $result = \WcpScanner\SupplyChain\SbomSentinelEngine::calibrate_baseline();
+        $result = \WebCareProScanner\SupplyChain\SbomSentinelEngine::calibrate_baseline();
         return rest_ensure_response($result);
     }
 
@@ -10013,29 +10013,29 @@ class ScannerRoutes {
         $item_id = sanitize_text_field($params['item_id'] ?? '');
 
         if (empty($item_id)) {
-            return new \WP_Error('missing_item_id', __('Item ID is required for isolation.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_item_id', __('Item ID is required for isolation.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
+        $result = \WebCareProScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
         return rest_ensure_response($result);
     }
 
     public static function get_supply_chain_gatekeeper(\WP_REST_Request $request) {
         return rest_ensure_response([
             'success'   => true,
-            'logs'      => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_logs(30),
-            'snapshots' => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_snapshots(),
-            'settings'  => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_settings(),
+            'logs'      => \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_logs(30),
+            'snapshots' => \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_snapshots(),
+            'settings'  => \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_settings(),
         ]);
     }
 
     public static function update_supply_chain_gatekeeper_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $updated = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::update_settings($params);
+        $updated = \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::update_settings($params);
         return rest_ensure_response([
             'success'  => true,
             'settings' => $updated,
-            'message'  => __('Gatekeeper settings saved successfully.', 'wcp-security-scanner'),
+            'message'  => __('Gatekeeper settings saved successfully.', 'webcare-pro-security'),
         ]);
     }
 
@@ -10044,18 +10044,18 @@ class ScannerRoutes {
         $snapshot_id = sanitize_text_field($params['snapshot_id'] ?? '');
 
         if (empty($snapshot_id)) {
-            return new \WP_Error('missing_snapshot_id', __('Snapshot ID is required for rollback.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_snapshot_id', __('Snapshot ID is required for rollback.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::rollback_snapshot($snapshot_id);
+        $result = \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::rollback_snapshot($snapshot_id);
         return rest_ensure_response($result);
     }
 
     public static function clear_supply_chain_gatekeeper_logs(\WP_REST_Request $request) {
-        \WcpScanner\SupplyChain\UpdateGatekeeperEngine::clear_logs();
+        \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::clear_logs();
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Gatekeeper intercepted logs cleared successfully.', 'wcp-security-scanner'),
+            'message' => __('Gatekeeper intercepted logs cleared successfully.', 'webcare-pro-security'),
         ]);
     }
 
@@ -10064,10 +10064,10 @@ class ScannerRoutes {
         $slug = sanitize_text_field($params['slug'] ?? '');
 
         if (empty($slug)) {
-            return new \WP_Error('missing_slug', __('Plugin slug is required for risk analysis.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_slug', __('Plugin slug is required for risk analysis.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $analysis = \WcpScanner\SupplyChain\InstallRiskAdvisor::analyze_installed_plugin($slug);
+        $analysis = \WebCareProScanner\SupplyChain\InstallRiskAdvisor::analyze_installed_plugin($slug);
         return rest_ensure_response([
             'success'  => true,
             'analysis' => $analysis,
@@ -10075,15 +10075,15 @@ class ScannerRoutes {
     }
 
     public static function get_script_inventory_status(\WP_REST_Request $request) {
-        $data = \WcpScanner\Content\ScriptInventoryMonitor::get_status();
+        $data = \WebCareProScanner\Content\ScriptInventoryMonitor::get_status();
         return rest_ensure_response($data);
     }
 
     public static function calibrate_script_inventory(\WP_REST_Request $request) {
-        $data = \WcpScanner\Content\ScriptInventoryMonitor::calibrate_baseline();
+        $data = \WebCareProScanner\Content\ScriptInventoryMonitor::calibrate_baseline();
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Script inventory baseline calibrated successfully.', 'wcp-security-scanner'),
+            'message' => __('Script inventory baseline calibrated successfully.', 'webcare-pro-security'),
             'status'  => $data,
         ]);
     }
@@ -10093,23 +10093,23 @@ class ScannerRoutes {
         $alert_id = sanitize_text_field($params['alert_id'] ?? '');
 
         if (empty($alert_id)) {
-            return new \WP_Error('missing_alert_id', __('Alert ID is required to dismiss.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_alert_id', __('Alert ID is required to dismiss.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Content\ScriptInventoryMonitor::dismiss_alert($alert_id);
+        $res = \WebCareProScanner\Content\ScriptInventoryMonitor::dismiss_alert($alert_id);
         return rest_ensure_response([
             'success' => $res,
-            'message' => __('Script drift alert dismissed.', 'wcp-security-scanner'),
+            'message' => __('Script drift alert dismissed.', 'webcare-pro-security'),
         ]);
     }
 
     public static function get_supply_chain_lockfiles(\WP_REST_Request $request) {
-        $data = \WcpScanner\SupplyChain\LockfileAuditEngine::run_audit(false);
+        $data = \WebCareProScanner\SupplyChain\LockfileAuditEngine::run_audit(false);
         return rest_ensure_response($data);
     }
 
     public static function scan_supply_chain_lockfiles(\WP_REST_Request $request) {
-        $data = \WcpScanner\SupplyChain\LockfileAuditEngine::run_audit(true);
+        $data = \WebCareProScanner\SupplyChain\LockfileAuditEngine::run_audit(true);
         return rest_ensure_response($data);
     }
 
@@ -10118,11 +10118,11 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_behavioral_waf_status(\WP_REST_Request $request) {
-        $learning_stats    = class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_summary_stats() : [];
-        $route_profiles    = class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_route_profiles() : [];
-        $learning_settings = class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_settings() : [];
-        $honeytoken        = class_exists('\WcpScanner\Firewall\HoneyTokenEngine') ? \WcpScanner\Firewall\HoneyTokenEngine::get_summary() : [];
-        $rate_limiter      = class_exists('\WcpScanner\Firewall\AdaptiveRateLimiter') ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry() : [];
+        $learning_stats    = class_exists('\WebCareProScanner\Firewall\LearningModeEngine') ? \WebCareProScanner\Firewall\LearningModeEngine::get_summary_stats() : [];
+        $route_profiles    = class_exists('\WebCareProScanner\Firewall\LearningModeEngine') ? \WebCareProScanner\Firewall\LearningModeEngine::get_route_profiles() : [];
+        $learning_settings = class_exists('\WebCareProScanner\Firewall\LearningModeEngine') ? \WebCareProScanner\Firewall\LearningModeEngine::get_settings() : [];
+        $honeytoken        = class_exists('\WebCareProScanner\Firewall\HoneyTokenEngine') ? \WebCareProScanner\Firewall\HoneyTokenEngine::get_summary() : [];
+        $rate_limiter      = class_exists('\WebCareProScanner\Firewall\AdaptiveRateLimiter') ? \WebCareProScanner\Firewall\AdaptiveRateLimiter::get_telemetry() : [];
 
         return rest_ensure_response([
             'success'           => true,
@@ -10140,40 +10140,40 @@ class ScannerRoutes {
         $action    = sanitize_key($params['action'] ?? '');
 
         if (empty($route_key) || empty($action)) {
-            return new \WP_Error('missing_params', __('Route key and action are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Route key and action are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Firewall\LearningModeEngine')) {
-            return new \WP_Error('missing_engine', __('LearningModeEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\LearningModeEngine')) {
+            return new \WP_Error('missing_engine', __('LearningModeEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $result = \WcpScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
+        $result = \WebCareProScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
         return rest_ensure_response($result);
     }
 
     public static function update_behavioral_learning_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        if (!class_exists('\WcpScanner\Firewall\LearningModeEngine')) {
-            return new \WP_Error('missing_engine', __('LearningModeEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\LearningModeEngine')) {
+            return new \WP_Error('missing_engine', __('LearningModeEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $updated = \WcpScanner\Firewall\LearningModeEngine::update_settings($params);
+        $updated = \WebCareProScanner\Firewall\LearningModeEngine::update_settings($params);
         return rest_ensure_response([
             'success'  => true,
             'settings' => $updated,
-            'message'  => __('Learning Mode 2.0 settings updated successfully.', 'wcp-security-scanner'),
+            'message'  => __('Learning Mode 2.0 settings updated successfully.', 'webcare-pro-security'),
         ]);
     }
 
     public static function update_honeytoken_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        if (!class_exists('\WcpScanner\Firewall\HoneyTokenEngine')) {
-            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\HoneyTokenEngine')) {
+            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $updated = \WcpScanner\Firewall\HoneyTokenEngine::update_settings($params);
+        $updated = \WebCareProScanner\Firewall\HoneyTokenEngine::update_settings($params);
         return rest_ensure_response([
             'success'  => true,
             'settings' => $updated,
-            'message'  => __('Honey-Token Bot Trap settings updated successfully.', 'wcp-security-scanner'),
+            'message'  => __('Honey-Token Bot Trap settings updated successfully.', 'webcare-pro-security'),
         ]);
     }
 
@@ -10181,71 +10181,71 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $ip = sanitize_text_field($params['ip'] ?? '');
         if (empty($ip)) {
-            return new \WP_Error('missing_ip', __('IP address is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_ip', __('IP address is required.', 'webcare-pro-security'), ['status' => 400]);
         }
-        if (!class_exists('\WcpScanner\Firewall\HoneyTokenEngine')) {
-            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\HoneyTokenEngine')) {
+            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $result = \WcpScanner\Firewall\HoneyTokenEngine::unban_bot_ip($ip);
+        $result = \WebCareProScanner\Firewall\HoneyTokenEngine::unban_bot_ip($ip);
         return rest_ensure_response($result);
     }
 
     public static function reseed_db_canaries(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Firewall\HoneyTokenEngine')) {
-            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\HoneyTokenEngine')) {
+            return new \WP_Error('missing_engine', __('HoneyTokenEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $result = \WcpScanner\Firewall\HoneyTokenEngine::reseed_db_canaries();
+        $result = \WebCareProScanner\Firewall\HoneyTokenEngine::reseed_db_canaries();
         return rest_ensure_response($result);
     }
 
     public static function update_rate_limiter_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        if (!class_exists('\WcpScanner\Firewall\AdaptiveRateLimiter')) {
-            return new \WP_Error('missing_engine', __('AdaptiveRateLimiter not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\AdaptiveRateLimiter')) {
+            return new \WP_Error('missing_engine', __('AdaptiveRateLimiter not available.', 'webcare-pro-security'), ['status' => 500]);
         }
-        $updated = \WcpScanner\Firewall\AdaptiveRateLimiter::update_settings($params);
+        $updated = \WebCareProScanner\Firewall\AdaptiveRateLimiter::update_settings($params);
         return rest_ensure_response([
             'success'  => true,
             'settings' => $updated,
-            'message'  => __('Adaptive Rate Limiter thresholds updated successfully.', 'wcp-security-scanner'),
+            'message'  => __('Adaptive Rate Limiter thresholds updated successfully.', 'webcare-pro-security'),
         ]);
     }
 
     public static function get_distributed_shield_status(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
-            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
         return rest_ensure_response(array_merge([
             'success' => true,
-        ], \WcpScanner\Firewall\DistributedVelocityShield::get_telemetry()));
+        ], \WebCareProScanner\Firewall\DistributedVelocityShield::get_telemetry()));
     }
 
     public static function update_distributed_shield_settings(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
-            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params  = $request->get_json_params() ?: [];
-        $updated = \WcpScanner\Firewall\DistributedVelocityShield::update_settings($params);
+        $updated = \WebCareProScanner\Firewall\DistributedVelocityShield::update_settings($params);
         return rest_ensure_response([
             'success'  => true,
-            'message'  => __('Distributed velocity shield settings saved successfully.', 'wcp-security-scanner'),
+            'message'  => __('Distributed velocity shield settings saved successfully.', 'webcare-pro-security'),
             'settings' => $updated,
-            'status'   => \WcpScanner\Firewall\DistributedVelocityShield::get_telemetry(),
+            'status'   => \WebCareProScanner\Firewall\DistributedVelocityShield::get_telemetry(),
         ]);
     }
 
     public static function toggle_under_attack_mode(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
-            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params   = $request->get_json_params() ?: [];
         $active   = !empty($params['active']);
         $duration = max(60, min(86400, intval($params['duration'] ?? 900)));
         $action   = !empty($params['action']) ? sanitize_key($params['action']) : 'pow';
-        $reason   = !empty($params['reason']) ? sanitize_text_field($params['reason']) : __('Manual administrator activation', 'wcp-security-scanner');
+        $reason   = !empty($params['reason']) ? sanitize_text_field($params['reason']) : __('Manual administrator activation', 'webcare-pro-security');
 
         if ($active) {
-            \WcpScanner\Firewall\DistributedVelocityShield::activate_under_attack(
+            \WebCareProScanner\Firewall\DistributedVelocityShield::activate_under_attack(
                 'manual_lockdown',
                 $duration,
                 $action,
@@ -10257,33 +10257,33 @@ class ScannerRoutes {
                     'reason'     => $reason,
                 ]
             );
-            $msg = __('Under-Attack Mode manually activated.', 'wcp-security-scanner');
+            $msg = __('Under-Attack Mode manually activated.', 'webcare-pro-security');
         } else {
-            \WcpScanner\Firewall\DistributedVelocityShield::deactivate_under_attack();
-            $msg = __('Under-Attack Mode deactivated.', 'wcp-security-scanner');
+            \WebCareProScanner\Firewall\DistributedVelocityShield::deactivate_under_attack();
+            $msg = __('Under-Attack Mode deactivated.', 'webcare-pro-security');
         }
 
         return rest_ensure_response([
             'success'      => true,
             'message'      => $msg,
-            'under_attack' => \WcpScanner\Firewall\DistributedVelocityShield::get_under_attack_status(),
+            'under_attack' => \WebCareProScanner\Firewall\DistributedVelocityShield::get_under_attack_status(),
         ]);
     }
 
     public static function simulate_distributed_attack(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Firewall\DistributedVelocityShield')) {
-            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Firewall\DistributedVelocityShield')) {
+            return new \WP_Error('missing_module', __('DistributedVelocityShield module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
         $params = $request->get_json_params() ?: [];
         $type   = !empty($params['type']) ? sanitize_key($params['type']) : 'carding';
 
-        $res = \WcpScanner\Firewall\DistributedVelocityShield::simulate_attack_swarm($type);
+        $res = \WebCareProScanner\Firewall\DistributedVelocityShield::simulate_attack_swarm($type);
 
         return rest_ensure_response(array_merge([
             'success' => true,
             'message' => sprintf(
                 /* translators: %s: simulated swarm type */
-                __('Simulated distributed %s attack generated. Check Under-Attack status.', 'wcp-security-scanner'),
+                __('Simulated distributed %s attack generated. Check Under-Attack status.', 'webcare-pro-security'),
                 esc_html($type)
             ),
         ], $res));
@@ -10293,11 +10293,11 @@ class ScannerRoutes {
      * Retrieve status and capabilities of the AST Taint Analysis Engine.
      */
     public static function get_taint_engine_status(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Malware\TaintAnalysisEngine')) {
-            return new \WP_Error('missing_module', __('TaintAnalysisEngine module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Malware\TaintAnalysisEngine')) {
+            return new \WP_Error('missing_module', __('TaintAnalysisEngine module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $engine = new \WcpScanner\Malware\TaintAnalysisEngine();
+        $engine = new \WebCareProScanner\Malware\TaintAnalysisEngine();
         return rest_ensure_response(array_merge([
             'success' => true,
         ], $engine->get_telemetry()));
@@ -10307,14 +10307,14 @@ class ScannerRoutes {
      * Run on-demand AST Source-to-Sink Taint Flow Analysis on PHP code or file.
      */
     public static function analyze_code_taint_flow(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Malware\TaintAnalysisEngine')) {
-            return new \WP_Error('missing_module', __('TaintAnalysisEngine module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Malware\TaintAnalysisEngine')) {
+            return new \WP_Error('missing_module', __('TaintAnalysisEngine module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         $code = $request->get_param('code');
         $file_path = $request->get_param('file_path');
 
-        $engine = new \WcpScanner\Malware\TaintAnalysisEngine();
+        $engine = new \WebCareProScanner\Malware\TaintAnalysisEngine();
 
         if (!empty($file_path)) {
             $sanitized_path = sanitize_text_field(wp_unslash($file_path));
@@ -10323,7 +10323,7 @@ class ScannerRoutes {
             $raw_code = (string) $request->get_param('code');
             $finding = $engine->analyze_content($raw_code, 'sandbox_evaluation.php');
         } else {
-            return new \WP_Error('missing_params', __('Please provide either "code" or "file_path" to analyze.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Please provide either "code" or "file_path" to analyze.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         if ($finding !== null) {
@@ -10332,7 +10332,7 @@ class ScannerRoutes {
                 'has_taint'   => true,
                 'finding'     => $finding->to_array(),
                 'taint_chain' => $finding->taint_chain,
-                'message'     => __('Polymorphic taint flow detected into execution sink!', 'wcp-security-scanner')
+                'message'     => __('Polymorphic taint flow detected into execution sink!', 'webcare-pro-security')
             ]);
         }
 
@@ -10341,7 +10341,7 @@ class ScannerRoutes {
             'has_taint'   => false,
             'finding'     => null,
             'taint_chain' => [],
-            'message'     => __('Clean: No untrusted taint flow reached an execution sink.', 'wcp-security-scanner')
+            'message'     => __('Clean: No untrusted taint flow reached an execution sink.', 'webcare-pro-security')
         ]);
     }
 
@@ -10349,22 +10349,22 @@ class ScannerRoutes {
      * Retrieve telemetry and status of the AI SEO & GEO Shield.
      */
     public static function get_geo_shield_status(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Content\GeoShieldService')) {
-            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Content\GeoShieldService')) {
+            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        return rest_ensure_response(\WcpScanner\Content\GeoShieldService::get_telemetry());
+        return rest_ensure_response(\WebCareProScanner\Content\GeoShieldService::get_telemetry());
     }
 
     /**
      * Save the pristine cryptographic baseline for /llms.txt and /llms-full.txt.
      */
     public static function save_geo_llms_baseline(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Content\GeoShieldService')) {
-            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Content\GeoShieldService')) {
+            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Content\GeoShieldService::save_llms_baseline();
+        $res = \WebCareProScanner\Content\GeoShieldService::save_llms_baseline();
         return rest_ensure_response($res);
     }
 
@@ -10372,17 +10372,17 @@ class ScannerRoutes {
      * On-demand audit of HTML or content for GEO invisible cloaking and JSON-LD poisoning.
      */
     public static function audit_geo_content(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Content\GeoShieldService')) {
-            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Content\GeoShieldService')) {
+            return new \WP_Error('missing_module', __('GeoShieldService module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         $raw_html = (string) $request->get_param('html');
         if (empty($raw_html)) {
-            return new \WP_Error('missing_param', __('Please provide "html" content to audit.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Please provide "html" content to audit.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $jsonld_hits = \WcpScanner\Content\GeoShieldService::audit_jsonld_schemas($raw_html);
-        $cloak_hits  = \WcpScanner\Content\GeoShieldService::audit_geo_cloaking($raw_html);
+        $jsonld_hits = \WebCareProScanner\Content\GeoShieldService::audit_jsonld_schemas($raw_html);
+        $cloak_hits  = \WebCareProScanner\Content\GeoShieldService::audit_geo_cloaking($raw_html);
         $all_hits    = array_merge($jsonld_hits, $cloak_hits);
 
         return rest_ensure_response([
@@ -10394,10 +10394,10 @@ class ScannerRoutes {
             'message'     => !empty($all_hits)
                 ? sprintf(
                     /* translators: %d: threat count */
-                    __('GEO Audit: %d deceptive elements or poisoned schema attributes detected.', 'wcp-security-scanner'),
+                    __('GEO Audit: %d deceptive elements or poisoned schema attributes detected.', 'webcare-pro-security'),
                     count($all_hits)
                 )
-                : __('GEO Audit: Content verified clean. No cloaking or schema poisoning detected.', 'wcp-security-scanner'),
+                : __('GEO Audit: Content verified clean. No cloaking or schema poisoning detected.', 'webcare-pro-security'),
         ]);
     }
 
@@ -10405,28 +10405,28 @@ class ScannerRoutes {
      * Retrieve telemetry status for Gutenberg Interactivity API & Block Directives defense.
      */
     public static function get_block_security_status(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Content\BlockDirectiveSanitizer')) {
-            return new \WP_Error('missing_module', __('BlockDirectiveSanitizer module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Content\BlockDirectiveSanitizer')) {
+            return new \WP_Error('missing_module', __('BlockDirectiveSanitizer module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        return rest_ensure_response(\WcpScanner\Content\BlockDirectiveSanitizer::get_telemetry());
+        return rest_ensure_response(\WebCareProScanner\Content\BlockDirectiveSanitizer::get_telemetry());
     }
 
     /**
      * On-demand audit or sanitization of Gutenberg block markup or HTML content.
      */
     public static function audit_block_directives(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Content\BlockDirectiveSanitizer')) {
-            return new \WP_Error('missing_module', __('BlockDirectiveSanitizer module not found.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Content\BlockDirectiveSanitizer')) {
+            return new \WP_Error('missing_module', __('BlockDirectiveSanitizer module not found.', 'webcare-pro-security'), ['status' => 500]);
         }
 
         $content = (string) $request->get_param('content');
         if (empty($content)) {
-            return new \WP_Error('missing_param', __('Please provide "content" to audit.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Please provide "content" to audit.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $audit_hits = \WcpScanner\Content\BlockDirectiveSanitizer::audit_content($content);
-        $sanitized  = \WcpScanner\Content\BlockDirectiveSanitizer::sanitize_content($content);
+        $audit_hits = \WebCareProScanner\Content\BlockDirectiveSanitizer::audit_content($content);
+        $sanitized  = \WebCareProScanner\Content\BlockDirectiveSanitizer::sanitize_content($content);
 
         return rest_ensure_response([
             'success'           => true,
@@ -10438,10 +10438,10 @@ class ScannerRoutes {
             'message'           => !empty($audit_hits)
                 ? sprintf(
                     /* translators: %d: threat count */
-                    __('Block Security: %d hostile directive(s) or sensitive bindings detected.', 'wcp-security-scanner'),
+                    __('Block Security: %d hostile directive(s) or sensitive bindings detected.', 'webcare-pro-security'),
                     count($audit_hits)
                 )
-                : __('Block Security: Block directives verified clean and valid.', 'wcp-security-scanner'),
+                : __('Block Security: Block directives verified clean and valid.', 'webcare-pro-security'),
         ]);
     }
 
@@ -10450,21 +10450,21 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_identity_forensics_status(\WP_REST_Request $request) {
-        $sessions_report = class_exists('\WcpScanner\Identity\SessionForensicsEngine')
-            ? \WcpScanner\Identity\SessionForensicsEngine::get_active_sessions_report()
+        $sessions_report = class_exists('\WebCareProScanner\Identity\SessionForensicsEngine')
+            ? \WebCareProScanner\Identity\SessionForensicsEngine::get_active_sessions_report()
             : [];
-        $active_elevations = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
-            ? \WcpScanner\Identity\EphemeralAdminEngine::get_active_elevations()
+        $active_elevations = class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')
+            ? \WebCareProScanner\Identity\EphemeralAdminEngine::get_active_elevations()
             : [];
-        $elevation_history = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
-            ? \WcpScanner\Identity\EphemeralAdminEngine::get_elevation_history(20)
+        $elevation_history = class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')
+            ? \WebCareProScanner\Identity\EphemeralAdminEngine::get_elevation_history(20)
             : [];
-        $hibp_summary = class_exists('\WcpScanner\Identity\HIBPBreachAuditor')
-            ? \WcpScanner\Identity\HIBPBreachAuditor::get_summary()
+        $hibp_summary = class_exists('\WebCareProScanner\Identity\HIBPBreachAuditor')
+            ? \WebCareProScanner\Identity\HIBPBreachAuditor::get_summary()
             : [];
 
-        $candidate_users = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
-            ? \WcpScanner\Identity\EphemeralAdminEngine::get_candidate_users(200)
+        $candidate_users = class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')
+            ? \WebCareProScanner\Identity\EphemeralAdminEngine::get_candidate_users(200)
             : [];
 
         return rest_ensure_response([
@@ -10483,14 +10483,14 @@ class ScannerRoutes {
         $verifier = sanitize_text_field($params['verifier'] ?? '');
 
         if (!$user_id || empty($verifier)) {
-            return new \WP_Error('missing_params', __('User ID and session verifier are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('User ID and session verifier are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
-            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_session($user_id, $verifier);
+        $res = \WebCareProScanner\Identity\SessionForensicsEngine::revoke_session($user_id, $verifier);
         return rest_ensure_response($res);
     }
 
@@ -10499,14 +10499,14 @@ class ScannerRoutes {
         $user_id = intval($params['user_id'] ?? 0);
 
         if (!$user_id) {
-            return new \WP_Error('missing_user_id', __('User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_user_id', __('User ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
-            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_all_sessions($user_id);
+        $res = \WebCareProScanner\Identity\SessionForensicsEngine::revoke_all_sessions($user_id);
         return rest_ensure_response($res);
     }
 
@@ -10517,14 +10517,14 @@ class ScannerRoutes {
         $reason   = sanitize_text_field($params['reason'] ?? '');
 
         if (!$user_id) {
-            return new \WP_Error('missing_user_id', __('User ID is required for elevation.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_user_id', __('User ID is required for elevation.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
-            return new \WP_Error('missing_engine', __('EphemeralAdminEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')) {
+            return new \WP_Error('missing_engine', __('EphemeralAdminEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Identity\EphemeralAdminEngine::grant_elevation($user_id, $duration, $reason);
+        $res = \WebCareProScanner\Identity\EphemeralAdminEngine::grant_elevation($user_id, $duration, $reason);
         return rest_ensure_response($res);
     }
 
@@ -10534,20 +10534,20 @@ class ScannerRoutes {
         $reason  = sanitize_text_field($params['reason'] ?? 'Manual revocation by administrator');
 
         if (!$user_id) {
-            return new \WP_Error('missing_user_id', __('User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_user_id', __('User ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
-            return new \WP_Error('missing_engine', __('EphemeralAdminEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')) {
+            return new \WP_Error('missing_engine', __('EphemeralAdminEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
+        $res = \WebCareProScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
         return rest_ensure_response($res);
     }
 
     public static function get_candidate_users_route(\WP_REST_Request $request) {
-        $users = class_exists('\WcpScanner\Identity\EphemeralAdminEngine')
-            ? \WcpScanner\Identity\EphemeralAdminEngine::get_candidate_users(200)
+        $users = class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')
+            ? \WebCareProScanner\Identity\EphemeralAdminEngine::get_candidate_users(200)
             : [];
 
         return rest_ensure_response([
@@ -10557,11 +10557,11 @@ class ScannerRoutes {
     }
 
     public static function audit_identity_privileged_users(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Identity\HIBPBreachAuditor')) {
-            return new \WP_Error('missing_engine', __('HIBPBreachAuditor not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\HIBPBreachAuditor')) {
+            return new \WP_Error('missing_engine', __('HIBPBreachAuditor not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $report = \WcpScanner\Identity\HIBPBreachAuditor::audit_privileged_users();
+        $report = \WebCareProScanner\Identity\HIBPBreachAuditor::audit_privileged_users();
         return rest_ensure_response([
             'success' => true,
             'report'  => $report,
@@ -10573,28 +10573,28 @@ class ScannerRoutes {
         $user_id = intval($params['user_id'] ?? 0);
 
         if (!$user_id) {
-            return new \WP_Error('missing_user_id', __('User ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_user_id', __('User ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Identity\HIBPBreachAuditor')) {
-            return new \WP_Error('missing_engine', __('HIBPBreachAuditor not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\HIBPBreachAuditor')) {
+            return new \WP_Error('missing_engine', __('HIBPBreachAuditor not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Identity\HIBPBreachAuditor::force_password_reset($user_id);
+        $res = \WebCareProScanner\Identity\HIBPBreachAuditor::force_password_reset($user_id);
         return rest_ensure_response($res);
     }
 
     public static function update_identity_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
-            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $updated = \WcpScanner\Identity\SessionForensicsEngine::update_settings($params);
+        $updated = \WebCareProScanner\Identity\SessionForensicsEngine::update_settings($params);
         return rest_ensure_response([
             'success'  => true,
             'settings' => $updated,
-            'message'  => __('Identity forensics settings updated successfully.', 'wcp-security-scanner'),
+            'message'  => __('Identity forensics settings updated successfully.', 'webcare-pro-security'),
         ]);
     }
 
@@ -10603,14 +10603,14 @@ class ScannerRoutes {
         $alert_id = sanitize_text_field($params['alert_id'] ?? '');
 
         if (empty($alert_id)) {
-            return new \WP_Error('missing_alert_id', __('Alert ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_alert_id', __('Alert ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
-            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'wcp-security-scanner'), ['status' => 500]);
+        if (!class_exists('\WebCareProScanner\Identity\SessionForensicsEngine')) {
+            return new \WP_Error('missing_engine', __('SessionForensicsEngine not available.', 'webcare-pro-security'), ['status' => 500]);
         }
 
-        $res = \WcpScanner\Identity\SessionForensicsEngine::dismiss_travel_alert($alert_id);
+        $res = \WebCareProScanner\Identity\SessionForensicsEngine::dismiss_travel_alert($alert_id);
         return rest_ensure_response($res);
     }
 
@@ -10620,7 +10620,7 @@ class ScannerRoutes {
 
     public static function get_vault_status(\WP_REST_Request $request) {
         // 1. Quarantine stats
-        $qm = new \WcpScanner\Quarantine\QuarantineManager();
+        $qm = new \WebCareProScanner\Quarantine\QuarantineManager();
         $quarantine_records = $qm->list_records();
         $q_active = 0;
         $q_restored = 0;
@@ -10633,7 +10633,7 @@ class ScannerRoutes {
         }
 
         // 2. Database backup stats
-        $db_backup = new \WcpScanner\Backup\DatabaseBackup();
+        $db_backup = new \WebCareProScanner\Backup\DatabaseBackup();
         $db_backups = $db_backup->list_backups();
         $db_count = count($db_backups);
         $db_size_mb = 0;
@@ -10642,9 +10642,9 @@ class ScannerRoutes {
         }
 
         // 3. Transactions & Missing Users stats
-        $transactions = \WcpScanner\Remediation\TransactionalRemediation::list_transactions(50);
+        $transactions = \WebCareProScanner\Remediation\TransactionalRemediation::list_transactions(50);
         $tx_count = count($transactions);
-        $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $user_mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
         $missing_users = $user_mgr->get_missing_user_backups();
         $missing_users_count = count($missing_users);
 
@@ -10657,14 +10657,14 @@ class ScannerRoutes {
             $key_source = 'constant';
         }
 
-        $raw_key = \WcpScanner\Security\SecretVault::get_key();
+        $raw_key = \WebCareProScanner\Security\SecretVault::get_key();
         $key_fingerprint = substr(hash('sha256', $raw_key), 0, 16) . '...';
         $is_hex_key = defined('WCP_VAULT_KEY') && strlen((string) WCP_VAULT_KEY) === 64 && ctype_xdigit((string) WCP_VAULT_KEY);
 
         $openssl_ok = function_exists('openssl_encrypt');
-        $gcm_ok = $openssl_ok && in_array(\WcpScanner\Security\SecretVault::CIPHER_GCM, openssl_get_cipher_methods(), true);
+        $gcm_ok = $openssl_ok && in_array(\WebCareProScanner\Security\SecretVault::CIPHER_GCM, openssl_get_cipher_methods(), true);
 
-        $settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
+        $settings = get_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, []);
         $secret_fields = [
             'gemini_api_key'       => 'Google Gemini AI Key',
             'openai_api_key'       => 'OpenAI API Key',
@@ -10683,7 +10683,7 @@ class ScannerRoutes {
         foreach ($secret_fields as $field_key => $label) {
             $val = (string) ($settings[$field_key] ?? '');
             $is_set = !empty($val);
-            $is_enc = $is_set && \WcpScanner\Security\SecretVault::is_encrypted($val);
+            $is_enc = $is_set && \WebCareProScanner\Security\SecretVault::is_encrypted($val);
             if ($is_enc) {
                 $encrypted_count++;
             }
@@ -10695,7 +10695,7 @@ class ScannerRoutes {
             ];
         }
 
-        $rot_state = get_option(\WcpScanner\Security\VaultRotator::STATE_OPTION, ['status' => 'idle']);
+        $rot_state = get_option(\WebCareProScanner\Security\VaultRotator::STATE_OPTION, ['status' => 'idle']);
 
         return rest_ensure_response([
             'success' => true,
@@ -10741,25 +10741,25 @@ class ScannerRoutes {
             $new_key = bin2hex(random_bytes(32));
         }
 
-        $init = \WcpScanner\Security\VaultRotator::start_rotation($new_key, $force);
+        $init = \WebCareProScanner\Security\VaultRotator::start_rotation($new_key, $force);
         if (is_wp_error($init)) {
             return $init;
         }
 
-        $cont = \WcpScanner\Security\VaultRotator::continue_rotation(100);
+        $cont = \WebCareProScanner\Security\VaultRotator::continue_rotation(100);
         if (is_wp_error($cont)) {
             return $cont;
         }
 
-        $commit = \WcpScanner\Security\VaultRotator::verify_and_commit();
+        $commit = \WebCareProScanner\Security\VaultRotator::verify_and_commit();
         if (is_wp_error($commit)) {
             return $commit;
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_secrets_rotated', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vault_secrets_rotated', [
                 'severity' => 'high',
-                'message'  => __('Secrets Vault Master Key / Cryptographic Salt was successfully rotated and re-encrypted.', 'wcp-security-scanner'),
+                'message'  => __('Secrets Vault Master Key / Cryptographic Salt was successfully rotated and re-encrypted.', 'webcare-pro-security'),
                 'details'  => [
                     'Rotated At'     => current_time('mysql'),
                     'Rotated By'     => wp_get_current_user()->user_login ?: 'admin',
@@ -10770,30 +10770,30 @@ class ScannerRoutes {
 
         return rest_ensure_response([
             'success'          => true,
-            'message'          => __('Vault encryption keys rotated and all credentials safely re-encrypted.', 'wcp-security-scanner'),
+            'message'          => __('Vault encryption keys rotated and all credentials safely re-encrypted.', 'webcare-pro-security'),
             'new_key_material' => $new_key,
             'status'           => $commit,
         ]);
     }
 
     public static function rollback_vault_rotation(\WP_REST_Request $request) {
-        $res = \WcpScanner\Security\VaultRotator::rollback();
+        $res = \WebCareProScanner\Security\VaultRotator::rollback();
         if (is_wp_error($res)) {
             return $res;
         }
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Vault key rotation rolled back to pre-rotation state.', 'wcp-security-scanner'),
+            'message' => __('Vault key rotation rolled back to pre-rotation state.', 'webcare-pro-security'),
             'status'  => $res,
         ]);
     }
 
     public static function reset_vault_rotation(\WP_REST_Request $request) {
-        \WcpScanner\Security\VaultRotator::reset_state();
+        \WebCareProScanner\Security\VaultRotator::reset_state();
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Vault rotation state and locks cleared successfully.', 'wcp-security-scanner'),
-            'status'  => \WcpScanner\Security\VaultRotator::get_status(),
+            'message' => __('Vault rotation state and locks cleared successfully.', 'webcare-pro-security'),
+            'status'  => \WebCareProScanner\Security\VaultRotator::get_status(),
         ]);
     }
 
@@ -10818,7 +10818,7 @@ class ScannerRoutes {
             $abs = ABSPATH . $rel;
             if (file_exists($abs) && is_readable($abs)) {
                 $size = @filesize($abs) ?: 0;
-                $findings[] = new \WcpScanner\Findings\Finding([
+                $findings[] = new \WebCareProScanner\Findings\Finding([
                     'engine'      => 'system-config',
                     'type'        => 'exposed_sensitive_file',
                     'severity'    => $meta['severity'],
@@ -10838,14 +10838,14 @@ class ScannerRoutes {
      */
     public static function audit_quarantine_exposure(string $scan_id): array {
         $findings = [];
-        $quarantine_dir = \WcpScanner\Quarantine\QuarantineManager::get_quarantine_dir();
+        $quarantine_dir = \WebCareProScanner\Quarantine\QuarantineManager::get_quarantine_dir();
         if (!is_dir($quarantine_dir)) {
             return $findings;
         }
 
         $htaccess = rtrim($quarantine_dir, '/\\') . '/.htaccess';
         if (!file_exists($htaccess)) {
-            $findings[] = new \WcpScanner\Findings\Finding([
+            $findings[] = new \WebCareProScanner\Findings\Finding([
                 'engine'      => 'quarantine',
                 'type'        => 'quarantine_unprotected',
                 'severity'    => 'high',
@@ -10857,7 +10857,7 @@ class ScannerRoutes {
         } else {
             $content = (string) @file_get_contents($htaccess);
             if (strpos($content, 'Deny from all') === false && strpos($content, 'Require all denied') === false) {
-                $findings[] = new \WcpScanner\Findings\Finding([
+                $findings[] = new \WebCareProScanner\Findings\Finding([
                     'engine'      => 'quarantine',
                     'type'        => 'quarantine_permissive_access',
                     'severity'    => 'medium',
@@ -10967,7 +10967,7 @@ class ScannerRoutes {
             ],
         ];
 
-        $findings[] = new \WcpScanner\Findings\Finding([
+        $findings[] = new \WebCareProScanner\Findings\Finding([
             'engine'      => 'ip-detection',
             'type'        => 'reverse_proxy_misconfigured',
             'severity'    => 'medium',
@@ -11005,7 +11005,7 @@ class ScannerRoutes {
             foreach ($test_passwords as $weak_pwd) {
                 if (strlen($weak_pwd) < 3) continue;
                 if (wp_check_password($weak_pwd, $admin->user_pass, $admin->ID)) {
-                    $findings[] = new \WcpScanner\Findings\Finding([
+                    $findings[] = new \WebCareProScanner\Findings\Finding([
                         'engine'      => 'user-credentials',
                         'type'        => 'weak_admin_password',
                         'severity'    => 'critical',
@@ -11037,7 +11037,7 @@ class ScannerRoutes {
             $free_mb = round($free / 1024 / 1024);
 
             if ($percent_used >= 95 || $free_mb < 250) {
-                $findings[] = new \WcpScanner\Findings\Finding([
+                $findings[] = new \WebCareProScanner\Findings\Finding([
                     'engine'      => 'system-storage',
                     'type'        => 'disk_space_critical',
                     'severity'    => 'critical',
@@ -11047,7 +11047,7 @@ class ScannerRoutes {
                     'evidence'    => "Total: " . round($total / 1024 / 1024 / 1024, 2) . " GB, Free: " . round($free / 1024 / 1024 / 1024, 2) . " GB ({$percent_used}% used)."
                 ]);
             } elseif ($percent_used >= 88) {
-                $findings[] = new \WcpScanner\Findings\Finding([
+                $findings[] = new \WebCareProScanner\Findings\Finding([
                     'engine'      => 'system-storage',
                     'type'        => 'disk_space_warning',
                     'severity'    => 'medium',
@@ -11067,11 +11067,11 @@ class ScannerRoutes {
      */
     public static function audit_waf_status(string $scan_id): array {
         $findings = [];
-        $waf_enabled = \WcpScanner\System\SettingsManager::get('waf_enabled', true);
-        $waf_mode = \WcpScanner\System\SettingsManager::get('waf_mode', 'enabled');
+        $waf_enabled = \WebCareProScanner\System\SettingsManager::get('waf_enabled', true);
+        $waf_mode = \WebCareProScanner\System\SettingsManager::get('waf_mode', 'enabled');
 
         if (!$waf_enabled || $waf_mode === 'disabled') {
-            $findings[] = new \WcpScanner\Findings\Finding([
+            $findings[] = new \WebCareProScanner\Findings\Finding([
                 'engine'      => 'firewall',
                 'type'        => 'waf_inactive',
                 'severity'    => 'high',
@@ -11081,7 +11081,7 @@ class ScannerRoutes {
                 'evidence'    => 'WAF state: disabled in plugin security settings.'
             ]);
         } elseif ($waf_mode === 'learning') {
-            $findings[] = new \WcpScanner\Findings\Finding([
+            $findings[] = new \WebCareProScanner\Findings\Finding([
                 'engine'      => 'firewall',
                 'type'        => 'waf_learning_mode',
                 'severity'    => 'low',
@@ -11104,7 +11104,7 @@ class ScannerRoutes {
         $host = wp_parse_url($site_url, PHP_URL_HOST);
 
         // Allow test domain/IP override via options or filter for testing/verification
-        $test_host = apply_filters('wcpscan_test_reputation_domain', $opts['test_domain'] ?? null);
+        $test_host = apply_filters('webcareproscan_test_reputation_domain', $opts['test_domain'] ?? null);
         if (!empty($test_host)) {
             $host = $test_host;
         }
@@ -11119,7 +11119,7 @@ class ScannerRoutes {
             $ip = @gethostbyname($dbl_query);
             // 127.0.1.x indicates legitimate Spamhaus DBL listing; 127.255.255.x indicates public resolver rate-limit
             if ($ip && $ip !== $dbl_query && strpos($ip, '127.0.1.') === 0) {
-                $findings[] = new \WcpScanner\Findings\Finding([
+                $findings[] = new \WebCareProScanner\Findings\Finding([
                     'engine'      => 'reputation',
                     'type'        => 'domain_blocklisted',
                     'severity'    => 'critical',
@@ -11136,7 +11136,7 @@ class ScannerRoutes {
             $surbl_query = "{$host}.multi.surbl.org";
             $surbl_res = @gethostbyname($surbl_query);
             if ($surbl_res && $surbl_res !== $surbl_query && strpos($surbl_res, '127.0.0.') === 0) {
-                $findings[] = new \WcpScanner\Findings\Finding([
+                $findings[] = new \WebCareProScanner\Findings\Finding([
                     'engine'      => 'reputation',
                     'type'        => 'domain_spamvertised',
                     'severity'    => 'critical',
@@ -11150,7 +11150,7 @@ class ScannerRoutes {
 
         // 3. Check if website IP is generating spam (Spamcop, Barracuda, Spamhaus ZEN)
         if (!empty($opts['check_spam_ip'])) {
-            $test_ip = apply_filters('wcpscan_test_reputation_ip', $opts['test_ip'] ?? null);
+            $test_ip = apply_filters('webcareproscan_test_reputation_ip', $opts['test_ip'] ?? null);
             $raw_srv_ip = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field((string) wp_unslash($_SERVER['SERVER_ADDR'])) : '';
             $server_ip = !empty($test_ip) ? $test_ip : ($raw_srv_ip ?: gethostbyname($host ?: 'localhost'));
 
@@ -11161,7 +11161,7 @@ class ScannerRoutes {
                 $spamcop_query = "{$rev_ip}.bl.spamcop.net";
                 $sc_res = @gethostbyname($spamcop_query);
                 if ($sc_res && $sc_res !== $spamcop_query && strpos($sc_res, '127.0.0.') === 0) {
-                    $findings[] = new \WcpScanner\Findings\Finding([
+                    $findings[] = new \WebCareProScanner\Findings\Finding([
                         'engine'      => 'reputation',
                         'type'        => 'server_ip_spam_blocklisted',
                         'severity'    => 'high',
@@ -11176,7 +11176,7 @@ class ScannerRoutes {
                 $barracuda_query = "{$rev_ip}.b.barracudacentral.org";
                 $bc_res = @gethostbyname($barracuda_query);
                 if ($bc_res && $bc_res !== $barracuda_query && strpos($bc_res, '127.0.0.') === 0) {
-                    $findings[] = new \WcpScanner\Findings\Finding([
+                    $findings[] = new \WebCareProScanner\Findings\Finding([
                         'engine'      => 'reputation',
                         'type'        => 'server_ip_spam_blocklisted',
                         'severity'    => 'high',
@@ -11191,7 +11191,7 @@ class ScannerRoutes {
                 $zen_query = "{$rev_ip}.zen.spamhaus.org";
                 $zen_res = @gethostbyname($zen_query);
                 if ($zen_res && $zen_res !== $zen_query && strpos($zen_res, '127.0.0.') === 0) {
-                    $findings[] = new \WcpScanner\Findings\Finding([
+                    $findings[] = new \WebCareProScanner\Findings\Finding([
                         'engine'      => 'reputation',
                         'type'        => 'server_ip_spam_blocklisted',
                         'severity'    => 'high',
@@ -11212,19 +11212,19 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_self_defense_status(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
-            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+        if (!class_exists('\WebCareProScanner\Security\PluginSelfDefense')) {
+            $file = WEBCAREPROSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
             if (file_exists($file)) {
                 require_once $file;
             }
         }
 
-        $last_audit = get_option(\WcpScanner\Security\PluginSelfDefense::DB_LAST_AUDIT_OPTION, null);
+        $last_audit = get_option(\WebCareProScanner\Security\PluginSelfDefense::DB_LAST_AUDIT_OPTION, null);
         if (!$last_audit) {
-            $last_audit = \WcpScanner\Security\PluginSelfDefense::run_audit(false);
+            $last_audit = \WebCareProScanner\Security\PluginSelfDefense::run_audit(false);
         }
 
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
 
         return rest_ensure_response([
             'success'  => true,
@@ -11238,39 +11238,39 @@ class ScannerRoutes {
     }
 
     public static function verify_plugin_self_defense(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
-            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+        if (!class_exists('\WebCareProScanner\Security\PluginSelfDefense')) {
+            $file = WEBCAREPROSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
             if (file_exists($file)) {
                 require_once $file;
             }
         }
 
-        $audit = \WcpScanner\Security\PluginSelfDefense::run_audit(true);
+        $audit = \WebCareProScanner\Security\PluginSelfDefense::run_audit(true);
 
         return rest_ensure_response([
             'success' => true,
             'audit'   => $audit,
             'message' => !empty($audit['has_issues'])
-                ? __('Self-defense verification completed: anomalies detected in plugin files.', 'wcp-security-scanner')
-                : __('All plugin core files are 100% authentic, intact, and verified against the official release signature.', 'wcp-security-scanner'),
+                ? __('Self-defense verification completed: anomalies detected in plugin files.', 'webcare-pro-security')
+                : __('All plugin core files are 100% authentic, intact, and verified against the official release signature.', 'webcare-pro-security'),
         ]);
     }
 
     public static function audit_self_defense_against_github(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
-            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+        if (!class_exists('\WebCareProScanner\Security\PluginSelfDefense')) {
+            $file = WEBCAREPROSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
             if (file_exists($file)) {
                 require_once $file;
             }
         }
 
-        $res = \WcpScanner\Security\PluginSelfDefense::audit_against_github(true);
+        $res = \WebCareProScanner\Security\PluginSelfDefense::audit_against_github(true);
         return rest_ensure_response($res);
     }
 
     public static function restore_self_defense_file(\WP_REST_Request $request) {
-        if (!class_exists('\WcpScanner\Security\PluginSelfDefense')) {
-            $file = WCPSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
+        if (!class_exists('\WebCareProScanner\Security\PluginSelfDefense')) {
+            $file = WEBCAREPROSCAN_PATH . 'includes/Security/PluginSelfDefense.php';
             if (file_exists($file)) {
                 require_once $file;
             }
@@ -11282,11 +11282,11 @@ class ScannerRoutes {
         if (empty($path)) {
             return rest_ensure_response([
                 'success' => false,
-                'message' => __('Path parameter is required for file restoration.', 'wcp-security-scanner'),
+                'message' => __('Path parameter is required for file restoration.', 'webcare-pro-security'),
             ]);
         }
 
-        $res = \WcpScanner\Security\PluginSelfDefense::restore_file_from_github($path);
+        $res = \WebCareProScanner\Security\PluginSelfDefense::restore_file_from_github($path);
         return rest_ensure_response($res);
     }
 
@@ -11311,7 +11311,7 @@ class ScannerRoutes {
             'telemetry' => $telemetry,
             'message'   => sprintf(
                 /* translators: 1: total active threat IPs, 2: total Tor nodes */
-                __('Threat intelligence feeds synchronized! Active pool: %1$d botnet IPs, %2$d Tor exit nodes.', 'wcp-security-scanner'),
+                __('Threat intelligence feeds synchronized! Active pool: %1$d botnet IPs, %2$d Tor exit nodes.', 'webcare-pro-security'),
                 $res['total_active_ips'] ?? 0,
                 $res['tor_exit_nodes_count'] ?? 0
             ),
@@ -11333,7 +11333,7 @@ class ScannerRoutes {
 
     public static function get_synthesized_virtual_patches(\WP_REST_Request $request) {
         $patches = VirtualPatchSynthesizer::get_synthesized_patches();
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $cf_ready = !empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id']);
 
         return rest_ensure_response([
@@ -11361,7 +11361,7 @@ class ScannerRoutes {
         $custom_payloads = $params['custom_payloads'] ?? null;
 
         if (empty($patch) || empty($patch['php_rule']['regex'])) {
-            return new \WP_Error('missing_patch_rule', __('Virtual patch definition and regex pattern are required for simulation.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_patch_rule', __('Virtual patch definition and regex pattern are required for simulation.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $simulation = VirtualPatchSynthesizer::run_dryrun_simulation($patch, $custom_payloads);
@@ -11377,7 +11377,7 @@ class ScannerRoutes {
         $deploy_cf = !empty($params['deploy_to_cloudflare']);
 
         if (empty($patch['patch_id'])) {
-            return new \WP_Error('missing_patch_id', __('Valid patch definition with patch_id is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_patch_id', __('Valid patch definition with patch_id is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $result = VirtualPatchSynthesizer::save_synthesized_patch($patch, $deploy_cf);
@@ -11390,7 +11390,7 @@ class ScannerRoutes {
         $enable = !empty($params['enable']);
 
         if (empty($patch_id)) {
-            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $result = VirtualPatchSynthesizer::toggle_synthesized_patch($patch_id, $enable);
@@ -11402,7 +11402,7 @@ class ScannerRoutes {
         $patch_id = sanitize_text_field($params['patch_id'] ?? '');
 
         if (empty($patch_id)) {
-            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_patch_id', __('Patch ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
         $result = VirtualPatchSynthesizer::delete_synthesized_patch($patch_id);
@@ -11414,10 +11414,10 @@ class ScannerRoutes {
         $cve_id = sanitize_text_field(wp_unslash($params['cve_id'] ?? ''));
 
         if (empty($cve_id)) {
-            return new \WP_Error('missing_cve_id', __('CVE ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_cve_id', __('CVE ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\Firewall\CVEIntelligenceService::lookup_and_correlate($cve_id);
+        $result = \WebCareProScanner\Firewall\CVEIntelligenceService::lookup_and_correlate($cve_id);
         if (!$result['success']) {
             return new \WP_Error('cve_lookup_failed', $result['message'], ['status' => 404]);
         }
@@ -11430,10 +11430,10 @@ class ScannerRoutes {
         $plugin_file = sanitize_text_field(wp_unslash($params['plugin_file'] ?? ''));
 
         if (empty($plugin_file)) {
-            return new \WP_Error('missing_plugin_file', __('Target plugin file is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_plugin_file', __('Target plugin file is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $result = \WcpScanner\Firewall\CVEIntelligenceService::deactivate_vulnerable_plugin($plugin_file);
+        $result = \WebCareProScanner\Firewall\CVEIntelligenceService::deactivate_vulnerable_plugin($plugin_file);
         if (!$result['success']) {
             return new \WP_Error('deactivation_failed', $result['message'], ['status' => 400]);
         }
@@ -11448,54 +11448,54 @@ class ScannerRoutes {
     public static function get_ai_defense_status() {
         return rest_ensure_response([
             'success'        => true,
-            'ghost_routes'   => \WcpScanner\Firewall\GhostRouteTrap::get_status(),
-            'egress'         => \WcpScanner\Firewall\OutboundEgressFirewall::get_status(),
-            'prompt_guard'   => \WcpScanner\Security\PromptInjectionGuard::get_status(),
-            'credentials'    => \WcpScanner\Security\CredentialExposureScanner::get_status(),
-            'attack_surface' => \WcpScanner\WordPress\RestApiInventory::get_inventory(),
+            'ghost_routes'   => \WebCareProScanner\Firewall\GhostRouteTrap::get_status(),
+            'egress'         => \WebCareProScanner\Firewall\OutboundEgressFirewall::get_status(),
+            'prompt_guard'   => \WebCareProScanner\Security\PromptInjectionGuard::get_status(),
+            'credentials'    => \WebCareProScanner\Security\CredentialExposureScanner::get_status(),
+            'attack_surface' => \WebCareProScanner\WordPress\RestApiInventory::get_inventory(),
         ]);
     }
 
     public static function get_ghost_routes_status() {
         return rest_ensure_response(array_merge([
             'success' => true,
-        ], \WcpScanner\Firewall\GhostRouteTrap::get_status()));
+        ], \WebCareProScanner\Firewall\GhostRouteTrap::get_status()));
     }
 
     public static function update_ghost_routes_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $res = \WcpScanner\Firewall\GhostRouteTrap::update_settings($params);
+        $res = \WebCareProScanner\Firewall\GhostRouteTrap::update_settings($params);
         return rest_ensure_response([
             'success' => $res,
-            'message' => __('Ghost route trap settings updated.', 'wcp-security-scanner'),
-            'status'  => \WcpScanner\Firewall\GhostRouteTrap::get_status(),
+            'message' => __('Ghost route trap settings updated.', 'webcare-pro-security'),
+            'status'  => \WebCareProScanner\Firewall\GhostRouteTrap::get_status(),
         ]);
     }
 
     public static function get_egress_firewall_status() {
         return rest_ensure_response(array_merge([
             'success' => true,
-        ], \WcpScanner\Firewall\OutboundEgressFirewall::get_status()));
+        ], \WebCareProScanner\Firewall\OutboundEgressFirewall::get_status()));
     }
 
     public static function update_egress_firewall_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $res = \WcpScanner\Firewall\OutboundEgressFirewall::update_settings($params);
+        $res = \WebCareProScanner\Firewall\OutboundEgressFirewall::update_settings($params);
         return rest_ensure_response([
             'success' => $res,
-            'message' => __('Outbound egress firewall settings updated.', 'wcp-security-scanner'),
-            'status'  => \WcpScanner\Firewall\OutboundEgressFirewall::get_status(),
+            'message' => __('Outbound egress firewall settings updated.', 'webcare-pro-security'),
+            'status'  => \WebCareProScanner\Firewall\OutboundEgressFirewall::get_status(),
         ]);
     }
 
     public static function get_credential_exposure_status() {
         return rest_ensure_response(array_merge([
             'success' => true,
-        ], \WcpScanner\Security\CredentialExposureScanner::get_status()));
+        ], \WebCareProScanner\Security\CredentialExposureScanner::get_status()));
     }
 
     public static function scan_credential_exposure() {
-        $report = \WcpScanner\Security\CredentialExposureScanner::run_scan(true);
+        $report = \WebCareProScanner\Security\CredentialExposureScanner::run_scan(true);
         return rest_ensure_response(array_merge([
             'success' => true,
         ], $report));
@@ -11504,16 +11504,16 @@ class ScannerRoutes {
     public static function get_prompt_guard_status() {
         return rest_ensure_response(array_merge([
             'success' => true,
-        ], \WcpScanner\Security\PromptInjectionGuard::get_status()));
+        ], \WebCareProScanner\Security\PromptInjectionGuard::get_status()));
     }
 
     public static function update_prompt_guard_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $res = \WcpScanner\Security\PromptInjectionGuard::update_settings($params);
+        $res = \WebCareProScanner\Security\PromptInjectionGuard::update_settings($params);
         return rest_ensure_response([
             'success' => $res,
-            'message' => __('Prompt injection guard settings updated.', 'wcp-security-scanner'),
-            'status'  => \WcpScanner\Security\PromptInjectionGuard::get_status(),
+            'message' => __('Prompt injection guard settings updated.', 'webcare-pro-security'),
+            'status'  => \WebCareProScanner\Security\PromptInjectionGuard::get_status(),
         ]);
     }
 
@@ -11525,11 +11525,11 @@ class ScannerRoutes {
         if (trim($text) === '') {
             return new \WP_REST_Response([
                 'success' => false,
-                'message' => __('Prompt text is required for analysis.', 'wcp-security-scanner'),
+                'message' => __('Prompt text is required for analysis.', 'webcare-pro-security'),
             ], 400);
         }
 
-        $analysis = \WcpScanner\Security\PromptInjectionGuard::inspect_prompt($text, $context);
+        $analysis = \WebCareProScanner\Security\PromptInjectionGuard::inspect_prompt($text, $context);
 
         return rest_ensure_response([
             'success'  => true,
@@ -11540,16 +11540,16 @@ class ScannerRoutes {
     public static function get_attack_surface_inventory() {
         return rest_ensure_response(array_merge([
             'success' => true,
-        ], \WcpScanner\WordPress\RestApiInventory::get_inventory()));
+        ], \WebCareProScanner\WordPress\RestApiInventory::get_inventory()));
     }
 
     public static function update_attack_surface_settings(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
-        $res = \WcpScanner\WordPress\RestApiInventory::update_settings($params);
+        $res = \WebCareProScanner\WordPress\RestApiInventory::update_settings($params);
         return rest_ensure_response([
             'success' => $res,
-            'message' => __('Attack surface defense settings updated.', 'wcp-security-scanner'),
-            'data'    => \WcpScanner\WordPress\RestApiInventory::get_inventory(),
+            'message' => __('Attack surface defense settings updated.', 'webcare-pro-security'),
+            'data'    => \WebCareProScanner\WordPress\RestApiInventory::get_inventory(),
         ]);
     }
 
@@ -11558,7 +11558,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_reinfection_watchdog_status() {
-        return rest_ensure_response(\WcpScanner\Quarantine\ReinfectionWatchdog::get_status());
+        return rest_ensure_response(\WebCareProScanner\Quarantine\ReinfectionWatchdog::get_status());
     }
 
     public static function register_reinfection_watch(\WP_REST_Request $request) {
@@ -11569,10 +11569,10 @@ class ScannerRoutes {
         $reason = sanitize_text_field($params['reason'] ?? '');
 
         if (empty($file_path)) {
-            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing file_path parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Quarantine\ReinfectionWatchdog::register_watch($file_path, $status, $clean_hash ?: null, $reason);
+        $res = \WebCareProScanner\Quarantine\ReinfectionWatchdog::register_watch($file_path, $status, $clean_hash ?: null, $reason);
         return rest_ensure_response($res);
     }
 
@@ -11580,21 +11580,21 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $watch_id = sanitize_key($params['watch_id'] ?? '');
         if (empty($watch_id)) {
-            return new \WP_Error('missing_param', __('Missing watch_id parameter.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_param', __('Missing watch_id parameter.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Quarantine\ReinfectionWatchdog::dismiss_watch($watch_id);
+        $res = \WebCareProScanner\Quarantine\ReinfectionWatchdog::dismiss_watch($watch_id);
         return rest_ensure_response([
             'success' => $res,
-            'message' => $res ? __('Watchdog monitor dismissed.', 'wcp-security-scanner') : __('Watch not found.', 'wcp-security-scanner'),
-            'status'  => \WcpScanner\Quarantine\ReinfectionWatchdog::get_status(),
+            'message' => $res ? __('Watchdog monitor dismissed.', 'webcare-pro-security') : __('Watch not found.', 'webcare-pro-security'),
+            'status'  => \WebCareProScanner\Quarantine\ReinfectionWatchdog::get_status(),
         ]);
     }
 
     public static function check_reinfection_watchdog_now() {
-        $res = \WcpScanner\Quarantine\ReinfectionWatchdog::inspect_all_monitors();
+        $res = \WebCareProScanner\Quarantine\ReinfectionWatchdog::inspect_all_monitors();
         return rest_ensure_response(array_merge([
-            'status' => \WcpScanner\Quarantine\ReinfectionWatchdog::get_status(),
+            'status' => \WebCareProScanner\Quarantine\ReinfectionWatchdog::get_status(),
         ], $res));
     }
 
@@ -11603,7 +11603,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_local_snapshots_list() {
-        return rest_ensure_response(\WcpScanner\Integrity\LocalSnapshotManager::list_snapshots());
+        return rest_ensure_response(\WebCareProScanner\Integrity\LocalSnapshotManager::list_snapshots());
     }
 
     public static function create_local_snapshot(\WP_REST_Request $request) {
@@ -11612,20 +11612,20 @@ class ScannerRoutes {
         $label = sanitize_text_field($params['label'] ?? '');
 
         if (empty($target)) {
-            return new \WP_Error('missing_target', __('Target relative directory path is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_target', __('Target relative directory path is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Integrity\LocalSnapshotManager::create_snapshot($target, $label);
+        $res = \WebCareProScanner\Integrity\LocalSnapshotManager::create_snapshot($target, $label);
         return rest_ensure_response($res);
     }
 
     public static function compare_local_snapshot(\WP_REST_Request $request) {
         $snap_id = sanitize_key($request->get_param('snapshot_id') ?: '');
         if (empty($snap_id)) {
-            return new \WP_Error('missing_id', __('Snapshot ID required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_id', __('Snapshot ID required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Integrity\LocalSnapshotManager::compare_snapshot($snap_id);
+        $res = \WebCareProScanner\Integrity\LocalSnapshotManager::compare_snapshot($snap_id);
         return rest_ensure_response($res);
     }
 
@@ -11634,10 +11634,10 @@ class ScannerRoutes {
         $rel_path = sanitize_text_field($request->get_param('rel_path') ?: '');
 
         if (empty($snap_id) || empty($rel_path)) {
-            return new \WP_Error('missing_params', __('Snapshot ID and rel_path are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Snapshot ID and rel_path are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Integrity\LocalSnapshotManager::get_file_diff($snap_id, $rel_path);
+        $res = \WebCareProScanner\Integrity\LocalSnapshotManager::get_file_diff($snap_id, $rel_path);
         return rest_ensure_response($res);
     }
 
@@ -11647,10 +11647,10 @@ class ScannerRoutes {
         $rel_path = sanitize_text_field($params['rel_path'] ?? '');
 
         if (empty($snap_id) || empty($rel_path)) {
-            return new \WP_Error('missing_params', __('Snapshot ID and rel_path are required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Snapshot ID and rel_path are required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Integrity\LocalSnapshotManager::restore_file($snap_id, $rel_path);
+        $res = \WebCareProScanner\Integrity\LocalSnapshotManager::restore_file($snap_id, $rel_path);
         return rest_ensure_response($res);
     }
 
@@ -11659,14 +11659,14 @@ class ScannerRoutes {
         $snap_id = sanitize_key($params['snapshot_id'] ?? '');
 
         if (empty($snap_id)) {
-            return new \WP_Error('missing_id', __('Snapshot ID is required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_id', __('Snapshot ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $deleted = \WcpScanner\Integrity\LocalSnapshotManager::delete_snapshot($snap_id);
+        $deleted = \WebCareProScanner\Integrity\LocalSnapshotManager::delete_snapshot($snap_id);
         return rest_ensure_response([
             'success'   => $deleted,
-            'message'   => $deleted ? __('Snapshot deleted.', 'wcp-security-scanner') : __('Snapshot not found.', 'wcp-security-scanner'),
-            'snapshots' => \WcpScanner\Integrity\LocalSnapshotManager::list_snapshots(),
+            'message'   => $deleted ? __('Snapshot deleted.', 'webcare-pro-security') : __('Snapshot not found.', 'webcare-pro-security'),
+            'snapshots' => \WebCareProScanner\Integrity\LocalSnapshotManager::list_snapshots(),
         ]);
     }
 
@@ -11675,11 +11675,11 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_domain_reputation_status() {
-        return rest_ensure_response(\WcpScanner\Firewall\DomainReputationMonitor::run_reputation_audit(false));
+        return rest_ensure_response(\WebCareProScanner\Firewall\DomainReputationMonitor::run_reputation_audit(false));
     }
 
     public static function check_domain_reputation_now() {
-        return rest_ensure_response(\WcpScanner\Firewall\DomainReputationMonitor::run_reputation_audit(true));
+        return rest_ensure_response(\WebCareProScanner\Firewall\DomainReputationMonitor::run_reputation_audit(true));
     }
 
     // ==========================================
@@ -11687,7 +11687,7 @@ class ScannerRoutes {
     // ==========================================
 
     public static function get_correlation_hierarchy() {
-        $engine = new \WcpScanner\Findings\CorrelationEngine();
+        $engine = new \WebCareProScanner\Findings\CorrelationEngine();
         return rest_ensure_response($engine->generate_telemetry_hierarchy());
     }
 
@@ -11698,23 +11698,23 @@ class ScannerRoutes {
     public static function webauthn_register_options(\WP_REST_Request $request) {
         $user_id = get_current_user_id();
         if (!$user_id) {
-            return new \WP_Error('unauthorized', __('Authentication required.', 'wcp-security-scanner'), ['status' => 401]);
+            return new \WP_Error('unauthorized', __('Authentication required.', 'webcare-pro-security'), ['status' => 401]);
         }
-        return rest_ensure_response(\WcpScanner\Auth\WebAuthnManager::generate_registration_options($user_id));
+        return rest_ensure_response(\WebCareProScanner\Auth\WebAuthnManager::generate_registration_options($user_id));
     }
 
     public static function webauthn_register_verify(\WP_REST_Request $request) {
         $user_id = get_current_user_id();
         if (!$user_id) {
-            return new \WP_Error('unauthorized', __('Authentication required.', 'wcp-security-scanner'), ['status' => 401]);
+            return new \WP_Error('unauthorized', __('Authentication required.', 'webcare-pro-security'), ['status' => 401]);
         }
         $params = $request->get_json_params() ?: [];
         $payload = is_array($params['payload'] ?? null) ? $params['payload'] : [];
         $label = sanitize_text_field(wp_unslash($params['label'] ?? ''));
 
-        $res = \WcpScanner\Auth\WebAuthnManager::verify_registration($user_id, $payload, $label);
+        $res = \WebCareProScanner\Auth\WebAuthnManager::verify_registration($user_id, $payload, $label);
         if (empty($res['success'])) {
-            return new \WP_Error('verification_failed', $res['message'] ?? __('Passkey registration failed.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('verification_failed', $res['message'] ?? __('Passkey registration failed.', 'webcare-pro-security'), ['status' => 400]);
         }
         return rest_ensure_response($res);
     }
@@ -11723,8 +11723,8 @@ class ScannerRoutes {
         $user_id = get_current_user_id();
         return rest_ensure_response([
             'success'     => true,
-            'credentials' => \WcpScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
-            'rp_id'       => \WcpScanner\Auth\WebAuthnManager::get_rp_id(),
+            'credentials' => \WebCareProScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
+            'rp_id'       => \WebCareProScanner\Auth\WebAuthnManager::get_rp_id(),
         ]);
     }
 
@@ -11734,14 +11734,14 @@ class ScannerRoutes {
         $credential_id = sanitize_text_field(wp_unslash($params['credential_id'] ?? ''));
 
         if (empty($credential_id)) {
-            return new \WP_Error('missing_id', __('Credential ID required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_id', __('Credential ID required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $deleted = \WcpScanner\Auth\WebAuthnManager::delete_credential($user_id, $credential_id);
+        $deleted = \WebCareProScanner\Auth\WebAuthnManager::delete_credential($user_id, $credential_id);
         return rest_ensure_response([
             'success'     => $deleted,
-            'message'     => $deleted ? __('Passkey removed successfully.', 'wcp-security-scanner') : __('Passkey not found.', 'wcp-security-scanner'),
-            'credentials' => \WcpScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
+            'message'     => $deleted ? __('Passkey removed successfully.', 'webcare-pro-security') : __('Passkey not found.', 'webcare-pro-security'),
+            'credentials' => \WebCareProScanner\Auth\WebAuthnManager::get_user_credentials($user_id),
         ]);
     }
 
@@ -11753,8 +11753,8 @@ class ScannerRoutes {
      * @return true|\WP_Error
      */
     public static function check_webauthn_public_rate_limit(\WP_REST_Request $request) {
-        $client_ip = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+        $client_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
         $route = (string) $request->get_route();
@@ -11763,11 +11763,11 @@ class ScannerRoutes {
         $max_ip_attempts = $is_verify ? 10 : 25; // 10 verifications / 5 min, 25 options / 5 min
         $window = 300;
 
-        if (class_exists('\\WcpScanner\\Auth\\WebAuthnManager')) {
-            if (!\WcpScanner\Auth\WebAuthnManager::check_ip_rate_limit($action, $max_ip_attempts, $window)) {
+        if (class_exists('\\WebCareProScanner\\Auth\\WebAuthnManager')) {
+            if (!\WebCareProScanner\Auth\WebAuthnManager::check_ip_rate_limit($action, $max_ip_attempts, $window)) {
                 return new \WP_Error(
                     'rest_rate_limited',
-                    __('Too many authentication requests from this IP. Please wait a few minutes.', 'wcp-security-scanner'),
+                    __('Too many authentication requests from this IP. Please wait a few minutes.', 'webcare-pro-security'),
                     ['status' => 429]
                 );
             }
@@ -11777,12 +11777,12 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $username = !empty($params['username']) ? sanitize_text_field(wp_unslash($params['username'])) : '';
         if (!empty($username)) {
-            $acc_key = 'wcpscan_wa_acc_' . md5(strtolower($username));
+            $acc_key = 'webcareproscan_wa_acc_' . md5(strtolower($username));
             $acc_attempts = (int) get_transient($acc_key);
             if ($acc_attempts >= 15) {
                 return new \WP_Error(
                     'rest_account_rate_limited',
-                    __('Too many authentication attempts for this account. Please wait a few minutes.', 'wcp-security-scanner'),
+                    __('Too many authentication attempts for this account. Please wait a few minutes.', 'webcare-pro-security'),
                     ['status' => 429]
                 );
             }
@@ -11795,11 +11795,11 @@ class ScannerRoutes {
     public static function webauthn_login_options(\WP_REST_Request $request) {
         $params = $request->get_json_params() ?: [];
         $username = sanitize_text_field(wp_unslash($params['username'] ?? ''));
-        $options = \WcpScanner\Auth\WebAuthnManager::generate_login_options($username);
+        $options = \WebCareProScanner\Auth\WebAuthnManager::generate_login_options($username);
         if (empty($options['success'])) {
             return new \WP_Error(
                 'options_rate_limited',
-                $options['message'] ?? __('Too many passkey requests. Please wait a few minutes.', 'wcp-security-scanner'),
+                $options['message'] ?? __('Too many passkey requests. Please wait a few minutes.', 'webcare-pro-security'),
                 ['status' => 429]
             );
         }
@@ -11812,12 +11812,12 @@ class ScannerRoutes {
         $payload = is_array($params['payload'] ?? null) ? $params['payload'] : [];
 
         if (empty($session_id) || empty($payload)) {
-            return new \WP_Error('missing_params', __('Authentication session and payload required.', 'wcp-security-scanner'), ['status' => 400]);
+            return new \WP_Error('missing_params', __('Authentication session and payload required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WcpScanner\Auth\WebAuthnManager::verify_login($session_id, $payload);
+        $res = \WebCareProScanner\Auth\WebAuthnManager::verify_login($session_id, $payload);
         if (empty($res['success'])) {
-            return new \WP_Error('login_failed', $res['message'] ?? __('Biometric login failed.', 'wcp-security-scanner'), ['status' => 401]);
+            return new \WP_Error('login_failed', $res['message'] ?? __('Biometric login failed.', 'webcare-pro-security'), ['status' => 401]);
         }
         return rest_ensure_response($res);
     }
@@ -11827,16 +11827,16 @@ class ScannerRoutes {
     // ==========================================
 
     public static function verify_server_security_rules() {
-        return rest_ensure_response(\WcpScanner\Firewall\ServerSecurityEngine::verify_rule_enforcement());
+        return rest_ensure_response(\WebCareProScanner\Firewall\ServerSecurityEngine::verify_rule_enforcement());
     }
 
     public static function get_caddy_server_config() {
-        $options = \WcpScanner\Firewall\ServerSecurityEngine::get_options();
-        $config = \WcpScanner\Firewall\ServerSecurityEngine::generate_caddy_config($options);
+        $options = \WebCareProScanner\Firewall\ServerSecurityEngine::get_options();
+        $config = \WebCareProScanner\Firewall\ServerSecurityEngine::generate_caddy_config($options);
         return rest_ensure_response([
             'success'   => true,
             'config'    => $config,
-            'file_info' => \WcpScanner\Firewall\ServerSecurityEngine::get_file_info(),
+            'file_info' => \WebCareProScanner\Firewall\ServerSecurityEngine::get_file_info(),
         ]);
     }
 
@@ -11852,7 +11852,7 @@ class ScannerRoutes {
         $severity   = sanitize_key($request->get_param('severity') ?: '');
         $search     = sanitize_text_field($request->get_param('search') ?: '');
 
-        $result = \WcpScanner\System\WcpActivityLogger::query_records([
+        $result = \WebCareProScanner\System\WcpActivityLogger::query_records([
             'actor_type' => $actor_type,
             'category'   => $category,
             'limit'      => $limit,
@@ -11861,8 +11861,8 @@ class ScannerRoutes {
             'severity'   => $severity,
         ]);
 
-        $settings = get_option('wcpscan_activity_log_settings', []);
-        $tamper_alert = get_option('wcpscan_activity_tamper_active', null);
+        $settings = get_option('webcareproscan_activity_log_settings', []);
+        $tamper_alert = get_option('webcareproscan_activity_tamper_active', null);
 
         return rest_ensure_response([
             'current_page'   => $result['current_page'] ?? $page,
@@ -11883,7 +11883,7 @@ class ScannerRoutes {
     }
 
     public static function verify_activity_logs_integrity(\WP_REST_Request $request) {
-        $report = \WcpScanner\System\WcpActivityLogger::verify_integrity();
+        $report = \WebCareProScanner\System\WcpActivityLogger::verify_integrity();
         return rest_ensure_response([
             'report'  => $report,
             'success' => true,
@@ -11899,7 +11899,7 @@ class ScannerRoutes {
         $date                = sanitize_text_field($request->get_param('date') ?: '');
         $include_system_info = !empty($request->get_param('include_system_info'));
 
-        $result = \WcpScanner\System\WcpActivityLogger::query_records([
+        $result = \WebCareProScanner\System\WcpActivityLogger::query_records([
             'actor_type' => $actor_type,
             'category'   => $category,
             'is_export'  => true,
@@ -11917,18 +11917,18 @@ class ScannerRoutes {
         $filename   = "activity-logs-{$date_token}-{$time_token}-{$domain}-{$rand_token}.{$format}";
 
         if ($format === 'json') {
-            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], $filename, $include_system_info);
+            \WebCareProScanner\System\ActivityLogs\ActivityExporter::stream_json($result['records'], $filename, $include_system_info);
         } else {
-            \WcpScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], $filename, $include_system_info);
+            \WebCareProScanner\System\ActivityLogs\ActivityExporter::stream_csv($result['records'], $filename, $include_system_info);
         }
         exit;
     }
 
     public static function prune_activity_logs(\WP_REST_Request $request) {
-        $results = \WcpScanner\System\ActivityLogs\ActivityRetention::prune_expired_partitions();
+        $results = \WebCareProScanner\System\ActivityLogs\ActivityRetention::prune_expired_partitions();
 
         // Audit Trail: Log manual partition prune execution
-        \WcpScanner\System\WcpActivityLogger::notice(
+        \WebCareProScanner\System\WcpActivityLogger::notice(
             'logs_pruned',
             'retention',
             [
@@ -11939,7 +11939,7 @@ class ScannerRoutes {
         );
 
         /* translators: %d: Number of pruned partitions */
-        $message = sprintf(__('Pruned %d expired partition(s).', 'wcp-security-scanner'), $results['pruned_count']);
+        $message = sprintf(__('Pruned %d expired partition(s).', 'webcare-pro-security'), $results['pruned_count']);
 
         return rest_ensure_response([
             'message'      => $message,
@@ -11953,10 +11953,10 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $incident_id = sanitize_key($params['incident_id'] ?? '');
 
-        \WcpScanner\System\ActivityLogs\ActivityTamperNotifier::acknowledge_alert($incident_id);
+        \WebCareProScanner\System\ActivityLogs\ActivityTamperNotifier::acknowledge_alert($incident_id);
 
         return rest_ensure_response([
-            'message' => __('Tamper security incident acknowledged and dismissed.', 'wcp-security-scanner'),
+            'message' => __('Tamper security incident acknowledged and dismissed.', 'webcare-pro-security'),
             'success' => true,
         ]);
     }
@@ -11968,7 +11968,7 @@ class ScannerRoutes {
      * @return \WP_REST_Response
      */
     public static function get_site_advisor_evaluation(\WP_REST_Request $request) {
-        $evaluation = \WcpScanner\Advisor\SiteAdvisorEngine::evaluate();
+        $evaluation = \WebCareProScanner\Advisor\SiteAdvisorEngine::evaluate();
         return rest_ensure_response($evaluation);
     }
 
@@ -11985,11 +11985,11 @@ class ScannerRoutes {
         if (!is_array($approved)) {
             return new \WP_REST_Response([
                 'success' => false,
-                'message' => __('Invalid approved recommendations payload.', 'wcp-security-scanner'),
+                'message' => __('Invalid approved recommendations payload.', 'webcare-pro-security'),
             ], 400);
         }
 
-        $result = \WcpScanner\Advisor\SiteAdvisorEngine::apply_recommendations($approved);
+        $result = \WebCareProScanner\Advisor\SiteAdvisorEngine::apply_recommendations($approved);
         return rest_ensure_response($result);
     }
 
@@ -12000,7 +12000,7 @@ class ScannerRoutes {
      * @return \WP_REST_Response
      */
     public static function rollback_site_advisor_snapshot(\WP_REST_Request $request) {
-        $result = \WcpScanner\Advisor\SiteAdvisorEngine::rollback();
+        $result = \WebCareProScanner\Advisor\SiteAdvisorEngine::rollback();
         return rest_ensure_response($result);
     }
 
@@ -12008,19 +12008,19 @@ class ScannerRoutes {
      * Get complete CAF overview including stack snapshot and recommendations matrix.
      */
     public static function get_caf_overview(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'CAF module is not initialized.',
             ], 500);
         }
 
-        $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
         $snapshot = $advisor->get_stack_snapshot();
         $matrix   = $advisor->get_recommendations_matrix($snapshot);
 
         // Preload status
-        $killswitch_file = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/wcp-security-scanner/.killswitch') : '';
+        $killswitch_file = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/webcare-pro-security/.killswitch') : '';
         $is_killed = (defined('WCP_CAF_DISABLE_PRELOAD') && WCP_CAF_DISABLE_PRELOAD) || ($killswitch_file && file_exists($killswitch_file));
 
         return rest_ensure_response([
@@ -12041,17 +12041,17 @@ class ScannerRoutes {
         $profile_id   = sanitize_key($params['profile_id'] ?? 'balanced');
         $lock_dormant = isset($params['lock_dormant_surface']) ? (bool) $params['lock_dormant_surface'] : true;
 
-        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
             return new \WP_REST_Response(['success' => false, 'message' => 'CAF module missing.'], 500);
         }
 
-        $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
         $result  = $advisor->apply_profile($profile_id, $lock_dormant);
 
         $auto_enabled = $result['auto_enabled'] ?? [];
 
         /* translators: %s: CAF profile identifier (e.g. ecommerce_hardened) */
-        $base_msg = sprintf( __( 'CAF Profile "%s" applied and Micro-WAF recompiled.', 'wcp-security-scanner' ), esc_html( $profile_id ) );
+        $base_msg = sprintf( __( 'CAF Profile "%s" applied and Micro-WAF recompiled.', 'webcare-pro-security' ), esc_html( $profile_id ) );
 
         return rest_ensure_response([
             'success'      => true,
@@ -12065,15 +12065,15 @@ class ScannerRoutes {
      * Force immediate stack re-profiling and re-compilation.
      */
     public static function reprofile_caf_stack(\WP_REST_Request $request) {
-        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
             return new \WP_REST_Response(['success' => false, 'message' => 'CAF module missing.'], 500);
         }
 
-        $advisor = new \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
         $snapshot = $advisor->capture_stack_snapshot();
 
-        if (class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
-            \WcpScanner\Firewall\MicroWafCompiler::compile_script();
+        if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            \WebCareProScanner\Firewall\MicroWafCompiler::compile_script();
         }
 
         return rest_ensure_response([
@@ -12119,13 +12119,13 @@ class ScannerRoutes {
      * Get Cloudflare CAF Status (Phase 2): Slots, Token Capability, Ban Queue, Origin Circuit Breaker
      */
     public static function get_caf_cloudflare_status(\WP_REST_Request $request) {
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
         $configured = !empty($settings['cloudflare_api_token']) && !empty($zone_id);
 
-        $optimizer = class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareSlotOptimizer') ? new \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer() : null;
-        $synchronizer = class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer') ? new \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer() : null;
-        $breaker = class_exists('\\WcpScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker') ? new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker() : null;
+        $optimizer = class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareSlotOptimizer') ? new \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer() : null;
+        $synchronizer = class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer') ? new \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer() : null;
+        $breaker = class_exists('\\WebCareProScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker') ? new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker() : null;
 
         $existing_rules = [];
         $slot_budget = 3;
@@ -12138,7 +12138,7 @@ class ScannerRoutes {
 
             foreach ($existing_rules as $r) {
                 $desc = (string) ($r['description'] ?? '');
-                if (str_starts_with($desc, \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with($desc, \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG)) {
+                if (str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG)) {
                     $wcp_rules_count++;
                 } else {
                     $user_rules_count++;
@@ -12147,7 +12147,7 @@ class ScannerRoutes {
         }
 
         $token_scope = $synchronizer ? $synchronizer->detect_api_scope() : 'none';
-        $pending_queue = get_option(\WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::OPTION_BAN_QUEUE, []);
+        $pending_queue = get_option(\WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer::OPTION_BAN_QUEUE, []);
         $pending_count = is_array($pending_queue) ? count($pending_queue) : 0;
 
         $circuit_breaker_state = $breaker ? $breaker->get_state() : [];
@@ -12171,7 +12171,7 @@ class ScannerRoutes {
                     'action'      => $r['action'] ?? '',
                     'enabled'     => !empty($r['enabled']),
                     'bytes'       => strlen((string) ($r['expression'] ?? '')),
-                    'is_wcp'      => str_starts_with((string) ($r['description'] ?? ''), \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with((string) ($r['description'] ?? ''), \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG),
+                    'is_wcp'      => str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG),
                 ];
             }, $existing_rules),
             'pending_ban_queue_size'=> $pending_count,
@@ -12183,7 +12183,7 @@ class ScannerRoutes {
      * Trigger immediate on-demand synchronization of Cloudflare Edge slots and IP lists.
      */
     public static function sync_caf_cloudflare(\WP_REST_Request $request) {
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
         if (empty($zone_id) || empty($settings['cloudflare_api_token'])) {
@@ -12193,9 +12193,9 @@ class ScannerRoutes {
             ], 400);
         }
 
-        $optimizer = new \WcpScanner\Firewall\CAF\CloudflareSlotOptimizer();
-        $synchronizer = new \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer();
-        $breaker = new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+        $optimizer = new \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer();
+        $synchronizer = new \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer();
+        $breaker = new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker();
 
         // 1. Sync IP ban queue
         $synced_ips = $synchronizer->process_sync_queue();
@@ -12219,10 +12219,10 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $enable = !empty($params['enable']);
 
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $zone_id = $settings['cloudflare_zone_id'] ?? '';
 
-        $breaker = new \WcpScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+        $breaker = new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker();
 
         if ($enable) {
             $reason = !empty($params['reason']) ? sanitize_text_field($params['reason']) : 'Administrator Manual Trigger';
@@ -12244,16 +12244,16 @@ class ScannerRoutes {
      * Get CAF Phase 3 Behavioral Status: Multi-Bucket Velocity, PoW Counters, Learning Observations, Threat Scores
      */
     public static function get_caf_behavioral_status(\WP_REST_Request $request) {
-        $rate_limiter_stats = class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')
-            ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry()
+        $rate_limiter_stats = class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')
+            ? \WebCareProScanner\Firewall\AdaptiveRateLimiter::get_telemetry()
             : [];
 
-        $threat_score_stats = class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')
-            ? \WcpScanner\Firewall\CAF\ThreatScoreTracker::get_telemetry()
+        $threat_score_stats = class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')
+            ? \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::get_telemetry()
             : [];
 
-        $learning_observations = get_option(\WcpScanner\Firewall\CAF\LearningModeEngine::OPTION_OBSERVATIONS, []);
-        $synthesized_exemptions = get_option(\WcpScanner\Firewall\CAF\LearningModeEngine::OPTION_SYNTHESIZED, []);
+        $learning_observations = get_option(\WebCareProScanner\Firewall\CAF\LearningModeEngine::OPTION_OBSERVATIONS, []);
+        $synthesized_exemptions = get_option(\WebCareProScanner\Firewall\CAF\LearningModeEngine::OPTION_SYNTHESIZED, []);
 
         $pow_enforced_ips = get_option('wcp_pow_enforced_ips', []);
 
@@ -12283,14 +12283,14 @@ class ScannerRoutes {
             ], 400);
         }
 
-        if (!class_exists('\\WcpScanner\\Firewall\\CAF\\LearningModeEngine')) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\CAF\\LearningModeEngine')) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Learning Mode Engine is not loaded.',
             ], 500);
         }
 
-        $result = \WcpScanner\Firewall\CAF\LearningModeEngine::synthesize_exemption($finding_id);
+        $result = \WebCareProScanner\Firewall\CAF\LearningModeEngine::synthesize_exemption($finding_id);
         return rest_ensure_response($result);
     }
 
@@ -12337,15 +12337,15 @@ class ScannerRoutes {
      * Get all active Application Passwords across all user accounts.
      */
     public static function get_app_passwords(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Auth\ApplicationPasswordSentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Application Password Sentinel service not available.',
             ], 500);
         }
 
-        $passwords = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
-        $settings  = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+        $passwords = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+        $settings  = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_settings();
 
         return rest_ensure_response([
             'success'   => true,
@@ -12358,14 +12358,14 @@ class ScannerRoutes {
      * Get Application Password Sentinel settings.
      */
     public static function get_app_passwords_settings(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Auth\ApplicationPasswordSentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Application Password Sentinel service not available.',
             ], 500);
         }
 
-        $settings = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+        $settings = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_settings();
 
         return rest_ensure_response([
             'success'  => true,
@@ -12377,7 +12377,7 @@ class ScannerRoutes {
      * Update Application Password Sentinel policy settings.
      */
     public static function update_app_passwords_settings(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Auth\ApplicationPasswordSentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Application Password Sentinel service not available.',
@@ -12385,12 +12385,12 @@ class ScannerRoutes {
         }
 
         $params = $request->get_json_params() ?: [];
-        $result = \WcpScanner\Auth\ApplicationPasswordSentinel::update_settings($params);
-        $settings = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+        $result = \WebCareProScanner\Auth\ApplicationPasswordSentinel::update_settings($params);
+        $settings = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_settings();
 
         return rest_ensure_response([
             'success'  => $result,
-            'message'  => __('Application Password policy settings updated successfully.', 'wcp-security-scanner'),
+            'message'  => __('Application Password policy settings updated successfully.', 'webcare-pro-security'),
             'settings' => $settings,
         ]);
     }
@@ -12399,7 +12399,7 @@ class ScannerRoutes {
      * Revoke a single Application Password.
      */
     public static function revoke_app_password(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Auth\ApplicationPasswordSentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Application Password Sentinel service not available.',
@@ -12413,25 +12413,25 @@ class ScannerRoutes {
         if ($user_id <= 0 || empty($uuid)) {
             return new \WP_REST_Response([
                 'success' => false,
-                'message' => __('User ID and Application Password UUID are required.', 'wcp-security-scanner'),
+                'message' => __('User ID and Application Password UUID are required.', 'webcare-pro-security'),
             ], 400);
         }
 
-        $result = \WcpScanner\Auth\ApplicationPasswordSentinel::revoke_password($user_id, $uuid);
+        $result = \WebCareProScanner\Auth\ApplicationPasswordSentinel::revoke_password($user_id, $uuid);
 
         if (!$result) {
             return new \WP_REST_Response([
                 'success' => false,
-                'message' => __('Failed to revoke Application Password or password not found.', 'wcp-security-scanner'),
+                'message' => __('Failed to revoke Application Password or password not found.', 'webcare-pro-security'),
             ], 400);
         }
 
-        $passwords = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
-        $settings  = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+        $passwords = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+        $settings  = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_settings();
 
         return rest_ensure_response([
             'success'   => true,
-            'message'   => __('Application Password revoked successfully.', 'wcp-security-scanner'),
+            'message'   => __('Application Password revoked successfully.', 'webcare-pro-security'),
             'passwords' => $passwords,
             'settings'  => $settings,
         ]);
@@ -12441,7 +12441,7 @@ class ScannerRoutes {
      * Revoke all Application Passwords for a user.
      */
     public static function revoke_all_app_passwords(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Auth\ApplicationPasswordSentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Application Password Sentinel service not available.',
@@ -12454,18 +12454,18 @@ class ScannerRoutes {
         if ($user_id <= 0) {
             return new \WP_REST_Response([
                 'success' => false,
-                'message' => __('Valid User ID is required.', 'wcp-security-scanner'),
+                'message' => __('Valid User ID is required.', 'webcare-pro-security'),
             ], 400);
         }
 
-        $result = \WcpScanner\Auth\ApplicationPasswordSentinel::revoke_all_for_user($user_id);
+        $result = \WebCareProScanner\Auth\ApplicationPasswordSentinel::revoke_all_for_user($user_id);
 
-        $passwords = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
-        $settings  = \WcpScanner\Auth\ApplicationPasswordSentinel::get_settings();
+        $passwords = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+        $settings  = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_settings();
 
         return rest_ensure_response([
             'success'   => true,
-            'message'   => __('All Application Passwords for the user were revoked successfully.', 'wcp-security-scanner'),
+            'message'   => __('All Application Passwords for the user were revoked successfully.', 'webcare-pro-security'),
             'passwords' => $passwords,
             'settings'  => $settings,
         ]);
@@ -12475,14 +12475,14 @@ class ScannerRoutes {
      * Get In-Memory Object Cache Integrity status & environment.
      */
     public static function get_object_cache_status(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Object Cache Sentinel service not available.',
             ], 500);
         }
 
-        $audit = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
+        $audit = \WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
 
         return rest_ensure_response([
             'success' => true,
@@ -12494,18 +12494,18 @@ class ScannerRoutes {
      * Run on-demand deep differential audit of RAM Object Cache vs MySQL disk.
      */
     public static function run_object_cache_audit(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Object Cache Sentinel service not available.',
             ], 500);
         }
 
-        $audit = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
+        $audit = \WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::audit_ram_vs_disk();
 
         return rest_ensure_response([
             'success' => true,
-            'message' => __('Differential RAM vs Disk audit completed successfully.', 'wcp-security-scanner'),
+            'message' => __('Differential RAM vs Disk audit completed successfully.', 'webcare-pro-security'),
             'report'  => $audit,
         ]);
     }
@@ -12514,14 +12514,14 @@ class ScannerRoutes {
      * 1-Click Surgical Flush & Resynchronization from MySQL Database Truth.
      */
     public static function flush_object_cache_resync(\WP_REST_Request $request) {
-        if (!class_exists(\WcpScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
+        if (!class_exists(\WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::class)) {
             return new \WP_REST_Response([
                 'success' => false,
                 'message' => 'Object Cache Sentinel service not available.',
             ], 500);
         }
 
-        $result = \WcpScanner\Integrity\ObjectCacheIntegritySentinel::resynchronize_and_flush();
+        $result = \WebCareProScanner\Integrity\ObjectCacheIntegritySentinel::resynchronize_and_flush();
 
         return rest_ensure_response($result);
     }

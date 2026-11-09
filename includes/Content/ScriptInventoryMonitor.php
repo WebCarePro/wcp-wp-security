@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Content;
+namespace WebCareProScanner\Content;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,9 +16,9 @@ if (!defined('ABSPATH')) {
  */
 class ScriptInventoryMonitor {
 
-    const OPTION_INVENTORY = 'wcpscan_script_inventory';
-    const OPTION_BASELINE  = 'wcpscan_script_inventory_baseline';
-    const OPTION_ALERTS    = 'wcpscan_script_drift_alerts';
+    const OPTION_INVENTORY = 'webcareproscan_script_inventory';
+    const OPTION_BASELINE  = 'webcareproscan_script_inventory_baseline';
+    const OPTION_ALERTS    = 'webcareproscan_script_drift_alerts';
 
     /**
      * Recognized official and verified third-party hosts.
@@ -128,11 +128,11 @@ class ScriptInventoryMonitor {
                         sprintf('Unseen third-party script domain "%s" enqueued via handle "%s" (Severity: %s).', $host, $handle, strtoupper($severity))
                     );
 
-                    if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                        \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_script_drift', [
+                    if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                        \WebCareProScanner\Notifications\NotificationDispatcher::trigger('supply_chain_script_drift', [
                             'severity' => $severity,
                             /* translators: 1: domain host, 2: handle name */
-                            'message'  => sprintf(__('Supply-Chain Script Drift: Unapproved third-party JavaScript domain "%1$s" enqueued via handle "%2$s".', 'wcp-security-scanner'), $host, $handle),
+                            'message'  => sprintf(__('Supply-Chain Script Drift: Unapproved third-party JavaScript domain "%1$s" enqueued via handle "%2$s".', 'webcare-pro-security'), $host, $handle),
                             'details'  => [
                                 'Remote Domain'   => $host,
                                 'Script Handle'   => $handle,

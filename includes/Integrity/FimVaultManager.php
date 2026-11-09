@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\Security\SecretVault;
+use WebCareProScanner\Security\SecretVault;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -26,7 +26,7 @@ class FimVaultManager {
     const VAULT_FOLDER = 'wcp-security-scanner/fim-vault';
     const MANIFEST_EXT = '.manifest.gz';
     const META_FILE    = 'fim_meta.json';
-    const OPTION_STATUS = 'wcpscan_fim_vault_status';
+    const OPTION_STATUS = 'webcareproscan_fim_vault_status';
 
     const SCOPES = [
         'core'        => 'WordPress Core (wp-admin, wp-includes)',

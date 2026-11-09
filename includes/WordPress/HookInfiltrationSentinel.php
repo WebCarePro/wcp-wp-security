@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;

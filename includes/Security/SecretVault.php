@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Security;
+namespace WebCareProScanner\Security;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -70,13 +70,13 @@ class SecretVault {
 
         // 4. Fallback: Auto-generate and securely persist a unique site salt in wp_options
         if (empty($salt)) {
-            $db_salt = function_exists('get_option') ? get_option('wcpscan_vault_salt') : false;
+            $db_salt = function_exists('get_option') ? get_option('webcareproscan_vault_salt') : false;
             if (empty($db_salt)) {
                 $db_salt = function_exists('wp_generate_password')
                     ? wp_generate_password(64, true, true)
                     : (function_exists('random_bytes') ? bin2hex(random_bytes(32)) : hash('sha256', uniqid('wcp_', true)));
                 if (function_exists('add_option')) {
-                    add_option('wcpscan_vault_salt', $db_salt, '', 'no');
+                    add_option('webcareproscan_vault_salt', $db_salt, '', 'no');
                 }
             }
             $salt = (string) $db_salt;
@@ -179,7 +179,7 @@ class SecretVault {
         }
 
         // Dual-Key Fallback: if a rotation migration is active, attempt decrypt with transitional old key
-        if (class_exists('\\WcpScanner\\Security\\VaultRotator')) {
+        if (class_exists('\\WebCareProScanner\\Security\\VaultRotator')) {
             $transitional_old_key = VaultRotator::get_transitional_old_key_if_active();
             if ($transitional_old_key !== false && $transitional_old_key !== $primary_key) {
                 $fallback = self::decrypt_with_key($value, $transitional_old_key);
@@ -195,7 +195,7 @@ class SecretVault {
             // wp-config.php retained the previous key or key rotation was interrupted.
             if ($primary_key !== null) {
                 $backup_ids = [];
-                $state = get_option(\WcpScanner\Security\VaultRotator::STATE_OPTION, []);
+                $state = get_option(\WebCareProScanner\Security\VaultRotator::STATE_OPTION, []);
                 if (!empty($state['backup_id'])) {
                     $backup_ids[] = (string) $state['backup_id'];
                 }
@@ -203,7 +203,7 @@ class SecretVault {
                 global $wpdb;
                 if ($wpdb && isset($wpdb->options)) {
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                    $recent_backups = $wpdb->get_col("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'wcpscan_vault_backup_%' ORDER BY option_id DESC LIMIT 10");
+                    $recent_backups = $wpdb->get_col("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'webcareproscan_vault_backup_%' ORDER BY option_id DESC LIMIT 10");
                     if (!empty($recent_backups) && is_array($recent_backups)) {
                         $backup_ids = array_unique(array_merge($backup_ids, $recent_backups));
                     }
@@ -216,11 +216,11 @@ class SecretVault {
                             if (is_string($backup_val) && self::is_encrypted($backup_val)) {
                                 $candidate = self::decrypt_with_key($backup_val, $primary_key);
                                 if ($candidate !== false) {
-                                    $current_settings = get_option(\WcpScanner\System\SettingsManager::OPTION_KEY, []);
+                                    $current_settings = get_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, []);
                                     if (isset($current_settings[$field_key]) && $current_settings[$field_key] === $value) {
                                         // Auto self-heal: restore working pre-rotation ciphertext for this field
                                         $current_settings[$field_key] = $backup_val;
-                                        update_option(\WcpScanner\System\SettingsManager::OPTION_KEY, $current_settings, false);
+                                        update_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, $current_settings, false);
                                         return $candidate;
                                     }
                                 }

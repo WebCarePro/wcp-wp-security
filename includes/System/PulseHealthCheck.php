@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -102,18 +102,18 @@ class PulseHealthCheck {
         if ($has_fatal_conflict) {
             $summary = sprintf(
                 /* translators: %s: Comma-separated list of failed endpoints and error status */
-                __('Critical Conflict: %s', 'wcp-security-scanner'),
+                __('Critical Conflict: %s', 'webcare-pro-security'),
                 implode(', ', $failure_details)
             );
         } elseif ($all_passed) {
             $summary = sprintf(
                 /* translators: 1: optional cart/checkout notice, 2: response time in seconds */
-                __('Live Health Check Passed: Homepage, Login%1$s are loading normally (%2$ss).', 'wcp-security-scanner'),
-                class_exists('WooCommerce') ? __(', Cart & Checkout', 'wcp-security-scanner') : '',
+                __('Live Health Check Passed: Homepage, Login%1$s are loading normally (%2$ss).', 'webcare-pro-security'),
+                class_exists('WooCommerce') ? __(', Cart & Checkout', 'webcare-pro-security') : '',
                 $avg_time
             );
         } else {
-            $summary = __('Live Health Check completed with non-fatal advisory warnings.', 'wcp-security-scanner');
+            $summary = __('Live Health Check completed with non-fatal advisory warnings.', 'webcare-pro-security');
         }
 
         return [
@@ -133,11 +133,11 @@ class PulseHealthCheck {
     public static function get_critical_endpoints(): array {
         $endpoints = [
             'home' => [
-                'label' => __('Homepage', 'wcp-security-scanner'),
+                'label' => __('Homepage', 'webcare-pro-security'),
                 'url'   => home_url('/'),
             ],
             'login' => [
-                'label' => __('Login Portal', 'wcp-security-scanner'),
+                'label' => __('Login Portal', 'webcare-pro-security'),
                 'url'   => wp_login_url(),
             ],
         ];
@@ -146,7 +146,7 @@ class PulseHealthCheck {
             $cart_url = wc_get_cart_url();
             if (!empty($cart_url)) {
                 $endpoints['cart'] = [
-                    'label' => __('Shopping Cart', 'wcp-security-scanner'),
+                    'label' => __('Shopping Cart', 'webcare-pro-security'),
                     'url'   => $cart_url,
                 ];
             }
@@ -156,7 +156,7 @@ class PulseHealthCheck {
             $checkout_url = wc_get_checkout_url();
             if (!empty($checkout_url)) {
                 $endpoints['checkout'] = [
-                    'label' => __('Store Checkout', 'wcp-security-scanner'),
+                    'label' => __('Store Checkout', 'webcare-pro-security'),
                     'url'   => $checkout_url,
                 ];
             }

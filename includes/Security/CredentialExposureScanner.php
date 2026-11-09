@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Security;
+namespace WebCareProScanner\Security;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
  */
 class CredentialExposureScanner {
 
-    const CACHE_OPTION = 'wcpscan_credential_exposure_report';
+    const CACHE_OPTION = 'webcareproscan_credential_exposure_report';
     const MAX_FILE_SIZE = 2097152; // 2MB
 
     /**
@@ -178,7 +178,7 @@ class CredentialExposureScanner {
             $filter = new \RecursiveCallbackFilterIterator($dir_iter, function ($current) {
                 if ($current->isDir()) {
                     $name = $current->getFilename();
-                    if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'wcp-security-scanner'], true)) {
+                    if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', 'webcare-pro-security'], true)) {
                         return false;
                     }
                 }
@@ -197,7 +197,7 @@ class CredentialExposureScanner {
                         $path = $item->getPathname();
                         // Self-Exclusion
                         $norm = str_replace('\\', '/', $path);
-                        if (str_contains($norm, '/plugins/wcp-security-scanner/')) {
+                        if (str_contains($norm, '/plugins/webcare-pro-security/')) {
                             continue;
                         }
 

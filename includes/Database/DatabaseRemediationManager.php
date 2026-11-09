@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -12,7 +12,7 @@ class DatabaseRemediationManager {
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
+        $this->backup_dir = $base . '/webcare-pro-security/.backups/remediation';
         $this->ensure_backup_directory();
     }
 
@@ -184,13 +184,13 @@ class DatabaseRemediationManager {
 
         // 3. Mark scan issue as repaired if provided
         if ($issue_id) {
-            $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
 
         // Also resolve any open finding matching this exact table/row
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         $update_sql = "UPDATE `{$table_issues}` SET status = 'repaired' WHERE (file_path LIKE %s OR file_path LIKE %s) AND status = 'open'";
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query($wpdb->prepare(
@@ -254,7 +254,7 @@ class DatabaseRemediationManager {
 
         // 3. Mark scan issue as repaired
         if ($issue_id) {
-            $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => $issue_id]);
         }
@@ -313,11 +313,11 @@ class DatabaseRemediationManager {
             return ['success' => false, 'message' => "Failed to restore database row: {$wpdb->last_error}"];
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_restored', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('backup_db_restored', [
                 'severity' => 'critical',
                 /* translators: 1: row ID, 2: table name */
-                'message'  => sprintf(__('Database snapshot restored: Row #%1$d in table "%2$s" restored to pre-remediation state.', 'wcp-security-scanner'), $row_id, $table),
+                'message'  => sprintf(__('Database snapshot restored: Row #%1$d in table "%2$s" restored to pre-remediation state.', 'webcare-pro-security'), $row_id, $table),
                 'details'  => [
                     'Table Name' => $table,
                     'Row ID'     => $row_id,

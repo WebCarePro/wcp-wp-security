@@ -1,11 +1,11 @@
 <?php
-namespace WcpScanner\Advisor;
+namespace WebCareProScanner\Advisor;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\System\SettingsManager;
 
 /**
  * PolicyRegistry
@@ -14,7 +14,7 @@ use WcpScanner\System\SettingsManager;
  * Explicitly segregates True Protections from Compatibility Exemptions,
  * defines trigger capabilities, target safe values, and decay rules.
  *
- * @package WcpScanner\Advisor
+ * @package WebCareProScanner\Advisor
  * @author Mir Alamin (WebCare Pro)
  */
 class PolicyRegistry {
@@ -44,9 +44,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => true,
-                'title'               => __('Carding Attack & Checkout Velocity Shield', 'wcp-security-scanner'),
-                'description'         => __('Locks out rogue IPs repeatedly failing checkout payments (default: 3 failures / 5 min).', 'wcp-security-scanner'),
-                'security_benefit'    => __('Prevents automated card testing bots from running stolen credit cards and incurring payment gateway fines.', 'wcp-security-scanner'),
+                'title'               => __('Carding Attack & Checkout Velocity Shield', 'webcare-pro-security'),
+                'description'         => __('Locks out rogue IPs repeatedly failing checkout payments (default: 3 failures / 5 min).', 'webcare-pro-security'),
+                'security_benefit'    => __('Prevents automated card testing bots from running stolen credit cards and incurring payment gateway fines.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_woo_coupon_protection' => [
@@ -56,9 +56,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => true,
-                'title'               => __('Coupon Enumeration & Brute-Force Shield', 'wcp-security-scanner'),
-                'description'         => __('Throttles dictionary attacks and scraper extensions guessing promotional coupon codes.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Stops coupon harvesting bots and brute-force dictionary attempts from discovering internal discount codes.', 'wcp-security-scanner'),
+                'title'               => __('Coupon Enumeration & Brute-Force Shield', 'webcare-pro-security'),
+                'description'         => __('Throttles dictionary attacks and scraper extensions guessing promotional coupon codes.', 'webcare-pro-security'),
+                'security_benefit'    => __('Stops coupon harvesting bots and brute-force dictionary attempts from discovering internal discount codes.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_woo_registration_protection' => [
@@ -68,9 +68,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Fake Customer Registration & Bot Shield', 'wcp-security-scanner'),
-                'description'         => __('Blocks disposable throwaway emails and caps registration rate per IP (default: 3 accounts / hour).', 'wcp-security-scanner'),
-                'security_benefit'    => __('Protects WordPress user database and email delivery reputation from automated spam user creation.', 'wcp-security-scanner'),
+                'title'               => __('Fake Customer Registration & Bot Shield', 'webcare-pro-security'),
+                'description'         => __('Blocks disposable throwaway emails and caps registration rate per IP (default: 3 accounts / hour).', 'webcare-pro-security'),
+                'security_benefit'    => __('Protects WordPress user database and email delivery reputation from automated spam user creation.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_woo_cart_flood_protection' => [
@@ -80,9 +80,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => true,
-                'title'               => __('Cart Flooding & Denial of Inventory Defense', 'wcp-security-scanner'),
-                'description'         => __('Caps cumulative items per cart (50 items) and throttles rapid add-to-cart bursts (15 ops/min).', 'wcp-security-scanner'),
-                'security_benefit'    => __('Thwarts competitor scalpers and bots from reserving all store stock and causing inventory exhaustion.', 'wcp-security-scanner'),
+                'title'               => __('Cart Flooding & Denial of Inventory Defense', 'webcare-pro-security'),
+                'description'         => __('Caps cumulative items per cart (50 items) and throttles rapid add-to-cart bursts (15 ops/min).', 'webcare-pro-security'),
+                'security_benefit'    => __('Thwarts competitor scalpers and bots from reserving all store stock and causing inventory exhaustion.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'medium',
             ],
             'waf_woo_scraping_protection' => [
@@ -92,9 +92,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => true,
-                'title'               => __('Catalog & Price Scraping Mitigation', 'wcp-security-scanner'),
-                'description'         => __('Limits high-frequency catalog harvesting (60 req/min) while exempting verified search crawlers.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Shields store catalog, pricing matrices, and database query workers from competitor scraping crawlers.', 'wcp-security-scanner'),
+                'title'               => __('Catalog & Price Scraping Mitigation', 'webcare-pro-security'),
+                'description'         => __('Limits high-frequency catalog harvesting (60 req/min) while exempting verified search crawlers.', 'webcare-pro-security'),
+                'security_benefit'    => __('Shields store catalog, pricing matrices, and database query workers from competitor scraping crawlers.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
 
@@ -108,9 +108,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_EXEMPTION_REVIEW,
                 'stale_when_absent'   => true, // Recommend disabling if WooCommerce is removed!
                 'requires_ip_trust'   => false,
-                'title'               => __('E-Commerce & Membership Compatibility Safe Mode', 'wcp-security-scanner'),
-                'description'         => __('Exempts recognized WooCommerce AJAX and Store API actions from generic rate-limits and payload blocks.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Compatibility Exemption: Relaxes generic WAF false-positive triggers on legitimate cart and checkout operations.', 'wcp-security-scanner'),
+                'title'               => __('E-Commerce & Membership Compatibility Safe Mode', 'webcare-pro-security'),
+                'description'         => __('Exempts recognized WooCommerce AJAX and Store API actions from generic rate-limits and payload blocks.', 'webcare-pro-security'),
+                'security_benefit'    => __('Compatibility Exemption: Relaxes generic WAF false-positive triggers on legitimate cart and checkout operations.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'none',
             ],
             'waf_forms_safe_mode' => [
@@ -120,9 +120,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_EXEMPTION_REVIEW,
                 'stale_when_absent'   => true, // Recommend disabling if forms are removed!
                 'requires_ip_trust'   => false,
-                'title'               => __('Contact Forms Compatibility Safe Mode', 'wcp-security-scanner'),
-                'description'         => __('Exempts standard contact form submissions from aggressive generic packet inspection.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Compatibility Exemption: Ensures legitimate visitor contact messages and quote requests reach the inbox.', 'wcp-security-scanner'),
+                'title'               => __('Contact Forms Compatibility Safe Mode', 'webcare-pro-security'),
+                'description'         => __('Exempts standard contact form submissions from aggressive generic packet inspection.', 'webcare-pro-security'),
+                'security_benefit'    => __('Compatibility Exemption: Ensures legitimate visitor contact messages and quote requests reach the inbox.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'none',
             ],
             'waf_allow_page_builders' => [
@@ -132,9 +132,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_EXEMPTION_REVIEW,
                 'stale_when_absent'   => true, // Stale if Elementor/Divi deleted!
                 'requires_ip_trust'   => false,
-                'title'               => __('Visual Page Builders Compatibility Safe Mode', 'wcp-security-scanner'),
-                'description'         => __('Exempts authenticated editor preview frames and builder REST mutations (Elementor, Divi, Bricks).', 'wcp-security-scanner'),
-                'security_benefit'    => __('Compatibility Exemption: Prevents visual page editors from experiencing 403 Forbidden errors while designing.', 'wcp-security-scanner'),
+                'title'               => __('Visual Page Builders Compatibility Safe Mode', 'webcare-pro-security'),
+                'description'         => __('Exempts authenticated editor preview frames and builder REST mutations (Elementor, Divi, Bricks).', 'webcare-pro-security'),
+                'security_benefit'    => __('Compatibility Exemption: Prevents visual page editors from experiencing 403 Forbidden errors while designing.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'none',
             ],
 
@@ -148,9 +148,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Uploads Direct PHP Execution Lockdown', 'wcp-security-scanner'),
-                'description'         => __('Stops web shells and rogue backdoor scripts from executing inside wp-content/uploads/.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Neutralizes 90%+ of automated WordPress compromise payloads by rendering uploaded PHP files inert.', 'wcp-security-scanner'),
+                'title'               => __('Uploads Direct PHP Execution Lockdown', 'webcare-pro-security'),
+                'description'         => __('Stops web shells and rogue backdoor scripts from executing inside wp-content/uploads/.', 'webcare-pro-security'),
+                'security_benefit'    => __('Neutralizes 90%+ of automated WordPress compromise payloads by rendering uploaded PHP files inert.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_block_sensitive_file_probes' => [
@@ -160,9 +160,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Sensitive File & Backup Probing Blocker', 'wcp-security-scanner'),
-                'description'         => __('Blocks automated bots scanning for .env, .git, wp-config.php.bak, and database SQL dumps.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Prevents credential leaks and database exposure from opportunistic vulnerability crawlers.', 'wcp-security-scanner'),
+                'title'               => __('Sensitive File & Backup Probing Blocker', 'webcare-pro-security'),
+                'description'         => __('Blocks automated bots scanning for .env, .git, wp-config.php.bak, and database SQL dumps.', 'webcare-pro-security'),
+                'security_benefit'    => __('Prevents credential leaks and database exposure from opportunistic vulnerability crawlers.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_block_fake_bots' => [
@@ -172,9 +172,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Fake Search Engine Bots Defense', 'wcp-security-scanner'),
-                'description'         => __('Verifies authentic Googlebot/Bingbot via reverse-DNS caching and drops malicious impersonators.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Eliminates stealth scraping spiders and vulnerability scanners masquerading as legitimate search indexers.', 'wcp-security-scanner'),
+                'title'               => __('Fake Search Engine Bots Defense', 'webcare-pro-security'),
+                'description'         => __('Verifies authentic Googlebot/Bingbot via reverse-DNS caching and drops malicious impersonators.', 'webcare-pro-security'),
+                'security_benefit'    => __('Eliminates stealth scraping spiders and vulnerability scanners masquerading as legitimate search indexers.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_login_rate_limit' => [
@@ -184,9 +184,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => true,
-                'title'               => __('Login Brute-Force Rate Limiting', 'wcp-security-scanner'),
-                'description'         => __('Throttles rapid password guessing attempts on wp-login.php and XML-RPC.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Protects administrator and customer credentials from credential-stuffing dictionary attacks.', 'wcp-security-scanner'),
+                'title'               => __('Login Brute-Force Rate Limiting', 'webcare-pro-security'),
+                'description'         => __('Throttles rapid password guessing attempts on wp-login.php and XML-RPC.', 'webcare-pro-security'),
+                'security_benefit'    => __('Protects administrator and customer credentials from credential-stuffing dictionary attacks.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_runtime_rasp_privilege_guard' => [
@@ -196,9 +196,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Runtime Privilege Escalation Guard (In-Memory RASP)', 'wcp-security-scanner'),
-                'description'         => __('In-Memory RASP hook firewall aborting unauthenticated attempts to assign administrator roles or mutate core options.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Stops zero-day form, booking, and membership plugin privilege escalations before database commits.', 'wcp-security-scanner'),
+                'title'               => __('Runtime Privilege Escalation Guard (In-Memory RASP)', 'webcare-pro-security'),
+                'description'         => __('In-Memory RASP hook firewall aborting unauthenticated attempts to assign administrator roles or mutate core options.', 'webcare-pro-security'),
+                'security_benefit'    => __('Stops zero-day form, booking, and membership plugin privilege escalations before database commits.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
             'waf_upload_deep_mime_sanitizer' => [
@@ -208,9 +208,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_ENFORCE,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Deep MIME & Zip-Slip Polyglot Upload Armor', 'wcp-security-scanner'),
-                'description'         => __('Enforces path-traversal sanitization (Zip-Slip), binary magic bytes inspection, and polyglot detection on file uploads.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Renders polyglot web shells, Phar deserialization triggers, and traversal filenames inert.', 'wcp-security-scanner'),
+                'title'               => __('Deep MIME & Zip-Slip Polyglot Upload Armor', 'webcare-pro-security'),
+                'description'         => __('Enforces path-traversal sanitization (Zip-Slip), binary magic bytes inspection, and polyglot detection on file uploads.', 'webcare-pro-security'),
+                'security_benefit'    => __('Renders polyglot web shells, Phar deserialization triggers, and traversal filenames inert.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'low',
             ],
 
@@ -224,9 +224,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_MONITOR,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Guest AJAX Action Policy', 'wcp-security-scanner'),
-                'description'         => __('Inspects unauthenticated admin-ajax.php requests against known theme/plugin allowlists.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Monitors unauthenticated AJAX probe activity before strict blocking to prevent breaking custom widgets.', 'wcp-security-scanner'),
+                'title'               => __('Guest AJAX Action Policy', 'webcare-pro-security'),
+                'description'         => __('Inspects unauthenticated admin-ajax.php requests against known theme/plugin allowlists.', 'webcare-pro-security'),
+                'security_benefit'    => __('Monitors unauthenticated AJAX probe activity before strict blocking to prevent breaking custom widgets.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'medium',
             ],
             'waf_guest_rest_policy' => [
@@ -236,9 +236,9 @@ class PolicyRegistry {
                 'action_mode'         => self::ACTION_MONITOR,
                 'stale_when_absent'   => false,
                 'requires_ip_trust'   => false,
-                'title'               => __('Guest REST API Mutation Policy', 'wcp-security-scanner'),
-                'description'         => __('Monitors unauthenticated POST, PUT, and DELETE mutations across WordPress REST API routes.', 'wcp-security-scanner'),
-                'security_benefit'    => __('Detects unauthorized data modification attempts on public REST routes without breaking legitimate webhooks.', 'wcp-security-scanner'),
+                'title'               => __('Guest REST API Mutation Policy', 'webcare-pro-security'),
+                'description'         => __('Monitors unauthenticated POST, PUT, and DELETE mutations across WordPress REST API routes.', 'webcare-pro-security'),
+                'security_benefit'    => __('Detects unauthorized data modification attempts on public REST routes without breaking legitimate webhooks.', 'webcare-pro-security'),
                 'compatibility_risk'  => 'medium',
             ],
         ];

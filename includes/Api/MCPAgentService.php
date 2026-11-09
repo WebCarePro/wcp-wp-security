@@ -1,17 +1,17 @@
 <?php
-namespace WcpScanner\Api;
+namespace WebCareProScanner\Api;
 
-use WcpScanner\Findings\WhitelistManager;
-use WcpScanner\Integrity\BehavioralBaselineEngine;
-use WcpScanner\Remediation\TransactionalRemediation;
-use WcpScanner\Quarantine\QuarantineManager;
-use WcpScanner\Firewall\VirtualPatchManager;
-use WcpScanner\Firewall\ThreatIntelNetwork;
-use WcpScanner\Firewall\VirtualPatchSynthesizer;
-use WcpScanner\System\SettingsManager;
-use WcpScanner\Findings\RiskScorer;
-use WcpScanner\Security\AttackSimulationEngine;
-use WcpScanner\Security\EmergencyContainmentManager;
+use WebCareProScanner\Findings\WhitelistManager;
+use WebCareProScanner\Integrity\BehavioralBaselineEngine;
+use WebCareProScanner\Remediation\TransactionalRemediation;
+use WebCareProScanner\Quarantine\QuarantineManager;
+use WebCareProScanner\Firewall\VirtualPatchManager;
+use WebCareProScanner\Firewall\ThreatIntelNetwork;
+use WebCareProScanner\Firewall\VirtualPatchSynthesizer;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\Findings\RiskScorer;
+use WebCareProScanner\Security\AttackSimulationEngine;
+use WebCareProScanner\Security\EmergencyContainmentManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -30,41 +30,41 @@ if (!defined('ABSPATH')) {
 class MCPAgentService {
 
     const READ_TOOLS = [
-        'wcpscan_get_security_posture',
-        'wcpscan_list_findings',
-        'wcpscan_audit_behavioral_baseline',
-        'wcpscan_get_containment_status',
-        'wcpscan_list_staged_actions',
-        'wcpscan_get_supply_chain_sbom',
-        'wcpscan_get_gatekeeper_history',
-        'wcpscan_get_behavioral_waf_status',
-        'wcpscan_get_identity_forensics',
-        'wcpscan_get_threat_intel_network',
-        'wcpscan_test_virtual_patch',
+        'webcareproscan_get_security_posture',
+        'webcareproscan_list_findings',
+        'webcareproscan_audit_behavioral_baseline',
+        'webcareproscan_get_containment_status',
+        'webcareproscan_list_staged_actions',
+        'webcareproscan_get_supply_chain_sbom',
+        'webcareproscan_get_gatekeeper_history',
+        'webcareproscan_get_behavioral_waf_status',
+        'webcareproscan_get_identity_forensics',
+        'webcareproscan_get_threat_intel_network',
+        'webcareproscan_test_virtual_patch',
     ];
 
     const MUTATING_TOOLS = [
-        'wcpscan_whitelist_finding',
-        'wcpscan_rollback_remediation',
-        'wcpscan_deploy_virtual_patch',
-        'wcpscan_quarantine_file',
-        'wcpscan_run_security_drill',
-        'wcpscan_set_containment_mode',
-        'wcpscan_approve_staged_action',
-        'wcpscan_recalibrate_sbom_baseline',
-        'wcpscan_quarantine_supply_chain_anchor',
-        'wcpscan_set_route_learning_status',
-        'wcpscan_revoke_user_session',
-        'wcpscan_grant_ephemeral_elevation',
-        'wcpscan_revoke_ephemeral_elevation',
-        'wcpscan_sync_threat_intel',
-        'wcpscan_synthesize_virtual_patch',
-        'wcpscan_deploy_synthesized_patch',
+        'webcareproscan_whitelist_finding',
+        'webcareproscan_rollback_remediation',
+        'webcareproscan_deploy_virtual_patch',
+        'webcareproscan_quarantine_file',
+        'webcareproscan_run_security_drill',
+        'webcareproscan_set_containment_mode',
+        'webcareproscan_approve_staged_action',
+        'webcareproscan_recalibrate_sbom_baseline',
+        'webcareproscan_quarantine_supply_chain_anchor',
+        'webcareproscan_set_route_learning_status',
+        'webcareproscan_revoke_user_session',
+        'webcareproscan_grant_ephemeral_elevation',
+        'webcareproscan_revoke_ephemeral_elevation',
+        'webcareproscan_sync_threat_intel',
+        'webcareproscan_synthesize_virtual_patch',
+        'webcareproscan_deploy_synthesized_patch',
     ];
 
-    const AUDIT_OPTION_KEY  = 'wcpscan_mcp_audit_log';
+    const AUDIT_OPTION_KEY  = 'webcareproscan_mcp_audit_log';
     const MAX_AUDIT_LOGS    = 150;
-    const STAGED_OPTION_KEY = 'wcpscan_mcp_staged_actions';
+    const STAGED_OPTION_KEY = 'webcareproscan_mcp_staged_actions';
     const MAX_STAGED_ACTIONS = 100;
 
     /**
@@ -88,7 +88,7 @@ class MCPAgentService {
         if (in_array($tool, self::READ_TOOLS, true)) {
             return 'allowed';
         }
-        if ($tool === 'wcpscan_run_security_drill') {
+        if ($tool === 'webcareproscan_run_security_drill') {
             return 'allowed';
         }
 
@@ -106,22 +106,22 @@ class MCPAgentService {
 
         $tools = [
             [
-                'name'        => 'wcpscan_get_security_posture',
+                'name'        => 'webcareproscan_get_security_posture',
                 'description' => 'Retrieve comprehensive WordPress security posture, risk score, vulnerability metrics, firewall status, and baseline health.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_security_posture'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_security_posture'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_list_findings',
+                'name'        => 'webcareproscan_list_findings',
                 'description' => 'Query current vulnerability and malware findings with filtering by severity, status, or engine.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_list_findings'),
+                'policy'      => self::get_tool_policy('webcareproscan_list_findings'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -143,33 +143,33 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_audit_behavioral_baseline',
+                'name'        => 'webcareproscan_audit_behavioral_baseline',
                 'description' => 'Execute an instant behavioral baseline audit to detect hook injections, rogue cron tasks, or backdoor drop-ins.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_audit_behavioral_baseline'),
+                'policy'      => self::get_tool_policy('webcareproscan_audit_behavioral_baseline'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_get_containment_status',
+                'name'        => 'webcareproscan_get_containment_status',
                 'description' => 'Retrieve active status of Emergency Containment Mode, blast-radius freeze policies, and session termination telemetry.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_containment_status'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_containment_status'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_list_staged_actions',
+                'name'        => 'webcareproscan_list_staged_actions',
                 'description' => 'List pending AI agent mutation actions awaiting human administrator approval in the Staged Action Queue.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_list_staged_actions'),
+                'policy'      => self::get_tool_policy('webcareproscan_list_staged_actions'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -182,11 +182,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_whitelist_finding',
+                'name'        => 'webcareproscan_whitelist_finding',
                 'description' => 'Suppress false-positive finding by exact SHA-256 hash-lock, file path, or issue signature with audit reason.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_whitelist_finding'),
+                'policy'      => self::get_tool_policy('webcareproscan_whitelist_finding'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -217,11 +217,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_rollback_remediation',
+                'name'        => 'webcareproscan_rollback_remediation',
                 'description' => 'Perform 1-click safe rollback of a previous remediation transaction, restoring original byte-for-byte files and DB states.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_rollback_remediation'),
+                'policy'      => self::get_tool_policy('webcareproscan_rollback_remediation'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -234,11 +234,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_deploy_virtual_patch',
+                'name'        => 'webcareproscan_deploy_virtual_patch',
                 'description' => 'Apply or remove an edge/runtime virtual patch rule for a known CVE without waiting for upstream plugin updates.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_deploy_virtual_patch'),
+                'policy'      => self::get_tool_policy('webcareproscan_deploy_virtual_patch'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -256,11 +256,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_quarantine_file',
+                'name'        => 'webcareproscan_quarantine_file',
                 'description' => 'Safely isolate a malicious file into the encrypted quarantine vault with automatic pre-remediation transactional backup.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_quarantine_file'),
+                'policy'      => self::get_tool_policy('webcareproscan_quarantine_file'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -277,11 +277,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_run_security_drill',
+                'name'        => 'webcareproscan_run_security_drill',
                 'description' => 'Execute a safe, self-contained Red Team penetration drill simulating SQLi, LFI, XSS, Recon, and AI Prompt-Injection to measure real-time WAF defensibility score (0-100%).',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_run_security_drill'),
+                'policy'      => self::get_tool_policy('webcareproscan_run_security_drill'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -294,11 +294,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_set_containment_mode',
+                'name'        => 'webcareproscan_set_containment_mode',
                 'description' => 'Activate or deactivate Emergency Containment Mode to freeze the blast radius during an active security incident.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_set_containment_mode'),
+                'policy'      => self::get_tool_policy('webcareproscan_set_containment_mode'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -320,11 +320,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_approve_staged_action',
+                'name'        => 'webcareproscan_approve_staged_action',
                 'description' => 'Approve and execute a staged mutation action that was held in the human confirmation gate.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_approve_staged_action'),
+                'policy'      => self::get_tool_policy('webcareproscan_approve_staged_action'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -337,44 +337,44 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_get_supply_chain_sbom',
+                'name'        => 'webcareproscan_get_supply_chain_sbom',
                 'description' => 'Retrieve Software Bill of Materials (SBOM) tracking standard/custom drop-ins, mu-plugins, autoloaders, and PHP INI directives with drift detection.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_supply_chain_sbom'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_supply_chain_sbom'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_get_gatekeeper_history',
+                'name'        => 'webcareproscan_get_gatekeeper_history',
                 'description' => 'Retrieve history of plugin update differential integrity audits, blocked updates, and available pre-update rollback snapshots.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_gatekeeper_history'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_gatekeeper_history'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_recalibrate_sbom_baseline',
+                'name'        => 'webcareproscan_recalibrate_sbom_baseline',
                 'description' => 'Calibrate a new clean cryptographic SHA-256 baseline of all active drop-ins and runtime anchors.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_recalibrate_sbom_baseline'),
+                'policy'      => self::get_tool_policy('webcareproscan_recalibrate_sbom_baseline'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_quarantine_supply_chain_anchor',
+                'name'        => 'webcareproscan_quarantine_supply_chain_anchor',
                 'description' => 'Quarantine an unauthorized, rogue, or modified drop-in or must-use plugin to the WCP Vault.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_quarantine_supply_chain_anchor'),
+                'policy'      => self::get_tool_policy('webcareproscan_quarantine_supply_chain_anchor'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -387,22 +387,22 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_get_behavioral_waf_status',
+                'name'        => 'webcareproscan_get_behavioral_waf_status',
                 'description' => 'Retrieve Behavioral WAF telemetry: Learning Mode 2.0 route profiles, confidence scores, Honey-Token bot traps, and Adaptive Rate Limiter stats.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_behavioral_waf_status'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_behavioral_waf_status'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_set_route_learning_status',
+                'name'        => 'webcareproscan_set_route_learning_status',
                 'description' => 'Manually change the behavioral learning status of a specific route ("graduate", "enforce", "learn", or "reset").',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_set_route_learning_status'),
+                'policy'      => self::get_tool_policy('webcareproscan_set_route_learning_status'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -420,22 +420,22 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_get_identity_forensics',
+                'name'        => 'webcareproscan_get_identity_forensics',
                 'description' => 'Retrieve Zero-Trust Identity forensics: active privileged sessions with 0-100% risk scores, Impossible Travel alerts, JIT Ephemeral Admin elevations, and HIBP breach status.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_identity_forensics'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_identity_forensics'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_revoke_user_session',
+                'name'        => 'webcareproscan_revoke_user_session',
                 'description' => 'Revoke a specific authenticated session token or all sessions for a compromised user account.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_revoke_user_session'),
+                'policy'      => self::get_tool_policy('webcareproscan_revoke_user_session'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -452,11 +452,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_grant_ephemeral_elevation',
+                'name'        => 'webcareproscan_grant_ephemeral_elevation',
                 'description' => 'Temporarily elevate a user (e.g. editor or contractor) to administrator for a defined time window with auto-expiry via WP-Cron.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_grant_ephemeral_elevation'),
+                'policy'      => self::get_tool_policy('webcareproscan_grant_ephemeral_elevation'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -478,11 +478,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_revoke_ephemeral_elevation',
+                'name'        => 'webcareproscan_revoke_ephemeral_elevation',
                 'description' => 'Immediately revoke temporary JIT administrator elevation and revert user to their baseline role.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_revoke_ephemeral_elevation'),
+                'policy'      => self::get_tool_policy('webcareproscan_revoke_ephemeral_elevation'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -499,33 +499,33 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_get_threat_intel_network',
+                'name'        => 'webcareproscan_get_threat_intel_network',
                 'description' => 'Retrieve live multi-feed threat intelligence telemetry, active botnet blacklist counts, Tor exit relays, attack consensus hash ring, and top attacking subnets.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_get_threat_intel_network'),
+                'policy'      => self::get_tool_policy('webcareproscan_get_threat_intel_network'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_sync_threat_intel',
+                'name'        => 'webcareproscan_sync_threat_intel',
                 'description' => 'Trigger real-time synchronization and aggregation of all 4 external threat intelligence community feeds (Ipsum L1/L2, Blocklist.de, Tor Exits).',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_sync_threat_intel'),
+                'policy'      => self::get_tool_policy('webcareproscan_sync_threat_intel'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => new \stdClass(),
                 ],
             ],
             [
-                'name'        => 'wcpscan_synthesize_virtual_patch',
+                'name'        => 'webcareproscan_synthesize_virtual_patch',
                 'description' => 'Synthesize a custom two-tier virtual hotpatch rule (PHP WAF regex + Cloudflare Free Edge expression) with immediate in-memory synthetic payload dry-run benchmark.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_synthesize_virtual_patch'),
+                'policy'      => self::get_tool_policy('webcareproscan_synthesize_virtual_patch'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -564,11 +564,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_test_virtual_patch',
+                'name'        => 'webcareproscan_test_virtual_patch',
                 'description' => 'Execute an in-memory synthetic simulation against candidate virtual patch rules, testing 3 calibrated exploits and 3 benign queries to benchmark match rate and latency.',
                 'category'    => 'read',
                 'isMutating'  => false,
-                'policy'      => self::get_tool_policy('wcpscan_test_virtual_patch'),
+                'policy'      => self::get_tool_policy('webcareproscan_test_virtual_patch'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -581,11 +581,11 @@ class MCPAgentService {
                 ],
             ],
             [
-                'name'        => 'wcpscan_deploy_synthesized_patch',
+                'name'        => 'webcareproscan_deploy_synthesized_patch',
                 'description' => 'Deploy, activate, toggle, or delete a synthesized virtual hotpatch with optional Cloudflare Global Edge synchronization.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
-                'policy'      => self::get_tool_policy('wcpscan_deploy_synthesized_patch'),
+                'policy'      => self::get_tool_policy('webcareproscan_deploy_synthesized_patch'),
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -632,7 +632,7 @@ class MCPAgentService {
      * @return bool True if permitted, false if rate limit exceeded.
      */
     public static function check_rate_limit(string $identifier, int $limit_per_min = 60): bool {
-        $transient_key = 'wcpscan_mcp_rl_' . substr(md5($identifier), 0, 16);
+        $transient_key = 'webcareproscan_mcp_rl_' . substr(md5($identifier), 0, 16);
         $current = (int) get_transient($transient_key);
         if ($current >= $limit_per_min) {
             return false;
@@ -754,7 +754,7 @@ class MCPAgentService {
                     [
                         'type' => 'text',
                         /* translators: %d: request rate limit count */
-                        'text' => sprintf(__('Rate limit exceeded: Maximum %d requests per minute allowed for MCP Agent tools.', 'wcp-security-scanner'), $rate_limit),
+                        'text' => sprintf(__('Rate limit exceeded: Maximum %d requests per minute allowed for MCP Agent tools.', 'webcare-pro-security'), $rate_limit),
                     ],
                 ],
             ];
@@ -783,7 +783,7 @@ class MCPAgentService {
                     [
                         'type' => 'text',
                         /* translators: %s: MCP tool name */
-                        'text' => sprintf(__('Permission Denied: Tool "%s" is blocked by administrator governance policy.', 'wcp-security-scanner'), sanitize_text_field($tool)),
+                        'text' => sprintf(__('Permission Denied: Tool "%s" is blocked by administrator governance policy.', 'webcare-pro-security'), sanitize_text_field($tool)),
                     ],
                 ],
             ];
@@ -797,111 +797,111 @@ class MCPAgentService {
         // 4. Tool Execution
         $response = null;
         switch ($tool) {
-            case 'wcpscan_get_security_posture':
+            case 'webcareproscan_get_security_posture':
                 $response = self::tool_get_posture();
                 break;
 
-            case 'wcpscan_list_findings':
+            case 'webcareproscan_list_findings':
                 $response = self::tool_list_findings($args);
                 break;
 
-            case 'wcpscan_audit_behavioral_baseline':
+            case 'webcareproscan_audit_behavioral_baseline':
                 $response = self::tool_audit_baseline();
                 break;
 
-            case 'wcpscan_get_containment_status':
+            case 'webcareproscan_get_containment_status':
                 $response = self::tool_get_containment_status();
                 break;
 
-            case 'wcpscan_list_staged_actions':
+            case 'webcareproscan_list_staged_actions':
                 $response = self::tool_list_staged_actions($args);
                 break;
 
-            case 'wcpscan_whitelist_finding':
+            case 'webcareproscan_whitelist_finding':
                 $response = self::tool_whitelist_finding($args);
                 break;
 
-            case 'wcpscan_rollback_remediation':
+            case 'webcareproscan_rollback_remediation':
                 $response = self::tool_rollback_remediation($args);
                 break;
 
-            case 'wcpscan_deploy_virtual_patch':
+            case 'webcareproscan_deploy_virtual_patch':
                 $response = self::tool_deploy_virtual_patch($args);
                 break;
 
-            case 'wcpscan_quarantine_file':
+            case 'webcareproscan_quarantine_file':
                 $response = self::tool_quarantine_file($args);
                 break;
 
-            case 'wcpscan_run_security_drill':
+            case 'webcareproscan_run_security_drill':
                 $response = self::tool_run_security_drill($args);
                 break;
 
-            case 'wcpscan_set_containment_mode':
+            case 'webcareproscan_set_containment_mode':
                 $response = self::tool_set_containment_mode($args);
                 break;
 
-            case 'wcpscan_approve_staged_action':
+            case 'webcareproscan_approve_staged_action':
                 $response = self::tool_approve_staged_action($args);
                 break;
 
-            case 'wcpscan_get_supply_chain_sbom':
+            case 'webcareproscan_get_supply_chain_sbom':
                 $response = self::tool_get_supply_chain_sbom();
                 break;
 
-            case 'wcpscan_get_gatekeeper_history':
+            case 'webcareproscan_get_gatekeeper_history':
                 $response = self::tool_get_gatekeeper_history();
                 break;
 
-            case 'wcpscan_recalibrate_sbom_baseline':
+            case 'webcareproscan_recalibrate_sbom_baseline':
                 $response = self::tool_recalibrate_sbom_baseline();
                 break;
 
-            case 'wcpscan_quarantine_supply_chain_anchor':
+            case 'webcareproscan_quarantine_supply_chain_anchor':
                 $response = self::tool_quarantine_supply_chain_anchor($args);
                 break;
 
-            case 'wcpscan_get_behavioral_waf_status':
+            case 'webcareproscan_get_behavioral_waf_status':
                 $response = self::tool_get_behavioral_waf_status();
                 break;
 
-            case 'wcpscan_set_route_learning_status':
+            case 'webcareproscan_set_route_learning_status':
                 $response = self::tool_set_route_learning_status($args);
                 break;
 
-            case 'wcpscan_get_identity_forensics':
+            case 'webcareproscan_get_identity_forensics':
                 $response = self::tool_get_identity_forensics();
                 break;
 
-            case 'wcpscan_revoke_user_session':
+            case 'webcareproscan_revoke_user_session':
                 $response = self::tool_revoke_user_session($args);
                 break;
 
-            case 'wcpscan_grant_ephemeral_elevation':
+            case 'webcareproscan_grant_ephemeral_elevation':
                 $response = self::tool_grant_ephemeral_elevation($args);
                 break;
 
-            case 'wcpscan_revoke_ephemeral_elevation':
+            case 'webcareproscan_revoke_ephemeral_elevation':
                 $response = self::tool_revoke_ephemeral_elevation($args);
                 break;
 
-            case 'wcpscan_get_threat_intel_network':
+            case 'webcareproscan_get_threat_intel_network':
                 $response = self::tool_get_threat_intel_network();
                 break;
 
-            case 'wcpscan_sync_threat_intel':
+            case 'webcareproscan_sync_threat_intel':
                 $response = self::tool_sync_threat_intel();
                 break;
 
-            case 'wcpscan_synthesize_virtual_patch':
+            case 'webcareproscan_synthesize_virtual_patch':
                 $response = self::tool_synthesize_virtual_patch($args);
                 break;
 
-            case 'wcpscan_test_virtual_patch':
+            case 'webcareproscan_test_virtual_patch':
                 $response = self::tool_test_virtual_patch($args);
                 break;
 
-            case 'wcpscan_deploy_synthesized_patch':
+            case 'webcareproscan_deploy_synthesized_patch':
                 $response = self::tool_deploy_synthesized_patch($args);
                 break;
 
@@ -912,7 +912,7 @@ class MCPAgentService {
                         [
                             'type' => 'text',
                             /* translators: %s: MCP tool name */
-                            'text' => sprintf(__('Unknown MCP tool "%s".', 'wcp-security-scanner'), sanitize_text_field($tool)),
+                            'text' => sprintf(__('Unknown MCP tool "%s".', 'webcare-pro-security'), sanitize_text_field($tool)),
                         ],
                     ],
                 ];
@@ -1003,7 +1003,7 @@ class MCPAgentService {
                     'type' => 'text',
                     'text' => sprintf(
                         /* translators: 1: tool name, 2: staged action ID */
-                        __('Action Staged in Confirmation Gate: Tool "%1$s" modifies site security state and requires human approval. Staged Action ID: %2$s. An administrator must approve this action in WCP Security Console before execution.', 'wcp-security-scanner'),
+                        __('Action Staged in Confirmation Gate: Tool "%1$s" modifies site security state and requires human approval. Staged Action ID: %2$s. An administrator must approve this action in WCP Security Console before execution.', 'webcare-pro-security'),
                         sanitize_text_field($tool),
                         $staged_id
                     ),
@@ -1057,7 +1057,7 @@ class MCPAgentService {
     public static function approve_staged_action(string $staged_id, int $approver_id = 0, string $token_override = ''): array {
         $list = get_option(self::STAGED_OPTION_KEY, []);
         if (!is_array($list)) {
-            return ['success' => false, 'message' => __('No staged actions found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('No staged actions found.', 'webcare-pro-security')];
         }
 
         $target_index = -1;
@@ -1072,12 +1072,12 @@ class MCPAgentService {
         }
 
         if ($target_index === -1 || !$target_action) {
-            return ['success' => false, 'message' => __('Staged action not found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Staged action not found.', 'webcare-pro-security')];
         }
 
         if ($target_action['status'] !== 'pending_approval') {
             /* translators: %s: status of the action */
-            return ['success' => false, 'message' => sprintf(__('Action is already %s.', 'wcp-security-scanner'), $target_action['status'])];
+            return ['success' => false, 'message' => sprintf(__('Action is already %s.', 'webcare-pro-security'), $target_action['status'])];
         }
 
         // Cryptographic confirmation verification:
@@ -1087,7 +1087,7 @@ class MCPAgentService {
         if (!$is_admin) {
             return [
                 'success' => false,
-                'message' => __('Execution Rejected: Mutating actions require administrative authorization from an active administrator session.', 'wcp-security-scanner'),
+                'message' => __('Execution Rejected: Mutating actions require administrative authorization from an active administrator session.', 'webcare-pro-security'),
             ];
         }
 
@@ -1115,7 +1115,7 @@ class MCPAgentService {
             'success'     => true,
             'staged_id'   => $staged_id,
             'exec_result' => $exec_result,
-            'message'     => __('Staged action approved and executed successfully.', 'wcp-security-scanner'),
+            'message'     => __('Staged action approved and executed successfully.', 'webcare-pro-security'),
         ];
     }
 
@@ -1129,7 +1129,7 @@ class MCPAgentService {
     public static function reject_staged_action(string $staged_id, int $rejector_id = 0): array {
         $list = get_option(self::STAGED_OPTION_KEY, []);
         if (!is_array($list)) {
-            return ['success' => false, 'message' => __('No staged actions found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('No staged actions found.', 'webcare-pro-security')];
         }
 
         $found = false;
@@ -1147,7 +1147,7 @@ class MCPAgentService {
         }
 
         if (!$found) {
-            return ['success' => false, 'message' => __('Staged action not found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Staged action not found.', 'webcare-pro-security')];
         }
 
         update_option(self::STAGED_OPTION_KEY, $list, false);
@@ -1155,7 +1155,7 @@ class MCPAgentService {
         return [
             'success'   => true,
             'staged_id' => $staged_id,
-            'message'   => __('Staged action rejected.', 'wcp-security-scanner'),
+            'message'   => __('Staged action rejected.', 'webcare-pro-security'),
         ];
     }
 
@@ -1199,7 +1199,7 @@ class MCPAgentService {
     private static function tool_list_findings(array $args): array {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table = $wpdb->prefix . 'webcareproscan_scan_issues';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
             return [
@@ -1451,7 +1451,7 @@ class MCPAgentService {
     }
 
     private static function tool_get_supply_chain_sbom(): array {
-        $report = \WcpScanner\SupplyChain\SbomSentinelEngine::check_drift();
+        $report = \WebCareProScanner\SupplyChain\SbomSentinelEngine::check_drift();
         return [
             'isError' => false,
             'content' => [
@@ -1466,9 +1466,9 @@ class MCPAgentService {
 
     private static function tool_get_gatekeeper_history(): array {
         $data = [
-            'logs'      => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_logs(30),
-            'snapshots' => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_snapshots(),
-            'settings'  => \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_settings(),
+            'logs'      => \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_logs(30),
+            'snapshots' => \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_snapshots(),
+            'settings'  => \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_settings(),
         ];
         return [
             'isError' => false,
@@ -1483,7 +1483,7 @@ class MCPAgentService {
     }
 
     private static function tool_recalibrate_sbom_baseline(): array {
-        $res = \WcpScanner\SupplyChain\SbomSentinelEngine::calibrate_baseline();
+        $res = \WebCareProScanner\SupplyChain\SbomSentinelEngine::calibrate_baseline();
         return [
             'isError' => empty($res['success']),
             'content' => [
@@ -1505,7 +1505,7 @@ class MCPAgentService {
             ];
         }
 
-        $res = \WcpScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
+        $res = \WebCareProScanner\SupplyChain\SbomSentinelEngine::isolate_anchor($item_id);
         return [
             'isError' => empty($res['success']),
             'content' => [
@@ -1520,10 +1520,10 @@ class MCPAgentService {
 
     private static function tool_get_behavioral_waf_status(): array {
         $data = [
-            'learning_stats' => class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_summary_stats() : [],
-            'route_profiles' => class_exists('\WcpScanner\Firewall\LearningModeEngine') ? \WcpScanner\Firewall\LearningModeEngine::get_route_profiles() : [],
-            'honeytoken'     => class_exists('\WcpScanner\Firewall\HoneyTokenEngine') ? \WcpScanner\Firewall\HoneyTokenEngine::get_summary() : [],
-            'rate_limiter'   => class_exists('\WcpScanner\Firewall\AdaptiveRateLimiter') ? \WcpScanner\Firewall\AdaptiveRateLimiter::get_telemetry() : [],
+            'learning_stats' => class_exists('\WebCareProScanner\Firewall\LearningModeEngine') ? \WebCareProScanner\Firewall\LearningModeEngine::get_summary_stats() : [],
+            'route_profiles' => class_exists('\WebCareProScanner\Firewall\LearningModeEngine') ? \WebCareProScanner\Firewall\LearningModeEngine::get_route_profiles() : [],
+            'honeytoken'     => class_exists('\WebCareProScanner\Firewall\HoneyTokenEngine') ? \WebCareProScanner\Firewall\HoneyTokenEngine::get_summary() : [],
+            'rate_limiter'   => class_exists('\WebCareProScanner\Firewall\AdaptiveRateLimiter') ? \WebCareProScanner\Firewall\AdaptiveRateLimiter::get_telemetry() : [],
         ];
 
         return [
@@ -1549,14 +1549,14 @@ class MCPAgentService {
             ];
         }
 
-        if (!class_exists('\WcpScanner\Firewall\LearningModeEngine')) {
+        if (!class_exists('\WebCareProScanner\Firewall\LearningModeEngine')) {
             return [
                 'isError' => true,
                 'content' => [['type' => 'text', 'text' => 'LearningModeEngine not available.']],
             ];
         }
 
-        $res = \WcpScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
+        $res = \WebCareProScanner\Firewall\LearningModeEngine::set_route_status($route_key, $action);
         return [
             'isError' => empty($res['success']),
             'content' => [
@@ -1571,10 +1571,10 @@ class MCPAgentService {
 
     private static function tool_get_identity_forensics(): array {
         $data = [
-            'sessions_report'   => class_exists('\WcpScanner\Identity\SessionForensicsEngine') ? \WcpScanner\Identity\SessionForensicsEngine::get_active_sessions_report() : [],
-            'active_elevations' => class_exists('\WcpScanner\Identity\EphemeralAdminEngine') ? \WcpScanner\Identity\EphemeralAdminEngine::get_active_elevations() : [],
-            'elevation_history' => class_exists('\WcpScanner\Identity\EphemeralAdminEngine') ? \WcpScanner\Identity\EphemeralAdminEngine::get_elevation_history(20) : [],
-            'hibp_summary'      => class_exists('\WcpScanner\Identity\HIBPBreachAuditor') ? \WcpScanner\Identity\HIBPBreachAuditor::get_summary() : [],
+            'sessions_report'   => class_exists('\WebCareProScanner\Identity\SessionForensicsEngine') ? \WebCareProScanner\Identity\SessionForensicsEngine::get_active_sessions_report() : [],
+            'active_elevations' => class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine') ? \WebCareProScanner\Identity\EphemeralAdminEngine::get_active_elevations() : [],
+            'elevation_history' => class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine') ? \WebCareProScanner\Identity\EphemeralAdminEngine::get_elevation_history(20) : [],
+            'hibp_summary'      => class_exists('\WebCareProScanner\Identity\HIBPBreachAuditor') ? \WebCareProScanner\Identity\HIBPBreachAuditor::get_summary() : [],
         ];
 
         return [
@@ -1600,7 +1600,7 @@ class MCPAgentService {
             ];
         }
 
-        if (!class_exists('\WcpScanner\Identity\SessionForensicsEngine')) {
+        if (!class_exists('\WebCareProScanner\Identity\SessionForensicsEngine')) {
             return [
                 'isError' => true,
                 'content' => [['type' => 'text', 'text' => 'SessionForensicsEngine not available.']],
@@ -1608,9 +1608,9 @@ class MCPAgentService {
         }
 
         if ($verifier === 'all') {
-            $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_all_sessions($user_id);
+            $res = \WebCareProScanner\Identity\SessionForensicsEngine::revoke_all_sessions($user_id);
         } else {
-            $res = \WcpScanner\Identity\SessionForensicsEngine::revoke_session($user_id, $verifier);
+            $res = \WebCareProScanner\Identity\SessionForensicsEngine::revoke_session($user_id, $verifier);
         }
 
         return [
@@ -1637,14 +1637,14 @@ class MCPAgentService {
             ];
         }
 
-        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
+        if (!class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')) {
             return [
                 'isError' => true,
                 'content' => [['type' => 'text', 'text' => 'EphemeralAdminEngine not available.']],
             ];
         }
 
-        $res = \WcpScanner\Identity\EphemeralAdminEngine::grant_elevation($user_id, $duration, $reason);
+        $res = \WebCareProScanner\Identity\EphemeralAdminEngine::grant_elevation($user_id, $duration, $reason);
         return [
             'isError' => empty($res['success']),
             'content' => [
@@ -1668,14 +1668,14 @@ class MCPAgentService {
             ];
         }
 
-        if (!class_exists('\WcpScanner\Identity\EphemeralAdminEngine')) {
+        if (!class_exists('\WebCareProScanner\Identity\EphemeralAdminEngine')) {
             return [
                 'isError' => true,
                 'content' => [['type' => 'text', 'text' => 'EphemeralAdminEngine not available.']],
             ];
         }
 
-        $res = \WcpScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
+        $res = \WebCareProScanner\Identity\EphemeralAdminEngine::revoke_elevation($user_id, $reason);
         return [
             'isError' => empty($res['success']),
             'content' => [

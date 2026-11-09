@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Remediation;
+namespace WebCareProScanner\Remediation;
 
-use WcpScanner\Filesystem\PathValidator;
+use WebCareProScanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,7 +23,7 @@ class TransactionalRemediation {
      */
     public static function get_transactions_dir(): string {
         $upload_dir = wp_upload_dir();
-        $base = wp_normalize_path($upload_dir['basedir'] . '/wcp-security-scanner/.remediation/transactions');
+        $base = wp_normalize_path($upload_dir['basedir'] . '/webcare-pro-security/.remediation/transactions');
 
         if (!is_dir($base)) {
             wp_mkdir_p($base);
@@ -233,7 +233,7 @@ class TransactionalRemediation {
     public static function commit_transaction(string $tx_id): array {
         $tx_id = self::sanitize_tx_id($tx_id);
         if (empty($tx_id)) {
-            return ['success' => false, 'message' => __('Invalid transaction ID.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Invalid transaction ID.', 'webcare-pro-security')];
         }
 
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
@@ -255,8 +255,8 @@ class TransactionalRemediation {
         file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
 
         // Post-Fix Store & Checkout Pulse Check
-        $pulse = class_exists('\\WcpScanner\\System\\PulseHealthCheck')
-            ? \WcpScanner\System\PulseHealthCheck::check_store_pulse()
+        $pulse = class_exists('\\WebCareProScanner\\System\\PulseHealthCheck')
+            ? \WebCareProScanner\System\PulseHealthCheck::check_store_pulse()
             : ['all_passed' => true, 'summary' => ''];
 
         // If any critical endpoint failed, automatically trigger safety rollback
@@ -268,7 +268,7 @@ class TransactionalRemediation {
                 'tx_id'          => $tx_id,
                 'items_count'    => $manifest['total_items'],
                 'pulse'          => $pulse,
-                'message'        => __('Safety Rollback Triggered: A 500 error or site conflict was detected immediately following remediation. Your files were automatically restored to their original state.', 'wcp-security-scanner'),
+                'message'        => __('Safety Rollback Triggered: A 500 error or site conflict was detected immediately following remediation. Your files were automatically restored to their original state.', 'webcare-pro-security'),
             ];
         }
 
@@ -278,7 +278,7 @@ class TransactionalRemediation {
             'items_count' => $manifest['total_items'],
             'pulse'       => $pulse,
             /* translators: 1: transaction ID, 2: number of items */
-            'message'     => sprintf(__('Remediation transaction %1$s committed with %2$d items snapshotted.', 'wcp-security-scanner'), $tx_id, $manifest['total_items']),
+            'message'     => sprintf(__('Remediation transaction %1$s committed with %2$d items snapshotted.', 'webcare-pro-security'), $tx_id, $manifest['total_items']),
         ];
     }
 
@@ -291,26 +291,26 @@ class TransactionalRemediation {
     public static function rollback_transaction(string $tx_id): array {
         $tx_id = self::sanitize_tx_id($tx_id);
         if (empty($tx_id)) {
-            return ['success' => false, 'message' => __('Invalid transaction ID.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Invalid transaction ID.', 'webcare-pro-security')];
         }
 
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
 
         if (!file_exists($manifest_file)) {
-            return ['success' => false, 'message' => __('Transaction manifest not found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Transaction manifest not found.', 'webcare-pro-security')];
         }
 
         $manifest = json_decode(file_get_contents($manifest_file), true);
         if (!is_array($manifest)) {
-            return ['success' => false, 'message' => __('Corrupt transaction manifest.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Corrupt transaction manifest.', 'webcare-pro-security')];
         }
 
-        $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $user_mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
         $missing_users = $user_mgr->get_missing_user_backups();
 
         if (($manifest['status'] ?? '') === 'rolled_back' && empty($missing_users)) {
-            return ['success' => false, 'message' => __('This transaction was already rolled back.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('This transaction was already rolled back.', 'webcare-pro-security')];
         }
 
         global $wpdb;
@@ -367,7 +367,7 @@ class TransactionalRemediation {
                     } else {
                         $errors[] = sprintf(
                             /* translators: %s: file name */
-                            __('Failed to copy restored file: %s', 'wcp-security-scanner'),
+                            __('Failed to copy restored file: %s', 'webcare-pro-security'),
                             basename($target_abs)
                         );
                     }
@@ -375,7 +375,7 @@ class TransactionalRemediation {
 
                 // Re-open scan issue
                 if (!empty($item['issue_id'])) {
-                    $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+                    $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
                 }
@@ -395,14 +395,14 @@ class TransactionalRemediation {
 
                 // Re-open scan issue
                 if (!empty($item['issue_id'])) {
-                    $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+                    $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->update($table_issues, ['status' => 'open'], ['id' => (int) $item['issue_id']]);
                 }
             } elseif ($type === 'user') {
                 $backup_file = $item['backup_filename'] ?? '';
                 if ($backup_file) {
-                    $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+                    $user_mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
                     $u_res = $user_mgr->restore_user($backup_file);
                     if ($u_res['success']) {
                         $restored_users++;
@@ -411,7 +411,7 @@ class TransactionalRemediation {
                         }
                     } else {
                         /* translators: 1: user ID, 2: error message */
-                        $errors[] = sprintf(__('Failed to restore user #%1$d: %2$s', 'wcp-security-scanner'), (int) ($item['user_id'] ?? 0), $u_res['error'] ?? '');
+                        $errors[] = sprintf(__('Failed to restore user #%1$d: %2$s', 'webcare-pro-security'), (int) ($item['user_id'] ?? 0), $u_res['error'] ?? '');
                     }
                 }
             }
@@ -422,7 +422,7 @@ class TransactionalRemediation {
         // recover any user backups created during this transaction's execution window.
         $tx_time = (int) ($manifest['timestamp'] ?? 0);
         if ($tx_time > 0) {
-            $user_mgr = new \WcpScanner\WordPress\UserRemediationManager();
+            $user_mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
             $available_user_backups = $user_mgr->list_user_backups();
             foreach ($available_user_backups as $ub) {
                 $uid = (int) $ub['user_id'];
@@ -451,19 +451,19 @@ class TransactionalRemediation {
 
         $msg_parts = [];
         /* translators: %d: number of files */
-        if ($restored_files > 0) $msg_parts[] = sprintf(__('%d file(s)', 'wcp-security-scanner'), $restored_files);
+        if ($restored_files > 0) $msg_parts[] = sprintf(__('%d file(s)', 'webcare-pro-security'), $restored_files);
         /* translators: %d: number of database records */
-        if ($restored_db > 0)    $msg_parts[] = sprintf(__('%d database record(s)', 'wcp-security-scanner'), $restored_db);
+        if ($restored_db > 0)    $msg_parts[] = sprintf(__('%d database record(s)', 'webcare-pro-security'), $restored_db);
         /* translators: %d: number of user accounts */
-        if ($restored_users > 0) $msg_parts[] = sprintf(__('%d user account(s)', 'wcp-security-scanner'), $restored_users);
+        if ($restored_users > 0) $msg_parts[] = sprintf(__('%d user account(s)', 'webcare-pro-security'), $restored_users);
 
-        $restored_summary = !empty($msg_parts) ? implode(', ', $msg_parts) : __('0 items', 'wcp-security-scanner');
+        $restored_summary = !empty($msg_parts) ? implode(', ', $msg_parts) : __('0 items', 'webcare-pro-security');
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('remediation_transaction_rollback', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('remediation_transaction_rollback', [
                 'severity' => 'warning',
                 /* translators: 1: transaction ID, 2: restored summary details */
-                'message'  => sprintf(__('Remediation transaction %1$s reverted: restored %2$s.', 'wcp-security-scanner'), $tx_id, $restored_summary),
+                'message'  => sprintf(__('Remediation transaction %1$s reverted: restored %2$s.', 'webcare-pro-security'), $tx_id, $restored_summary),
                 'details'  => [
                     'Transaction ID'  => $tx_id,
                     'Restored Files'  => $restored_files,
@@ -483,7 +483,7 @@ class TransactionalRemediation {
             'errors'         => $errors,
             'message'        => sprintf(
                 /* translators: 1: transaction ID, 2: restored summary details */
-                __('Transaction %1$s rolled back successfully: restored %2$s.', 'wcp-security-scanner'),
+                __('Transaction %1$s rolled back successfully: restored %2$s.', 'webcare-pro-security'),
                 $tx_id,
                 $restored_summary
             ),
@@ -564,8 +564,8 @@ class TransactionalRemediation {
 
         // 2. Attempt surgical restoration from vault baseline
         $restored = false;
-        if (class_exists('\\WcpScanner\\Integrity\\FimVaultManager')) {
-            $restored = \WcpScanner\Integrity\FimVaultManager::restore_from_baseline($absolute_path);
+        if (class_exists('\\WebCareProScanner\\Integrity\\FimVaultManager')) {
+            $restored = \WebCareProScanner\Integrity\FimVaultManager::restore_from_baseline($absolute_path);
         }
 
         if (!$restored) {
@@ -574,8 +574,8 @@ class TransactionalRemediation {
         }
 
         // 3. Verify site stability using CrashGuard circuit breaker if available
-        if (class_exists('\\WcpScanner\\System\\CrashGuard') && method_exists('\\WcpScanner\\System\\CrashGuard', 'verify_site_health_probe')) {
-            $healthy = \WcpScanner\System\CrashGuard::verify_site_health_probe();
+        if (class_exists('\\WebCareProScanner\\System\\CrashGuard') && method_exists('\\WebCareProScanner\\System\\CrashGuard', 'verify_site_health_probe')) {
+            $healthy = \WebCareProScanner\System\CrashGuard::verify_site_health_probe();
             if (!$healthy) {
                 // Rollback to corrupted state if restoration triggers a fatal error
                 @copy($corrupted_backup, $absolute_path);

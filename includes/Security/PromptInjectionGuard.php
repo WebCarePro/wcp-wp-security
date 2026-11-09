@@ -1,10 +1,10 @@
 <?php
-namespace WcpScanner\Security;
+namespace WebCareProScanner\Security;
 
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Firewall\WafFileLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
-use WcpScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Firewall\WafFileLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\WcpActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -30,8 +30,8 @@ if (!defined('ABSPATH')) {
  */
 class PromptInjectionGuard {
 
-    const OPTION_SETTINGS = 'wcpscan_prompt_guard_settings';
-    const OPTION_CATCHES  = 'wcpscan_prompt_guard_catches';
+    const OPTION_SETTINGS = 'webcareproscan_prompt_guard_settings';
+    const OPTION_CATCHES  = 'webcareproscan_prompt_guard_catches';
 
     /**
      * Regex matching invisible Unicode Tag characters (U+E0000-U+E007F), zero-width characters,
@@ -95,8 +95,8 @@ class PromptInjectionGuard {
         }
 
         // 2. WooCommerce Checkout Order Notes (CAF 2.0: Only hook if WooCommerce is active)
-        $has_woo = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
-            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+        $has_woo = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
             : class_exists('WooCommerce');
 
         if ($has_woo && !empty($settings['inspect_woocommerce'])) {
@@ -198,7 +198,7 @@ class PromptInjectionGuard {
         if (!empty($settings['block_unicode_tags']) && preg_match(self::UNICODE_TAG_REGEX, $text)) {
             $has_unicode_tags = true;
             $score += 75;
-            $findings[] = __('Invisible Unicode tag plane (U+E0000–U+E007F), zero-width, or bidi control characters detected (stealth prompt smuggling).', 'wcp-security-scanner');
+            $findings[] = __('Invisible Unicode tag plane (U+E0000–U+E007F), zero-width, or bidi control characters detected (stealth prompt smuggling).', 'webcare-pro-security');
         }
 
         // 2. Prompt Override & Jailbreak Patterns Check
@@ -209,7 +209,7 @@ class PromptInjectionGuard {
                     $score += 85;
                     $findings[] = sprintf(
                         /* translators: %s: matched pattern */
-                        __('Adversarial prompt override directive detected: "%s".', 'wcp-security-scanner'),
+                        __('Adversarial prompt override directive detected: "%s".', 'webcare-pro-security'),
                         substr($m[0], 0, 70)
                     );
                     break;
@@ -225,7 +225,7 @@ class PromptInjectionGuard {
                     $score += 80;
                     $findings[] = sprintf(
                         /* translators: %s: matched delimiter */
-                        __('LLM architecture instruction delimiter matched: "%s".', 'wcp-security-scanner'),
+                        __('LLM architecture instruction delimiter matched: "%s".', 'webcare-pro-security'),
                         substr($dm[0], 0, 50)
                     );
                     break;
@@ -241,7 +241,7 @@ class PromptInjectionGuard {
                     $score += 90;
                     $findings[] = sprintf(
                         /* translators: %s: tool invocation */
-                        __('Unauthorized AI agent MCP tool-call directive detected: "%s".', 'wcp-security-scanner'),
+                        __('Unauthorized AI agent MCP tool-call directive detected: "%s".', 'webcare-pro-security'),
                         substr($tm[0], 0, 60)
                     );
                     break;
@@ -264,7 +264,7 @@ class PromptInjectionGuard {
                     $score += 85;
                     $findings[] = sprintf(
                         /* translators: %s: targeted secret */
-                        __('Targeted credential or server environment extraction attempt detected: "%s".', 'wcp-security-scanner'),
+                        __('Targeted credential or server environment extraction attempt detected: "%s".', 'webcare-pro-security'),
                         $sm[0]
                     );
                     break;
@@ -317,9 +317,9 @@ class PromptInjectionGuard {
 
             if ($settings['action'] === 'block') {
                 wp_die(
-                    '<h1>' . esc_html__('Submission Rejected', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('WCP Prompt Injection Guard: Your comment contains disallowed adversarial directives or instruction tokens.', 'wcp-security-scanner') . '</p>',
-                    esc_html__('Prompt Injection Blocked', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Submission Rejected', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('WCP Prompt Injection Guard: Your comment contains disallowed adversarial directives or instruction tokens.', 'webcare-pro-security') . '</p>',
+                    esc_html__('Prompt Injection Blocked', 'webcare-pro-security'),
                     ['response' => 403, 'back_link' => true]
                 );
             } elseif ($settings['action'] === 'sanitize') {
@@ -357,7 +357,7 @@ class PromptInjectionGuard {
 
             if ($settings['action'] === 'block') {
                 throw new \Exception(
-                    esc_html__('Your order note contains invalid characters or disallowed AI directives. Please remove it to proceed with checkout.', 'wcp-security-scanner')
+                    esc_html__('Your order note contains invalid characters or disallowed AI directives. Please remove it to proceed with checkout.', 'webcare-pro-security')
                 );
             } else {
                 // Sanitize customer note to prevent LLM indirect prompt injection
@@ -366,7 +366,7 @@ class PromptInjectionGuard {
                 $order->add_order_note(
                     sprintf(
                         /* translators: %s: threat findings */
-                        __('WCP Security Sentinel: Sanitized potential indirect AI prompt injection from customer order note: %s. Delimiters and invisible Unicode tags neutralized.', 'wcp-security-scanner'),
+                        __('WCP Security Sentinel: Sanitized potential indirect AI prompt injection from customer order note: %s. Delimiters and invisible Unicode tags neutralized.', 'webcare-pro-security'),
                         implode(', ', $analysis['findings'])
                     ),
                     false
@@ -423,9 +423,9 @@ class PromptInjectionGuard {
 
             if ($settings['action'] === 'block') {
                 wp_die(
-                    '<h1>' . esc_html__('Content Rejected', 'wcp-security-scanner') . '</h1>' .
-                    '<p>' . esc_html__('WCP Prompt Injection Guard: Inbound content contains adversarial prompt injection directives.', 'wcp-security-scanner') . '</p>',
-                    esc_html__('Content Blocked', 'wcp-security-scanner'),
+                    '<h1>' . esc_html__('Content Rejected', 'webcare-pro-security') . '</h1>' .
+                    '<p>' . esc_html__('WCP Prompt Injection Guard: Inbound content contains adversarial prompt injection directives.', 'webcare-pro-security') . '</p>',
+                    esc_html__('Content Blocked', 'webcare-pro-security'),
                     ['response' => 403, 'back_link' => true]
                 );
             } elseif ($settings['action'] === 'sanitize') {
@@ -458,8 +458,8 @@ class PromptInjectionGuard {
 
             if ($settings['action'] === 'block' && !current_user_can('manage_options')) {
                 wp_die(
-                    esc_html__('Profile description rejected: Contains disallowed adversarial prompt tokens.', 'wcp-security-scanner'),
-                    esc_html__('Profile Update Blocked', 'wcp-security-scanner'),
+                    esc_html__('Profile description rejected: Contains disallowed adversarial prompt tokens.', 'webcare-pro-security'),
+                    esc_html__('Profile Update Blocked', 'webcare-pro-security'),
                     ['response' => 403, 'back_link' => true]
                 );
             }

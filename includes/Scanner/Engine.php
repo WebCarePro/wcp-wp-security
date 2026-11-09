@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Scanner;
+namespace WebCareProScanner\Scanner;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -87,18 +87,18 @@ class Engine {
 
         try {
             $flags = \FilesystemIterator::SKIP_DOTS;
-            $symlink_policy = class_exists('\\WcpScanner\\System\\SettingsManager')
-                ? \WcpScanner\System\SettingsManager::get('scan_symlink_policy', 'ignore')
+            $symlink_policy = class_exists('\\WebCareProScanner\\System\\SettingsManager')
+                ? \WebCareProScanner\System\SettingsManager::get('scan_symlink_policy', 'ignore')
                 : 'ignore';
             if ($symlink_policy === 'follow_all' || $symlink_policy === 'follow_intree') {
                 $flags |= \FilesystemIterator::FOLLOW_SYMLINKS;
             }
 
             $dir_iterator = new \RecursiveDirectoryIterator($dir, $flags);
-            $has_settings_manager = class_exists('\\WcpScanner\\System\\SettingsManager');
-            $skip_vcs = $has_settings_manager ? (bool) \WcpScanner\System\SettingsManager::get('scan_skip_vcs', true) : true;
-            $skip_vendor = $has_settings_manager ? (bool) \WcpScanner\System\SettingsManager::get('scan_skip_vendor', true) : true;
-            $skip_cache = $has_settings_manager ? (bool) \WcpScanner\System\SettingsManager::get('scan_skip_cache', true) : true;
+            $has_settings_manager = class_exists('\\WebCareProScanner\\System\\SettingsManager');
+            $skip_vcs = $has_settings_manager ? (bool) \WebCareProScanner\System\SettingsManager::get('scan_skip_vcs', true) : true;
+            $skip_vendor = $has_settings_manager ? (bool) \WebCareProScanner\System\SettingsManager::get('scan_skip_vendor', true) : true;
+            $skip_cache = $has_settings_manager ? (bool) \WebCareProScanner\System\SettingsManager::get('scan_skip_cache', true) : true;
 
             // Skip heavy non-code and runtime directories
             $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) use ($has_settings_manager, $skip_vcs, $skip_vendor, $skip_cache) {
@@ -120,10 +120,10 @@ class Engine {
                     }
 
                     // Internal plugin storage exclusions
-                    if (in_array($name, ['.vault', '.backups', 'wcp-backups', 'wcp-security-scanner', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', '.vscode', '.idea'], true)) {
+                    if (in_array($name, ['.vault', '.backups', 'wcp-backups', 'webcare-pro-security', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', '.vscode', '.idea'], true)) {
                         return false;
                     }
-                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
+                    if ($has_settings_manager && \WebCareProScanner\System\SettingsManager::is_path_excluded($pathname)) {
                         return false;
                     }
                 }
@@ -136,12 +136,12 @@ class Engine {
             foreach ($iterator as $item) {
                 if ($item->isFile()) {
                     $pathname = str_replace('\\', '/', $item->getPathname());
-                    if (strpos($pathname, '/plugins/wcp-security-scanner/') !== false) {
+                    if (strpos($pathname, '/plugins/webcare-pro-security/') !== false) {
                         continue; // Do not enqueue scanner's own files
                     }
 
                     // Respect user-defined excluded paths / patterns
-                    if ($has_settings_manager && \WcpScanner\System\SettingsManager::is_path_excluded($pathname)) {
+                    if ($has_settings_manager && \WebCareProScanner\System\SettingsManager::is_path_excluded($pathname)) {
                         continue;
                     }
 

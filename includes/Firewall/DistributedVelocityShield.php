@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\WcpActivityLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -32,11 +32,11 @@ if (!defined('ABSPATH')) {
  */
 class DistributedVelocityShield {
 
-    public const OPTION_SETTINGS            = 'wcpscan_distributed_shield_settings';
-    public const OPTION_ATTACK_HISTORY      = 'wcpscan_under_attack_history';
-    public const TRANSIENT_UNDER_ATTACK     = 'wcpscan_under_attack_active';
-    public const TRANSIENT_CHECKOUT_EVENTS  = 'wcpscan_dvs_chk_events';
-    public const TRANSIENT_AUTH_EVENTS      = 'wcpscan_dvs_auth_events';
+    public const OPTION_SETTINGS            = 'webcareproscan_distributed_shield_settings';
+    public const OPTION_ATTACK_HISTORY      = 'webcareproscan_under_attack_history';
+    public const TRANSIENT_UNDER_ATTACK     = 'webcareproscan_under_attack_active';
+    public const TRANSIENT_CHECKOUT_EVENTS  = 'webcareproscan_dvs_chk_events';
+    public const TRANSIENT_AUTH_EVENTS      = 'webcareproscan_dvs_auth_events';
 
     // Default thresholds for sliding 60-second window
     public const DEFAULT_CHECKOUT_FAIL_LIMIT      = 10; // 10 failed checkouts in 60s
@@ -55,8 +55,8 @@ class DistributedVelocityShield {
         }
 
         // Context-Adaptive Firewall (CAF 2.0): Only hook WooCommerce actions when WooCommerce is active
-        $has_woo = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
-            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+        $has_woo = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
             : class_exists('WooCommerce');
 
         if ($has_woo) {
@@ -374,7 +374,7 @@ class DistributedVelocityShield {
                     'action'      => strtoupper($action),
                     'description' => sprintf(
                         /* translators: 1: attack type, 2: failures count, 3: unique IPs count, 4: duration in minutes */
-                        __('Distributed Botnet Attack (%1$s) detected: %2$d failures across %3$d unique IPs. Under-Attack Shield activated for %4$d minutes.', 'wcp-security-scanner'),
+                        __('Distributed Botnet Attack (%1$s) detected: %2$d failures across %3$d unique IPs. Under-Attack Shield activated for %4$d minutes.', 'webcare-pro-security'),
                         str_replace('_', ' ', strtoupper($type)),
                         (int) $state['failures'],
                         (int) $state['unique_ips'],
@@ -523,13 +523,13 @@ class DistributedVelocityShield {
             if (wp_doing_ajax()) {
                 wp_send_json([
                     'result'   => 'failure',
-                    'messages' => '<ul class="woocommerce-error" role="alert"><li>' . esc_html__('Access Denied: E-commerce checkout is temporarily locked due to high-velocity distributed bot activity.', 'wcp-security-scanner') . '</li></ul>',
+                    'messages' => '<ul class="woocommerce-error" role="alert"><li>' . esc_html__('Access Denied: E-commerce checkout is temporarily locked due to high-velocity distributed bot activity.', 'webcare-pro-security') . '</li></ul>',
                     'reload'   => false,
                 ]);
             }
             wp_die(
-                esc_html__('Access Denied: E-commerce checkout is temporarily locked due to high-velocity distributed bot activity.', 'wcp-security-scanner'),
-                esc_html__('Distributed Protection Active', 'wcp-security-scanner'),
+                esc_html__('Access Denied: E-commerce checkout is temporarily locked due to high-velocity distributed bot activity.', 'webcare-pro-security'),
+                esc_html__('Distributed Protection Active', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -542,7 +542,7 @@ class DistributedVelocityShield {
                 'result'       => 'failure',
                 'status'       => 429,
                 'error'        => 'wcp_under_attack_challenge_required',
-                'messages'     => '<ul class="woocommerce-error" role="alert"><li>' . esc_html__('Security Verification: High-velocity automated traffic detected. Please reload this page to complete standard browser verification before completing your order.', 'wcp-security-scanner') . '</li></ul>',
+                'messages'     => '<ul class="woocommerce-error" role="alert"><li>' . esc_html__('Security Verification: High-velocity automated traffic detected. Please reload this page to complete standard browser verification before completing your order.', 'webcare-pro-security') . '</li></ul>',
                 'pow_required' => true,
                 'challenge'    => $challenge,
                 'reload'       => true,
@@ -603,7 +603,7 @@ class DistributedVelocityShield {
         // For REST / XML-RPC auth
         return new \WP_Error(
             'wcp_under_attack_auth_locked',
-            esc_html__('Site is currently defending against a distributed credential-stuffing swarm. Interactive browser verification required to sign in.', 'wcp-security-scanner'),
+            esc_html__('Site is currently defending against a distributed credential-stuffing swarm. Interactive browser verification required to sign in.', 'webcare-pro-security'),
             ['status' => 429]
         );
     }
@@ -736,7 +736,7 @@ class DistributedVelocityShield {
 
         // 1. High-concurrency APCu in-memory storage (zero DB row-lock contention)
         if (function_exists('apcu_store') && ini_get('apc.enabled')) {
-            apcu_store('wcpscan_dvs_' . $cache_key, $events, 120);
+            apcu_store('webcareproscan_dvs_' . $cache_key, $events, 120);
         }
 
         // 2. Standard WordPress transient fallback
@@ -756,7 +756,7 @@ class DistributedVelocityShield {
         // 1. Check APCu in-memory store first
         if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
             $success = false;
-            $apc_data = apcu_fetch('wcpscan_dvs_' . $cache_key, $success);
+            $apc_data = apcu_fetch('webcareproscan_dvs_' . $cache_key, $success);
             if ($success && is_array($apc_data)) {
                 $data = $apc_data;
             }

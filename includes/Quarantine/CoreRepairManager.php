@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Quarantine;
+namespace WebCareProScanner\Quarantine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -21,7 +21,7 @@ class CoreRepairManager {
             'success'      => false,
             'message'      => sprintf(
                 /* translators: %s: URL to WordPress Updates screen */
-                __('Direct modification of WordPress core files by plugins is restricted for security. To safely restore pristine WordPress core files, navigate to Dashboard &rarr; Updates (%s) and click "Re-install version", or execute "wp core download --force" via WP-CLI.', 'wcp-security-scanner'),
+                __('Direct modification of WordPress core files by plugins is restricted for security. To safely restore pristine WordPress core files, navigate to Dashboard &rarr; Updates (%s) and click "Re-install version", or execute "wp core download --force" via WP-CLI.', 'webcare-pro-security'),
                 esc_url($update_url)
             ),
             'redirect_url' => esc_url($update_url)

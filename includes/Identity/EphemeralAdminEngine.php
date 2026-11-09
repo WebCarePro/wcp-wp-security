@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Identity;
+namespace WebCareProScanner\Identity;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -19,8 +19,8 @@ if (!defined('ABSPATH')) {
  */
 class EphemeralAdminEngine {
 
-    const OPTION_EPHEMERAL_ADMINS = 'wcpscan_ephemeral_admins';
-    const CRON_HOOK               = 'wcpscan_ephemeral_admin_expire';
+    const OPTION_EPHEMERAL_ADMINS = 'webcareproscan_ephemeral_admins';
+    const CRON_HOOK               = 'webcareproscan_ephemeral_admin_expire';
 
     /**
      * Bootstrap Ephemeral Admin engine.
@@ -32,7 +32,7 @@ class EphemeralAdminEngine {
         }
 
         // Auto-install / sync the Must-Use (MU) plugin watchdog
-        if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
+        if (class_exists('\\WebCareProScanner\\Identity\\WcpJitMuGuardian')) {
             WcpJitMuGuardian::ensure_installed();
         }
 
@@ -46,7 +46,7 @@ class EphemeralAdminEngine {
         add_action('admin_bar_menu', [__CLASS__, 'render_admin_bar_badge'], 99);
 
         // Protect WCP Security Scanner from deactivation & deletion by elevated users
-        add_filter('plugin_action_links_' . plugin_basename(WCPSCAN_FILE), [__CLASS__, 'filter_plugin_action_links'], 20);
+        add_filter('plugin_action_links_' . plugin_basename(WEBCAREPROSCAN_FILE), [__CLASS__, 'filter_plugin_action_links'], 20);
         add_action('admin_init', [__CLASS__, 'intercept_unauthorized_plugin_actions'], 1);
         add_filter('map_meta_cap', [__CLASS__, 'restrict_elevated_admin_capabilities'], 10, 4);
 
@@ -62,7 +62,7 @@ class EphemeralAdminEngine {
      * Clear cached first registered administrator ID on user or role mutations.
      */
     public static function clear_primary_admin_cache() {
-        delete_transient('wcpscan_first_admin_id');
+        delete_transient('webcareproscan_first_admin_id');
     }
 
     /**
@@ -125,7 +125,7 @@ class EphemeralAdminEngine {
             return $memory_cache;
         }
 
-        $transient_key = 'wcpscan_first_admin_id';
+        $transient_key = 'webcareproscan_first_admin_id';
         $stored = get_transient($transient_key);
         if ($stored !== false && is_numeric($stored)) {
             $memory_cache = (int) $stored;
@@ -175,7 +175,7 @@ class EphemeralAdminEngine {
         $user_id = get_current_user_id();
         if ($user_id && self::is_user_elevated($user_id)) {
             if (isset($actions['deactivate'])) {
-                $actions['deactivate'] = '<span style="color:#94a3b8;font-weight:600;cursor:not-allowed;" title="' . esc_attr__('Deactivation is strictly disabled while your account has temporary Just-In-Time (JIT) elevation.', 'wcp-security-scanner') . '">' . esc_html__('Deactivation Locked (JIT)', 'wcp-security-scanner') . '</span>';
+                $actions['deactivate'] = '<span style="color:#94a3b8;font-weight:600;cursor:not-allowed;" title="' . esc_attr__('Deactivation is strictly disabled while your account has temporary Just-In-Time (JIT) elevation.', 'webcare-pro-security') . '">' . esc_html__('Deactivation Locked (JIT)', 'webcare-pro-security') . '</span>';
             }
         }
         return $actions;
@@ -198,13 +198,13 @@ class EphemeralAdminEngine {
         $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
 
         $is_targeting_wcp = false;
-        if ($plugin && strpos($plugin, 'wcp-security-scanner') !== false) {
+        if ($plugin && strpos($plugin, 'webcare-pro-security') !== false) {
             $is_targeting_wcp = true;
         }
 
         if (!empty($checked)) {
             foreach ($checked as $p) {
-                if (strpos($p, 'wcp-security-scanner') !== false) {
+                if (strpos($p, 'webcare-pro-security') !== false) {
                     $is_targeting_wcp = true;
                     break;
                 }
@@ -218,10 +218,10 @@ class EphemeralAdminEngine {
             );
 
             wp_die(
-                '<h1>' . esc_html__('Security Access Denied', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('Users with temporary Just-In-Time (JIT) Administrative elevation are strictly prohibited from deactivating or deleting WCP Security Scanner.', 'wcp-security-scanner') . '</p>' .
-                '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'wcp-security-scanner') . '</a></p>',
-                esc_html__('Security Access Denied', 'wcp-security-scanner'),
+                '<h1>' . esc_html__('Security Access Denied', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('Users with temporary Just-In-Time (JIT) Administrative elevation are strictly prohibited from deactivating or deleting WCP Security Scanner.', 'webcare-pro-security') . '</p>' .
+                '<p><a href="' . esc_url(admin_url('plugins.php')) . '">' . esc_html__('← Return to Plugins', 'webcare-pro-security') . '</a></p>',
+                esc_html__('Security Access Denied', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -244,7 +244,7 @@ class EphemeralAdminEngine {
         // Prevent deactivating WCP Security Scanner
         if ($cap === 'deactivate_plugin' || $cap === 'deactivate_plugins') {
             $target_plugin = !empty($args[0]) ? $args[0] : '';
-            if (empty($target_plugin) || strpos($target_plugin, 'wcp-security-scanner') !== false) {
+            if (empty($target_plugin) || strpos($target_plugin, 'webcare-pro-security') !== false) {
                 return ['do_not_allow'];
             }
         }
@@ -279,7 +279,7 @@ class EphemeralAdminEngine {
         if (!$user) {
             return [
                 'success' => false,
-                'message' => __('User not found.', 'wcp-security-scanner'),
+                'message' => __('User not found.', 'webcare-pro-security'),
             ];
         }
 
@@ -290,14 +290,14 @@ class EphemeralAdminEngine {
         if (self::is_primary_admin($user_id)) {
             return [
                 'success' => false,
-                'message' => __('Primary site administrator / site owner is permanently immune from JIT restriction or demotion.', 'wcp-security-scanner'),
+                'message' => __('Primary site administrator / site owner is permanently immune from JIT restriction or demotion.', 'webcare-pro-security'),
             ];
         }
 
         if ($baseline_role === 'administrator') {
             return [
                 'success' => false,
-                'message' => __('User is already a permanent administrator.', 'wcp-security-scanner'),
+                'message' => __('User is already a permanent administrator.', 'webcare-pro-security'),
             ];
         }
 
@@ -351,11 +351,11 @@ class EphemeralAdminEngine {
             )
         );
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_granted', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_granted', [
                 'severity' => 'high',
                 /* translators: 1: user login, 2: duration in minutes */
-                'message'  => sprintf(__('JIT Ephemeral Administrator elevation granted to %1$s for %2$d minutes.', 'wcp-security-scanner'), $user->user_login, $duration_minutes),
+                'message'  => sprintf(__('JIT Ephemeral Administrator elevation granted to %1$s for %2$d minutes.', 'webcare-pro-security'), $user->user_login, $duration_minutes),
                 'details'  => [
                     'Elevated User'  => $user->user_login,
                     'Baseline Role'  => $baseline_role,
@@ -367,7 +367,7 @@ class EphemeralAdminEngine {
         }
 
         /* translators: 1: user login, 2: duration in minutes */
-        $msg = sprintf(__('JIT Admin elevation granted to %1$s for %2$d minutes.', 'wcp-security-scanner'), $user->user_login, $duration_minutes);
+        $msg = sprintf(__('JIT Admin elevation granted to %1$s for %2$d minutes.', 'webcare-pro-security'), $user->user_login, $duration_minutes);
         return [
             'success'   => true,
             'message'   => $msg,
@@ -387,7 +387,7 @@ class EphemeralAdminEngine {
         if (!is_array($elevations) || empty($elevations[$user_id])) {
             return [
                 'success' => false,
-                'message' => __('No active temporary elevation found for this user.', 'wcp-security-scanner'),
+                'message' => __('No active temporary elevation found for this user.', 'webcare-pro-security'),
             ];
         }
 
@@ -400,7 +400,7 @@ class EphemeralAdminEngine {
             update_option(self::OPTION_EPHEMERAL_ADMINS, $elevations);
             return [
                 'success' => false,
-                'message' => __('Cannot alter role for primary site administrator or site owner.', 'wcp-security-scanner'),
+                'message' => __('Cannot alter role for primary site administrator or site owner.', 'webcare-pro-security'),
             ];
         }
 
@@ -427,11 +427,11 @@ class EphemeralAdminEngine {
             sprintf('JIT Ephemeral Elevation revoked for user "%s". Restored to baseline role "%s".', $entry['user_login'] ?? "ID {$user_id}", $baseline_role)
         );
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_revoked', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_revoked', [
                 'severity' => 'info',
                 /* translators: 1: user login, 2: restored baseline role name */
-                'message'  => sprintf(__('JIT Ephemeral Administrator elevation revoked for %1$s. Restored to %2$s.', 'wcp-security-scanner'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
+                'message'  => sprintf(__('JIT Ephemeral Administrator elevation revoked for %1$s. Restored to %2$s.', 'webcare-pro-security'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
                 'details'  => [
                     'User Account'   => $entry['user_login'] ?? "ID {$user_id}",
                     'Restored Role'  => $baseline_role,
@@ -441,7 +441,7 @@ class EphemeralAdminEngine {
         }
 
         /* translators: 1: user login, 2: restored baseline role name */
-        $msg = sprintf(__('Elevation revoked. User %1$s reverted to %2$s.', 'wcp-security-scanner'), $entry['user_login'], $baseline_role);
+        $msg = sprintf(__('Elevation revoked. User %1$s reverted to %2$s.', 'webcare-pro-security'), $entry['user_login'], $baseline_role);
         return [
             'success' => true,
             'message' => $msg,
@@ -468,7 +468,7 @@ class EphemeralAdminEngine {
             update_option(self::OPTION_EPHEMERAL_ADMINS, $elevations);
             return [
                 'success' => false,
-                'message' => __('Cannot alter role for primary site administrator or site owner.', 'wcp-security-scanner'),
+                'message' => __('Cannot alter role for primary site administrator or site owner.', 'webcare-pro-security'),
             ];
         }
 
@@ -489,11 +489,11 @@ class EphemeralAdminEngine {
             sprintf('JIT Ephemeral Elevation time expired for user "%s". Automatically restored to baseline role "%s".', $entry['user_login'] ?? "ID {$user_id}", $baseline_role)
         );
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_revoked', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_temporary_access_revoked', [
                 'severity' => 'info',
                 /* translators: 1: user login, 2: restored baseline role name */
-                'message'  => sprintf(__('JIT Ephemeral Administrator elevation expired for %1$s. Automatically restored to %2$s.', 'wcp-security-scanner'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
+                'message'  => sprintf(__('JIT Ephemeral Administrator elevation expired for %1$s. Automatically restored to %2$s.', 'webcare-pro-security'), $entry['user_login'] ?? "ID {$user_id}", $baseline_role),
                 'details'  => [
                     'User Account'   => $entry['user_login'] ?? "ID {$user_id}",
                     'Restored Role'  => $baseline_role,
@@ -594,7 +594,7 @@ class EphemeralAdminEngine {
      * @return array
      */
     public static function get_elevation_history(int $limit = 25): array {
-        $history = get_option('wcpscan_ephemeral_admin_history', []);
+        $history = get_option('webcareproscan_ephemeral_admin_history', []);
         if (!is_array($history)) {
             return [];
         }
@@ -605,7 +605,7 @@ class EphemeralAdminEngine {
      * Archive an expired or revoked elevation entry into history.
      */
     private static function archive_elevation_record(array $entry) {
-        $history = get_option('wcpscan_ephemeral_admin_history', []);
+        $history = get_option('webcareproscan_ephemeral_admin_history', []);
         if (!is_array($history)) {
             $history = [];
         }
@@ -613,7 +613,7 @@ class EphemeralAdminEngine {
         if (count($history) > 100) {
             $history = array_slice($history, 0, 100);
         }
-        update_option('wcpscan_ephemeral_admin_history', $history);
+        update_option('webcareproscan_ephemeral_admin_history', $history);
     }
 
     /**

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Resource;
+namespace WebCareProScanner\Resource;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -27,8 +27,8 @@ class ResourceMonitor {
     public function __construct($max_memory_percent = 70, $max_time_seconds = 18, $mode = 'balanced') {
         // Enforce user setting override if present
         $configured_envelope = 70;
-        if (class_exists('\\WcpScanner\\System\\SettingsManager')) {
-            $saved_envelope = \WcpScanner\System\SettingsManager::get('scan_memory_safety_envelope', 'balanced');
+        if (class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
+            $saved_envelope = \WebCareProScanner\System\SettingsManager::get('scan_memory_safety_envelope', 'balanced');
             if ($saved_envelope === 'strict') {
                 $configured_envelope = 60;
             } elseif ($saved_envelope === 'performance') {
@@ -53,7 +53,7 @@ class ResourceMonitor {
         $free_mem_mb = $this->get_free_memory_mb();
 
         // 1. Check active real-time visitor traffic (radar)
-        $this->visitor_hits_active = (int) get_transient('wcpscan_active_visitor_traffic_15s');
+        $this->visitor_hits_active = (int) get_transient('webcareproscan_active_visitor_traffic_15s');
 
         // 2. Check OS available memory if on Linux
         $os_low_ram = false;

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -10,10 +10,10 @@ class Migration {
         global $wpdb;
 
         $charset_collate = $wpdb->get_charset_collate();
-        $scans_table = $wpdb->prefix . 'wcpscan_scans';
-        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
-        $files_log_table = $wpdb->prefix . 'wcpscan_scan_files';
-        $quarantine_table = $wpdb->prefix . 'wcpscan_quarantine';
+        $scans_table = $wpdb->prefix . 'webcareproscan_scans';
+        $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
+        $files_log_table = $wpdb->prefix . 'webcareproscan_scan_files';
+        $quarantine_table = $wpdb->prefix . 'webcareproscan_quarantine';
 
         // 1. Scans Table
         $sql1 = "CREATE TABLE $scans_table (
@@ -91,7 +91,7 @@ class Migration {
         ) $charset_collate;";
 
         // 5. Firewall Blocked Requests Table
-        $firewall_logs_table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        $firewall_logs_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
         $sql5 = "CREATE TABLE $firewall_logs_table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             incident_id varchar(32) DEFAULT NULL,
@@ -116,7 +116,7 @@ class Migration {
         ) $charset_collate;";
 
         // 6. User Login History & Device Forensics (All Telemetry Encrypted via SecretVault)
-        $login_history_table = $wpdb->prefix . 'wcpscan_login_history';
+        $login_history_table = $wpdb->prefix . 'webcareproscan_login_history';
         $sql6 = "CREATE TABLE $login_history_table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -144,6 +144,6 @@ class Migration {
         dbDelta($sql5);
         dbDelta($sql6);
 
-        update_option('wcpscan_db_version', '1.12.0');
+        update_option('webcareproscan_db_version', '1.12.0');
     }
 }

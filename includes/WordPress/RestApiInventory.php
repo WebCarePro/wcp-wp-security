@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
  */
 class RestApiInventory {
 
-    const OPTION_SETTINGS = 'wcpscan_attack_surface_settings';
+    const OPTION_SETTINGS = 'webcareproscan_attack_surface_settings';
 
     /**
      * Initialize RestApiInventory hooks.
@@ -127,7 +127,7 @@ class RestApiInventory {
         if ($is_user_enum) {
             return new \WP_Error(
                 'rest_user_enumeration_forbidden',
-                esc_html__('User enumeration via REST API is disabled for unauthenticated visitors.', 'wcp-security-scanner'),
+                esc_html__('User enumeration via REST API is disabled for unauthenticated visitors.', 'webcare-pro-security'),
                 ['status' => 401]
             );
         }
@@ -162,7 +162,7 @@ class RestApiInventory {
 
         return new \WP_Error(
             'rest_forbidden_auth_required',
-            esc_html__('REST API access requires authentication.', 'wcp-security-scanner'),
+            esc_html__('REST API access requires authentication.', 'webcare-pro-security'),
             ['status' => 401]
         );
     }

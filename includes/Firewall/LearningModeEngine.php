@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -19,8 +19,8 @@ if (!defined('ABSPATH')) {
  */
 class LearningModeEngine {
 
-    const OPTION_PROFILES = 'wcpscan_learning_route_profiles';
-    const OPTION_SETTINGS = 'wcpscan_learning_settings';
+    const OPTION_PROFILES = 'webcareproscan_learning_route_profiles';
+    const OPTION_SETTINGS = 'webcareproscan_learning_settings';
     const DEFAULT_GRADUATION_THRESHOLD = 25; // Legitimate requests required to graduate a route
 
     /**
@@ -68,9 +68,9 @@ class LearningModeEngine {
         update_option(self::OPTION_SETTINGS, $updated);
 
         // Audit Trail: Log behavioral learning settings change
-        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'behavioral_learning_updated',
                 'firewall',
                 [

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -55,7 +55,7 @@ class ChecksumProvider {
         // Strip out extra version info for alpha/beta
         $version = preg_replace('/-.*$/', '', $version);
 
-        $cache_key = "wcpscan_core_chk_{$version}_{$locale}";
+        $cache_key = "webcareproscan_core_chk_{$version}_{$locale}";
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             self::$core_checksums_memory = $cached;
@@ -101,7 +101,7 @@ class ChecksumProvider {
             return self::$plugin_checksums_memory[$mem_key] === 'none' ? null : self::$plugin_checksums_memory[$mem_key];
         }
 
-        $cache_key = "wcpscan_plugin_chk_{$plugin_slug}_{$version}";
+        $cache_key = "webcareproscan_plugin_chk_{$plugin_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false) {
             if ($cached === 'none' || !is_array($cached)) {
@@ -173,7 +173,7 @@ class ChecksumProvider {
             return self::$theme_checksums_memory[$mem_key] === 'none' ? null : self::$theme_checksums_memory[$mem_key];
         }
 
-        $cache_key = "wcpscan_theme_chk_v3_{$theme_slug}_{$version}";
+        $cache_key = "webcareproscan_theme_chk_v3_{$theme_slug}_{$version}";
         $cached = get_transient($cache_key);
         if ($cached !== false) {
             if ($cached === 'none' || !is_array($cached)) {
@@ -345,7 +345,7 @@ class ChecksumProvider {
         $file_inside_plugin = $parts[1];
 
         // Self-exclusion: our scanner handles its own self-exclusion
-        if ($slug === 'wcp-security-scanner') {
+        if ($slug === 'webcare-pro-security') {
             return true;
         }
 
@@ -495,12 +495,12 @@ class ChecksumProvider {
         }
 
         // 1. Check custom uploads verified file hash JSON registry (uploads-whitelisted-hashes.json)
-        if (class_exists('\WcpScanner\Findings\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::is_uploads_hash_whitelisted($file_path)) {
+        if (class_exists('\WebCareProScanner\Findings\WhitelistManager') && \WebCareProScanner\Findings\WhitelistManager::is_uploads_hash_whitelisted($file_path)) {
             return true;
         }
 
         // 2. High-Speed 128-bit Truncated SHA-256 Micro-Manifest for Known Upstream Vendors
-        if (class_exists('\WcpScanner\Integrity\KnownVendorManifest')) {
+        if (class_exists('\WebCareProScanner\Integrity\KnownVendorManifest')) {
             if (KnownVendorManifest::match_known_hash($file_path) !== null) {
                 return true;
             }
@@ -591,7 +591,7 @@ class ChecksumProvider {
             // 2. Ignore non-code files, images, or .htaccess access-control rules in non-standard root folders
             $basename_lower = strtolower(basename($file_path));
             if ($basename_lower === '.htaccess') {
-                if (class_exists('\\WcpScanner\\System\\SettingsManager') && \WcpScanner\System\SettingsManager::is_safe_protective_htaccess($file_path)) {
+                if (class_exists('\\WebCareProScanner\\System\\SettingsManager') && \WebCareProScanner\System\SettingsManager::is_safe_protective_htaccess($file_path)) {
                     return ['status' => 'ignored', 'rel_file' => $rel_file];
                 }
             }
@@ -724,7 +724,7 @@ class ChecksumProvider {
         $slug = $parts[0];
         $file_inside_plugin = $parts[1];
 
-        if ($slug === 'wcp-security-scanner') {
+        if ($slug === 'webcare-pro-security') {
             return ['status' => 'authentic', 'slug' => $slug, 'rel_file' => $file_inside_plugin];
         }
 

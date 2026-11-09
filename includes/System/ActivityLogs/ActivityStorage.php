@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -28,7 +28,7 @@ class ActivityStorage {
      */
     public static function get_log_dir(): string {
         $upload_dir = wp_upload_dir();
-        $dir = trailingslashit($upload_dir['basedir']) . 'wcp-security-scanner/.activity-logs';
+        $dir = trailingslashit($upload_dir['basedir']) . 'webcare-pro-security/.activity-logs';
         if (!file_exists($dir)) {
             wp_mkdir_p($dir);
             // Place web access protection files

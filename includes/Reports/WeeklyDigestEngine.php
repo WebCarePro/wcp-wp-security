@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Reports;
+namespace WebCareProScanner\Reports;
 
-use WcpScanner\Firewall\WafFileLogger;
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\Firewall\WafFileLogger;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -31,7 +31,7 @@ class WeeklyDigestEngine {
         $total_inspected = (int) ($waf_stats['total_events'] ?? 0);
 
         // 2. Verified clean files count from latest scan
-        $table_scans = $wpdb->prefix . 'wcpscan_scans';
+        $table_scans = $wpdb->prefix . 'webcareproscan_scans';
         $latest_scan_sql = "SELECT id, scanned_files, issues_found, completed_at FROM `{$table_scans}` WHERE status = %s ORDER BY id DESC LIMIT 1";
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -72,7 +72,7 @@ class WeeklyDigestEngine {
             'open_issues'      => $open_issues,
             'has_woocommerce'  => class_exists('WooCommerce'),
             /* translators: %d: number of items for review */
-            'peace_of_mind'    => $open_issues === 0 ? __('100% Secure & Clean', 'wcp-security-scanner') : sprintf(__('%d Items for Review', 'wcp-security-scanner'), $open_issues),
+            'peace_of_mind'    => $open_issues === 0 ? __('100% Secure & Clean', 'webcare-pro-security') : sprintf(__('%d Items for Review', 'webcare-pro-security'), $open_issues),
         ];
     }
 
@@ -98,7 +98,7 @@ class WeeklyDigestEngine {
         <html>
         <head>
           <meta charset="utf-8">
-          <title><?php esc_html_e('Weekly Security Digest', 'wcp-security-scanner'); ?></title>
+          <title><?php esc_html_e('Weekly Security Digest', 'webcare-pro-security'); ?></title>
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 30px 10px;">
           <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">

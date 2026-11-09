@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 use Closure;
 use ReflectionFunction;
 use ReflectionMethod;
@@ -444,7 +444,7 @@ class CronPersistenceScanner {
                     // Class-aware Serialized Object Validation: permit benign WooCommerce value objects, flag POP gadgets
                     if (preg_match('/(?:O|C):[+-]?\d+:"([^"]+)"/i', $args, $class_match)) {
                         $class_name = $class_match[1];
-                        if (class_exists('\\WcpScanner\\Database\\SerializedDataScanner') && !SerializedDataScanner::is_allowed_commerce_class($class_name)) {
+                        if (class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner') && !SerializedDataScanner::is_allowed_commerce_class($class_name)) {
                             $findings[] = new Finding([
                                 'engine'      => 'database-persistence',
                                 'type'        => 'actionscheduler_unauthorized_serialized_class',

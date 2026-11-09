@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) {
  */
 class CVEIntelligenceService {
 
-    const TRANSIENT_PREFIX = 'wcpscan_cve_intel_';
+    const TRANSIENT_PREFIX = 'webcareproscan_cve_intel_';
     const CACHE_DURATION   = 604800; // 7 days cache
 
     /**
@@ -41,7 +41,7 @@ class CVEIntelligenceService {
         if (!preg_match('/^CVE-\d{4}-\d{4,8}$/', $cve_id)) {
             return [
                 'success' => false,
-                'message' => __('Invalid CVE ID format. Format should be CVE-YYYY-NNNN (e.g. CVE-2024-5932).', 'wcp-security-scanner'),
+                'message' => __('Invalid CVE ID format. Format should be CVE-YYYY-NNNN (e.g. CVE-2024-5932).', 'webcare-pro-security'),
             ];
         }
 
@@ -120,7 +120,7 @@ class CVEIntelligenceService {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %s: Error message returned from HTTP request */
-                    __('Failed to connect to CVE intelligence database: %s', 'wcp-security-scanner'),
+                    __('Failed to connect to CVE intelligence database: %s', 'webcare-pro-security'),
                     $response->get_error_message()
                 ),
             ];
@@ -134,7 +134,7 @@ class CVEIntelligenceService {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %d: HTTP status code */
-                    __('CVE intelligence provider returned HTTP error %d.', 'wcp-security-scanner'),
+                    __('CVE intelligence provider returned HTTP error %d.', 'webcare-pro-security'),
                     $status_code
                 ),
             ];
@@ -146,7 +146,7 @@ class CVEIntelligenceService {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %s: CVE identifier */
-                    __('No vulnerability record found for %s in the National Vulnerability Database.', 'wcp-security-scanner'),
+                    __('No vulnerability record found for %s in the National Vulnerability Database.', 'webcare-pro-security'),
                     $cve_id
                 ),
             ];
@@ -328,13 +328,13 @@ class CVEIntelligenceService {
                 'message'           => $is_vuln
                     ? sprintf(
                         /* translators: 1: Installed WP version, 2: Fixed version */
-                        __('WordPress Core v%1$s is vulnerable (requires update to >= %2$s).', 'wcp-security-scanner'),
+                        __('WordPress Core v%1$s is vulnerable (requires update to >= %2$s).', 'webcare-pro-security'),
                         $wp_version,
                         $vulnerable_max_version
                     )
                     : sprintf(
                         /* translators: %s: Installed WP version */
-                        __('WordPress Core v%s is running and verified immune or patched.', 'wcp-security-scanner'),
+                        __('WordPress Core v%s is running and verified immune or patched.', 'webcare-pro-security'),
                         $wp_version
                     ),
             ];
@@ -406,13 +406,13 @@ class CVEIntelligenceService {
                 'message'           => $is_vulnerable
                     ? sprintf(
                         /* translators: 1: Plugin name, 2: Installed version */
-                        __('Plugin "%1$s" (v%2$s) is INSTALLED and matches the vulnerable version range!', 'wcp-security-scanner'),
+                        __('Plugin "%1$s" (v%2$s) is INSTALLED and matches the vulnerable version range!', 'webcare-pro-security'),
                         $matched_data['Name'],
                         $installed_ver
                     )
                     : sprintf(
                         /* translators: 1: Plugin name, 2: Installed version */
-                        __('Plugin "%1$s" is installed, but running v%2$s which is already patched.', 'wcp-security-scanner'),
+                        __('Plugin "%1$s" is installed, but running v%2$s which is already patched.', 'webcare-pro-security'),
                         $matched_data['Name'],
                         $installed_ver
                     ),
@@ -438,13 +438,13 @@ class CVEIntelligenceService {
                 'message'        => $is_vulnerable
                     ? sprintf(
                         /* translators: 1: Theme name, 2: Installed version */
-                        __('Theme "%1$s" (v%2$s) is INSTALLED and matches the vulnerable version range!', 'wcp-security-scanner'),
+                        __('Theme "%1$s" (v%2$s) is INSTALLED and matches the vulnerable version range!', 'webcare-pro-security'),
                         $theme->get('Name'),
                         $theme_ver
                     )
                     : sprintf(
                         /* translators: 1: Theme name, 2: Installed version */
-                        __('Theme "%1$s" is installed, but running v%2$s which is already patched.', 'wcp-security-scanner'),
+                        __('Theme "%1$s" is installed, but running v%2$s which is already patched.', 'webcare-pro-security'),
                         $theme->get('Name'),
                         $theme_ver
                     ),
@@ -456,11 +456,11 @@ class CVEIntelligenceService {
             'status'         => 'not_installed',
             'component_type' => $component_type,
             'installed'      => false,
-            'name'           => !empty($component_slug) ? ucwords(str_replace('-', ' ', $component_slug)) : __('Unknown Component', 'wcp-security-scanner'),
+            'name'           => !empty($component_slug) ? ucwords(str_replace('-', ' ', $component_slug)) : __('Unknown Component', 'webcare-pro-security'),
             'message'        => sprintf(
                 /* translators: %s: Component name */
-                __('Clean: Component "%s" is NOT installed on this WordPress site. Attackers cannot exploit code that does not exist. No patch is required.', 'wcp-security-scanner'),
-                !empty($component_slug) ? ucwords(str_replace('-', ' ', $component_slug)) : __('Target Component', 'wcp-security-scanner')
+                __('Clean: Component "%s" is NOT installed on this WordPress site. Attackers cannot exploit code that does not exist. No patch is required.', 'webcare-pro-security'),
+                !empty($component_slug) ? ucwords(str_replace('-', ' ', $component_slug)) : __('Target Component', 'webcare-pro-security')
             ),
         ];
     }
@@ -475,7 +475,7 @@ class CVEIntelligenceService {
         if (!current_user_can('activate_plugins')) {
             return [
                 'success' => false,
-                'message' => __('You do not have permission to deactivate plugins.', 'wcp-security-scanner'),
+                'message' => __('You do not have permission to deactivate plugins.', 'webcare-pro-security'),
             ];
         }
 
@@ -483,7 +483,7 @@ class CVEIntelligenceService {
         if (empty($plugin_file) || !file_exists(WP_PLUGIN_DIR . '/' . $plugin_file)) {
             return [
                 'success' => false,
-                'message' => __('Target plugin file not found on server.', 'wcp-security-scanner'),
+                'message' => __('Target plugin file not found on server.', 'webcare-pro-security'),
             ];
         }
 
@@ -493,7 +493,7 @@ class CVEIntelligenceService {
             'success' => true,
             'message' => sprintf(
                 /* translators: %s: Plugin file path */
-                __('Plugin "%s" was successfully deactivated to prevent exploit execution.', 'wcp-security-scanner'),
+                __('Plugin "%s" was successfully deactivated to prevent exploit execution.', 'webcare-pro-security'),
                 $plugin_file
             ),
         ];
@@ -816,7 +816,7 @@ class CVEIntelligenceService {
             return '';
         }
 
-        $transient_key = 'wcpscan_wporg_ver_' . md5($slug);
+        $transient_key = 'webcareproscan_wporg_ver_' . md5($slug);
         $cached = get_transient($transient_key);
         if ($cached !== false) {
             return strval($cached);

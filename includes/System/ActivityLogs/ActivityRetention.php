@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -34,7 +34,7 @@ class ActivityRetention {
      * @return string
      */
     public static function get_checkpoint_genesis_hash(): string {
-        $install_hash = get_option('wcpscan_install_hash', 'wcp_default_seed');
+        $install_hash = get_option('webcareproscan_install_hash', 'wcp_default_seed');
         return hash('sha256', 'WCP_CHECKPOINT_GENESIS::' . $install_hash);
     }
 
@@ -76,7 +76,7 @@ class ActivityRetention {
      * @return int Days (0 = Forever / no auto-prune).
      */
     public static function get_retention_days(): int {
-        $settings = function_exists('get_option') ? get_option('wcpscan_activity_log_settings', []) : [];
+        $settings = function_exists('get_option') ? get_option('webcareproscan_activity_log_settings', []) : [];
         $days = isset($settings['retention_days']) ? (int) $settings['retention_days'] : 30;
         if ($days === 0) {
             return 0; // Forever
@@ -195,7 +195,7 @@ class ActivityRetention {
                 'partition_file'        => (string) $filename,
                 'pruned_at_utc'         => gmdate('Y-m-d\TH:i:s\Z'),
                 'pruned_by_actor'       => [
-                    'identifier' => 'wcpscan_daily_maintenance',
+                    'identifier' => 'webcareproscan_daily_maintenance',
                     'type'       => 'system',
                 ],
                 'record_count'          => (int) $record_count,

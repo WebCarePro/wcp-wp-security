@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 class QRCodeGenerator {
 
     public static function generate_svg(string $text, int $size = 200, int $margin = 4): string {
-        $qr = \WcpScanner\Auth\QRCode::getMinimumQRCode($text, WCPSCAN_QR_ERROR_CORRECT_LEVEL_M);
+        $qr = \WebCareProScanner\Auth\QRCode::getMinimumQRCode($text, WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_M);
         $count = $qr->getModuleCount();
         $full_dim = $count + ($margin * 2);
 
@@ -72,8 +72,8 @@ class QRCodeGenerator {
 // QRCode
 //---------------------------------------------------------------
 
-define("WCPSCAN_QR_PAD0", 0xEC);
-define("WCPSCAN_QR_PAD1", 0x11);
+define("WEBCAREPROSCAN_QR_PAD0", 0xEC);
+define("WEBCAREPROSCAN_QR_PAD1", 0x11);
 
 class QRCode {
 
@@ -89,7 +89,7 @@ class QRCode {
 
     function __construct() {
         $this->typeNumber = 1;
-        $this->errorCorrectLevel = WCPSCAN_QR_ERROR_CORRECT_LEVEL_H;
+        $this->errorCorrectLevel = WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_H;
         $this->qrDataList = array();
     }
 
@@ -117,19 +117,19 @@ class QRCode {
 
         switch($mode) {
 
-        case WCPSCAN_QR_MODE_NUMBER :
+        case WEBCAREPROSCAN_QR_MODE_NUMBER :
             $this->addDataImpl(new QRNumber($data) );
             break;
 
-        case WCPSCAN_QR_MODE_ALPHA_NUM :
+        case WEBCAREPROSCAN_QR_MODE_ALPHA_NUM :
             $this->addDataImpl(new QRAlphaNum($data) );
             break;
 
-        case WCPSCAN_QR_MODE_8BIT_BYTE :
+        case WEBCAREPROSCAN_QR_MODE_8BIT_BYTE :
             $this->addDataImpl(new QR8BitByte($data) );
             break;
 
-        case WCPSCAN_QR_MODE_KANJI :
+        case WEBCAREPROSCAN_QR_MODE_KANJI :
             $this->addDataImpl(new QRKanji($data) );
             break;
 
@@ -426,12 +426,12 @@ class QRCode {
             if ($buffer->getLengthInBits() >= $totalDataCount * 8) {
                 break;
             }
-            $buffer->put(WCPSCAN_QR_PAD0, 8);
+            $buffer->put(WEBCAREPROSCAN_QR_PAD0, 8);
 
             if ($buffer->getLengthInBits() >= $totalDataCount * 8) {
                 break;
             }
-            $buffer->put(WCPSCAN_QR_PAD1, 8);
+            $buffer->put(WEBCAREPROSCAN_QR_PAD1, 8);
         }
 
         return QRCode::createBytes($buffer, $rsBlocks);
@@ -623,13 +623,13 @@ class QRCode {
 // QRUtil
 //---------------------------------------------------------------
 
-define("WCPSCAN_QR_G15", (1 << 10) | (1 << 8) | (1 << 5)
+define("WEBCAREPROSCAN_QR_G15", (1 << 10) | (1 << 8) | (1 << 5)
     | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0) );
 
-define("WCPSCAN_QR_G18", (1 << 12) | (1 << 11) | (1 << 10)
+define("WEBCAREPROSCAN_QR_G18", (1 << 12) | (1 << 11) | (1 << 10)
     | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0) );
 
-define("WCPSCAN_QR_G15_MASK", (1 << 14) | (1 << 12) | (1 << 10)
+define("WEBCAREPROSCAN_QR_G15_MASK", (1 << 14) | (1 << 12) | (1 << 10)
     | (1 << 4) | (1 << 1) );
 
 class QRUtil {
@@ -701,19 +701,19 @@ class QRUtil {
         $m = 0;
 
         switch($errorCorrectLevel) {
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_L : $e = 0; break;
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_M : $e = 1; break;
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_Q : $e = 2; break;
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_H : $e = 3; break;
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_L : $e = 0; break;
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_M : $e = 1; break;
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_Q : $e = 2; break;
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_H : $e = 3; break;
         default :
             throw new \InvalidArgumentException(esc_html("e:$errorCorrectLevel"));
         }
 
         switch($mode) {
-        case WCPSCAN_QR_MODE_NUMBER    : $m = 0; break;
-        case WCPSCAN_QR_MODE_ALPHA_NUM : $m = 1; break;
-        case WCPSCAN_QR_MODE_8BIT_BYTE : $m = 2; break;
-        case WCPSCAN_QR_MODE_KANJI     : $m = 3; break;
+        case WEBCAREPROSCAN_QR_MODE_NUMBER    : $m = 0; break;
+        case WEBCAREPROSCAN_QR_MODE_ALPHA_NUM : $m = 1; break;
+        case WEBCAREPROSCAN_QR_MODE_8BIT_BYTE : $m = 2; break;
+        case WEBCAREPROSCAN_QR_MODE_KANJI     : $m = 3; break;
         default :
             throw new \InvalidArgumentException(esc_html("m:$mode"));
         }
@@ -736,14 +736,14 @@ class QRUtil {
 
         switch ($maskPattern) {
 
-        case WCPSCAN_QR_MASK_PATTERN000 : return ($i + $j) % 2 == 0;
-        case WCPSCAN_QR_MASK_PATTERN001 : return $i % 2 == 0;
-        case WCPSCAN_QR_MASK_PATTERN010 : return $j % 3 == 0;
-        case WCPSCAN_QR_MASK_PATTERN011 : return ($i + $j) % 3 == 0;
-        case WCPSCAN_QR_MASK_PATTERN100 : return (floor($i / 2) + floor($j / 3) ) % 2 == 0;
-        case WCPSCAN_QR_MASK_PATTERN101 : return ($i * $j) % 2 + ($i * $j) % 3 == 0;
-        case WCPSCAN_QR_MASK_PATTERN110 : return ( ($i * $j) % 2 + ($i * $j) % 3) % 2 == 0;
-        case WCPSCAN_QR_MASK_PATTERN111 : return ( ($i * $j) % 3 + ($i + $j) % 2) % 2 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN000 : return ($i + $j) % 2 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN001 : return $i % 2 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN010 : return $j % 3 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN011 : return ($i + $j) % 3 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN100 : return (floor($i / 2) + floor($j / 3) ) % 2 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN101 : return ($i * $j) % 2 + ($i * $j) % 3 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN110 : return ( ($i * $j) % 2 + ($i * $j) % 3) % 2 == 0;
+        case WEBCAREPROSCAN_QR_MASK_PATTERN111 : return ( ($i * $j) % 3 + ($i + $j) % 2) % 2 == 0;
 
         default :
             throw new \InvalidArgumentException(esc_html("mask:$maskPattern"));
@@ -861,13 +861,13 @@ class QRUtil {
     static function getMode($s) {
         if (QRUtil::isAlphaNum($s) ) {
             if (QRUtil::isNumber($s) ) {
-                return WCPSCAN_QR_MODE_NUMBER;
+                return WEBCAREPROSCAN_QR_MODE_NUMBER;
             }
-            return WCPSCAN_QR_MODE_ALPHA_NUM;
+            return WEBCAREPROSCAN_QR_MODE_ALPHA_NUM;
         } else if (QRUtil::isKanji($s) ) {
-            return WCPSCAN_QR_MODE_KANJI;
+            return WEBCAREPROSCAN_QR_MODE_KANJI;
         } else {
-            return WCPSCAN_QR_MODE_8BIT_BYTE;
+            return WEBCAREPROSCAN_QR_MODE_8BIT_BYTE;
         }
     }
 
@@ -923,16 +923,16 @@ class QRUtil {
 
     static function getBCHTypeInfo($data) {
         $d = $data << 10;
-        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G15) >= 0) {
-            $d ^= (WCPSCAN_QR_G15 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G15) ) );
+        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WEBCAREPROSCAN_QR_G15) >= 0) {
+            $d ^= (WEBCAREPROSCAN_QR_G15 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WEBCAREPROSCAN_QR_G15) ) );
         }
-        return ( ($data << 10) | $d) ^ WCPSCAN_QR_G15_MASK;
+        return ( ($data << 10) | $d) ^ WEBCAREPROSCAN_QR_G15_MASK;
     }
 
     static function getBCHTypeNumber($data) {
         $d = $data << 12;
-        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G18) >= 0) {
-            $d ^= (WCPSCAN_QR_G18 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WCPSCAN_QR_G18) ) );
+        while (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WEBCAREPROSCAN_QR_G18) >= 0) {
+            $d ^= (WEBCAREPROSCAN_QR_G18 << (QRUtil::getBCHDigit($d) - QRUtil::getBCHDigit(WEBCAREPROSCAN_QR_G18) ) );
         }
         return ($data << 12) | $d;
     }
@@ -1245,13 +1245,13 @@ class QRRSBlock {
     static function getRsBlockTable($typeNumber, $errorCorrectLevel) {
 
         switch($errorCorrectLevel) {
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_L :
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_L :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 0];
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_M :
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_M :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 1];
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_Q :
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_Q :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 2];
-        case WCPSCAN_QR_ERROR_CORRECT_LEVEL_H :
+        case WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_H :
             return self::$QR_RS_BLOCK_TABLE[($typeNumber - 1) * 4 + 3];
         default :
             throw new \InvalidArgumentException(esc_html("tn:$typeNumber/ecl:$errorCorrectLevel"));
@@ -1266,7 +1266,7 @@ class QRRSBlock {
 class QRNumber extends QRData {
 
     function __construct($data) {
-        parent::__construct(WCPSCAN_QR_MODE_NUMBER, $data);
+        parent::__construct(WEBCAREPROSCAN_QR_MODE_NUMBER, $data);
     }
 
     function write(&$buffer) {
@@ -1319,7 +1319,7 @@ class QRNumber extends QRData {
 class QRKanji extends QRData {
 
     function __construct($data) {
-        parent::__construct(WCPSCAN_QR_MODE_KANJI, $data);
+        parent::__construct(WEBCAREPROSCAN_QR_MODE_KANJI, $data);
     }
 
     function write(&$buffer) {
@@ -1364,7 +1364,7 @@ class QRKanji extends QRData {
 class QRAlphaNum extends QRData {
 
     function __construct($data) {
-        parent::__construct(WCPSCAN_QR_MODE_ALPHA_NUM, $data);
+        parent::__construct(WEBCAREPROSCAN_QR_MODE_ALPHA_NUM, $data);
     }
 
     function write(&$buffer) {
@@ -1417,7 +1417,7 @@ class QRAlphaNum extends QRData {
 class QR8BitByte extends QRData {
 
     function __construct($data) {
-        parent::__construct(WCPSCAN_QR_MODE_8BIT_BYTE, $data);
+        parent::__construct(WEBCAREPROSCAN_QR_MODE_8BIT_BYTE, $data);
     }
 
     function write(&$buffer) {
@@ -1472,10 +1472,10 @@ abstract class QRData {
             // 1 - 9
 
             switch($this->mode) {
-            case WCPSCAN_QR_MODE_NUMBER     : return 10;
-            case WCPSCAN_QR_MODE_ALPHA_NUM     : return 9;
-            case WCPSCAN_QR_MODE_8BIT_BYTE    : return 8;
-            case WCPSCAN_QR_MODE_KANJI      : return 8;
+            case WEBCAREPROSCAN_QR_MODE_NUMBER     : return 10;
+            case WEBCAREPROSCAN_QR_MODE_ALPHA_NUM     : return 9;
+            case WEBCAREPROSCAN_QR_MODE_8BIT_BYTE    : return 8;
+            case WEBCAREPROSCAN_QR_MODE_KANJI      : return 8;
             default :
                 throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
             }
@@ -1485,10 +1485,10 @@ abstract class QRData {
             // 10 - 26
 
             switch($this->mode) {
-            case WCPSCAN_QR_MODE_NUMBER     : return 12;
-            case WCPSCAN_QR_MODE_ALPHA_NUM     : return 11;
-            case WCPSCAN_QR_MODE_8BIT_BYTE    : return 16;
-            case WCPSCAN_QR_MODE_KANJI      : return 10;
+            case WEBCAREPROSCAN_QR_MODE_NUMBER     : return 12;
+            case WEBCAREPROSCAN_QR_MODE_ALPHA_NUM     : return 11;
+            case WEBCAREPROSCAN_QR_MODE_8BIT_BYTE    : return 16;
+            case WEBCAREPROSCAN_QR_MODE_KANJI      : return 10;
             default :
                 throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
             }
@@ -1498,10 +1498,10 @@ abstract class QRData {
             // 27 - 40
 
             switch($this->mode) {
-            case WCPSCAN_QR_MODE_NUMBER     : return 14;
-            case WCPSCAN_QR_MODE_ALPHA_NUM    : return 13;
-            case WCPSCAN_QR_MODE_8BIT_BYTE    : return 16;
-            case WCPSCAN_QR_MODE_KANJI      : return 12;
+            case WEBCAREPROSCAN_QR_MODE_NUMBER     : return 14;
+            case WEBCAREPROSCAN_QR_MODE_ALPHA_NUM    : return 13;
+            case WEBCAREPROSCAN_QR_MODE_8BIT_BYTE    : return 16;
+            case WEBCAREPROSCAN_QR_MODE_KANJI      : return 12;
             default :
                 throw new \InvalidArgumentException(esc_html("mode:$this->mode"));
             }
@@ -1692,35 +1692,35 @@ class QRPolynomial {
 // Mode
 //---------------------------------------------------------------
 
-define("WCPSCAN_QR_MODE_NUMBER", 1 << 0);
-define("WCPSCAN_QR_MODE_ALPHA_NUM", 1 << 1);
-define("WCPSCAN_QR_MODE_8BIT_BYTE", 1 << 2);
-define("WCPSCAN_QR_MODE_KANJI", 1 << 3);
+define("WEBCAREPROSCAN_QR_MODE_NUMBER", 1 << 0);
+define("WEBCAREPROSCAN_QR_MODE_ALPHA_NUM", 1 << 1);
+define("WEBCAREPROSCAN_QR_MODE_8BIT_BYTE", 1 << 2);
+define("WEBCAREPROSCAN_QR_MODE_KANJI", 1 << 3);
 
 //---------------------------------------------------------------
 // MaskPattern
 //---------------------------------------------------------------
 
-define("WCPSCAN_QR_MASK_PATTERN000", 0);
-define("WCPSCAN_QR_MASK_PATTERN001", 1);
-define("WCPSCAN_QR_MASK_PATTERN010", 2);
-define("WCPSCAN_QR_MASK_PATTERN011", 3);
-define("WCPSCAN_QR_MASK_PATTERN100", 4);
-define("WCPSCAN_QR_MASK_PATTERN101", 5);
-define("WCPSCAN_QR_MASK_PATTERN110", 6);
-define("WCPSCAN_QR_MASK_PATTERN111", 7);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN000", 0);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN001", 1);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN010", 2);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN011", 3);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN100", 4);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN101", 5);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN110", 6);
+define("WEBCAREPROSCAN_QR_MASK_PATTERN111", 7);
 
 //---------------------------------------------------------------
 // ErrorCorrectLevel
 
 // 7%.
-define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_L", 1);
+define("WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_L", 1);
 // 15%.
-define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_M", 0);
+define("WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_M", 0);
 // 25%.
-define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_Q", 3);
+define("WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_Q", 3);
 // 30%.
-define("WCPSCAN_QR_ERROR_CORRECT_LEVEL_H", 2);
+define("WEBCAREPROSCAN_QR_ERROR_CORRECT_LEVEL_H", 2);
 
 
 //---------------------------------------------------------------

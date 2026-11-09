@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\Firewall\FirewallEngine;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\Firewall\FirewallEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -82,12 +82,12 @@ class SessionSentinel {
             $wp_sessions = get_user_meta($user->ID, 'session_tokens', true);
             if (is_array($wp_sessions) && count($wp_sessions) > 1 && $session_token) {
                 $verifier = hash('sha256', $session_token);
-                $sessions_meta = get_user_meta($user->ID, 'wcpscan_session_meta', true) ?: [];
+                $sessions_meta = get_user_meta($user->ID, 'webcareproscan_session_meta', true) ?: [];
 
                 // Determine current incoming device category ('mobile' vs 'desktop')
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
-                $screen_raw = isset($_POST['wcpscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_screen_res'])) : '';
-                $current_parsed = \WcpScanner\Auth\LoginHistoryManager::parse_device_details($ua, $screen_raw);
+                $screen_raw = isset($_POST['webcareproscan_screen_res']) ? sanitize_text_field(wp_unslash($_POST['webcareproscan_screen_res'])) : '';
+                $current_parsed = \WebCareProScanner\Auth\LoginHistoryManager::parse_device_details($ua, $screen_raw);
                 $current_cat = in_array($current_parsed['device_type'], ['Mobile', 'Tablet'], true) ? 'mobile' : 'desktop';
 
                 $current_session_key = isset($wp_sessions[$verifier]) ? $verifier : (isset($wp_sessions[$session_token]) ? $session_token : '');
@@ -107,30 +107,30 @@ class SessionSentinel {
                     // Extract user-agent for this existing session
                     $s_ua = $s_data['ua'] ?? '';
                     if (empty($s_ua) && !empty($sessions_meta[$s_key]['encrypted_meta'])) {
-                        $decrypted = \WcpScanner\Security\SecretVault::decrypt((string) $sessions_meta[$s_key]['encrypted_meta']);
+                        $decrypted = \WebCareProScanner\Security\SecretVault::decrypt((string) $sessions_meta[$s_key]['encrypted_meta']);
                         $decoded = is_string($decrypted) ? (json_decode($decrypted, true) ?: []) : [];
                         $s_ua = $decoded['user_agent'] ?? '';
                     }
 
-                    $s_parsed = \WcpScanner\Auth\LoginHistoryManager::parse_device_details($s_ua, '');
+                    $s_parsed = \WebCareProScanner\Auth\LoginHistoryManager::parse_device_details($s_ua, '');
                     $s_cat = in_array($s_parsed['device_type'], ['Mobile', 'Tablet'], true) ? 'mobile' : 'desktop';
 
                     if ($s_cat === $current_cat) {
                         // Same category as new device (e.g. new desktop replacing previous desktop) -> Terminate!
-                        \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $s_key);
+                        \WebCareProScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $s_key);
                         unset($sessions_meta[$s_key]);
                     } else {
                         // Different category (e.g. mobile session while logging in on desktop) -> Keep newest!
                         $s_login_time = $s_data['login'] ?? 0;
                         if (!$other_device_session || $s_login_time > ($other_device_session['login'] ?? 0)) {
                             if ($other_device_key) {
-                                \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $other_device_key);
+                                \WebCareProScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $other_device_key);
                                 unset($sessions_meta[$other_device_key]);
                             }
                             $other_device_session = $s_data;
                             $other_device_key = $s_key;
                         } else {
-                            \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $s_key);
+                            \WebCareProScanner\Auth\LoginHistoryManager::record_session_terminated($user->ID, $s_key);
                             unset($sessions_meta[$s_key]);
                         }
                     }
@@ -154,7 +154,7 @@ class SessionSentinel {
                 }
 
                 update_user_meta($user->ID, 'session_tokens', $preserved);
-                update_user_meta($user->ID, 'wcpscan_session_meta', $sessions_meta);
+                update_user_meta($user->ID, 'webcareproscan_session_meta', $sessions_meta);
             }
         }
 
@@ -170,29 +170,29 @@ class SessionSentinel {
 
         // If not explicitly set by the calling authenticator, deduce it accurately:
         if (empty($auth_type)) {
-            $is_support = get_user_meta($user->ID, 'wcpscan_is_temporary_support', true);
+            $is_support = get_user_meta($user->ID, 'webcareproscan_is_temporary_support', true);
             if ($is_support) {
                 $auth_type = 'magic_link';
-                $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'wcp-security-scanner');
+                $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'webcare-pro-security');
                 $auth_details = ['type' => 'magic_link'];
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection during session authentication creation to detect 2FA submission
-            } elseif (!empty($_POST['wcpscan_2fa_code'])) {
+            } elseif (!empty($_POST['webcareproscan_2fa_code'])) {
                 $auth_type = '2fa';
-                $auth_label = __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
+                $auth_label = __('2FA (TOTP Authenticator)', 'webcare-pro-security');
                 $auth_details = ['type' => 'totp'];
-            } elseif (class_exists('\\WcpScanner\\Auth\\TwoFactorAuth') && \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($user->ID) && \WcpScanner\Auth\TwoFactorAuth::is_trusted_device($user->ID)) {
+            } elseif (class_exists('\\WebCareProScanner\\Auth\\TwoFactorAuth') && \WebCareProScanner\Auth\TwoFactorAuth::is_user_enabled($user->ID) && \WebCareProScanner\Auth\TwoFactorAuth::is_trusted_device($user->ID)) {
                 $auth_type = '2fa';
-                $auth_label = __('2FA (Remembered Trusted Device)', 'wcp-security-scanner');
+                $auth_label = __('2FA (Remembered Trusted Device)', 'webcare-pro-security');
                 $auth_details = ['type' => 'trusted_device'];
             } else {
                 $auth_type = 'password';
-                $auth_label = __('Password Only (Single-Factor)', 'wcp-security-scanner');
+                $auth_label = __('Password Only (Single-Factor)', 'webcare-pro-security');
                 $auth_details = ['type' => 'password'];
             }
         }
 
         // Store session metadata in user meta
-        $sessions_meta = get_user_meta($user->ID, 'wcpscan_session_meta', true) ?: [];
+        $sessions_meta = get_user_meta($user->ID, 'webcareproscan_session_meta', true) ?: [];
         if (!is_array($sessions_meta)) {
             $sessions_meta = [];
         }
@@ -205,7 +205,7 @@ class SessionSentinel {
                 'auth_type'      => $auth_type,
                 'auth_label'     => $auth_label,
                 'auth_details'   => $auth_details,
-                'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+                'encrypted_meta' => \WebCareProScanner\Security\SecretVault::encrypt((string) wp_json_encode([
                     'login_ip'     => $ip,
                     'user_agent'   => substr(sanitize_text_field($ua), 0, 255),
                     'auth_type'    => $auth_type,
@@ -218,7 +218,7 @@ class SessionSentinel {
             $sessions_meta[$session_token] = $entry;
             $sessions_meta[$verifier]      = $entry;
 
-            update_user_meta($user->ID, 'wcpscan_session_meta', $sessions_meta);
+            update_user_meta($user->ID, 'webcareproscan_session_meta', $sessions_meta);
         }
     }
 
@@ -251,7 +251,7 @@ class SessionSentinel {
             $current_verifier = hash('sha256', $current_token);
 
             $ip = FirewallEngine::get_client_ip();
-            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true);
+            $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true);
             if (!is_array($sessions_meta)) {
                 $sessions_meta = [];
             }
@@ -261,7 +261,7 @@ class SessionSentinel {
             $current_login_ip = '';
             $decoded = [];
             if (!empty($session_info['encrypted_meta'])) {
-                $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $session_info['encrypted_meta']);
+                $decrypted_meta = \WebCareProScanner\Security\SecretVault::decrypt((string) $session_info['encrypted_meta']);
                 $decoded = is_string($decrypted_meta) ? (json_decode($decrypted_meta, true) ?: []) : [];
                 $current_login_ip = $decoded['login_ip'] ?? '';
             } else {
@@ -269,8 +269,8 @@ class SessionSentinel {
             }
 
             // Auto-initialize if session was active before sentinel activation or if IP was recorded as Cloudflare proxy or loopback
-            $is_cf_ip = \WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($current_login_ip);
-            $is_local_ip = ($current_login_ip === '127.0.0.1' || $current_login_ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_private_ip($current_login_ip));
+            $is_cf_ip = \WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($current_login_ip);
+            $is_local_ip = ($current_login_ip === '127.0.0.1' || $current_login_ip === '::1' || \WebCareProScanner\Firewall\FirewallEngine::is_private_ip($current_login_ip));
 
             if (!$session_info || empty($current_login_ip) || $is_cf_ip || $is_local_ip) {
                 self::anchor_session($user_id, $current_token, $current_verifier, $ip, $session_info ?: []);
@@ -281,7 +281,7 @@ class SessionSentinel {
             if (time() - ($session_info['last_seen'] ?? 0) > 60) {
                 $sessions_meta[$current_token]['last_seen'] = time();
                 $sessions_meta[$current_verifier]['last_seen'] = time();
-                update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+                update_user_meta($user_id, 'webcareproscan_session_meta', $sessions_meta);
             }
 
             // Cryptographic Session Binding & ASN Drift Verification
@@ -294,16 +294,16 @@ class SessionSentinel {
             $ua_mismatch = (!empty($decoded['user_agent']) && !empty($current_ua) && $decoded['user_agent'] !== substr($current_ua, 0, 255));
 
             // Record IP change / network shift in forensic directory if IP shifted
-            if (!empty($ip) && $ip !== $current_login_ip && !\WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip) && $ip !== '127.0.0.1' && $ip !== '::1') {
-                if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
-                    \WcpScanner\Auth\LoginHistoryManager::record_session_ip_shift($user_id, $ip, $current_token);
+            if (!empty($ip) && $ip !== $current_login_ip && !\WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip) && $ip !== '127.0.0.1' && $ip !== '::1') {
+                if (class_exists('\\WebCareProScanner\\Auth\\LoginHistoryManager')) {
+                    \WebCareProScanner\Auth\LoginHistoryManager::record_session_ip_shift($user_id, $ip, $current_token);
                 }
             }
 
             if ((!empty($settings['session_lock_ip']) && !$is_ip_valid) || ($asn_drift && $ua_mismatch)) {
                 // Invalidate hijacked session
                 self::terminate_session($user_id, $current_token, 'Session Hijacking / ASN Drift Detected');
-                \WcpScanner\System\AuditLogger::log(
+                \WebCareProScanner\System\AuditLogger::log(
                     'session_hijack_deflected',
                     sprintf('Deflected hijacked administrative session for %s. Baseline IP %s (ASN %s) vs Incoming IP %s (ASN %s). Session liquidated.', $user->user_login, $current_login_ip, $recorded_asn ?: 'N/A', $ip, $current_asn ?: 'N/A')
                 );
@@ -393,7 +393,7 @@ class SessionSentinel {
 
         // 6. Loopback / Internal Proxy Failsafe
         // If incoming request resolved to localhost/private IP due to internal proxy/cron/loopback, do not kill admin session
-        if ($incoming_ip === '127.0.0.1' || $incoming_ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_private_ip($incoming_ip)) {
+        if ($incoming_ip === '127.0.0.1' || $incoming_ip === '::1' || \WebCareProScanner\Firewall\FirewallEngine::is_private_ip($incoming_ip)) {
             return true;
         }
 
@@ -411,14 +411,14 @@ class SessionSentinel {
      * @return void
      */
     public static function anchor_session(int $user_id, string $token, string $verifier, string $ip, array $existing_info = []): void {
-        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true);
+        $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true);
         if (!is_array($sessions_meta)) {
             $sessions_meta = [];
         }
 
         $existing_decoded = [];
         if (!empty($existing_info['encrypted_meta'])) {
-            $dec = \WcpScanner\Security\SecretVault::decrypt((string) $existing_info['encrypted_meta']);
+            $dec = \WebCareProScanner\Security\SecretVault::decrypt((string) $existing_info['encrypted_meta']);
             $existing_decoded = is_string($dec) ? (json_decode($dec, true) ?: []) : [];
         }
 
@@ -427,7 +427,7 @@ class SessionSentinel {
             'last_seen'      => time(),
             'auth_type'      => $existing_info['auth_type'] ?? ($existing_decoded['auth_type'] ?? 'password'),
             'auth_label'     => $existing_info['auth_label'] ?? ($existing_decoded['auth_label'] ?? 'Password'),
-            'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+            'encrypted_meta' => \WebCareProScanner\Security\SecretVault::encrypt((string) wp_json_encode([
                 'login_ip'   => $ip,
                 'alt_ip'     => $existing_decoded['alt_ip'] ?? '',
                 'user_agent' => substr(!empty($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : ($existing_decoded['user_agent'] ?? 'Unknown'), 0, 255),
@@ -440,7 +440,7 @@ class SessionSentinel {
 
         $sessions_meta[$token]    = $entry;
         $sessions_meta[$verifier] = $entry;
-        update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+        update_user_meta($user_id, 'webcareproscan_session_meta', $sessions_meta);
     }
 
     /**
@@ -457,8 +457,8 @@ class SessionSentinel {
             return;
         }
         $verifier = hash('sha256', $token);
-        $ip = \WcpScanner\Firewall\FirewallEngine::get_client_ip();
-        $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+        $ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+        $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true) ?: [];
         $session_info = $sessions_meta[$verifier] ?? ($sessions_meta[$token] ?? []);
 
         self::anchor_session($user_id, $token, $verifier, $ip, $session_info);
@@ -511,18 +511,18 @@ class SessionSentinel {
             // Flush WordPress user meta cache
             wp_cache_delete($user_id, 'user_meta');
 
-            // 3. Clean up SessionSentinel metadata in wcpscan_session_meta
-            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+            // 3. Clean up SessionSentinel metadata in webcareproscan_session_meta
+            $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true) ?: [];
             if (is_array($sessions_meta)) {
                 $hashed = hash('sha256', $session_token);
                 unset($sessions_meta[$session_token]);
                 unset($sessions_meta[$hashed]);
-                update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+                update_user_meta($user_id, 'webcareproscan_session_meta', $sessions_meta);
             }
 
             // 4. Mark session terminated in LoginHistoryManager if available
-            if (class_exists('\\WcpScanner\\Auth\\LoginHistoryManager')) {
-                \WcpScanner\Auth\LoginHistoryManager::record_session_terminated($user_id, $session_token);
+            if (class_exists('\\WebCareProScanner\\Auth\\LoginHistoryManager')) {
+                \WebCareProScanner\Auth\LoginHistoryManager::record_session_terminated($user_id, $session_token);
             }
 
             // 5. If the terminated session belongs to the current logged-in user, clear auth cookies
@@ -583,7 +583,7 @@ class SessionSentinel {
                             $manager->destroy_all();
                         } catch (\Throwable $e) {}
                         delete_user_meta($admin->ID, 'session_tokens');
-                        delete_user_meta($admin->ID, 'wcpscan_session_meta');
+                        delete_user_meta($admin->ID, 'webcareproscan_session_meta');
                         wp_cache_delete($admin->ID, 'user_meta');
                     }
                 }
@@ -600,7 +600,7 @@ class SessionSentinel {
                     $manager->destroy_all();
                 } catch (\Throwable $e) {}
                 delete_user_meta($target_user_id, 'session_tokens');
-                delete_user_meta($target_user_id, 'wcpscan_session_meta');
+                delete_user_meta($target_user_id, 'webcareproscan_session_meta');
                 wp_cache_delete($target_user_id, 'user_meta');
             }
 
@@ -631,7 +631,7 @@ class SessionSentinel {
                 $manager->destroy_others($current_token);
             }
 
-            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+            $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true) ?: [];
             $preserved_meta = [];
             if (isset($sessions_meta[$current_token])) {
                 $preserved_meta[$current_token] = $sessions_meta[$current_token];
@@ -639,7 +639,7 @@ class SessionSentinel {
             if (isset($sessions_meta[$current_verifier])) {
                 $preserved_meta[$current_verifier] = $sessions_meta[$current_verifier];
             }
-            update_user_meta($user_id, 'wcpscan_session_meta', $preserved_meta);
+            update_user_meta($user_id, 'webcareproscan_session_meta', $preserved_meta);
 
             wp_cache_delete($user_id, 'user_meta');
         } catch (\Throwable $e) {}
@@ -653,11 +653,11 @@ class SessionSentinel {
         $current_token = wp_get_session_token();
 
         if ($user_id && $current_token) {
-            $sessions_meta = get_user_meta($user_id, 'wcpscan_session_meta', true) ?: [];
+            $sessions_meta = get_user_meta($user_id, 'webcareproscan_session_meta', true) ?: [];
             $verifier = hash('sha256', $current_token);
             unset($sessions_meta[$current_token]);
             unset($sessions_meta[$verifier]);
-            update_user_meta($user_id, 'wcpscan_session_meta', $sessions_meta);
+            update_user_meta($user_id, 'webcareproscan_session_meta', $sessions_meta);
         }
     }
 
@@ -693,7 +693,7 @@ class SessionSentinel {
             if (!is_array($wp_sessions) || empty($wp_sessions)) {
                 continue;
             }
-            $sessions_meta = get_user_meta($admin->ID, 'wcpscan_session_meta', true) ?: [];
+            $sessions_meta = get_user_meta($admin->ID, 'webcareproscan_session_meta', true) ?: [];
 
             foreach ($wp_sessions as $verifier => $data) {
                 if (!is_array($data)) {
@@ -724,7 +724,7 @@ class SessionSentinel {
                 $support_link_meta = null;
 
                 if (!empty($meta['encrypted_meta'])) {
-                    $decrypted_meta = \WcpScanner\Security\SecretVault::decrypt((string) $meta['encrypted_meta']);
+                    $decrypted_meta = \WebCareProScanner\Security\SecretVault::decrypt((string) $meta['encrypted_meta']);
                     $decoded = is_string($decrypted_meta) ? (json_decode($decrypted_meta, true) ?: []) : [];
                     $ip = $decoded['login_ip'] ?? ($data['ip'] ?? 'Unknown');
                     $ua = $decoded['user_agent'] ?? ($data['ua'] ?? 'Unknown');
@@ -742,14 +742,14 @@ class SessionSentinel {
 
                 // Smart Deductive Inference for existing sessions without stored auth_type
                 if (empty($auth_type)) {
-                    $is_support = get_user_meta($admin->ID, 'wcpscan_is_temporary_support', true);
+                    $is_support = get_user_meta($admin->ID, 'webcareproscan_is_temporary_support', true);
                     if ($is_support) {
                         $auth_type = 'magic_link';
-                        $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'wcp-security-scanner');
+                        $auth_label = __('Magic Support Link (Zero-Trust JIT)', 'webcare-pro-security');
                         $auth_details = ['type' => 'magic_link'];
                     } else {
                         // Check if a passkey was used around the login time
-                        $user_passkeys = class_exists('\\WcpScanner\\Auth\\WebAuthnManager') ? \WcpScanner\Auth\WebAuthnManager::get_user_credentials($admin->ID) : [];
+                        $user_passkeys = class_exists('\\WebCareProScanner\\Auth\\WebAuthnManager') ? \WebCareProScanner\Auth\WebAuthnManager::get_user_credentials($admin->ID) : [];
                         $matched_pk = null;
                         foreach ($user_passkeys as $pk) {
                             if (!empty($pk['last_used']) && abs((int) $pk['last_used'] - $login_ts) <= 180) {
@@ -761,20 +761,20 @@ class SessionSentinel {
                             $auth_type = 'passkey';
                             $auth_label = sprintf(
                                 /* translators: %s: device name */
-                                __('Passkey (%s)', 'wcp-security-scanner'),
+                                __('Passkey (%s)', 'webcare-pro-security'),
                                 $matched_pk['name'] ?? 'Windows Hello / FIDO2'
                             );
                             $auth_details = [
                                 'type'        => 'passkey',
                                 'device_name' => $matched_pk['name'] ?? 'Hardware Key',
                             ];
-                        } elseif (class_exists('\\WcpScanner\\Auth\\TwoFactorAuth') && \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID)) {
+                        } elseif (class_exists('\\WebCareProScanner\\Auth\\TwoFactorAuth') && \WebCareProScanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID)) {
                             $auth_type = '2fa';
-                            $auth_label = __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
+                            $auth_label = __('2FA (TOTP Authenticator)', 'webcare-pro-security');
                             $auth_details = ['type' => 'totp'];
                         } else {
                             $auth_type = 'password';
-                            $auth_label = __('Password Only (Single-Factor)', 'wcp-security-scanner');
+                            $auth_label = __('Password Only (Single-Factor)', 'webcare-pro-security');
                             $auth_details = ['type' => 'password'];
                         }
                     }
@@ -782,7 +782,7 @@ class SessionSentinel {
 
                 // If $ip belongs to Cloudflare's Anycast proxy network, it's an edge node, not the visitor's device.
                 // Heal current active session directly to the verified client IP.
-                if (\WcpScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip)) {
+                if (\WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($ip)) {
                     if ($is_current) {
                         $ip = $client_ip;
                         $entry = [
@@ -791,7 +791,7 @@ class SessionSentinel {
                             'auth_type'      => $auth_type,
                             'auth_label'     => $auth_label,
                             'auth_details'   => $auth_details,
-                            'encrypted_meta' => \WcpScanner\Security\SecretVault::encrypt((string) wp_json_encode([
+                            'encrypted_meta' => \WebCareProScanner\Security\SecretVault::encrypt((string) wp_json_encode([
                                 'login_ip'     => $client_ip,
                                 'user_agent'   => $ua,
                                 'auth_type'    => $auth_type,
@@ -803,7 +803,7 @@ class SessionSentinel {
                         if (!empty($current_token)) {
                             $sessions_meta[$current_token] = $entry;
                         }
-                        update_user_meta($admin->ID, 'wcpscan_session_meta', $sessions_meta);
+                        update_user_meta($admin->ID, 'webcareproscan_session_meta', $sessions_meta);
                     }
                 }
 
@@ -811,8 +811,8 @@ class SessionSentinel {
                 $browser_info = self::parse_user_agent($ua);
 
                 $duration_sec = max(1, time() - $login_ts);
-                $duration_formatted = class_exists('\\WcpScanner\\Auth\\LoginHistoryManager') 
-                    ? \WcpScanner\Auth\LoginHistoryManager::format_duration($duration_sec)
+                $duration_formatted = class_exists('\\WebCareProScanner\\Auth\\LoginHistoryManager') 
+                    ? \WebCareProScanner\Auth\LoginHistoryManager::format_duration($duration_sec)
                     : sprintf('%d mins', round($duration_sec / 60));
 
                 // Security posture level and risk factor calculation
@@ -825,18 +825,18 @@ class SessionSentinel {
 
                 $risk_factors = [];
                 if ($auth_type === 'password') {
-                    $risk_factors[] = __('Single-factor password login: Account lacks MFA (2FA or Passkey).', 'wcp-security-scanner');
+                    $risk_factors[] = __('Single-factor password login: Account lacks MFA (2FA or Passkey).', 'webcare-pro-security');
                 }
                 if ($ip !== $client_ip && $is_current) {
                     $risk_factors[] = sprintf(
                         /* translators: 1: login IP, 2: current IP */
-                        __('IP changed since login (%1$s &rarr; %2$s).', 'wcp-security-scanner'),
+                        __('IP changed since login (%1$s &rarr; %2$s).', 'webcare-pro-security'),
                         esc_html($ip),
                         esc_html($client_ip)
                     );
                 }
                 if ($auth_type === 'magic_link') {
-                    $risk_factors[] = __('Temporary technician session confined by Zero-Trust MU Guardian.', 'wcp-security-scanner');
+                    $risk_factors[] = __('Temporary technician session confined by Zero-Trust MU Guardian.', 'webcare-pro-security');
                 }
 
                 // Expiration calculations
@@ -845,24 +845,24 @@ class SessionSentinel {
                 $expiration_human = '';
                 if ($expiration_ts) {
                     if ($expiration_ts < time()) {
-                        $expiration_human = __('Expired', 'wcp-security-scanner');
+                        $expiration_human = __('Expired', 'webcare-pro-security');
                     } else {
                         $expiration_human = sprintf(
                             /* translators: %s: remaining time difference */
-                            __('Expires in %s', 'wcp-security-scanner'),
+                            __('Expires in %s', 'webcare-pro-security'),
                             human_time_diff(time(), $expiration_ts)
                         );
                     }
                 } else {
-                    $expiration_human = __('Expires in 14 days', 'wcp-security-scanner');
+                    $expiration_human = __('Expires in 14 days', 'webcare-pro-security');
                 }
 
                 // Idle time calculation
                 $last_seen_ts = isset($meta['last_seen']) ? (int) $meta['last_seen'] : $login_ts;
                 $idle_diff = max(0, time() - $last_seen_ts);
-                $idle_human = $idle_diff < 90 ? __('Active just now', 'wcp-security-scanner') : sprintf(
+                $idle_human = $idle_diff < 90 ? __('Active just now', 'webcare-pro-security') : sprintf(
                     /* translators: %s: time difference */
-                    __('Idle for %s', 'wcp-security-scanner'),
+                    __('Idle for %s', 'webcare-pro-security'),
                     human_time_diff($last_seen_ts, time())
                 );
 
@@ -878,7 +878,7 @@ class SessionSentinel {
                     'login_ip'                 => $ip,
                     'current_ip'               => $client_ip,
                     'is_same_ip'               => ($ip === $client_ip),
-                    'is_local_ip'              => ($ip === '127.0.0.1' || $ip === '::1' || \WcpScanner\Firewall\FirewallEngine::is_private_ip($ip)),
+                    'is_local_ip'              => ($ip === '127.0.0.1' || $ip === '::1' || \WebCareProScanner\Firewall\FirewallEngine::is_private_ip($ip)),
                     'login_time'               => date_i18n('Y-m-d H:i:s', $login_ts),
                     'login_time_raw'           => $login_ts,
                     'login_time_human'         => human_time_diff($login_ts, time()) . ' ago',

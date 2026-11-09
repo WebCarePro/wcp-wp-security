@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
 if (!defined('ABSPATH')) {
     exit;

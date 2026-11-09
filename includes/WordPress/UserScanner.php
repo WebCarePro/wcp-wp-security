@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -106,12 +106,12 @@ class UserScanner {
         if (!empty($scan_id)) {
             $status_msg = sprintf(
                 /* translators: 1: scanned count, 2: total count */
-                __('User & Auth Sentinel: Auditing %1$s of %2$s user accounts...', 'wcp-security-scanner'),
+                __('User & Auth Sentinel: Auditing %1$s of %2$s user accounts...', 'webcare-pro-security'),
                 number_format(1),
                 number_format(max(1, $total_users_count))
             );
-            set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
-            \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+            set_transient("webcareproscan_active_scan_file_{$scan_id}", $status_msg, 120);
+            \WebCareProScanner\Scan\ScanLock::heartbeat($scan_id);
         }
 
         foreach ($admins as $admin) {
@@ -142,12 +142,12 @@ class UserScanner {
             if (!empty($scan_id) && ($audit_idx % 10 === 0 || $audit_idx === 1 || $audit_idx === $total_to_audit)) {
                 $status_msg = sprintf(
                     /* translators: 1: current audited, 2: total users */
-                    __('User & Auth Sentinel: Auditing user accounts (%1$s / %2$s users checked)...', 'wcp-security-scanner'),
+                    __('User & Auth Sentinel: Auditing user accounts (%1$s / %2$s users checked)...', 'webcare-pro-security'),
                     number_format($scanned_users_count),
                     number_format(max($scanned_users_count, $total_users_count))
                 );
-                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
-                \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+                set_transient("webcareproscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                \WebCareProScanner\Scan\ScanLock::heartbeat($scan_id);
             }
 
             $test_passwords = array_merge($common_passwords, [
@@ -168,10 +168,10 @@ class UserScanner {
 
                     if ($is_admin) {
                         $severity      = 'critical';
-                        $display_title = __('Weak Administrator Password', 'wcp-security-scanner');
+                        $display_title = __('Weak Administrator Password', 'webcare-pro-security');
                         $description   = sprintf(
                             /* translators: %s: username */
-                            __('CRITICAL: Administrator account \'%s\' has a dangerously weak/predictable password matching dictionary or username permutations.', 'wcp-security-scanner'),
+                            __('CRITICAL: Administrator account \'%s\' has a dangerously weak/predictable password matching dictionary or username permutations.', 'webcare-pro-security'),
                             $user->user_login
                         );
                     } elseif ($is_staff) {
@@ -179,12 +179,12 @@ class UserScanner {
                         $primary_role  = ucfirst(reset($user_roles) ?: 'Staff');
                         $display_title = sprintf(
                             /* translators: %s: role name */
-                            __('Weak Staff Password (%s)', 'wcp-security-scanner'),
+                            __('Weak Staff Password (%s)', 'webcare-pro-security'),
                             $primary_role
                         );
                         $description   = sprintf(
                             /* translators: 1: username, 2: role */
-                            __('HIGH: Elevated staff account \'%1$s\' (role: %2$s) has a weak or predictable password.', 'wcp-security-scanner'),
+                            __('HIGH: Elevated staff account \'%1$s\' (role: %2$s) has a weak or predictable password.', 'webcare-pro-security'),
                             $user->user_login,
                             $role_label
                         );
@@ -193,12 +193,12 @@ class UserScanner {
                         $primary_role  = ucfirst(reset($user_roles) ?: 'User');
                         $display_title = sprintf(
                             /* translators: %s: role name */
-                            __('Weak User Password (%s)', 'wcp-security-scanner'),
+                            __('Weak User Password (%s)', 'webcare-pro-security'),
                             $primary_role
                         );
                         $description   = sprintf(
                             /* translators: 1: username, 2: role */
-                            __('User account \'%1$s\' (role: %2$s) has a weak or predictable password. Standard user credentials should be updated to protect against credential stuffing.', 'wcp-security-scanner'),
+                            __('User account \'%1$s\' (role: %2$s) has a weak or predictable password. Standard user credentials should be updated to protect against credential stuffing.', 'webcare-pro-security'),
                             $user->user_login,
                             $role_label
                         );
@@ -247,7 +247,7 @@ class UserScanner {
                 $findings[] = new Finding([
                     'engine'        => 'wordpress-users',
                     'type'          => 'user_missing_capabilities',
-                    'display_title' => __('User Account Missing Role Capabilities', 'wcp-security-scanner'),
+                    'display_title' => __('User Account Missing Role Capabilities', 'webcare-pro-security'),
                     'severity'      => 'medium',
                     'confidence'    => 95,
                     'file_path'     => "user:{$u->ID} ({$u->user_login})",
@@ -271,12 +271,12 @@ class UserScanner {
             if (!empty($scan_id) && ($user_cap_idx % 20 === 0 || $user_cap_idx === 1 || $user_cap_idx === $total_all_users)) {
                 $status_msg = sprintf(
                     /* translators: 1: current audited, 2: total users */
-                    __('User & Auth Sentinel: Auditing roles & capabilities (%1$s / %2$s users checked)...', 'wcp-security-scanner'),
+                    __('User & Auth Sentinel: Auditing roles & capabilities (%1$s / %2$s users checked)...', 'webcare-pro-security'),
                     number_format($user_cap_idx),
                     number_format(max($user_cap_idx, $total_users_count))
                 );
-                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
-                \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+                set_transient("webcareproscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                \WebCareProScanner\Scan\ScanLock::heartbeat($scan_id);
             }
 
             $roles = (array) $user->roles;
@@ -307,7 +307,7 @@ class UserScanner {
                         'file_path'   => "user:{$user->ID} ({$user->user_login})",
                         'description' => sprintf(
                             /* translators: 1: username, 2: display role, 3: count of admin capabilities, 4: list of capability names, 5: display role */
-                            __('CRITICAL: User \'%1$s\' has display role \'%2$s\' but holds %3$d administrative capability(ies): [%4$s]. In the WordPress Users list this account appears as an ordinary %5$s, but secretly possesses administrative powers.', 'wcp-security-scanner'),
+                            __('CRITICAL: User \'%1$s\' has display role \'%2$s\' but holds %3$d administrative capability(ies): [%4$s]. In the WordPress Users list this account appears as an ordinary %5$s, but secretly possesses administrative powers.', 'webcare-pro-security'),
                             $user->user_login,
                             $display_role,
                             count($found_admin_caps),
@@ -349,7 +349,7 @@ class UserScanner {
                         'file_path'   => "user:{$user->ID} ({$user->user_login})",
                         'description' => sprintf(
                             /* translators: 1: username, 2: role, 3: list of capabilities, 4: permission name */
-                            __('HIGH RISK: User \'%1$s\' has role \'%2$s\' but possesses elevated privileges: [%3$s]. Subscribers and Customers should NEVER have \'%4$s\' permission.', 'wcp-security-scanner'),
+                            __('HIGH RISK: User \'%1$s\' has role \'%2$s\' but possesses elevated privileges: [%3$s]. Subscribers and Customers should NEVER have \'%4$s\' permission.', 'webcare-pro-security'),
                             $user->user_login,
                             $display_role,
                             $cap_names,
@@ -378,7 +378,7 @@ class UserScanner {
                     $extra_list = implode(', ', array_slice($extra_caps, 0, 8));
                     if (count($extra_caps) > 8) {
                         /* translators: %d: count of remaining capabilities */
-                        $extra_list .= sprintf(__(' (+%d more)', 'wcp-security-scanner'), count($extra_caps) - 8);
+                        $extra_list .= sprintf(__(' (+%d more)', 'webcare-pro-security'), count($extra_caps) - 8);
                     }
 
                     $findings[] = new Finding([
@@ -389,7 +389,7 @@ class UserScanner {
                         'file_path'   => "user:{$user->ID} ({$user->user_login})",
                         'description' => sprintf(
                             /* translators: 1: username, 2: role, 3: count of capabilities, 4: list of custom capabilities */
-                            __('User \'%1$s\' (role: %2$s) has %3$d custom capability entry(ies) explicitly assigned: [%4$s]. May indicate role editor customization or stealth capability injection.', 'wcp-security-scanner'),
+                            __('User \'%1$s\' (role: %2$s) has %3$d custom capability entry(ies) explicitly assigned: [%4$s]. May indicate role editor customization or stealth capability injection.', 'webcare-pro-security'),
                             $user->user_login,
                             $primary_role,
                             count($extra_caps),
@@ -431,7 +431,7 @@ class UserScanner {
                             'file_path'   => "wp_options:{$wpdb->prefix}user_roles [Role: {$r_name}]",
                             'description' => sprintf(
                                 /* translators: 1: role name, 2: list of capabilities, 3: role name */
-                                __('CRITICAL: Global role definition for \'%1$s\' in wp_user_roles has been compromised to grant dangerous capability(ies): [%2$s]. Every single user with role \'%3$s\' automatically receives this permission.', 'wcp-security-scanner'),
+                                __('CRITICAL: Global role definition for \'%1$s\' in wp_user_roles has been compromised to grant dangerous capability(ies): [%2$s]. Every single user with role \'%3$s\' automatically receives this permission.', 'webcare-pro-security'),
                                 $r_name,
                                 $p_list,
                                 $r_name
@@ -463,7 +463,7 @@ class UserScanner {
                         'count'         => 0,
                         'types'         => [],
                         'sample_id'     => (int) $post->ID,
-                        'sample_title'  => !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'wcp-security-scanner'),
+                        'sample_title'  => !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'webcare-pro-security'),
                         'sample_slug'   => !empty($post->post_name) ? $post->post_name : '',
                         'sample_type'   => $post->post_type,
                         'sample_status' => $post->post_status,
@@ -478,7 +478,7 @@ class UserScanner {
                 if (count($grouped_orphans[$author_id]['posts']) < 5) {
                     $grouped_orphans[$author_id]['posts'][] = [
                         'id'     => (int) $post->ID,
-                        'title'  => !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'wcp-security-scanner'),
+                        'title'  => !empty($post->post_title) ? $post->post_title : __('(Untitled Post)', 'webcare-pro-security'),
                         'slug'   => !empty($post->post_name) ? $post->post_name : '',
                         'type'   => $post->post_type,
                         'status' => $post->post_status,
@@ -512,10 +512,10 @@ class UserScanner {
         }
 
         // 7. REST Application Passwords Security & Stale Credential Audit
-        if (class_exists(\WcpScanner\Auth\ApplicationPasswordSentinel::class)) {
-            $app_passwords     = \WcpScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
-            $disabled_policy   = (bool) get_option(\WcpScanner\Auth\ApplicationPasswordSentinel::OPTION_DISABLED, 0);
-            $admin_only_policy = (bool) get_option(\WcpScanner\Auth\ApplicationPasswordSentinel::OPTION_ADMIN_ONLY, 1);
+        if (class_exists(\WebCareProScanner\Auth\ApplicationPasswordSentinel::class)) {
+            $app_passwords     = \WebCareProScanner\Auth\ApplicationPasswordSentinel::get_all_passwords();
+            $disabled_policy   = (bool) get_option(\WebCareProScanner\Auth\ApplicationPasswordSentinel::OPTION_DISABLED, 0);
+            $admin_only_policy = (bool) get_option(\WebCareProScanner\Auth\ApplicationPasswordSentinel::OPTION_ADMIN_ONLY, 1);
 
             if (!empty($app_passwords)) {
                 $stale_passwords        = [];
@@ -541,7 +541,7 @@ class UserScanner {
                         'file_path'   => 'wp_usermeta:_application_passwords',
                         'description' => sprintf(
                             /* translators: 1: Count of passwords */
-                            __('Site-Wide Policy Violation: %1$d active Application Password(s) exist in user meta, but Application Passwords are set to disabled globally. Unrevoked tokens remain an attack surface if policy is toggled.', 'wcp-security-scanner'),
+                            __('Site-Wide Policy Violation: %1$d active Application Password(s) exist in user meta, but Application Passwords are set to disabled globally. Unrevoked tokens remain an attack surface if policy is toggled.', 'webcare-pro-security'),
                             $total_app_pass
                         ),
                         'evidence'    => sprintf('Total Active: %d, Affected Users: %s', $total_app_pass, implode(', ', array_unique(array_column($app_passwords, 'user_login')))),
@@ -559,7 +559,7 @@ class UserScanner {
                         'file_path'   => 'wp_usermeta:_application_passwords',
                         'description' => sprintf(
                             /* translators: 1: Count of non-admin passwords, 2: Comma-separated usernames */
-                            __('Unprivileged Application Passwords: %1$d token(s) are held by non-administrator user accounts (%2$s). In an Administrator-Only policy, non-admin accounts should not possess REST API credentials.', 'wcp-security-scanner'),
+                            __('Unprivileged Application Passwords: %1$d token(s) are held by non-administrator user accounts (%2$s). In an Administrator-Only policy, non-admin accounts should not possess REST API credentials.', 'webcare-pro-security'),
                             count($unprivileged_passwords),
                             implode(', ', $unprivileged_users)
                         ),
@@ -577,7 +577,7 @@ class UserScanner {
                         'file_path'   => 'wp_usermeta:_application_passwords',
                         'description' => sprintf(
                             /* translators: 1: Count of stale credentials, 2: Total active credentials */
-                            __('Stale / Abandoned Application Passwords: %1$d of %2$d active credentials have not been used in >90 days or were created >30 days ago and never used. Abandoned credentials bypass 2FA and should be revoked.', 'wcp-security-scanner'),
+                            __('Stale / Abandoned Application Passwords: %1$d of %2$d active credentials have not been used in >90 days or were created >30 days ago and never used. Abandoned credentials bypass 2FA and should be revoked.', 'webcare-pro-security'),
                             count($stale_passwords),
                             $total_app_pass
                         ),

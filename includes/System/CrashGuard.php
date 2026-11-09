@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -25,14 +25,14 @@ if (!defined('ABSPATH')) {
  */
 class CrashGuard {
 
-    public const OPTION_SAFE_MODE        = 'wcpscan_circuit_breaker_safe_mode';
-    public const OPTION_SAFE_MODE_UNTIL  = 'wcpscan_circuit_breaker_safe_mode_until';
-    public const OPTION_LAST_INCIDENT    = 'wcpscan_circuit_breaker_last_incident';
-    public const OPTION_INCIDENT_ARCHIVE = 'wcpscan_circuit_breaker_archive';
-    public const OPTION_CRASH_HISTORY    = 'wcpscan_circuit_breaker_history';
-    public const ACTION_RESET            = 'wcpscan_reset_circuit_breaker';
-    public const ACTION_DEACTIVATE       = 'wcpscan_circuit_breaker_deactivate';
-    public const ACTION_TEST_SYNTAX      = 'wcpscan_test_circuit_syntax';
+    public const OPTION_SAFE_MODE        = 'webcareproscan_circuit_breaker_safe_mode';
+    public const OPTION_SAFE_MODE_UNTIL  = 'webcareproscan_circuit_breaker_safe_mode_until';
+    public const OPTION_LAST_INCIDENT    = 'webcareproscan_circuit_breaker_last_incident';
+    public const OPTION_INCIDENT_ARCHIVE = 'webcareproscan_circuit_breaker_archive';
+    public const OPTION_CRASH_HISTORY    = 'webcareproscan_circuit_breaker_history';
+    public const ACTION_RESET            = 'webcareproscan_reset_circuit_breaker';
+    public const ACTION_DEACTIVATE       = 'webcareproscan_circuit_breaker_deactivate';
+    public const ACTION_TEST_SYNTAX      = 'webcareproscan_test_circuit_syntax';
 
     /**
      * Maximum historical incidents to retain in archive.
@@ -134,12 +134,12 @@ class CrashGuard {
         self::archive_incident($incident);
 
         // Strike threshold check: 3 crashes within 60 seconds
-        $strikes = (array) get_transient('wcpscan_crash_strikes');
+        $strikes = (array) get_transient('webcareproscan_crash_strikes');
         $strikes = array_filter($strikes, static function ($ts) use ($now) {
             return ($now - (int) $ts) <= 60;
         });
         $strikes[] = $now;
-        set_transient('wcpscan_crash_strikes', $strikes, 120);
+        set_transient('webcareproscan_crash_strikes', $strikes, 120);
 
         if (count($strikes) >= 3) {
             update_option(self::OPTION_SAFE_MODE, true, false);
@@ -175,7 +175,7 @@ class CrashGuard {
         }
 
         $error_file = wp_normalize_path($error['file']);
-        $plugin_dir = wp_normalize_path(defined('WCPSCAN_PATH') ? WCPSCAN_PATH : dirname(__DIR__, 2) . '/');
+        $plugin_dir = wp_normalize_path(defined('WEBCAREPROSCAN_PATH') ? WEBCAREPROSCAN_PATH : dirname(__DIR__, 2) . '/');
 
         // Verify if error originated inside WCP Security Scanner
         if (strpos($error_file, $plugin_dir) === false) {
@@ -219,8 +219,8 @@ class CrashGuard {
         // Stage 2: Automatic Deactivation if crash loop persists
         if (count($history) >= self::STRIKE_LIMIT) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
-            if (defined('WCPSCAN_FILE') && function_exists('deactivate_plugins')) {
-                deactivate_plugins(WCPSCAN_FILE, true);
+            if (defined('WEBCAREPROSCAN_FILE') && function_exists('deactivate_plugins')) {
+                deactivate_plugins(WEBCAREPROSCAN_FILE, true);
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log(sprintf(
                     '[WCP CrashGuard] %d consecutive fatal crashes detected within 5 minutes. WCP Security Scanner automatically self-deactivated to preserve host stability.',
@@ -453,13 +453,13 @@ class CrashGuard {
         $mem_limit    = !empty($incident['memory_limit']) ? esc_html($incident['memory_limit']) : 'N/A';
         $code_snippet = !empty($incident['code_snippet']) && is_array($incident['code_snippet']) ? $incident['code_snippet'] : [];
 
-        $reset_url      = wp_nonce_url(admin_url('admin-post.php?action=' . self::ACTION_RESET), 'wcpscan_circuit_breaker_nonce');
-        $deactivate_url = wp_nonce_url(admin_url('admin-post.php?action=' . self::ACTION_DEACTIVATE), 'wcpscan_circuit_breaker_nonce');
-        $test_url       = wp_nonce_url(admin_url('admin-post.php?action=' . self::ACTION_TEST_SYNTAX), 'wcpscan_circuit_breaker_nonce');
+        $reset_url      = wp_nonce_url(admin_url('admin-post.php?action=' . self::ACTION_RESET), 'webcareproscan_circuit_breaker_nonce');
+        $deactivate_url = wp_nonce_url(admin_url('admin-post.php?action=' . self::ACTION_DEACTIVATE), 'webcareproscan_circuit_breaker_nonce');
+        $test_url       = wp_nonce_url(admin_url('admin-post.php?action=' . self::ACTION_TEST_SYNTAX), 'webcareproscan_circuit_breaker_nonce');
 
         // Check if admin notice flash message is present
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $flash_msg = isset($_GET['wcpscan_msg']) ? sanitize_key(wp_unslash($_GET['wcpscan_msg'])) : '';
+        $flash_msg = isset($_GET['webcareproscan_msg']) ? sanitize_key(wp_unslash($_GET['webcareproscan_msg'])) : '';
         ?>
         <div class="notice notice-error is-dismissible" style="border-left-color: #ef4444; padding: 20px 24px; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); margin: 20px 0;">
             <div style="display: flex; align-items: flex-start; gap: 14px;">
@@ -479,11 +479,11 @@ class CrashGuard {
 
                     <?php if ('syntax_valid' === $flash_msg) : ?>
                         <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 10px 0;">
-                            <strong><?php esc_html_e('Syntax Verification Passed:', 'wcp-security-scanner'); ?></strong> <?php esc_html_e('The offending file has clean syntax and no compile errors detected. You may now safely clear the incident.', 'wcp-security-scanner'); ?>
+                            <strong><?php esc_html_e('Syntax Verification Passed:', 'webcare-pro-security'); ?></strong> <?php esc_html_e('The offending file has clean syntax and no compile errors detected. You may now safely clear the incident.', 'webcare-pro-security'); ?>
                         </div>
                     <?php elseif ('syntax_error' === $flash_msg) : ?>
                         <div style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 10px 0;">
-                            <strong><?php esc_html_e('Syntax Verification Failed:', 'wcp-security-scanner'); ?></strong> <?php esc_html_e('The file still contains syntax errors or invalid PHP tokens. Please repair the file before re-enabling protection.', 'wcp-security-scanner'); ?>
+                            <strong><?php esc_html_e('Syntax Verification Failed:', 'webcare-pro-security'); ?></strong> <?php esc_html_e('The file still contains syntax errors or invalid PHP tokens. Please repair the file before re-enabling protection.', 'webcare-pro-security'); ?>
                         </div>
                     <?php endif; ?>
 
@@ -498,33 +498,33 @@ class CrashGuard {
                     <!-- Expandable Forensic Incident Dossier -->
                     <details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; max-width: 960px;">
                         <summary style="font-size: 13px; font-weight: 600; color: #1e293b; cursor: pointer; user-select: none;">
-                            🔍 <?php esc_html_e('Inspect Full Forensic Incident Dossier & Code Snapshot', 'wcp-security-scanner'); ?>
+                            🔍 <?php esc_html_e('Inspect Full Forensic Incident Dossier & Code Snapshot', 'webcare-pro-security'); ?>
                         </summary>
 
                         <div style="margin-top: 12px; font-size: 12px; color: #334155; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px;">
                             <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                                <strong><?php esc_html_e('Triggering Endpoint:', 'wcp-security-scanner'); ?></strong><br>
+                                <strong><?php esc_html_e('Triggering Endpoint:', 'webcare-pro-security'); ?></strong><br>
                                 <code><?php echo esc_html($endpoint); ?></code><br>
                                 <span style="color: #64748b;"><?php echo esc_html($method . ' ' . $uri); ?></span>
                             </div>
 
                             <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                                <strong><?php esc_html_e('Executing Identity & IP:', 'wcp-security-scanner'); ?></strong><br>
+                                <strong><?php esc_html_e('Executing Identity & IP:', 'webcare-pro-security'); ?></strong><br>
                                 <span><?php echo esc_html($user_trigger); ?></span><br>
-                                <span style="color: #64748b;"><?php esc_html_e('Client IP:', 'wcp-security-scanner'); ?> <?php echo esc_html($client_ip); ?></span>
+                                <span style="color: #64748b;"><?php esc_html_e('Client IP:', 'webcare-pro-security'); ?> <?php echo esc_html($client_ip); ?></span>
                             </div>
 
                             <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                                <strong><?php esc_html_e('System & Memory State:', 'wcp-security-scanner'); ?></strong><br>
+                                <strong><?php esc_html_e('System & Memory State:', 'webcare-pro-security'); ?></strong><br>
                                 <span>PHP <?php echo esc_html($php_ver); ?> &bull; Memory: <?php echo esc_html($mem_used); ?> / <?php echo esc_html($mem_limit); ?></span><br>
-                                <span style="color: #64748b;"><?php esc_html_e('File:', 'wcp-security-scanner'); ?> <?php echo esc_html($full_file); ?></span>
+                                <span style="color: #64748b;"><?php esc_html_e('File:', 'webcare-pro-security'); ?> <?php echo esc_html($full_file); ?></span>
                             </div>
                         </div>
 
                         <?php if (!empty($code_snippet)) : ?>
                             <div style="margin-top: 12px;">
                                 <div style="font-weight: 600; margin-bottom: 4px; color: #475569; font-size: 11px; text-transform: uppercase;">
-                                    <?php esc_html_e('Surrounding Code Snapshot (Line', 'wcp-security-scanner'); ?> <?php echo esc_html((string) $err_line); ?> <?php esc_html_e('Highlighted):', 'wcp-security-scanner'); ?>
+                                    <?php esc_html_e('Surrounding Code Snapshot (Line', 'webcare-pro-security'); ?> <?php echo esc_html((string) $err_line); ?> <?php esc_html_e('Highlighted):', 'webcare-pro-security'); ?>
                                 </div>
                                 <div style="background: #090d16; color: #cbd5e1; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 11px; max-height: 220px; overflow-y: auto;">
                                     <?php foreach ($code_snippet as $s_line) : ?>
@@ -538,8 +538,8 @@ class CrashGuard {
                         <?php endif; ?>
 
                         <div style="margin-top: 12px; display: flex; align-items: center; justify-content: flex-end;">
-                            <button type="button" class="button button-small" onclick="var btn=this;navigator.clipboard.writeText(document.getElementById('wcp-crashguard-json-dossier').textContent).then(function(){var orig=btn.innerHTML;btn.innerHTML='✓ <?php echo esc_js(__('Copied to Clipboard!', 'wcp-security-scanner')); ?>';btn.style.color='#059669';setTimeout(function(){btn.innerHTML=orig;btn.style.color='';},3000);});">
-                                📋 <?php esc_html_e('Copy Full Forensic JSON Dossier', 'wcp-security-scanner'); ?>
+                            <button type="button" class="button button-small" onclick="var btn=this;navigator.clipboard.writeText(document.getElementById('wcp-crashguard-json-dossier').textContent).then(function(){var orig=btn.innerHTML;btn.innerHTML='✓ <?php echo esc_js(__('Copied to Clipboard!', 'webcare-pro-security')); ?>';btn.style.color='#059669';setTimeout(function(){btn.innerHTML=orig;btn.style.color='';},3000);});">
+                                📋 <?php esc_html_e('Copy Full Forensic JSON Dossier', 'webcare-pro-security'); ?>
                             </button>
                             <script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
                         </div>
@@ -547,13 +547,13 @@ class CrashGuard {
 
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <a href="<?php echo esc_url($reset_url); ?>" class="button button-primary" style="background: #4f46e5; border-color: #4338ca;">
-                            <?php esc_html_e('Clear Incident & Re-Enable Full Protection', 'wcp-security-scanner'); ?>
+                            <?php esc_html_e('Clear Incident & Re-Enable Full Protection', 'webcare-pro-security'); ?>
                         </a>
                         <a href="<?php echo esc_url($test_url); ?>" class="button button-secondary" style="border-color: #cbd5e1;">
-                            <?php esc_html_e('Verify Code Syntax', 'wcp-security-scanner'); ?>
+                            <?php esc_html_e('Verify Code Syntax', 'webcare-pro-security'); ?>
                         </a>
                         <a href="<?php echo esc_url($deactivate_url); ?>" class="button button-secondary" style="color: #b91c1c;">
-                            <?php esc_html_e('Deactivate Plugin Safely', 'wcp-security-scanner'); ?>
+                            <?php esc_html_e('Deactivate Plugin Safely', 'webcare-pro-security'); ?>
                         </a>
                         <span style="font-size: 12px; color: #64748b; margin-left: 6px;">
                             Connect directly with <strong style="color: #0f172a;">Mir Alamin (WebCare Pro)</strong> for assistance.
@@ -569,17 +569,17 @@ class CrashGuard {
      * Handle manual 1-click reset action from wp-admin banner.
      */
     public static function handle_reset_action(): void {
-        check_admin_referer('wcpscan_circuit_breaker_nonce');
+        check_admin_referer('webcareproscan_circuit_breaker_nonce');
 
         if (!current_user_can('activate_plugins')) {
-            wp_die(esc_html__('Unauthorized capability.', 'wcp-security-scanner'), 403);
+            wp_die(esc_html__('Unauthorized capability.', 'webcare-pro-security'), 403);
         }
 
         delete_option(self::OPTION_SAFE_MODE);
         delete_option(self::OPTION_LAST_INCIDENT);
         delete_option(self::OPTION_CRASH_HISTORY);
 
-        wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner&wcpscan_msg=circuit_reset'));
+        wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner&webcareproscan_msg=circuit_reset'));
         exit;
     }
 
@@ -587,15 +587,15 @@ class CrashGuard {
      * Handle graceful user-requested self-deactivation.
      */
     public static function handle_self_deactivation(): void {
-        check_admin_referer('wcpscan_circuit_breaker_nonce');
+        check_admin_referer('webcareproscan_circuit_breaker_nonce');
 
         if (!current_user_can('activate_plugins')) {
-            wp_die(esc_html__('Unauthorized capability.', 'wcp-security-scanner'), 403);
+            wp_die(esc_html__('Unauthorized capability.', 'webcare-pro-security'), 403);
         }
 
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        if (defined('WCPSCAN_FILE')) {
-            deactivate_plugins(WCPSCAN_FILE);
+        if (defined('WEBCAREPROSCAN_FILE')) {
+            deactivate_plugins(WEBCAREPROSCAN_FILE);
         }
 
         delete_option(self::OPTION_SAFE_MODE);
@@ -607,10 +607,10 @@ class CrashGuard {
      * Handle non-destructive syntax verification of the offending file.
      */
     public static function handle_test_syntax_action(): void {
-        check_admin_referer('wcpscan_circuit_breaker_nonce');
+        check_admin_referer('webcareproscan_circuit_breaker_nonce');
 
         if (!current_user_can('activate_plugins')) {
-            wp_die(esc_html__('Unauthorized capability.', 'wcp-security-scanner'), 403);
+            wp_die(esc_html__('Unauthorized capability.', 'webcare-pro-security'), 403);
         }
 
         $incident = get_option(self::OPTION_LAST_INCIDENT, []);
@@ -634,7 +634,7 @@ class CrashGuard {
 
         $redirect_msg = $is_valid ? 'syntax_valid' : 'syntax_error';
         $referer = wp_get_referer();
-        $target_url = $referer ? add_query_arg('wcpscan_msg', $redirect_msg, $referer) : admin_url('index.php?wcpscan_msg=' . $redirect_msg);
+        $target_url = $referer ? add_query_arg('webcareproscan_msg', $redirect_msg, $referer) : admin_url('index.php?webcareproscan_msg=' . $redirect_msg);
 
         wp_safe_redirect($target_url);
         exit;

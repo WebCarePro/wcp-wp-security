@@ -1,13 +1,13 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
 class SettingsManager {
-    const OPTION_KEY = 'wcpscan_settings';
-    const CRON_HOOK = 'wcpscan_scheduled_scan_event';
+    const OPTION_KEY = 'webcareproscan_settings';
+    const CRON_HOOK = 'webcareproscan_scheduled_scan_event';
 
     /**
      * Suppression flag for noisy secondary firewall_ruleset_modified logs during dedicated IP actions.
@@ -430,33 +430,33 @@ class SettingsManager {
      */
     public static function get_default_mcp_tool_matrix(): array {
         return [
-            'wcpscan_get_security_posture'      => 'allowed',
-            'wcpscan_list_findings'             => 'allowed',
-            'wcpscan_audit_behavioral_baseline' => 'allowed',
-            'wcpscan_get_containment_status'    => 'allowed',
-            'wcpscan_list_staged_actions'       => 'allowed',
-            'wcpscan_whitelist_finding'         => 'allowed',
-            'wcpscan_rollback_remediation'      => 'confirmation_required',
-            'wcpscan_deploy_virtual_patch'      => 'confirmation_required',
-            'wcpscan_quarantine_file'           => 'confirmation_required',
-            'wcpscan_run_security_drill'        => 'allowed',
-            'wcpscan_set_containment_mode'           => 'confirmation_required',
-            'wcpscan_approve_staged_action'          => 'confirmation_required',
-            'wcpscan_get_supply_chain_sbom'          => 'allowed',
-            'wcpscan_get_gatekeeper_history'         => 'allowed',
-            'wcpscan_recalibrate_sbom_baseline'      => 'confirmation_required',
-            'wcpscan_quarantine_supply_chain_anchor' => 'confirmation_required',
-            'wcpscan_get_behavioral_waf_status'      => 'allowed',
-            'wcpscan_set_route_learning_status'       => 'confirmation_required',
-            'wcpscan_get_identity_forensics'         => 'allowed',
-            'wcpscan_revoke_user_session'            => 'confirmation_required',
-            'wcpscan_grant_ephemeral_elevation'      => 'confirmation_required',
-            'wcpscan_revoke_ephemeral_elevation'     => 'confirmation_required',
-            'wcpscan_get_threat_intel_network'       => 'allowed',
-            'wcpscan_sync_threat_intel'              => 'allowed',
-            'wcpscan_synthesize_virtual_patch'       => 'confirmation_required',
-            'wcpscan_test_virtual_patch'             => 'allowed',
-            'wcpscan_deploy_synthesized_patch'       => 'confirmation_required',
+            'webcareproscan_get_security_posture'      => 'allowed',
+            'webcareproscan_list_findings'             => 'allowed',
+            'webcareproscan_audit_behavioral_baseline' => 'allowed',
+            'webcareproscan_get_containment_status'    => 'allowed',
+            'webcareproscan_list_staged_actions'       => 'allowed',
+            'webcareproscan_whitelist_finding'         => 'allowed',
+            'webcareproscan_rollback_remediation'      => 'confirmation_required',
+            'webcareproscan_deploy_virtual_patch'      => 'confirmation_required',
+            'webcareproscan_quarantine_file'           => 'confirmation_required',
+            'webcareproscan_run_security_drill'        => 'allowed',
+            'webcareproscan_set_containment_mode'           => 'confirmation_required',
+            'webcareproscan_approve_staged_action'          => 'confirmation_required',
+            'webcareproscan_get_supply_chain_sbom'          => 'allowed',
+            'webcareproscan_get_gatekeeper_history'         => 'allowed',
+            'webcareproscan_recalibrate_sbom_baseline'      => 'confirmation_required',
+            'webcareproscan_quarantine_supply_chain_anchor' => 'confirmation_required',
+            'webcareproscan_get_behavioral_waf_status'      => 'allowed',
+            'webcareproscan_set_route_learning_status'       => 'confirmation_required',
+            'webcareproscan_get_identity_forensics'         => 'allowed',
+            'webcareproscan_revoke_user_session'            => 'confirmation_required',
+            'webcareproscan_grant_ephemeral_elevation'      => 'confirmation_required',
+            'webcareproscan_revoke_ephemeral_elevation'     => 'confirmation_required',
+            'webcareproscan_get_threat_intel_network'       => 'allowed',
+            'webcareproscan_sync_threat_intel'              => 'allowed',
+            'webcareproscan_synthesize_virtual_patch'       => 'confirmation_required',
+            'webcareproscan_test_virtual_patch'             => 'allowed',
+            'webcareproscan_deploy_synthesized_patch'       => 'confirmation_required',
         ];
     }
 
@@ -516,8 +516,8 @@ class SettingsManager {
         foreach ($sensitive_keys as $k) {
             if (!empty($merged[$k])) {
                 $raw_val = (string) $merged[$k];
-                if (\WcpScanner\Security\SecretVault::is_encrypted($raw_val)) {
-                    $merged[$k] = \WcpScanner\Security\SecretVault::decrypt($raw_val);
+                if (\WebCareProScanner\Security\SecretVault::is_encrypted($raw_val)) {
+                    $merged[$k] = \WebCareProScanner\Security\SecretVault::decrypt($raw_val);
                 }
             }
         }
@@ -535,7 +535,7 @@ class SettingsManager {
         $merged['has_mcp_token']           = !empty($merged['mcp_token']);
 
         // Activity log options
-        $act_settings = get_option('wcpscan_activity_log_settings', []);
+        $act_settings = get_option('webcareproscan_activity_log_settings', []);
         $merged['activity_log_settings']   = is_array($act_settings) ? $act_settings : [];
 
         return $merged;
@@ -590,33 +590,33 @@ class SettingsManager {
 
         // Preserve existing keys if incoming is masked or empty, and securely encrypt for database storage
         $in_openai = trim($input['openai_api_key'] ?? '');
-        $old_openai_val = \WcpScanner\Security\SecretVault::decrypt($current['openai_api_key'] ?? '');
+        $old_openai_val = \WebCareProScanner\Security\SecretVault::decrypt($current['openai_api_key'] ?? '');
         $openai_val = ($in_openai === '' || $in_openai === '••••••••') 
             ? $old_openai_val 
             : sanitize_text_field($in_openai);
         $clean['openai_api_key'] = ($openai_val === $old_openai_val && !empty($current['openai_api_key']))
             ? $current['openai_api_key']
-            : \WcpScanner\Security\SecretVault::encrypt($openai_val);
+            : \WebCareProScanner\Security\SecretVault::encrypt($openai_val);
         $clean['openai_model'] = sanitize_text_field($merged['openai_model'] ?? 'gpt-6.1-sol');
 
         $in_gemini = trim($input['gemini_api_key'] ?? '');
-        $old_gemini_val = \WcpScanner\Security\SecretVault::decrypt($current['gemini_api_key'] ?? '');
+        $old_gemini_val = \WebCareProScanner\Security\SecretVault::decrypt($current['gemini_api_key'] ?? '');
         $gemini_val = ($in_gemini === '' || $in_gemini === '••••••••') 
             ? $old_gemini_val 
             : sanitize_text_field($in_gemini);
         $clean['gemini_api_key'] = ($gemini_val === $old_gemini_val && !empty($current['gemini_api_key']))
             ? $current['gemini_api_key']
-            : \WcpScanner\Security\SecretVault::encrypt($gemini_val);
+            : \WebCareProScanner\Security\SecretVault::encrypt($gemini_val);
         $clean['gemini_model'] = sanitize_text_field($merged['gemini_model'] ?? 'gemini-3.8-flash');
 
         $in_claude = trim($input['claude_api_key'] ?? '');
-        $old_claude_val = \WcpScanner\Security\SecretVault::decrypt($current['claude_api_key'] ?? '');
+        $old_claude_val = \WebCareProScanner\Security\SecretVault::decrypt($current['claude_api_key'] ?? '');
         $claude_val = ($in_claude === '' || $in_claude === '••••••••') 
             ? $old_claude_val 
             : sanitize_text_field($in_claude);
         $clean['claude_api_key'] = ($claude_val === $old_claude_val && !empty($current['claude_api_key']))
             ? $current['claude_api_key']
-            : \WcpScanner\Security\SecretVault::encrypt($claude_val);
+            : \WebCareProScanner\Security\SecretVault::encrypt($claude_val);
         $clean['claude_model'] = sanitize_text_field($merged['claude_model'] ?? 'claude-sonnet-5-5');
 
         $clean['ai_temperature']           = max(0.0, min(1.0, floatval($merged['ai_temperature'] ?? 0.2)));
@@ -829,7 +829,7 @@ class SettingsManager {
         $valid_retention = [7, 14, 30, 60, 90, 180, 365, 0];
         $retention_val = (int) ($merged['waf_log_retention_days'] ?? 60);
         $clean['waf_log_retention_days'] = in_array($retention_val, $valid_retention, true) ? $retention_val : 60;
-        update_option(\WcpScanner\Firewall\WafFileLogger::RETENTION_OPTION, $clean['waf_log_retention_days']);
+        update_option(\WebCareProScanner\Firewall\WafFileLogger::RETENTION_OPTION, $clean['waf_log_retention_days']);
 
         // 9. Cloud Threat Intelligence & Community Blacklists
         $clean['threat_intel_enabled']               = !empty($merged['threat_intel_enabled']);
@@ -869,10 +869,10 @@ class SettingsManager {
             $clean['slack_webhook_url'] = '';
         } elseif ($in_slack !== null) {
             $is_masked_slack = strpos($in_slack, '••') !== false;
-            $old_slack_val   = \WcpScanner\Security\SecretVault::decrypt($current['slack_webhook_url'] ?? '');
+            $old_slack_val   = \WebCareProScanner\Security\SecretVault::decrypt($current['slack_webhook_url'] ?? '');
             $slack_val       = $is_masked_slack ? $old_slack_val : esc_url_raw($in_slack);
             $clean['slack_webhook_url'] = (!empty($slack_val))
-                ? (($slack_val === $old_slack_val && !empty($current['slack_webhook_url'])) ? $current['slack_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($slack_val))
+                ? (($slack_val === $old_slack_val && !empty($current['slack_webhook_url'])) ? $current['slack_webhook_url'] : \WebCareProScanner\Security\SecretVault::encrypt($slack_val))
                 : '';
         } else {
             $clean['slack_webhook_url'] = $current['slack_webhook_url'] ?? '';
@@ -884,10 +884,10 @@ class SettingsManager {
             $clean['discord_webhook_url'] = '';
         } elseif ($in_discord !== null) {
             $is_masked_discord = strpos($in_discord, '••') !== false;
-            $old_discord_val   = \WcpScanner\Security\SecretVault::decrypt($current['discord_webhook_url'] ?? '');
+            $old_discord_val   = \WebCareProScanner\Security\SecretVault::decrypt($current['discord_webhook_url'] ?? '');
             $discord_val       = $is_masked_discord ? $old_discord_val : esc_url_raw($in_discord);
             $clean['discord_webhook_url'] = (!empty($discord_val))
-                ? (($discord_val === $old_discord_val && !empty($current['discord_webhook_url'])) ? $current['discord_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($discord_val))
+                ? (($discord_val === $old_discord_val && !empty($current['discord_webhook_url'])) ? $current['discord_webhook_url'] : \WebCareProScanner\Security\SecretVault::encrypt($discord_val))
                 : '';
         } else {
             $clean['discord_webhook_url'] = $current['discord_webhook_url'] ?? '';
@@ -899,10 +899,10 @@ class SettingsManager {
             $clean['clickup_webhook_url'] = '';
         } elseif ($in_clickup !== null) {
             $is_masked_clickup = strpos($in_clickup, '••') !== false;
-            $old_clickup_val   = \WcpScanner\Security\SecretVault::decrypt($current['clickup_webhook_url'] ?? '');
+            $old_clickup_val   = \WebCareProScanner\Security\SecretVault::decrypt($current['clickup_webhook_url'] ?? '');
             $clickup_val       = $is_masked_clickup ? $old_clickup_val : esc_url_raw($in_clickup);
             $clean['clickup_webhook_url'] = (!empty($clickup_val))
-                ? (($clickup_val === $old_clickup_val && !empty($current['clickup_webhook_url'])) ? $current['clickup_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($clickup_val))
+                ? (($clickup_val === $old_clickup_val && !empty($current['clickup_webhook_url'])) ? $current['clickup_webhook_url'] : \WebCareProScanner\Security\SecretVault::encrypt($clickup_val))
                 : '';
         } else {
             $clean['clickup_webhook_url'] = $current['clickup_webhook_url'] ?? '';
@@ -914,10 +914,10 @@ class SettingsManager {
             $clean['asana_webhook_url'] = '';
         } elseif ($in_asana !== null) {
             $is_masked_asana = strpos($in_asana, '••') !== false;
-            $old_asana_val   = \WcpScanner\Security\SecretVault::decrypt($current['asana_webhook_url'] ?? '');
+            $old_asana_val   = \WebCareProScanner\Security\SecretVault::decrypt($current['asana_webhook_url'] ?? '');
             $asana_val       = $is_masked_asana ? $old_asana_val : esc_url_raw($in_asana);
             $clean['asana_webhook_url'] = (!empty($asana_val))
-                ? (($asana_val === $old_asana_val && !empty($current['asana_webhook_url'])) ? $current['asana_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($asana_val))
+                ? (($asana_val === $old_asana_val && !empty($current['asana_webhook_url'])) ? $current['asana_webhook_url'] : \WebCareProScanner\Security\SecretVault::encrypt($asana_val))
                 : '';
         } else {
             $clean['asana_webhook_url'] = $current['asana_webhook_url'] ?? '';
@@ -929,10 +929,10 @@ class SettingsManager {
             $clean['generic_webhook_url'] = '';
         } elseif ($in_generic !== null) {
             $is_masked_generic = strpos($in_generic, '••') !== false;
-            $old_generic_val   = \WcpScanner\Security\SecretVault::decrypt($current['generic_webhook_url'] ?? '');
+            $old_generic_val   = \WebCareProScanner\Security\SecretVault::decrypt($current['generic_webhook_url'] ?? '');
             $generic_val       = $is_masked_generic ? $old_generic_val : esc_url_raw($in_generic);
             $clean['generic_webhook_url'] = (!empty($generic_val))
-                ? (($generic_val === $old_generic_val && !empty($current['generic_webhook_url'])) ? $current['generic_webhook_url'] : \WcpScanner\Security\SecretVault::encrypt($generic_val))
+                ? (($generic_val === $old_generic_val && !empty($current['generic_webhook_url'])) ? $current['generic_webhook_url'] : \WebCareProScanner\Security\SecretVault::encrypt($generic_val))
                 : '';
         } else {
             $clean['generic_webhook_url'] = $current['generic_webhook_url'] ?? '';
@@ -947,23 +947,23 @@ class SettingsManager {
         $clean['cloudflare_enabled']        = !empty($merged['cloudflare_enabled']);
         $in_cf_token                        = trim($input['cloudflare_api_token'] ?? '');
         $is_masked_token                    = $in_cf_token === '' || strpos($in_cf_token, '••') !== false;
-        $old_cf_token_val                   = \WcpScanner\Security\SecretVault::decrypt($current['cloudflare_api_token'] ?? '');
+        $old_cf_token_val                   = \WebCareProScanner\Security\SecretVault::decrypt($current['cloudflare_api_token'] ?? '');
         $cf_token_val                       = $is_masked_token
             ? $old_cf_token_val
             : sanitize_text_field($in_cf_token);
         $clean['cloudflare_api_token']      = ($cf_token_val === $old_cf_token_val && !empty($current['cloudflare_api_token']))
             ? $current['cloudflare_api_token']
-            : \WcpScanner\Security\SecretVault::encrypt($cf_token_val);
+            : \WebCareProScanner\Security\SecretVault::encrypt($cf_token_val);
 
         $in_zone_id                         = trim($input['cloudflare_zone_id'] ?? '');
         $is_masked_zone                     = $in_zone_id === '' || strpos($in_zone_id, '••') !== false;
-        $old_zone_id_val                    = \WcpScanner\Security\SecretVault::decrypt($current['cloudflare_zone_id'] ?? '');
+        $old_zone_id_val                    = \WebCareProScanner\Security\SecretVault::decrypt($current['cloudflare_zone_id'] ?? '');
         $zone_id_val                        = $is_masked_zone
             ? $old_zone_id_val
             : sanitize_text_field($in_zone_id);
         $clean['cloudflare_zone_id']        = ($zone_id_val === $old_zone_id_val && !empty($current['cloudflare_zone_id']))
             ? $current['cloudflare_zone_id']
-            : \WcpScanner\Security\SecretVault::encrypt($zone_id_val);
+            : \WebCareProScanner\Security\SecretVault::encrypt($zone_id_val);
 
         $clean['cloudflare_auto_sync_bans'] = !empty($merged['cloudflare_auto_sync_bans']);
 
@@ -980,19 +980,19 @@ class SettingsManager {
         $is_masked_mcp = (strpos($mcp_tok, '••••') !== false);
         if ((empty($mcp_tok) || $is_masked_mcp) && !empty($current['mcp_token'])) {
             $raw_existing = $current['mcp_token'];
-            $clean['mcp_token'] = \WcpScanner\Security\SecretVault::is_encrypted($raw_existing)
+            $clean['mcp_token'] = \WebCareProScanner\Security\SecretVault::is_encrypted($raw_existing)
                 ? $raw_existing
-                : \WcpScanner\Security\SecretVault::encrypt($raw_existing);
+                : \WebCareProScanner\Security\SecretVault::encrypt($raw_existing);
         } elseif (!empty($mcp_tok) && !$is_masked_mcp) {
             $sanitized_tok = sanitize_text_field($mcp_tok);
-            $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($sanitized_tok);
+            $clean['mcp_token'] = \WebCareProScanner\Security\SecretVault::encrypt($sanitized_tok);
         } else {
             // Keep existing token if present in current settings
             if (!empty($current['mcp_token'])) {
                 $clean['mcp_token'] = $current['mcp_token'];
             } else {
-                $new_mcp_plain = 'wcpscan_mcp_' . bin2hex(random_bytes(16));
-                $clean['mcp_token'] = \WcpScanner\Security\SecretVault::encrypt($new_mcp_plain);
+                $new_mcp_plain = 'webcareproscan_mcp_' . bin2hex(random_bytes(16));
+                $clean['mcp_token'] = \WebCareProScanner\Security\SecretVault::encrypt($new_mcp_plain);
             }
         }
 
@@ -1044,7 +1044,7 @@ class SettingsManager {
                 'retention_days'      => $ret_days,
                 'tamper_webhook_url'  => isset($input['activity_log_settings']['tamper_webhook_url']) ? esc_url_raw($input['activity_log_settings']['tamper_webhook_url']) : '',
             ];
-            update_option('wcpscan_activity_log_settings', $clean_act_settings, false);
+            update_option('webcareproscan_activity_log_settings', $clean_act_settings, false);
         }
 
         // Compute settings diff before persisting
@@ -1073,7 +1073,7 @@ class SettingsManager {
             }
 
             // Suppress secondary generic firewall_ruleset_modified when an explicit IP action is logged or suppressed
-            if (!empty($diff) && (self::$suppress_firewall_ruleset_log || (class_exists('\WcpScanner\System\WcpActivityLogger') && \WcpScanner\System\WcpActivityLogger::has_action_logged('firewall_ip_unblocked', 'firewall_ip_blocked', 'firewall_ip_whitelisted', 'firewall_ip_whitelist_removed')))) {
+            if (!empty($diff) && (self::$suppress_firewall_ruleset_log || (class_exists('\WebCareProScanner\System\WcpActivityLogger') && \WebCareProScanner\System\WcpActivityLogger::has_action_logged('firewall_ip_unblocked', 'firewall_ip_blocked', 'firewall_ip_whitelisted', 'firewall_ip_whitelist_removed')))) {
                 $diff_keys_check = array_keys($diff);
                 $substantive_keys = array_diff($diff_keys_check, ['waf_blocked_ips', 'waf_whitelisted_ips']);
                 if (empty($substantive_keys)) {
@@ -1094,8 +1094,8 @@ class SettingsManager {
                     // Determine user-friendly description if single rule was toggled
                     $current_user = wp_get_current_user();
                     $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-                    $ip = class_exists('\WcpScanner\Firewall\FirewallEngine')
-                        ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+                    $ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
+                        ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                         : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
                     $friendly_desc = sprintf('Firewall rule modification: updated %d security policy parameter(s) by %s from IP %s.', count($diff), $user_login, $ip);
@@ -1114,7 +1114,7 @@ class SettingsManager {
                         }
                     }
 
-                    \WcpScanner\System\WcpActivityLogger::notice(
+                    \WebCareProScanner\System\WcpActivityLogger::notice(
                         'firewall_ruleset_modified',
                         'firewall',
                         [
@@ -1125,7 +1125,7 @@ class SettingsManager {
                         ]
                     );
                 } else {
-                    \WcpScanner\System\WcpActivityLogger::notice(
+                    \WebCareProScanner\System\WcpActivityLogger::notice(
                         'settings_updated',
                         'settings',
                         [
@@ -1198,7 +1198,7 @@ class SettingsManager {
             return $map[$key];
         }
 
-        $clean = str_replace(['waf_block_', 'waf_', 'threat_intel_', 'wcpscan_'], '', $key);
+        $clean = str_replace(['waf_block_', 'waf_', 'threat_intel_', 'webcareproscan_'], '', $key);
         $clean = str_replace('xmlrpc', 'XML-RPC', $clean);
         return ucwords(str_replace('_', ' ', $clean));
     }
@@ -1238,8 +1238,8 @@ class SettingsManager {
 
             // For encrypted/vaulted fields, compare decrypted plaintext values to prevent false diffs from randomized AES-GCM IVs
             if (in_array($k, $vaulted_keys, true)) {
-                $dec_old = is_string($old_val) ? \WcpScanner\Security\SecretVault::decrypt($old_val) : $old_val;
-                $dec_new = is_string($new_val) ? \WcpScanner\Security\SecretVault::decrypt($new_val) : $new_val;
+                $dec_old = is_string($old_val) ? \WebCareProScanner\Security\SecretVault::decrypt($old_val) : $old_val;
+                $dec_new = is_string($new_val) ? \WebCareProScanner\Security\SecretVault::decrypt($new_val) : $new_val;
                 if ($dec_old === $dec_new) {
                     continue;
                 }
@@ -1247,8 +1247,8 @@ class SettingsManager {
 
             if ($old_val !== $new_val) {
                 $diff[$k] = [
-                    'new' => \WcpScanner\System\ActivityLogs\ActivityRedactor::redact($new_val),
-                    'old' => \WcpScanner\System\ActivityLogs\ActivityRedactor::redact($old_val),
+                    'new' => \WebCareProScanner\System\ActivityLogs\ActivityRedactor::redact($new_val),
+                    'old' => \WebCareProScanner\System\ActivityLogs\ActivityRedactor::redact($old_val),
                 ];
             }
         }
@@ -1344,7 +1344,7 @@ class SettingsManager {
         $settings = get_option(self::OPTION_KEY, self::get_defaults());
         return [
             'app'        => 'WCP Security Scanner',
-            'version'    => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.3.0',
+            'version'    => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.3.0',
             'exported_at'=> current_time('mysql'),
             'site_url'   => get_site_url(),
             'settings'   => $settings,
@@ -1356,7 +1356,7 @@ class SettingsManager {
      */
     public static function import_settings(array $payload): array {
         if (empty($payload['settings']) || !is_array($payload['settings'])) {
-            throw new \Exception(esc_html__('Invalid settings backup file format.', 'wcp-security-scanner'));
+            throw new \Exception(esc_html__('Invalid settings backup file format.', 'webcare-pro-security'));
         }
 
         return self::save_settings($payload['settings']);

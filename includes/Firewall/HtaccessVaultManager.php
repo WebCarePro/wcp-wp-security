@@ -6,16 +6,16 @@
  * Stores encrypted snapshots both on disk (.vault/) and mirrored in the database (wp_options).
  * Provides atomic restoration, read-only chmod locks, and automated full-page cache purging.
  *
- * @package WcpScanner\Firewall
+ * @package WebCareProScanner\Firewall
  * @author  Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer
  */
 
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\Security\SecretVault;
-use WcpScanner\Filesystem\PathValidator;
-use WcpScanner\Notifications\NotificationDispatcher;
-use WcpScanner\System\WcpActivityLogger;
+use WebCareProScanner\Security\SecretVault;
+use WebCareProScanner\Filesystem\PathValidator;
+use WebCareProScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\WcpActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,8 +23,8 @@ if (!defined('ABSPATH')) {
 
 final class HtaccessVaultManager {
 
-    public const OPTION_DB_MIRROR     = 'wcpscan_htaccess_vault_snapshots';
-    public const OPTION_READONLY_LOCK = 'wcpscan_htaccess_readonly_lock';
+    public const OPTION_DB_MIRROR     = 'webcareproscan_htaccess_vault_snapshots';
+    public const OPTION_READONLY_LOCK = 'webcareproscan_htaccess_readonly_lock';
     public const VAULT_SUBDIR         = 'wcp-security-scanner/.vault';
     public const EMERGENCY_FILE_NAME  = '.htaccess.emergency-clean';
     public const MAX_SNAPSHOTS        = 5;
@@ -104,7 +104,7 @@ final class HtaccessVaultManager {
         if (!file_exists($htaccess_path)) {
             return [
                 'success' => false,
-                'message' => __('No .htaccess file present in root directory.', 'wcp-security-scanner'),
+                'message' => __('No .htaccess file present in root directory.', 'webcare-pro-security'),
             ];
         }
 
@@ -112,7 +112,7 @@ final class HtaccessVaultManager {
         if (trim($content) === '') {
             return [
                 'success' => false,
-                'message' => __('.htaccess file is empty; snapshot skipped.', 'wcp-security-scanner'),
+                'message' => __('.htaccess file is empty; snapshot skipped.', 'webcare-pro-security'),
             ];
         }
 
@@ -121,7 +121,7 @@ final class HtaccessVaultManager {
         if ($analysis['is_hostile']) {
             return [
                 'success'   => false,
-                'message'   => __('Cannot snapshot .htaccess: Hostile redirect or malicious directives detected.', 'wcp-security-scanner'),
+                'message'   => __('Cannot snapshot .htaccess: Hostile redirect or malicious directives detected.', 'webcare-pro-security'),
                 'score'     => $analysis['score'],
                 'severity'  => $analysis['severity'],
                 'findings'  => $analysis['findings'],
@@ -138,7 +138,7 @@ final class HtaccessVaultManager {
         if (!empty($existing) && isset($existing[0]['sha256']) && hash_equals($existing[0]['sha256'], $hash)) {
             return [
                 'success'   => true,
-                'message'   => __('Current .htaccess is identical to latest vault snapshot #1. Snapshot skipped.', 'wcp-security-scanner'),
+                'message'   => __('Current .htaccess is identical to latest vault snapshot #1. Snapshot skipped.', 'webcare-pro-security'),
                 'unchanged' => true,
                 'sha256'    => $hash,
                 'version'   => 1,
@@ -212,7 +212,7 @@ final class HtaccessVaultManager {
         $db_raw = (string) wp_json_encode($db_snapshots);
         update_option(self::OPTION_DB_MIRROR, SecretVault::encrypt($db_raw), false);
 
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
             WcpActivityLogger::log(
                 'htaccess_vault_snapshot_saved',
                 'firewall',
@@ -228,7 +228,7 @@ final class HtaccessVaultManager {
 
         return [
             'success'        => true,
-            'message'        => __('Verified-clean .htaccess successfully archived into Vault Snapshot #1.', 'wcp-security-scanner'),
+            'message'        => __('Verified-clean .htaccess successfully archived into Vault Snapshot #1.', 'webcare-pro-security'),
             'sha256'         => $hash,
             'size'           => $size,
             'version'        => 1,
@@ -303,7 +303,7 @@ final class HtaccessVaultManager {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %d: maximum snapshot version */
-                    __('Invalid vault version requested. Must be between 1 and %d.', 'wcp-security-scanner'),
+                    __('Invalid vault version requested. Must be between 1 and %d.', 'webcare-pro-security'),
                     self::MAX_SNAPSHOTS
                 ),
             ];
@@ -356,7 +356,7 @@ final class HtaccessVaultManager {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %d: snapshot version number */
-                    __('Vault Snapshot #%d could not be found or decrypted.', 'wcp-security-scanner'),
+                    __('Vault Snapshot #%d could not be found or decrypted.', 'webcare-pro-security'),
                     $version
                 ),
             ];
@@ -367,7 +367,7 @@ final class HtaccessVaultManager {
         if ($check['is_hostile']) {
             return [
                 'success' => false,
-                'message' => __('Refusing restore: Snapshot payload contains hostile directives or cloaking patterns.', 'wcp-security-scanner'),
+                'message' => __('Refusing restore: Snapshot payload contains hostile directives or cloaking patterns.', 'webcare-pro-security'),
                 'score'   => $check['score'],
             ];
         }
@@ -388,7 +388,7 @@ final class HtaccessVaultManager {
             if ($res === false) {
                 return [
                     'success' => false,
-                    'message' => __('Failed to write restored content to root .htaccess. Please check filesystem permissions.', 'wcp-security-scanner'),
+                    'message' => __('Failed to write restored content to root .htaccess. Please check filesystem permissions.', 'webcare-pro-security'),
                 ];
             }
         }
@@ -402,7 +402,7 @@ final class HtaccessVaultManager {
         self::purge_all_site_caches();
 
         // 7. Recompile Micro-WAF so preloader recognizes updated .htaccess mtime
-        if (class_exists('\\WcpScanner\\Firewall\\MicroWafCompiler')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
             try {
                 MicroWafCompiler::compile();
             } catch (\Throwable $e) {
@@ -413,7 +413,7 @@ final class HtaccessVaultManager {
         $restored_hash = hash('sha256', $clean_content);
 
         // 8. Log activity
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
             WcpActivityLogger::log(
                 'htaccess_restored_from_vault',
                 'firewall',
@@ -427,12 +427,12 @@ final class HtaccessVaultManager {
         }
 
         // 9. Dispatch notification
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             NotificationDispatcher::trigger('redirect_hack_auto_healed', [
                 'severity' => 'info',
                 'message'  => sprintf(
                     /* translators: 1: snapshot version, 2: storage source */
-                    __('.htaccess was successfully restored from Vault Snapshot #%1$d (%2$s) and site caches were purged.', 'wcp-security-scanner'),
+                    __('.htaccess was successfully restored from Vault Snapshot #%1$d (%2$s) and site caches were purged.', 'webcare-pro-security'),
                     $version,
                     $source
                 ),
@@ -449,7 +449,7 @@ final class HtaccessVaultManager {
             'success' => true,
             'message' => sprintf(
                 /* translators: 1: snapshot version, 2: storage source */
-                __('Root .htaccess successfully restored from Vault Snapshot #%1$d (%2$s). All site caches invalidated.', 'wcp-security-scanner'),
+                __('Root .htaccess successfully restored from Vault Snapshot #%1$d (%2$s). All site caches invalidated.', 'webcare-pro-security'),
                 $version,
                 $source
             ),
@@ -513,7 +513,7 @@ final class HtaccessVaultManager {
         }
 
         // 10. Emit Clear-Site-Data: "cache" for 24 hours on guest front-end responses
-        set_transient('wcpscan_emit_clear_site_data', time(), DAY_IN_SECONDS);
+        set_transient('webcareproscan_emit_clear_site_data', time(), DAY_IN_SECONDS);
     }
 
     /**

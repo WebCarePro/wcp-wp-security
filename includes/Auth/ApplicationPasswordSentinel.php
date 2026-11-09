@@ -1,9 +1,9 @@
 <?php
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
-use WcpScanner\Firewall\FirewallEngine;
-use WcpScanner\Notifications\NotificationDispatcher;
-use WcpScanner\System\WcpActivityLogger;
+use WebCareProScanner\Firewall\FirewallEngine;
+use WebCareProScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\WcpActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -26,11 +26,11 @@ if (!defined('ABSPATH')) {
  */
 class ApplicationPasswordSentinel {
 
-    const OPTION_DISABLED        = 'wcpscan_disable_application_passwords';
-    const OPTION_ADMIN_ONLY       = 'wcpscan_app_pass_admin_only';
-    const OPTION_ALLOWED_DOMAINS  = 'wcpscan_app_pass_allowed_callback_domains';
-    const OPTION_STRICT_CALLBACK  = 'wcpscan_app_pass_strict_callback';
-    const OPTION_REQUIRE_STEP_UP  = 'wcpscan_app_pass_require_step_up_2fa';
+    const OPTION_DISABLED        = 'webcareproscan_disable_application_passwords';
+    const OPTION_ADMIN_ONLY       = 'webcareproscan_app_pass_admin_only';
+    const OPTION_ALLOWED_DOMAINS  = 'webcareproscan_app_pass_allowed_callback_domains';
+    const OPTION_STRICT_CALLBACK  = 'webcareproscan_app_pass_strict_callback';
+    const OPTION_REQUIRE_STEP_UP  = 'webcareproscan_app_pass_require_step_up_2fa';
 
     /**
      * Initialize sentinel hooks
@@ -107,8 +107,8 @@ class ApplicationPasswordSentinel {
         // 1. If Application Passwords are site-wide disabled, reject immediately
         if (!empty(get_option(self::OPTION_DISABLED, 0))) {
             $error->add(
-                'wcpscan_app_pass_disabled',
-                __('WCP Security Sentinel: Application Passwords have been disabled site-wide by your administrator.', 'wcp-security-scanner')
+                'webcareproscan_app_pass_disabled',
+                __('WCP Security Sentinel: Application Passwords have been disabled site-wide by your administrator.', 'webcare-pro-security')
             );
             return $error;
         }
@@ -118,8 +118,8 @@ class ApplicationPasswordSentinel {
         if (!empty($admin_only)) {
             if (!$user instanceof \WP_User || !user_can($user, 'manage_options')) {
                 $error->add(
-                    'wcpscan_app_pass_admin_only',
-                    __('WCP Security Sentinel: Application Passwords on this site are restricted strictly to Administrators.', 'wcp-security-scanner')
+                    'webcareproscan_app_pass_admin_only',
+                    __('WCP Security Sentinel: Application Passwords on this site are restricted strictly to Administrators.', 'webcare-pro-security')
                 );
                 return $error;
             }
@@ -181,12 +181,12 @@ class ApplicationPasswordSentinel {
                 }
 
                 $error->add(
-                    'wcpscan_untrusted_callback',
+                    'webcareproscan_untrusted_callback',
                     sprintf(
                         /* translators: 1: Application name, 2: Destination host */
-                        __('SECURITY ALERT (WCP Sentinel): Authorization for "%1$s" was blocked because the callback domain "%2$s" is an untrusted external host. Directing Application Passwords to unapproved external servers is blocked to prevent 1-click token phishing and 2FA bypass.', 'wcp-security-scanner'),
-                        esc_html($app_name ?: __('Unknown Application', 'wcp-security-scanner')),
-                        esc_html($host ?: __('Malformed URL', 'wcp-security-scanner'))
+                        __('SECURITY ALERT (WCP Sentinel): Authorization for "%1$s" was blocked because the callback domain "%2$s" is an untrusted external host. Directing Application Passwords to unapproved external servers is blocked to prevent 1-click token phishing and 2FA bypass.', 'webcare-pro-security'),
+                        esc_html($app_name ?: __('Unknown Application', 'webcare-pro-security')),
+                        esc_html($host ?: __('Malformed URL', 'webcare-pro-security'))
                     )
                 );
 
@@ -202,11 +202,11 @@ class ApplicationPasswordSentinel {
 
             if (!self::is_host_trusted($reject_host, $reject_scheme)) {
                 $error->add(
-                    'wcpscan_untrusted_reject_callback',
+                    'webcareproscan_untrusted_reject_callback',
                     sprintf(
                         /* translators: 1: Destination host */
-                        __('SECURITY ALERT (WCP Sentinel): The reject callback domain "%1$s" is not in the approved domain whitelist.', 'wcp-security-scanner'),
-                        esc_html($reject_host ?: __('Malformed URL', 'wcp-security-scanner'))
+                        __('SECURITY ALERT (WCP Sentinel): The reject callback domain "%1$s" is not in the approved domain whitelist.', 'webcare-pro-security'),
+                        esc_html($reject_host ?: __('Malformed URL', 'webcare-pro-security'))
                     )
                 );
             }
@@ -227,11 +227,11 @@ class ApplicationPasswordSentinel {
             $has_2fa = class_exists(TwoFactorAuth::class) && TwoFactorAuth::is_user_enabled($user_id);
 
             if ($has_2fa) {
-                $step_up_code = isset($_POST['wcpscan_step_up_totp']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_step_up_totp'])) : '';
+                $step_up_code = isset($_POST['webcareproscan_step_up_totp']) ? sanitize_text_field(wp_unslash($_POST['webcareproscan_step_up_totp'])) : '';
                 if ($step_up_code === '') {
                     $error->add(
-                        'wcpscan_step_up_totp_required',
-                        __('WCP Security Sentinel: Re-authentication required. Please enter your 6 or 8-digit Two-Factor Authentication (TOTP) code to authorize minting this Application Password.', 'wcp-security-scanner')
+                        'webcareproscan_step_up_totp_required',
+                        __('WCP Security Sentinel: Re-authentication required. Please enter your 6 or 8-digit Two-Factor Authentication (TOTP) code to authorize minting this Application Password.', 'webcare-pro-security')
                     );
                     return $error;
                 }
@@ -248,8 +248,8 @@ class ApplicationPasswordSentinel {
 
                 if (!$totp_valid) {
                     $error->add(
-                        'wcpscan_step_up_totp_invalid',
-                        __('WCP Security Sentinel: Invalid Two-Factor Authentication code. Please verify the code in your authenticator app and try again.', 'wcp-security-scanner')
+                        'webcareproscan_step_up_totp_invalid',
+                        __('WCP Security Sentinel: Invalid Two-Factor Authentication code. Please verify the code in your authenticator app and try again.', 'webcare-pro-security')
                     );
                     return $error;
                 }
@@ -265,7 +265,7 @@ class ApplicationPasswordSentinel {
                             'method'      => 'totp',
                             'description' => sprintf(
                                 /* translators: %s: username */
-                                __('User %s verified 2FA TOTP step-up for Application Password authorization.', 'wcp-security-scanner'),
+                                __('User %s verified 2FA TOTP step-up for Application Password authorization.', 'webcare-pro-security'),
                                 $user->user_login
                             ),
                         ]
@@ -274,19 +274,19 @@ class ApplicationPasswordSentinel {
             } else {
                 // Fallback step-up: Account password verification for accounts without TOTP
                 // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must retain raw special characters for hash checking
-                $step_up_pass = isset($_POST['wcpscan_step_up_password']) ? (string) wp_unslash($_POST['wcpscan_step_up_password']) : '';
+                $step_up_pass = isset($_POST['webcareproscan_step_up_password']) ? (string) wp_unslash($_POST['webcareproscan_step_up_password']) : '';
                 if ($step_up_pass === '') {
                     $error->add(
-                        'wcpscan_step_up_password_required',
-                        __('WCP Security Sentinel: Re-authentication required. Please enter your WordPress account password to approve minting this Application Password.', 'wcp-security-scanner')
+                        'webcareproscan_step_up_password_required',
+                        __('WCP Security Sentinel: Re-authentication required. Please enter your WordPress account password to approve minting this Application Password.', 'webcare-pro-security')
                     );
                     return $error;
                 }
 
                 if (!wp_check_password($step_up_pass, $user->user_pass, $user_id)) {
                     $error->add(
-                        'wcpscan_step_up_password_invalid',
-                        __('WCP Security Sentinel: Incorrect account password entered for step-up identity verification.', 'wcp-security-scanner')
+                        'webcareproscan_step_up_password_invalid',
+                        __('WCP Security Sentinel: Incorrect account password entered for step-up identity verification.', 'webcare-pro-security')
                     );
                     return $error;
                 }
@@ -302,7 +302,7 @@ class ApplicationPasswordSentinel {
                             'method'      => 'password',
                             'description' => sprintf(
                                 /* translators: %s: username */
-                                __('User %s verified account password step-up for Application Password authorization.', 'wcp-security-scanner'),
+                                __('User %s verified account password step-up for Application Password authorization.', 'webcare-pro-security'),
                                 $user->user_login
                             ),
                         ]
@@ -321,9 +321,9 @@ class ApplicationPasswordSentinel {
     public static function on_load_authorize_screen(): void {
         if (!empty(get_option(self::OPTION_DISABLED, 0))) {
             wp_die(
-                '<h1>' . esc_html__('Application Passwords Disabled', 'wcp-security-scanner') . '</h1>' .
-                '<p>' . esc_html__('WCP Security Sentinel: REST Application Passwords have been disabled on this site to prevent unauthorized API access.', 'wcp-security-scanner') . '</p>',
-                esc_html__('Authorization Blocked', 'wcp-security-scanner'),
+                '<h1>' . esc_html__('Application Passwords Disabled', 'webcare-pro-security') . '</h1>' .
+                '<p>' . esc_html__('WCP Security Sentinel: REST Application Passwords have been disabled on this site to prevent unauthorized API access.', 'webcare-pro-security') . '</p>',
+                esc_html__('Authorization Blocked', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -356,16 +356,16 @@ class ApplicationPasswordSentinel {
             <div class="wcp-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #c7d2fe; border-radius: 8px; background: #f8faff;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
                     <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #4f46e5;"></span>
-                    <strong style="color: #1e1b4b; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up 2FA Verification Required', 'wcp-security-scanner'); ?></strong>
+                    <strong style="color: #1e1b4b; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up 2FA Verification Required', 'webcare-pro-security'); ?></strong>
                 </div>
                 <p style="margin: 0 0 12px; font-size: 13px; color: #4338ca; line-height: 1.5;">
-                    <?php esc_html_e('Because Application Passwords grant persistent REST API access, you must verify your identity with your Two-Factor Authentication (TOTP) code before minting this credential.', 'wcp-security-scanner'); ?>
+                    <?php esc_html_e('Because Application Passwords grant persistent REST API access, you must verify your identity with your Two-Factor Authentication (TOTP) code before minting this credential.', 'webcare-pro-security'); ?>
                 </p>
                 <div class="form-field" style="margin-bottom: 0;">
-                    <label for="wcpscan_step_up_totp" style="font-weight: 600; display: block; margin-bottom: 6px;">
-                        <?php esc_html_e('Authenticator Code (6 or 8 Digits):', 'wcp-security-scanner'); ?>
+                    <label for="webcareproscan_step_up_totp" style="font-weight: 600; display: block; margin-bottom: 6px;">
+                        <?php esc_html_e('Authenticator Code (6 or 8 Digits):', 'webcare-pro-security'); ?>
                     </label>
-                    <input type="text" name="wcpscan_step_up_totp" id="wcpscan_step_up_totp" class="regular-text" style="font-family: monospace; font-size: 16px; letter-spacing: 2px; width: 180px;" placeholder="123456" autocomplete="one-time-code" inputmode="numeric" required />
+                    <input type="text" name="webcareproscan_step_up_totp" id="webcareproscan_step_up_totp" class="regular-text" style="font-family: monospace; font-size: 16px; letter-spacing: 2px; width: 180px;" placeholder="123456" autocomplete="one-time-code" inputmode="numeric" required />
                 </div>
             </div>
             <?php
@@ -374,16 +374,16 @@ class ApplicationPasswordSentinel {
             <div class="wcp-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #fed7aa; border-radius: 8px; background: #fffaf5;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
                     <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ea580c;"></span>
-                    <strong style="color: #7c2d12; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up Identity Verification Required', 'wcp-security-scanner'); ?></strong>
+                    <strong style="color: #7c2d12; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up Identity Verification Required', 'webcare-pro-security'); ?></strong>
                 </div>
                 <p style="margin: 0 0 12px; font-size: 13px; color: #9a3412; line-height: 1.5;">
-                    <?php esc_html_e('To protect against 1-click consent traps and unattended session misuse, enter your account password before minting this Application Password.', 'wcp-security-scanner'); ?>
+                    <?php esc_html_e('To protect against 1-click consent traps and unattended session misuse, enter your account password before minting this Application Password.', 'webcare-pro-security'); ?>
                 </p>
                 <div class="form-field" style="margin-bottom: 0;">
-                    <label for="wcpscan_step_up_password" style="font-weight: 600; display: block; margin-bottom: 6px;">
-                        <?php esc_html_e('Your WordPress Password:', 'wcp-security-scanner'); ?>
+                    <label for="webcareproscan_step_up_password" style="font-weight: 600; display: block; margin-bottom: 6px;">
+                        <?php esc_html_e('Your WordPress Password:', 'webcare-pro-security'); ?>
                     </label>
-                    <input type="password" name="wcpscan_step_up_password" id="wcpscan_step_up_password" class="regular-text" style="width: 260px;" placeholder="••••••••••••" autocomplete="current-password" required />
+                    <input type="password" name="webcareproscan_step_up_password" id="webcareproscan_step_up_password" class="regular-text" style="width: 260px;" placeholder="••••••••••••" autocomplete="current-password" required />
                 </div>
             </div>
             <?php
@@ -554,12 +554,12 @@ class ApplicationPasswordSentinel {
                         'is_admin'        => $is_admin,
                         'uuid'            => (string) $item['uuid'],
                         'app_id'          => !empty($item['app_id']) ? (string) $item['app_id'] : '',
-                        'name'            => !empty($item['name']) ? (string) $item['name'] : __('(Unnamed Application)', 'wcp-security-scanner'),
+                        'name'            => !empty($item['name']) ? (string) $item['name'] : __('(Unnamed Application)', 'webcare-pro-security'),
                         'created'         => $created,
-                        'created_human'   => $created > 0 ? human_time_diff($created, $now) . ' ' . __('ago', 'wcp-security-scanner') : __('Unknown', 'wcp-security-scanner'),
+                        'created_human'   => $created > 0 ? human_time_diff($created, $now) . ' ' . __('ago', 'webcare-pro-security') : __('Unknown', 'webcare-pro-security'),
                         'created_date'    => $created > 0 ? gmdate('Y-m-d H:i:s', $created) : '',
                         'last_used'       => $last_used,
-                        'last_used_human' => $last_used ? human_time_diff($last_used, $now) . ' ' . __('ago', 'wcp-security-scanner') : __('Never Used', 'wcp-security-scanner'),
+                        'last_used_human' => $last_used ? human_time_diff($last_used, $now) . ' ' . __('ago', 'webcare-pro-security') : __('Never Used', 'webcare-pro-security'),
                         'last_used_date'  => $last_used ? gmdate('Y-m-d H:i:s', $last_used) : null,
                         'last_ip'         => $last_ip,
                         'is_stale'        => $is_stale,

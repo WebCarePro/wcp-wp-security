@@ -5,11 +5,11 @@
  * Generates tailored Nginx and Apache/LiteSpeed web server security configurations
  * based on auto-detected server software and customized interactive matrix settings.
  *
- * @package WcpScanner\Firewall
+ * @package WebCareProScanner\Firewall
  * @author  Mir Alamin (WebCare Pro)
  */
 
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 
 class ServerSecurityEngine {
 
-    const OPTION_KEY = 'wcpscan_server_security_options';
+    const OPTION_KEY = 'webcareproscan_server_security_options';
     const WAF_FOLDER = 'wcp-security-scanner/waf';
     const NGINX_FILENAME = 'nginx-wcp-security.conf';
     const APACHE_FILENAME = 'apache-wcp-security.conf';
@@ -199,7 +199,7 @@ class ServerSecurityEngine {
         // Protect WCP Security Scanner Vault, Logs & Database Backups
         if (!empty($opts['protect_wcp_data_dir'])) {
             $c .= "# --- 5b. Shield WCP Security Scanner Data Directory (Logs, Vault, DB Backups) ---\n";
-            $c .= "location ^~ /wp-content/uploads/wcp-security-scanner/ {\n";
+            $c .= "location ^~ /wp-content/uploads/webcare-pro-security/ {\n";
             $c .= "    deny all;\n";
             $c .= "    access_log off;\n";
             $c .= "    log_not_found off;\n";
@@ -382,7 +382,7 @@ class ServerSecurityEngine {
         // Protect WCP Security Scanner Vault, Logs & Database Backups
         if (!empty($opts['protect_wcp_data_dir'])) {
             $c .= "    # Protect WCP Security Scanner Vault, Logs & Database Backups\n";
-            $c .= "    RewriteRule ^wp-content/uploads/wcp-security-scanner/ - [F,L,NC]\n\n";
+            $c .= "    RewriteRule ^wp-content/uploads/webcare-pro-security/ - [F,L,NC]\n\n";
         }
 
         // Block Author Scans
@@ -448,7 +448,7 @@ class ServerSecurityEngine {
                     'success' => false,
                     'message' => sprintf(
                         /* translators: %s: target file path */
-                        __('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'),
+                        __('Unable to write to %s. Please verify directory permissions.', 'webcare-pro-security'),
                         $target_file
                     ),
                 ];
@@ -461,7 +461,7 @@ class ServerSecurityEngine {
             }
             return [
                 'success'      => true,
-                'message'      => __('Nginx security configuration file generated and saved successfully.', 'wcp-security-scanner'),
+                'message'      => __('Nginx security configuration file generated and saved successfully.', 'webcare-pro-security'),
                 'file_path'    => $target_file,
                 'include_code' => 'include ' . $target_file . ';',
                 'options'      => $saved_opts,
@@ -476,7 +476,7 @@ class ServerSecurityEngine {
                     'success' => false,
                     'message' => sprintf(
                         /* translators: %s: target file path */
-                        __('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'),
+                        __('Unable to write to %s. Please verify directory permissions.', 'webcare-pro-security'),
                         $target_file
                     ),
                 ];
@@ -489,7 +489,7 @@ class ServerSecurityEngine {
             }
             return [
                 'success'      => true,
-                'message'      => __('Caddy v2 security rules saved successfully.', 'wcp-security-scanner'),
+                'message'      => __('Caddy v2 security rules saved successfully.', 'webcare-pro-security'),
                 'file_path'    => $target_file,
                 'include_code' => 'import ' . $target_file,
                 'options'      => $saved_opts,
@@ -505,7 +505,7 @@ class ServerSecurityEngine {
                     'success' => false,
                     'message' => sprintf(
                         /* translators: %s: target file path */
-                        __('Unable to write to %s. Please verify directory permissions.', 'wcp-security-scanner'),
+                        __('Unable to write to %s. Please verify directory permissions.', 'webcare-pro-security'),
                         $target_file
                     ),
                 ];
@@ -518,7 +518,7 @@ class ServerSecurityEngine {
             }
             return [
                 'success'   => true,
-                'message'   => __('Apache/LiteSpeed security rules saved successfully.', 'wcp-security-scanner'),
+                'message'   => __('Apache/LiteSpeed security rules saved successfully.', 'webcare-pro-security'),
                 'file_path' => $target_file,
                 'options'   => $saved_opts,
                 'content'   => $content,
@@ -560,14 +560,14 @@ class ServerSecurityEngine {
         if ($written === false) {
             return [
                 'success' => false,
-                'message' => __('Unable to write to root .htaccess. Please verify write permissions.', 'wcp-security-scanner'),
+                'message' => __('Unable to write to root .htaccess. Please verify write permissions.', 'webcare-pro-security'),
             ];
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_server_rules_updated', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('waf_server_rules_updated', [
                 'severity' => 'info',
-                'message'  => __('Server security rules deployed directly into root .htaccess successfully.', 'wcp-security-scanner'),
+                'message'  => __('Server security rules deployed directly into root .htaccess successfully.', 'webcare-pro-security'),
                 'details'  => [
                     'Target File' => $htaccess_path,
                     'Server Type' => 'Apache / LiteSpeed',
@@ -577,7 +577,7 @@ class ServerSecurityEngine {
 
         return [
             'success'   => true,
-            'message'   => __('Server security rules deployed directly into root .htaccess successfully.', 'wcp-security-scanner'),
+            'message'   => __('Server security rules deployed directly into root .htaccess successfully.', 'webcare-pro-security'),
             'file_path' => $htaccess_path,
         ];
     }
@@ -609,7 +609,7 @@ class ServerSecurityEngine {
 
         if (!empty($opts['protect_wcp_data_dir'])) {
             $c .= "    # Shield WCP Security Scanner Vault, Logs & Database Backups\n";
-            $c .= "    @wcp_data_vault path /wp-content/uploads/wcp-security-scanner/*\n";
+            $c .= "    @wcp_data_vault path /wp-content/uploads/webcare-pro-security/*\n";
             $c .= "    respond @wcp_data_vault 403\n\n";
         }
 
@@ -694,7 +694,7 @@ class ServerSecurityEngine {
         $env_blocked = ($env_code === 403 || $env_code === 401 || $env_code === 404);
 
         // Probe 3: WCP Plugin Data & Vault Directory Probe (waf-logs/activity-logs)
-        $wcp_vault_url = home_url('/wp-content/uploads/wcp-security-scanner/waf-logs/');
+        $wcp_vault_url = home_url('/wp-content/uploads/webcare-pro-security/waf-logs/');
         $wcp_vault_res = wp_remote_get($wcp_vault_url, $args);
         $wcp_vault_code = !is_wp_error($wcp_vault_res) ? (int) wp_remote_retrieve_response_code($wcp_vault_res) : 0;
         $wcp_vault_blocked = ($wcp_vault_code === 403 || $wcp_vault_code === 401);
@@ -710,27 +710,27 @@ class ServerSecurityEngine {
             'verified_at'        => gmdate('Y-m-d H:i:s \U\T\C'),
             'results'            => [
                 'uploads_php' => [
-                    'label'       => __('Uploads PHP Execution', 'wcp-security-scanner'),
+                    'label'       => __('Uploads PHP Execution', 'webcare-pro-security'),
                     'url'         => $uploads_probe_url,
                     'status_code' => $uploads_code,
                     'enforced'    => $uploads_blocked,
                 ],
                 'sensitive_env' => [
-                    'label'       => __('Sensitive Dotfiles (.env)', 'wcp-security-scanner'),
+                    'label'       => __('Sensitive Dotfiles (.env)', 'webcare-pro-security'),
                     'url'         => $env_url,
                     'status_code' => $env_code,
                     'enforced'    => $env_blocked,
                 ],
                 'wcp_data_vault' => [
-                    'label'       => __('WCP Plugin Data & Vault', 'wcp-security-scanner'),
+                    'label'       => __('WCP Plugin Data & Vault', 'webcare-pro-security'),
                     'url'         => $wcp_vault_url,
                     'status_code' => $wcp_vault_code,
                     'enforced'    => $wcp_vault_blocked,
                 ],
             ],
             'message'            => $is_enforced
-                ? __('Web server security rules are actively enforced at the perimeter (HTTP 403/404 responses confirmed).', 'wcp-security-scanner')
-                : __('Perimeter enforcement test inconclusive. Ensure the generated server config has been included in your Nginx, Apache, or Caddy configuration.', 'wcp-security-scanner'),
+                ? __('Web server security rules are actively enforced at the perimeter (HTTP 403/404 responses confirmed).', 'webcare-pro-security')
+                : __('Perimeter enforcement test inconclusive. Ensure the generated server config has been included in your Nginx, Apache, or Caddy configuration.', 'webcare-pro-security'),
         ];
     }
 

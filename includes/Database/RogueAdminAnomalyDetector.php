@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -37,7 +37,7 @@ class RogueAdminAnomalyDetector {
         // 1. Audit wp_users vs wp_usermeta: Detect hidden users or orphaned capability records
         // Note: Canonical detection for users missing capabilities is handled by UserScanner ('wordpress-users')
         // to prevent duplicate findings on full scans. Only run here as fallback if UserScanner is absent.
-        if (!class_exists('\WcpScanner\WordPress\UserScanner')) {
+        if (!class_exists('\WebCareProScanner\WordPress\UserScanner')) {
             // Find users in wp_users that have NO record in wp_usermeta for capabilities (Zombie/Hidden users)
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $hidden_users = $wpdb->get_results(
@@ -56,7 +56,7 @@ class RogueAdminAnomalyDetector {
                     $findings[] = new Finding([
                         'engine'        => 'database-micro-anomaly',
                         'type'          => 'user_missing_capabilities',
-                        'display_title' => __('User Account Missing Role Capabilities', 'wcp-security-scanner'),
+                        'display_title' => __('User Account Missing Role Capabilities', 'webcare-pro-security'),
                         'severity'      => 'medium',
                         'confidence'    => 90,
                         'file_path'     => "db:{$users_table}:user_id_{$u->ID}",
@@ -272,7 +272,7 @@ class RogueAdminAnomalyDetector {
 
         foreach ($admin_users as $admin) {
             $user_level = (int) get_user_meta($admin->ID, $wpdb->prefix . 'user_level', true);
-            $has_2fa    = \WcpScanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID);
+            $has_2fa    = \WebCareProScanner\Auth\TwoFactorAuth::is_user_enabled($admin->ID);
 
             $admin_list[] = [
                 'id'              => $admin->ID,

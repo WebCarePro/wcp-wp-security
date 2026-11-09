@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Security;
+namespace WebCareProScanner\Security;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\Notifications\WebhookService;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\Notifications\WebhookService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,9 +17,9 @@ if (!defined('ABSPATH')) {
  */
 class PluginSelfDefense {
 
-    const DB_HASHES_OPTION = 'wcpscan_self_defense_hashes';
-    const DB_LAST_AUDIT_OPTION = 'wcpscan_self_defense_last_audit';
-    const CRON_HOOK = 'wcpscan_self_defense_watchdog_event';
+    const DB_HASHES_OPTION = 'webcareproscan_self_defense_hashes';
+    const DB_LAST_AUDIT_OPTION = 'webcareproscan_self_defense_last_audit';
+    const CRON_HOOK = 'webcareproscan_self_defense_watchdog_event';
 
     /**
      * Bootstrap the Self Defense engine & watchdog hooks
@@ -44,7 +44,7 @@ class PluginSelfDefense {
      */
     public static function run_audit(bool $force_recheck = false): array {
         $manifest = self::get_baseline_manifest();
-        $plugin_dir = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
+        $plugin_dir = rtrim(WEBCAREPROSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
 
         // If authoritative manifest is missing or empty, flag critical tamper state
         if (empty($manifest)) {
@@ -64,18 +64,18 @@ class PluginSelfDefense {
                     'status'        => 'missing',
                     'expected_size' => 0,
                     'severity'      => 'critical',
-                    'detail'        => __('Authoritative release manifest is missing or unreadable. Plugin self-defense integrity cannot be verified.', 'wcp-security-scanner'),
+                    'detail'        => __('Authoritative release manifest is missing or unreadable. Plugin self-defense integrity cannot be verified.', 'webcare-pro-security'),
                 ]],
                 'modified_files'   => [],
                 'untracked_files'  => [],
-                'plugin_version'   => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.21.0',
+                'plugin_version'   => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.21.0',
             ];
             update_option(self::DB_LAST_AUDIT_OPTION, $audit_result, false);
 
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
                     'severity' => 'critical',
-                    'message'  => __('CRITICAL: Authoritative plugin self-defense manifest is missing or unreadable.', 'wcp-security-scanner'),
+                    'message'  => __('CRITICAL: Authoritative plugin self-defense manifest is missing or unreadable.', 'webcare-pro-security'),
                     'details'  => ['file' => 'includes/System/plugin-manifest.json'],
                 ]);
             }
@@ -103,7 +103,7 @@ class PluginSelfDefense {
                     'status'        => 'missing',
                     'expected_size' => $expected_size,
                     'severity'      => 'critical',
-                    'detail'        => __('File is missing or was deleted by host security scanner / mod_security.', 'wcp-security-scanner'),
+                    'detail'        => __('File is missing or was deleted by host security scanner / mod_security.', 'webcare-pro-security'),
                 ];
                 continue;
             }
@@ -121,7 +121,7 @@ class PluginSelfDefense {
                     'expected_size' => $expected_size,
                     'live_size'     => $live_size,
                     'severity'      => 'high',
-                    'detail'        => __('File content hash does not match official release signature.', 'wcp-security-scanner'),
+                    'detail'        => __('File content hash does not match official release signature.', 'webcare-pro-security'),
                 ];
             } else {
                 $verified_count++;
@@ -148,7 +148,7 @@ class PluginSelfDefense {
             'missing_files'    => $missing_files,
             'modified_files'   => $modified_files,
             'untracked_files'  => $untracked_files,
-            'plugin_version'   => defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.20.0',
+            'plugin_version'   => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.20.0',
         ];
 
         // Store latest audit state
@@ -164,7 +164,7 @@ class PluginSelfDefense {
      * @return array<string, array{sha256: string, size: int}>
      */
     public static function get_baseline_manifest(): array {
-        $manifest_file = WCPSCAN_PATH . 'includes/System/plugin-manifest.json';
+        $manifest_file = WEBCAREPROSCAN_PATH . 'includes/System/plugin-manifest.json';
         if (file_exists($manifest_file)) {
             $raw = @file_get_contents($manifest_file);
             $decoded = json_decode($raw, true);
@@ -192,7 +192,7 @@ class PluginSelfDefense {
      * @return array
      */
     public static function generate_local_manifest(): array {
-        $plugin_dir = rtrim(WCPSCAN_PATH, '/\\');
+        $plugin_dir = rtrim(WEBCAREPROSCAN_PATH, '/\\');
         $files = [];
 
         $iterator = new \RecursiveIteratorIterator(
@@ -263,7 +263,7 @@ class PluginSelfDefense {
                         'status'   => 'untracked',
                         'size'     => @filesize($real_path) ?: 0,
                         'severity' => 'medium',
-                        'detail'   => __('Unknown or extraneous file detected in plugin directory.', 'wcp-security-scanner'),
+                        'detail'   => __('Unknown or extraneous file detected in plugin directory.', 'webcare-pro-security'),
                     ];
                 }
             }
@@ -288,11 +288,11 @@ class PluginSelfDefense {
         if (!empty($audit['has_issues'])) {
             // Dispatch granular events via NotificationDispatcher
             if (!empty($audit['modified_count'])) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_tampered', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('plugin_file_tampered', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: %d: number of modified files */
-                        __('Plugin Self-Defense detected %d modified plugin file(s) with SHA256 checksum mismatches.', 'wcp-security-scanner'),
+                        __('Plugin Self-Defense detected %d modified plugin file(s) with SHA256 checksum mismatches.', 'webcare-pro-security'),
                         $audit['modified_count']
                     ),
                     'details'  => [
@@ -303,11 +303,11 @@ class PluginSelfDefense {
             }
 
             if (!empty($audit['missing_count'])) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('plugin_file_missing', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: %d: number of missing files */
-                        __('Plugin Self-Defense detected %d missing or host-deleted plugin core file(s).', 'wcp-security-scanner'),
+                        __('Plugin Self-Defense detected %d missing or host-deleted plugin core file(s).', 'webcare-pro-security'),
                         $audit['missing_count']
                     ),
                     'details'  => [
@@ -337,7 +337,7 @@ class PluginSelfDefense {
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
         /* translators: %s: site name */
-        $subject = sprintf(__('[%s Security Alert] WCP Security Scanner File Integrity Anomaly Detected', 'wcp-security-scanner'), $site_name);
+        $subject = sprintf(__('[%s Security Alert] WCP Security Scanner File Integrity Anomaly Detected', 'webcare-pro-security'), $site_name);
 
         $body  = "Hello Administrator,\n\n";
         $body .= "The WCP Security Scanner Self-Defense & Anti-Tamper Engine has detected that one or more of its own core files have been modified or deleted on your server.\n\n";
@@ -396,23 +396,23 @@ class PluginSelfDefense {
         echo '<div class="notice notice-error" style="padding: 14px 18px; border-left: 4px solid #ef4444; background: #fff1f2; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.15); margin-top: 15px;">';
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">';
         echo '<div style="font-size: 13.5px; color: #991b1b; line-height: 1.5;">';
-        echo '<strong><span class="dashicons dashicons-shield" style="font-size: 18px; margin-right: 4px; vertical-align: -2px;"></span> ' . esc_html__('WCP Security Scanner Self-Defense Alert:', 'wcp-security-scanner') . '</strong> ';
+        echo '<strong><span class="dashicons dashicons-shield" style="font-size: 18px; margin-right: 4px; vertical-align: -2px;"></span> ' . esc_html__('WCP Security Scanner Self-Defense Alert:', 'webcare-pro-security') . '</strong> ';
 
         if ($missing_count > 0 && $modified_count > 0) {
             /* translators: 1: number of missing files, 2: number of modified files */
-            echo esc_html(sprintf(__('Detected %1$d missing file(s) and %2$d modified file(s) in this plugin installation. A host scanner or upload error may have deleted critical security modules.', 'wcp-security-scanner'), $missing_count, $modified_count));
+            echo esc_html(sprintf(__('Detected %1$d missing file(s) and %2$d modified file(s) in this plugin installation. A host scanner or upload error may have deleted critical security modules.', 'webcare-pro-security'), $missing_count, $modified_count));
         } elseif ($missing_count > 0) {
             /* translators: %d: number of missing files */
-            echo esc_html(sprintf(__('Detected %1$d missing core file(s) in this plugin installation (e.g. deleted by host security or incomplete zip upload).', 'wcp-security-scanner'), $missing_count));
+            echo esc_html(sprintf(__('Detected %1$d missing core file(s) in this plugin installation (e.g. deleted by host security or incomplete zip upload).', 'webcare-pro-security'), $missing_count));
         } else {
             /* translators: %d: number of modified files */
-            echo esc_html(sprintf(__('Detected %1$d modified/tampered file(s) in the security scanner directory.', 'wcp-security-scanner'), $modified_count));
+            echo esc_html(sprintf(__('Detected %1$d modified/tampered file(s) in the security scanner directory.', 'webcare-pro-security'), $modified_count));
         }
         echo '</div>';
 
         echo '<div style="display: flex; gap: 8px;">';
         echo '<a href="' . esc_url($audit_url) . '" class="button button-primary" style="background: #dc2626; border-color: #b91c1c; font-weight: 700; padding: 2px 14px;">';
-        echo esc_html__('View Self-Defense Diagnostics & Verify', 'wcp-security-scanner');
+        echo esc_html__('View Self-Defense Diagnostics & Verify', 'webcare-pro-security');
         echo '</a>';
         echo '</div>';
 
@@ -427,7 +427,7 @@ class PluginSelfDefense {
      * @return array|null
      */
     public static function get_remote_github_manifest(bool $force_refresh = false): ?array {
-        $transient_key = 'wcpscan_github_remote_manifest';
+        $transient_key = 'webcareproscan_github_remote_manifest';
         if (!$force_refresh) {
             $cached = get_transient($transient_key);
             if (is_array($cached) && !empty($cached['files'])) {
@@ -439,7 +439,7 @@ class PluginSelfDefense {
         $remote_url = "https://{$raw_host}/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json";
         $res = wp_remote_get($remote_url, [
             'timeout'    => 12,
-            'user-agent' => 'WCP-Self-Defense/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0'),
+            'user-agent' => 'WCP-Self-Defense/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.0'),
             'sslverify'  => true,
             'headers'    => [
                 'Cache-Control' => 'no-cache, must-revalidate',
@@ -472,7 +472,7 @@ class PluginSelfDefense {
         if (!$remote_manifest) {
             return [
                 'success' => false,
-                'message' => __('Unable to connect to GitHub remote repository to fetch authoritative manifest.', 'wcp-security-scanner'),
+                'message' => __('Unable to connect to GitHub remote repository to fetch authoritative manifest.', 'webcare-pro-security'),
             ];
         }
 
@@ -487,7 +487,7 @@ class PluginSelfDefense {
         }
 
         // Run audit against remote hashes
-        $plugin_dir = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
+        $plugin_dir = rtrim(WEBCAREPROSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR;
         $missing_files = [];
         $modified_files = [];
         $verified_count = 0;
@@ -502,7 +502,7 @@ class PluginSelfDefense {
                     'status'        => 'missing',
                     'expected_size' => $meta['size'] ?? 0,
                     'severity'      => 'high',
-                    'detail'        => __('File is missing compared to official GitHub release.', 'wcp-security-scanner'),
+                    'detail'        => __('File is missing compared to official GitHub release.', 'webcare-pro-security'),
                 ];
                 continue;
             }
@@ -515,7 +515,7 @@ class PluginSelfDefense {
                     'expected_hash' => $expected_hash,
                     'actual_hash'   => $current_hash,
                     'severity'      => 'critical',
-                    'detail'        => __('File hash differs from official GitHub release commit.', 'wcp-security-scanner'),
+                    'detail'        => __('File hash differs from official GitHub release commit.', 'webcare-pro-security'),
                 ];
             } else {
                 $verified_count++;
@@ -544,7 +544,7 @@ class PluginSelfDefense {
      */
     public static function restore_file_from_github(string $rel_path): array {
         if (!current_user_can('manage_options')) {
-            return ['success' => false, 'message' => __('Permission denied: manage_options required.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Permission denied: manage_options required.', 'webcare-pro-security')];
         }
 
         // Sanitize path against directory traversal
@@ -556,7 +556,7 @@ class PluginSelfDefense {
         $expected_meta = $remote_manifest['files'][$clean_path] ?? null;
 
         if (!$expected_meta) {
-            return ['success' => false, 'message' => __('File is not part of official GitHub plugin distribution.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('File is not part of official GitHub plugin distribution.', 'webcare-pro-security')];
         }
 
         $expected_hash = is_array($expected_meta) ? ($expected_meta['sha256'] ?? '') : (string)$expected_meta;
@@ -572,7 +572,7 @@ class PluginSelfDefense {
         ]);
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            return ['success' => false, 'message' => __('Failed to fetch clean file from GitHub repository.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Failed to fetch clean file from GitHub repository.', 'webcare-pro-security')];
         }
 
         $content = wp_remote_retrieve_body($response);
@@ -581,12 +581,12 @@ class PluginSelfDefense {
         if ($downloaded_hash !== $expected_hash) {
             return [
                 'success' => false,
-                'message' => __('Cryptographic verification failed: Downloaded file hash did not match official GitHub manifest.', 'wcp-security-scanner'),
+                'message' => __('Cryptographic verification failed: Downloaded file hash did not match official GitHub manifest.', 'webcare-pro-security'),
             ];
         }
 
         // Write safely to disk
-        $fs_path = rtrim(WCPSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $clean_path);
+        $fs_path = rtrim(WEBCAREPROSCAN_PATH, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $clean_path);
         $parent_dir = dirname($fs_path);
         if (!file_exists($parent_dir)) {
             @wp_mkdir_p($parent_dir);
@@ -594,7 +594,7 @@ class PluginSelfDefense {
 
         $written = @file_put_contents($fs_path, $content);
         if ($written === false) {
-            return ['success' => false, 'message' => __('Filesystem write failure. Check folder permissions.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Filesystem write failure. Check folder permissions.', 'webcare-pro-security')];
         }
 
         // Run local audit to refresh state
@@ -604,7 +604,7 @@ class PluginSelfDefense {
             'success' => true,
             'path'    => $clean_path,
             /* translators: %s: file path */
-            'message' => sprintf(__('Successfully restored %s from official GitHub release with verified SHA256 integrity.', 'wcp-security-scanner'), $clean_path),
+            'message' => sprintf(__('Successfully restored %s from official GitHub release with verified SHA256 integrity.', 'webcare-pro-security'), $clean_path),
         ];
     }
 }

@@ -1,11 +1,11 @@
 <?php
-namespace WcpScanner\Forensics;
+namespace WebCareProScanner\Forensics;
 
-use WcpScanner\WordPress\PersistenceScanner;
-use WcpScanner\WordPress\UserRemediationManager;
-use WcpScanner\Remediation\RemediationManager;
-use WcpScanner\Filesystem\PathValidator;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\WordPress\PersistenceScanner;
+use WebCareProScanner\WordPress\UserRemediationManager;
+use WebCareProScanner\Remediation\RemediationManager;
+use WebCareProScanner\Filesystem\PathValidator;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -40,7 +40,7 @@ class AttackChainEngine {
         global $wpdb;
 
         // 1. Gather Open Scan Findings from Database
-        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
         $open_issues = [];
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
@@ -54,7 +54,7 @@ class AttackChainEngine {
         $persistence_audit = $persistence_scanner->audit_full();
 
         // 3. Gather Recent Firewall Exploit Probes from wp_wcp_firewall_logs (Past 14 Days)
-        $firewall_table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        $firewall_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
         $firewall_probes = [];
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $firewall_table)) === $firewall_table) {
@@ -230,13 +230,13 @@ class AttackChainEngine {
                 'severity'  => 'critical',
                 'timestamp' => $r['mtime'],
                 /* translators: %s: remediated date */
-                'evidence'  => sprintf(__('File was remediated on %s but re-appeared on disk.', 'wcp-security-scanner'), $r['remediated_date']),
+                'evidence'  => sprintf(__('File was remediated on %s but re-appeared on disk.', 'webcare-pro-security'), $r['remediated_date']),
             ];
         }
 
         // Process Suspicious Users (Stage 4)
         foreach ($recent_users as $u) {
-            $reason = !empty($u['anomaly_reason']) ? $u['anomaly_reason'] : __('Anomalous administrator account with abnormal metadata', 'wcp-security-scanner');
+            $reason = !empty($u['anomaly_reason']) ? $u['anomaly_reason'] : __('Anomalous administrator account with abnormal metadata', 'webcare-pro-security');
             $staged_signals['privilege_escalation'][] = [
                 'source'    => 'user',
                 'id'        => $u['ID'],
@@ -332,7 +332,7 @@ class AttackChainEngine {
                 $init = $staged_signals['initial_access'][0];
                 $stages[] = [
                     'stage_id'    => 'initial_access',
-                    'stage_name'  => __('Initial Access (Vulnerability / Probe)', 'wcp-security-scanner'),
+                    'stage_name'  => __('Initial Access (Vulnerability / Probe)', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $init['label'],
                     'details'     => $init['evidence'] ?: $init['label'],
@@ -344,10 +344,10 @@ class AttackChainEngine {
                 $top_ip = !empty($top_probe_ips) ? array_keys($top_probe_ips)[0] : null;
                 $stages[] = [
                     'stage_id'    => 'initial_access',
-                    'stage_name'  => __('Initial Access (Exploitation Probe)', 'wcp-security-scanner'),
+                    'stage_name'  => __('Initial Access (Exploitation Probe)', 'webcare-pro-security'),
                     'status'      => $top_ip ? 'breached' : 'bypassed',
-                    'title'       => $top_ip ? "Arbitrary File Upload / Exploit Probing from {$top_ip}" : __('Direct Unauthenticated Injection / File Drop', 'wcp-security-scanner'),
-                    'details'     => $top_ip ? "Repeated automated probing blocked by WAF lite from IP {$top_ip}." : __('Direct unauthorized file creation in writable WordPress directory.', 'wcp-security-scanner'),
+                    'title'       => $top_ip ? "Arbitrary File Upload / Exploit Probing from {$top_ip}" : __('Direct Unauthenticated Injection / File Drop', 'webcare-pro-security'),
+                    'details'     => $top_ip ? "Repeated automated probing blocked by WAF lite from IP {$top_ip}." : __('Direct unauthorized file creation in writable WordPress directory.', 'webcare-pro-security'),
                     'item_type'   => 'firewall_ip',
                     'item_id'     => $top_ip ?: '0.0.0.0',
                 ];
@@ -360,7 +360,7 @@ class AttackChainEngine {
             foreach ($staged_signals['execution_staging'] as $stg) {
                 $stages[] = [
                     'stage_id'    => 'execution_staging',
-                    'stage_name'  => __('Execution & WebShell Staging', 'wcp-security-scanner'),
+                    'stage_name'  => __('Execution & WebShell Staging', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $stg['label'],
                     'details'     => "Path: {$stg['file_path']} | Risk: {$stg['type']}",
@@ -374,7 +374,7 @@ class AttackChainEngine {
             foreach ($staged_signals['persistence'] as $pst) {
                 $stages[] = [
                     'stage_id'    => 'persistence',
-                    'stage_name'  => __('Persistence & Self-Healing Anchor', 'wcp-security-scanner'),
+                    'stage_name'  => __('Persistence & Self-Healing Anchor', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $pst['label'],
                     'details'     => $pst['evidence'],
@@ -395,7 +395,7 @@ class AttackChainEngine {
             foreach ($staged_signals['privilege_escalation'] as $pesc) {
                 $stages[] = [
                     'stage_id'    => 'privilege_escalation',
-                    'stage_name'  => __('Privilege Escalation & Account Takeover', 'wcp-security-scanner'),
+                    'stage_name'  => __('Privilege Escalation & Account Takeover', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $pesc['label'],
                     'details'     => $pesc['evidence'] . ' | Protected: User accounts are excluded from automated 1-click deletion.',
@@ -408,7 +408,7 @@ class AttackChainEngine {
             foreach ($staged_signals['c2_beacon'] as $c2) {
                 $stages[] = [
                     'stage_id'    => 'c2_beacon',
-                    'stage_name'  => __('Command & Control (C2) / Exfiltration', 'wcp-security-scanner'),
+                    'stage_name'  => __('Command & Control (C2) / Exfiltration', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $c2['label'],
                     'details'     => $c2['evidence'],
@@ -430,7 +430,7 @@ class AttackChainEngine {
 
             $chains[] = [
                 'chain_id'         => $chain_id,
-                'title'            => __('Compounded WebShell Infiltration & Persistence Chain', 'wcp-security-scanner'),
+                'title'            => __('Compounded WebShell Infiltration & Persistence Chain', 'webcare-pro-security'),
                 'severity'         => $blast_radius >= 70 ? 'critical' : 'high',
                 'blast_radius'     => $blast_radius,
                 'lateral_movement' => ($has_persist || $has_privesc),
@@ -455,7 +455,7 @@ class AttackChainEngine {
             foreach ($staged_signals['persistence'] as $pst) {
                 $stages[] = [
                     'stage_id'    => 'persistence',
-                    'stage_name'  => __('Persistence & Self-Healing Anchor', 'wcp-security-scanner'),
+                    'stage_name'  => __('Persistence & Self-Healing Anchor', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $pst['label'],
                     'details'     => $pst['evidence'],
@@ -474,7 +474,7 @@ class AttackChainEngine {
             foreach ($staged_signals['privilege_escalation'] as $pesc) {
                 $stages[] = [
                     'stage_id'    => 'privilege_escalation',
-                    'stage_name'  => __('Privilege Escalation & Account Takeover', 'wcp-security-scanner'),
+                    'stage_name'  => __('Privilege Escalation & Account Takeover', 'webcare-pro-security'),
                     'status'      => 'breached',
                     'title'       => $pesc['label'],
                     'details'     => $pesc['evidence'] . ' | Protected: User accounts are excluded from automated 1-click deletion.',
@@ -491,7 +491,7 @@ class AttackChainEngine {
 
             $chains[] = [
                 'chain_id'         => $chain_id,
-                'title'            => __('Dormant Persistence Anchor & Privilege Drift', 'wcp-security-scanner'),
+                'title'            => __('Dormant Persistence Anchor & Privilege Drift', 'webcare-pro-security'),
                 'severity'         => $blast_radius >= 70 ? 'critical' : 'high',
                 'blast_radius'     => $blast_radius,
                 'lateral_movement' => $has_privesc,
@@ -525,30 +525,30 @@ class AttackChainEngine {
         }
 
         if ($has_init) {
-            $parts[] = __('Threat actor probed edge entry points or leveraged known component vulnerabilities to compromise the WordPress boundary.', 'wcp-security-scanner');
+            $parts[] = __('Threat actor probed edge entry points or leveraged known component vulnerabilities to compromise the WordPress boundary.', 'webcare-pro-security');
         }
 
         if ($has_exec) {
-            $parts[] = __('A dropper or executable webshell payload was deposited into a writable directory (e.g. wp-content/uploads/ or plugin tree) to establish arbitrary code execution.', 'wcp-security-scanner');
+            $parts[] = __('A dropper or executable webshell payload was deposited into a writable directory (e.g. wp-content/uploads/ or plugin tree) to establish arbitrary code execution.', 'webcare-pro-security');
         }
 
         if ($has_persist) {
-            $parts[] = __('To evade standard file deletion, the payload established persistent anchors inside drop-in files, mu-plugins, or database autoload transients.', 'wcp-security-scanner');
+            $parts[] = __('To evade standard file deletion, the payload established persistent anchors inside drop-in files, mu-plugins, or database autoload transients.', 'webcare-pro-security');
         }
 
         if ($has_privesc) {
-            $parts[] = __('Lateral privilege escalation was achieved through the creation of unauthorized administrator accounts or capability injection.', 'wcp-security-scanner');
+            $parts[] = __('Lateral privilege escalation was achieved through the creation of unauthorized administrator accounts or capability injection.', 'webcare-pro-security');
         }
 
         if ($has_c2) {
-            $parts[] = __('Outbound beaconing or decentralized Web3 / IPFS C2 infrastructure was observed communicating commands.', 'wcp-security-scanner');
+            $parts[] = __('Outbound beaconing or decentralized Web3 / IPFS C2 infrastructure was observed communicating commands.', 'webcare-pro-security');
         }
 
         $posture = $blast_radius >= 75
-            ? __('Critical blast radius: Full administrative and filesystem takeover detected across multiple architectural layers.', 'wcp-security-scanner')
+            ? __('Critical blast radius: Full administrative and filesystem takeover detected across multiple architectural layers.', 'webcare-pro-security')
             : ($blast_radius >= 45
-                ? __('Substantial blast radius: Lateral movement detected between the filesystem and WordPress database.', 'wcp-security-scanner')
-                : __('Contained threat: Activity was caught before full lateral compromise could complete.', 'wcp-security-scanner'));
+                ? __('Substantial blast radius: Lateral movement detected between the filesystem and WordPress database.', 'webcare-pro-security')
+                : __('Contained threat: Activity was caught before full lateral compromise could complete.', 'webcare-pro-security'));
 
         return implode(' ', $parts) . ' ' . $posture;
     }
@@ -586,7 +586,7 @@ class AttackChainEngine {
         }
 
         // Check Whitelist rules
-        $whitelist = get_option('wcpscan_whitelist_rules', []);
+        $whitelist = get_option('webcareproscan_whitelist_rules', []);
         $whitelisted_items = [];
         if (is_array($whitelist)) {
             foreach ($whitelist as $w) {
@@ -650,11 +650,11 @@ class AttackChainEngine {
             if ($is_ghost_admin || $is_disposable_email || $has_injected_caps || $has_invalid_registered) {
                 $reasons = [];
                 /* translators: %d: count of usermeta keys */
-                if ($is_ghost_admin) $reasons[] = sprintf(__('Ghost admin created via raw SQL (only %d usermeta keys found, missing core WP metadata)', 'wcp-security-scanner'), $meta_count);
+                if ($is_ghost_admin) $reasons[] = sprintf(__('Ghost admin created via raw SQL (only %d usermeta keys found, missing core WP metadata)', 'webcare-pro-security'), $meta_count);
                 /* translators: %s: email domain */
-                if ($is_disposable_email) $reasons[] = sprintf(__('Disposable attacker email domain: %s', 'wcp-security-scanner'), $domain);
-                if ($has_injected_caps) $reasons[] = __('Trojan executable code injected in capabilities metadata', 'wcp-security-scanner');
-                if ($has_invalid_registered) $reasons[] = __('Corrupted or missing user registration date', 'wcp-security-scanner');
+                if ($is_disposable_email) $reasons[] = sprintf(__('Disposable attacker email domain: %s', 'webcare-pro-security'), $domain);
+                if ($has_injected_caps) $reasons[] = __('Trojan executable code injected in capabilities metadata', 'webcare-pro-security');
+                if ($has_invalid_registered) $reasons[] = __('Corrupted or missing user registration date', 'webcare-pro-security');
 
                 $u['anomaly_reason'] = implode('; ', $reasons);
                 $suspicious_users[] = $u;
@@ -683,10 +683,10 @@ class AttackChainEngine {
 
         // Begin atomic remediation transaction with 1-click safe rollback capability
         /* translators: %s: chain ID */
-        $tx_title = sprintf(__('Attack Chain Eradication: %s', 'wcp-security-scanner'), $chain_id);
+        $tx_title = sprintf(__('Attack Chain Eradication: %s', 'webcare-pro-security'), $chain_id);
         /* translators: %s: chain ID */
-        $tx_desc = sprintf(__('Autonomous multi-threat remediation for chain %s', 'wcp-security-scanner'), $chain_id);
-        $tx_id = \WcpScanner\Remediation\TransactionalRemediation::start_transaction(
+        $tx_desc = sprintf(__('Autonomous multi-threat remediation for chain %s', 'webcare-pro-security'), $chain_id);
+        $tx_id = \WebCareProScanner\Remediation\TransactionalRemediation::start_transaction(
             $tx_title,
             $tx_desc,
             ['chain_id' => $chain_id]
@@ -704,7 +704,7 @@ class AttackChainEngine {
                 }
 
                 // Record pre-remediation byte-for-byte snapshot in the transaction vault
-                \WcpScanner\Remediation\TransactionalRemediation::record_file_snapshot($tx_id, $file_path, 'quarantine');
+                \WebCareProScanner\Remediation\TransactionalRemediation::record_file_snapshot($tx_id, $file_path, 'quarantine');
 
                 $backup = $remediation_mgr->create_file_backup($file_path, 'attack_chain_eradication');
                 if ($backup['success']) {
@@ -717,7 +717,7 @@ class AttackChainEngine {
                     if ($moved || wp_delete_file($file_path)) {
                         $actions_taken[] = sprintf(
                             /* translators: %s: file basename */
-                            __('Quarantined file: %s', 'wcp-security-scanner'),
+                            __('Quarantined file: %s', 'webcare-pro-security'),
                             basename($file_path)
                         );
                     } else {
@@ -735,7 +735,7 @@ class AttackChainEngine {
                 $res = $persistence_scanner->neutralize_item('autoload_option', $opt_name);
                 if ($res['success']) {
                     /* translators: %s: option name */
-                    $actions_taken[] = sprintf(__('Deleted malicious DB option: %s', 'wcp-security-scanner'), $opt_name);
+                    $actions_taken[] = sprintf(__('Deleted malicious DB option: %s', 'webcare-pro-security'), $opt_name);
                     if (!empty($res['backup_id'])) {
                         $vault_backups[] = $res['backup_id'];
                     }
@@ -755,18 +755,18 @@ class AttackChainEngine {
                 $res = $user_mgr->delete_user($uid);
                 if ($res['success']) {
                     /* translators: %d: user ID */
-                    $actions_taken[] = sprintf(__('Deleted rogue user #%d', 'wcp-security-scanner'), $uid);
+                    $actions_taken[] = sprintf(__('Deleted rogue user #%d', 'webcare-pro-security'), $uid);
                     if (!empty($res['backup_file'])) {
-                        \WcpScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $res['backup_file'], 'delete');
+                        \WebCareProScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $res['backup_file'], 'delete');
                     }
                 } else {
                     // Try demoting to subscriber instead
                     $demote_res = $user_mgr->assign_default_role($uid, 'subscriber');
                     if ($demote_res['success']) {
                         /* translators: %d: user ID */
-                        $actions_taken[] = sprintf(__('Demoted user #%d to subscriber', 'wcp-security-scanner'), $uid);
+                        $actions_taken[] = sprintf(__('Demoted user #%d to subscriber', 'webcare-pro-security'), $uid);
                         if (!empty($demote_res['backup_file'])) {
-                            \WcpScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $demote_res['backup_file'], 'demote');
+                            \WebCareProScanner\Remediation\TransactionalRemediation::record_user_snapshot($tx_id, $uid, $demote_res['backup_file'], 'demote');
                         }
                     } else {
                         $errors[] = "Could not remove or demote user #{$uid}: " . ($res['error'] ?? '');
@@ -780,27 +780,27 @@ class AttackChainEngine {
             foreach ($plan['clear_crons'] as $hook) {
                 wp_clear_scheduled_hook($hook);
                 /* translators: %s: cron hook name */
-                $actions_taken[] = sprintf(__('Cleared cron hook: %s', 'wcp-security-scanner'), $hook);
+                $actions_taken[] = sprintf(__('Cleared cron hook: %s', 'webcare-pro-security'), $hook);
             }
         }
 
         // 5. Block Attacker IPs in WAF
         if (!empty($plan['block_ips']) && is_array($plan['block_ips'])) {
-            $existing_blocked = get_option('wcpscan_firewall_blacklist_ips', '');
+            $existing_blocked = get_option('webcareproscan_firewall_blacklist_ips', '');
             $blocked_lines = array_filter(array_map('trim', explode("\n", (string) $existing_blocked)));
             foreach ($plan['block_ips'] as $ip) {
                 if (filter_var($ip, FILTER_VALIDATE_IP) && !in_array($ip, $blocked_lines, true)) {
                     $blocked_lines[] = $ip;
                     /* translators: %s: IP address */
-                    $actions_taken[] = sprintf(__('Blocked threat IP in WAF: %s', 'wcp-security-scanner'), $ip);
+                    $actions_taken[] = sprintf(__('Blocked threat IP in WAF: %s', 'webcare-pro-security'), $ip);
                 }
             }
-            update_option('wcpscan_firewall_blacklist_ips', implode("\n", $blocked_lines));
+            update_option('webcareproscan_firewall_blacklist_ips', implode("\n", $blocked_lines));
         }
 
         // 6. Auto-reconcile open scan issues associated with these quarantined files
         global $wpdb;
-        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if (!empty($plan['quarantine_files']) && $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $issues_table)) === $issues_table) {
             foreach ($plan['quarantine_files'] as $fp) {
@@ -816,13 +816,13 @@ class AttackChainEngine {
         }
 
         // 7. Commit Transaction & Record Audit Log Entry
-        \WcpScanner\Remediation\TransactionalRemediation::commit_transaction($tx_id);
+        \WebCareProScanner\Remediation\TransactionalRemediation::commit_transaction($tx_id);
 
         AuditLogger::log_event(
             'attack_chain_eradicated',
             sprintf(
                 /* translators: 1: chain ID, 2: number of actions, 3: transaction ID */
-                __('Eradicated attack chain "%1$s": %2$d actions executed under transaction %3$s.', 'wcp-security-scanner'),
+                __('Eradicated attack chain "%1$s": %2$d actions executed under transaction %3$s.', 'webcare-pro-security'),
                 $chain_id,
                 count($actions_taken),
                 $tx_id
@@ -838,7 +838,7 @@ class AttackChainEngine {
             'errors'        => $errors,
             'message'       => sprintf(
                 /* translators: 1: number of actions, 2: transaction ID */
-                __('Attack Chain Eradication Complete: %1$d actions executed successfully across files, database, and firewall. Transaction snapshot "%2$s" saved for safe rollback.', 'wcp-security-scanner'),
+                __('Attack Chain Eradication Complete: %1$d actions executed successfully across files, database, and firewall. Transaction snapshot "%2$s" saved for safe rollback.', 'webcare-pro-security'),
                 count($actions_taken),
                 $tx_id
             ),

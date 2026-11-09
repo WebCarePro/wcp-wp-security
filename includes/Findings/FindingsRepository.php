@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Findings;
+namespace WebCareProScanner\Findings;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -22,7 +22,7 @@ class FindingsRepository {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_scan_files';
+        $table = $wpdb->prefix . 'webcareproscan_scan_files';
         $now = current_time('mysql');
 
         foreach (array_chunk($rows, self::MAX_ROWS_PER_QUERY) as $chunk) {
@@ -63,7 +63,7 @@ class FindingsRepository {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table = $wpdb->prefix . 'webcareproscan_scan_issues';
         $now = current_time('mysql');
         $batch_hash_cache = [];
 
@@ -88,8 +88,8 @@ class FindingsRepository {
                 $values[] = isset($row['evidence']) && $row['evidence'] !== null ? (string) $row['evidence'] : null;
                 $status = (string) ($row['status'] ?? '');
                 if (empty($status) || $status === 'open') {
-                    if (class_exists('\\WcpScanner\\Findings\\WhitelistManager')) {
-                        $matched_rule = \WcpScanner\Findings\WhitelistManager::match_finding($row, $batch_hash_cache);
+                    if (class_exists('\\WebCareProScanner\\Findings\\WhitelistManager')) {
+                        $matched_rule = \WebCareProScanner\Findings\WhitelistManager::match_finding($row, $batch_hash_cache);
                         $status = ($matched_rule !== null) ? 'ignored' : 'open';
                     } else {
                         $status = 'open';

@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Filesystem;
+namespace WebCareProScanner\Filesystem;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -60,11 +60,11 @@ class UploadsScanner {
 
             $normalized_uploads = str_replace('\\', '/', rtrim($uploads_path, '/\\') . '/');
             $files_inspected = 0;
-            $uploads_mode = class_exists('\\WcpScanner\\System\\SettingsManager')
-                ? \WcpScanner\System\SettingsManager::get('scan_uploads_mode', 'smart_executable')
+            $uploads_mode = class_exists('\\WebCareProScanner\\System\\SettingsManager')
+                ? \WebCareProScanner\System\SettingsManager::get('scan_uploads_mode', 'smart_executable')
                 : 'smart_executable';
             $max_files_limit = ($uploads_mode === 'deep_raster') ? 25000 : 5000;
-            $monitor = new \WcpScanner\Resource\ResourceMonitor(70, 20, 'balanced');
+            $monitor = new \WebCareProScanner\Resource\ResourceMonitor(70, 20, 'balanced');
 
             foreach ($iterator as $item) {
                 // Adaptive breathing & memory headroom check before each file
@@ -94,7 +94,7 @@ class UploadsScanner {
                 }
 
                 // Check user configured excluded paths
-                if (\WcpScanner\System\SettingsManager::is_path_excluded($normalized_path)) {
+                if (\WebCareProScanner\System\SettingsManager::is_path_excluded($normalized_path)) {
                     continue;
                 }
 
@@ -107,12 +107,12 @@ class UploadsScanner {
                 // 1. Direct prohibited executable / shell extension
                 if (in_array($ext, $this->executable_extensions, true)) {
                     // Check if harmless WordPress directory listing prevention placeholder
-                    if (($lower_name === 'index.php' || $lower_name === 'index.html' || $lower_name === 'index.htm') && \WcpScanner\System\SettingsManager::is_safe_directory_index($real_path)) {
+                    if (($lower_name === 'index.php' || $lower_name === 'index.html' || $lower_name === 'index.htm') && \WebCareProScanner\System\SettingsManager::is_safe_directory_index($real_path)) {
                         continue;
                     }
 
                     // Check if legitimate, verified plugin cache (e.g. MailPoet Twig template cache) with 0 malware indicators
-                    if (\WcpScanner\System\SettingsManager::is_legitimate_uploads_cache_file($real_path)) {
+                    if (\WebCareProScanner\System\SettingsManager::is_legitimate_uploads_cache_file($real_path)) {
                         continue;
                     }
 

@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
-use WcpScanner\Firewall\WafFileLogger;
+use WebCareProScanner\Firewall\WafFileLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -89,7 +89,7 @@ class LearningModeEngine {
             return [
                 'success' => false,
                 /* translators: %s: incident or finding ID */
-                'message' => sprintf(__('Incident record "%s" not found in active WAF telemetry or learning observations.', 'wcp-security-scanner'), esc_html($finding_id)),
+                'message' => sprintf(__('Incident record "%s" not found in active WAF telemetry or learning observations.', 'webcare-pro-security'), esc_html($finding_id)),
             ];
         }
 
@@ -149,7 +149,7 @@ class LearningModeEngine {
         return [
             'success'   => true,
             /* translators: %s: exemption ID */
-            'message'   => sprintf(__('Surgical safe-pass exemption "%s" created successfully.', 'wcp-security-scanner'), esc_html($exemption_id)),
+            'message'   => sprintf(__('Surgical safe-pass exemption "%s" created successfully.', 'webcare-pro-security'), esc_html($exemption_id)),
             'exemption' => $exemption_rule,
         ];
     }

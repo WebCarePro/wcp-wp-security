@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\Security\SecretVault;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\Security\SecretVault;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,15 +16,15 @@ if (!defined('ABSPATH')) {
  */
 class TwoFactorAuth {
 
-    const META_ENABLED         = '_wcpscan_2fa_enabled';
-    const META_SECRET          = '_wcpscan_2fa_secret';
-    const META_ALGORITHM       = '_wcpscan_2fa_algorithm';
-    const META_DIGITS          = '_wcpscan_2fa_digits';
-    const META_BACKUP_CODES    = '_wcpscan_2fa_backup_codes';
-    const META_TRUSTED_DEVICES = '_wcpscan_2fa_trusted_devices';
-    const META_GRACE_START     = '_wcpscan_2fa_grace_start';
-    const SESSION_TRANSIENT    = 'wcpscan_2fa_pending_';
-    const COOKIE_DEVICE        = 'wcpscan_2fa_trusted_device';
+    const META_ENABLED         = '_webcareproscan_2fa_enabled';
+    const META_SECRET          = '_webcareproscan_2fa_secret';
+    const META_ALGORITHM       = '_webcareproscan_2fa_algorithm';
+    const META_DIGITS          = '_webcareproscan_2fa_digits';
+    const META_BACKUP_CODES    = '_webcareproscan_2fa_backup_codes';
+    const META_TRUSTED_DEVICES = '_webcareproscan_2fa_trusted_devices';
+    const META_GRACE_START     = '_webcareproscan_2fa_grace_start';
+    const SESSION_TRANSIENT    = 'webcareproscan_2fa_pending_';
+    const COOKIE_DEVICE        = 'webcareproscan_2fa_trusted_device';
 
     /**
      * Initialize 2FA hooks
@@ -32,7 +32,7 @@ class TwoFactorAuth {
     public static function init() {
         // Intercept WordPress authentication
         add_filter('authenticate', [__CLASS__, 'filter_authenticate'], 50, 3);
-        add_action('login_form_wcpscan_2fa', [__CLASS__, 'render_2fa_challenge_screen']);
+        add_action('login_form_webcareproscan_2fa', [__CLASS__, 'render_2fa_challenge_screen']);
         // Revoke trusted devices on password reset for security
         add_action('password_reset', [__CLASS__, 'on_password_reset'], 10, 2);
         // Intercept admin dashboard if 2FA is strictly enforced and user grace period expired
@@ -86,7 +86,7 @@ class TwoFactorAuth {
         if ($is_enabled) {
             return [
                 'status'         => 'compliant',
-                'label'          => __('2FA Active & Compliant', 'wcp-security-scanner'),
+                'label'          => __('2FA Active & Compliant', 'webcare-pro-security'),
                 'is_compliant'   => true,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
@@ -96,7 +96,7 @@ class TwoFactorAuth {
         if (!self::is_enforced_for_admins()) {
             return [
                 'status'         => 'not_enforced',
-                'label'          => __('2FA Optional / Disabled', 'wcp-security-scanner'),
+                'label'          => __('2FA Optional / Disabled', 'webcare-pro-security'),
                 'is_compliant'   => false,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
@@ -107,7 +107,7 @@ class TwoFactorAuth {
         if (!$user || !in_array('administrator', (array) $user->roles, true)) {
             return [
                 'status'         => 'not_enforced',
-                'label'          => __('Non-Admin (Exempt)', 'wcp-security-scanner'),
+                'label'          => __('Non-Admin (Exempt)', 'webcare-pro-security'),
                 'is_compliant'   => true,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
@@ -121,7 +121,7 @@ class TwoFactorAuth {
         if ($mode === 'immediate' || ($mode === 'grace_period' && $grace_days <= 0)) {
             return [
                 'status'         => 'enforcement_required',
-                'label'          => __('Enforced Immediately (Action Required)', 'wcp-security-scanner'),
+                'label'          => __('Enforced Immediately (Action Required)', 'webcare-pro-security'),
                 'is_compliant'   => false,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
@@ -143,7 +143,7 @@ class TwoFactorAuth {
         if ($now >= $grace_expires) {
             return [
                 'status'         => 'enforcement_required',
-                'label'          => __('Grace Period Expired (Locked)', 'wcp-security-scanner'),
+                'label'          => __('Grace Period Expired (Locked)', 'webcare-pro-security'),
                 'is_compliant'   => false,
                 'grace_remaining'=> 0,
                 'days_left'      => 0,
@@ -160,7 +160,7 @@ class TwoFactorAuth {
                 'status'         => 'remind_login',
                 'label'          => sprintf(
                     /* translators: %d: count of remaining grace period days */
-                    __('Remind on Login (%dd grace left)', 'wcp-security-scanner'),
+                    __('Remind on Login (%dd grace left)', 'webcare-pro-security'),
                     $days_left
                 ),
                 'is_compliant'   => false,
@@ -176,7 +176,7 @@ class TwoFactorAuth {
             'status'         => 'grace_period',
             'label'          => sprintf(
                 /* translators: %d: count of remaining grace period days */
-                __('Grace Period: %d day(s) left', 'wcp-security-scanner'),
+                __('Grace Period: %d day(s) left', 'webcare-pro-security'),
                 $days_left
             ),
             'is_compliant'   => false,
@@ -215,7 +215,7 @@ class TwoFactorAuth {
             $current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $current_tab  = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : '';
-            $is_auth_page = ($current_page === 'wcp-scanner-auth') || ($current_page === 'wcp-security-scanner' && $current_tab === 'auth');
+            $is_auth_page = ($current_page === 'wcp-scanner-auth') || ($current_page === 'webcare-pro-security' && $current_tab === 'auth');
             if (!$is_auth_page) {
                 wp_safe_redirect(admin_url('admin.php?page=wcp-scanner-auth&tab=2fa&forced=1'));
                 exit;
@@ -243,13 +243,13 @@ class TwoFactorAuth {
             ?>
             <div class="notice notice-info is-dismissible" style="border-left-color: #0284c7; padding: 12px 16px;">
                 <p style="margin: 0; font-size: 13.5px; font-weight: 500; color: #1e293b;">
-                    <strong style="color: #0284c7;">🔔 <?php esc_html_e('Security Reminder: Configure Administrator 2FA', 'wcp-security-scanner'); ?></strong> —
+                    <strong style="color: #0284c7;">🔔 <?php esc_html_e('Security Reminder: Configure Administrator 2FA', 'webcare-pro-security'); ?></strong> —
                     <?php
                     /* translators: %d: count of remaining days */
-                    printf(esc_html__('Two-factor authentication is recommended for your account. You have %d day(s) before enforcement is finalized.', 'wcp-security-scanner'), (int) $days_left);
+                    printf(esc_html__('Two-factor authentication is recommended for your account. You have %d day(s) before enforcement is finalized.', 'webcare-pro-security'), (int) $days_left);
                     ?>
                     <a href="<?php echo esc_url($setup_url); ?>" class="button button-primary" style="margin-left: 10px; background: #0284c7; border-color: #0284c7; font-weight: 600;">
-                        <?php esc_html_e('Configure 2FA', 'wcp-security-scanner'); ?> &rarr;
+                        <?php esc_html_e('Configure 2FA', 'webcare-pro-security'); ?> &rarr;
                     </a>
                 </p>
             </div>
@@ -260,13 +260,13 @@ class TwoFactorAuth {
             ?>
             <div class="notice notice-warning is-dismissible" style="border-left-color: #f59e0b; padding: 12px 16px;">
                 <p style="margin: 0; font-size: 13.5px; font-weight: 500; color: #1e293b;">
-                    <strong style="color: #b45309;">⚠️ <?php esc_html_e('Action Required: Administrator 2FA Policy Enforced', 'wcp-security-scanner'); ?></strong> —
+                    <strong style="color: #b45309;">⚠️ <?php esc_html_e('Action Required: Administrator 2FA Policy Enforced', 'webcare-pro-security'); ?></strong> —
                     <?php
                     /* translators: %d: count of remaining days */
-                    printf(esc_html__('Two-factor authentication is mandatory for all administrator accounts. You have %d day(s) remaining before your account is restricted.', 'wcp-security-scanner'), (int) $days_left);
+                    printf(esc_html__('Two-factor authentication is mandatory for all administrator accounts. You have %d day(s) remaining before your account is restricted.', 'webcare-pro-security'), (int) $days_left);
                     ?>
                     <a href="<?php echo esc_url($setup_url); ?>" class="button button-secondary" style="margin-left: 10px; font-weight: 600;">
-                        <?php esc_html_e('Setup 2FA Now', 'wcp-security-scanner'); ?> &rarr;
+                        <?php esc_html_e('Setup 2FA Now', 'webcare-pro-security'); ?> &rarr;
                     </a>
                 </p>
             </div>
@@ -276,10 +276,10 @@ class TwoFactorAuth {
             ?>
             <div class="notice notice-error" style="border-left-color: #ef4444; padding: 12px 16px;">
                 <p style="margin: 0; font-size: 13.5px; font-weight: 600; color: #991b1b;">
-                    🛑 <?php esc_html_e('Mandatory Security Enforcement: Administrator 2FA Required', 'wcp-security-scanner'); ?> —
-                    <?php esc_html_e('Your grace period has expired. You must configure two-factor authentication to restore full administrator privileges.', 'wcp-security-scanner'); ?>
+                    🛑 <?php esc_html_e('Mandatory Security Enforcement: Administrator 2FA Required', 'webcare-pro-security'); ?> —
+                    <?php esc_html_e('Your grace period has expired. You must configure two-factor authentication to restore full administrator privileges.', 'webcare-pro-security'); ?>
                     <a href="<?php echo esc_url($setup_url); ?>" class="button button-primary" style="margin-left: 10px; background: #dc2626; border-color: #dc2626; font-weight: 600;">
-                        <?php esc_html_e('Enable 2FA Now', 'wcp-security-scanner'); ?>
+                        <?php esc_html_e('Enable 2FA Now', 'webcare-pro-security'); ?>
                     </a>
                 </p>
             </div>
@@ -501,7 +501,7 @@ class TwoFactorAuth {
      */
     public static function regenerate_backup_codes(int $user_id, int $count = 8): array {
         if (!self::is_user_enabled($user_id)) {
-            throw new \Exception(esc_html__('Two-factor authentication is not enabled for this account.', 'wcp-security-scanner'));
+            throw new \Exception(esc_html__('Two-factor authentication is not enabled for this account.', 'webcare-pro-security'));
         }
 
         $bundle = self::generate_backup_codes($count);
@@ -525,13 +525,13 @@ class TwoFactorAuth {
         update_user_meta($user_id, self::META_DIGITS, ($digits === 8 || strtolower($algo) === 'sha512') ? 8 : 6);
         update_user_meta($user_id, self::META_ENABLED, 1);
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             $user = get_userdata($user_id);
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_enabled', [
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_enabled', [
                 'severity' => 'info',
                 'message'  => sprintf(
                     /* translators: %s: username or user identifier */
-                    __('Two-Factor Authentication (2FA) was activated for user "%s".', 'wcp-security-scanner'),
+                    __('Two-Factor Authentication (2FA) was activated for user "%s".', 'webcare-pro-security'),
                     $user ? $user->user_login : 'user #' . $user_id
                 ),
                 'details'  => [
@@ -558,13 +558,13 @@ class TwoFactorAuth {
         delete_user_meta($user_id, self::META_GRACE_START);
         self::clear_trusted_device_cookie();
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             $user = get_userdata($user_id);
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_disabled', [
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_2fa_disabled', [
                 'severity' => 'high',
                 'message'  => sprintf(
                     /* translators: %s: username or user identifier */
-                    __('Two-Factor Authentication (2FA) was deactivated for user "%s".', 'wcp-security-scanner'),
+                    __('Two-Factor Authentication (2FA) was deactivated for user "%s".', 'webcare-pro-security'),
                     $user ? $user->user_login : 'user #' . $user_id
                 ),
                 'details'  => [
@@ -585,7 +585,7 @@ class TwoFactorAuth {
         self::disable_user($user_id);
         $user = get_user_by('id', $user_id);
         if (!$user) {
-            throw new \Exception(esc_html__('User not found.', 'wcp-security-scanner'));
+            throw new \Exception(esc_html__('User not found.', 'webcare-pro-security'));
         }
 
         $settings         = SettingsManager::get_settings();
@@ -624,11 +624,11 @@ class TwoFactorAuth {
         $unlocked_ips = [];
         $username = $user->user_login;
 
-        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
-            $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
+        if (class_exists('\\WebCareProScanner\\Auth\\LoginHardening')) {
+            $lockouts = \WebCareProScanner\Auth\LoginHardening::get_locked_ips();
             foreach ($lockouts as $ip => $data) {
                 if (isset($data['username']) && strtolower($data['username']) === strtolower($username)) {
-                    \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
+                    \WebCareProScanner\Auth\LoginHardening::unlock_ip($ip);
                     $unlocked_ips[] = $ip;
                 }
             }
@@ -647,7 +647,7 @@ class TwoFactorAuth {
         $admins = get_users(['role' => 'administrator', 'orderby' => 'registered', 'order' => 'ASC']);
         $result = [];
 
-        $locked_ips = class_exists('\\WcpScanner\\Auth\\LoginHardening') ? \WcpScanner\Auth\LoginHardening::get_locked_ips() : [];
+        $locked_ips = class_exists('\\WebCareProScanner\\Auth\\LoginHardening') ? \WebCareProScanner\Auth\LoginHardening::get_locked_ips() : [];
         $locked_usernames = [];
         foreach ($locked_ips as $ip => $data) {
             if (!empty($data['username'])) {
@@ -661,7 +661,7 @@ class TwoFactorAuth {
             $uid = (int) $user->ID;
             $compliance = self::get_user_compliance_status($uid);
             $devices    = self::get_trusted_devices($uid);
-            $last_login = get_user_meta($uid, '_wcpscan_last_login', true);
+            $last_login = get_user_meta($uid, '_webcareproscan_last_login', true);
 
             $user_locked_ips = $locked_usernames[strtolower($user->user_login)] ?? [];
 
@@ -695,13 +695,13 @@ class TwoFactorAuth {
         if ($user instanceof \WP_User) {
             self::revoke_all_trusted_devices($user->ID);
 
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 $is_admin = in_array('administrator', (array) $user->roles, true);
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
                     'severity' => $is_admin ? 'high' : 'info',
                     'message'  => sprintf(
                         /* translators: 1: username, 2: role description or empty */
-                        __('Password was reset for user "%1$s"%2$s.', 'wcp-security-scanner'),
+                        __('Password was reset for user "%1$s"%2$s.', 'webcare-pro-security'),
                         $user->user_login,
                         $is_admin ? ' (Administrator account)' : ''
                     ),
@@ -709,7 +709,7 @@ class TwoFactorAuth {
                         'user_id'    => $user->ID,
                         'user_login' => $user->user_login,
                         'user_roles' => implode(', ', $user->roles),
-                        'ip_address' => class_exists('\\WcpScanner\\Firewall\\FirewallEngine') ? \WcpScanner\Firewall\FirewallEngine::get_client_ip() : (!empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown'),
+                        'ip_address' => class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip() : (!empty($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown'),
                     ],
                 ]);
             }
@@ -801,8 +801,8 @@ class TwoFactorAuth {
         $days         = $days > 0 ? $days : self::get_remember_device_days();
         $expires_at   = time() + ($days * DAY_IN_SECONDS);
         $user_agent   = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
-        $ip           = class_exists('\\WcpScanner\\Firewall\\FirewallEngine')
-            ? \WcpScanner\Firewall\FirewallEngine::get_client_ip()
+        $ip           = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '');
         $device_id    = wp_generate_password(16, false);
 
@@ -981,10 +981,10 @@ class TwoFactorAuth {
 
         // Check if current browser is a verified trusted device (e.g. remembered for 7 days)
         if (self::is_trusted_device($user->ID)) {
-            if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-                \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
-                \WcpScanner\Auth\SessionSentinel::$pending_auth_label = __('2FA (Remembered Trusted Device)', 'wcp-security-scanner');
-                \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+            if (class_exists('\\WebCareProScanner\\Auth\\SessionSentinel')) {
+                \WebCareProScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
+                \WebCareProScanner\Auth\SessionSentinel::$pending_auth_label = __('2FA (Remembered Trusted Device)', 'webcare-pro-security');
+                \WebCareProScanner\Auth\SessionSentinel::$pending_auth_details = [
                     'type' => 'trusted_device',
                 ];
             }
@@ -993,7 +993,7 @@ class TwoFactorAuth {
 
         // Check if 2FA code was submitted
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- WordPress core login form does not carry custom plugin nonce
-        $auth_code = isset($_POST['wcpscan_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code'])) : '';
+        $auth_code = isset($_POST['webcareproscan_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['webcareproscan_2fa_code'])) : '';
         $secret    = self::get_user_secret($user->ID);
 
         if (!empty($auth_code)) {
@@ -1011,17 +1011,17 @@ class TwoFactorAuth {
             }
 
             if ($code_valid) {
-                if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-                    \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
-                    \WcpScanner\Auth\SessionSentinel::$pending_auth_label = ($code_type === 'backup_code')
-                        ? __('2FA (Emergency Recovery Code)', 'wcp-security-scanner')
-                        : __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
-                    \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                if (class_exists('\\WebCareProScanner\\Auth\\SessionSentinel')) {
+                    \WebCareProScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
+                    \WebCareProScanner\Auth\SessionSentinel::$pending_auth_label = ($code_type === 'backup_code')
+                        ? __('2FA (Emergency Recovery Code)', 'webcare-pro-security')
+                        : __('2FA (TOTP Authenticator)', 'webcare-pro-security');
+                    \WebCareProScanner\Auth\SessionSentinel::$pending_auth_details = [
                         'type' => $code_type,
                     ];
                 }
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
-                if (!empty($_POST['wcpscan_2fa_remember_device'])) {
+                if (!empty($_POST['webcareproscan_2fa_remember_device'])) {
                     self::set_trusted_device($user->ID, self::get_remember_device_days());
                 }
                 return $user; // Authentication passed!
@@ -1029,8 +1029,8 @@ class TwoFactorAuth {
 
             // Invalid code submitted
             return new \WP_Error(
-                'wcpscan_2fa_invalid_code',
-                __('<strong>Error:</strong> The two-factor authentication code you entered is invalid or has expired.', 'wcp-security-scanner')
+                'webcareproscan_2fa_invalid_code',
+                __('<strong>Error:</strong> The two-factor authentication code you entered is invalid or has expired.', 'webcare-pro-security')
             );
         }
 
@@ -1047,7 +1047,7 @@ class TwoFactorAuth {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $redirect_to = !empty($_REQUEST['redirect_to']) ? esc_url_raw(wp_unslash($_REQUEST['redirect_to'])) : admin_url();
         $challenge_url = add_query_arg([
-            'action'      => 'wcpscan_2fa',
+            'action'      => 'webcareproscan_2fa',
             'pending_key' => $pending_key,
             'redirect_to' => urlencode($redirect_to),
         ], wp_login_url());
@@ -1068,8 +1068,8 @@ class TwoFactorAuth {
 
         if (!$session || empty($session['user_id'])) {
             wp_die(
-                esc_html__('Your two-factor verification session has expired. Please log in again.', 'wcp-security-scanner'),
-                esc_html__('Session Expired', 'wcp-security-scanner'),
+                esc_html__('Your two-factor verification session has expired. Please log in again.', 'webcare-pro-security'),
+                esc_html__('Session Expired', 'webcare-pro-security'),
                 ['response' => 403, 'back_link' => true]
             );
         }
@@ -1077,7 +1077,7 @@ class TwoFactorAuth {
         $user_id = (int) $session['user_id'];
         $user    = get_user_by('id', $user_id);
         if (!$user) {
-            wp_die(esc_html__('Invalid user session.', 'wcp-security-scanner'));
+            wp_die(esc_html__('Invalid user session.', 'webcare-pro-security'));
         }
 
         $remember_device_allowed = self::is_remember_device_enabled();
@@ -1086,23 +1086,23 @@ class TwoFactorAuth {
 
         // Handle Form Submission
         $request_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : '';
-        if ($request_method === 'POST' && isset($_POST['wcpscan_2fa_code'])) {
-            check_admin_referer('wcpscan_2fa_verify_' . $pending_key);
+        if ($request_method === 'POST' && isset($_POST['webcareproscan_2fa_code'])) {
+            check_admin_referer('webcareproscan_2fa_verify_' . $pending_key);
 
             // Rate-limit brute-force attempts on this pending verification session (max 5 attempts)
-            $attempt_transient = 'wcpscan_2fa_attempts_' . $pending_key;
+            $attempt_transient = 'webcareproscan_2fa_attempts_' . $pending_key;
             $failed_attempts = (int) get_transient($attempt_transient);
             if ($failed_attempts >= 5) {
                 delete_transient(self::SESSION_TRANSIENT . $pending_key);
                 delete_transient($attempt_transient);
                 wp_die(
-                    esc_html__('Too many incorrect verification attempts. For your security, this login session has been terminated. Please log in again.', 'wcp-security-scanner'),
-                    esc_html__('Too Many Attempts', 'wcp-security-scanner'),
+                    esc_html__('Too many incorrect verification attempts. For your security, this login session has been terminated. Please log in again.', 'webcare-pro-security'),
+                    esc_html__('Too Many Attempts', 'webcare-pro-security'),
                     ['response' => 429, 'back_link' => true]
                 );
             }
 
-            $code   = sanitize_text_field(wp_unslash($_POST['wcpscan_2fa_code']));
+            $code   = sanitize_text_field(wp_unslash($_POST['webcareproscan_2fa_code']));
             $secret = self::get_user_secret($user_id);
             $valid  = false;
 
@@ -1113,10 +1113,10 @@ class TwoFactorAuth {
             // Check TOTP code with replay cache protection
             if ($secret && self::verify_code($secret, $code, 1, $userAlgo, $userDigits)) {
                 $current_timeslot = (int) floor(time() / 30);
-                $replay_key = 'wcpscan_totp_used_' . $user_id . '_' . $current_timeslot;
+                $replay_key = 'webcareproscan_totp_used_' . $user_id . '_' . $current_timeslot;
                 if (get_transient($replay_key)) {
                     $valid = false;
-                    $error_msg = __('This authentication code has already been used. Please wait for the next rotating code in your authenticator app.', 'wcp-security-scanner');
+                    $error_msg = __('This authentication code has already been used. Please wait for the next rotating code in your authenticator app.', 'webcare-pro-security');
                 } else {
                     // Record replay lock for 90 seconds (covering full drift window)
                     set_transient($replay_key, 1, 90);
@@ -1133,18 +1133,18 @@ class TwoFactorAuth {
                 delete_transient(self::SESSION_TRANSIENT . $pending_key);
                 delete_transient($attempt_transient);
 
-                if (class_exists('\\WcpScanner\\Auth\\SessionSentinel')) {
-                    \WcpScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
-                    \WcpScanner\Auth\SessionSentinel::$pending_auth_label = ($code_type === 'backup_code')
-                        ? __('2FA (Emergency Recovery Code)', 'wcp-security-scanner')
-                        : __('2FA (TOTP Authenticator)', 'wcp-security-scanner');
-                    \WcpScanner\Auth\SessionSentinel::$pending_auth_details = [
+                if (class_exists('\\WebCareProScanner\\Auth\\SessionSentinel')) {
+                    \WebCareProScanner\Auth\SessionSentinel::$pending_auth_type = '2fa';
+                    \WebCareProScanner\Auth\SessionSentinel::$pending_auth_label = ($code_type === 'backup_code')
+                        ? __('2FA (Emergency Recovery Code)', 'webcare-pro-security')
+                        : __('2FA (TOTP Authenticator)', 'webcare-pro-security');
+                    \WebCareProScanner\Auth\SessionSentinel::$pending_auth_details = [
                         'type' => $code_type,
                     ];
                 }
 
                 // Handle "Remember this device"
-                if (!empty($_POST['wcpscan_2fa_remember_device']) && $remember_device_allowed) {
+                if (!empty($_POST['webcareproscan_2fa_remember_device']) && $remember_device_allowed) {
                     self::set_trusted_device($user_id, $remember_days);
                 }
 
@@ -1160,13 +1160,13 @@ class TwoFactorAuth {
                 if (empty($error_msg)) {
                     $attempts_left = max(0, 5 - ($failed_attempts + 1));
                     /* translators: %d: number of remaining verification attempts */
-                    $error_msg = sprintf(__('Invalid two-factor code (%d attempts remaining). Please check your authenticator app or enter a recovery code.', 'wcp-security-scanner'), $attempts_left);
+                    $error_msg = sprintf(__('Invalid two-factor code (%d attempts remaining). Please check your authenticator app or enter a recovery code.', 'webcare-pro-security'), $attempts_left);
                 }
             }
         }
 
         // Render HTML Challenge Page
-        login_header(__('Two-Factor Authentication', 'wcp-security-scanner'));
+        login_header(__('Two-Factor Authentication', 'webcare-pro-security'));
         ?>
         <div style="margin-bottom: 20px; text-align: center;">
             <div style="display: inline-block; background: #e0f2fe; padding: 12px; border-radius: 50%; margin-bottom: 12px;">
@@ -1176,7 +1176,7 @@ class TwoFactorAuth {
                 </svg>
             </div>
             <h2 style="font-size: 18px; margin: 0 0 6px 0; color: #0f172a; font-weight: 700;">
-                <?php esc_html_e('Two-Factor Verification', 'wcp-security-scanner'); ?>
+                <?php esc_html_e('Two-Factor Verification', 'webcare-pro-security'); ?>
             </h2>
             <?php
             $userDigits = self::get_user_digits($user_id);
@@ -1185,46 +1185,46 @@ class TwoFactorAuth {
             <p style="font-size: 13px; color: #64748b; margin: 0;">
                 <?php
                 /* translators: 1: username in strong tags, 2: digit count */
-                printf(esc_html__('Logged in as %1$s. Enter the %2$d-digit code from your authenticator app to complete sign-in.', 'wcp-security-scanner'), '<strong>' . esc_html($user->user_login) . '</strong>', (int) $userDigits);
+                printf(esc_html__('Logged in as %1$s. Enter the %2$d-digit code from your authenticator app to complete sign-in.', 'webcare-pro-security'), '<strong>' . esc_html($user->user_login) . '</strong>', (int) $userDigits);
                 ?>
             </p>
         </div>
 
         <?php if (!empty($error_msg)): ?>
             <div id="login_error" style="border-left-color: #dc2626; margin-bottom: 20px;">
-                <strong><?php esc_html_e('Verification Failed:', 'wcp-security-scanner'); ?></strong> <?php echo esc_html($error_msg); ?>
+                <strong><?php esc_html_e('Verification Failed:', 'webcare-pro-security'); ?></strong> <?php echo esc_html($error_msg); ?>
             </div>
         <?php endif; ?>
 
         <form name="wcp2faform" id="wcp2faform" action="" method="post" style="padding-bottom: 16px;">
-            <?php wp_nonce_field('wcpscan_2fa_verify_' . $pending_key); ?>
+            <?php wp_nonce_field('webcareproscan_2fa_verify_' . $pending_key); ?>
             <p>
-                <label for="wcpscan_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
-                    <?php esc_html_e('Security Code or Recovery Code', 'wcp-security-scanner'); ?>
+                <label for="webcareproscan_2fa_code" style="font-weight: 600; font-size: 13px; color: #334155;">
+                    <?php esc_html_e('Security Code or Recovery Code', 'webcare-pro-security'); ?>
                 </label>
-                <input type="text" name="wcpscan_2fa_code" id="wcpscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="text" placeholder="<?php echo esc_attr(str_repeat('0', (int) $userDigits)); ?>" maxlength="12" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
+                <input type="text" name="webcareproscan_2fa_code" id="webcareproscan_2fa_code" class="input" value="" size="20" autocomplete="one-time-code" autofocus inputmode="text" placeholder="<?php echo esc_attr(str_repeat('0', (int) $userDigits)); ?>" maxlength="12" style="font-size: 22px; letter-spacing: 4px; text-align: center; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px;" required />
             </p>
 
             <?php if ($remember_device_allowed): ?>
                 <p style="margin: 14px 0 6px 0; display: flex; align-items: center; gap: 8px;">
-                    <label for="wcpscan_2fa_remember_device" style="font-size: 13px; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" name="wcpscan_2fa_remember_device" id="wcpscan_2fa_remember_device" value="1" checked style="accent-color: #0284c7; width: 16px; height: 16px; margin: 0;" />
+                    <label for="webcareproscan_2fa_remember_device" style="font-size: 13px; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="webcareproscan_2fa_remember_device" id="webcareproscan_2fa_remember_device" value="1" checked style="accent-color: #0284c7; width: 16px; height: 16px; margin: 0;" />
                         <span><?php
                         /* translators: %d: count of remember device days */
-                        printf(esc_html__('Remember this device for %d days', 'wcp-security-scanner'), (int) $remember_days);
+                        printf(esc_html__('Remember this device for %d days', 'webcare-pro-security'), (int) $remember_days);
                         ?></span>
                     </label>
                 </p>
             <?php endif; ?>
 
             <p class="submit" style="margin-top: 18px;">
-                <input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="<?php esc_attr_e('Verify & Continue', 'wcp-security-scanner'); ?>" style="width: 100%; border-radius: 8px; background: #0284c7; border-color: #0284c7; height: 42px; font-weight: 600;" />
+                <input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="<?php esc_attr_e('Verify & Continue', 'webcare-pro-security'); ?>" style="width: 100%; border-radius: 8px; background: #0284c7; border-color: #0284c7; height: 42px; font-weight: 600;" />
             </p>
         </form>
 
         <p id="backtoblog" style="text-align: center; margin-top: 20px;">
             <a href="<?php echo esc_url(wp_login_url()); ?>" style="font-size: 13px; color: #64748b;">
-                &larr; <?php esc_html_e('Cancel and Return to Login', 'wcp-security-scanner'); ?>
+                &larr; <?php esc_html_e('Cancel and Return to Login', 'webcare-pro-security'); ?>
             </a>
         </p>
         <?php

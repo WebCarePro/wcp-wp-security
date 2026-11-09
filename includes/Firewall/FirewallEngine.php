@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -32,7 +32,7 @@ class FirewallEngine {
         BotReconDefense::init();
 
         // Initialize Anti-Automation Honey-Token Traps & Phantom Decoy Grid
-        if (class_exists('\\WcpScanner\\Firewall\\HoneyTokenEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\HoneyTokenEngine')) {
             HoneyTokenEngine::init();
         }
 
@@ -81,8 +81,8 @@ class FirewallEngine {
         add_action('lostpassword_post', [__CLASS__, 'check_lostpassword_submission'], 0);
 
         // Context-Adaptive Firewall (CAF 2.0): Only register WooCommerce firewall hooks when WooCommerce is active
-        $has_woocommerce = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
-            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+        $has_woocommerce = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
             : (class_exists('WooCommerce') || in_array('woocommerce/woocommerce.php', (array) get_option('active_plugins', []), true));
 
         if ($has_woocommerce) {
@@ -352,7 +352,7 @@ class FirewallEngine {
         }
 
         // 3. From WordPress option
-        $opt = function_exists('get_option') ? get_option('wcpscan_trusted_proxies', '') : '';
+        $opt = function_exists('get_option') ? get_option('webcareproscan_trusted_proxies', '') : '';
         if (!empty($opt) && is_string($opt)) {
             $parts = preg_split('/[\s,;]+/', $opt);
             foreach ($parts as $p) {
@@ -544,7 +544,7 @@ class FirewallEngine {
         }
 
         // Check if page builder smart pass is enabled in settings
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         if (isset($settings['waf_allow_page_builders']) && empty($settings['waf_allow_page_builders'])) {
             return ($cached_builder_result = false);
         }
@@ -633,8 +633,8 @@ class FirewallEngine {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Early runtime WAF builder detection
         $ajax_action = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
 
-        $has_builders = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
-            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('page_builder')
+        $has_builders = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('page_builder')
             : true;
 
         $is_gutenberg_rest = (
@@ -720,13 +720,13 @@ class FirewallEngine {
      * Inspect Incoming Request
      */
     public static function inspect_incoming_request() {
-        // Emergency Override / Failsafe: Bypass all firewall inspection if WCPSCAN_DISABLE_WAF or WCPSCAN_DISABLE_FIREWALL is defined in wp-config.php
-        if ((defined('WCPSCAN_DISABLE_WAF') && WCPSCAN_DISABLE_WAF) || (defined('WCPSCAN_DISABLE_FIREWALL') && WCPSCAN_DISABLE_FIREWALL) || (defined('WCP_CAF_DISABLE_PRELOAD') && WCP_CAF_DISABLE_PRELOAD)) {
+        // Emergency Override / Failsafe: Bypass all firewall inspection if WEBCAREPROSCAN_DISABLE_WAF or WEBCAREPROSCAN_DISABLE_FIREWALL is defined in wp-config.php
+        if ((defined('WEBCAREPROSCAN_DISABLE_WAF') && WEBCAREPROSCAN_DISABLE_WAF) || (defined('WEBCAREPROSCAN_DISABLE_FIREWALL') && WEBCAREPROSCAN_DISABLE_FIREWALL) || (defined('WCP_CAF_DISABLE_PRELOAD') && WCP_CAF_DISABLE_PRELOAD)) {
             return;
         }
 
         // CAF Killswitch check
-        if (defined('WP_CONTENT_DIR') && (file_exists(WP_CONTENT_DIR . '/uploads/wcp-security-scanner/.killswitch') || file_exists(WP_CONTENT_DIR . '/wcp-vault/.killswitch'))) {
+        if (defined('WP_CONTENT_DIR') && (file_exists(WP_CONTENT_DIR . '/uploads/webcare-pro-security/.killswitch') || file_exists(WP_CONTENT_DIR . '/wcp-vault/.killswitch'))) {
             return;
         }
 
@@ -749,8 +749,8 @@ class FirewallEngine {
         $is_admin_area = is_admin() || strpos($req_uri, '/wp-admin/') !== false;
 
         if (!$is_admin_area && !$is_rest && !$is_ajax && !self::is_authenticated_administrator()) {
-            if (get_transient('wcpscan_active_visitor_traffic_15s') === false) {
-                set_transient('wcpscan_active_visitor_traffic_15s', 1, 15);
+            if (get_transient('webcareproscan_active_visitor_traffic_15s') === false) {
+                set_transient('webcareproscan_active_visitor_traffic_15s', 1, 15);
             }
         }
 
@@ -780,7 +780,7 @@ class FirewallEngine {
                 // that may have been erroneously or transitively added are automatically pardoned and unblocked.
                 $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
                 $is_legit_crawler = false;
-                if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                     $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua);
                 }
 
@@ -867,30 +867,30 @@ class FirewallEngine {
         }
 
         // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-            \WcpScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
         }
 
         // Adaptive Rate Limiter & Token-Bucket Throttling
-        if (class_exists('\\WcpScanner\\Firewall\\AdaptiveRateLimiter')) {
-            \WcpScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
+        if (class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
+            \WebCareProScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
         }
 
         // WebCrypto Proof-of-Work (PoW) Enforced Suspicious IP Sentinel
         $pow_ips = get_option('wcp_pow_enforced_ips', []);
         if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
-            if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
-                \WcpScanner\Firewall\BotReconDefense::verify_or_challenge_client();
+            if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+                \WebCareProScanner\Firewall\BotReconDefense::verify_or_challenge_client();
             }
         }
 
         // HTTP/2 & HTTP/3 Pseudo-Header and Client-Hint Anomaly Sentinel (CAF Phase 3)
-        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
-            $h2_anomaly = \WcpScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
+        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+            $h2_anomaly = \WebCareProScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
             if ($h2_anomaly !== null) {
                 // Record threat score increment for header anomaly (+15)
-                if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-                    \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
+                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+                    \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
                 }
 
                 // Only hard-block malformed uppercase HTTP/2 pseudo-headers (or when strict HTTP/2 blocking is explicitly enabled)
@@ -923,10 +923,10 @@ class FirewallEngine {
         }
 
         // Emergency Containment Mode Enforcement
-        if (class_exists('\\WcpScanner\\Security\\EmergencyContainmentManager') && \WcpScanner\Security\EmergencyContainmentManager::is_active()) {
+        if (class_exists('\\WebCareProScanner\\Security\\EmergencyContainmentManager') && \WebCareProScanner\Security\EmergencyContainmentManager::is_active()) {
             if (!self::is_authenticated_administrator()) {
-                if (\WcpScanner\Security\EmergencyContainmentManager::is_maintenance_enabled()) {
-                    \WcpScanner\Security\EmergencyContainmentManager::render_containment_screen();
+                if (\WebCareProScanner\Security\EmergencyContainmentManager::is_maintenance_enabled()) {
+                    \WebCareProScanner\Security\EmergencyContainmentManager::render_containment_screen();
                     exit;
                 }
 
@@ -960,8 +960,8 @@ class FirewallEngine {
         }
 
         // Atomic Upgrade Lock Route Shield: Block unauthenticated access to update endpoints while updates run
-        if (class_exists('\\WcpScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
-            $active_lock = \WcpScanner\SupplyChain\UpdateGatekeeperEngine::get_active_lock();
+        if (class_exists('\\WebCareProScanner\\SupplyChain\\UpdateGatekeeperEngine')) {
+            $active_lock = \WebCareProScanner\SupplyChain\UpdateGatekeeperEngine::get_active_lock();
             if ($active_lock !== null) {
                 $is_admin = self::is_authenticated_administrator();
                 $lock_ip = (string) ($active_lock['ip'] ?? '');
@@ -1248,7 +1248,7 @@ class FirewallEngine {
                     'category'    => 'Protocol Defense',
                     'description' => sprintf(
                         /* translators: %s: Request URI path */
-                        esc_html__('Unauthenticated HTTP PUT request rejected on non-REST endpoint "%s" to prevent arbitrary webshell upload.', 'wcp-security-scanner'),
+                        esc_html__('Unauthenticated HTTP PUT request rejected on non-REST endpoint "%s" to prevent arbitrary webshell upload.', 'webcare-pro-security'),
                         esc_html($request_uri)
                     ),
                     'match_type'  => 'HTTP Method',
@@ -1508,7 +1508,7 @@ class FirewallEngine {
                 // that may have been erroneously or transitively added are automatically pardoned and unblocked.
                 $ua = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
                 $is_legit_crawler = false;
-                if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                     $is_legit_crawler = BotReconDefense::is_genuine_search_engine($client_ip, $ua);
                 }
 
@@ -1574,7 +1574,7 @@ class FirewallEngine {
         }
 
         // Check active temporary 404 Scanner Lockout
-        $lockout_transient = 'wcpscan_404_lock_' . md5($client_ip);
+        $lockout_transient = 'webcareproscan_404_lock_' . md5($client_ip);
         $lockout_data = get_transient($lockout_transient);
         if ($lockout_data !== false) {
             $rule_triggered = [
@@ -1626,11 +1626,11 @@ class FirewallEngine {
                     }
 
         // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
-        if (class_exists('\\WcpScanner\\Firewall\\VirtualPatchManager')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\VirtualPatchManager')) {
             $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
             $vpatch_rule = VirtualPatchManager::evaluate_request($client_ip, $request_uri);
             if ($vpatch_rule !== null) {
-                if (class_exists('\\WcpScanner\\Firewall\\ThreatIntelNetwork')) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\ThreatIntelNetwork')) {
                     ThreatIntelNetwork::record_consensus_beacon($client_ip, $vpatch_rule['name'] ?? 'Virtual Patch Violation', ['category' => 'Virtual Patch']);
                 }
                 self::handle_rule_violation($vpatch_rule, $settings, $client_ip, 403);
@@ -1648,8 +1648,8 @@ class FirewallEngine {
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
                     } else {
             // Clean request passed all firewall filters: profile route parameters
-            if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
-                \WcpScanner\Firewall\LearningModeEngine::profile_benign_request();
+            if (class_exists('\\WebCareProScanner\\Firewall\\LearningModeEngine')) {
+                \WebCareProScanner\Firewall\LearningModeEngine::profile_benign_request();
             }
         }
     }
@@ -2154,7 +2154,7 @@ class FirewallEngine {
         $is_high_risk = self::is_high_risk_recon_probe($raw_uri);
 
         // Transient tracking counter per IP
-        $counter_transient = 'wcpscan_404_cnt_' . md5($client_ip);
+        $counter_transient = 'webcareproscan_404_cnt_' . md5($client_ip);
         $current_count     = (int) get_transient($counter_transient);
 
         // High risk probes advance counter by 3 to accelerate lockout
@@ -2162,14 +2162,14 @@ class FirewallEngine {
         $new_count = $current_count + $increment;
 
         // Record differential threat score event (CAF Phase 3: +4 for 404 probe, +25 if sensitive path)
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             $event_category = $is_high_risk ? 'honeypot' : 'probe_404';
-            \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_category);
+            \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_category);
         }
 
         if ($new_count >= $threshold) {
             // Threshold exceeded: Enforce temporary lockout
-            $lockout_transient = 'wcpscan_404_lock_' . md5($client_ip);
+            $lockout_transient = 'webcareproscan_404_lock_' . md5($client_ip);
             set_transient($lockout_transient, [
                 'ip'       => $client_ip,
                 'count'    => $new_count,
@@ -2351,9 +2351,9 @@ class FirewallEngine {
      */
     public static function has_active_shopper_session(): bool {
         // CAF 2.0: Instant O(1) short-circuit if site runs zero commerce or membership plugins
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
-            if (!\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('commerce') &&
-                !\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('lms_membership')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            if (!\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('commerce') &&
+                !\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('lms_membership')) {
                 return false;
             }
         }
@@ -2362,8 +2362,8 @@ class FirewallEngine {
             return false;
         }
 
-        $has_woo = class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
-            ? \WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+        $has_woo = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
             : true;
 
         foreach ($_COOKIE as $cookie_name => $cookie_val) {
@@ -2409,9 +2409,9 @@ class FirewallEngine {
      */
     public static function is_commerce_or_membership_request(string $uri): bool {
         // CAF 2.0: Instant O(1) short-circuit if site runs zero commerce or membership plugins
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
-            if (!\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('commerce') &&
-                !\WcpScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('lms_membership')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            if (!\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('commerce') &&
+                !\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('lms_membership')) {
                 return false;
             }
         }
@@ -2688,8 +2688,8 @@ class FirewallEngine {
         }
 
         // 3. Compare against all resolved ServerInfo IPs (IPv4 and IPv6) with binary normalization
-        if (class_exists('\\WcpScanner\\System\\ServerInfo')) {
-            $all_server_ips = \WcpScanner\System\ServerInfo::get_all_server_ips();
+        if (class_exists('\\WebCareProScanner\\System\\ServerInfo')) {
+            $all_server_ips = \WebCareProScanner\System\ServerInfo::get_all_server_ips();
             if (in_array($ip, $all_server_ips, true)) {
                 return true;
             }
@@ -2733,9 +2733,9 @@ class FirewallEngine {
             return true;
         }
 
-        // Emergency wp-config override constant: WCPSCAN_OVERRIDE_WHITELIST_IP
-        if (defined('WCPSCAN_OVERRIDE_WHITELIST_IP')) {
-            $override_ips = is_array(WCPSCAN_OVERRIDE_WHITELIST_IP) ? WCPSCAN_OVERRIDE_WHITELIST_IP : explode(',', (string) WCPSCAN_OVERRIDE_WHITELIST_IP);
+        // Emergency wp-config override constant: WEBCAREPROSCAN_OVERRIDE_WHITELIST_IP
+        if (defined('WEBCAREPROSCAN_OVERRIDE_WHITELIST_IP')) {
+            $override_ips = is_array(WEBCAREPROSCAN_OVERRIDE_WHITELIST_IP) ? WEBCAREPROSCAN_OVERRIDE_WHITELIST_IP : explode(',', (string) WEBCAREPROSCAN_OVERRIDE_WHITELIST_IP);
             foreach ($override_ips as $override_ip) {
                 $override_ip = trim($override_ip);
                 if (!empty($override_ip)) {
@@ -2766,7 +2766,7 @@ class FirewallEngine {
         }
 
         // Check active temporary customer/merchant bypass allowlists (e.g. 24-hour customer unblock)
-        if (get_transient('wcpscan_temp_allow_' . md5($ip))) {
+        if (get_transient('webcareproscan_temp_allow_' . md5($ip))) {
             return true;
         }
 
@@ -3048,7 +3048,7 @@ class FirewallEngine {
      */
     public static function log_incident(array $rule, string $action, ?string $incident_id = null): ?string {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        $table = $wpdb->prefix . 'webcareproscan_firewall_logs';
 
         $ip = self::get_client_ip();
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
@@ -3063,12 +3063,12 @@ class FirewallEngine {
         // Red Team Synthetic Attack Drill: NEVER log synthetic simulation probes to persistent incident table
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
-        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
+        if (!empty($drill_token) && class_exists('\\WebCareProScanner\\Security\\AttackSimulationEngine') && \WebCareProScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
             return null;
         }
 
         // Server Origin IP Safety: Never log server's own outbound IP as an offending attacker
-        $server_ip = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
+        $server_ip = class_exists('\\WebCareProScanner\\System\\ServerInfo') ? \WebCareProScanner\System\ServerInfo::get_server_ip() : (isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : '');
         if (!empty($server_ip) && $ip === $server_ip) {
             return null;
         }
@@ -3100,8 +3100,8 @@ class FirewallEngine {
         $incident_id = $logged_id;
 
         // Dispatch DevSecOps Webhook on blocked attack
-        if ($action === 'blocked' && class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
-            \WcpScanner\Notifications\WebhookService::send_waf_alert([
+        if ($action === 'blocked' && class_exists('\\WebCareProScanner\\Notifications\\WebhookService')) {
+            \WebCareProScanner\Notifications\WebhookService::send_waf_alert([
                 'category'   => $rule['category'],
                 'name'       => $rule['name'] ?? $rule['category'],
                 'ip_address' => $ip,
@@ -3110,14 +3110,14 @@ class FirewallEngine {
         }
 
         // Dispatch granular event notifications via NotificationDispatcher
-        if ($action === 'blocked' && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if ($action === 'blocked' && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             $is_virtual_patch = !empty($rule['is_virtual_patch']) || stripos($rule['category'] ?? '', 'Virtual Patch') !== false;
             if ($is_virtual_patch) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_virtual_patch_hit', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('waf_virtual_patch_hit', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: 1: attacker IP address, 2: rule name or category, 3: incident ID */
-                        __('Virtual Patch intercepted an exploit payload from %1$s targeting "%2$s" [Incident: %3$s].', 'wcp-security-scanner'),
+                        __('Virtual Patch intercepted an exploit payload from %1$s targeting "%2$s" [Incident: %3$s].', 'webcare-pro-security'),
                         $ip,
                         $rule['name'] ?? $rule['category'],
                         $incident_id
@@ -3135,7 +3135,7 @@ class FirewallEngine {
         // Auto-sync banned IP to Cloudflare Edge Access Rules if enabled
         if ($action === 'blocked') {
             $settings = SettingsManager::get_settings();
-            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
+            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
                 // SAFETY SHIELD: Never auto-ban authenticated admins or whitelisted IPs
                 $is_admin = self::is_authenticated_administrator();
                 $is_whitelisted = self::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
@@ -3144,7 +3144,7 @@ class FirewallEngine {
                     // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
                     $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
                     if (in_array($rule['category'] ?? '', $critical_categories, true)) {
-                        \WcpScanner\Cloudflare\CloudflareService::block_ip(
+                        \WebCareProScanner\Cloudflare\CloudflareService::block_ip(
                             $ip,
                             "WCP WAF Auto-Ban: {$rule['category']} probe [{$incident_id}]"
                         );
@@ -3163,8 +3163,8 @@ class FirewallEngine {
         // Red Team Drill Intercept Handler
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
-        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
-            \WcpScanner\Security\AttackSimulationEngine::record_intercept($drill_token, $rule, 403);
+        if (!empty($drill_token) && class_exists('\\WebCareProScanner\\Security\\AttackSimulationEngine') && \WebCareProScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
+            \WebCareProScanner\Security\AttackSimulationEngine::record_intercept($drill_token, $rule, 403);
             header('X-WCP-Drill-Intercepted: 1');
             header('X-WCP-Drill-Rule-ID: ' . rawurlencode($rule['id'] ?? 'WAF-INTERCEPT'));
             header('X-WCP-Drill-Category: ' . rawurlencode($rule['category'] ?? 'WAF'));
@@ -3204,9 +3204,9 @@ class FirewallEngine {
             'timestamp'     => time(),
             'formatted_time'=> gmdate('Y-m-d H:i:s \U\T\C'),
         ];
-        set_transient('wcpscan_lockout_' . $ref_code, $transient_data, 2 * DAY_IN_SECONDS);
+        set_transient('webcareproscan_lockout_' . $ref_code, $transient_data, 2 * DAY_IN_SECONDS);
         // Also index by md5(IP) for instant customer unblocking via IP search
-        set_transient('wcpscan_lockout_ip_' . md5($client_ip), $transient_data, 2 * DAY_IN_SECONDS);
+        set_transient('webcareproscan_lockout_ip_' . md5($client_ip), $transient_data, 2 * DAY_IN_SECONDS);
 
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
 
@@ -3219,9 +3219,9 @@ class FirewallEngine {
             /* translators: 1: Security notice label, 2: Security explanation, 3: Support reference code label, 4: Support reference code */
             $ajax_msg = sprintf(
                 '<div class="woocommerce-error" role="alert"><strong>%1$s</strong> %2$s<br/><span style="font-size:12px;opacity:0.9;">%3$s <strong>%4$s</strong></span></div>',
-                esc_html__('Security Notice:', 'wcp-security-scanner'),
-                esc_html__('Your connection was temporarily held to protect this site.', 'wcp-security-scanner'),
-                esc_html__('Customer Support Reference Code:', 'wcp-security-scanner'),
+                esc_html__('Security Notice:', 'webcare-pro-security'),
+                esc_html__('Your connection was temporarily held to protect this site.', 'webcare-pro-security'),
+                esc_html__('Customer Support Reference Code:', 'webcare-pro-security'),
                 esc_html($ref_code)
             );
             echo wp_json_encode([
@@ -3231,7 +3231,7 @@ class FirewallEngine {
                 'refresh'       => false,
                 'incident_id'   => $incident_id,
                 'ref_code'      => $ref_code,
-                'error'         => esc_html__('Security checkpoint active. Please quote reference code to support.', 'wcp-security-scanner'),
+                'error'         => esc_html__('Security checkpoint active. Please quote reference code to support.', 'webcare-pro-security'),
             ]);
             exit;
         }
@@ -3241,8 +3241,8 @@ class FirewallEngine {
             status_header(403);
             header('Content-Type: application/json; charset=utf-8');
             echo wp_json_encode([
-                'code'          => 'wcpscan_access_denied',
-                'message'       => esc_html__('Your connection was temporarily held to protect this website against automated abusive traffic or invalid requests.', 'wcp-security-scanner'),
+                'code'          => 'webcareproscan_access_denied',
+                'message'       => esc_html__('Your connection was temporarily held to protect this website against automated abusive traffic or invalid requests.', 'webcare-pro-security'),
                 'data'          => [
                     'status'      => 403,
                     'incident_id' => $incident_id,
@@ -3281,32 +3281,32 @@ class FirewallEngine {
             '</div>' .
             '<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">%s</p>' .
             '</div>',
-            esc_html__('Protected by WebCare Pro Security', 'wcp-security-scanner'),
+            esc_html__('Protected by WebCare Pro Security', 'webcare-pro-security'),
             sprintf(
                 /* translators: %s: site name */
-                esc_html__('Automated safety checkpoint on %s', 'wcp-security-scanner'),
+                esc_html__('Automated safety checkpoint on %s', 'webcare-pro-security'),
                 esc_html($site_name)
             ),
-            esc_html__('Your connection was temporarily held to protect this website against automated abusive traffic or repeated invalid requests.', 'wcp-security-scanner'),
-            esc_html__('Customer Support Reference Code', 'wcp-security-scanner'),
+            esc_html__('Your connection was temporarily held to protect this website against automated abusive traffic or repeated invalid requests.', 'webcare-pro-security'),
+            esc_html__('Customer Support Reference Code', 'webcare-pro-security'),
             esc_html($ref_code),
-            esc_html__('Share with Store Owner', 'wcp-security-scanner'),
-            esc_html__('Are you a legitimate customer having trouble checking out or logging in? Share this code with the site owner or support team to restore access in 1 click.', 'wcp-security-scanner'),
-            esc_html__('Incident ID', 'wcp-security-scanner'),
+            esc_html__('Share with Store Owner', 'webcare-pro-security'),
+            esc_html__('Are you a legitimate customer having trouble checking out or logging in? Share this code with the site owner or support team to restore access in 1 click.', 'webcare-pro-security'),
+            esc_html__('Incident ID', 'webcare-pro-security'),
             esc_html($incident_id),
-            esc_html__('Client IP', 'wcp-security-scanner'),
+            esc_html__('Client IP', 'webcare-pro-security'),
             esc_html($client_ip),
-            esc_html__('Defense Category', 'wcp-security-scanner'),
+            esc_html__('Defense Category', 'webcare-pro-security'),
             $rule_cat,
-            esc_html__('Timestamp', 'wcp-security-scanner'),
+            esc_html__('Timestamp', 'webcare-pro-security'),
             esc_html(gmdate('Y-m-d H:i:s \U\T\C')),
-            esc_html__('WebCare Pro Security Suite • Zero-Trust Perimeter Defense', 'wcp-security-scanner')
+            esc_html__('WebCare Pro Security Suite • Zero-Trust Perimeter Defense', 'webcare-pro-security')
         );
 
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        wp_die($message, esc_html__('403 Forbidden - Security Shield Block', 'wcp-security-scanner'), [
+        wp_die($message, esc_html__('403 Forbidden - Security Shield Block', 'webcare-pro-security'), [
             'response'  => 403,
-            'code'      => 'wcpscan_access_denied',
+            'code'      => 'webcareproscan_access_denied',
             'back_link' => false,
         ]);
     }
@@ -3316,7 +3316,7 @@ class FirewallEngine {
      */
     public static function get_status(): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        $table = $wpdb->prefix . 'webcareproscan_firewall_logs';
 
         $settings = SettingsManager::get_settings();
         $env = self::detect_environment();
@@ -3445,8 +3445,8 @@ class FirewallEngine {
             'top_rules'          => $top_rules,
             'client_ip'          => self::get_client_ip(),
             'threat_intel'       => ThreatIntelService::get_status(),
-            'edge_advisor'       => class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')
-                ? \WcpScanner\Cloudflare\CloudflareService::get_edge_advisor()
+            'edge_advisor'       => class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
+                ? \WebCareProScanner\Cloudflare\CloudflareService::get_edge_advisor()
                 : null,
             'server_telemetry'   => self::get_server_telemetry(),
             'available_roles'    => self::get_available_roles(),
@@ -3522,7 +3522,7 @@ class FirewallEngine {
                     defined('HAPPYFORMS_VERSION') ? 'HappyForms' : null,
                     defined('EVEREST_FORMS_VERSION') ? 'Everest Forms' : null,
                 ])),
-                'stats' => class_exists('WcpScanner\\Firewall\\FormSpamProtectionEngine') ? \WcpScanner\Firewall\FormSpamProtectionEngine::get_stats() : ['total_blocked' => 0],
+                'stats' => class_exists('WebCareProScanner\\Firewall\\FormSpamProtectionEngine') ? \WebCareProScanner\Firewall\FormSpamProtectionEngine::get_stats() : ['total_blocked' => 0],
             ],
             'integrations_telemetry' => [
                 'has_builders' => (
@@ -3685,8 +3685,8 @@ class FirewallEngine {
         $real_server_ipv4 = '';
         $real_server_ipv6 = '';
 
-        if (class_exists('\\WcpScanner\\System\\ServerInfo')) {
-            $all_server_ips = \WcpScanner\System\ServerInfo::get_all_server_ips();
+        if (class_exists('\\WebCareProScanner\\System\\ServerInfo')) {
+            $all_server_ips = \WebCareProScanner\System\ServerInfo::get_all_server_ips();
             foreach ($all_server_ips as $s_ip) {
                 if (filter_var($s_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $s_ip !== '127.0.0.1' && empty($real_server_ipv4)) {
                     $real_server_ipv4 = $s_ip;
@@ -3695,7 +3695,7 @@ class FirewallEngine {
                     $real_server_ipv6 = $s_ip;
                 }
             }
-            $real_server_ip = \WcpScanner\System\ServerInfo::get_server_ip();
+            $real_server_ip = \WebCareProScanner\System\ServerInfo::get_server_ip();
         } else {
             $real_server_ip = isset($_SERVER['SERVER_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_ADDR'])) : 'Unknown';
             if (filter_var($real_server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
@@ -3976,7 +3976,7 @@ class FirewallEngine {
     /**
      * Option key for storing structured metadata for blocked IPs
      */
-    const OPTION_BLOCKED_IPS_META = 'wcpscan_blocked_ips_meta';
+    const OPTION_BLOCKED_IPS_META = 'webcareproscan_blocked_ips_meta';
 
     /**
      * Retrieve all persistent block metadata for IPs
@@ -4057,7 +4057,7 @@ class FirewallEngine {
 
         // Safety Guard 3: Immutable immunity for genuine search crawlers & uptime monitors.
         // Never allow automated honeypots or rules to inadvertently ban Googlebot, Bingbot, or verified monitors.
-        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
             $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
             if (BotReconDefense::is_genuine_search_engine($ip, $user_agent)) {
                 return false;
@@ -4096,8 +4096,8 @@ class FirewallEngine {
         ]);
 
         // Context-Adaptive Firewall (CAF Phase 2): Queue IP ban for Cloudflare Edge synchronization
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
-            $cf_sync = new \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer();
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            $cf_sync = new \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer();
             $cf_sync->queue_ip_ban($ip, $reason, $duration_seconds > 0 ? $duration_seconds : 86400);
         }
 
@@ -4153,28 +4153,28 @@ class FirewallEngine {
         }
 
         // 2. Unlock from Login Hardening if locked
-        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
-            \WcpScanner\Auth\LoginHardening::unlock_ip($ip);
+        if (class_exists('\\WebCareProScanner\\Auth\\LoginHardening')) {
+            \WebCareProScanner\Auth\LoginHardening::unlock_ip($ip);
         }
 
         // 3. Clear any active 404 lockout transients and WooCommerce checkout/coupon rate locks
-        delete_transient('wcpscan_404_lock_' . md5($ip));
-        delete_transient('wcpscan_404_cnt_' . md5($ip));
-        delete_transient('wcpscan_cpn_lock_' . md5($ip));
-        delete_transient('wcpscan_cpn_fail_' . md5($ip));
-        delete_transient('wcpscan_chk_lock_' . md5($ip));
-        delete_transient('wcpscan_chk_fail_' . md5($ip));
-        delete_transient('wcpscan_scrape_lock_' . md5($ip));
-        delete_transient('wcpscan_scrape_vel_' . md5($ip));
-        delete_transient('wcpscan_bot_ban_' . md5($ip));
+        delete_transient('webcareproscan_404_lock_' . md5($ip));
+        delete_transient('webcareproscan_404_cnt_' . md5($ip));
+        delete_transient('webcareproscan_cpn_lock_' . md5($ip));
+        delete_transient('webcareproscan_cpn_fail_' . md5($ip));
+        delete_transient('webcareproscan_chk_lock_' . md5($ip));
+        delete_transient('webcareproscan_chk_fail_' . md5($ip));
+        delete_transient('webcareproscan_scrape_lock_' . md5($ip));
+        delete_transient('webcareproscan_scrape_vel_' . md5($ip));
+        delete_transient('webcareproscan_bot_ban_' . md5($ip));
 
         // 4. Clean up block metadata & lockout references
         self::delete_ip_block_meta($ip);
-        delete_transient('wcpscan_lockout_ip_' . md5($ip));
+        delete_transient('webcareproscan_lockout_ip_' . md5($ip));
 
         // 5. Bi-Directional Cloudflare Unban Sync: Remove from Cloudflare Edge and queue
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
-            \WcpScanner\Firewall\CAF\CloudflareIpListSynchronizer::unban_ip_immediately($ip);
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer::unban_ip_immediately($ip);
         }
 
         return true;
@@ -4210,7 +4210,7 @@ class FirewallEngine {
                 $log_first_seen = null;
                 $log_last_seen = null;
 
-                if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
                     $log_query = WafFileLogger::query_logs(['ip' => $ip], 3);
                     if (!empty($log_query['logs'])) {
                         $recent_logs = array_map(function($l) {
@@ -4291,8 +4291,8 @@ class FirewallEngine {
         }
 
         // 2. Brute-Force Login Hardening Lockouts
-        if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
-            $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
+        if (class_exists('\\WebCareProScanner\\Auth\\LoginHardening')) {
+            $lockouts = \WebCareProScanner\Auth\LoginHardening::get_locked_ips();
             foreach ($lockouts as $ip => $data) {
                 $expires_ts = $data['expires_at'] ?? 0;
                 $blocked_raw = $data['blocked_at'] ?? null;
@@ -4302,7 +4302,7 @@ class FirewallEngine {
                 // Correlate recent log history for brute-force IP
                 $recent_logs = [];
                 $last_incident_id = null;
-                if (class_exists('\\WcpScanner\\Firewall\\WafFileLogger')) {
+                if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
                     $log_query = WafFileLogger::query_logs(['ip' => $ip], 3);
                     if (!empty($log_query['logs'])) {
                         $recent_logs = array_map(function($l) {
@@ -4675,7 +4675,7 @@ class FirewallEngine {
     /**
      * Option key for storing structured metadata for whitelisted IPs
      */
-    const OPTION_WHITELISTED_IPS_META = 'wcpscan_whitelisted_ips_meta';
+    const OPTION_WHITELISTED_IPS_META = 'webcareproscan_whitelisted_ips_meta';
 
     /**
      * Retrieve all persistent whitelist metadata for IPs
@@ -5150,7 +5150,7 @@ class FirewallEngine {
      */
     public static function log_targeted_allowlist_hit(array $rule, string $ip, string $uri, string $user_agent, string $method): void {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_firewall_logs';
+        $table = $wpdb->prefix . 'webcareproscan_firewall_logs';
 
         // Check if table exists
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -5237,7 +5237,7 @@ class FirewallEngine {
                 'rule_category'    => 'targeted_allowlist',
                 'rule_description' => sprintf(
                     /* translators: 1: rule name, 2: client user agent */
-                    __('Granted safe WAF bypass via rule "%1$s" for User-Agent: %2$s', 'wcp-security-scanner'),
+                    __('Granted safe WAF bypass via rule "%1$s" for User-Agent: %2$s', 'webcare-pro-security'),
                     $rule_name,
                     substr($user_agent, 0, 80)
                 ),
@@ -5282,7 +5282,7 @@ class FirewallEngine {
                     'payload'     => "Filename: {$raw_filename}",
                 ], 'blocked');
 
-                $file['error'] = __('Security Firewall: Path traversal or invalid characters detected in uploaded filename.', 'wcp-security-scanner');
+                $file['error'] = __('Security Firewall: Path traversal or invalid characters detected in uploaded filename.', 'webcare-pro-security');
                 return $file;
             }
         }
@@ -5302,7 +5302,7 @@ class FirewallEngine {
                 'payload'     => "Filename: {$filename} Extension: .{$ext}",
             ], 'blocked');
 
-            $file['error'] = __('Security Firewall: Uploading executable scripts or restricted server configurations is strictly prohibited.', 'wcp-security-scanner');
+            $file['error'] = __('Security Firewall: Uploading executable scripts or restricted server configurations is strictly prohibited.', 'webcare-pro-security');
             return $file;
         }
 
@@ -5314,7 +5314,7 @@ class FirewallEngine {
                 'payload'     => "Filename: {$filename} Hidden extension: .{$m[1]}",
             ], 'blocked');
 
-            $file['error'] = __('Security Firewall: Disguised double-extension file upload detected and blocked.', 'wcp-security-scanner');
+            $file['error'] = __('Security Firewall: Disguised double-extension file upload detected and blocked.', 'webcare-pro-security');
             return $file;
         }
 
@@ -5325,23 +5325,23 @@ class FirewallEngine {
                 if (strlen($header) >= 2) {
                     // Windows PE (MZ)
                     if (substr($header, 0, 2) === 'MZ') {
-                        $file['error'] = __('Security Firewall: Spoofed Windows executable binary detected in upload.', 'wcp-security-scanner');
+                        $file['error'] = __('Security Firewall: Spoofed Windows executable binary detected in upload.', 'webcare-pro-security');
                         return $file;
                     }
                     // Linux ELF (\x7fELF)
                     if (substr($header, 0, 4) === "\x7fELF") {
-                        $file['error'] = __('Security Firewall: Spoofed Linux ELF executable binary detected in upload.', 'wcp-security-scanner');
+                        $file['error'] = __('Security Firewall: Spoofed Linux ELF executable binary detected in upload.', 'webcare-pro-security');
                         return $file;
                     }
                     // macOS Mach-O
                     $macho_sigs = ["\xca\xfe\xba\xbe", "\xcf\xfa\xed\xfe", "\xce\xfa\xed\xfe"];
                     if (in_array(substr($header, 0, 4), $macho_sigs, true)) {
-                        $file['error'] = __('Security Firewall: Spoofed Mach-O executable binary detected in upload.', 'wcp-security-scanner');
+                        $file['error'] = __('Security Firewall: Spoofed Mach-O executable binary detected in upload.', 'webcare-pro-security');
                         return $file;
                     }
                     // Unix Shebang in image/media
                     if (substr($header, 0, 2) === '#!' && preg_match('/^#!\s*\/(bin|usr)/i', $header)) {
-                        $file['error'] = __('Security Firewall: Spoofed shell script detected in upload.', 'wcp-security-scanner');
+                        $file['error'] = __('Security Firewall: Spoofed shell script detected in upload.', 'webcare-pro-security');
                         return $file;
                     }
                 }
@@ -5365,7 +5365,7 @@ class FirewallEngine {
                             'payload'     => "Filename: {$filename} Match: {$m[0]}",
                         ], 'blocked');
 
-                        $file['error'] = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'wcp-security-scanner');
+                        $file['error'] = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'webcare-pro-security');
                         return $file;
                     }
                 }
@@ -5380,7 +5380,7 @@ class FirewallEngine {
                 $check_sample = $head . ' ' . $tail;
                 $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
                 if (!empty($check_sample) && (preg_match($php_pattern, $check_sample) || stripos($check_sample, '__HALT_COMPILER()') !== false)) {
-                    $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'wcp-security-scanner');
+                    $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'webcare-pro-security');
                     return $file;
                 }
             }
@@ -5442,7 +5442,7 @@ class FirewallEngine {
                         'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
                     ], 'blocked');
 
-                    $file['error'] = __('Security Firewall: Uploading phpMyAdmin or standalone database management scripts is strictly disallowed.', 'wcp-security-scanner');
+                    $file['error'] = __('Security Firewall: Uploading phpMyAdmin or standalone database management scripts is strictly disallowed.', 'webcare-pro-security');
                     return $file;
                 }
             }
@@ -5491,7 +5491,7 @@ class FirewallEngine {
                                     $chunk = stream_get_contents($stream, 2048);
                                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                                     fclose($stream);
-                                    if ($chunk && (stripos($chunk, 'WCP Security Scanner') !== false || stripos($chunk, 'WCPSCAN_VERSION') !== false)) {
+                                    if ($chunk && (stripos($chunk, 'WCP Security Scanner') !== false || stripos($chunk, 'WEBCAREPROSCAN_VERSION') !== false)) {
                                         $is_self_package = true;
                                         break;
                                     }
@@ -5544,7 +5544,7 @@ class FirewallEngine {
                         'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
                     ], 'blocked');
 
-                    $file['error'] = __('Security Firewall: Uploading standalone File Manager or explorer scripts is strictly disallowed.', 'wcp-security-scanner');
+                    $file['error'] = __('Security Firewall: Uploading standalone File Manager or explorer scripts is strictly disallowed.', 'webcare-pro-security');
                     return $file;
                 }
             }
@@ -5594,7 +5594,7 @@ class FirewallEngine {
 
                     return new \WP_Error(
                         'wcp_prohibited_plugin_pma',
-                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is disallowed by WCP Security Firewall.', 'wcp-security-scanner')
+                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is disallowed by WCP Security Firewall.', 'webcare-pro-security')
                     );
                 }
             }
@@ -5617,7 +5617,7 @@ class FirewallEngine {
 
                     return new \WP_Error(
                         'wcp_prohibited_plugin_fm',
-                        __('Security Policy Violation: Installation of File Manager plugins is disallowed by WCP Security Firewall.', 'wcp-security-scanner')
+                        __('Security Policy Violation: Installation of File Manager plugins is disallowed by WCP Security Firewall.', 'webcare-pro-security')
                     );
                 }
             }
@@ -5665,7 +5665,7 @@ class FirewallEngine {
 
                     return new \WP_Error(
                         'wcp_prohibited_plugin_source_pma',
-                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is prohibited by WCP Security Firewall.', 'wcp-security-scanner')
+                        __('Security Policy Violation: Installation of database managers (phpMyAdmin/Adminer/DBManager) is prohibited by WCP Security Firewall.', 'webcare-pro-security')
                     );
                 }
             }
@@ -5688,7 +5688,7 @@ class FirewallEngine {
 
                     return new \WP_Error(
                         'wcp_prohibited_plugin_source_fm',
-                        __('Security Policy Violation: Installation of File Manager plugins is prohibited by WCP Security Firewall.', 'wcp-security-scanner')
+                        __('Security Policy Violation: Installation of File Manager plugins is prohibited by WCP Security Firewall.', 'webcare-pro-security')
                     );
                 }
             }
@@ -5719,7 +5719,7 @@ class FirewallEngine {
 
                             return new \WP_Error(
                                 'wcp_prohibited_plugin_header_pma',
-                                __('Security Policy Violation: Plugin header identifies as a prohibited database manager (phpMyAdmin/Adminer).', 'wcp-security-scanner')
+                                __('Security Policy Violation: Plugin header identifies as a prohibited database manager (phpMyAdmin/Adminer).', 'webcare-pro-security')
                             );
                         }
                     }
@@ -5739,7 +5739,7 @@ class FirewallEngine {
 
                             return new \WP_Error(
                                 'wcp_prohibited_plugin_header_fm',
-                                __('Security Policy Violation: Plugin header identifies as a prohibited File Manager plugin.', 'wcp-security-scanner')
+                                __('Security Policy Violation: Plugin header identifies as a prohibited File Manager plugin.', 'webcare-pro-security')
                             );
                         }
                     }
@@ -5773,7 +5773,7 @@ class FirewallEngine {
                     if (strpos($slug, $sig) !== false) {
                         return new \WP_Error(
                             'wcp_disallowed_plugin',
-                            __('Security Policy: phpMyAdmin and database manager plugins are blocked by WCP Security Firewall.', 'wcp-security-scanner')
+                            __('Security Policy: phpMyAdmin and database manager plugins are blocked by WCP Security Firewall.', 'webcare-pro-security')
                         );
                     }
                 }
@@ -5789,7 +5789,7 @@ class FirewallEngine {
                     if (strpos($slug, $sig) !== false) {
                         return new \WP_Error(
                             'wcp_disallowed_plugin',
-                            __('Security Policy: File Manager plugins are blocked by WCP Security Firewall.', 'wcp-security-scanner')
+                            __('Security Policy: File Manager plugins are blocked by WCP Security Firewall.', 'webcare-pro-security')
                         );
                     }
                 }
@@ -5812,8 +5812,8 @@ class FirewallEngine {
         if (!empty($error)) {
             return sprintf(
                 '<strong>%s:</strong> %s',
-                __('Error', 'wcp-security-scanner'),
-                __('Invalid username, email address, or password.', 'wcp-security-scanner')
+                __('Error', 'webcare-pro-security'),
+                __('Invalid username, email address, or password.', 'webcare-pro-security')
             );
         }
 
@@ -5850,7 +5850,7 @@ class FirewallEngine {
         if ($lower === 'admin') {
             $errors->add(
                 'registration_admin_prohibited',
-                __('<strong>Error:</strong> The username "admin" is reserved and prohibited for security.', 'wcp-security-scanner')
+                __('<strong>Error:</strong> The username "admin" is reserved and prohibited for security.', 'webcare-pro-security')
             );
         }
 
@@ -5922,8 +5922,8 @@ class FirewallEngine {
             ], 'blocked', $honeypot_incident_id);
 
             // Also lock in LoginHardening
-            if (class_exists('\\WcpScanner\\Auth\\LoginHardening')) {
-                $lockouts = \WcpScanner\Auth\LoginHardening::get_locked_ips();
+            if (class_exists('\\WebCareProScanner\\Auth\\LoginHardening')) {
+                $lockouts = \WebCareProScanner\Auth\LoginHardening::get_locked_ips();
                 $now = time();
                 $lockouts[$client_ip] = [
                     'ip'         => $client_ip,
@@ -5933,13 +5933,13 @@ class FirewallEngine {
                     'expires_at' => $now + (365 * 86400),
                     'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
                 ];
-                update_option(\WcpScanner\Auth\LoginHardening::OPTION_LOCKOUTS, $lockouts, false);
+                update_option(\WebCareProScanner\Auth\LoginHardening::OPTION_LOCKOUTS, $lockouts, false);
             }
 
             // Return immediate access denied error
             return new \WP_Error(
                 'wcp_forbidden_username_blocked',
-                __('<strong>Access Blocked:</strong> Attempting to sign in with this username is strictly prohibited. Your IP has been permanently banned by the security firewall.', 'wcp-security-scanner')
+                __('<strong>Access Blocked:</strong> Attempting to sign in with this username is strictly prohibited. Your IP has been permanently banned by the security firewall.', 'webcare-pro-security')
             );
         }
 
@@ -5991,7 +5991,7 @@ class FirewallEngine {
             if ($role_match && !self::check_password_strength($pass1)) {
                 $errors->add(
                     'wcp_weak_password',
-                    __('<strong>Security Policy:</strong> Your role requires a strong password. It must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.', 'wcp-security-scanner')
+                    __('<strong>Security Policy:</strong> Your role requires a strong password. It must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.', 'webcare-pro-security')
                 );
             }
         }
@@ -6001,7 +6001,7 @@ class FirewallEngine {
             if (self::is_password_pwned($pass1)) {
                 $errors->add(
                     'wcp_pwned_password',
-                    __('<strong>Security Breach Warning:</strong> This password has appeared in known public data breaches and cannot be used. Please choose a different, secure password.', 'wcp-security-scanner')
+                    __('<strong>Security Breach Warning:</strong> This password has appeared in known public data breaches and cannot be used. Please choose a different, secure password.', 'webcare-pro-security')
                 );
             }
         }
@@ -6041,7 +6041,7 @@ class FirewallEngine {
             if ($role_match && !self::check_password_strength($pass1)) {
                 $errors->add(
                     'wcp_weak_password',
-                    __('<strong>Security Policy:</strong> Your role requires a strong password. It must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.', 'wcp-security-scanner')
+                    __('<strong>Security Policy:</strong> Your role requires a strong password. It must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.', 'webcare-pro-security')
                 );
             }
         }
@@ -6051,7 +6051,7 @@ class FirewallEngine {
             if (self::is_password_pwned($pass1)) {
                 $errors->add(
                     'wcp_pwned_password',
-                    __('<strong>Security Breach Warning:</strong> This password has appeared in known public data breaches and cannot be used. Please choose a different, secure password.', 'wcp-security-scanner')
+                    __('<strong>Security Breach Warning:</strong> This password has appeared in known public data breaches and cannot be used. Please choose a different, secure password.', 'webcare-pro-security')
                 );
             }
         }
@@ -6223,8 +6223,8 @@ class FirewallEngine {
         // Red Team Drill Intercept Handler
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
-        if (!empty($drill_token) && class_exists('\\WcpScanner\\Security\\AttackSimulationEngine') && \WcpScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
-            \WcpScanner\Security\AttackSimulationEngine::record_intercept($drill_token, $rule, $status_code);
+        if (!empty($drill_token) && class_exists('\\WebCareProScanner\\Security\\AttackSimulationEngine') && \WebCareProScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
+            \WebCareProScanner\Security\AttackSimulationEngine::record_intercept($drill_token, $rule, $status_code);
             header('X-WCP-Drill-Intercepted: 1');
             header('X-WCP-Drill-Rule-ID: ' . rawurlencode($rule['id'] ?? 'WAF-INTERCEPT'));
             header('X-WCP-Drill-Category: ' . rawurlencode($rule['category'] ?? 'WAF'));
@@ -6285,10 +6285,10 @@ class FirewallEngine {
         $mode = $settings['waf_mode'] ?? 'enabled';
 
         // Check Synthesized Exemptions (CAF Phase 3): 1-Click safe-passes generated via Learning Mode
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\LearningModeEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\LearningModeEngine')) {
             $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
             $r_id = (string) ($rule['id'] ?? '');
-            if (\WcpScanner\Firewall\CAF\LearningModeEngine::is_request_exempted($req_uri, $r_id)) {
+            if (\WebCareProScanner\Firewall\CAF\LearningModeEngine::is_request_exempted($req_uri, $r_id)) {
                 $bypass_rule = $rule;
                 $bypass_rule['description'] = ($rule['description'] ?? 'Firewall trigger') . ' [Bypassed via Synthesized Exemption]';
                 self::log_incident($bypass_rule, 'bypassed');
@@ -6298,27 +6298,27 @@ class FirewallEngine {
             // If in learning mode or CAF adaptive learning mode active: record observation
             if ($mode === 'learning' || !empty($settings['caf_adaptive_learning_mode'])) {
                 // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive observation recording of incoming request payload
-                \WcpScanner\Firewall\CAF\LearningModeEngine::record_observation($rule, $client_ip, $req_uri, array_merge((array)($_GET ?? []), (array)($_POST ?? [])));
+                \WebCareProScanner\Firewall\CAF\LearningModeEngine::record_observation($rule, $client_ip, $req_uri, array_merge((array)($_GET ?? []), (array)($_POST ?? [])));
             }
         }
 
         if ($mode === 'learning') {
-            if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine') && \WcpScanner\Firewall\LearningModeEngine::is_route_graduated()) {
+            if (class_exists('\\WebCareProScanner\\Firewall\\LearningModeEngine') && \WebCareProScanner\Firewall\LearningModeEngine::is_route_graduated()) {
                 // Route has graduated: enforce blocking even during global learning mode!
             } else {
-                if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
-                    \WcpScanner\Firewall\LearningModeEngine::record_threat_encountered(\WcpScanner\Firewall\LearningModeEngine::get_current_route_key());
+                if (class_exists('\\WebCareProScanner\\Firewall\\LearningModeEngine')) {
+                    \WebCareProScanner\Firewall\LearningModeEngine::record_threat_encountered(\WebCareProScanner\Firewall\LearningModeEngine::get_current_route_key());
                 }
                 self::log_incident($rule, 'detected');
                 return;
             }
         } elseif ($mode === 'enabled') {
             // Check if specific route was explicitly forced into learning mode by admin
-            if (class_exists('\\WcpScanner\\Firewall\\LearningModeEngine')) {
-                $route_key = \WcpScanner\Firewall\LearningModeEngine::get_current_route_key();
-                $profiles = get_option(\WcpScanner\Firewall\LearningModeEngine::OPTION_PROFILES, []);
+            if (class_exists('\\WebCareProScanner\\Firewall\\LearningModeEngine')) {
+                $route_key = \WebCareProScanner\Firewall\LearningModeEngine::get_current_route_key();
+                $profiles = get_option(\WebCareProScanner\Firewall\LearningModeEngine::OPTION_PROFILES, []);
                 if (isset($profiles[$route_key]['forced_status']) && $profiles[$route_key]['forced_status'] === 'learning') {
-                    \WcpScanner\Firewall\LearningModeEngine::record_threat_encountered($route_key);
+                    \WebCareProScanner\Firewall\LearningModeEngine::record_threat_encountered($route_key);
                     self::log_incident($rule, 'detected');
                     return;
                 }
@@ -6359,7 +6359,7 @@ class FirewallEngine {
                 $rule_cat,
                 $incident_id
             );
-        } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+        } elseif (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             $event_type = 'probe_404';
             if (str_contains($rule_id_str, 'HONEY') || str_contains($rule_id_str, 'SENSITIVE') || str_contains($rule_id_str, 'ENV') || str_contains($rule_id_str, 'GIT')) {
                 $event_type = 'honeypot';
@@ -6368,22 +6368,22 @@ class FirewallEngine {
             } elseif (str_contains($rule_id_str, 'AUTH') || str_contains($rule_id_str, 'LOGIN') || str_contains($rule_id_str, 'XMLRPC')) {
                 $event_type = 'auth_fail';
             }
-            \WcpScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_type);
+            \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_type);
         }
 
         // Surge detection: Check if blocked count in the last 60 seconds exceeds surge threshold (e.g. 15 blocks/min)
-        $surge_key = 'wcpscan_waf_block_surge_window';
+        $surge_key = 'webcareproscan_waf_block_surge_window';
         $blocks = (int) get_transient($surge_key) + 1;
         set_transient($surge_key, $blocks, 60);
 
         if ($blocks === 15 || ($blocks > 15 && $blocks % 25 === 0)) {
-            $surge_alert_sent = get_transient('wcpscan_waf_block_surge_alerted');
-            if (!$surge_alert_sent && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                set_transient('wcpscan_waf_block_surge_alerted', 1, 300); // Throttle alerts to once per 5 minutes
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('waf_block_surge', [
+            $surge_alert_sent = get_transient('webcareproscan_waf_block_surge_alerted');
+            if (!$surge_alert_sent && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                set_transient('webcareproscan_waf_block_surge_alerted', 1, 300); // Throttle alerts to once per 5 minutes
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('waf_block_surge', [
                     'severity' => 'high',
                     /* translators: 1: number of blocks */
-                    'message'  => sprintf(__('WAF Lite intercepted an abnormal surge of blocked attacks (%1$d blocks in under 60 seconds).', 'wcp-security-scanner'), $blocks),
+                    'message'  => sprintf(__('WAF Lite intercepted an abnormal surge of blocked attacks (%1$d blocks in under 60 seconds).', 'webcare-pro-security'), $blocks),
                     'details'  => [
                         'Blocks in Window' => $blocks,
                         'Latest Attacker'  => $client_ip,
@@ -6486,7 +6486,7 @@ class FirewallEngine {
      * @return array ['allowed' => bool, 'retry_after' => int, 'current' => int]
      */
     public static function check_rate_limit(string $key, int $limit, int $window_seconds): array {
-        $transient_name = 'wcpscan_rl_' . substr(md5($key), 0, 24);
+        $transient_name = 'webcareproscan_rl_' . substr(md5($key), 0, 24);
         $data = get_transient($transient_name);
         $now = time();
 
@@ -6623,7 +6623,7 @@ class FirewallEngine {
 
         return new \WP_Error(
             'rest_user_enum_forbidden',
-            __('User enumeration via REST API is disabled by WCP Security Firewall.', 'wcp-security-scanner'),
+            __('User enumeration via REST API is disabled by WCP Security Firewall.', 'webcare-pro-security'),
             ['status' => 403]
         );
     }
@@ -7078,7 +7078,7 @@ class FirewallEngine {
                             ];
                             if ($policy === 'block') {
                                 self::log_incident($rule_triggered, 'blocked');
-                                return new \WP_Error('wcp_waf_rest_batch_blocked', __('Unauthorized guest REST batch mutation blocked by WCP Firewall.', 'wcp-security-scanner'), ['status' => 403]);
+                                return new \WP_Error('wcp_waf_rest_batch_blocked', __('Unauthorized guest REST batch mutation blocked by WCP Firewall.', 'webcare-pro-security'), ['status' => 403]);
                             }
                             self::log_incident($rule_triggered, 'monitored');
                             break;
@@ -7165,7 +7165,7 @@ class FirewallEngine {
 
         if ($policy === 'block') {
             self::log_incident($rule_triggered, 'blocked');
-            return new \WP_Error('wcp_waf_rest_blocked', __('Unauthorized guest REST mutation blocked by WCP Firewall.', 'wcp-security-scanner'), ['status' => 403]);
+            return new \WP_Error('wcp_waf_rest_blocked', __('Unauthorized guest REST mutation blocked by WCP Firewall.', 'webcare-pro-security'), ['status' => 403]);
         }
 
         self::log_incident($rule_triggered, 'monitored');
@@ -7188,7 +7188,7 @@ class FirewallEngine {
             return false;
         }
 
-        $lock_key = 'wcpscan_chk_lock_' . md5($client_ip);
+        $lock_key = 'webcareproscan_chk_lock_' . md5($client_ip);
         $is_locked = get_transient($lock_key);
         if (!$is_locked) {
             return false;
@@ -7200,7 +7200,7 @@ class FirewallEngine {
             'category'    => 'Behavioral Defense',
             'description' => sprintf(
                 /* translators: 1: Client IP address */
-                __('Blocked repeated checkout attempt from temporarily locked-out IP %1$s (Carding Velocity Defense).', 'wcp-security-scanner'),
+                __('Blocked repeated checkout attempt from temporarily locked-out IP %1$s (Carding Velocity Defense).', 'webcare-pro-security'),
                 $client_ip
             ),
             'match_type'  => 'Carding Velocity Threshold',
@@ -7211,8 +7211,8 @@ class FirewallEngine {
         self::log_incident($rule_triggered, 'blocked');
 
         return new \WP_Error(
-            'wcpscan_carding_lockout',
-            esc_html__('Too many checkout attempts detected from your connection. For security purposes, checkout has been temporarily paused for 30 minutes. Please contact customer support if you need immediate assistance.', 'wcp-security-scanner'),
+            'webcareproscan_carding_lockout',
+            esc_html__('Too many checkout attempts detected from your connection. For security purposes, checkout has been temporarily paused for 30 minutes. Please contact customer support if you need immediate assistance.', 'webcare-pro-security'),
             ['status' => 429]
         );
     }
@@ -7308,16 +7308,16 @@ class FirewallEngine {
         }
 
         // Record global cross-IP checkout failure for distributed carding defense
-        if (class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')) {
-            \WcpScanner\Firewall\DistributedVelocityShield::record_checkout_failure($client_ip, $reason);
+        if (class_exists('\\WebCareProScanner\\Firewall\\DistributedVelocityShield')) {
+            \WebCareProScanner\Firewall\DistributedVelocityShield::record_checkout_failure($client_ip, $reason);
         }
 
         $max_attempts = (int) ($settings['waf_woo_checkout_max_attempts'] ?? 3);
         $lockout_duration_mins = (int) ($settings['waf_woo_carding_lockout_duration'] ?? 30);
         $window_seconds = 300; // 5-minute rolling window for attempts
 
-        $attempt_key = 'wcpscan_chk_fail_' . md5($client_ip);
-        $lock_key    = 'wcpscan_chk_lock_' . md5($client_ip);
+        $attempt_key = 'webcareproscan_chk_fail_' . md5($client_ip);
+        $lock_key    = 'webcareproscan_chk_lock_' . md5($client_ip);
 
         // Check if already locked
         if (get_transient($lock_key)) {
@@ -7345,7 +7345,7 @@ class FirewallEngine {
                 'category'    => 'Behavioral Defense',
                 'description' => sprintf(
                     /* translators: 1: Client IP address, 2: Number of failed attempts, 3: Lockout duration in minutes */
-                    __('IP %1$s exceeded checkout failure threshold (%2$d attempts in 5 min) - locked out for %3$d minutes.', 'wcp-security-scanner'),
+                    __('IP %1$s exceeded checkout failure threshold (%2$d attempts in 5 min) - locked out for %3$d minutes.', 'webcare-pro-security'),
                     $client_ip,
                     $new_attempts,
                     $lockout_duration_mins
@@ -7377,7 +7377,7 @@ class FirewallEngine {
             return false;
         }
 
-        $lock_key = 'wcpscan_cpn_lock_' . md5($client_ip);
+        $lock_key = 'webcareproscan_cpn_lock_' . md5($client_ip);
         $is_locked = get_transient($lock_key);
         if (!$is_locked) {
             return false;
@@ -7389,7 +7389,7 @@ class FirewallEngine {
             'category'    => 'Behavioral Defense',
             'description' => sprintf(
                 /* translators: 1: Client IP address */
-                __('Blocked repeated coupon testing attempt from temporarily locked-out IP %1$s (Coupon Brute-Force Defense).', 'wcp-security-scanner'),
+                __('Blocked repeated coupon testing attempt from temporarily locked-out IP %1$s (Coupon Brute-Force Defense).', 'webcare-pro-security'),
                 $client_ip
             ),
             'match_type'  => 'Coupon Velocity Threshold',
@@ -7400,8 +7400,8 @@ class FirewallEngine {
         self::log_incident($rule_triggered, 'blocked');
 
         return new \WP_Error(
-            'wcpscan_coupon_lockout',
-            esc_html__('Too many invalid coupon attempts detected from your connection. For security purposes, coupon redemption has been temporarily paused for 15 minutes. Please contact support if you need assistance.', 'wcp-security-scanner'),
+            'webcareproscan_coupon_lockout',
+            esc_html__('Too many invalid coupon attempts detected from your connection. For security purposes, coupon redemption has been temporarily paused for 15 minutes. Please contact support if you need assistance.', 'webcare-pro-security'),
             ['status' => 429]
         );
     }
@@ -7458,7 +7458,7 @@ class FirewallEngine {
     public static function handle_woo_coupon_success(string $coupon_code): void {
         $client_ip = self::get_client_ip();
         if (!empty($client_ip)) {
-            delete_transient('wcpscan_cpn_fail_' . md5($client_ip));
+            delete_transient('webcareproscan_cpn_fail_' . md5($client_ip));
         }
     }
 
@@ -7528,8 +7528,8 @@ class FirewallEngine {
         $lockout_duration_mins = (int) ($settings['waf_woo_coupon_lockout_duration'] ?? 15);
         $window_seconds = 300; // 5-minute rolling window
 
-        $attempt_key = 'wcpscan_cpn_fail_' . md5($client_ip);
-        $lock_key    = 'wcpscan_cpn_lock_' . md5($client_ip);
+        $attempt_key = 'webcareproscan_cpn_fail_' . md5($client_ip);
+        $lock_key    = 'webcareproscan_cpn_lock_' . md5($client_ip);
 
         if (get_transient($lock_key)) {
             return;
@@ -7555,7 +7555,7 @@ class FirewallEngine {
                 'category'    => 'Behavioral Defense',
                 'description' => sprintf(
                     /* translators: 1: Client IP address, 2: Number of failed attempts, 3: Lockout duration in minutes */
-                    __('IP %1$s exceeded coupon failure threshold (%2$d invalid attempts in 5 min) - locked out from coupon testing for %3$d minutes.', 'wcp-security-scanner'),
+                    __('IP %1$s exceeded coupon failure threshold (%2$d invalid attempts in 5 min) - locked out from coupon testing for %3$d minutes.', 'webcare-pro-security'),
                     $client_ip,
                     $new_attempts,
                     $lockout_duration_mins
@@ -7627,7 +7627,7 @@ class FirewallEngine {
                         'category'    => 'Behavioral Defense',
                         'description' => sprintf(
                             /* translators: 1: Client IP, 2: Disposable email domain */
-                            __('Blocked customer registration from IP %1$s using throwaway email domain "@%2$s".', 'wcp-security-scanner'),
+                            __('Blocked customer registration from IP %1$s using throwaway email domain "@%2$s".', 'webcare-pro-security'),
                             $client_ip,
                             $domain
                         ),
@@ -7639,8 +7639,8 @@ class FirewallEngine {
                     self::log_incident($rule_triggered, 'blocked');
 
                     $errors->add(
-                        'wcpscan_disposable_email_blocked',
-                        esc_html__('Temporary and disposable email addresses are not permitted. Please register with a permanent, valid email address.', 'wcp-security-scanner')
+                        'webcareproscan_disposable_email_blocked',
+                        esc_html__('Temporary and disposable email addresses are not permitted. Please register with a permanent, valid email address.', 'webcare-pro-security')
                     );
                     return $errors;
                 }
@@ -7652,7 +7652,7 @@ class FirewallEngine {
         $window_hours = (int) ($settings['waf_woo_reg_window_hours'] ?? 1);
         $window_seconds = $window_hours * HOUR_IN_SECONDS;
 
-        $reg_key = 'wcpscan_reg_ip_' . md5($client_ip);
+        $reg_key = 'webcareproscan_reg_ip_' . md5($client_ip);
         $count = (int) get_transient($reg_key);
 
         if ($count >= $max_registrations) {
@@ -7662,7 +7662,7 @@ class FirewallEngine {
                 'category'    => 'Behavioral Defense',
                 'description' => sprintf(
                     /* translators: 1: Client IP, 2: Registration limit, 3: Window hours */
-                    __('Customer registration rate limit exceeded from IP %1$s (%2$d accounts created in %3$d hour(s)).', 'wcp-security-scanner'),
+                    __('Customer registration rate limit exceeded from IP %1$s (%2$d accounts created in %3$d hour(s)).', 'webcare-pro-security'),
                     $client_ip,
                     $max_registrations,
                     $window_hours
@@ -7675,8 +7675,8 @@ class FirewallEngine {
             self::log_incident($rule_triggered, 'blocked');
 
             $errors->add(
-                'wcpscan_reg_velocity_limit',
-                esc_html__('Too many accounts have been created from your connection recently. Please wait before attempting to register another account or contact customer service.', 'wcp-security-scanner')
+                'webcareproscan_reg_velocity_limit',
+                esc_html__('Too many accounts have been created from your connection recently. Please wait before attempting to register another account or contact customer service.', 'webcare-pro-security')
             );
             return $errors;
         }
@@ -7706,7 +7706,7 @@ class FirewallEngine {
         $window_hours = (int) ($settings['waf_woo_reg_window_hours'] ?? 1);
         $window_seconds = $window_hours * HOUR_IN_SECONDS;
 
-        $reg_key = 'wcpscan_reg_ip_' . md5($client_ip);
+        $reg_key = 'webcareproscan_reg_ip_' . md5($client_ip);
         $count = (int) get_transient($reg_key);
         set_transient($reg_key, $count + 1, $window_seconds);
     }
@@ -7745,7 +7745,7 @@ class FirewallEngine {
 
         // 1. Add-to-Cart Velocity Rate-Limiting (per minute per IP)
         $rate_limit = (int) ($settings['waf_woo_add_to_cart_rate_limit'] ?? 15);
-        $velocity_key = 'wcpscan_cart_vel_' . md5($client_ip);
+        $velocity_key = 'webcareproscan_cart_vel_' . md5($client_ip);
         $current_hits = (int) get_transient($velocity_key);
 
         if ($current_hits >= $rate_limit) {
@@ -7755,7 +7755,7 @@ class FirewallEngine {
                 'category'    => 'Behavioral Defense',
                 'description' => sprintf(
                     /* translators: 1: Client IP, 2: Rate limit count */
-                    __('Blocked rapid add-to-cart flood from IP %1$s (exceeded %2$d additions per minute).', 'wcp-security-scanner'),
+                    __('Blocked rapid add-to-cart flood from IP %1$s (exceeded %2$d additions per minute).', 'webcare-pro-security'),
                     $client_ip,
                     $rate_limit
                 ),
@@ -7768,7 +7768,7 @@ class FirewallEngine {
 
             if (function_exists('wc_add_notice')) {
                 wc_add_notice(
-                    esc_html__('You are adding items too quickly. Please pause for a moment before adding more items to your cart.', 'wcp-security-scanner'),
+                    esc_html__('You are adding items too quickly. Please pause for a moment before adding more items to your cart.', 'webcare-pro-security'),
                     'error'
                 );
             }
@@ -7791,7 +7791,7 @@ class FirewallEngine {
                     'category'    => 'Behavioral Defense',
                     'description' => sprintf(
                         /* translators: 1: Client IP, 2: Target item count, 3: Max allowed items */
-                        __('Blocked inventory hoarding attempt from IP %1$s (cart item count %2$d would exceed cap %3$d).', 'wcp-security-scanner'),
+                        __('Blocked inventory hoarding attempt from IP %1$s (cart item count %2$d would exceed cap %3$d).', 'webcare-pro-security'),
                         $client_ip,
                         $target_count,
                         $max_cart_items
@@ -7807,7 +7807,7 @@ class FirewallEngine {
                     wc_add_notice(
                         sprintf(
                             /* translators: %d: Maximum allowed items in cart */
-                            esc_html__('Your shopping cart has reached the maximum permitted volume of %d items. Please proceed to checkout or remove unused items.', 'wcp-security-scanner'),
+                            esc_html__('Your shopping cart has reached the maximum permitted volume of %d items. Please proceed to checkout or remove unused items.', 'webcare-pro-security'),
                             $max_cart_items
                         ),
                         'error'
@@ -7856,7 +7856,7 @@ class FirewallEngine {
                 'category'    => 'Behavioral Defense',
                 'description' => sprintf(
                     /* translators: 1: Client IP address */
-                    __('Catalog request blocked from IP %1$s due to aggressive price/inventory scraping velocity.', 'wcp-security-scanner'),
+                    __('Catalog request blocked from IP %1$s due to aggressive price/inventory scraping velocity.', 'webcare-pro-security'),
                     $client_ip
                 ),
                 'match_type'  => 'Catalog Scraping Velocity',
@@ -7865,8 +7865,8 @@ class FirewallEngine {
             ];
             self::log_incident($rule_triggered, 'blocked');
             wp_die(
-                esc_html__('Too many requests. Automated catalog scraping has been temporarily restricted for your connection. Please wait 15 minutes before browsing again.', 'wcp-security-scanner'),
-                esc_html__('Too Many Requests', 'wcp-security-scanner'),
+                esc_html__('Too many requests. Automated catalog scraping has been temporarily restricted for your connection. Please wait 15 minutes before browsing again.', 'webcare-pro-security'),
+                esc_html__('Too Many Requests', 'webcare-pro-security'),
                 ['response' => 429]
             );
         }
@@ -7901,27 +7901,27 @@ class FirewallEngine {
 
         // Exempt genuine search engine crawlers (Google, Bing) and uptime monitors
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-        if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
-            if (\WcpScanner\Firewall\BotReconDefense::is_genuine_search_engine($client_ip, $user_agent)) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+            if (\WebCareProScanner\Firewall\BotReconDefense::is_genuine_search_engine($client_ip, $user_agent)) {
                 return false;
             }
-            if (\WcpScanner\Firewall\BotReconDefense::is_genuine_uptime_monitor($client_ip, $user_agent, $settings)) {
+            if (\WebCareProScanner\Firewall\BotReconDefense::is_genuine_uptime_monitor($client_ip, $user_agent, $settings)) {
                 return false;
             }
         }
 
-        $lock_key = 'wcpscan_scrape_lock_' . md5($client_ip);
+        $lock_key = 'webcareproscan_scrape_lock_' . md5($client_ip);
         if (get_transient($lock_key)) {
             return new \WP_Error(
-                'wcpscan_catalog_scrape_lockout',
-                esc_html__('Catalog and pricing access temporarily restricted due to high-frequency scraping. Please try again later.', 'wcp-security-scanner'),
+                'webcareproscan_catalog_scrape_lockout',
+                esc_html__('Catalog and pricing access temporarily restricted due to high-frequency scraping. Please try again later.', 'webcare-pro-security'),
                 ['status' => 429]
             );
         }
 
         $max_requests = (int) ($settings['waf_woo_scraping_max_requests'] ?? 60);
         $lockout_mins = (int) ($settings['waf_woo_scraping_lockout_duration'] ?? 15);
-        $velocity_key = 'wcpscan_scrape_vel_' . md5($client_ip);
+        $velocity_key = 'webcareproscan_scrape_vel_' . md5($client_ip);
         $current_hits = (int) get_transient($velocity_key);
         $new_hits = $current_hits + 1;
 
@@ -7942,7 +7942,7 @@ class FirewallEngine {
                 'category'    => 'Behavioral Defense',
                 'description' => sprintf(
                     /* translators: 1: Client IP, 2: Hit count, 3: Lockout duration in minutes */
-                    __('IP %1$s exceeded catalog scraping threshold (%2$d requests in 1 min) - locked out for %3$d minutes.', 'wcp-security-scanner'),
+                    __('IP %1$s exceeded catalog scraping threshold (%2$d requests in 1 min) - locked out for %3$d minutes.', 'webcare-pro-security'),
                     $client_ip,
                     $new_hits,
                     $lockout_mins
@@ -7955,8 +7955,8 @@ class FirewallEngine {
             self::log_incident($rule_triggered, 'blocked');
 
             return new \WP_Error(
-                'wcpscan_catalog_scrape_lockout',
-                esc_html__('Catalog and pricing access temporarily restricted due to high-frequency scraping. Please try again later.', 'wcp-security-scanner'),
+                'webcareproscan_catalog_scrape_lockout',
+                esc_html__('Catalog and pricing access temporarily restricted due to high-frequency scraping. Please try again later.', 'webcare-pro-security'),
                 ['status' => 429]
             );
         }
@@ -8018,7 +8018,7 @@ class FirewallEngine {
             'category'    => 'Runtime RASP Hook Defense',
             'description' => sprintf(
                 /* translators: 1: Option name, 2: Client IP */
-                __('Unauthenticated request from %2$s attempted unauthorized runtime tampering with core option "%1$s".', 'wcp-security-scanner'),
+                __('Unauthenticated request from %2$s attempted unauthorized runtime tampering with core option "%1$s".', 'webcare-pro-security'),
                 $option,
                 $client_ip
             ),
@@ -8061,8 +8061,8 @@ class FirewallEngine {
             }
 
             // JIT Ephemeral support user activation check (if active)
-            if (class_exists('\\WcpScanner\\Identity\\WcpJitMuGuardian')) {
-                $support_users = get_option(\WcpScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            if (class_exists('\\WebCareProScanner\\Identity\\WcpJitMuGuardian')) {
+                $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
                 if (isset($support_users[$user_id])) {
                     return; // Authorized JIT elevation
                 }
@@ -8076,7 +8076,7 @@ class FirewallEngine {
                 'category'    => 'Runtime RASP Hook Defense',
                 'description' => sprintf(
                     /* translators: 1: Role, 2: User ID, 3: Client IP */
-                    __('Unauthorized session from %3$s attempted to assign "%1$s" role to user #%2$d without manage_options capability.', 'wcp-security-scanner'),
+                    __('Unauthorized session from %3$s attempted to assign "%1$s" role to user #%2$d without manage_options capability.', 'webcare-pro-security'),
                     $role,
                     $user_id,
                     $client_ip
@@ -8087,8 +8087,8 @@ class FirewallEngine {
             ], 'blocked');
 
             wp_die(
-                esc_html__('Security Violation: Unauthorized role escalation intercepted by WCP Runtime RASP.', 'wcp-security-scanner'),
-                esc_html__('Forbidden', 'wcp-security-scanner'),
+                esc_html__('Security Violation: Unauthorized role escalation intercepted by WCP Runtime RASP.', 'webcare-pro-security'),
+                esc_html__('Forbidden', 'webcare-pro-security'),
                 ['response' => 403]
             );
         }
@@ -8131,7 +8131,7 @@ class FirewallEngine {
                 'category'    => 'Runtime RASP Hook Defense',
                 'description' => sprintf(
                     /* translators: 1: User ID, 2: Client IP */
-                    __('Unauthenticated guest from %2$s registered new account (#%1$d) with elevated administrator privileges. Account was demoted to subscriber.', 'wcp-security-scanner'),
+                    __('Unauthenticated guest from %2$s registered new account (#%1$d) with elevated administrator privileges. Account was demoted to subscriber.', 'webcare-pro-security'),
                     $user_id,
                     $client_ip
                 ),
@@ -8343,7 +8343,7 @@ class FirewallEngine {
             'category'    => 'Runtime RASP Hook Defense',
             'description' => sprintf(
                 /* translators: 1: Meta key, 2: User ID, 3: Client IP */
-                __('Unauthenticated request from %3$s attempted unauthorized runtime usermeta injection into "%1$s" for user #%2$d.', 'wcp-security-scanner'),
+                __('Unauthenticated request from %3$s attempted unauthorized runtime usermeta injection into "%1$s" for user #%2$d.', 'webcare-pro-security'),
                 $meta_key,
                 $object_id,
                 $client_ip
@@ -8373,8 +8373,8 @@ class FirewallEngine {
         $uuid     = sanitize_text_field($new_item['uuid'] ?? '');
         $client_ip = self::get_client_ip();
 
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'auth_application_password_created',
                 'auth',
                 [
@@ -8388,8 +8388,8 @@ class FirewallEngine {
             );
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_application_password_created', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_application_password_created', [
                 'user_id'     => $user_id,
                 'username'    => $username,
                 'app_name'    => $app_name,

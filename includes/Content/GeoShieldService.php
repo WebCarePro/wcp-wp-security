@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Content;
+namespace WebCareProScanner\Content;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -20,11 +20,11 @@ if (!defined('ABSPATH')) {
  *
  * Engineered by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer.
  *
- * @package WcpScanner\Content
+ * @package WebCareProScanner\Content
  */
 class GeoShieldService {
 
-    const BASELINE_OPTION = 'wcpscan_llmstxt_baseline';
+    const BASELINE_OPTION = 'webcareproscan_llmstxt_baseline';
 
     /**
      * Common cryptocurrency address regex patterns.
@@ -95,7 +95,7 @@ class GeoShieldService {
                         'file_path'   => $norm_path,
                         'description' => sprintf(
                             /* translators: %s: filename */
-                            __('Unauthorized modification detected in %s. AI search engines (ChatGPT, Perplexity, Claude) may ingest poisoned brand data.', 'wcp-security-scanner'),
+                            __('Unauthorized modification detected in %s. AI search engines (ChatGPT, Perplexity, Claude) may ingest poisoned brand data.', 'webcare-pro-security'),
                             esc_html($filename)
                         ),
                         'evidence'    => sprintf('Expected Hash: %s... | Live Hash: %s...', substr($saved['hash'], 0, 16), substr($current_hash, 0, 16)),
@@ -115,7 +115,7 @@ class GeoShieldService {
                         'file_path'   => $norm_path,
                         'description' => sprintf(
                             /* translators: %1$s: filename, %2$s: token */
-                            __('Prompt injection payload ("%2$s") detected inside %1$s. Adversaries use this to hijack AI search citations and assistant summaries.', 'wcp-security-scanner'),
+                            __('Prompt injection payload ("%2$s") detected inside %1$s. Adversaries use this to hijack AI search citations and assistant summaries.', 'webcare-pro-security'),
                             esc_html($filename),
                             esc_html($token)
                         ),
@@ -155,7 +155,7 @@ class GeoShieldService {
                         'file_path'   => $norm_path,
                         'description' => sprintf(
                             /* translators: %1$s: filename, %2$d: count */
-                            __('%1$s contains %2$d third-party links not associated with your domain. Review to ensure AI crawlers are not directed to phishing or affiliate spam.', 'wcp-security-scanner'),
+                            __('%1$s contains %2$d third-party links not associated with your domain. Review to ensure AI crawlers are not directed to phishing or affiliate spam.', 'webcare-pro-security'),
                             esc_html($filename),
                             $foreign_count
                         ),
@@ -175,7 +175,7 @@ class GeoShieldService {
                     'file_path'   => $norm_path,
                     'description' => sprintf(
                         /* translators: %s: filename */
-                        __('Cryptocurrency wallet address detected inside %s. Threat actors inject wallet addresses to fool AI search engines into recommending fraudulent crypto payment destinations.', 'wcp-security-scanner'),
+                        __('Cryptocurrency wallet address detected inside %s. Threat actors inject wallet addresses to fool AI search engines into recommending fraudulent crypto payment destinations.', 'webcare-pro-security'),
                         esc_html($filename)
                     ),
                     'evidence'    => "Detected Wallet: {$wallet}",
@@ -217,7 +217,7 @@ class GeoShieldService {
 
         return [
             'success'   => true,
-            'message'   => __('Pristine baseline for /llms.txt files successfully saved.', 'wcp-security-scanner'),
+            'message'   => __('Pristine baseline for /llms.txt files successfully saved.', 'webcare-pro-security'),
             'baselines' => $baselines
         ];
     }

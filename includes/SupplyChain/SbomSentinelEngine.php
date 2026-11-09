@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\SupplyChain;
+namespace WebCareProScanner\SupplyChain;
 
-use WcpScanner\Quarantine\QuarantineManager;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\Quarantine\QuarantineManager;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -18,8 +18,8 @@ if (!defined('ABSPATH')) {
  */
 class SbomSentinelEngine {
 
-    const OPTION_BASELINE = 'wcpscan_sbom_baseline';
-    const OPTION_LOGS     = 'wcpscan_sbom_drift_logs';
+    const OPTION_BASELINE = 'webcareproscan_sbom_baseline';
+    const OPTION_LOGS     = 'webcareproscan_sbom_drift_logs';
 
     /**
      * Recognized standard WordPress drop-ins in WP_CONTENT_DIR.
@@ -277,7 +277,7 @@ class SbomSentinelEngine {
                         'risk_level'    => 'none',
                         'description'   => sprintf(
                             /* translators: %s: target file name */
-                            __('Preload file "%s" matches verified cryptographic administrator baseline.', 'wcp-security-scanner'),
+                            __('Preload file "%s" matches verified cryptographic administrator baseline.', 'webcare-pro-security'),
                             $basename
                         ),
                         'sha256'        => $sha256,
@@ -287,14 +287,14 @@ class SbomSentinelEngine {
         }
 
         // 2. WCP Micro-WAF Preload
-        if ($basename === 'micro-waf-compiled.php' || str_contains($norm, 'wcp-security-scanner') || str_contains($norm, 'wcp-micro-waf.php')) {
+        if ($basename === 'micro-waf-compiled.php' || str_contains($norm, 'webcare-pro-security') || str_contains($norm, 'wcp-micro-waf.php')) {
             return [
                 'is_recognized' => true,
                 'is_trusted'    => true,
                 'provider'      => 'WCP Security Scanner',
                 'label'         => 'Verified WCP Micro-WAF Preload',
                 'risk_level'    => 'none',
-                'description'   => __('Official WebCare Pro Micro-WAF pre-boot firewall engine.', 'wcp-security-scanner'),
+                'description'   => __('Official WebCare Pro Micro-WAF pre-boot firewall engine.', 'webcare-pro-security'),
                 'sha256'        => $sha256,
             ];
         }
@@ -308,7 +308,7 @@ class SbomSentinelEngine {
                 $content = @file_get_contents($target_path, false, null, 0, 16384);
                 if ($content !== false && (strpos($content, 'WFWAF_LOG_PATH') !== false || strpos($content, 'wordfence/waf/bootstrap.php') !== false)) {
                     $is_authentic_wf = true;
-                    $detail = __('Authentic Wordfence WAF bootstrap directives verified.', 'wcp-security-scanner');
+                    $detail = __('Authentic Wordfence WAF bootstrap directives verified.', 'webcare-pro-security');
                 }
             }
 
@@ -324,7 +324,7 @@ class SbomSentinelEngine {
                     'provider'      => 'Wordfence WAF',
                     'label'         => 'Verified Security WAF (Wordfence)',
                     'risk_level'    => 'none',
-                    'description'   => $detail ?: __('Official Wordfence Web Application Firewall preload active.', 'wcp-security-scanner'),
+                    'description'   => $detail ?: __('Official Wordfence Web Application Firewall preload active.', 'webcare-pro-security'),
                     'sha256'        => $sha256,
                 ];
             }
@@ -335,7 +335,7 @@ class SbomSentinelEngine {
                 'provider'      => 'Wordfence WAF',
                 'label'         => 'Unverified Wordfence Script',
                 'risk_level'    => 'medium',
-                'description'   => __('Target is named wordfence-waf.php but Wordfence plugin was not detected or contents differed from official bootstrap.', 'wcp-security-scanner'),
+                'description'   => __('Target is named wordfence-waf.php but Wordfence plugin was not detected or contents differed from official bootstrap.', 'webcare-pro-security'),
                 'sha256'        => $sha256,
             ];
         }
@@ -348,7 +348,7 @@ class SbomSentinelEngine {
                 'provider'      => 'NinjaFirewall',
                 'label'         => 'Verified Security WAF (NinjaFirewall)',
                 'risk_level'    => 'none',
-                'description'   => __('Official NinjaFirewall PHP pre-boot engine active.', 'wcp-security-scanner'),
+                'description'   => __('Official NinjaFirewall PHP pre-boot engine active.', 'webcare-pro-security'),
                 'sha256'        => $sha256,
             ];
         }
@@ -363,12 +363,12 @@ class SbomSentinelEngine {
             'description'   => $exists
                 ? sprintf(
                     /* translators: %s: target file path */
-                    __('Unrecognized PHP preload file active: "%s". Runs before any WordPress core code boots.', 'wcp-security-scanner'),
+                    __('Unrecognized PHP preload file active: "%s". Runs before any WordPress core code boots.', 'webcare-pro-security'),
                     $target_path
                 )
                 : sprintf(
                     /* translators: %s: target file path */
-                    __('Preload file is configured in INI directives but target file does not exist on disk: "%s".', 'wcp-security-scanner'),
+                    __('Preload file is configured in INI directives but target file does not exist on disk: "%s".', 'webcare-pro-security'),
                     $target_path
                 ),
             'sha256'        => $sha256,
@@ -692,13 +692,13 @@ class SbomSentinelEngine {
 
         $drift_count = count($added) + count($modified) + count($removed);
 
-        if ($drift_count > 0 && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if ($drift_count > 0 && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             $critical_drifts = array_merge($modified, array_filter($added, fn($a) => $a['risk_level'] === 'critical' || $a['type'] === 'dropin'));
             if (!empty($critical_drifts)) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_anchor_tampered', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('supply_chain_anchor_tampered', [
                     'severity' => 'critical',
                     /* translators: %d: count of tampered runtime anchors */
-                    'message'  => sprintf(__('Supply-Chain Alert: %d runtime drop-in anchor(s) (object-cache, db.php, or mu-plugins) have been tampered or added.', 'wcp-security-scanner'), count($critical_drifts)),
+                    'message'  => sprintf(__('Supply-Chain Alert: %d runtime drop-in anchor(s) (object-cache, db.php, or mu-plugins) have been tampered or added.', 'webcare-pro-security'), count($critical_drifts)),
                     'details'  => [
                         'Drift Count'   => $drift_count,
                         'Tampered Items'=> implode(', ', array_slice(array_column($critical_drifts, 'rel_path'), 0, 3)),

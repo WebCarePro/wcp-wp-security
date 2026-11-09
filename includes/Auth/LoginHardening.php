@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Auth;
+namespace WebCareProScanner\Auth;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\Firewall\FirewallEngine;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\Firewall\FirewallEngine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -16,8 +16,8 @@ if (!defined('ABSPATH')) {
  */
 class LoginHardening {
 
-    const OPTION_LOCKOUTS   = 'wcpscan_login_lockouts';
-    const TRANSIENT_FAIL_PREFIX = 'wcpscan_lgn_fail_';
+    const OPTION_LOCKOUTS   = 'webcareproscan_login_lockouts';
+    const TRANSIENT_FAIL_PREFIX = 'webcareproscan_lgn_fail_';
 
     /**
      * Initialize login hardening hooks
@@ -66,10 +66,10 @@ class LoginHardening {
                 $remaining_mins = max(1, (int) ceil(($lockout['expires_at'] - $now) / 60));
 
                 return new \WP_Error(
-                    'wcpscan_ip_locked',
+                    'webcareproscan_ip_locked',
                     sprintf(
                         /* translators: 1: IP address, 2: remaining minutes */
-                        __('<strong>Access Blocked:</strong> Too many failed login attempts from your IP (%1$s). You are temporarily locked out for security. Please try again in %2$d minute(s).', 'wcp-security-scanner'),
+                        __('<strong>Access Blocked:</strong> Too many failed login attempts from your IP (%1$s). You are temporarily locked out for security. Please try again in %2$d minute(s).', 'webcare-pro-security'),
                         esc_html($ip),
                         $remaining_mins
                     )
@@ -130,30 +130,30 @@ class LoginHardening {
         set_transient($fail_key, $attempts, 3600);
 
         // Record global cross-IP authentication failure for distributed credential-stuffing defense
-        if (class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')) {
-            \WcpScanner\Firewall\DistributedVelocityShield::record_auth_failure($ip, $username, $reason_label ?? '');
+        if (class_exists('\\WebCareProScanner\\Firewall\\DistributedVelocityShield')) {
+            \WebCareProScanner\Firewall\DistributedVelocityShield::record_auth_failure($ip, $username, $reason_label ?? '');
         }
 
         // Determine specific failure diagnosis (wrong password vs non-existent account)
-        $reason_label = __('Unknown failure reason', 'wcp-security-scanner');
+        $reason_label = __('Unknown failure reason', 'webcare-pro-security');
         $error_code   = '';
         if ($error instanceof \WP_Error) {
             $error_code = (string) $error->get_error_code();
             switch ($error_code) {
                 case 'incorrect_password':
-                    $reason_label = __('Incorrect password (account exists)', 'wcp-security-scanner');
+                    $reason_label = __('Incorrect password (account exists)', 'webcare-pro-security');
                     break;
                 case 'invalid_username':
-                    $reason_label = __('Unknown username (account does not exist)', 'wcp-security-scanner');
+                    $reason_label = __('Unknown username (account does not exist)', 'webcare-pro-security');
                     break;
                 case 'invalid_email':
-                    $reason_label = __('Unknown email address (account does not exist)', 'wcp-security-scanner');
+                    $reason_label = __('Unknown email address (account does not exist)', 'webcare-pro-security');
                     break;
                 case 'empty_password':
-                    $reason_label = __('Empty password submitted', 'wcp-security-scanner');
+                    $reason_label = __('Empty password submitted', 'webcare-pro-security');
                     break;
                 case 'empty_username':
-                    $reason_label = __('Empty username submitted', 'wcp-security-scanner');
+                    $reason_label = __('Empty username submitted', 'webcare-pro-security');
                     break;
                 default:
                     $custom_msg   = sanitize_text_field($error->get_error_message());
@@ -164,9 +164,9 @@ class LoginHardening {
             // Fallback user existence check when caller does not provide WP_Error
             $user_exists = is_email($username) ? (bool) get_user_by('email', $username) : (bool) get_user_by('login', $username);
             if ($user_exists) {
-                $reason_label = __('Incorrect credentials (account exists)', 'wcp-security-scanner');
+                $reason_label = __('Incorrect credentials (account exists)', 'webcare-pro-security');
             } else {
-                $reason_label = __('Unknown identity (account does not exist)', 'wcp-security-scanner');
+                $reason_label = __('Unknown identity (account does not exist)', 'webcare-pro-security');
             }
         }
 
@@ -174,14 +174,14 @@ class LoginHardening {
         $action_taken = ($attempts >= $max_retries) ? 'blocked' : 'failed';
 
         // Stream individual failed login attempt to WAF Forensic Incident Log
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            \WcpScanner\Firewall\FirewallEngine::log_incident([
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                 'id'               => 'WAF-AUTH-FAILED',
                 'name'             => 'Failed Authentication Attempt',
                 'category'         => 'authentication',
                 'description'      => sprintf(
                     /* translators: 1: attempted username, 2: attempt count, 3: specific failure reason */
-                    __('Failed authentication for "%1$s" (attempt %2$d): %3$s.', 'wcp-security-scanner'),
+                    __('Failed authentication for "%1$s" (attempt %2$d): %3$s.', 'webcare-pro-security'),
                     sanitize_user($username),
                     $attempts,
                     $reason_label
@@ -210,14 +210,14 @@ class LoginHardening {
             delete_transient($fail_key);
 
             // Log security incident to WAF Forensic incident log
-            if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-                \WcpScanner\Firewall\FirewallEngine::log_incident([
+            if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+                \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                     'id'          => 'WAF-LOGIN-BRUTEFORCE',
                     'name'        => 'Login Brute-Force Rate Limiter',
                     'category'    => 'Brute Force & Auth Armor',
                     'description' => sprintf(
                         /* translators: 1: IP address, 2: attempt count, 3: username */
-                        __('IP %1$s locked out for %2$d failed login attempts targeting user "%3$s".', 'wcp-security-scanner'),
+                        __('IP %1$s locked out for %2$d failed login attempts targeting user "%3$s".', 'webcare-pro-security'),
                         $ip,
                         $attempts,
                         sanitize_user($username)
@@ -227,12 +227,12 @@ class LoginHardening {
             }
 
             // Trigger audit log if available (internal audit log file)
-            if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
-                \WcpScanner\System\AuditLogger::log_event(
+            if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
+                \WebCareProScanner\System\AuditLogger::log_event(
                     'login_lockout',
                     sprintf(
                         /* translators: 1: IP address, 2: attempt count, 3: username */
-                        __('IP %1$s temporarily locked out after %2$d failed login attempts for user "%3$s".', 'wcp-security-scanner'),
+                        __('IP %1$s temporarily locked out after %2$d failed login attempts for user "%3$s".', 'webcare-pro-security'),
                         $ip,
                         $attempts,
                         $username
@@ -241,12 +241,12 @@ class LoginHardening {
             }
 
             // Trigger granular notification via NotificationDispatcher
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_bruteforce_lockout', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_bruteforce_lockout', [
                     'severity' => 'high',
                     'message'  => sprintf(
                         /* translators: 1: attacker IP, 2: attempt count, 3: username */
-                        __('Brute-force defense locked out IP "%1$s" after %2$d consecutive login failures targeting username "%3$s".', 'wcp-security-scanner'),
+                        __('Brute-force defense locked out IP "%1$s" after %2$d consecutive login failures targeting username "%3$s".', 'webcare-pro-security'),
                         $ip,
                         $attempts,
                         $username
@@ -261,18 +261,18 @@ class LoginHardening {
             }
 
             // Sync brute force attacker to Cloudflare Edge IP Access Rules if enabled
-            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WcpScanner\\Cloudflare\\CloudflareService')) {
-                \WcpScanner\Cloudflare\CloudflareService::block_ip(
+            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
+                \WebCareProScanner\Cloudflare\CloudflareService::block_ip(
                     $ip,
                     "WCP Brute Force: {$attempts} failed logins for {$username}"
                 );
 
-                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_cf_edge_ban_synced', [
+                if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_cf_edge_ban_synced', [
                         'severity' => 'info',
                         'message'  => sprintf(
                             /* translators: %s: banned IP address */
-                            __('Attacker IP "%s" was escalated and synchronized to Cloudflare Edge IP Access Rules.', 'wcp-security-scanner'),
+                            __('Attacker IP "%s" was escalated and synchronized to Cloudflare Edge IP Access Rules.', 'webcare-pro-security'),
                             $ip
                         ),
                         'details'  => [
@@ -294,19 +294,19 @@ class LoginHardening {
         delete_transient($fail_key);
 
         // Stream successful login to WAF Forensic Incident Log
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             $user_obj = ($user instanceof \WP_User) ? $user : get_user_by('login', $user_login);
             $roles = ($user_obj instanceof \WP_User) ? (array) $user_obj->roles : [];
             $role_label = !empty($roles) ? reset($roles) : 'user';
             $user_id = ($user_obj instanceof \WP_User) ? (int) $user_obj->ID : 0;
 
-            \WcpScanner\Firewall\FirewallEngine::log_incident([
+            \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                 'id'               => 'WAF-AUTH-SUCCESS',
                 'name'             => 'Successful User Authentication',
                 'category'         => 'authentication',
                 'description'      => sprintf(
                     /* translators: 1: username, 2: role */
-                    __('User "%1$s" (%2$s) authenticated successfully.', 'wcp-security-scanner'),
+                    __('User "%1$s" (%2$s) authenticated successfully.', 'webcare-pro-security'),
                     sanitize_user($user_login),
                     sanitize_key($role_label)
                 ),
@@ -318,13 +318,13 @@ class LoginHardening {
             ], 'allowed');
 
             // Granular Alert: If an administrator authenticated, trigger immediate notification
-            if (in_array('administrator', $roles, true) && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (in_array('administrator', $roles, true) && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_login', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_admin_login', [
                     'severity' => 'info',
                     'message'  => sprintf(
                         /* translators: 1: admin username, 2: client IP address */
-                        __('Administrator user "%1$s" logged in successfully from IP %2$s.', 'wcp-security-scanner'),
+                        __('Administrator user "%1$s" logged in successfully from IP %2$s.', 'webcare-pro-security'),
                         sanitize_user($user_login),
                         $ip
                     ),
@@ -411,12 +411,12 @@ class LoginHardening {
     public static function on_user_registered($user_id): void {
         $user = get_userdata($user_id);
         if ($user && in_array('administrator', (array) $user->roles, true)) {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: 1: username, 2: email */
-                        __('A new user account with Administrator privileges was registered: "%1$s" (%2$s).', 'wcp-security-scanner'),
+                        __('A new user account with Administrator privileges was registered: "%1$s" (%2$s).', 'webcare-pro-security'),
                         $user->user_login,
                         $user->user_email
                     ),
@@ -437,13 +437,13 @@ class LoginHardening {
      */
     public static function on_user_role_changed($user_id, $role, $old_roles): void {
         if ($role === 'administrator' && !in_array('administrator', (array) $old_roles, true)) {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 $user = get_userdata($user_id);
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_rogue_admin_created', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: %s: username */
-                        __('Existing user "%s" was promoted to Administrator role.', 'wcp-security-scanner'),
+                        __('Existing user "%s" was promoted to Administrator role.', 'webcare-pro-security'),
                         $user ? $user->user_login : 'user #' . $user_id
                     ),
                     'details'  => [
@@ -475,15 +475,15 @@ class LoginHardening {
             return;
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             $ip = FirewallEngine::get_client_ip();
             $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
 
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
                 'severity' => 'high',
                 'message'  => sprintf(
                     /* translators: 1: admin username, 2: client IP address */
-                    __('Administrator password was successfully reset for user "%1$s" from IP %2$s.', 'wcp-security-scanner'),
+                    __('Administrator password was successfully reset for user "%1$s" from IP %2$s.', 'webcare-pro-security'),
                     $user->user_login,
                     $ip
                 ),
@@ -514,17 +514,17 @@ class LoginHardening {
 
         // Check if user_pass hash changed between updates
         if ($old_user_data && isset($old_user_data->user_pass) && $old_user_data->user_pass !== $user->user_pass) {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 $ip = FirewallEngine::get_client_ip();
                 $current_user = wp_get_current_user();
                 $editor_name = ($current_user && $current_user->ID) ? $current_user->user_login : 'system/external';
                 $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
 
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('auth_admin_password_reset', [
                     'severity' => 'high',
                     'message'  => sprintf(
                         /* translators: 1: admin username, 2: editor username, 3: client IP address */
-                        __('Administrator password for "%1$s" was updated by "%2$s" from IP %3$s.', 'wcp-security-scanner'),
+                        __('Administrator password for "%1$s" was updated by "%2$s" from IP %3$s.', 'webcare-pro-security'),
                         $user->user_login,
                         $editor_name,
                         $ip

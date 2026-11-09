@@ -1,12 +1,12 @@
 <?php
-namespace WcpScanner\Advisor;
+namespace WebCareProScanner\Advisor;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
 
 /**
  * SiteAdvisorEngine
@@ -15,12 +15,12 @@ use WcpScanner\System\AuditLogger;
  * Evaluates the detected SiteCapabilityProfile against PolicyRegistry,
  * generates an evidence-driven state matrix, and enforces conflict-aware rollbacks.
  *
- * @package WcpScanner\Advisor
+ * @package WebCareProScanner\Advisor
  * @author Mir Alamin (WebCare Pro)
  */
 class SiteAdvisorEngine {
 
-    public const OPTION_SNAPSHOT = 'wcpscan_advisor_last_snapshot';
+    public const OPTION_SNAPSHOT = 'webcareproscan_advisor_last_snapshot';
 
     // Advisor States
     public const STATE_ALREADY_PROTECTED   = 'already_protected';
@@ -126,7 +126,7 @@ class SiteAdvisorEngine {
         if (!$has_capability && $policy['type'] === PolicyRegistry::TYPE_EXEMPTION && $current_val === true) {
             $state          = self::STATE_STALE_EXEMPTION;
             $proposed_value = false; // Recommend disabling
-            $notes          = __('The plugin or theme requiring this compatibility exemption is no longer active. Disabling this exemption tightens your attack surface.', 'wcp-security-scanner');
+            $notes          = __('The plugin or theme requiring this compatibility exemption is no longer active. Disabling this exemption tightens your attack surface.', 'webcare-pro-security');
         } elseif (!$has_capability) {
             $state = self::STATE_NOT_APPLICABLE;
         } else {
@@ -136,12 +136,12 @@ class SiteAdvisorEngine {
                 if ($policy['requires_ip_trust'] && $proxy['proxy_warning'] && $current_val === false) {
                     $state          = self::STATE_NEEDS_CONFIGURATION;
                     $proposed_value = $target_val;
-                    $notes          = __('Edge proxy/CDN headers detected without trusted subnet configuration. Verify reverse-proxy IP headers before enabling IP lockout rules.', 'wcp-security-scanner');
+                    $notes          = __('Edge proxy/CDN headers detected without trusted subnet configuration. Verify reverse-proxy IP headers before enabling IP lockout rules.', 'webcare-pro-security');
                 } elseif ($policy['action_mode'] === PolicyRegistry::ACTION_MONITOR) {
                     if ($current_val === 'off' || empty($current_val)) {
                         $state          = self::STATE_MONITOR_FIRST;
                         $proposed_value = 'monitor';
-                        $notes          = __('Keep on Monitor mode to inspect traffic before strict blocking to prevent false positives.', 'wcp-security-scanner');
+                        $notes          = __('Keep on Monitor mode to inspect traffic before strict blocking to prevent false positives.', 'webcare-pro-security');
                     } else {
                         $state = self::STATE_ALREADY_PROTECTED;
                     }
@@ -163,7 +163,7 @@ class SiteAdvisorEngine {
                 } else {
                     $state          = self::STATE_EXEMPTION_REVIEW;
                     $proposed_value = true;
-                    $notes          = __('Optional compatibility exemption to prevent legitimate application traffic from triggering false positives.', 'wcp-security-scanner');
+                    $notes          = __('Optional compatibility exemption to prevent legitimate application traffic from triggering false positives.', 'webcare-pro-security');
                 }
             }
         }
@@ -192,7 +192,7 @@ class SiteAdvisorEngine {
      */
     public static function apply_recommendations(array $approved_keys): array {
         if (!current_user_can('manage_options')) {
-            return ['success' => false, 'message' => __('Unauthorized access.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Unauthorized access.', 'webcare-pro-security')];
         }
 
         $policies         = PolicyRegistry::get_policies();
@@ -222,7 +222,7 @@ class SiteAdvisorEngine {
         if (empty($changes)) {
             return [
                 'success' => true,
-                'message' => __('All selected recommendations are already active. No changes needed.', 'wcp-security-scanner'),
+                'message' => __('All selected recommendations are already active. No changes needed.', 'webcare-pro-security'),
                 'changed' => 0,
             ];
         }
@@ -250,8 +250,8 @@ class SiteAdvisorEngine {
         }
 
         // Post-Fix Store & Checkout Pulse Check
-        $pulse = class_exists('\\WcpScanner\\System\\PulseHealthCheck')
-            ? \WcpScanner\System\PulseHealthCheck::check_store_pulse()
+        $pulse = class_exists('\\WebCareProScanner\\System\\PulseHealthCheck')
+            ? \WebCareProScanner\System\PulseHealthCheck::check_store_pulse()
             : ['all_passed' => true, 'has_fatal_conflict' => false, 'summary' => ''];
 
         // Only trigger automatic safety rollback if an endpoint verified a genuine fatal server crash (HTTP 500-504 or fatal PHP error)
@@ -260,7 +260,7 @@ class SiteAdvisorEngine {
             return [
                 'success'        => false,
                 'rollback'       => true,
-                'message'        => __('Safety Rollback Triggered: We noticed a potential site conflict immediately after applying recommendations, so we automatically undid the changes to keep your site and checkout online.', 'wcp-security-scanner'),
+                'message'        => __('Safety Rollback Triggered: We noticed a potential site conflict immediately after applying recommendations, so we automatically undid the changes to keep your site and checkout online.', 'webcare-pro-security'),
                 'pulse'          => $pulse,
                 'changed'        => 0,
             ];
@@ -270,7 +270,7 @@ class SiteAdvisorEngine {
             'success'     => true,
             'message'     => sprintf(
                 /* translators: %d: number of settings updated */
-                __('Site Advisor successfully optimized %d security settings.', 'wcp-security-scanner'),
+                __('Site Advisor successfully optimized %d security settings.', 'webcare-pro-security'),
                 count($changes)
             ),
             'changed'     => count($changes),
@@ -287,12 +287,12 @@ class SiteAdvisorEngine {
      */
     public static function rollback(): array {
         if (!current_user_can('manage_options')) {
-            return ['success' => false, 'message' => __('Unauthorized access.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Unauthorized access.', 'webcare-pro-security')];
         }
 
         $snapshot = get_option(self::OPTION_SNAPSHOT, null);
         if (empty($snapshot) || empty($snapshot['changes'])) {
-            return ['success' => false, 'message' => __('No Site Advisor snapshot found to rollback.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('No Site Advisor snapshot found to rollback.', 'webcare-pro-security')];
         }
 
         $current_settings = SettingsManager::get_settings();
@@ -342,12 +342,12 @@ class SiteAdvisorEngine {
             'message'        => empty($conflicts)
                 ? sprintf(
                     /* translators: %d: number of settings reverted */
-                    __('Successfully rolled back %d settings to previous baseline.', 'wcp-security-scanner'),
+                    __('Successfully rolled back %d settings to previous baseline.', 'webcare-pro-security'),
                     count($revert_updates)
                 )
                 : sprintf(
                     /* translators: %1$d: reverted count, %2$d: conflict count */
-                    __('Reverted %1$d settings. %2$d settings were skipped due to subsequent manual administrative overrides.', 'wcp-security-scanner'),
+                    __('Reverted %1$d settings. %2$d settings were skipped due to subsequent manual administrative overrides.', 'webcare-pro-security'),
                     count($revert_updates),
                     count($conflicts)
                 ),

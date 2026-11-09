@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Backup;
+namespace WebCareProScanner\Backup;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -7,8 +7,8 @@ if (!defined('ABSPATH')) {
 
 class DatabaseBackup {
 
-    const OPTION_ACTIVE_SESSION = 'wcpscan_active_backup_session';
-    const CRON_STEP_HOOK = 'wcpscan_backup_step_worker';
+    const OPTION_ACTIVE_SESSION = 'webcareproscan_active_backup_session';
+    const CRON_STEP_HOOK = 'webcareproscan_backup_step_worker';
 
     private $backup_dir;
 
@@ -19,7 +19,7 @@ class DatabaseBackup {
     public function __construct() {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        $this->backup_dir = $base . '/wcp-security-scanner/.db-backups';
+        $this->backup_dir = $base . '/webcare-pro-security/.db-backups';
 
         $this->ensure_directory();
     }
@@ -372,7 +372,7 @@ class DatabaseBackup {
             ];
         }
 
-        $session_id = 'wcpscan_bak_' . wp_generate_password(12, false, false);
+        $session_id = 'webcareproscan_bak_' . wp_generate_password(12, false, false);
         $date_str = gmdate('Y-m-d_H-i-s');
         $use_gzip = function_exists('gzopen');
         $ext = $use_gzip ? 'sql.gz' : 'sql';
@@ -726,12 +726,12 @@ class DatabaseBackup {
                 delete_option(self::OPTION_ACTIVE_SESSION);
                 wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
 
-                if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                    \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_completed', [
+                if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                    \WebCareProScanner\Notifications\NotificationDispatcher::trigger('backup_db_completed', [
                         'severity' => 'info',
                         'message'  => sprintf(
                             /* translators: 1: size in MB, 2: number of tables, 3: duration in seconds */
-                            __('Database backup completed successfully (%1$s MB, %2$d tables in %3$s seconds).', 'wcp-security-scanner'),
+                            __('Database backup completed successfully (%1$s MB, %2$d tables in %3$s seconds).', 'webcare-pro-security'),
                             $state['final_size_mb'],
                             $state['tables_completed'],
                             $state['total_time_seconds']
@@ -790,12 +790,12 @@ class DatabaseBackup {
             $state['total_time_seconds'] = round(microtime(true) - $state['start_micro'], 2);
             $state['error_details'] = $error_details;
 
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('backup_db_failed', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('backup_db_failed', [
                     'severity' => 'high',
                     'message'  => sprintf(
                         /* translators: 1: table name, 2: error message */
-                        __('Database backup failed while exporting table "%1$s": %2$s', 'wcp-security-scanner'),
+                        __('Database backup failed while exporting table "%1$s": %2$s', 'webcare-pro-security'),
                         $state['current_table_name'] ?? 'unknown',
                         $e->getMessage()
                     ),
@@ -951,7 +951,7 @@ class DatabaseBackup {
      * @return array|null
      */
     public function get_session_state(string $session_id): ?array {
-        $transient_key = "wcpscan_bak_sess_{$session_id}";
+        $transient_key = "webcareproscan_bak_sess_{$session_id}";
         $state = get_transient($transient_key);
         if (is_array($state)) {
             return $state;
@@ -1057,7 +1057,7 @@ class DatabaseBackup {
      * @param array $state
      */
     private function save_session_state(string $session_id, array $state) {
-        $transient_key = "wcpscan_bak_sess_{$session_id}";
+        $transient_key = "webcareproscan_bak_sess_{$session_id}";
         set_transient($transient_key, $state, 6 * HOUR_IN_SECONDS);
 
         $state_file = $this->backup_dir . "/.state_{$session_id}.json";
@@ -1115,7 +1115,7 @@ class DatabaseBackup {
         $base = untrailingslashit($uploads['basedir']);
         $dirs = [
             $this->backup_dir,
-            $base . '/wcp-security-scanner/backups',
+            $base . '/webcare-pro-security/backups',
         ];
 
         $seen = [];
@@ -1189,7 +1189,7 @@ class DatabaseBackup {
 
         // Check legacy backups directory
         $uploads = wp_upload_dir();
-        $legacy_path = untrailingslashit($uploads['basedir']) . '/wcp-security-scanner/backups/' . $basename;
+        $legacy_path = untrailingslashit($uploads['basedir']) . '/webcare-pro-security/backups/' . $basename;
         if (file_exists($legacy_path) && is_file($legacy_path)) {
             return $legacy_path;
         }

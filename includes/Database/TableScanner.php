@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Database;
+namespace WebCareProScanner\Database;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -64,7 +64,7 @@ class TableScanner {
 
         // Whitelist / exclude our own security scanner internal tables (e.g. firewall logs, audit logs, scan issues)
         return array_values(array_filter($tables, function($t) {
-            return stripos($t, 'wcpscan_') === false;
+            return stripos($t, 'webcareproscan_') === false;
         }));
     }
 
@@ -185,7 +185,7 @@ class TableScanner {
                     strpos($opt_name, 'rss_') === 0 ||
                     strpos($opt_name, 'feed_') === 0 ||
                     strpos($opt_name, 'cache_') === 0 ||
-                    strpos($opt_name, 'wcpscan_') === 0 ||
+                    strpos($opt_name, 'webcareproscan_') === 0 ||
                     strpos($opt_name, 'wcp_') === 0) {
                     continue; // Skip transient/cache entries and plugin's own internal security telemetry options
                 }

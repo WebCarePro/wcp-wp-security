@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Evaluates active components within a StackSnapshot and synthesizes deterministic,
  * context-bound exemptions for high-friction plugins (WooCommerce, Elementor, Divi, Forms, FluentCRM).
  *
- * @package WcpScanner\Firewall\CAF
+ * @package WebCareProScanner\Firewall\CAF
  * @author  Mir Alamin (WebCare Pro)
  */
 final class ConflictAvoidanceEngine {

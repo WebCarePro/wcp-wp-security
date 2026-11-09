@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall\CAF;
+namespace WebCareProScanner\Firewall\CAF;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\Firewall\BotReconDefense;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\Firewall\BotReconDefense;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -36,8 +36,8 @@ if (!defined('ABSPATH')) {
  */
 class ThreatScoreTracker {
 
-    public const OPTION_HIGH_RISK_IPS = 'wcpscan_caf_high_risk_ips';
-    public const TRANSIENT_PREFIX     = 'wcpscan_tscore_';
+    public const OPTION_HIGH_RISK_IPS = 'webcareproscan_caf_high_risk_ips';
+    public const TRANSIENT_PREFIX     = 'webcareproscan_tscore_';
 
     // Exponential Decay Parameters
     public const HALF_LIFE_SECONDS    = 900;       // 15 minutes
@@ -170,7 +170,7 @@ class ThreatScoreTracker {
 
         // Tier 2: Suspicious probe velocity (40 <= score < 85) -> WebCrypto PoW Challenge
         if ($score >= self::THRESHOLD_POW) {
-            if (class_exists('\\WcpScanner\\Firewall\\BotReconDefense')) {
+            if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                 BotReconDefense::verify_or_challenge_client();
             }
         }
@@ -181,8 +181,8 @@ class ThreatScoreTracker {
      */
     private static function escalate_to_hard_ban(string $ip, float $score, string $reason): void {
         // Enforce hard quarantine via central FirewallEngine
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            \WcpScanner\Firewall\FirewallEngine::add_blocked_ip(
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            \WebCareProScanner\Firewall\FirewallEngine::add_blocked_ip(
                 $ip,
                 sprintf('ThreatScore %.1f: %s', $score, $reason),
                 86400,
@@ -190,7 +190,7 @@ class ThreatScoreTracker {
                 'CAF Autonomous Threat Score Ban',
                 'Context-Adaptive Firewall'
             );
-        } elseif (class_exists('\\WcpScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+        } elseif (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
             CloudflareIpListSynchronizer::queue_ip_ban($ip, sprintf('ThreatScore %.1f: %s', $score, $reason));
         }
 

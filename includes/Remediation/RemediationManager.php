@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Remediation;
+namespace WebCareProScanner\Remediation;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -13,7 +13,7 @@ class RemediationManager {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
         // Primary vault: Dot-prefixed protected directory blocked by Nginx /\.(?!well-known).* rules
-        $this->backup_dir = $base . '/wcp-security-scanner/.backups/remediation';
+        $this->backup_dir = $base . '/webcare-pro-security/.backups/remediation';
         $this->ensure_backup_directory();
     }
 
@@ -57,13 +57,13 @@ class RemediationManager {
         }
 
         // Must reside within WordPress installation root (strict directory boundary check)
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: File resides outside ABSPATH.'];
         }
         $normalized_real = wp_normalize_path($real_path);
 
         // Prohibit modifying scanner plugin files
-        if (strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
+        if (strpos($normalized_real, '/plugins/webcare-pro-security/') !== false) {
             return ['success' => false, 'message' => 'Action Blocked: Cannot modify security scanner files.'];
         }
 
@@ -149,7 +149,7 @@ class RemediationManager {
         }
 
         // Atomically write sanitized content, preventing symlink follower races
-        $bytes_written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $cleaned_content, ABSPATH);
+        $bytes_written = \WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $cleaned_content, ABSPATH);
         if (!$bytes_written) {
             return ['success' => false, 'message' => 'Filesystem write permission denied. Could not update file.'];
         }
@@ -165,7 +165,7 @@ class RemediationManager {
             'success'         => true,
             'message'         => sprintf(
                 /* translators: %d: number of bytes */
-                __('Malware wrapper successfully stripped! Removed %d bytes of injected malicious payload. Safety backup created.', 'wcp-security-scanner'),
+                __('Malware wrapper successfully stripped! Removed %d bytes of injected malicious payload. Safety backup created.', 'webcare-pro-security'),
                 $saved_bytes
             ),
             'backup_id'       => $backup_result['backup_id'],
@@ -197,13 +197,13 @@ class RemediationManager {
         $normalized_real = wp_normalize_path($real_path);
 
         $raw_plugins_dir = WP_PLUGIN_DIR;
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_plugins_dir)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_plugins_dir)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress plugins directory.'];
         }
         $normalized_plugins = rtrim(wp_normalize_path(realpath($raw_plugins_dir) ?: $raw_plugins_dir), '/') . '/';
 
         // Prohibit scanner's own plugin
-        if (strpos($normalized_real, '/wcp-security-scanner/') !== false) {
+        if (strpos($normalized_real, '/webcare-pro-security/') !== false) {
             return ['success' => false, 'message' => 'Action Blocked: Cannot reinstall security scanner files.'];
         }
 
@@ -270,7 +270,7 @@ class RemediationManager {
         }
 
         // Atomically replace file with official source, preventing symlink follower races
-        $written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        $written = \WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
         if (!$written) {
             return ['success' => false, 'message' => 'Could not write to file. Please check file permissions.'];
         }
@@ -281,7 +281,7 @@ class RemediationManager {
             'success'     => true,
             'message'     => sprintf(
                 /* translators: 1: plugin slug, 2: version */
-                __('File restored to pristine official WordPress.org release (Plugin: %1$s, v%2$s). Safety backup created.', 'wcp-security-scanner'),
+                __('File restored to pristine official WordPress.org release (Plugin: %1$s, v%2$s). Safety backup created.', 'webcare-pro-security'),
                 $plugin_slug,
                 $version
             ),
@@ -313,7 +313,7 @@ class RemediationManager {
         $normalized_real = wp_normalize_path($real_path);
 
         $raw_theme_root = get_theme_root();
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_theme_root)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, $raw_theme_root)) {
             return ['success' => false, 'message' => 'Action Blocked: File is not inside the WordPress themes directory.'];
         }
         $theme_root = rtrim(wp_normalize_path(realpath($raw_theme_root) ?: $raw_theme_root), '/') . '/';
@@ -381,7 +381,7 @@ class RemediationManager {
         }
 
         // Atomically replace theme file with official source, preventing symlink follower races
-        $written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        $written = \WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
         if (!$written) {
             return ['success' => false, 'message' => 'Could not write to theme file.'];
         }
@@ -392,7 +392,7 @@ class RemediationManager {
             'success'     => true,
             'message'     => sprintf(
                 /* translators: 1: theme slug, 2: version */
-                __('Theme file restored to pristine official WordPress.org release (Theme: %1$s, v%2$s). Safety backup created.', 'wcp-security-scanner'),
+                __('Theme file restored to pristine official WordPress.org release (Theme: %1$s, v%2$s). Safety backup created.', 'webcare-pro-security'),
                 $theme_slug,
                 $version
             ),
@@ -419,13 +419,13 @@ class RemediationManager {
             }
         }
         if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
-            return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Target file does not exist on server.', 'webcare-pro-security')];
         }
         $normalized_real = wp_normalize_path($real_path);
 
         // Security check: Must reside within ABSPATH
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
-            return ['success' => false, 'message' => __('Action Blocked: File is outside the WordPress root directory.', 'wcp-security-scanner')];
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+            return ['success' => false, 'message' => __('Action Blocked: File is outside the WordPress root directory.', 'webcare-pro-security')];
         }
 
         $normalized_abs = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
@@ -438,7 +438,7 @@ class RemediationManager {
         // Explicitly forbid restoring wp-config.php, .htaccess, or config templates
         $forbidden_basenames = ['wp-config.php', '.htaccess', 'php.ini', '.user.ini', 'web.config', 'robots.txt'];
         if (in_array(strtolower(basename($real_path)), $forbidden_basenames, true)) {
-            return ['success' => false, 'message' => __('Action Blocked: Critical configuration files cannot be overwritten with standard core templates.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Action Blocked: Critical configuration files cannot be overwritten with standard core templates.', 'webcare-pro-security')];
         }
 
         // Must be in wp-admin, wp-includes, or root core PHP file
@@ -446,12 +446,12 @@ class RemediationManager {
         $is_root_core = (!strpos($rel_file, '/') && preg_match('/^wp-.*\.php$|^index\.php$/', $rel_file));
 
         if (!$is_core_dir && !$is_root_core) {
-            return ['success' => false, 'message' => __('Action Blocked: Target file is not recognized as a WordPress core system file.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Action Blocked: Target file is not recognized as a WordPress core system file.', 'webcare-pro-security')];
         }
 
         // Never modify scanner plugin files
-        if (strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
-            return ['success' => false, 'message' => __('Action Blocked: Cannot modify security scanner files.', 'wcp-security-scanner')];
+        if (strpos($normalized_real, '/plugins/webcare-pro-security/') !== false) {
+            return ['success' => false, 'message' => __('Action Blocked: Cannot modify security scanner files.', 'webcare-pro-security')];
         }
 
         global $wp_version;
@@ -473,7 +473,7 @@ class RemediationManager {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: 1: relative file path, 2: WordPress version */
-                    __('Could not fetch official WordPress core release source for \'%1$s\' (WP v%2$s). Please verify server outbound internet connectivity.', 'wcp-security-scanner'),
+                    __('Could not fetch official WordPress core release source for \'%1$s\' (WP v%2$s). Please verify server outbound internet connectivity.', 'webcare-pro-security'),
                     $rel_file,
                     $clean_version
                 ),
@@ -482,29 +482,29 @@ class RemediationManager {
 
         $official_content = wp_remote_retrieve_body($response);
         if (empty($official_content)) {
-            return ['success' => false, 'message' => __('Retrieved official core source was unexpectedly empty. Action aborted for safety.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Retrieved official core source was unexpectedly empty. Action aborted for safety.', 'webcare-pro-security')];
         }
 
         // Create safety backup before touching the file
         $backup_result = $this->create_file_backup($real_path, 'official_core_restore');
         if (!$backup_result['success']) {
-            return ['success' => false, 'message' => __('Failed to generate safety backup. Aborting for safety.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Failed to generate safety backup. Aborting for safety.', 'webcare-pro-security')];
         }
 
         // Atomically replace core file with pristine official source, preventing symlink follower races
-        $written = \WcpScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
+        $written = \WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($real_path, $official_content, ABSPATH);
         if (!$written) {
-            return ['success' => false, 'message' => __('Could not write to core file. Please check server filesystem permissions.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Could not write to core file. Please check server filesystem permissions.', 'webcare-pro-security')];
         }
 
         // Mark scan issues as repaired
         $this->mark_file_issues_repaired($real_path, $issue_id);
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('fim_auto_cure_applied', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('fim_auto_cure_applied', [
                 'severity' => 'info',
                 /* translators: 1: relative file path, 2: WordPress version */
-                'message'  => sprintf(__('Auto-Cure restored "%1$s" to pristine official source (WP v%2$s).', 'wcp-security-scanner'), $rel_file, $clean_version),
+                'message'  => sprintf(__('Auto-Cure restored "%1$s" to pristine official source (WP v%2$s).', 'webcare-pro-security'), $rel_file, $clean_version),
                 'details'  => [
                     'Restored File'   => $rel_file,
                     'WordPress Version' => $clean_version,
@@ -518,7 +518,7 @@ class RemediationManager {
             'success'        => true,
             'message'        => sprintf(
                 /* translators: 1: WordPress version, 2: relative file path */
-                __('Core file successfully restored to pristine official WordPress.org release (WP v%1$s: %2$s). Safety backup created in vault.', 'wcp-security-scanner'),
+                __('Core file successfully restored to pristine official WordPress.org release (WP v%1$s: %2$s). Safety backup created in vault.', 'webcare-pro-security'),
                 $clean_version,
                 $rel_file
             ),
@@ -546,12 +546,12 @@ class RemediationManager {
             }
         }
         if (!$real_path || !file_exists($real_path)) {
-            return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Target file does not exist on server.', 'webcare-pro-security')];
         }
 
         $is_wp_config_parent = (realpath($real_path) === realpath(dirname(ABSPATH) . '/wp-config.php'));
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH) && !$is_wp_config_parent) {
-            return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner')];
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH) && !$is_wp_config_parent) {
+            return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'webcare-pro-security')];
         }
 
         $is_dir = is_dir($real_path);
@@ -587,7 +587,7 @@ class RemediationManager {
                 'success'             => false,
                 'message'             => sprintf(
                     /* translators: 1: file basename, 2: old permission, 3: target permission */
-                    __('Failed to change permissions for %1$s from %2$s to %3$s. Ensure the web server user has sufficient write privileges on this path.', 'wcp-security-scanner'),
+                    __('Failed to change permissions for %1$s from %2$s to %3$s. Ensure the web server user has sufficient write privileges on this path.', 'webcare-pro-security'),
                     basename($real_path),
                     $old_perm,
                     $target_perm_str
@@ -603,7 +603,7 @@ class RemediationManager {
             'success'             => true,
             'message'             => sprintf(
                 /* translators: 1: file basename, 2: old permission, 3: new permission */
-                __('Permissions successfully hardened for %1$s from %2$s to %3$s.', 'wcp-security-scanner'),
+                __('Permissions successfully hardened for %1$s from %2$s to %3$s.', 'webcare-pro-security'),
                 basename($real_path),
                 $old_perm,
                 $new_perm
@@ -632,11 +632,11 @@ class RemediationManager {
             }
         }
         if (!$real_path || !file_exists($real_path)) {
-            return ['success' => false, 'message' => __('Target file does not exist on server.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Target file does not exist on server.', 'webcare-pro-security')];
         }
 
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
-            return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner')];
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
+            return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'webcare-pro-security')];
         }
 
         // Prevent accidental deletion of protected core WordPress files
@@ -648,7 +648,7 @@ class RemediationManager {
         if (in_array($base_name, $protected_files, true)) {
             return ['success' => false, 'message' => sprintf(
                 /* translators: %s: file basename */
-                __('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'wcp-security-scanner'),
+                __('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'webcare-pro-security'),
                 $base_name
             )];
         }
@@ -666,7 +666,7 @@ class RemediationManager {
                 'success' => false,
                 'message' => sprintf(
                     /* translators: %s: file basename */
-                    __('Failed to delete %s. Check server filesystem write permissions.', 'wcp-security-scanner'),
+                    __('Failed to delete %s. Check server filesystem write permissions.', 'webcare-pro-security'),
                     basename($real_path)
                 )
             ];
@@ -678,7 +678,7 @@ class RemediationManager {
             'success'   => true,
             'message'   => sprintf(
                 /* translators: %s: file basename */
-                __('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WCP Vault.', 'wcp-security-scanner'),
+                __('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WCP Vault.', 'webcare-pro-security'),
                 basename($real_path)
             ),
             'backup_id' => $backup_id,
@@ -723,7 +723,7 @@ class RemediationManager {
         if (!$real_path || !file_exists($real_path)) {
             return [
                 'success' => false,
-                'message' => __('Target wp-config.php file does not exist on server.', 'wcp-security-scanner'),
+                'message' => __('Target wp-config.php file does not exist on server.', 'webcare-pro-security'),
             ];
         }
 
@@ -731,15 +731,15 @@ class RemediationManager {
         if (!$is_wp_config) {
             return [
                 'success' => false,
-                'message' => __('Action Blocked: Target file is not wp-config.php.', 'wcp-security-scanner'),
+                'message' => __('Action Blocked: Target file is not wp-config.php.', 'webcare-pro-security'),
             ];
         }
 
         $is_wp_config_parent = (realpath($real_path) === realpath(dirname(ABSPATH) . '/wp-config.php'));
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH) && !$is_wp_config_parent) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH) && !$is_wp_config_parent) {
             return [
                 'success' => false,
-                'message' => __('Action Blocked: File is outside WordPress root directory.', 'wcp-security-scanner'),
+                'message' => __('Action Blocked: File is outside WordPress root directory.', 'webcare-pro-security'),
             ];
         }
 
@@ -760,7 +760,7 @@ class RemediationManager {
         if (!$is_writable) {
             return [
                 'success' => false,
-                'message' => __('wp-config.php is not writable by the web server. Please check file permissions or owner.', 'wcp-security-scanner'),
+                'message' => __('wp-config.php is not writable by the web server. Please check file permissions or owner.', 'webcare-pro-security'),
             ];
         }
 
@@ -769,7 +769,7 @@ class RemediationManager {
         if (empty($backup_result['success'])) {
             return [
                 'success' => false,
-                'message' => __('Failed to create encrypted safety backup before modification. Aborting to protect your configuration.', 'wcp-security-scanner'),
+                'message' => __('Failed to create encrypted safety backup before modification. Aborting to protect your configuration.', 'webcare-pro-security'),
             ];
         }
 
@@ -777,7 +777,7 @@ class RemediationManager {
         if ($content === false || strlen($content) < 30) {
             return [
                 'success' => false,
-                'message' => __('Could not read contents of wp-config.php.', 'wcp-security-scanner'),
+                'message' => __('Could not read contents of wp-config.php.', 'webcare-pro-security'),
             ];
         }
 
@@ -880,7 +880,7 @@ class RemediationManager {
         if (empty($tokens) || count($tokens) < 5) {
             return [
                 'success' => false,
-                'message' => __('Syntax verification failed on transformed configuration. Modification canceled to avoid site downtime.', 'wcp-security-scanner'),
+                'message' => __('Syntax verification failed on transformed configuration. Modification canceled to avoid site downtime.', 'webcare-pro-security'),
             ];
         }
 
@@ -897,7 +897,7 @@ class RemediationManager {
         if (!$write_success) {
             return [
                 'success' => false,
-                'message' => __('Failed to write updated configuration to wp-config.php. Check disk space and permissions.', 'wcp-security-scanner'),
+                'message' => __('Failed to write updated configuration to wp-config.php. Check disk space and permissions.', 'webcare-pro-security'),
             ];
         }
 
@@ -909,13 +909,13 @@ class RemediationManager {
         $this->mark_file_issues_repaired($real_path, $issue_id);
 
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table_issues, ['status' => 'repaired'], ['type' => 'wp_debug_enabled']);
 
         return [
             'success'   => true,
-            'message'   => __('WordPress debugging has been securely disabled in wp-config.php (WP_DEBUG, WP_DEBUG_LOG, and WP_DEBUG_DISPLAY set to false; display_errors silenced). Encrypted backup retained in WCP Vault.', 'wcp-security-scanner'),
+            'message'   => __('WordPress debugging has been securely disabled in wp-config.php (WP_DEBUG, WP_DEBUG_LOG, and WP_DEBUG_DISPLAY set to false; display_errors silenced). Encrypted backup retained in WCP Vault.', 'webcare-pro-security'),
             'backup_id' => $backup_result['backup_id'],
             'file_path' => $real_path,
         ];
@@ -942,7 +942,7 @@ class RemediationManager {
         }
 
         $guard = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
-        $encrypted = \WcpScanner\Security\SecretVault::encrypt($content);
+        $encrypted = \WebCareProScanner\Security\SecretVault::encrypt($content);
 
         if (@file_put_contents($dest_path, $guard . $encrypted, LOCK_EX) === false) {
             return ['success' => false];
@@ -959,7 +959,7 @@ class RemediationManager {
             @chmod($dest_path, 0600);
         }
 
-        $backups = get_option('wcpscan_remediation_backups', []);
+        $backups = get_option('webcareproscan_remediation_backups', []);
         if (!is_array($backups)) {
             $backups = [];
         }
@@ -983,7 +983,7 @@ class RemediationManager {
             }
         }
 
-        update_option('wcpscan_remediation_backups', $backups, false);
+        update_option('webcareproscan_remediation_backups', $backups, false);
 
         return ['success' => true, 'backup_id' => $backup_id];
     }
@@ -992,7 +992,7 @@ class RemediationManager {
      * Rollback a remediation action using its backup ID
      */
     public function rollback_remediation($backup_id) {
-        $backups = get_option('wcpscan_remediation_backups', []);
+        $backups = get_option('webcareproscan_remediation_backups', []);
         if (!isset($backups[$backup_id])) {
             return ['success' => false, 'message' => 'Backup record not found.'];
         }
@@ -1017,8 +1017,8 @@ class RemediationManager {
             $payload = ltrim(substr($raw, $pos + strlen($halt_marker)), "\r\n");
         }
 
-        if (\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
-            $decrypted = \WcpScanner\Security\SecretVault::decrypt($payload);
+        if (\WebCareProScanner\Security\SecretVault::is_encrypted($payload)) {
+            $decrypted = \WebCareProScanner\Security\SecretVault::decrypt($payload);
             if ($decrypted === false) {
                 return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted backup ciphertext.'];
             }
@@ -1033,20 +1033,20 @@ class RemediationManager {
         }
 
         // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH and is safe to write
-        if (!\WcpScanner\Filesystem\PathValidator::is_safe_write_target($original_path, ABSPATH)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_safe_write_target($original_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: Rollback destination resides outside WordPress root directory.'];
         }
 
         // Atomically restore backup to original path, preventing symlink follower races
-        if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
             return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('remediation_transaction_rollback', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('remediation_transaction_rollback', [
                 'severity' => 'warning',
                 /* translators: 1: original file basename */
-                'message'  => sprintf(__('Remediation rollback completed for "%1$s". File restored from snapshot.', 'wcp-security-scanner'), basename($original_path)),
+                'message'  => sprintf(__('Remediation rollback completed for "%1$s". File restored from snapshot.', 'webcare-pro-security'), basename($original_path)),
                 'details'  => [
                     'Target File' => $original_path,
                     'Backup ID'   => $backup_id,
@@ -1065,7 +1065,7 @@ class RemediationManager {
      * Retrieve list of remediation backups
      */
     public function get_backups() {
-        $backups = get_option('wcpscan_remediation_backups', []);
+        $backups = get_option('webcareproscan_remediation_backups', []);
         if (!is_array($backups)) {
             return [];
         }
@@ -1080,7 +1080,7 @@ class RemediationManager {
             return;
         }
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update($table_issues, ['status' => 'repaired'], ['id' => (int) $issue_id]);
     }
@@ -1093,7 +1093,7 @@ class RemediationManager {
      */
     private function mark_file_issues_repaired($file_path, $issue_id = null) {
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
 
         if ($issue_id) {
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

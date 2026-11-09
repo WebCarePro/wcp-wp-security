@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
  * authenticated AES-256-GCM AEAD encryption prerequisites, memory thresholds,
  * MySQL capabilities, and filesystem vault write permissions.
  *
- * @package WcpScanner\System
+ * @package WebCareProScanner\System
  * @author  Mir Alamin (WebCare Pro)
  */
 class SystemReadinessChecker {
@@ -26,7 +26,7 @@ class SystemReadinessChecker {
     const MIN_MEMORY_LIMIT_MB   = 128;
     const RECOMMENDED_MEMORY_MB = 256;
 
-    const OPTION_WELCOME_DISMISSED = 'wcpscan_welcome_dismissed';
+    const OPTION_WELCOME_DISMISSED = 'webcareproscan_welcome_dismissed';
 
     /**
      * Run full pre-flight compatibility audit.
@@ -42,15 +42,15 @@ class SystemReadinessChecker {
         $php_recommended = version_compare($php_version, self::RECOMMENDED_PHP, '>=');
         $checks['php_version'] = [
             'key'         => 'php_version',
-            'title'       => __('PHP Runtime Version', 'wcp-security-scanner'),
+            'title'       => __('PHP Runtime Version', 'webcare-pro-security'),
             'category'    => 'runtime',
             'status'      => $php_ok ? ($php_recommended ? 'pass' : 'warn') : 'fail',
             'is_critical' => true,
             'current'     => $php_version,
             'required'    => '>= ' . self::MIN_PHP_VERSION,
             'recommended' => '>= ' . self::RECOMMENDED_PHP,
-            'description' => __('Requires PHP 8.3+ for modern cryptographic primitives, read-only classes, typed constants, and memory optimizations (PHP 8.1 and 8.2 are officially EOL).', 'wcp-security-scanner'),
-            'remedy'      => __('Upgrade your hosting environment or cPanel/Plesk PHP version selector to PHP 8.3 or PHP 8.4.', 'wcp-security-scanner'),
+            'description' => __('Requires PHP 8.3+ for modern cryptographic primitives, read-only classes, typed constants, and memory optimizations (PHP 8.1 and 8.2 are officially EOL).', 'webcare-pro-security'),
+            'remedy'      => __('Upgrade your hosting environment or cPanel/Plesk PHP version selector to PHP 8.3 or PHP 8.4.', 'webcare-pro-security'),
         ];
 
         // 2. WordPress Version
@@ -60,15 +60,15 @@ class SystemReadinessChecker {
         $wp_recommended = version_compare($wp_ver, self::RECOMMENDED_WP, '>=');
         $checks['wp_version'] = [
             'key'         => 'wp_version',
-            'title'       => __('WordPress Core Version', 'wcp-security-scanner'),
+            'title'       => __('WordPress Core Version', 'webcare-pro-security'),
             'category'    => 'runtime',
             'status'      => $wp_ok ? ($wp_recommended ? 'pass' : 'warn') : 'fail',
             'is_critical' => true,
             'current'     => $wp_ver,
             'required'    => '>= ' . self::MIN_WP_VERSION,
             'recommended' => '>= ' . self::RECOMMENDED_WP,
-            'description' => __('Requires WordPress 7.0+ for native AI Connectors (options-connectors.php), Script Modules API, and modern REST security schema.', 'wcp-security-scanner'),
-            'remedy'      => __('Update WordPress to the latest stable release (WordPress 7.0+) via Dashboard -> Updates.', 'wcp-security-scanner'),
+            'description' => __('Requires WordPress 7.0+ for native AI Connectors (options-connectors.php), Script Modules API, and modern REST security schema.', 'webcare-pro-security'),
+            'remedy'      => __('Update WordPress to the latest stable release (WordPress 7.0+) via Dashboard -> Updates.', 'webcare-pro-security'),
         ];
 
         // 3. PHP Memory Limit
@@ -78,15 +78,15 @@ class SystemReadinessChecker {
         $mem_recommended = $memory_mb >= self::RECOMMENDED_MEMORY_MB;
         $checks['memory_limit'] = [
             'key'         => 'memory_limit',
-            'title'       => __('PHP Allocated Memory Limit', 'wcp-security-scanner'),
+            'title'       => __('PHP Allocated Memory Limit', 'webcare-pro-security'),
             'category'    => 'performance',
             'status'      => $mem_ok ? ($mem_recommended ? 'pass' : 'warn') : 'fail',
             'is_critical' => false,
             'current'     => $memory_raw . ' (' . $memory_mb . ' MB)',
             'required'    => self::MIN_MEMORY_LIMIT_MB . ' MB',
             'recommended' => self::RECOMMENDED_MEMORY_MB . ' MB',
-            'description' => __('Large recursive file integrity scanning and Gzip database backups perform optimally with 256MB+ memory.', 'wcp-security-scanner'),
-            'remedy'      => __('Increase memory_limit in php.ini, .htaccess (php_value memory_limit 256M), or wp-config.php (define("WP_MEMORY_LIMIT", "256M")).', 'wcp-security-scanner'),
+            'description' => __('Large recursive file integrity scanning and Gzip database backups perform optimally with 256MB+ memory.', 'webcare-pro-security'),
+            'remedy'      => __('Increase memory_limit in php.ini, .htaccess (php_value memory_limit 256M), or wp-config.php (define("WP_MEMORY_LIMIT", "256M")).', 'webcare-pro-security'),
         ];
 
         // 4. OpenSSL & AES-256-GCM AEAD Authenticated Encryption
@@ -96,165 +96,165 @@ class SystemReadinessChecker {
         $crypto_ok = $openssl_loaded && $gcm_supported;
         $checks['crypto_aead'] = [
             'key'         => 'crypto_aead',
-            'title'       => __('OpenSSL AES-256-GCM AEAD Encryption', 'wcp-security-scanner'),
+            'title'       => __('OpenSSL AES-256-GCM AEAD Encryption', 'webcare-pro-security'),
             'category'    => 'security',
             'status'      => $crypto_ok ? 'pass' : 'fail',
             'is_critical' => true,
-            'current'     => $crypto_ok ? __('Available & Verified', 'wcp-security-scanner') : ($openssl_loaded ? __('Cipher aes-256-gcm Missing', 'wcp-security-scanner') : __('OpenSSL Extension Missing', 'wcp-security-scanner')),
-            'required'    => __('OpenSSL with aes-256-gcm support', 'wcp-security-scanner'),
-            'recommended' => __('OpenSSL 1.1.1+ or 3.x with hardware AES acceleration', 'wcp-security-scanner'),
-            'description' => __('Mandatory for the Secret & Key Vault. Encrypts all credentials, 2FA secrets, and login telemetry using 128-bit integrity tags.', 'wcp-security-scanner'),
-            'remedy'      => __('Enable the PHP OpenSSL extension in your server PHP configuration (extension=openssl).', 'wcp-security-scanner'),
+            'current'     => $crypto_ok ? __('Available & Verified', 'webcare-pro-security') : ($openssl_loaded ? __('Cipher aes-256-gcm Missing', 'webcare-pro-security') : __('OpenSSL Extension Missing', 'webcare-pro-security')),
+            'required'    => __('OpenSSL with aes-256-gcm support', 'webcare-pro-security'),
+            'recommended' => __('OpenSSL 1.1.1+ or 3.x with hardware AES acceleration', 'webcare-pro-security'),
+            'description' => __('Mandatory for the Secret & Key Vault. Encrypts all credentials, 2FA secrets, and login telemetry using 128-bit integrity tags.', 'webcare-pro-security'),
+            'remedy'      => __('Enable the PHP OpenSSL extension in your server PHP configuration (extension=openssl).', 'webcare-pro-security'),
         ];
 
         // 5. Cryptographically Secure Pseudo-Random Number Generator (CSPRNG)
         $csprng_ok = function_exists('random_bytes') && function_exists('random_int');
         $checks['csprng'] = [
             'key'         => 'csprng',
-            'title'       => __('CSPRNG Entropy Source (random_bytes)', 'wcp-security-scanner'),
+            'title'       => __('CSPRNG Entropy Source (random_bytes)', 'webcare-pro-security'),
             'category'    => 'security',
             'status'      => $csprng_ok ? 'pass' : 'fail',
             'is_critical' => true,
-            'current'     => $csprng_ok ? __('Hardware-backed CSPRNG Active', 'wcp-security-scanner') : __('Unavailable', 'wcp-security-scanner'),
-            'required'    => __('System /dev/urandom or CryptGenRandom access', 'wcp-security-scanner'),
-            'recommended' => __('Kernel-level secure entropy source', 'wcp-security-scanner'),
-            'description' => __('Generates cryptographically unpredictable 96-bit IVs and 256-bit encryption keys.', 'wcp-security-scanner'),
-            'remedy'      => __('Ensure your PHP binary was compiled with kernel random device support.', 'wcp-security-scanner'),
+            'current'     => $csprng_ok ? __('Hardware-backed CSPRNG Active', 'webcare-pro-security') : __('Unavailable', 'webcare-pro-security'),
+            'required'    => __('System /dev/urandom or CryptGenRandom access', 'webcare-pro-security'),
+            'recommended' => __('Kernel-level secure entropy source', 'webcare-pro-security'),
+            'description' => __('Generates cryptographically unpredictable 96-bit IVs and 256-bit encryption keys.', 'webcare-pro-security'),
+            'remedy'      => __('Ensure your PHP binary was compiled with kernel random device support.', 'webcare-pro-security'),
         ];
 
         // 6. cURL Extension (Threat Intel & Remote Lookups)
         $curl_ok = extension_loaded('curl');
         $checks['curl'] = [
             'key'         => 'curl',
-            'title'       => __('cURL Network Extension', 'wcp-security-scanner'),
+            'title'       => __('cURL Network Extension', 'webcare-pro-security'),
             'category'    => 'network',
             'status'      => $curl_ok ? 'pass' : 'warn',
             'is_critical' => false,
-            'current'     => $curl_ok ? ('cURL ' . (curl_version()['version'] ?? 'Active')) : __('Missing', 'wcp-security-scanner'),
-            'required'    => __('cURL PHP extension', 'wcp-security-scanner'),
-            'recommended' => __('cURL with OpenSSL/TLS 1.3', 'wcp-security-scanner'),
-            'description' => __('Used by WordPress HTTP API to sync threat intelligence feeds and official WordPress.org checksum baselines.', 'wcp-security-scanner'),
-            'remedy'      => __('Install or enable php-curl on your server.', 'wcp-security-scanner'),
+            'current'     => $curl_ok ? ('cURL ' . (curl_version()['version'] ?? 'Active')) : __('Missing', 'webcare-pro-security'),
+            'required'    => __('cURL PHP extension', 'webcare-pro-security'),
+            'recommended' => __('cURL with OpenSSL/TLS 1.3', 'webcare-pro-security'),
+            'description' => __('Used by WordPress HTTP API to sync threat intelligence feeds and official WordPress.org checksum baselines.', 'webcare-pro-security'),
+            'remedy'      => __('Install or enable php-curl on your server.', 'webcare-pro-security'),
         ];
 
         // 7. ZipArchive Extension (Quarantine & Forensic Packaging)
         $zip_ok = class_exists('\ZipArchive');
         $checks['zip'] = [
             'key'         => 'zip',
-            'title'       => __('ZipArchive Extension', 'wcp-security-scanner'),
+            'title'       => __('ZipArchive Extension', 'webcare-pro-security'),
             'category'    => 'filesystem',
             'status'      => $zip_ok ? 'pass' : 'warn',
             'is_critical' => false,
-            'current'     => $zip_ok ? __('Available', 'wcp-security-scanner') : __('Missing', 'wcp-security-scanner'),
-            'required'    => __('ZipArchive PHP class', 'wcp-security-scanner'),
-            'recommended' => __('libzip 1.7+', 'wcp-security-scanner'),
-            'description' => __('Used for compressed quarantine archives, forensic package downloads, and pre-remediation snapshots.', 'wcp-security-scanner'),
-            'remedy'      => __('Install php-zip (sudo apt install php-zip / cPanel PHP Extensions).', 'wcp-security-scanner'),
+            'current'     => $zip_ok ? __('Available', 'webcare-pro-security') : __('Missing', 'webcare-pro-security'),
+            'required'    => __('ZipArchive PHP class', 'webcare-pro-security'),
+            'recommended' => __('libzip 1.7+', 'webcare-pro-security'),
+            'description' => __('Used for compressed quarantine archives, forensic package downloads, and pre-remediation snapshots.', 'webcare-pro-security'),
+            'remedy'      => __('Install php-zip (sudo apt install php-zip / cPanel PHP Extensions).', 'webcare-pro-security'),
         ];
 
         // 8. Zlib Extension (Gzip Database Vault)
         $zlib_ok = function_exists('gzopen') && function_exists('gzwrite');
         $checks['zlib'] = [
             'key'         => 'zlib',
-            'title'       => __('Zlib Compression (gzopen)', 'wcp-security-scanner'),
+            'title'       => __('Zlib Compression (gzopen)', 'webcare-pro-security'),
             'category'    => 'filesystem',
             'status'      => $zlib_ok ? 'pass' : 'warn',
             'is_critical' => false,
-            'current'     => $zlib_ok ? __('Available', 'wcp-security-scanner') : __('Missing', 'wcp-security-scanner'),
-            'required'    => __('Zlib extension', 'wcp-security-scanner'),
-            'recommended' => __('Zlib 1.2.11+', 'wcp-security-scanner'),
-            'description' => __('Used for on-demand streaming Gzip compression in the Database Backup Vault (.sql.gz).', 'wcp-security-scanner'),
-            'remedy'      => __('Enable the zlib PHP extension in php.ini.', 'wcp-security-scanner'),
+            'current'     => $zlib_ok ? __('Available', 'webcare-pro-security') : __('Missing', 'webcare-pro-security'),
+            'required'    => __('Zlib extension', 'webcare-pro-security'),
+            'recommended' => __('Zlib 1.2.11+', 'webcare-pro-security'),
+            'description' => __('Used for on-demand streaming Gzip compression in the Database Backup Vault (.sql.gz).', 'webcare-pro-security'),
+            'remedy'      => __('Enable the zlib PHP extension in php.ini.', 'webcare-pro-security'),
         ];
 
         // 9. JSON Extension
         $json_ok = function_exists('json_encode') && function_exists('json_decode');
         $checks['json'] = [
             'key'         => 'json',
-            'title'       => __('JSON Extension', 'wcp-security-scanner'),
+            'title'       => __('JSON Extension', 'webcare-pro-security'),
             'category'    => 'runtime',
             'status'      => $json_ok ? 'pass' : 'fail',
             'is_critical' => true,
-            'current'     => $json_ok ? __('Active', 'wcp-security-scanner') : __('Missing', 'wcp-security-scanner'),
-            'required'    => __('JSON extension', 'wcp-security-scanner'),
-            'recommended' => __('Native PHP JSON serializer', 'wcp-security-scanner'),
-            'description' => __('Mandatory for REST API serialization, JSON-RPC 2.0 MCP agent server, and settings storage.', 'wcp-security-scanner'),
-            'remedy'      => __('Ensure the json extension is compiled into your PHP runtime.', 'wcp-security-scanner'),
+            'current'     => $json_ok ? __('Active', 'webcare-pro-security') : __('Missing', 'webcare-pro-security'),
+            'required'    => __('JSON extension', 'webcare-pro-security'),
+            'recommended' => __('Native PHP JSON serializer', 'webcare-pro-security'),
+            'description' => __('Mandatory for REST API serialization, JSON-RPC 2.0 MCP agent server, and settings storage.', 'webcare-pro-security'),
+            'remedy'      => __('Ensure the json extension is compiled into your PHP runtime.', 'webcare-pro-security'),
         ];
 
         // 10. Multibyte String (mbstring)
         $mbstring_ok = extension_loaded('mbstring');
         $checks['mbstring'] = [
             'key'         => 'mbstring',
-            'title'       => __('Multibyte String (mbstring)', 'wcp-security-scanner'),
+            'title'       => __('Multibyte String (mbstring)', 'webcare-pro-security'),
             'category'    => 'runtime',
             'status'      => $mbstring_ok ? 'pass' : 'warn',
             'is_critical' => false,
-            'current'     => $mbstring_ok ? __('Active', 'wcp-security-scanner') : __('Missing', 'wcp-security-scanner'),
-            'required'    => __('mbstring extension', 'wcp-security-scanner'),
-            'recommended' => __('mbstring enabled with UTF-8 encoding', 'wcp-security-scanner'),
-            'description' => __('Ensures safe byte-accurate regex pattern evaluation and malware detection across international character sets.', 'wcp-security-scanner'),
-            'remedy'      => __('Install php-mbstring on your server.', 'wcp-security-scanner'),
+            'current'     => $mbstring_ok ? __('Active', 'webcare-pro-security') : __('Missing', 'webcare-pro-security'),
+            'required'    => __('mbstring extension', 'webcare-pro-security'),
+            'recommended' => __('mbstring enabled with UTF-8 encoding', 'webcare-pro-security'),
+            'description' => __('Ensures safe byte-accurate regex pattern evaluation and malware detection across international character sets.', 'webcare-pro-security'),
+            'remedy'      => __('Install php-mbstring on your server.', 'webcare-pro-security'),
         ];
 
         // 11. Sodium Extension (Optional Sealed Key Envelopes)
         $sodium_ok = extension_loaded('sodium');
         $checks['sodium'] = [
             'key'         => 'sodium',
-            'title'       => __('Libsodium Sealed Cryptography (Optional)', 'wcp-security-scanner'),
+            'title'       => __('Libsodium Sealed Cryptography (Optional)', 'webcare-pro-security'),
             'category'    => 'security',
             'status'      => $sodium_ok ? 'pass' : 'info',
             'is_critical' => false,
-            'current'     => $sodium_ok ? __('Available & Verified', 'wcp-security-scanner') : __('Not Loaded (Fallback Active)', 'wcp-security-scanner'),
-            'required'    => __('Optional', 'wcp-security-scanner'),
-            'recommended' => __('Sodium extension for hardware-sealed key rotation envelopes', 'wcp-security-scanner'),
-            'description' => __('Provides sealed box key envelopes for zero-downtime key rotation. Built-in fallback uses AES-256-GCM if absent.', 'wcp-security-scanner'),
-            'remedy'      => __('Enable php-sodium in your PHP extensions selector for enhanced key rotation protection.', 'wcp-security-scanner'),
+            'current'     => $sodium_ok ? __('Available & Verified', 'webcare-pro-security') : __('Not Loaded (Fallback Active)', 'webcare-pro-security'),
+            'required'    => __('Optional', 'webcare-pro-security'),
+            'recommended' => __('Sodium extension for hardware-sealed key rotation envelopes', 'webcare-pro-security'),
+            'description' => __('Provides sealed box key envelopes for zero-downtime key rotation. Built-in fallback uses AES-256-GCM if absent.', 'webcare-pro-security'),
+            'remedy'      => __('Enable php-sodium in your PHP extensions selector for enhanced key rotation protection.', 'webcare-pro-security'),
         ];
 
         // 12. Vault Storage Directory & Write Permissions
         $vault_check = self::test_vault_storage();
         $checks['vault_storage'] = [
             'key'         => 'vault_storage',
-            'title'       => __('Vault Storage Filesystem Permissions', 'wcp-security-scanner'),
+            'title'       => __('Vault Storage Filesystem Permissions', 'webcare-pro-security'),
             'category'    => 'filesystem',
             'status'      => $vault_check['ok'] ? 'pass' : 'fail',
             'is_critical' => true,
-            'current'     => $vault_check['ok'] ? __('Writable & Verified', 'wcp-security-scanner') : $vault_check['message'],
-            'required'    => __('Writable uploads/wcp-security-scanner directory', 'wcp-security-scanner'),
-            'recommended' => __('Directory permissions 0755 or 0775 owned by web server', 'wcp-security-scanner'),
-            'description' => __('Secure local storage under wp-content/uploads/wcp-security-scanner for quarantine, backups, and diff caches.', 'wcp-security-scanner'),
-            'remedy'      => __('Ensure wp-content/uploads is writable by your web server user (e.g., www-data, chown -R www-data:www-data).', 'wcp-security-scanner'),
+            'current'     => $vault_check['ok'] ? __('Writable & Verified', 'webcare-pro-security') : $vault_check['message'],
+            'required'    => __('Writable uploads/wcp-security-scanner directory', 'webcare-pro-security'),
+            'recommended' => __('Directory permissions 0755 or 0775 owned by web server', 'webcare-pro-security'),
+            'description' => __('Secure local storage under wp-content/uploads/wcp-security-scanner for quarantine, backups, and diff caches.', 'webcare-pro-security'),
+            'remedy'      => __('Ensure wp-content/uploads is writable by your web server user (e.g., www-data, chown -R www-data:www-data).', 'webcare-pro-security'),
         ];
 
         // 13. MySQL Database Capability & Schema Permissions
         $db_check = self::test_database_permissions();
         $checks['database'] = [
             'key'         => 'database',
-            'title'       => __('Database Schema & Table Privileges', 'wcp-security-scanner'),
+            'title'       => __('Database Schema & Table Privileges', 'webcare-pro-security'),
             'category'    => 'database',
             'status'      => $db_check['ok'] ? 'pass' : 'fail',
             'is_critical' => true,
-            'current'     => $db_check['ok'] ? __('All Privileges Verified', 'wcp-security-scanner') : $db_check['message'],
-            'required'    => __('CREATE TABLE, ALTER TABLE, SELECT, INSERT, UPDATE, DELETE', 'wcp-security-scanner'),
-            'recommended' => __('MySQL 5.7+ or MariaDB 10.3+ with InnoDB engine', 'wcp-security-scanner'),
-            'description' => __('Required to manage custom tables for file audits, threat issues, quarantine registry, and login history.', 'wcp-security-scanner'),
-            'remedy'      => __('Grant CREATE and ALTER privileges to your WordPress database user.', 'wcp-security-scanner'),
+            'current'     => $db_check['ok'] ? __('All Privileges Verified', 'webcare-pro-security') : $db_check['message'],
+            'required'    => __('CREATE TABLE, ALTER TABLE, SELECT, INSERT, UPDATE, DELETE', 'webcare-pro-security'),
+            'recommended' => __('MySQL 5.7+ or MariaDB 10.3+ with InnoDB engine', 'webcare-pro-security'),
+            'description' => __('Required to manage custom tables for file audits, threat issues, quarantine registry, and login history.', 'webcare-pro-security'),
+            'remedy'      => __('Grant CREATE and ALTER privileges to your WordPress database user.', 'webcare-pro-security'),
         ];
 
         // 14. SSL / HTTPS Status
         $ssl_ok = is_ssl();
         $checks['ssl'] = [
             'key'         => 'ssl',
-            'title'       => __('HTTPS / Transport Layer Security (TLS)', 'wcp-security-scanner'),
+            'title'       => __('HTTPS / Transport Layer Security (TLS)', 'webcare-pro-security'),
             'category'    => 'security',
             'status'      => $ssl_ok ? 'pass' : 'warn',
             'is_critical' => false,
-            'current'     => $ssl_ok ? __('HTTPS Active', 'wcp-security-scanner') : __('Insecure HTTP Detected', 'wcp-security-scanner'),
-            'required'    => __('Recommended for admin security', 'wcp-security-scanner'),
-            'recommended' => __('TLS 1.2 or TLS 1.3 certificate', 'wcp-security-scanner'),
-            'description' => __('Protects administrative session tokens, 2FA QR secrets, and REST API communication from network eavesdropping.', 'wcp-security-scanner'),
-            'remedy'      => __('Install an SSL certificate (e.g. free Let\'s Encrypt) and enforce HTTPS.', 'wcp-security-scanner'),
+            'current'     => $ssl_ok ? __('HTTPS Active', 'webcare-pro-security') : __('Insecure HTTP Detected', 'webcare-pro-security'),
+            'required'    => __('Recommended for admin security', 'webcare-pro-security'),
+            'recommended' => __('TLS 1.2 or TLS 1.3 certificate', 'webcare-pro-security'),
+            'description' => __('Protects administrative session tokens, 2FA QR secrets, and REST API communication from network eavesdropping.', 'webcare-pro-security'),
+            'remedy'      => __('Install an SSL certificate (e.g. free Let\'s Encrypt) and enforce HTTPS.', 'webcare-pro-security'),
         ];
 
         // Summary Calculations
@@ -327,7 +327,7 @@ class SystemReadinessChecker {
             return [
                 'ok'      => false,
                 /* translators: %s: error message */
-                'message' => sprintf(__('wp_upload_dir error: %s', 'wcp-security-scanner'), $upload_dir['error']),
+                'message' => sprintf(__('wp_upload_dir error: %s', 'webcare-pro-security'), $upload_dir['error']),
             ];
         }
 
@@ -337,7 +337,7 @@ class SystemReadinessChecker {
                 'ok'      => false,
                 'message' => sprintf(
                     /* translators: %s: directory path */
-                    __('Directory %s is not writable.', 'wcp-security-scanner'),
+                    __('Directory %s is not writable.', 'webcare-pro-security'),
                     $base
                 ),
             ];
@@ -349,7 +349,7 @@ class SystemReadinessChecker {
                 return [
                     'ok'      => false,
                     /* translators: %s: directory path */
-                    'message' => sprintf(__('Unable to create vault directory: %s', 'wcp-security-scanner'), $vault_dir),
+                    'message' => sprintf(__('Unable to create vault directory: %s', 'webcare-pro-security'), $vault_dir),
                 ];
             }
         }
@@ -360,7 +360,7 @@ class SystemReadinessChecker {
         if ($written === false) {
             return [
                 'ok'      => false,
-                'message' => __('Unable to write temporary test file inside vault directory.', 'wcp-security-scanner'),
+                'message' => __('Unable to write temporary test file inside vault directory.', 'webcare-pro-security'),
             ];
         }
 
@@ -370,7 +370,7 @@ class SystemReadinessChecker {
 
         return [
             'ok'      => true,
-            'message' => __('Vault storage verified writable.', 'wcp-security-scanner'),
+            'message' => __('Vault storage verified writable.', 'webcare-pro-security'),
         ];
     }
 
@@ -381,7 +381,7 @@ class SystemReadinessChecker {
         global $wpdb;
 
         // Verify basic table query
-        $test_table = $wpdb->prefix . 'wcpscan_readiness_test_' . time();
+        $test_table = $wpdb->prefix . 'webcareproscan_readiness_test_' . time();
         $charset_collate = $wpdb->get_charset_collate();
 
         $create_sql = "CREATE TABLE IF NOT EXISTS `{$test_table}` (`id` int(11) NOT NULL AUTO_INCREMENT, `val` varchar(64) DEFAULT NULL, PRIMARY KEY (`id`)) {$charset_collate};";
@@ -392,7 +392,7 @@ class SystemReadinessChecker {
             return [
                 'ok'      => false,
                 /* translators: %s: database error description */
-                'message' => sprintf(__('Database user lacks CREATE TABLE privilege: %s', 'wcp-security-scanner'), $wpdb->last_error),
+                'message' => sprintf(__('Database user lacks CREATE TABLE privilege: %s', 'webcare-pro-security'), $wpdb->last_error),
             ];
         }
 
@@ -402,7 +402,7 @@ class SystemReadinessChecker {
 
         return [
             'ok'      => true,
-            'message' => __('Database schema privileges verified.', 'wcp-security-scanner'),
+            'message' => __('Database schema privileges verified.', 'webcare-pro-security'),
         ];
     }
 
@@ -426,7 +426,7 @@ class SystemReadinessChecker {
         }
 
         // Deactivate plugin cleanly
-        deactivate_plugins(plugin_basename(WCPSCAN_FILE));
+        deactivate_plugins(plugin_basename(WEBCAREPROSCAN_FILE));
 
         // Format aesthetic failure screen
         $errors_html = '';
@@ -460,7 +460,7 @@ class SystemReadinessChecker {
         </div>';
 
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        wp_die($html, esc_html__('WCP Security Scanner — Compatibility Requirement Unmet', 'wcp-security-scanner'), [
+        wp_die($html, esc_html__('WCP Security Scanner — Compatibility Requirement Unmet', 'webcare-pro-security'), [
             'response'  => 500,
             'back_link' => true,
         ]);

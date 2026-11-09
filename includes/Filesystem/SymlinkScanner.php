@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Filesystem;
+namespace WebCareProScanner\Filesystem;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;

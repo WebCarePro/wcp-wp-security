@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Admin;
+namespace WebCareProScanner\Admin;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -9,15 +9,15 @@ class AdminMenu {
     public static function register() {
         add_action('admin_menu', [__CLASS__, 'add_menu_page']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
-        add_filter('plugin_action_links_' . plugin_basename(WCPSCAN_FILE), [__CLASS__, 'add_plugin_action_links']);
+        add_filter('plugin_action_links_' . plugin_basename(WEBCAREPROSCAN_FILE), [__CLASS__, 'add_plugin_action_links']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_brand_styles']);
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
         add_action('admin_init', [__CLASS__, 'handle_wizard_activation_redirect']);
         add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
         add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
-        add_action('wp_ajax_wcpscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
-        add_action('wp_ajax_wcpscan_dismiss_quarantined_notice', [__CLASS__, 'ajax_dismiss_quarantined_notice']);
+        add_action('wp_ajax_webcareproscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
+        add_action('wp_ajax_webcareproscan_dismiss_quarantined_notice', [__CLASS__, 'ajax_dismiss_quarantined_notice']);
         add_filter('script_loader_tag', [__CLASS__, 'add_charset_to_scripts'], 10, 2);
     }
 
@@ -42,9 +42,9 @@ class AdminMenu {
      * @return string
      */
     public static function get_menu_icon(): string {
-        $png_icon = plugin_dir_path(WCPSCAN_FILE) . 'assets/logo-96x96.png';
+        $png_icon = plugin_dir_path(WEBCAREPROSCAN_FILE) . 'assets/logo-96x96.png';
         if (!file_exists($png_icon)) {
-            $png_icon = plugin_dir_path(WCPSCAN_FILE) . 'assets/logo.png';
+            $png_icon = plugin_dir_path(WEBCAREPROSCAN_FILE) . 'assets/logo.png';
         }
         if (file_exists($png_icon)) {
             $png_content = @file_get_contents($png_icon);
@@ -56,7 +56,7 @@ class AdminMenu {
                 return 'data:image/svg+xml;base64,' . base64_encode($svg_wrapper);
             }
         }
-        $icon_file = plugin_dir_path(WCPSCAN_FILE) . 'assets/icon.svg';
+        $icon_file = plugin_dir_path(WEBCAREPROSCAN_FILE) . 'assets/icon.svg';
         if (file_exists($icon_file)) {
             $svg_content = @file_get_contents($icon_file);
             if ($svg_content !== false && !empty($svg_content)) {
@@ -71,10 +71,10 @@ class AdminMenu {
 
         // Main Menu: Dashboard
         add_menu_page(
-            __('WCP Security Scanner', 'wcp-security-scanner'),
-            __('WCP Security Scanner', 'wcp-security-scanner'),
+            __('WCP Security Scanner', 'webcare-pro-security'),
+            __('WCP Security Scanner', 'webcare-pro-security'),
             'manage_options',
-            'wcp-security-scanner',
+            'webcare-pro-security',
             [__CLASS__, 'render_app_container'],
             $menu_icon,
             80
@@ -86,19 +86,19 @@ class AdminMenu {
 
         // 1. Submenu: Dashboard
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Scanner Dashboard', 'wcp-security-scanner'),
-            __('Dashboard', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('Scanner Dashboard', 'webcare-pro-security'),
+            __('Dashboard', 'webcare-pro-security'),
             'manage_options',
-            'wcp-security-scanner',
+            'webcare-pro-security',
             [__CLASS__, 'render_app_container']
         );
 
         // 2. Submenu: Security Scanner
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Security Scan & Findings', 'wcp-security-scanner'),
-            __('Security Scanner', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('Security Scan & Findings', 'webcare-pro-security'),
+            __('Security Scanner', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-scan',
             [__CLASS__, 'render_app_container']
@@ -106,9 +106,9 @@ class AdminMenu {
 
         // 3. Submenu: Firewall & WAF
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Web Application Firewall & Traffic Defense', 'wcp-security-scanner'),
-            __('Firewall & WAF', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('Web Application Firewall & Traffic Defense', 'webcare-pro-security'),
+            __('Firewall & WAF', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-firewall',
             [__CLASS__, 'render_app_container']
@@ -116,9 +116,9 @@ class AdminMenu {
 
         // 4. Submenu: Identity & Access
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Zero-Trust Identity, 2FA & Access Control', 'wcp-security-scanner'),
-            __('Identity & Access', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('Zero-Trust Identity, 2FA & Access Control', 'webcare-pro-security'),
+            __('Identity & Access', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-auth',
             [__CLASS__, 'render_app_container']
@@ -126,9 +126,9 @@ class AdminMenu {
 
         // 5. Submenu: Quarantine & Vault
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Quarantine Vault & Safety Recoveries', 'wcp-security-scanner'),
-            __('Quarantine & Vault', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('Quarantine Vault & Safety Recoveries', 'webcare-pro-security'),
+            __('Quarantine & Vault', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-vault',
             [__CLASS__, 'render_app_container']
@@ -136,9 +136,9 @@ class AdminMenu {
 
         // 6. Submenu: System Forensics & Diagnostics
         add_submenu_page(
-            'wcp-security-scanner',
-            __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
-            __('System Forensics', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
+            __('System Forensics', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-forensics',
             [__CLASS__, 'render_app_container']
@@ -146,9 +146,9 @@ class AdminMenu {
 
         // 7. Submenu: Settings & AI
         add_submenu_page(
-            'wcp-security-scanner',
-            __('Scanner Settings, AI Copilot & Governance', 'wcp-security-scanner'),
-            __('Settings & AI', 'wcp-security-scanner'),
+            'webcare-pro-security',
+            __('Scanner Settings, AI Copilot & Governance', 'webcare-pro-security'),
+            __('Settings & AI', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-settings',
             [__CLASS__, 'render_app_container']
@@ -161,8 +161,8 @@ class AdminMenu {
         // Sub-Page: Virtual Patching & 0-Day Exploit Studio
         add_submenu_page(
             null,
-            __('Virtual Patching & 0-Day Exploit Studio', 'wcp-security-scanner'),
-            __('Virtual Patching', 'wcp-security-scanner'),
+            __('Virtual Patching & 0-Day Exploit Studio', 'webcare-pro-security'),
+            __('Virtual Patching', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-vpatch',
             [__CLASS__, 'render_app_container']
@@ -171,8 +171,8 @@ class AdminMenu {
         // Sub-Page: About & Services
         add_submenu_page(
             null,
-            __('About WebCare Pro & Direct Support', 'wcp-security-scanner'),
-            __('About & Support', 'wcp-security-scanner'),
+            __('About WebCare Pro & Direct Support', 'webcare-pro-security'),
+            __('About & Support', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-about',
             [__CLASS__, 'render_app_container']
@@ -181,8 +181,8 @@ class AdminMenu {
         // Sub-Page: Targeted Scans
         add_submenu_page(
             null,
-            __('Targeted Security Audits', 'wcp-security-scanner'),
-            __('Targeted Scans', 'wcp-security-scanner'),
+            __('Targeted Security Audits', 'webcare-pro-security'),
+            __('Targeted Scans', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-tools',
             [__CLASS__, 'render_app_container']
@@ -191,8 +191,8 @@ class AdminMenu {
         // Sub-Page: Scan Logs & History
         add_submenu_page(
             null,
-            __('Scan Logs & Audit History', 'wcp-security-scanner'),
-            __('Scan Logs', 'wcp-security-scanner'),
+            __('Scan Logs & Audit History', 'webcare-pro-security'),
+            __('Scan Logs', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-logs',
             [__CLASS__, 'render_app_container']
@@ -201,8 +201,8 @@ class AdminMenu {
         // Sub-Page: System Forensics & Deep Diagnostics
         add_submenu_page(
             null,
-            __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
-            __('System Forensics', 'wcp-security-scanner'),
+            __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
+            __('System Forensics', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-forensics',
             [__CLASS__, 'render_app_container']
@@ -211,8 +211,8 @@ class AdminMenu {
         // Sub-Page: File Integrity Monitoring (FIM) & Code Diff
         add_submenu_page(
             null,
-            __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
-            __('File Integrity (FIM)', 'wcp-security-scanner'),
+            __('File Integrity Monitoring (FIM) & Code Diff', 'webcare-pro-security'),
+            __('File Integrity (FIM)', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-fim',
             [__CLASS__, 'render_app_container']
@@ -221,8 +221,8 @@ class AdminMenu {
         // Sub-Page: Vulnerabilities & Updates (Outdated Themes/Plugins/Core with CVEs)
         add_submenu_page(
             null,
-            __('Vulnerabilities & Updates', 'wcp-security-scanner'),
-            __('Vulnerabilities', 'wcp-security-scanner'),
+            __('Vulnerabilities & Updates', 'webcare-pro-security'),
+            __('Vulnerabilities', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-vulnerabilities',
             [__CLASS__, 'render_app_container']
@@ -231,8 +231,8 @@ class AdminMenu {
         // Sub-Page: Onboarding & Protection Quickstart Wizard
         add_submenu_page(
             null,
-            __('WCP Security Protection Quickstart Wizard', 'wcp-security-scanner'),
-            __('Protection Wizard', 'wcp-security-scanner'),
+            __('WCP Security Protection Quickstart Wizard', 'webcare-pro-security'),
+            __('Protection Wizard', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-wizard',
             [__CLASS__, 'render_app_container']
@@ -241,8 +241,8 @@ class AdminMenu {
         // Sub-Page: Database Backup Vault
         add_submenu_page(
             null,
-            __('Database Backup Vault', 'wcp-security-scanner'),
-            __('Database Backup', 'wcp-security-scanner'),
+            __('Database Backup Vault', 'webcare-pro-security'),
+            __('Database Backup', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-backup',
             [__CLASS__, 'render_app_container']
@@ -251,8 +251,8 @@ class AdminMenu {
         // Sub-Page: Server & Host Infrastructure Telemetry
         add_submenu_page(
             null,
-            __('Server & Host Infrastructure Telemetry', 'wcp-security-scanner'),
-            __('Host Telemetry', 'wcp-security-scanner'),
+            __('Server & Host Infrastructure Telemetry', 'webcare-pro-security'),
+            __('Host Telemetry', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-server',
             [__CLASS__, 'render_app_container']
@@ -261,8 +261,8 @@ class AdminMenu {
         // Sub-Page: WAF Incident Logs & Telemetry
         add_submenu_page(
             null,
-            __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
-            __('WAF Logs', 'wcp-security-scanner'),
+            __('WAF Incident Logs & Attack Forensics', 'webcare-pro-security'),
+            __('WAF Logs', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-waf-logs',
             [__CLASS__, 'render_app_container']
@@ -271,8 +271,8 @@ class AdminMenu {
         // Sub-Page: Notifications & Alerts
         add_submenu_page(
             null,
-            __('Notifications & Security Alerts', 'wcp-security-scanner'),
-            __('Notifications', 'wcp-security-scanner'),
+            __('Notifications & Security Alerts', 'webcare-pro-security'),
+            __('Notifications', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-notifications',
             [__CLASS__, 'render_app_container']
@@ -281,8 +281,8 @@ class AdminMenu {
         // Sub-Page: Activity & Audit Logs
         add_submenu_page(
             null,
-            __('Plugin Activity & Audit Logs', 'wcp-security-scanner'),
-            __('Activity Logs', 'wcp-security-scanner'),
+            __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
+            __('Activity Logs', 'webcare-pro-security'),
             'manage_options',
             'wcp-scanner-activity-logs',
             [__CLASS__, 'render_app_container']
@@ -299,31 +299,31 @@ class AdminMenu {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
             $title_map = [
-                'wcp-security-scanner'       => __('WCP Security Scanner', 'wcp-security-scanner'),
-                'wcp-scanner-scan'           => __('Security Scan & Findings', 'wcp-security-scanner'),
-                'wcp-scanner-firewall'       => __('Web Application Firewall (WAF Lite)', 'wcp-security-scanner'),
-                'wcp-scanner-caf'            => __('Context-Adaptive Firewall (CAF) & StackGuard', 'wcp-security-scanner'),
-                'wcp-scanner-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'wcp-security-scanner'),
-                'wcp-scanner-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'wcp-security-scanner'),
-                'wcp-scanner-vault'          => __('WCP Vault & Safety Recoveries', 'wcp-security-scanner'),
-                'wcp-scanner-settings'       => __('Scanner Settings & AI Configuration', 'wcp-security-scanner'),
-                'wcp-scanner-about'          => __('About WebCare Pro & Services', 'wcp-security-scanner'),
-                'wcp-scanner-tools'          => __('Targeted Security Audits', 'wcp-security-scanner'),
-                'wcp-scanner-logs'           => __('Scan Logs & Audit History', 'wcp-security-scanner'),
-                'wcp-scanner-forensics'      => __('System Forensics & Deep Diagnostics', 'wcp-security-scanner'),
-                'wcp-scanner-fim'            => __('File Integrity Monitoring (FIM) & Code Diff', 'wcp-security-scanner'),
-                'wcp-scanner-vulnerabilities'=> __('Vulnerabilities & Updates', 'wcp-security-scanner'),
-                'wcp-scanner-backup'         => __('Database Backup Vault', 'wcp-security-scanner'),
-                'wcp-scanner-server'         => __('Server & Host Infrastructure Telemetry', 'wcp-security-scanner'),
-                'wcp-scanner-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'wcp-security-scanner'),
-                'wcp-scanner-notifications'  => __('Notifications & Security Alerts', 'wcp-security-scanner'),
-                'wcp-scanner-activity-logs'   => __('Plugin Activity & Audit Logs', 'wcp-security-scanner'),
+                'webcare-pro-security'       => __('WCP Security Scanner', 'webcare-pro-security'),
+                'wcp-scanner-scan'           => __('Security Scan & Findings', 'webcare-pro-security'),
+                'wcp-scanner-firewall'       => __('Web Application Firewall (WAF Lite)', 'webcare-pro-security'),
+                'wcp-scanner-caf'            => __('Context-Adaptive Firewall (CAF) & StackGuard', 'webcare-pro-security'),
+                'wcp-scanner-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'webcare-pro-security'),
+                'wcp-scanner-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'webcare-pro-security'),
+                'wcp-scanner-vault'          => __('WCP Vault & Safety Recoveries', 'webcare-pro-security'),
+                'wcp-scanner-settings'       => __('Scanner Settings & AI Configuration', 'webcare-pro-security'),
+                'wcp-scanner-about'          => __('About WebCare Pro & Services', 'webcare-pro-security'),
+                'wcp-scanner-tools'          => __('Targeted Security Audits', 'webcare-pro-security'),
+                'wcp-scanner-logs'           => __('Scan Logs & Audit History', 'webcare-pro-security'),
+                'wcp-scanner-forensics'      => __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
+                'wcp-scanner-fim'            => __('File Integrity Monitoring (FIM) & Code Diff', 'webcare-pro-security'),
+                'wcp-scanner-vulnerabilities'=> __('Vulnerabilities & Updates', 'webcare-pro-security'),
+                'wcp-scanner-backup'         => __('Database Backup Vault', 'webcare-pro-security'),
+                'wcp-scanner-server'         => __('Server & Host Infrastructure Telemetry', 'webcare-pro-security'),
+                'wcp-scanner-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'webcare-pro-security'),
+                'wcp-scanner-notifications'  => __('Notifications & Security Alerts', 'webcare-pro-security'),
+                'wcp-scanner-activity-logs'   => __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
             ];
 
             if (isset($title_map[$page])) {
                 $title = $title_map[$page];
             } elseif (strpos($page, 'wcp-') !== false) {
-                $title = __('WCP Security Scanner', 'wcp-security-scanner');
+                $title = __('WCP Security Scanner', 'webcare-pro-security');
             }
         }
     }
@@ -378,17 +378,17 @@ class AdminMenu {
         // Also check query param fallback
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        $is_wcp_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'wcp-scanner') !== false || $current_page === 'wcp-security-scanner';
+        $is_wcp_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'wcp-scanner') !== false || $current_page === 'webcare-pro-security';
 
         if (!$is_wcp_page) {
             return;
         }
 
         // Enqueue universal in-page popover dialog system for alerts & near-button confirmations
-        $popover_js_url = WCPSCAN_URL . 'assets/js/wcp-popover-dialogs.js';
-        $popover_js_path = WCPSCAN_PATH . 'assets/js/wcp-popover-dialogs.js';
+        $popover_js_url = WEBCAREPROSCAN_URL . 'assets/js/wcp-popover-dialogs.js';
+        $popover_js_path = WEBCAREPROSCAN_PATH . 'assets/js/wcp-popover-dialogs.js';
         if (file_exists($popover_js_path)) {
-            wp_enqueue_script('wcp-popover-dialogs', $popover_js_url, [], WCPSCAN_VERSION, false);
+            wp_enqueue_script('wcp-popover-dialogs', $popover_js_url, [], WEBCAREPROSCAN_VERSION, false);
         }
 
         $active_tab = 'dashboard';
@@ -415,17 +415,17 @@ class AdminMenu {
         elseif ($tab_param === 'wizard' || $current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
         elseif ($current_page === 'wcp-scanner-scan' || $tab_param === 'scan') $active_tab = 'scan';
 
-        $global_css_file = WCPSCAN_PATH . 'build/global.css';
-        $global_js_file  = WCPSCAN_PATH . 'build/global.js';
-        $global_css_ver  = file_exists($global_css_file) ? (string) filemtime($global_css_file) : WCPSCAN_VERSION;
-        $global_js_ver   = file_exists($global_js_file) ? (string) filemtime($global_js_file) : WCPSCAN_VERSION;
+        $global_css_file = WEBCAREPROSCAN_PATH . 'build/global.css';
+        $global_js_file  = WEBCAREPROSCAN_PATH . 'build/global.js';
+        $global_css_ver  = file_exists($global_css_file) ? (string) filemtime($global_css_file) : WEBCAREPROSCAN_VERSION;
+        $global_js_ver   = file_exists($global_js_file) ? (string) filemtime($global_js_file) : WEBCAREPROSCAN_VERSION;
 
         // 1. Enqueue Global Core Shell Assets (Design tokens, CSS variables & typography)
         if (file_exists($global_css_file)) {
-            wp_enqueue_style('wcp-global-style', WCPSCAN_URL . 'build/global.css', ['wp-components'], $global_css_ver);
+            wp_enqueue_style('wcp-global-style', WEBCAREPROSCAN_URL . 'build/global.css', ['wp-components'], $global_css_ver);
         }
         if (file_exists($global_js_file)) {
-            wp_enqueue_script('wcp-global-script', WCPSCAN_URL . 'build/global.js', ['wp-element'], $global_js_ver, true);
+            wp_enqueue_script('wcp-global-script', WEBCAREPROSCAN_URL . 'build/global.js', ['wp-element'], $global_js_ver, true);
         }
 
         $is_scan_cluster = ($current_page === 'wcp-scanner-scan')
@@ -433,35 +433,35 @@ class AdminMenu {
 
         // 2. Select decoupled per-page bundle (ensures individual page updates never break other pages)
         $page_bundle = 'index';
-        if ($is_scan_cluster && file_exists(WCPSCAN_PATH . 'build/scan.js')) {
+        if ($is_scan_cluster && file_exists(WEBCAREPROSCAN_PATH . 'build/scan.js')) {
             $page_bundle = 'scan';
-        } elseif ($active_tab === 'firewall' && file_exists(WCPSCAN_PATH . 'build/firewall.js')) {
+        } elseif ($active_tab === 'firewall' && file_exists(WEBCAREPROSCAN_PATH . 'build/firewall.js')) {
             $page_bundle = 'firewall';
-        } elseif ($active_tab === 'waf_logs' && file_exists(WCPSCAN_PATH . 'build/waf-logs.js')) {
+        } elseif ($active_tab === 'waf_logs' && file_exists(WEBCAREPROSCAN_PATH . 'build/waf-logs.js')) {
             $page_bundle = 'waf-logs';
-        } elseif ($active_tab === 'auth' && file_exists(WCPSCAN_PATH . 'build/auth.js')) {
+        } elseif ($active_tab === 'auth' && file_exists(WEBCAREPROSCAN_PATH . 'build/auth.js')) {
             $page_bundle = 'auth';
-        } elseif (in_array($active_tab, ['vault', 'quarantine'], true) && file_exists(WCPSCAN_PATH . 'build/vault.js')) {
+        } elseif (in_array($active_tab, ['vault', 'quarantine'], true) && file_exists(WEBCAREPROSCAN_PATH . 'build/vault.js')) {
             $page_bundle = 'vault';
-        } elseif ($active_tab === 'fim' && file_exists(WCPSCAN_PATH . 'build/fim.js')) {
+        } elseif ($active_tab === 'fim' && file_exists(WEBCAREPROSCAN_PATH . 'build/fim.js')) {
             $page_bundle = 'fim';
-        } elseif ($active_tab === 'settings' && file_exists(WCPSCAN_PATH . 'build/settings.js')) {
+        } elseif ($active_tab === 'settings' && file_exists(WEBCAREPROSCAN_PATH . 'build/settings.js')) {
             $page_bundle = 'settings';
-        } elseif ($active_tab === 'notifications' && file_exists(WCPSCAN_PATH . 'build/notifications.js')) {
+        } elseif ($active_tab === 'notifications' && file_exists(WEBCAREPROSCAN_PATH . 'build/notifications.js')) {
             $page_bundle = 'notifications';
-        } elseif ($active_tab === 'activity_logs' && file_exists(WCPSCAN_PATH . 'build/activity-logs.js')) {
+        } elseif ($active_tab === 'activity_logs' && file_exists(WEBCAREPROSCAN_PATH . 'build/activity-logs.js')) {
             $page_bundle = 'activity-logs';
-        } elseif ($active_tab === 'wizard' && file_exists(WCPSCAN_PATH . 'build/wizard.js')) {
+        } elseif ($active_tab === 'wizard' && file_exists(WEBCAREPROSCAN_PATH . 'build/wizard.js')) {
             $page_bundle = 'wizard';
         }
 
         $js_rel = "build/{$page_bundle}.js";
-        $css_rel = file_exists(WCPSCAN_PATH . "build/{$page_bundle}.css") ? "build/{$page_bundle}.css" : '';
-        $asset_file = WCPSCAN_PATH . "build/{$page_bundle}.asset.php";
+        $css_rel = file_exists(WEBCAREPROSCAN_PATH . "build/{$page_bundle}.css") ? "build/{$page_bundle}.css" : '';
+        $asset_file = WEBCAREPROSCAN_PATH . "build/{$page_bundle}.asset.php";
 
         $deps = ['wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n'];
-        $bundle_file = WCPSCAN_PATH . $js_rel;
-        $version = file_exists($bundle_file) ? (string) filemtime($bundle_file) : WCPSCAN_VERSION;
+        $bundle_file = WEBCAREPROSCAN_PATH . $js_rel;
+        $version = file_exists($bundle_file) ? (string) filemtime($bundle_file) : WEBCAREPROSCAN_VERSION;
 
         if (file_exists($asset_file)) {
             $asset = include $asset_file;
@@ -469,14 +469,14 @@ class AdminMenu {
             $version = $asset['version'] ?? $version;
         }
 
-        $js_url = WCPSCAN_URL . $js_rel;
-        $css_url = WCPSCAN_URL . $css_rel;
-        $target_bundle_path = WCPSCAN_PATH . $js_rel;
+        $js_url = WEBCAREPROSCAN_URL . $js_rel;
+        $css_url = WEBCAREPROSCAN_URL . $css_rel;
+        $target_bundle_path = WEBCAREPROSCAN_PATH . $js_rel;
 
         if (file_exists($target_bundle_path)) {
             $server_info = [];
             try {
-                $server_info = \WcpScanner\System\ServerInfo::get_info(false);
+                $server_info = \WebCareProScanner\System\ServerInfo::get_info(false);
             } catch (\Throwable $e) {
                 $server_info = [
                     'php' => ['version' => PHP_VERSION],
@@ -511,7 +511,7 @@ class AdminMenu {
                 'siteUrl'         => get_site_url(),
                 'siteName'        => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
                 'initialTab'      => $active_tab,
-                'version'         => WCPSCAN_VERSION,
+                'version'         => WEBCAREPROSCAN_VERSION,
                 'currentUserId'   => get_current_user_id(),
                 'adminUsers'      => $admin_users_list,
                 'serverInfo'      => $server_info,
@@ -524,18 +524,18 @@ class AdminMenu {
                     if (!$uid) {
                         return false;
                     }
-                    $support_users = get_option('wcpscan_support_active_users', []);
-                    return !empty(get_user_meta($uid, 'wcpscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
+                    $support_users = get_option('webcareproscan_support_active_users', []);
+                    return !empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
                 })(),
-                'assetsUrl'          => esc_url_raw(WCPSCAN_URL . 'assets/'),
-                'logoPngUrl'         => esc_url_raw(WCPSCAN_URL . 'assets/logo.png'),
-                'logo3dUrl'          => esc_url_raw(WCPSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
-                'emblem3dUrl'        => esc_url_raw(WCPSCAN_URL . 'assets/logo.png'),
+                'assetsUrl'          => esc_url_raw(WEBCAREPROSCAN_URL . 'assets/'),
+                'logoPngUrl'         => esc_url_raw(WEBCAREPROSCAN_URL . 'assets/logo.png'),
+                'logo3dUrl'          => esc_url_raw(WEBCAREPROSCAN_URL . 'assets/webcare-original-logo-3d.jpg'),
+                'emblem3dUrl'        => esc_url_raw(WEBCAREPROSCAN_URL . 'assets/logo.png'),
             ]);
         }
 
-        if (!empty($css_rel) && file_exists(WCPSCAN_PATH . $css_rel)) {
-            $css_ver = (string) filemtime(WCPSCAN_PATH . $css_rel);
+        if (!empty($css_rel) && file_exists(WEBCAREPROSCAN_PATH . $css_rel)) {
+            $css_ver = (string) filemtime(WEBCAREPROSCAN_PATH . $css_rel);
             wp_enqueue_style('wcp-scanner-style', $css_url, ['wcp-global-style'], $css_ver);
         }
     }
@@ -548,7 +548,7 @@ class AdminMenu {
      */
     public static function add_plugin_action_links(array $actions): array {
         $settings_url = admin_url('admin.php?page=wcp-scanner-settings');
-        $settings_link = '<a href="' . esc_url($settings_url) . '">' . esc_html__('Settings', 'wcp-security-scanner') . '</a>';
+        $settings_link = '<a href="' . esc_url($settings_url) . '">' . esc_html__('Settings', 'webcare-pro-security') . '</a>';
 
         $new_actions = [];
         $placed = false;
@@ -612,7 +612,7 @@ class AdminMenu {
             }
         ";
 
-        wp_register_style('wcpscan-admin-brand', false, [], defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.0.0');
+        wp_register_style('wcpscan-admin-brand', false, [], defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.0.0');
         wp_enqueue_style('wcpscan-admin-brand');
         wp_add_inline_style('wcpscan-admin-brand', $custom_css);
     }
@@ -628,49 +628,49 @@ class AdminMenu {
 
         // Show confirmation notice if redirected after restoration
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if (!empty($_GET['wcpscan_restored'])) {
+        if (!empty($_GET['webcareproscan_restored'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $count = (int) sanitize_text_field(wp_unslash($_GET['wcpscan_restored']));
+            $count = (int) sanitize_text_field(wp_unslash($_GET['webcareproscan_restored']));
             echo '<div class="notice notice-success is-dismissible" style="padding: 12px 18px; border-left: 4px solid #16a34a; background: #f0fdf4;">';
             echo '<p style="margin: 0; font-size: 13px; color: #14532d;">';
-            echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
+            echo '<strong>' . esc_html__('WCP Security Scanner:', 'webcare-pro-security') . '</strong> ';
             /* translators: %d: count of restored administrator accounts */
-            echo esc_html(sprintf(__('Successfully restored %d administrator account(s) to the WordPress database with full original capabilities and passwords.', 'wcp-security-scanner'), $count));
+            echo esc_html(sprintf(__('Successfully restored %d administrator account(s) to the WordPress database with full original capabilities and passwords.', 'webcare-pro-security'), $count));
             echo '</p></div>';
             return;
         }
 
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
         $missing_users = $mgr->get_missing_user_backups();
 
         if (empty($missing_users)) {
             return;
         }
 
-        $nonce = wp_create_nonce('wcpscan_restore_users_action');
+        $nonce = wp_create_nonce('webcareproscan_restore_users_action');
         $restore_url = add_query_arg([
-            'wcpscan_action' => 'restore_all_users',
+            'webcareproscan_action' => 'restore_all_users',
             '_wpnonce'       => $nonce,
         ], admin_url('users.php'));
 
         $dismiss_url = add_query_arg([
-            'wcpscan_action' => 'dismiss_all_users',
+            'webcareproscan_action' => 'dismiss_all_users',
             '_wpnonce'       => $nonce,
         ], admin_url('users.php'));
 
         $names = array_map(fn($u) => '<code style="background: #e2e8f0; font-weight: 700;">' . esc_html($u['user_login']) . '</code>', $missing_users);
         $names_str = implode(', ', $names);
 
-        $ajax_dismiss_nonce = wp_create_nonce('wcpscan_dismiss_quarantined_notice_nonce');
+        $ajax_dismiss_nonce = wp_create_nonce('webcareproscan_dismiss_quarantined_notice_nonce');
 
         echo '<div id="wcpscan-quarantined-users-notice" class="notice notice-warning is-dismissible" data-nonce="' . esc_attr($ajax_dismiss_nonce) . '" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">';
         echo '<div style="font-size: 13px; color: #14532d;">';
-        echo '<strong>' . esc_html__('WCP Security Scanner:', 'wcp-security-scanner') . '</strong> ';
+        echo '<strong>' . esc_html__('WCP Security Scanner:', 'webcare-pro-security') . '</strong> ';
         echo wp_kses(
             sprintf(
                 /* translators: %1$d: count, %2$s: usernames */
-                esc_html__('Found %1$d quarantined administrator account(s) (%2$s) available in safety backups.', 'wcp-security-scanner'),
+                esc_html__('Found %1$d quarantined administrator account(s) (%2$s) available in safety backups.', 'webcare-pro-security'),
                 count($missing_users),
                 $names_str
             ),
@@ -679,10 +679,10 @@ class AdminMenu {
         echo '</div>';
         echo '<div style="display: flex; align-items: center; gap: 8px;">';
         echo '<a href="' . esc_url($restore_url) . '" class="button button-primary" style="background: #16a34a; border-color: #15803d; font-weight: 700; padding: 2px 14px; box-shadow: 0 2px 4px rgba(22,163,74,0.2);">';
-        echo esc_html__('1-Click Restore All Admin Accounts', 'wcp-security-scanner');
+        echo esc_html__('1-Click Restore All Admin Accounts', 'webcare-pro-security');
         echo '</a>';
-        echo '<a href="' . esc_url($dismiss_url) . '" class="button" style="color: #475569; font-weight: 600; padding: 2px 12px;" title="' . esc_attr__('Acknowledge intentional removal and permanently silence this alert', 'wcp-security-scanner') . '">';
-        echo esc_html__('Dismiss Notice', 'wcp-security-scanner');
+        echo '<a href="' . esc_url($dismiss_url) . '" class="button" style="color: #475569; font-weight: 600; padding: 2px 12px;" title="' . esc_attr__('Acknowledge intentional removal and permanently silence this alert', 'webcare-pro-security') . '">';
+        echo esc_html__('Dismiss Notice', 'webcare-pro-security');
         echo '</a>';
         echo '</div>';
         echo '</div>';
@@ -701,7 +701,7 @@ class AdminMenu {
                 if (!nonce || typeof ajaxurl === 'undefined') return;
 
                 var data = new URLSearchParams();
-                data.append('action', 'wcpscan_dismiss_quarantined_notice');
+                data.append('action', 'webcareproscan_dismiss_quarantined_notice');
                 data.append('nonce', nonce);
 
                 fetch(ajaxurl, {
@@ -723,24 +723,24 @@ class AdminMenu {
             return;
         }
 
-        if (isset($_GET['wcpscan_action']) && $_GET['wcpscan_action'] === 'restore_all_users') {
-            check_admin_referer('wcpscan_restore_users_action');
+        if (isset($_GET['webcareproscan_action']) && $_GET['webcareproscan_action'] === 'restore_all_users') {
+            check_admin_referer('webcareproscan_restore_users_action');
 
-            $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+            $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
             $res = $mgr->restore_all_user_backups();
             $count = count($res['restored'] ?? []);
 
-            wp_safe_redirect(add_query_arg(['wcpscan_restored' => $count], admin_url('users.php')));
+            wp_safe_redirect(add_query_arg(['webcareproscan_restored' => $count], admin_url('users.php')));
             exit;
         }
 
-        if (isset($_GET['wcpscan_action']) && $_GET['wcpscan_action'] === 'dismiss_all_users') {
-            check_admin_referer('wcpscan_restore_users_action');
+        if (isset($_GET['webcareproscan_action']) && $_GET['webcareproscan_action'] === 'dismiss_all_users') {
+            check_admin_referer('webcareproscan_restore_users_action');
 
-            $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+            $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
             $mgr->dismiss_all_missing_backups();
 
-            $redirect_url = remove_query_arg(['wcpscan_action', '_wpnonce']);
+            $redirect_url = remove_query_arg(['webcareproscan_action', '_wpnonce']);
             wp_safe_redirect($redirect_url);
             exit;
         }
@@ -754,8 +754,8 @@ class AdminMenu {
             return;
         }
 
-        if (get_option('wcpscan_activation_redirect_wizard', false)) {
-            delete_option('wcpscan_activation_redirect_wizard');
+        if (get_option('webcareproscan_activation_redirect_wizard', false)) {
+            delete_option('webcareproscan_activation_redirect_wizard');
 
             if (is_network_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
                 return;
@@ -774,13 +774,13 @@ class AdminMenu {
      * Handle AJAX persistent dismissal when clicking native notice close button.
      */
     public static function ajax_dismiss_quarantined_notice() {
-        check_ajax_referer('wcpscan_dismiss_quarantined_notice_nonce', 'nonce');
+        check_ajax_referer('webcareproscan_dismiss_quarantined_notice_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Unauthorized permission.', 'wcp-security-scanner')], 403);
+            wp_send_json_error(['message' => __('Unauthorized permission.', 'webcare-pro-security')], 403);
         }
 
-        $mgr = new \WcpScanner\WordPress\UserRemediationManager();
+        $mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
         $dismissed = $mgr->dismiss_all_missing_backups();
 
         wp_send_json_success(['dismissed_count' => $dismissed]);
@@ -790,16 +790,16 @@ class AdminMenu {
      * Handle AJAX update for uninstall purge preference when user confirms in modal.
      */
     public static function ajax_set_uninstall_purge() {
-        check_ajax_referer('wcpscan_uninstall_prompt_nonce', 'nonce');
+        check_ajax_referer('webcareproscan_uninstall_prompt_nonce', 'nonce');
 
         if (!current_user_can('delete_plugins')) {
-            wp_send_json_error(['message' => __('Unauthorized permission.', 'wcp-security-scanner')], 403);
+            wp_send_json_error(['message' => __('Unauthorized permission.', 'webcare-pro-security')], 403);
         }
 
         $purge = !empty($_POST['purge']);
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $settings['delete_data_on_uninstall'] = $purge;
-        \WcpScanner\System\SettingsManager::save_settings($settings);
+        \WebCareProScanner\System\SettingsManager::save_settings($settings);
 
         wp_send_json_success(['purge' => $purge]);
     }
@@ -815,8 +815,8 @@ class AdminMenu {
             return;
         }
 
-        $nonce = wp_create_nonce('wcpscan_uninstall_prompt_nonce');
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $nonce = wp_create_nonce('webcareproscan_uninstall_prompt_nonce');
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         $is_purge_checked = !empty($settings['delete_data_on_uninstall']);
         ?>
         <!-- WCP Security Scanner Uninstall Confirmation Modal -->
@@ -834,10 +834,10 @@ class AdminMenu {
                     </div>
                     <div>
                         <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; line-height: 1.3;">
-                            <?php echo esc_html__('Uninstalling WCP Security Scanner', 'wcp-security-scanner'); ?>
+                            <?php echo esc_html__('Uninstalling WCP Security Scanner', 'webcare-pro-security'); ?>
                         </h3>
                         <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">
-                            <?php echo esc_html__('Please choose your data retention preference before deletion.', 'wcp-security-scanner'); ?>
+                            <?php echo esc_html__('Please choose your data retention preference before deletion.', 'webcare-pro-security'); ?>
                         </p>
                     </div>
                 </div>
@@ -845,32 +845,32 @@ class AdminMenu {
                 <!-- Body Content -->
                 <div style="padding: 22px 24px; color: #334155; font-size: 13.5px; line-height: 1.55;">
                     <p style="margin: 0 0 16px 0;">
-                        <?php echo esc_html__('You are deleting WCP Security Scanner. If you reinstall the plugin later, keeping your data ensures your quarantined files and configurations remain intact.', 'wcp-security-scanner'); ?>
+                        <?php echo esc_html__('You are deleting WCP Security Scanner. If you reinstall the plugin later, keeping your data ensures your quarantined files and configurations remain intact.', 'webcare-pro-security'); ?>
                     </p>
 
                     <!-- Option 1: Retain Data (Recommended Default) -->
                     <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; border: 2px solid #10b981; background: #f0fdf4; cursor: pointer; margin-bottom: 12px;">
-                        <input type="radio" name="wcpscan_uninstall_choice" value="retain" <?php checked(!$is_purge_checked); ?> style="margin-top: 3px; accent-color: #059669;">
+                        <input type="radio" name="webcareproscan_uninstall_choice" value="retain" <?php checked(!$is_purge_checked); ?> style="margin-top: 3px; accent-color: #059669;">
                         <div>
                             <div style="font-weight: 700; color: #065f46; font-size: 13.5px; display: flex; align-items: center; gap: 6px;">
-                                <span><?php echo esc_html__('Keep All Data & Quarantine Vault', 'wcp-security-scanner'); ?></span>
-                                <span style="background: #10b981; color: #ffffff; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 1px 6px; border-radius: 4px;"><?php echo esc_html__('Recommended', 'wcp-security-scanner'); ?></span>
+                                <span><?php echo esc_html__('Keep All Data & Quarantine Vault', 'webcare-pro-security'); ?></span>
+                                <span style="background: #10b981; color: #ffffff; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 1px 6px; border-radius: 4px;"><?php echo esc_html__('Recommended', 'webcare-pro-security'); ?></span>
                             </div>
                             <div style="font-size: 12px; color: #047857; margin-top: 2px;">
-                                <?php echo esc_html__('Preserves quarantined malware files, firewall bypass rules, scan history, and custom settings across reinstalls.', 'wcp-security-scanner'); ?>
+                                <?php echo esc_html__('Preserves quarantined malware files, firewall bypass rules, scan history, and custom settings across reinstalls.', 'webcare-pro-security'); ?>
                             </div>
                         </div>
                     </label>
 
                     <!-- Option 2: Full Purge -->
                     <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; cursor: pointer;">
-                        <input type="radio" name="wcpscan_uninstall_choice" value="purge" <?php checked($is_purge_checked); ?> style="margin-top: 3px; accent-color: #dc2626;">
+                        <input type="radio" name="webcareproscan_uninstall_choice" value="purge" <?php checked($is_purge_checked); ?> style="margin-top: 3px; accent-color: #dc2626;">
                         <div>
                             <div style="font-weight: 700; color: #0f172a; font-size: 13.5px;">
-                                <?php echo esc_html__('Completely Purge All Data & Tables', 'wcp-security-scanner'); ?>
+                                <?php echo esc_html__('Completely Purge All Data & Tables', 'webcare-pro-security'); ?>
                             </div>
                             <div style="font-size: 12px; color: #dc2626; margin-top: 2px;">
-                                <?php echo esc_html__('Permanently drops all database tables and deletes quarantined files, virtual patches, and backups.', 'wcp-security-scanner'); ?>
+                                <?php echo esc_html__('Permanently drops all database tables and deletes quarantined files, virtual patches, and backups.', 'webcare-pro-security'); ?>
                             </div>
                         </div>
                     </label>
@@ -879,10 +879,10 @@ class AdminMenu {
                 <!-- Footer Buttons -->
                 <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
                     <button type="button" id="wcpscan-uninstall-cancel-btn" class="button" style="padding: 4px 14px; font-size: 13px; font-weight: 600;">
-                        <?php echo esc_html__('Cancel', 'wcp-security-scanner'); ?>
+                        <?php echo esc_html__('Cancel', 'webcare-pro-security'); ?>
                     </button>
                     <button type="button" id="wcpscan-uninstall-confirm-btn" class="button button-primary" style="background: #dc2626; border-color: #b91c1c; padding: 4px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25);">
-                        <?php echo esc_html__('Proceed with Deletion', 'wcp-security-scanner'); ?>
+                        <?php echo esc_html__('Proceed with Deletion', 'webcare-pro-security'); ?>
                     </button>
                 </div>
             </div>
@@ -904,7 +904,7 @@ class AdminMenu {
 
                 var href = link.getAttribute('href') || '';
                 var isDelete = href.indexOf('action=delete-selected') !== -1 || (link.classList.contains('delete') && href.indexOf('plugins.php') !== -1);
-                var isWcpPlugin = href.indexOf('wcp-security-scanner') !== -1;
+                var isWcpPlugin = href.indexOf('webcare-pro-security') !== -1;
 
                 if (!isWcpPlugin) {
                     var row = link.closest('tr[data-plugin*="wcp-"]');
@@ -935,14 +935,14 @@ class AdminMenu {
 
             // Confirm & Save preference via AJAX before proceeding
             confirmBtn.addEventListener('click', function() {
-                var selected = document.querySelector('input[name="wcpscan_uninstall_choice"]:checked');
+                var selected = document.querySelector('input[name="webcareproscan_uninstall_choice"]:checked');
                 var shouldPurge = selected ? selected.value === 'purge' : false;
 
                 confirmBtn.disabled = true;
-                confirmBtn.innerText = '<?php echo esc_js(__('Saving preference...', 'wcp-security-scanner')); ?>';
+                confirmBtn.innerText = '<?php echo esc_js(__('Saving preference...', 'webcare-pro-security')); ?>';
 
                 var data = new URLSearchParams();
-                data.append('action', 'wcpscan_set_uninstall_purge');
+                data.append('action', 'webcareproscan_set_uninstall_purge');
                 data.append('nonce', '<?php echo esc_js($nonce); ?>');
                 data.append('purge', shouldPurge ? '1' : '0');
 

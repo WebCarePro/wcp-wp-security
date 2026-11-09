@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Identity;
+namespace WebCareProScanner\Identity;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,8 +17,8 @@ if (!defined('ABSPATH')) {
  */
 class HIBPBreachAuditor {
 
-    const OPTION_STATS        = 'wcpscan_hibp_breach_stats';
-    const OPTION_AUDIT_REPORT = 'wcpscan_hibp_admin_audit_report';
+    const OPTION_STATS        = 'webcareproscan_hibp_breach_stats';
+    const OPTION_AUDIT_REPORT = 'webcareproscan_hibp_admin_audit_report';
 
     /**
      * Check if a candidate password appears in HaveIBeenPwned via k-Anonymity API.
@@ -37,14 +37,14 @@ class HIBPBreachAuditor {
         $suffix = substr($hash, 5);
 
         // Check local transient cache for this prefix to avoid redundant external network roundtrips
-        $cache_key = 'wcpscan_hibp_' . $prefix;
+        $cache_key = 'webcareproscan_hibp_' . $prefix;
         $body = get_transient($cache_key);
 
         if ($body === false) {
             $url = 'https://api.pwnedpasswords.com/range/' . $prefix;
             $response = wp_remote_get($url, [
                 'timeout'    => 3,
-                'user-agent' => 'WCP-Security-Scanner/' . (defined('WCPSCAN_VERSION') ? WCPSCAN_VERSION : '1.25.0'),
+                'user-agent' => 'WCP-Security-Scanner/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.25.0'),
                 'headers'    => [
                     'Add-Padding' => 'true', // Mitigates response size side-channel leakage
                 ],
@@ -115,14 +115,14 @@ class HIBPBreachAuditor {
             }
 
             // 2. Check 2FA Enrollment status
-            $two_fa_active = get_user_meta($u->ID, 'wcpscan_2fa_enabled', true);
+            $two_fa_active = get_user_meta($u->ID, 'webcareproscan_2fa_enabled', true);
             if (empty($two_fa_active)) {
                 $warnings[] = 'Two-Factor Authentication (2FA) is NOT enabled';
                 $risk_score += 25;
             }
 
             // 3. Check for stale / inactive administrative account (> 60 days no login)
-            $last_login = get_user_meta($u->ID, 'wcpscan_last_login_time', true);
+            $last_login = get_user_meta($u->ID, 'webcareproscan_last_login_time', true);
             if (!empty($last_login) && (time() - $last_login > (60 * 86400))) {
                 $warnings[] = 'Inactive account: no login recorded in over 60 days';
                 $risk_score += 20;
@@ -172,7 +172,7 @@ class HIBPBreachAuditor {
         if (!$user) {
             return [
                 'success' => false,
-                'message' => __('User not found.', 'wcp-security-scanner'),
+                'message' => __('User not found.', 'webcare-pro-security'),
             ];
         }
 
@@ -193,10 +193,10 @@ class HIBPBreachAuditor {
 
         // 4. Send email
         /* translators: %s: site name */
-        $subject = sprintf(__('[%s] Security Notification: Password Reset Required', 'wcp-security-scanner'), get_bloginfo('name'));
+        $subject = sprintf(__('[%s] Security Notification: Password Reset Required', 'webcare-pro-security'), get_bloginfo('name'));
         /* translators: 1: user display name, 2: password reset URL */
         $message = sprintf(
-            __("Hello %1\$s,\n\nA security administrator has initiated an immediate password reset for your account to protect against unauthorized credential reuse.\n\nAll existing active sessions have been terminated.\n\nPlease reset your password using the following link:\n%2\$s\n\nIf you did not expect this, please reach out to your security administrator immediately.", 'wcp-security-scanner'),
+            __("Hello %1\$s,\n\nA security administrator has initiated an immediate password reset for your account to protect against unauthorized credential reuse.\n\nAll existing active sessions have been terminated.\n\nPlease reset your password using the following link:\n%2\$s\n\nIf you did not expect this, please reach out to your security administrator immediately.", 'webcare-pro-security'),
             $user->display_name,
             $reset_url
         );
@@ -209,7 +209,7 @@ class HIBPBreachAuditor {
         );
 
         /* translators: %s: user email address */
-        $success_msg = sprintf(__('All active sessions terminated and password reset email dispatched to %s.', 'wcp-security-scanner'), $user->user_email);
+        $success_msg = sprintf(__('All active sessions terminated and password reset email dispatched to %s.', 'webcare-pro-security'), $user->user_email);
         return [
             'success'   => true,
             'message'   => $success_msg,

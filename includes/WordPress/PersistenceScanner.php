@@ -1,10 +1,10 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\Malware\HeuristicEngine;
-use WcpScanner\Filesystem\PathValidator;
-use WcpScanner\Remediation\RemediationManager;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\Malware\HeuristicEngine;
+use WebCareProScanner\Filesystem\PathValidator;
+use WebCareProScanner\Remediation\RemediationManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -87,7 +87,7 @@ class PersistenceScanner {
                     'file_path'   => $mu['path'],
                     'description' => sprintf(
                         /* translators: 1: filename, 2: threat summary */
-                        __('Malicious Must-Use (MU) plugin detected: %1$s. %2$s', 'wcp-security-scanner'),
+                        __('Malicious Must-Use (MU) plugin detected: %1$s. %2$s', 'webcare-pro-security'),
                         $mu['filename'],
                         $mu['threat_summary']
                     ),
@@ -103,7 +103,7 @@ class PersistenceScanner {
                     'file_path'   => $mu['path'],
                     'description' => sprintf(
                         /* translators: %s: filename */
-                        __('Must-Use plugin "%s" contains suspicious code or hidden includes.', 'wcp-security-scanner'),
+                        __('Must-Use plugin "%s" contains suspicious code or hidden includes.', 'webcare-pro-security'),
                         $mu['filename']
                     ),
                     'evidence'    => $mu['threat_summary'],
@@ -122,7 +122,7 @@ class PersistenceScanner {
                     'file_path'   => $drop['path'],
                     'description' => sprintf(
                         /* translators: %s: filename */
-                        __('Unexpected PHP file directly in wp-content/ root: "%s". Common webshell or malware drop location.', 'wcp-security-scanner'),
+                        __('Unexpected PHP file directly in wp-content/ root: "%s". Common webshell or malware drop location.', 'webcare-pro-security'),
                         $drop['filename']
                     ),
                     'evidence'    => 'File: ' . $drop['filename'],
@@ -136,7 +136,7 @@ class PersistenceScanner {
                     'file_path'   => $drop['path'],
                     'description' => sprintf(
                         /* translators: 1: filename, 2: threat summary */
-                        __('Malicious PHP drop-in detected: %1$s. %2$s', 'wcp-security-scanner'),
+                        __('Malicious PHP drop-in detected: %1$s. %2$s', 'webcare-pro-security'),
                         $drop['filename'],
                         $drop['threat_summary']
                     ),
@@ -152,7 +152,7 @@ class PersistenceScanner {
                     'file_path'   => $drop['path'],
                     'description' => sprintf(
                         /* translators: %s: filename */
-                        __('Drop-in file "%s" is active, but no matching caching/database plugin was detected in active plugins.', 'wcp-security-scanner'),
+                        __('Drop-in file "%s" is active, but no matching caching/database plugin was detected in active plugins.', 'webcare-pro-security'),
                         $drop['filename']
                     ),
                     'evidence'    => 'Drop-in: ' . $drop['filename'],
@@ -170,7 +170,7 @@ class PersistenceScanner {
                 'file_path'   => 'wp_options:' . $opt['option_name'],
                 'description' => sprintf(
                     /* translators: 1: option name, 2: reason */
-                    __('Database persistence anchor in autoloaded option "%1$s": %2$s', 'wcp-security-scanner'),
+                    __('Database persistence anchor in autoloaded option "%1$s": %2$s', 'webcare-pro-security'),
                     $opt['option_name'],
                     $opt['reason']
                 ),
@@ -190,7 +190,7 @@ class PersistenceScanner {
                     'file_path'   => 'cron:hook:' . $cron['hook'],
                     'description' => sprintf(
                         /* translators: 1: cron hook name, 2: reason */
-                        __('Suspicious scheduled cron task "%1$s": %2$s', 'wcp-security-scanner'),
+                        __('Suspicious scheduled cron task "%1$s": %2$s', 'webcare-pro-security'),
                         $cron['hook'],
                         $cron['reason']
                     ),
@@ -209,7 +209,7 @@ class PersistenceScanner {
                 'file_path'   => $res['file_path'],
                 'description' => sprintf(
                     /* translators: 1: original action, 2: timeline */
-                    __('Self-Healing Malware Loop Detected! File was previously neutralized via WCP (%1$s), but was resurrected/re-injected %2$s.', 'wcp-security-scanner'),
+                    __('Self-Healing Malware Loop Detected! File was previously neutralized via WCP (%1$s), but was resurrected/re-injected %2$s.', 'webcare-pro-security'),
                     $res['original_action'],
                     $res['timeline_human']
                 ),
@@ -317,11 +317,11 @@ class PersistenceScanner {
         if (!empty($auto_prepend)) {
             $norm = wp_normalize_path($auto_prepend);
             // Verify if official security tool or baseline
-            $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
-                ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($auto_prepend)
+            $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
+                ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($auto_prepend)
                 : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => '', 'risk_level' => 'high'];
 
-            $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+            $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
             $is_trusted = $is_wcp || !empty($verification['is_trusted']);
             $exists = file_exists($auto_prepend);
 
@@ -335,16 +335,16 @@ class PersistenceScanner {
                 'file_exists' => $exists,
                 'severity'    => $is_trusted ? 'clean' : ($exists ? 'critical' : 'high'),
                 'description' => $is_trusted
-                    ? (!empty($verification['description']) ? $verification['description'] : __('Legitimate security pre-loader engine active.', 'wcp-security-scanner'))
+                    ? (!empty($verification['description']) ? $verification['description'] : __('Legitimate security pre-loader engine active.', 'webcare-pro-security'))
                     : ($exists
                         ? sprintf(
                             /* translators: %s: target file path */
-                            __('Unknown PHP pre-loader active in auto_prepend_file: "%s". This file runs before any WordPress code boots.', 'wcp-security-scanner'),
+                            __('Unknown PHP pre-loader active in auto_prepend_file: "%s". This file runs before any WordPress code boots.', 'webcare-pro-security'),
                             $auto_prepend
                         )
                         : sprintf(
                             /* translators: %s: target file path */
-                            __('auto_prepend_file references a missing file: "%s".', 'wcp-security-scanner'),
+                            __('auto_prepend_file references a missing file: "%s".', 'webcare-pro-security'),
                             $auto_prepend
                         )),
             ];
@@ -362,7 +362,7 @@ class PersistenceScanner {
                 'severity'    => 'critical',
                 'description' => sprintf(
                     /* translators: %s: target file path */
-                    __('Stealth post-execution pre-loader configured in auto_append_file: "%s". Executes after all WordPress scripts terminate.', 'wcp-security-scanner'),
+                    __('Stealth post-execution pre-loader configured in auto_append_file: "%s". Executes after all WordPress scripts terminate.', 'webcare-pro-security'),
                     $auto_append
                 ),
             ];
@@ -377,10 +377,10 @@ class PersistenceScanner {
                     $directive = $m[1];
                     $target = trim($m[2]);
                     $norm = wp_normalize_path($target);
-                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
 
-                    $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
-                        ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
+                    $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
+                        ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
                         : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => ''];
 
                     $is_trusted = ($directive === 'auto_prepend_file') && ($is_wcp || !empty($verification['is_trusted']));
@@ -395,7 +395,7 @@ class PersistenceScanner {
                             'severity'    => 'critical',
                             'description' => sprintf(
                                 /* translators: 1: directive, 2: target */
-                                __('Root .user.ini declares rogue preloader "%1$s = %2$s".', 'wcp-security-scanner'),
+                                __('Root .user.ini declares rogue preloader "%1$s = %2$s".', 'webcare-pro-security'),
                                 $directive,
                                 $target
                             ),
@@ -414,10 +414,10 @@ class PersistenceScanner {
                     $directive = $m[1];
                     $target = trim($m[2]);
                     $norm = wp_normalize_path($target);
-                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'wcp-security-scanner');
+                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
 
-                    $verification = class_exists('\\WcpScanner\\SupplyChain\\SbomSentinelEngine')
-                        ? \WcpScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
+                    $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
+                        ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
                         : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => ''];
 
                     $is_trusted = ($directive === 'auto_prepend_file') && ($is_wcp || !empty($verification['is_trusted']));
@@ -432,7 +432,7 @@ class PersistenceScanner {
                             'severity'    => 'critical',
                             'description' => sprintf(
                                 /* translators: 1: directive, 2: target */
-                                __('Root .htaccess injects preloader directive "php_value %1$s %2$s".', 'wcp-security-scanner'),
+                                __('Root .htaccess injects preloader directive "php_value %1$s %2$s".', 'webcare-pro-security'),
                                 $directive,
                                 $target
                             ),
@@ -481,8 +481,8 @@ class PersistenceScanner {
             'is_accessible'   => $accessible,
             'is_restricted'   => !$accessible,
             'notice'          => $accessible
-                ? __('Server-level system crontab paths detected and accessible for inspection.', 'wcp-security-scanner')
-                : __('Server-level system crontab paths (/var/spool/cron, /etc/crontab) are restricted by hosting isolation (open_basedir/chroot). WordPress-level scheduled tasks are actively audited.', 'wcp-security-scanner'),
+                ? __('Server-level system crontab paths detected and accessible for inspection.', 'webcare-pro-security')
+                : __('Server-level system crontab paths (/var/spool/cron, /etc/crontab) are restricted by hosting isolation (open_basedir/chroot). WordPress-level scheduled tasks are actively audited.', 'webcare-pro-security'),
             'checked_paths'   => $checked,
         ];
     }
@@ -543,7 +543,7 @@ class PersistenceScanner {
                 'mtime'          => $mtime,
                 'modified_human' => human_time_diff($mtime, time()) . ' ago',
                 'status'         => $status,
-                'threat_summary' => $threat_summary ?: __('Legitimate Must-Use plugin.', 'wcp-security-scanner'),
+                'threat_summary' => $threat_summary ?: __('Legitimate Must-Use plugin.', 'webcare-pro-security'),
                 'snippet'        => $snippet,
                 'evidence'       => $evidence,
             ];
@@ -593,7 +593,7 @@ class PersistenceScanner {
 
             if ($is_unexpected) {
                 $status = 'malicious';
-                $threat_summary = __('Unexpected PHP file located in wp-content root. High probability of webshell drop.', 'wcp-security-scanner');
+                $threat_summary = __('Unexpected PHP file located in wp-content root. High probability of webshell drop.', 'webcare-pro-security');
             }
 
             // AST Token Check
@@ -614,13 +614,13 @@ class PersistenceScanner {
             if ($status === 'clean') {
                 if ($filename === 'object-cache.php' && !$has_caching_plugin) {
                     $status = 'unauthorized';
-                    $threat_summary = __('object-cache.php is present, but no active Redis, Memcached, or Object Cache plugin is enabled.', 'wcp-security-scanner');
+                    $threat_summary = __('object-cache.php is present, but no active Redis, Memcached, or Object Cache plugin is enabled.', 'webcare-pro-security');
                 } elseif ($filename === 'db.php' && !$has_db_plugin) {
                     $status = 'unauthorized';
-                    $threat_summary = __('db.php drop-in is present, but Query Monitor, LudicrousDB, or HyperDB are not enabled in active plugins.', 'wcp-security-scanner');
+                    $threat_summary = __('db.php drop-in is present, but Query Monitor, LudicrousDB, or HyperDB are not enabled in active plugins.', 'webcare-pro-security');
                 } elseif ($filename === 'advanced-cache.php' && !defined('WP_CACHE') && !$has_caching_plugin) {
                     $status = 'unauthorized';
-                    $threat_summary = __('advanced-cache.php is present, but WP_CACHE is not enabled in wp-config.php and no caching plugin is active.', 'wcp-security-scanner');
+                    $threat_summary = __('advanced-cache.php is present, but WP_CACHE is not enabled in wp-config.php and no caching plugin is active.', 'webcare-pro-security');
                 }
             }
 
@@ -628,14 +628,14 @@ class PersistenceScanner {
                 'filename'       => $filename,
                 'path'           => wp_normalize_path($file),
                 'relative_path'  => 'wp-content/' . $filename,
-                'purpose'        => $this->recognized_dropins[$filename] ?? __('Unrecognized loose file', 'wcp-security-scanner'),
+                'purpose'        => $this->recognized_dropins[$filename] ?? __('Unrecognized loose file', 'webcare-pro-security'),
                 'is_unexpected'  => $is_unexpected,
                 'size'           => $fsize,
                 'size_formatted' => size_format($fsize),
                 'mtime'          => $mtime,
                 'modified_human' => human_time_diff($mtime, time()) . ' ago',
                 'status'         => $status,
-                'threat_summary' => $threat_summary ?: __('Standard WordPress Drop-in.', 'wcp-security-scanner'),
+                'threat_summary' => $threat_summary ?: __('Standard WordPress Drop-in.', 'webcare-pro-security'),
                 'snippet'        => $snippet,
                 'evidence'       => $evidence,
             ];
@@ -670,7 +670,7 @@ class PersistenceScanner {
             }
 
             // Skip WCP's own internal analysis, FIM diffs, and security caches
-            if (strpos($name, 'wcp_') !== false || strpos($name, 'wcpscan_') !== false) {
+            if (strpos($name, 'wcp_') !== false || strpos($name, 'webcareproscan_') !== false) {
                 continue;
             }
 
@@ -685,22 +685,22 @@ class PersistenceScanner {
 
             // 1. Direct PHP executable tags inside database option
             if (preg_match('/<\?(php|=|xml)/i', $val)) {
-                $reason = __('Embedded PHP executable tag found inside database option value.', 'wcp-security-scanner');
+                $reason = __('Embedded PHP executable tag found inside database option value.', 'webcare-pro-security');
                 $snippet = substr($val, 0, 160);
             }
             // 2. Evaluators inside option string
             elseif (preg_match('/(@?eval\s*\(|@?assert\s*\(|@?create_function\s*\(|@?passthru\s*\(|@?system\s*\()/i', $val)) {
-                $reason = __('Direct dynamic evaluator execution construct detected in option value.', 'wcp-security-scanner');
+                $reason = __('Direct dynamic evaluator execution construct detected in option value.', 'webcare-pro-security');
                 $snippet = substr($val, 0, 160);
             }
             // 3. EtherHiding / Balada Web3 IPFS C2 injection patterns
             elseif (preg_match('/(eth\.limo|ipfs\.io|cloudflare-ipfs\.com|rentry\.co|pastebin\.com\/raw\/|bsc-dataseed)/i', $val)) {
-                $reason = __('EtherHiding or decentralized Web3/IPFS C2 payload URL detected in database option.', 'wcp-security-scanner');
+                $reason = __('EtherHiding or decentralized Web3/IPFS C2 payload URL detected in database option.', 'webcare-pro-security');
                 $snippet = substr($val, 0, 160);
             }
             // 4. Obfuscated Base64 script injection in options
             elseif (preg_match('/<script[^>]*>[\s\S]*?(eval\s*\(|atob\s*\(|String\.fromCharCode)[\s\S]*?<\/script>/i', $val)) {
-                $reason = __('Obfuscated client-side JavaScript execution payload stored in database option.', 'wcp-security-scanner');
+                $reason = __('Obfuscated client-side JavaScript execution payload stored in database option.', 'webcare-pro-security');
                 $snippet = substr($val, 0, 160);
             }
             // 5. High-Entropy Base64 / Hex blob check on large string fields
@@ -712,7 +712,7 @@ class PersistenceScanner {
                         $decoded = @base64_decode($matches[0], true);
                         if ($decoded && (strpos($decoded, '<?php') !== false || strpos($decoded, 'eval') !== false || strpos($decoded, 'curl') !== false)) {
                             /* translators: %.2f: entropy score */
-                            $reason = sprintf(__('High-entropy base64 blob (Entropy: %.2f) decoding to executable PHP/C2 instructions.', 'wcp-security-scanner'), $entropy);
+                            $reason = sprintf(__('High-entropy base64 blob (Entropy: %.2f) decoding to executable PHP/C2 instructions.', 'webcare-pro-security'), $entropy);
                             $snippet = substr($matches[0], 0, 120) . '...';
                         }
                     }
@@ -757,7 +757,7 @@ class PersistenceScanner {
             'wp_privacy_delete_old_export_files',
             'wp_https_detection',
             'wp_site_health_scheduled_check',
-            'wcpscan_scheduled_scan_event',
+            'webcareproscan_scheduled_scan_event',
         ];
 
         $now = time();
@@ -781,7 +781,7 @@ class PersistenceScanner {
                     // Check if hook name looks generated or suspicious (hex hash or random chars)
                     if (preg_match('/^[a-f0-9]{16,64}$/i', $hook) || preg_match('/(temp|cache_check|update_sys|wpc_[0-9a-f]{6,})/i', $hook)) {
                         $severity = 'high';
-                        $reason = __('Orphaned cron hook with suspicious generated name and no active callback function in WordPress.', 'wcp-security-scanner');
+                        $reason = __('Orphaned cron hook with suspicious generated name and no active callback function in WordPress.', 'webcare-pro-security');
                     }
                 } else {
                     // 2. Hook exists - inspect callback functions for rogue closures or file locations
@@ -796,7 +796,7 @@ class PersistenceScanner {
                                     if (strpos($file, '/wp-content/uploads/') !== false || strpos($file, '/tmp/') !== false) {
                                         $severity = 'critical';
                                         /* translators: %s: file basename */
-                                        $reason = sprintf(__('Cron hook executes an anonymous Closure defined inside uploads or temp directory: %s', 'wcp-security-scanner'), basename($file));
+                                        $reason = sprintf(__('Cron hook executes an anonymous Closure defined inside uploads or temp directory: %s', 'webcare-pro-security'), basename($file));
                                     }
                                 } catch (\Throwable $e) {
                                     // pass
@@ -828,7 +828,7 @@ class PersistenceScanner {
      */
     private function audit_resurrections(): array {
         $resurrections = [];
-        $backups = get_option('wcpscan_remediation_backups', []);
+        $backups = get_option('webcareproscan_remediation_backups', []);
         if (empty($backups) || !is_array($backups)) {
             return $resurrections;
         }
@@ -929,7 +929,7 @@ class PersistenceScanner {
                     if (preg_match('/(base64_decode|gzinflate|gzuncompress|\$_POST|\$_GET|\$_REQUEST|\$GLOBALS)/i', $next_code)) {
                         $result['is_malicious'] = true;
                         /* translators: %s: function name */
-                        $result['reason'] = sprintf(__('Critical Backdoor: %s executing dynamic encoded payload.', 'wcp-security-scanner'), strtoupper($str));
+                        $result['reason'] = sprintf(__('Critical Backdoor: %s executing dynamic encoded payload.', 'webcare-pro-security'), strtoupper($str));
                         $result['snippet'] = substr($tok[1] . $next_code, 0, 140);
                         $result['evidence'] = "Construct: {$tok[1]}";
                         return $result;
@@ -937,7 +937,7 @@ class PersistenceScanner {
 
                     $result['is_suspicious'] = true;
                     /* translators: %s: function name */
-                    $result['reason'] = sprintf(__('Suspicious dynamic function call: %s()', 'wcp-security-scanner'), $tok[1]);
+                    $result['reason'] = sprintf(__('Suspicious dynamic function call: %s()', 'webcare-pro-security'), $tok[1]);
                     $result['snippet'] = substr($tok[1] . $next_code, 0, 100);
                 }
 
@@ -954,7 +954,7 @@ class PersistenceScanner {
 
                     if (!$is_redis_dropin && preg_match('/(uploads|cache|tmp|\.ico|\.png|\.jpg|\.txt|\.css|\.woff)/i', $next_code)) {
                         $result['is_malicious'] = true;
-                        $result['reason'] = __('Stealth Loader: Drop-in or MU-plugin includes a hidden payload from uploads, cache, or disguised image file.', 'wcp-security-scanner');
+                        $result['reason'] = __('Stealth Loader: Drop-in or MU-plugin includes a hidden payload from uploads, cache, or disguised image file.', 'webcare-pro-security');
                         $result['snippet'] = substr($tok[1] . ' ' . $next_code, 0, 140);
                         $result['evidence'] = "Stealth include: {$next_code}";
                         return $result;
@@ -965,7 +965,7 @@ class PersistenceScanner {
                 if ($type === T_CONSTANT_ENCAPSED_STRING) {
                     if (preg_match('/(eth\.limo|ipfs\.io|cloudflare-ipfs\.com|rentry\.co|pastebin\.com\/raw\/|bsc-dataseed)/i', $tok[1])) {
                         $result['is_malicious'] = true;
-                        $result['reason'] = __('EtherHiding / Decentralized Web3 C2 endpoint detected in string literal.', 'wcp-security-scanner');
+                        $result['reason'] = __('EtherHiding / Decentralized Web3 C2 endpoint detected in string literal.', 'webcare-pro-security');
                         $result['snippet'] = substr($tok[1], 0, 120);
                         $result['evidence'] = "C2 URL: {$tok[1]}";
                         return $result;
@@ -987,14 +987,14 @@ class PersistenceScanner {
                             if ($home_host && $dest_host !== strtolower($home_host) && !str_ends_with($dest_host, '.' . strtolower($home_host))) {
                                 $result['is_malicious'] = true;
                                 /* translators: %s: external redirect hostname */
-                                $result['reason'] = sprintf(__('Early External HTTP Redirect: Drop-in or MU-plugin executes pre-WordPress Location header redirect to external host "%s".', 'wcp-security-scanner'), $dest_host);
+                                $result['reason'] = sprintf(__('Early External HTTP Redirect: Drop-in or MU-plugin executes pre-WordPress Location header redirect to external host "%s".', 'webcare-pro-security'), $dest_host);
                                 $result['snippet'] = substr($tok[1] . $next_code, 0, 160);
                                 $result['evidence'] = "Hostile early redirect: {$tok[1]}{$next_code}";
                                 return $result;
                             }
                         } elseif (preg_match('/location\s*:\s*[\'"]?\s*\.\s*\$/i', $next_code) || preg_match('/(\$_GET|\$_POST|\$_REQUEST|\$url|\$dest|\$target)/i', $next_code)) {
                             $result['is_suspicious'] = true;
-                            $result['reason'] = __('Dynamic HTTP Location header redirect found in pre-WordPress boot stage.', 'wcp-security-scanner');
+                            $result['reason'] = __('Dynamic HTTP Location header redirect found in pre-WordPress boot stage.', 'webcare-pro-security');
                             $result['snippet'] = substr($tok[1] . $next_code, 0, 140);
                             $result['evidence'] = "Dynamic redirect: {$tok[1]}{$next_code}";
                         }
@@ -1003,7 +1003,7 @@ class PersistenceScanner {
                         if (in_array($base_name, ['db.php', 'object-cache.php', 'advanced-cache.php', 'sunrise.php'], true)) {
                             $result['is_malicious'] = true;
                             /* translators: %s: drop-in filename */
-                            $result['reason'] = sprintf(__('Early wp_redirect() inside drop-in "%s". Drop-ins run before WordPress routing and must never execute redirects.', 'wcp-security-scanner'), $base_name);
+                            $result['reason'] = sprintf(__('Early wp_redirect() inside drop-in "%s". Drop-ins run before WordPress routing and must never execute redirects.', 'webcare-pro-security'), $base_name);
                             $result['snippet'] = substr($tok[1] . $next_code, 0, 140);
                             $result['evidence'] = "Early wp_redirect in drop-in: {$base_name}";
                             return $result;
@@ -1020,7 +1020,7 @@ class PersistenceScanner {
                     }
                     if (preg_match('/(?:http-equiv=["\']?refresh|location\.replace|location\.href\s*=|window\.location)/i', $content)) {
                         $result['is_malicious'] = true;
-                        $result['reason'] = __('Output Buffer Redirect Injector: ob_start() paired with DOM or meta-refresh redirect manipulation.', 'wcp-security-scanner');
+                        $result['reason'] = __('Output Buffer Redirect Injector: ob_start() paired with DOM or meta-refresh redirect manipulation.', 'webcare-pro-security');
                         $result['snippet'] = substr($tok[1] . $next_code, 0, 150);
                         $result['evidence'] = "ob_start redirect injection in {$file_path}";
                         return $result;
@@ -1034,7 +1034,7 @@ class PersistenceScanner {
                         if (in_array($base_name, ['db.php', 'object-cache.php', 'advanced-cache.php', 'sunrise.php'], true) || str_contains($file_path, 'mu-plugins')) {
                             $result['is_malicious'] = true;
                             /* translators: %s: filename */
-                            $result['reason'] = sprintf(__('Remote C2 Redirect Fetcher: Remote HTTP request paired with Location header redirect in %s.', 'wcp-security-scanner'), $base_name ?: 'file');
+                            $result['reason'] = sprintf(__('Remote C2 Redirect Fetcher: Remote HTTP request paired with Location header redirect in %s.', 'webcare-pro-security'), $base_name ?: 'file');
                             $result['snippet'] = substr($tok[1], 0, 120);
                             $result['evidence'] = "Remote C2 redirect fetcher in {$base_name}";
                             return $result;
@@ -1064,17 +1064,17 @@ class PersistenceScanner {
                     $file = realpath(ABSPATH . ltrim($id, '/\\'));
                 }
                 if (!$file || !file_exists($file)) {
-                    return ['success' => false, 'message' => __('Target file not found on disk.', 'wcp-security-scanner')];
+                    return ['success' => false, 'message' => __('Target file not found on disk.', 'webcare-pro-security')];
                 }
                 if (!PathValidator::is_inside_root($file, ABSPATH)) {
-                    return ['success' => false, 'message' => __('Security restriction: File is outside WordPress root.', 'wcp-security-scanner')];
+                    return ['success' => false, 'message' => __('Security restriction: File is outside WordPress root.', 'webcare-pro-security')];
                 }
 
                 // Generate encrypted vault backup first
                 $remediation = new RemediationManager();
                 $backup = $remediation->create_file_backup($file, 'persistence_neutralize');
                 if (!$backup['success']) {
-                    return ['success' => false, 'message' => __('Could not generate encrypted safety backup. Neutralization aborted.', 'wcp-security-scanner')];
+                    return ['success' => false, 'message' => __('Could not generate encrypted safety backup. Neutralization aborted.', 'webcare-pro-security')];
                 }
 
                 // Delete or rename file
@@ -1089,20 +1089,20 @@ class PersistenceScanner {
                         'success'   => true,
                         'message'   => sprintf(
                             /* translators: %s: file basename */
-                            __('Persistence anchor "%s" neutralized. Encrypted safety backup created.', 'wcp-security-scanner'),
+                            __('Persistence anchor "%s" neutralized. Encrypted safety backup created.', 'webcare-pro-security'),
                             basename($file)
                         ),
                         'backup_id' => $backup['backup_id'],
                     ];
                 }
-                return ['success' => false, 'message' => __('Filesystem write permission denied. Could not remove file.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Filesystem write permission denied. Could not remove file.', 'webcare-pro-security')];
 
             case 'autoload_option':
                 global $wpdb;
                 $opt_name = sanitize_text_field($id);
                 // Backup option value to backups option
                 $val = get_option($opt_name);
-                $backups = get_option('wcpscan_remediation_backups', []);
+                $backups = get_option('webcareproscan_remediation_backups', []);
                 $b_id = 'opt_' . substr(md5($opt_name . time()), 0, 12);
                 $backups[$b_id] = [
                     'id'            => $b_id,
@@ -1113,7 +1113,7 @@ class PersistenceScanner {
                     'size'          => is_string($val) ? strlen($val) : 0,
                     'backup_data'   => $val,
                 ];
-                update_option('wcpscan_remediation_backups', $backups, false);
+                update_option('webcareproscan_remediation_backups', $backups, false);
 
                 delete_option($opt_name);
                 delete_site_option($opt_name);
@@ -1121,7 +1121,7 @@ class PersistenceScanner {
                 return [
                     'success'   => true,
                     /* translators: %s: option name */
-                    'message'   => sprintf(__('Malicious autoload option "%s" deleted from database. Snapshot saved to vault.', 'wcp-security-scanner'), $opt_name),
+                    'message'   => sprintf(__('Malicious autoload option "%s" deleted from database. Snapshot saved to vault.', 'webcare-pro-security'), $opt_name),
                     'backup_id' => $b_id,
                 ];
 
@@ -1131,12 +1131,12 @@ class PersistenceScanner {
                 return [
                     'success' => true,
                     /* translators: %s: cron hook name */
-                    'message' => sprintf(__('Scheduled cron hook "%s" cleared from WordPress crontab.', 'wcp-security-scanner'), $hook),
+                    'message' => sprintf(__('Scheduled cron hook "%s" cleared from WordPress crontab.', 'webcare-pro-security'), $hook),
                     'cleared' => $cleared,
                 ];
 
             default:
-                return ['success' => false, 'message' => __('Invalid persistence item type.', 'wcp-security-scanner')];
+                return ['success' => false, 'message' => __('Invalid persistence item type.', 'webcare-pro-security')];
         }
     }
 
@@ -1216,7 +1216,7 @@ class PersistenceScanner {
             'success'        => true,
             'message'        => sprintf(
                 /* translators: 1: number of cleaned anchors, 2: number of failed anchors */
-                __('Persistence Neutralization Complete: Cleaned %1$d anchors, %2$d failed. Safety snapshots saved to vault.', 'wcp-security-scanner'),
+                __('Persistence Neutralization Complete: Cleaned %1$d anchors, %2$d failed. Safety snapshots saved to vault.', 'webcare-pro-security'),
                 $cleaned,
                 $failed
             ),

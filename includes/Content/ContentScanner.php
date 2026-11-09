@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Content;
+namespace WebCareProScanner\Content;
 
-use WcpScanner\Findings\Finding;
-use WcpScanner\Resource\ResourceMonitor;
+use WebCareProScanner\Findings\Finding;
+use WebCareProScanner\Resource\ResourceMonitor;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -83,7 +83,7 @@ class ContentScanner {
                     number_format($total_posts_scanned),
                     $approx_posts > 0 ? ' / ~' . number_format($approx_posts) : ''
                 );
-                set_transient("wcpscan_active_scan_file_{$scan_id}", $status_msg, 120);
+                set_transient("webcareproscan_active_scan_file_{$scan_id}", $status_msg, 120);
             }
 
             foreach ($posts as $post) {

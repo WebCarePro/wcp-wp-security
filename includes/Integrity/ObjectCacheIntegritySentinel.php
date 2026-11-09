@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\Notifications\NotificationDispatcher;
-use WcpScanner\System\WcpActivityLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\WcpActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -26,8 +26,8 @@ if (!defined('ABSPATH')) {
  */
 class ObjectCacheIntegritySentinel {
 
-    const OPTION_LAST_AUDIT = 'wcpscan_object_cache_last_audit';
-    const OPTION_AUTO_HEAL   = 'wcpscan_object_cache_auto_heal';
+    const OPTION_LAST_AUDIT = 'webcareproscan_object_cache_last_audit';
+    const OPTION_AUTO_HEAL   = 'webcareproscan_object_cache_auto_heal';
 
     /**
      * Critical security-sensitive WordPress options to verify individually.
@@ -89,7 +89,7 @@ class ObjectCacheIntegritySentinel {
                 'path'          => $dropin_path,
                 'size'          => $dropin_size,
                 'mtime'         => $dropin_mtime,
-                'mtime_human'   => human_time_diff($dropin_mtime, time()) . ' ' . __('ago', 'wcp-security-scanner'),
+                'mtime_human'   => human_time_diff($dropin_mtime, time()) . ' ' . __('ago', 'webcare-pro-security'),
             ];
         }
 
@@ -150,7 +150,7 @@ class ObjectCacheIntegritySentinel {
                         'severity'    => in_array($ram_key, array_keys(self::CRITICAL_KEYS), true) ? 'critical' : 'high',
                         'message'     => sprintf(
                             /* translators: %s: option key */
-                            __('Ghost option "%s" exists in RAM Object Cache but is completely absent from MySQL database.', 'wcp-security-scanner'),
+                            __('Ghost option "%s" exists in RAM Object Cache but is completely absent from MySQL database.', 'webcare-pro-security'),
                             $ram_key
                         ),
                     ];
@@ -169,7 +169,7 @@ class ObjectCacheIntegritySentinel {
                         'severity'    => in_array($db_key, array_keys(self::CRITICAL_KEYS), true) ? 'critical' : 'medium',
                         'message'     => sprintf(
                             /* translators: %s: option key */
-                            __('Autoloaded option "%s" in MySQL database is missing from RAM Object Cache.', 'wcp-security-scanner'),
+                            __('Autoloaded option "%s" in MySQL database is missing from RAM Object Cache.', 'webcare-pro-security'),
                             $db_key
                         ),
                     ];
@@ -193,7 +193,7 @@ class ObjectCacheIntegritySentinel {
                         'severity'    => $is_critical ? 'critical' : 'high',
                         'message'     => sprintf(
                             /* translators: %s: option key */
-                            __('Value divergence in "%s": Live RAM value does not match MySQL database truth.', 'wcp-security-scanner'),
+                            __('Value divergence in "%s": Live RAM value does not match MySQL database truth.', 'webcare-pro-security'),
                             $db_key
                         ),
                     ];
@@ -352,7 +352,7 @@ class ObjectCacheIntegritySentinel {
                                 'remediated'  => $critical_key_names,
                                 'description' => sprintf(
                                     /* translators: %s: backend name */
-                                    __('Automatic remediation: In-memory cache poisoning on critical navigation keys was instantly neutralized and resynchronized from MySQL on %s.', 'wcp-security-scanner'),
+                                    __('Automatic remediation: In-memory cache poisoning on critical navigation keys was instantly neutralized and resynchronized from MySQL on %s.', 'webcare-pro-security'),
                                     $report['environment']['backend_name']
                                 ),
                             ]
@@ -488,7 +488,7 @@ class ObjectCacheIntegritySentinel {
 
         return [
             'success'       => true,
-            'message'       => __('In-Memory Object Cache successfully flushed and resynchronized from MySQL database truth.', 'wcp-security-scanner'),
+            'message'       => __('In-Memory Object Cache successfully flushed and resynchronized from MySQL database truth.', 'webcare-pro-security'),
             'flushed'       => $flushed,
             'opcache_reset' => $opcache_reset,
             'audit'         => $post_audit,

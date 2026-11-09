@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Filesystem\PathValidator;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
  */
 class LocalSnapshotManager {
 
-    public const OPTION_SNAPSHOTS = 'wcpscan_local_snapshots';
+    public const OPTION_SNAPSHOTS = 'webcareproscan_local_snapshots';
     public const MAX_FILE_SIZE    = 2097152; // 2MB max per single code file
 
     /**
@@ -31,7 +31,7 @@ class LocalSnapshotManager {
      */
     public static function get_storage_dir(): string {
         $uploads = wp_upload_dir();
-        $dir = untrailingslashit($uploads['basedir']) . '/wcp-security-scanner/.snapshots';
+        $dir = untrailingslashit($uploads['basedir']) . '/webcare-pro-security/.snapshots';
 
         if (!is_dir($dir)) {
             wp_mkdir_p($dir);
@@ -57,7 +57,7 @@ class LocalSnapshotManager {
         if (!file_exists($full_path)) {
             return [
                 'success' => false,
-                'message' => esc_html__('Target path does not exist on disk.', 'wcp-security-scanner'),
+                'message' => esc_html__('Target path does not exist on disk.', 'webcare-pro-security'),
             ];
         }
 
@@ -65,7 +65,7 @@ class LocalSnapshotManager {
         if (empty($clean_rel) || $clean_rel === '.' || $clean_rel === '/') {
             return [
                 'success' => false,
-                'message' => esc_html__('Creating a snapshot of the entire WordPress root is prohibited. Please select a specific plugin, theme, or folder.', 'wcp-security-scanner'),
+                'message' => esc_html__('Creating a snapshot of the entire WordPress root is prohibited. Please select a specific plugin, theme, or folder.', 'webcare-pro-security'),
             ];
         }
 
@@ -144,7 +144,7 @@ class LocalSnapshotManager {
                     'success' => false,
                     'message' => sprintf(
                         /* translators: %s: error message */
-                        esc_html__('Failed to traverse directory: %s', 'wcp-security-scanner'),
+                        esc_html__('Failed to traverse directory: %s', 'webcare-pro-security'),
                         $e->getMessage()
                     ),
                 ];
@@ -154,7 +154,7 @@ class LocalSnapshotManager {
         if ($file_count === 0) {
             return [
                 'success' => false,
-                'message' => esc_html__('No suitable code files found to snapshot in the specified path.', 'wcp-security-scanner'),
+                'message' => esc_html__('No suitable code files found to snapshot in the specified path.', 'webcare-pro-security'),
             ];
         }
 
@@ -183,7 +183,7 @@ class LocalSnapshotManager {
         if (@file_put_contents($archive_file, $compressed, LOCK_EX) === false) {
             return [
                 'success' => false,
-                'message' => esc_html__('Failed to write compressed snapshot to storage vault.', 'wcp-security-scanner'),
+                'message' => esc_html__('Failed to write compressed snapshot to storage vault.', 'webcare-pro-security'),
             ];
         }
 
@@ -221,7 +221,7 @@ class LocalSnapshotManager {
             'size'        => size_format(strlen($compressed)),
             'message'     => sprintf(
                 /* translators: 1: label, 2: file count */
-                esc_html__('Baseline snapshot "%1$s" successfully created with %2$d tracked files.', 'wcp-security-scanner'),
+                esc_html__('Baseline snapshot "%1$s" successfully created with %2$d tracked files.', 'webcare-pro-security'),
                 $snapshots[$snapshot_id]['label'],
                 $file_count
             ),
@@ -271,7 +271,7 @@ class LocalSnapshotManager {
         if (!$archive_data) {
             return [
                 'success' => false,
-                'message' => esc_html__('Snapshot archive could not be read or is corrupted.', 'wcp-security-scanner'),
+                'message' => esc_html__('Snapshot archive could not be read or is corrupted.', 'webcare-pro-security'),
             ];
         }
 
@@ -390,7 +390,7 @@ class LocalSnapshotManager {
         if (!$archive_data) {
             return [
                 'success' => false,
-                'message' => esc_html__('Snapshot archive not found.', 'wcp-security-scanner'),
+                'message' => esc_html__('Snapshot archive not found.', 'webcare-pro-security'),
             ];
         }
 
@@ -422,18 +422,18 @@ class LocalSnapshotManager {
     public static function restore_file(string $snapshot_id, string $rel_path): array {
         $is_cli_or_cron = (defined('WP_CLI') && WP_CLI) || (defined('DOING_CRON') && DOING_CRON);
         if (!current_user_can('manage_options') && !$is_cli_or_cron) {
-            return ['success' => false, 'message' => esc_html__('Access Denied: manage_options capability required.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => esc_html__('Access Denied: manage_options capability required.', 'webcare-pro-security')];
         }
         $archive_data = self::load_snapshot_archive($snapshot_id);
         if (!$archive_data) {
-            return ['success' => false, 'message' => esc_html__('Snapshot archive not found.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => esc_html__('Snapshot archive not found.', 'webcare-pro-security')];
         }
 
         $clean_rel = ltrim(wp_normalize_path(sanitize_text_field($rel_path)), '/');
         $encoded = $archive_data['files'][$clean_rel] ?? null;
 
         if ($encoded === null) {
-            return ['success' => false, 'message' => esc_html__('Target file is not present in this snapshot baseline.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => esc_html__('Target file is not present in this snapshot baseline.', 'webcare-pro-security')];
         }
 
         $live_path = wp_normalize_path(ABSPATH . $clean_rel);
@@ -454,7 +454,7 @@ class LocalSnapshotManager {
         }
 
         if (!$written) {
-            return ['success' => false, 'message' => esc_html__('Permission denied writing file to disk.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => esc_html__('Permission denied writing file to disk.', 'webcare-pro-security')];
         }
 
         AuditLogger::log(
@@ -466,7 +466,7 @@ class LocalSnapshotManager {
             'success' => true,
             'message' => sprintf(
                 /* translators: %s: relative file path */
-                esc_html__('File "%s" successfully restored to baseline state.', 'wcp-security-scanner'),
+                esc_html__('File "%s" successfully restored to baseline state.', 'webcare-pro-security'),
                 $clean_rel
             ),
         ];

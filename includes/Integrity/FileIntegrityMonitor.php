@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -156,7 +156,7 @@ class FileIntegrityMonitor {
                                 continue;
                             }
                             // Ignore harmless directory index.php protection placeholders
-                            if (($basename === 'index.php' || $basename === 'index.html') && \WcpScanner\System\SettingsManager::is_safe_directory_index($file_path)) {
+                            if (($basename === 'index.php' || $basename === 'index.html') && \WebCareProScanner\System\SettingsManager::is_safe_directory_index($file_path)) {
                                 continue;
                             }
                         }
@@ -625,7 +625,7 @@ class FileIntegrityMonitor {
         }
 
         // Prevent path traversal, symlink escapes, and sibling-directory prefix confusion
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
             return [
                 'success' => false,
                 'message' => 'Path traversal denied: File is outside WordPress root directory.',
@@ -704,8 +704,8 @@ class FileIntegrityMonitor {
 
         // Check if baseline record exists in Vault
         $baseline_meta = null;
-        if (class_exists('\\WcpScanner\\Integrity\\FimVaultManager')) {
-            $baseline_meta = \WcpScanner\Integrity\FimVaultManager::get_file_baseline_record($rel_path);
+        if (class_exists('\\WebCareProScanner\\Integrity\\FimVaultManager')) {
+            $baseline_meta = \WebCareProScanner\Integrity\FimVaultManager::get_file_baseline_record($rel_path);
         }
 
         // Determine specific change types
@@ -942,7 +942,7 @@ class FileIntegrityMonitor {
      * Fetch remote clean source with caching transient
      */
     private function fetch_remote_source($url) {
-        $cache_key = 'wcpscan_fim_diff_' . md5($url);
+        $cache_key = 'webcareproscan_fim_diff_' . md5($url);
         $cached = get_transient($cache_key);
         if ($cached !== false && is_string($cached)) {
             return $cached;
@@ -1033,7 +1033,7 @@ class FileIntegrityMonitor {
                     'type'     => 'added',
                     'old_line' => null,
                     'new_line' => $idx + 1,
-                    'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($line),
+                    'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($line),
                 ];
             }
             return [
@@ -1050,7 +1050,7 @@ class FileIntegrityMonitor {
                     'type'     => 'removed',
                     'old_line' => $idx + 1,
                     'new_line' => null,
-                    'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($line),
+                    'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($line),
                 ];
             }
             return [
@@ -1091,7 +1091,7 @@ class FileIntegrityMonitor {
                         'type'     => 'unchanged',
                         'old_line' => $i,
                         'new_line' => $j,
-                        'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($old_lines[$i - 1]),
+                        'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($old_lines[$i - 1]),
                     ];
                     $i--;
                     $j--;
@@ -1100,7 +1100,7 @@ class FileIntegrityMonitor {
                         'type'     => 'added',
                         'old_line' => null,
                         'new_line' => $j,
-                        'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($new_lines[$j - 1]),
+                        'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($new_lines[$j - 1]),
                     ];
                     $additions++;
                     $j--;
@@ -1109,7 +1109,7 @@ class FileIntegrityMonitor {
                         'type'     => 'removed',
                         'old_line' => $i,
                         'new_line' => null,
-                        'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($old_lines[$i - 1]),
+                        'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($old_lines[$i - 1]),
                     ];
                     $deletions++;
                     $i--;
@@ -1129,7 +1129,7 @@ class FileIntegrityMonitor {
                         'type'     => 'unchanged',
                         'old_line' => $k + 1,
                         'new_line' => $k + 1,
-                        'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($old_val),
+                        'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($old_val),
                     ];
                 } else {
                     if ($old_val !== null) {
@@ -1137,7 +1137,7 @@ class FileIntegrityMonitor {
                             'type'     => 'removed',
                             'old_line' => $k + 1,
                             'new_line' => null,
-                            'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($old_val),
+                            'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($old_val),
                         ];
                         $deletions++;
                     }
@@ -1146,7 +1146,7 @@ class FileIntegrityMonitor {
                             'type'     => 'added',
                             'old_line' => null,
                             'new_line' => $k + 1,
-                            'content'  => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($new_val),
+                            'content'  => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($new_val),
                         ];
                         $additions++;
                     }
@@ -1168,7 +1168,7 @@ class FileIntegrityMonitor {
      * @return array ['plugins' => [...], 'themes' => [...]]
      */
     public function get_custom_and_premium_components() {
-        $cache_key = 'wcpscan_fim_custom_components_v1';
+        $cache_key = 'webcareproscan_fim_custom_components_v1';
         $cached = get_transient($cache_key);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -1229,7 +1229,7 @@ class FileIntegrityMonitor {
                 $is_wporg = false;
             } else {
                 // Check transient or quick checksum head
-                $chk_cache = get_transient("wcpscan_is_wporg_plugin_{$slug}");
+                $chk_cache = get_transient("webcareproscan_is_wporg_plugin_{$slug}");
                 if ($chk_cache === 'yes') {
                     $is_wporg = true;
                 } elseif ($chk_cache === 'no') {
@@ -1240,10 +1240,10 @@ class FileIntegrityMonitor {
                     $res = wp_remote_head($test_url, ['timeout' => 3]);
                     if (!is_wp_error($res) && wp_remote_retrieve_response_code($res) === 200) {
                         $is_wporg = true;
-                        set_transient("wcpscan_is_wporg_plugin_{$slug}", 'yes', 7 * DAY_IN_SECONDS);
+                        set_transient("webcareproscan_is_wporg_plugin_{$slug}", 'yes', 7 * DAY_IN_SECONDS);
                     } else {
                         $is_wporg = false;
-                        set_transient("wcpscan_is_wporg_plugin_{$slug}", 'no', 7 * DAY_IN_SECONDS);
+                        set_transient("webcareproscan_is_wporg_plugin_{$slug}", 'no', 7 * DAY_IN_SECONDS);
                     }
                 }
             }
@@ -1308,7 +1308,7 @@ class FileIntegrityMonitor {
                 }
                 if ($type !== 'premium') {
                     // Check WordPress.org theme transient or remote head check
-                    $chk_cache = get_transient("wcpscan_is_wporg_theme_{$theme_slug}");
+                    $chk_cache = get_transient("webcareproscan_is_wporg_theme_{$theme_slug}");
                     if ($chk_cache === 'yes') {
                         $is_wporg = true;
                     } elseif ($chk_cache === 'no') {
@@ -1319,11 +1319,11 @@ class FileIntegrityMonitor {
                         $res = wp_remote_head($test_url, ['timeout' => 3]);
                         if (!is_wp_error($res) && wp_remote_retrieve_response_code($res) === 200) {
                             $is_wporg = true;
-                            set_transient("wcpscan_is_wporg_theme_{$theme_slug}", 'yes', 7 * DAY_IN_SECONDS);
+                            set_transient("webcareproscan_is_wporg_theme_{$theme_slug}", 'yes', 7 * DAY_IN_SECONDS);
                         } else {
                             $is_wporg = false;
                             $reason = 'Custom or Third-Party Theme';
-                            set_transient("wcpscan_is_wporg_theme_{$theme_slug}", 'no', 7 * DAY_IN_SECONDS);
+                            set_transient("webcareproscan_is_wporg_theme_{$theme_slug}", 'no', 7 * DAY_IN_SECONDS);
                         }
                     }
                 }

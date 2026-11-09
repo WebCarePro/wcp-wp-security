@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Hardening;
+namespace WebCareProScanner\Hardening;
 
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -61,7 +61,7 @@ class SecurityHeadersEngine {
         $settings = SettingsManager::get_settings();
 
         // 1. Strict-Transport-Security (HSTS)
-        $is_ssl = class_exists('\\WcpScanner\\System\\ServerInfo') ? \WcpScanner\System\ServerInfo::is_ssl_active() : (is_ssl() || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'));
+        $is_ssl = class_exists('\\WebCareProScanner\\System\\ServerInfo') ? \WebCareProScanner\System\ServerInfo::is_ssl_active() : (is_ssl() || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'));
         if (!empty($settings['header_hsts']) && $is_ssl) {
             $hsts_val = 'max-age=31536000; includeSubDomains';
             if (!empty($settings['header_hsts_preload'])) {

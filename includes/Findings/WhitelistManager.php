@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Findings;
+namespace WebCareProScanner\Findings;
 
-use WcpScanner\Filesystem\PathValidator;
+use WebCareProScanner\Filesystem\PathValidator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
  */
 class WhitelistManager {
 
-    const OPTION_KEY = 'wcpscan_whitelist_rules';
+    const OPTION_KEY = 'webcareproscan_whitelist_rules';
 
     /**
      * In-memory cache for uploads whitelisted hashes to guarantee 0 database query hits in scanning loops.
@@ -27,13 +27,13 @@ class WhitelistManager {
 
     /**
      * Absolute filesystem path to the verified file hash JSON registry.
-     * Stored under /wp-content/uploads/wcp-security-scanner/verified-file-hash/uploads-whitelisted-hashes.json
+     * Stored under /wp-content/uploads/webcare-pro-security/verified-file-hash/uploads-whitelisted-hashes.json
      *
      * @return string
      */
     public static function get_uploads_hash_registry_path(): string {
         $upload_dir = function_exists('wp_upload_dir') ? wp_upload_dir() : ['basedir' => WP_CONTENT_DIR . '/uploads'];
-        $base = rtrim($upload_dir['basedir'], '/\\') . '/wcp-security-scanner/verified-file-hash';
+        $base = rtrim($upload_dir['basedir'], '/\\') . '/webcare-pro-security/verified-file-hash';
         return $base . '/uploads-whitelisted-hashes.json';
     }
 
@@ -44,7 +44,7 @@ class WhitelistManager {
      */
     public static function ensure_hash_registry_dir(): string {
         $upload_dir = function_exists('wp_upload_dir') ? wp_upload_dir() : ['basedir' => WP_CONTENT_DIR . '/uploads'];
-        $dir = rtrim($upload_dir['basedir'], '/\\') . '/wcp-security-scanner/verified-file-hash';
+        $dir = rtrim($upload_dir['basedir'], '/\\') . '/webcare-pro-security/verified-file-hash';
 
         if (!file_exists($dir)) {
             @wp_mkdir_p($dir);
@@ -116,7 +116,7 @@ Require all denied
     public static function add_uploads_whitelisted_hash(string $file_path, string $reason = '', string $author = ''): array {
         $abs = self::resolve_file_path($file_path);
         if (!$abs || !file_exists($abs) || !is_file($abs)) {
-            return ['success' => false, 'message' => __('Physical file not found on disk.', 'wcp-security-scanner')];
+            return ['success' => false, 'message' => __('Physical file not found on disk.', 'webcare-pro-security')];
         }
 
         $sha256 = hash_file('sha256', $abs);
@@ -138,7 +138,7 @@ Require all denied
             'created_by'  => !empty($author) ? $author : 'admin',
             'created_at'  => current_time('mysql'),
             'scope'       => 'uploads_only',
-            'reason'      => !empty($reason) ? $reason : __('Verified safe customization / Suppressed by site owner', 'wcp-security-scanner'),
+            'reason'      => !empty($reason) ? $reason : __('Verified safe customization / Suppressed by site owner', 'webcare-pro-security'),
         ];
 
         // Also index normalized line-ending LF hash if different (CRLF vs LF safety)
@@ -370,7 +370,7 @@ Require all denied
             self::add_uploads_whitelisted_hash($target_path, $reason, $author);
 
             global $wpdb;
-            $table_name = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table_name = $wpdb->prefix . 'webcareproscan_scan_issues';
             $target_basename = basename($target_path);
 
             // Cascade update in database: Find all open findings in uploads with the exact same basename or file path
@@ -378,7 +378,7 @@ Require all denied
             $open_matches = $wpdb->get_results(
                 $wpdb->prepare(
                     // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                    "SELECT id, file_path FROM `{$wpdb->prefix}wcpscan_scan_issues` WHERE status = 'open' AND file_path LIKE %s",
+                    "SELECT id, file_path FROM `{$wpdb->prefix}webcareproscan_scan_issues` WHERE status = 'open' AND file_path LIKE %s",
                     '%' . $wpdb->esc_like($target_basename) . '%'
                 ),
                 ARRAY_A
@@ -403,7 +403,7 @@ Require all denied
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     $wpdb->query(
                         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-                        $wpdb->prepare("UPDATE `{$wpdb->prefix}wcpscan_scan_issues` SET status = 'ignored' WHERE id IN ($format)", $ids_to_resolve)
+                        $wpdb->prepare("UPDATE `{$wpdb->prefix}webcareproscan_scan_issues` SET status = 'ignored' WHERE id IN ($format)", $ids_to_resolve)
                     );
                     $cascade_resolved_count = count($ids_to_resolve);
                 }
@@ -413,7 +413,7 @@ Require all denied
         // Update specific issue status in database if issue_id was provided
         if (!empty($data['issue_id'])) {
             global $wpdb;
-            $table = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table = $wpdb->prefix . 'webcareproscan_scan_issues';
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update(
                 $table,
@@ -426,8 +426,8 @@ Require all denied
             'success' => true,
             'message' => $cascade_resolved_count > 1 
                 /* translators: %d: number of resolved files */
-                ? sprintf(__('Finding and %d identical files across uploads safely whitelisted.', 'wcp-security-scanner'), $cascade_resolved_count)
-                : __('Finding successfully whitelisted.', 'wcp-security-scanner'),
+                ? sprintf(__('Finding and %d identical files across uploads safely whitelisted.', 'webcare-pro-security'), $cascade_resolved_count)
+                : __('Finding successfully whitelisted.', 'webcare-pro-security'),
             'cascade_resolved_count' => $cascade_resolved_count,
             'rule'    => $new_rule,
         ];

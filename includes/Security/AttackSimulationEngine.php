@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Security;
+namespace WebCareProScanner\Security;
 
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -33,7 +33,7 @@ if (!defined('ABSPATH')) {
  */
 class AttackSimulationEngine {
 
-    const OPTION_LATEST_DRILL = 'wcpscan_latest_drill_results';
+    const OPTION_LATEST_DRILL = 'webcareproscan_latest_drill_results';
 
     /**
      * Generate an ephemeral 120-second cryptographic drill session token.
@@ -42,7 +42,7 @@ class AttackSimulationEngine {
      */
     public static function generate_drill_token(): string {
         $token = 'drill_' . wp_generate_password(24, false, false);
-        set_transient('wcpscan_active_drill_' . $token, [
+        set_transient('webcareproscan_active_drill_' . $token, [
             'created_at' => time(),
             'user_id'    => get_current_user_id(),
         ], 120);
@@ -60,7 +60,7 @@ class AttackSimulationEngine {
         if (empty($token) || strlen($token) < 10) {
             return false;
         }
-        $data = get_transient('wcpscan_active_drill_' . $token);
+        $data = get_transient('webcareproscan_active_drill_' . $token);
         return !empty($data);
     }
 
@@ -72,7 +72,7 @@ class AttackSimulationEngine {
      * @param int    $status_code
      */
     public static function record_intercept(string $token, array $rule, int $status_code): void {
-        $key = 'wcpscan_drill_intercepts_' . $token;
+        $key = 'webcareproscan_drill_intercepts_' . $token;
         $intercepts = get_transient($key);
         if (!is_array($intercepts)) {
             $intercepts = [];
@@ -187,8 +187,8 @@ class AttackSimulationEngine {
         }
 
         // Clean up session transient
-        delete_transient('wcpscan_active_drill_' . $drill_token);
-        delete_transient('wcpscan_drill_intercepts_' . $drill_token);
+        delete_transient('webcareproscan_active_drill_' . $drill_token);
+        delete_transient('webcareproscan_drill_intercepts_' . $drill_token);
 
         $total_vectors = count($vectors);
         $score = $total_vectors > 0 ? round(($intercepted_count / $total_vectors) * 100) : 0;
@@ -237,11 +237,11 @@ class AttackSimulationEngine {
         );
 
         // Dispatch granular event notification
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('attack_drill_completed', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('attack_drill_completed', [
                 'severity' => $score >= 80 ? 'info' : ($score >= 50 ? 'warning' : 'critical'),
                 /* translators: 1: defensibility score percentage, 2: letter grade, 3: intercepted vector count, 4: total vectors */
-                'message'  => sprintf(__('Red Team Security Drill completed with %1$d%% Defensibility Score (Grade %2$s). Intercepted %3$d of %4$d vectors.', 'wcp-security-scanner'), $score, $grade, $intercepted_count, $total_vectors),
+                'message'  => sprintf(__('Red Team Security Drill completed with %1$d%% Defensibility Score (Grade %2$s). Intercepted %3$d of %4$d vectors.', 'webcare-pro-security'), $score, $grade, $intercepted_count, $total_vectors),
                 'details'  => [
                     'Score'             => $score . '%',
                     'Grade'             => $grade,

@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Scan;
+namespace WebCareProScanner\Scan;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -12,11 +12,11 @@ if (!defined('ABSPATH')) {
  */
 class ScanQueueManager {
 
-    const SESSIONS_DIR_NAME = 'wcp-security-scanner/scan-sessions';
+    const SESSIONS_DIR_NAME = 'webcare-pro-security/scan-sessions';
     const QUEUE_FILE_NAME = 'queue.txt';
     const META_FILE_NAME = 'meta.json';
-    const TRANSIENT_QUEUE_PREFIX = 'wcpscan_scan_queue_';
-    const TRANSIENT_META_PREFIX = 'wcpscan_queue_meta_';
+    const TRANSIENT_QUEUE_PREFIX = 'webcareproscan_scan_queue_';
+    const TRANSIENT_META_PREFIX = 'webcareproscan_queue_meta_';
 
     /**
      * Get or create the base sessions directory.
@@ -131,7 +131,7 @@ class ScanQueueManager {
                         break;
                     }
 
-                    \WcpScanner\Scanner\Engine::stream_scannable_files($path, function ($filepath) use ($fp, &$total_files) {
+                    \WebCareProScanner\Scanner\Engine::stream_scannable_files($path, function ($filepath) use ($fp, &$total_files) {
                         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
                         fwrite($fp, $filepath . "\n");
                         $total_files++;
@@ -166,7 +166,7 @@ class ScanQueueManager {
             if ($file_limit > 0 && $remaining_limit <= 0) {
                 break;
             }
-            $all_files = array_merge($all_files, \WcpScanner\Scanner\Engine::get_scannable_files($path, $remaining_limit));
+            $all_files = array_merge($all_files, \WebCareProScanner\Scanner\Engine::get_scannable_files($path, $remaining_limit));
         }
 
         $total_files = count($all_files);

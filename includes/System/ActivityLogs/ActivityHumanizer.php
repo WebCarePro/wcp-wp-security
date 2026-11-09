@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\System\ActivityLogs;
+namespace WebCareProScanner\System\ActivityLogs;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -293,7 +293,7 @@ class ActivityHumanizer {
                     $badge       = 'clean';
                     $badge_label = 'Setup Wizard';
                 } elseif (str_contains($option, 'site_archetype')) {
-                    $arch = is_string($details['diff']['wcpscan_site_archetype']['new'] ?? null) ? $details['diff']['wcpscan_site_archetype']['new'] : 'Standard';
+                    $arch = is_string($details['diff']['webcareproscan_site_archetype']['new'] ?? null) ? $details['diff']['webcareproscan_site_archetype']['new'] : 'Standard';
                     $title       = sprintf('Site Archetype Profile Configured: %s', ucfirst($arch));
                     $description = sprintf('Security scanner operational posture calibrated for site archetype "%1$s".', ucfirst($arch));
                     $badge       = 'info';
@@ -349,7 +349,7 @@ class ActivityHumanizer {
                     $badge_label = 'Identity & Auth';
                     $is_internal = true;
                 } else {
-                    $clean_name = self::slug_to_title(str_replace('wcpscan_', '', $option));
+                    $clean_name = self::slug_to_title(str_replace('webcareproscan_', '', $option));
                     $title       = sprintf('%s Updated', $clean_name);
                     $description = sprintf('Configuration parameters updated for %1$s.', $clean_name);
                     $badge       = 'info';
@@ -382,7 +382,7 @@ class ActivityHumanizer {
      * @return string
      */
     private static function slug_to_title(string $slug): string {
-        $clean = str_replace(['wcpscan_', '-', '_'], ' ', $slug);
+        $clean = str_replace(['webcareproscan_', '-', '_'], ' ', $slug);
         return ucwords(trim($clean));
     }
 }

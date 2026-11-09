@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\Security\SecretVault;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\Security\SecretVault;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -25,9 +25,9 @@ if (!defined('ABSPATH')) {
  */
 class FormSpamProtectionEngine {
 
-    const OPTION_STATS = 'wcpscan_form_spam_stats';
-    const TRANSIENT_IP_FLOOD = 'wcpscan_form_flood_';
-    const HONEYPOT_SESSION_SALT = 'wcpscan_hp_salt';
+    const OPTION_STATS = 'webcareproscan_form_spam_stats';
+    const TRANSIENT_IP_FLOOD = 'webcareproscan_form_flood_';
+    const HONEYPOT_SESSION_SALT = 'webcareproscan_hp_salt';
 
     /**
      * Common high-confidence spam dictionary patterns.
@@ -89,8 +89,8 @@ class FormSpamProtectionEngine {
      * @return array
      */
     public static function get_settings(): array {
-        if (class_exists('\\WcpScanner\\System\\SettingsManager')) {
-            $main_settings = \WcpScanner\System\SettingsManager::get_settings();
+        if (class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
+            $main_settings = \WebCareProScanner\System\SettingsManager::get_settings();
         } else {
             $main_settings = [];
         }
@@ -131,7 +131,7 @@ class FormSpamProtectionEngine {
      */
     public static function generate_time_gate_token(): string {
         $data = time() . '|' . self::get_client_ip();
-        if (class_exists('\\WcpScanner\\Security\\SecretVault')) {
+        if (class_exists('\\WebCareProScanner\\Security\\SecretVault')) {
             return SecretVault::encrypt($data);
         }
         return base64_encode($data);
@@ -157,7 +157,7 @@ class FormSpamProtectionEngine {
 
         // Inline script to avoid an extra render-blocking HTTP request
         $js = self::get_inline_armor_script($config);
-        wp_register_script('wcp-form-armor', false, [], WCPSCAN_VERSION, true);
+        wp_register_script('wcp-form-armor', false, [], WEBCAREPROSCAN_VERSION, true);
         wp_enqueue_script('wcp-form-armor');
         wp_add_inline_script('wcp-form-armor', $js);
     }
@@ -262,9 +262,9 @@ class FormSpamProtectionEngine {
         // Tier 0.5: IP Whitelist Check
         // Whitelisted IPs bypass Honeypot form field rejection, but their incident telemetry is strictly recorded in WAF logs
         $is_whitelisted = false;
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-            $waf_settings = \WcpScanner\System\SettingsManager::get_settings();
-            $is_whitelisted = \WcpScanner\Firewall\FirewallEngine::is_ip_whitelisted($client_ip, $waf_settings['waf_whitelisted_ips'] ?? '');
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            $waf_settings = \WebCareProScanner\System\SettingsManager::get_settings();
+            $is_whitelisted = \WebCareProScanner\Firewall\FirewallEngine::is_ip_whitelisted($client_ip, $waf_settings['waf_whitelisted_ips'] ?? '');
         }
 
         // Tier 1: Dynamic Polymorphic Honeypot Verification
@@ -278,8 +278,8 @@ class FormSpamProtectionEngine {
                     self::record_spam_drop('honeypot_tripped_bypassed', $form_source, $client_ip);
 
                     // Strictly log to WAF Incident Logs with status 'bypassed'
-                    if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-                        \WcpScanner\Firewall\FirewallEngine::log_incident([
+                    if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+                        \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                             'id'          => 'WAF-FORM-HONEYPOT-BYPASS',
                             'name'        => 'Form Honeypot Decoy Tripped (Whitelist Bypass)',
                             'category'    => 'Form Spam Shield',
@@ -294,8 +294,8 @@ class FormSpamProtectionEngine {
                     self::record_spam_drop('honeypot_tripped', $form_source, $client_ip);
 
                     // Log blocked incident to WAF Incident Logs
-                    if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
-                        \WcpScanner\Firewall\FirewallEngine::log_incident([
+                    if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+                        \WebCareProScanner\Firewall\FirewallEngine::log_incident([
                             'id'          => 'WAF-FORM-HONEYPOT-BLOCKED',
                             'name'        => 'Form Honeypot Decoy Tripped',
                             'category'    => 'Form Spam Shield',
@@ -306,7 +306,7 @@ class FormSpamProtectionEngine {
                         ], 'blocked');
                     }
 
-                    return new \WP_Error('wcp_spam_honeypot', __('Spam submission rejected. Automated bot decoy triggered.', 'wcp-security-scanner'));
+                    return new \WP_Error('wcp_spam_honeypot', __('Spam submission rejected. Automated bot decoy triggered.', 'webcare-pro-security'));
                 }
             }
         }
@@ -320,12 +320,12 @@ class FormSpamProtectionEngine {
                     // Check explicit navigator.webdriver driver flag
                     if (!empty($decoded['webdriver'])) {
                         self::record_spam_drop('headless_webdriver_detected', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_webdriver', __('Automated browser software detected. Submission denied.', 'wcp-security-scanner'));
+                        return new \WP_Error('wcp_spam_webdriver', __('Automated browser software detected. Submission denied.', 'webcare-pro-security'));
                     }
                     // Check zero-entropy bot submissions (clicked submit without any mouse or touch interaction)
                     if (isset($decoded['entropy']) && (int) $decoded['entropy'] === 0 && isset($decoded['delta']) && (int) $decoded['delta'] < 2) {
                         self::record_spam_drop('zero_entropy_automation', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_zero_entropy', __('Automated form interaction detected.', 'wcp-security-scanner'));
+                        return new \WP_Error('wcp_spam_zero_entropy', __('Automated form interaction detected.', 'webcare-pro-security'));
                     }
                 }
             }
@@ -336,13 +336,13 @@ class FormSpamProtectionEngine {
             if (!isset($request_data['wcp_time_gate'])) {
                 if ($form_source === 'Comment' || $form_source === 'Registration') {
                     self::record_spam_drop('missing_time_gate', $form_source, $client_ip);
-                    return new \WP_Error('wcp_spam_missing_gate', __('Security token missing from form submission. Please refresh and try again.', 'wcp-security-scanner'));
+                    return new \WP_Error('wcp_spam_missing_gate', __('Security token missing from form submission. Please refresh and try again.', 'webcare-pro-security'));
                 }
             } else {
                 $raw_token = sanitize_text_field(wp_unslash($request_data['wcp_time_gate']));
                 $decrypted = false;
 
-                if (class_exists('\\WcpScanner\\Security\\SecretVault')) {
+                if (class_exists('\\WebCareProScanner\\Security\\SecretVault')) {
                     $decrypted = SecretVault::decrypt($raw_token);
                 }
                 if (!$decrypted) {
@@ -358,13 +358,13 @@ class FormSpamProtectionEngine {
                     // Submitted faster than human threshold (< min_seconds)
                     if ($elapsed < $min_seconds) {
                         self::record_spam_drop('speed_gate_too_fast', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_speed_gate', __('Submission was completed too quickly for a human visitor. Please take a moment and try again.', 'wcp-security-scanner'));
+                        return new \WP_Error('wcp_spam_speed_gate', __('Submission was completed too quickly for a human visitor. Please take a moment and try again.', 'webcare-pro-security'));
                     }
 
                     // Stale token (> 48 hours / 172800s to respect full-page caching)
                     if ($elapsed > 172800) {
                         self::record_spam_drop('stale_replay_token', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_stale_token', __('Form session has expired. Please refresh the page and resubmit.', 'wcp-security-scanner'));
+                        return new \WP_Error('wcp_spam_stale_token', __('Form session has expired. Please refresh the page and resubmit.', 'webcare-pro-security'));
                     }
                 }
             }
@@ -379,7 +379,7 @@ class FormSpamProtectionEngine {
             $current_count = (int) get_transient($transient_key);
             if ($current_count >= $max_submits) {
                 self::record_spam_drop('ip_flood_exceeded', $form_source, $client_ip);
-                return new \WP_Error('wcp_spam_flood_limited', __('Too many submissions from your connection. Please wait several minutes before trying again.', 'wcp-security-scanner'));
+                return new \WP_Error('wcp_spam_flood_limited', __('Too many submissions from your connection. Please wait several minutes before trying again.', 'webcare-pro-security'));
             }
 
             // Increment flood counter
@@ -395,14 +395,14 @@ class FormSpamProtectionEngine {
             $max_urls = max(1, $settings['form_max_urls_allowed']);
             if ($url_count > $max_urls) {
                 self::record_spam_drop('excessive_links_detected', $form_source, $client_ip);
-                return new \WP_Error('wcp_spam_excessive_links', __('Your message contains too many links. Please remove excessive URLs before sending.', 'wcp-security-scanner'));
+                return new \WP_Error('wcp_spam_excessive_links', __('Your message contains too many links. Please remove excessive URLs before sending.', 'webcare-pro-security'));
             }
 
             // Check spam dictionary patterns
             foreach (self::SPAM_PATTERNS as $pattern) {
                 if (preg_match($pattern, $content_text)) {
                     self::record_spam_drop('spam_keyword_matched', $form_source, $client_ip);
-                    return new \WP_Error('wcp_spam_keyword', __('Submission contained disallowed promotional or prohibited keywords.', 'wcp-security-scanner'));
+                    return new \WP_Error('wcp_spam_keyword', __('Submission contained disallowed promotional or prohibited keywords.', 'webcare-pro-security'));
                 }
             }
         }
@@ -555,7 +555,7 @@ class FormSpamProtectionEngine {
         if (is_wp_error($check)) {
             wp_die(
                 esc_html($check->get_error_message()),
-                esc_html__('Comment Submission Blocked', 'wcp-security-scanner'),
+                esc_html__('Comment Submission Blocked', 'webcare-pro-security'),
                 ['response' => 403, 'back_link' => true]
             );
         }
@@ -621,7 +621,7 @@ class FormSpamProtectionEngine {
 
         update_option(self::OPTION_STATS, $stats, false);
 
-        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
             AuditLogger::log('form_spam_neutralized', sprintf('Neutralized %s form spam from IP %s. Vector: %s', $engine, $ip, $reason));
         }
     }
@@ -662,7 +662,7 @@ class FormSpamProtectionEngine {
      * @return string
      */
     private static function get_client_ip(): string {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             return FirewallEngine::get_client_ip();
         }
         $raw = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1';

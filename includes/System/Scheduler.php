@@ -1,24 +1,24 @@
 <?php
-namespace WcpScanner\System;
+namespace WebCareProScanner\System;
 
-use WcpScanner\Scanner\Engine;
-use WcpScanner\Findings\CorrelationEngine;
-use WcpScanner\Findings\RiskScorer;
-use WcpScanner\Scan\ScanLock;
+use WebCareProScanner\Scanner\Engine;
+use WebCareProScanner\Findings\CorrelationEngine;
+use WebCareProScanner\Findings\RiskScorer;
+use WebCareProScanner\Scan\ScanLock;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
 class Scheduler {
-    const CRON_HOOK   = 'wcpscan_scheduled_scan_event';
-    const DIGEST_HOOK = 'wcpscan_weekly_digest_event';
-    const CANARY_HOOK = 'wcpscan_redirect_canary_event';
+    const CRON_HOOK   = 'webcareproscan_scheduled_scan_event';
+    const DIGEST_HOOK = 'webcareproscan_weekly_digest_event';
+    const CANARY_HOOK = 'webcareproscan_redirect_canary_event';
 
     public static function register() {
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_scan']);
         add_action(self::DIGEST_HOOK, [__CLASS__, 'run_weekly_digest']);
-        add_action(self::CANARY_HOOK, ['\\WcpScanner\\Firewall\\RedirectCanaryEngine', 'run_scheduled_canary']);
+        add_action(self::CANARY_HOOK, ['\\WebCareProScanner\\Firewall\\RedirectCanaryEngine', 'run_scheduled_canary']);
 
         // Schedule recurring Monday morning digest cron if not yet registered
         if (!wp_next_scheduled(self::DIGEST_HOOK)) {
@@ -39,19 +39,19 @@ class Scheduler {
             if (!isset($schedules['weekly'])) {
                 $schedules['weekly'] = [
                     'interval' => 7 * DAY_IN_SECONDS,
-                    'display'  => __('Once Weekly', 'wcp-security-scanner'),
+                    'display'  => __('Once Weekly', 'webcare-pro-security'),
                 ];
             }
             if (!isset($schedules['wcp_every_five_minutes'])) {
                 $schedules['wcp_every_five_minutes'] = [
                     'interval' => 300,
-                    'display'  => __('Every 5 Minutes (WCP Security)', 'wcp-security-scanner'),
+                    'display'  => __('Every 5 Minutes (WCP Security)', 'webcare-pro-security'),
                 ];
             }
             if (!isset($schedules['wcp_15min'])) {
                 $schedules['wcp_15min'] = [
                     'interval' => 900,
-                    'display'  => __('Every 15 Minutes (WCP Redirect Canary)', 'wcp-security-scanner'),
+                    'display'  => __('Every 15 Minutes (WCP Redirect Canary)', 'webcare-pro-security'),
                 ];
             }
             return $schedules;
@@ -62,27 +62,27 @@ class Scheduler {
      * Executes the Monday Morning Peace-of-Mind security digest
      */
     public static function run_weekly_digest() {
-        if (!class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher') || !class_exists('\\WcpScanner\\Reports\\WeeklyDigestEngine')) {
+        if (!class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher') || !class_exists('\\WebCareProScanner\\Reports\\WeeklyDigestEngine')) {
             return;
         }
 
         // Strict Policy: Only proceed if administrator explicitly enabled the event in Notification Center
-        $is_email_on = \WcpScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'email');
-        $is_webhook_on = \WcpScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'webhook');
+        $is_email_on = \WebCareProScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'email');
+        $is_webhook_on = \WebCareProScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'webhook');
 
         if (!$is_email_on && !$is_webhook_on) {
             // Silently abort if disabled by user (the default state)
             return;
         }
 
-        $telemetry = \WcpScanner\Reports\WeeklyDigestEngine::compile_weekly_telemetry();
-        $email_html = \WcpScanner\Reports\WeeklyDigestEngine::render_email_html($telemetry);
+        $telemetry = \WebCareProScanner\Reports\WeeklyDigestEngine::compile_weekly_telemetry();
+        $email_html = \WebCareProScanner\Reports\WeeklyDigestEngine::render_email_html($telemetry);
 
-        \WcpScanner\Notifications\NotificationDispatcher::trigger('weekly_peace_of_mind_digest', [
+        \WebCareProScanner\Notifications\NotificationDispatcher::trigger('weekly_peace_of_mind_digest', [
             /* translators: %s: site name */
-            'title'     => sprintf(__('Your Site Had a Safe Week • %s', 'wcp-security-scanner'), $telemetry['site_name']),
+            'title'     => sprintf(__('Your Site Had a Safe Week • %s', 'webcare-pro-security'), $telemetry['site_name']),
             /* translators: 1: total blocked threats, 2: bot logins stopped, 3: verified files count */
-            'message'   => sprintf(__('WebCare Pro blocked %1$s automated threats, stopped %2$s bot logins, and verified %3$s files intact this week. No action needed.', 'wcp-security-scanner'), number_format($telemetry['total_blocked']), number_format($telemetry['login_blocks']), number_format($telemetry['verified_files'])),
+            'message'   => sprintf(__('WebCare Pro blocked %1$s automated threats, stopped %2$s bot logins, and verified %3$s files intact this week. No action needed.', 'webcare-pro-security'), number_format($telemetry['total_blocked']), number_format($telemetry['login_blocks']), number_format($telemetry['verified_files'])),
             'severity'  => 'info',
             'html_body' => $email_html,
             'details'   => $telemetry,
@@ -110,13 +110,13 @@ class Scheduler {
          @ini_set('memory_limit', $mem_limit);
 
          $target = $settings['schedule_scan_type'] ?? 'plugins_themes';
-         $table_scans = $wpdb->prefix . 'wcpscan_scans';
-         $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
-         $table_files = $wpdb->prefix . 'wcpscan_scan_files';
+         $table_scans = $wpdb->prefix . 'webcareproscan_scans';
+         $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+         $table_files = $wpdb->prefix . 'webcareproscan_scan_files';
 
          // 1. Discover filesystem files (0 = unlimited)
          $files = [];
-         $file_limit = (int) apply_filters('wcpscan_file_limit', 0, $target);
+         $file_limit = (int) apply_filters('webcareproscan_file_limit', 0, $target);
 
          if (in_array($target, ['unknown_files', 'spam_content', 'user_security', 'outdated_software', 'suspicious_uploads', 'crontab_audit', 'core_integrity', 'rogue_admin', 'hook_sentinel'], true)) {
              $files = [];
@@ -133,7 +133,7 @@ class Scheduler {
              }
          }
 
-         $now_exact = \WcpScanner\Api\ScannerRoutes::now_fractional_mysql();
+         $now_exact = \WebCareProScanner\Api\ScannerRoutes::now_fractional_mysql();
          $start_time = microtime(true);
 
          // Insert scan record
@@ -156,10 +156,10 @@ class Scheduler {
 
          // Acquire exclusive scan lock so dashboard doesn't mark it interrupted
          ScanLock::acquire($scan_id);
-         set_transient("wcpscan_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
+         set_transient("webcareproscan_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
 
          // Audit Trail: Log scheduled scan started (Attributed to System WP-Cron)
-         \WcpScanner\System\WcpActivityLogger::info(
+         \WebCareProScanner\System\WcpActivityLogger::info(
              'scheduled_scan_started',
              'scan',
              [
@@ -181,18 +181,18 @@ class Scheduler {
 
          try {
              $scanned_count = 0;
-             $file_scanner = new \WcpScanner\Filesystem\FileScanner();
+             $file_scanner = new \WebCareProScanner\Filesystem\FileScanner();
 
              // 2. Scan discovered filesystem files
              foreach ($files as $idx => $filepath) {
                  // Refresh lock heartbeat and persist progress count every 15 files
                  if ($idx > 0 && $idx % 15 === 0) {
-                     \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+                     \WebCareProScanner\Scan\ScanLock::heartbeat($scan_id);
                      // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                      $wpdb->update($table_scans, [
                          'scanned_files' => $scanned_count,
                      ], ['id' => $scan_id]);
-                     set_transient("wcpscan_active_scan_file_{$scan_id}", $filepath, 120);
+                     set_transient("webcareproscan_active_scan_file_{$scan_id}", $filepath, 120);
                  }
 
                  $findings = $file_scanner->scan_file($filepath, (string) $scan_id);
@@ -221,8 +221,8 @@ class Scheduler {
                          'confidence'   => $item['confidence'] ?? 100,
                          'file_path'    => $item['file_path'] ?? $rel_path,
                          'line_number'  => $item['line_number'] ?? null,
-                         'code_snippet' => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
-                         'evidence'     => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
+                         'code_snippet' => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($item['code_snippet'] ?? null),
+                         'evidence'     => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($item['evidence'] ?? null),
                          'description'  => $item['description'] ?? '',
                          'status'         => 'open',
                          'created_at'     => current_time('mysql'),
@@ -234,12 +234,12 @@ class Scheduler {
              }
 
              // 3. Run target-specific deep audit engines
-             \WcpScanner\Scan\ScanLock::heartbeat($scan_id);
+             \WebCareProScanner\Scan\ScanLock::heartbeat($scan_id);
              $all_deep_findings = [];
 
              if ($target === 'unknown_files') {
-                 $core_integrity = new \WcpScanner\Integrity\CoreIntegrity();
-                 $plugin_integrity = new \WcpScanner\Integrity\PluginIntegrity();
+                 $core_integrity = new \WebCareProScanner\Integrity\CoreIntegrity();
+                 $plugin_integrity = new \WebCareProScanner\Integrity\PluginIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $core_integrity->verify((string) $scan_id));
                  $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
                  $all_deep_findings = array_filter($all_deep_findings, function ($f) {
@@ -247,67 +247,67 @@ class Scheduler {
                      return in_array($arr['type'] ?? '', ['unknown_core_file', 'unknown_plugin_file'], true);
                  });
              } elseif ($target === 'spam_content') {
-                 $content = new \WcpScanner\Content\ContentScanner();
+                 $content = new \WebCareProScanner\Content\ContentScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $content->scan((string) $scan_id, 300));
              } elseif ($target === 'user_security') {
-                 $user_scanner = new \WcpScanner\WordPress\UserScanner();
+                 $user_scanner = new \WebCareProScanner\WordPress\UserScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, false));
              } elseif ($target === 'outdated_software') {
-                 $update_scanner = new \WcpScanner\WordPress\UpdateScanner();
+                 $update_scanner = new \WebCareProScanner\WordPress\UpdateScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
              } elseif ($target === 'suspicious_uploads') {
-                 $uploads = new \WcpScanner\Filesystem\UploadsScanner();
+                 $uploads = new \WebCareProScanner\Filesystem\UploadsScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $uploads->scan((string) $scan_id));
              } elseif ($target === 'crontab_audit') {
-                 $cron_scanner = new \WcpScanner\WordPress\CronScanner();
+                 $cron_scanner = new \WebCareProScanner\WordPress\CronScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $cron_scanner->scan((string) $scan_id));
              } elseif ($target === 'core_integrity') {
-                 $core = new \WcpScanner\Integrity\CoreIntegrity();
+                 $core = new \WebCareProScanner\Integrity\CoreIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $core->verify((string) $scan_id));
              } elseif ($target === 'rogue_admin') {
-                 $rogue = new \WcpScanner\Database\RogueAdminAnomalyDetector();
+                 $rogue = new \WebCareProScanner\Database\RogueAdminAnomalyDetector();
                  $all_deep_findings = array_merge($all_deep_findings, $rogue->scan((string) $scan_id));
-                 $user_scanner = new \WcpScanner\WordPress\UserScanner();
+                 $user_scanner = new \WebCareProScanner\WordPress\UserScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $user_scanner->scan((string) $scan_id, true));
              } elseif ($target === 'hook_sentinel') {
-                 $hook_sentinel = new \WcpScanner\WordPress\HookInfiltrationSentinel();
+                 $hook_sentinel = new \WebCareProScanner\WordPress\HookInfiltrationSentinel();
                  $all_deep_findings = array_merge($all_deep_findings, $hook_sentinel->scan((string) $scan_id));
-                 $persistence_scanner = new \WcpScanner\WordPress\PersistenceScanner();
+                 $persistence_scanner = new \WebCareProScanner\WordPress\PersistenceScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $persistence_scanner->scan((string) $scan_id));
              } elseif ($target === 'filesystem_only') {
                  // Filesystem-only scan: no additional deep audit engines needed
              } else {
                  // Full or plugins_themes: execute all comprehensive engines
-                 $core = new \WcpScanner\Integrity\CoreIntegrity();
+                 $core = new \WebCareProScanner\Integrity\CoreIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $core->verify((string) $scan_id));
 
-                 $fim = new \WcpScanner\Integrity\ImportantFileFIM();
+                 $fim = new \WebCareProScanner\Integrity\ImportantFileFIM();
                  $all_deep_findings = array_merge($all_deep_findings, $fim->verify((string) $scan_id));
 
-                 $plugin_integrity = new \WcpScanner\Integrity\PluginIntegrity();
+                 $plugin_integrity = new \WebCareProScanner\Integrity\PluginIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $plugin_integrity->verify((string) $scan_id));
 
-                 $theme_integrity = new \WcpScanner\Integrity\ThemeIntegrity();
+                 $theme_integrity = new \WebCareProScanner\Integrity\ThemeIntegrity();
                  $all_deep_findings = array_merge($all_deep_findings, $theme_integrity->verify((string) $scan_id));
 
-                 $db_scanner = new \WcpScanner\Database\DatabaseScanner();
+                 $db_scanner = new \WebCareProScanner\Database\DatabaseScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $db_scanner->scan((string) $scan_id, 100));
 
-                 $content_scanner = new \WcpScanner\Content\ContentScanner();
+                 $content_scanner = new \WebCareProScanner\Content\ContentScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $content_scanner->scan((string) $scan_id, 100));
 
-                 $wp_security = new \WcpScanner\WordPress\WordPressSecurityScanner();
+                 $wp_security = new \WebCareProScanner\WordPress\WordPressSecurityScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $wp_security->scan((string) $scan_id));
 
-                 $update_scanner = new \WcpScanner\WordPress\UpdateScanner();
+                 $update_scanner = new \WebCareProScanner\WordPress\UpdateScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $update_scanner->scan((string) $scan_id));
 
-                 $uploads = new \WcpScanner\Filesystem\UploadsScanner();
+                 $uploads = new \WebCareProScanner\Filesystem\UploadsScanner();
                  $all_deep_findings = array_merge($all_deep_findings, $uploads->scan((string) $scan_id));
              }
 
              // Cross-engine Correlation
-             $correlation = new \WcpScanner\Findings\CorrelationEngine();
+             $correlation = new \WebCareProScanner\Findings\CorrelationEngine();
              $correlated = $correlation->correlate($all_deep_findings);
 
              // Pre-load all existing findings already saved for this scan to prevent any duplicate insertions
@@ -342,10 +342,10 @@ class Scheduler {
                      'confidence'   => $f['confidence'] ?? 100,
                      'file_path'    => $f['file_path'] ?? ($f['target'] ?? 'N/A'),
                      'line_number'  => $f['line_number'] ?? null,
-                     'code_snippet' => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($f['code_snippet'] ?? null),
-                     'evidence'     => \WcpScanner\Filesystem\UploadsScanner::sanitize_utf8($f['evidence'] ?? null),
+                     'code_snippet' => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($f['code_snippet'] ?? null),
+                     'evidence'     => \WebCareProScanner\Filesystem\UploadsScanner::sanitize_utf8($f['evidence'] ?? null),
                      'description'  => $f['description'] ?? '',
-                     'status'       => (class_exists('\\WcpScanner\\Findings\\WhitelistManager') && \WcpScanner\Findings\WhitelistManager::match_finding($f) !== null) ? 'ignored' : 'open',
+                     'status'       => (class_exists('\\WebCareProScanner\\Findings\\WhitelistManager') && \WebCareProScanner\Findings\WhitelistManager::match_finding($f) !== null) ? 'ignored' : 'open',
                      'created_at'   => current_time('mysql'),
                      'created_at_gmt' => gmdate('Y-m-d H:i:s'),
                  ]);
@@ -355,7 +355,7 @@ class Scheduler {
              $calc_sec = microtime(true) - $start_time;
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
-             $completed_at_exact = \WcpScanner\Api\ScannerRoutes::now_fractional_mysql();
+             $completed_at_exact = \WebCareProScanner\Api\ScannerRoutes::now_fractional_mysql();
              $all_query = "SELECT * FROM `{$table_issues}` WHERE scan_id = %d";
               // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
               $all_scan_issues = $wpdb->get_results(
@@ -368,7 +368,7 @@ class Scheduler {
                  return ($issue['status'] ?? 'open') === 'open';
              });
 
-             $scorer = new \WcpScanner\Findings\RiskScorer();
+             $scorer = new \WebCareProScanner\Findings\RiskScorer();
              $risk_summary = $scorer->calculate($open_issues);
              $risk_score = (int) ($risk_summary['score'] ?? 0);
              $open_issues_count = count($open_issues);
@@ -385,15 +385,15 @@ class Scheduler {
              ], ['id' => $scan_id]);
 
              // Release exclusive lock
-             \WcpScanner\Scan\ScanLock::release($scan_id);
-             delete_transient("wcpscan_active_scan_file_{$scan_id}");
-             delete_transient("wcpscan_scan_start_micro_{$scan_id}");
+             \WebCareProScanner\Scan\ScanLock::release($scan_id);
+             delete_transient("webcareproscan_active_scan_file_{$scan_id}");
+             delete_transient("webcareproscan_scan_start_micro_{$scan_id}");
 
              // 5. Send Alerts & Notifications
              self::send_scan_notification($scan_id, $open_issues_count, $risk_score, $target);
 
              // Audit Trail: Log scheduled scan completed
-             \WcpScanner\System\WcpActivityLogger::info(
+             \WebCareProScanner\System\WcpActivityLogger::info(
                  'scheduled_scan_completed',
                  'scan',
                  [
@@ -417,16 +417,16 @@ class Scheduler {
              );
 
          } catch (\Throwable $e) {
-             \WcpScanner\Scan\ScanLock::release($scan_id);
-             $last_file = get_transient("wcpscan_active_scan_file_{$scan_id}") ?: '';
-             delete_transient("wcpscan_active_scan_file_{$scan_id}");
-             delete_transient("wcpscan_scan_start_micro_{$scan_id}");
+             \WebCareProScanner\Scan\ScanLock::release($scan_id);
+             $last_file = get_transient("webcareproscan_active_scan_file_{$scan_id}") ?: '';
+             delete_transient("webcareproscan_active_scan_file_{$scan_id}");
+             delete_transient("webcareproscan_scan_start_micro_{$scan_id}");
              $calc_sec = microtime(true) - $start_time;
              $duration_ms = (int) round($calc_sec * 1000);
              $duration = max(1, (int) round($calc_sec));
 
              // Record deep forensic interruption dossier
-             \WcpScanner\Scan\ScanInterruptionForensics::record($scan_id, \WcpScanner\Scan\ScanInterruptionForensics::REASON_EXCEPTION_CAUGHT, [
+             \WebCareProScanner\Scan\ScanInterruptionForensics::record($scan_id, \WebCareProScanner\Scan\ScanInterruptionForensics::REASON_EXCEPTION_CAUGHT, [
                  'exception' => $e,
                  'last_file' => $last_file,
              ]);
@@ -436,7 +436,7 @@ class Scheduler {
                  'status'       => 'interrupted',
                  'duration'     => $duration,
                  'duration_ms'  => $duration_ms,
-                 'completed_at' => \WcpScanner\Api\ScannerRoutes::now_fractional_mysql(),
+                 'completed_at' => \WebCareProScanner\Api\ScannerRoutes::now_fractional_mysql(),
              ], ['id' => $scan_id]);
              // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
              error_log('[WCP Scanner] Scheduled scan failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
@@ -450,7 +450,7 @@ class Scheduler {
         $settings = SettingsManager::get_settings();
 
         global $wpdb;
-        $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
         $notif_query = "SELECT severity, type, file_path, description FROM `{$table_issues}` WHERE scan_id = %d ORDER BY FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')";
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $issues = $wpdb->get_results(
@@ -460,13 +460,13 @@ class Scheduler {
         ) ?: [];
 
         // Dispatch granular event notifications via NotificationDispatcher
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
             // 1. Scheduled scan complete event
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_scheduled_complete', [
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_scheduled_complete', [
                 'severity' => ($total_issues > 0) ? 'high' : 'info',
                 'message'  => sprintf(
                     /* translators: 1: scan ID, 2: scan target, 3: count of issues, 4: risk score */
-                    __('Scheduled background scan #%1$d finished for target "%2$s". %3$d issue(s) identified (Risk Score: %4$d/100).', 'wcp-security-scanner'),
+                    __('Scheduled background scan #%1$d finished for target "%2$s". %3$d issue(s) identified (Risk Score: %4$d/100).', 'webcare-pro-security'),
                     $scan_id,
                     $target,
                     $total_issues,
@@ -485,11 +485,11 @@ class Scheduler {
                 return in_array($i['severity'] ?? '', ['critical', 'high'], true);
             });
             if (!empty($critical_or_high)) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_threats_found', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: 1: scan ID, 2: count of threats */
-                        __('Critical or high-priority security threats were detected during scan #%1$d (%2$d threats).', 'wcp-security-scanner'),
+                        __('Critical or high-priority security threats were detected during scan #%1$d (%2$d threats).', 'webcare-pro-security'),
                         $scan_id,
                         count($critical_or_high)
                     ),
@@ -503,8 +503,8 @@ class Scheduler {
         }
 
         // Dispatch DevSecOps Webhooks (Slack & Discord)
-        if (class_exists('\\WcpScanner\\Notifications\\WebhookService')) {
-            \WcpScanner\Notifications\WebhookService::send_scan_alert($scan_id, $total_issues, $risk_score, $target, $issues);
+        if (class_exists('\\WebCareProScanner\\Notifications\\WebhookService')) {
+            \WebCareProScanner\Notifications\WebhookService::send_scan_alert($scan_id, $total_issues, $risk_score, $target, $issues);
         }
 
         if (empty($settings['email_alerts_enabled'])) {
@@ -554,7 +554,7 @@ class Scheduler {
         $subject = "[$status_label] {$site_name} - Scan #{$scan_id} Completed for {$host} ({$total_issues} findings)";
 
         $headers = ['Content-Type: text/html; charset=UTF-8'];
-        $logo_url = defined('WCPSCAN_URL') ? WCPSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
+        $logo_url = defined('WEBCAREPROSCAN_URL') ? WEBCAREPROSCAN_URL . 'assets/logo.png' : plugins_url('assets/logo.png', dirname(__DIR__));
         $sev_badge_color = ($critical_count > 0 || $high_count > 0) ? '#dc2626' : '#10b981';
 
         // Generate Gemini AI Overview preheader text (single-line executive brief)

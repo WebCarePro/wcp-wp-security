@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Identity;
+namespace WebCareProScanner\Identity;
 
-use WcpScanner\Security\SecretVault;
+use WebCareProScanner\Security\SecretVault;
 
 if (!defined('ABSPATH')) {
     exit;

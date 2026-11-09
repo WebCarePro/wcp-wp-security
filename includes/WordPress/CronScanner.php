@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\WordPress;
+namespace WebCareProScanner\WordPress;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -28,9 +28,9 @@ class CronScanner {
      * Delegates to CronPersistenceScanner if available to ensure unified detection rules and prevent finding ID collisions.
      */
     private function scan_wp_cron($scan_id) {
-        if (class_exists('\\WcpScanner\\Database\\CronPersistenceScanner')) {
+        if (class_exists('\\WebCareProScanner\\Database\\CronPersistenceScanner')) {
             try {
-                $persistence_scanner = new \WcpScanner\Database\CronPersistenceScanner();
+                $persistence_scanner = new \WebCareProScanner\Database\CronPersistenceScanner();
                 return $persistence_scanner->scan((string) $scan_id);
             } catch (\Throwable $e) {
                 // Fall through to lightweight virtual cron audit if persistence scanner fails

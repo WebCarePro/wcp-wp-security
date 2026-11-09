@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Hardening;
+namespace WebCareProScanner\Hardening;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -141,7 +141,7 @@ class PermissionHardeningManager {
             'wfcache',
             '.backups',
             'wcp-backups',
-            'wcp-security-scanner',
+            'webcare-pro-security',
             'wcp-quarantine',
             'wcp-scanner-quarantine',
             'wcp-vault',
@@ -229,7 +229,7 @@ class PermissionHardeningManager {
                             $can_modify = false;
                             $reason = sprintf(
                                 /* translators: 1: directory owner name, 2: directory owner UID, 3: server user name, 4: server UID */
-                                __('Directory is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Non-root PHP cannot modify directory permissions owned by another user.', 'wcp-security-scanner'),
+                                __('Directory is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Non-root PHP cannot modify directory permissions owned by another user.', 'webcare-pro-security'),
                                 $owner_name,
                                 $owner_uid,
                                 $server_info['user'],
@@ -315,7 +315,7 @@ class PermissionHardeningManager {
                             $can_modify = false;
                             $reason = sprintf(
                                 /* translators: 1: file owner name, 2: file owner UID, 3: server user name, 4: server UID */
-                                __('File is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Non-root PHP cannot modify file permissions owned by another user.', 'wcp-security-scanner'),
+                                __('File is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Non-root PHP cannot modify file permissions owned by another user.', 'webcare-pro-security'),
                                 $owner_name,
                                 $owner_uid,
                                 $server_info['user'],
@@ -411,7 +411,7 @@ class PermissionHardeningManager {
             'wfcache',
             '.backups',
             'wcp-backups',
-            'wcp-security-scanner',
+            'webcare-pro-security',
             'wcp-quarantine',
             'wcp-scanner-quarantine',
             'wcp-vault',
@@ -523,14 +523,14 @@ class PermissionHardeningManager {
         $reconciled_issues_count = self::reconcile_scan_issues($fixed_paths);
 
         // 3. Record in Audit Log
-        if (class_exists('\\WcpScanner\\System\\AuditLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\AuditLogger')) {
             $log_message = sprintf(
                 '1-Click Filesystem Permission Hardening: Restored %d directories to 0755, %d files to 0644. %d unfixable items encountered.',
                 $dirs_fixed,
                 $files_fixed,
                 count($unfixable_items)
             );
-            \WcpScanner\System\AuditLogger::log_event('PERMISSION_HARDENING', $log_message);
+            \WebCareProScanner\System\AuditLogger::log_event('PERMISSION_HARDENING', $log_message);
         }
 
         $cli_commands = self::generate_cli_commands($root, $server_info['user'], $server_info['group']);
@@ -539,7 +539,7 @@ class PermissionHardeningManager {
             'success'                 => true,
             'message'                 => sprintf(
                 /* translators: 1: count of fixed directories, 2: count of fixed files, 3: count of reconciled scan issues */
-                __('Hardening complete: %1$d directories restored to 0755, %2$d files secured to 0644. %3$d active scan issues resolved.', 'wcp-security-scanner'),
+                __('Hardening complete: %1$d directories restored to 0755, %2$d files secured to 0644. %3$d active scan issues resolved.', 'webcare-pro-security'),
                 $dirs_fixed,
                 $files_fixed,
                 $reconciled_issues_count
@@ -560,7 +560,7 @@ class PermissionHardeningManager {
         $ownership = self::get_path_ownership($path);
         $reason = sprintf(
             /* translators: 1: path owner name, 2: path owner UID, 3: server user name, 4: server UID */
-            __('Path is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Modify ownership via terminal or SSH.', 'wcp-security-scanner'),
+            __('Path is owned by %1$s (UID %2$d), but PHP web server runs as %3$s (UID %4$d). Modify ownership via terminal or SSH.', 'webcare-pro-security'),
             $ownership['owner_name'],
             $ownership['owner_uid'],
             $server_info['user'],
@@ -594,7 +594,7 @@ class PermissionHardeningManager {
         if (empty($wpdb) || !isset($wpdb->prefix)) {
             return 0;
         }
-        $table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $table = $wpdb->prefix . 'webcareproscan_scan_issues';
         $check_sql = "SHOW TABLES LIKE '{$table}'";
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
         if ($wpdb->get_var($check_sql) !== $table) {

@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Security;
+namespace WebCareProScanner\Security;
 
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -25,8 +25,8 @@ if (!defined('ABSPATH')) {
  */
 class EmergencyContainmentManager {
 
-    const OPTION_ACTIVE = 'wcpscan_containment_active';
-    const OPTION_META   = 'wcpscan_containment_meta';
+    const OPTION_ACTIVE = 'webcareproscan_containment_active';
+    const OPTION_META   = 'webcareproscan_containment_meta';
 
     /**
      * Bootstrap containment hooks on WordPress initialization.
@@ -114,9 +114,9 @@ class EmergencyContainmentManager {
 
         // 2. Trigger Cloudflare Under-Attack Mode if Cloudflare Edge is configured
         $cf_toggled = false;
-        $settings = \WcpScanner\System\SettingsManager::get_settings();
+        $settings = \WebCareProScanner\System\SettingsManager::get_settings();
         if (!empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id'])) {
-            $cf_res = \WcpScanner\Cloudflare\CloudflareService::request(
+            $cf_res = \WebCareProScanner\Cloudflare\CloudflareService::request(
                 '/zones/' . $settings['cloudflare_zone_id'] . '/settings/security_level',
                 'PATCH',
                 ['value' => 'under_attack']
@@ -128,8 +128,8 @@ class EmergencyContainmentManager {
 
         // 3. Capture an immediate emergency forensic snapshot of bespoke themes and plugins
         $snapshot_result = null;
-        if (class_exists('\\WcpScanner\\Integrity\\LocalSnapshotManager')) {
-            $snapshot_result = \WcpScanner\Integrity\LocalSnapshotManager::create_snapshot(
+        if (class_exists('\\WebCareProScanner\\Integrity\\LocalSnapshotManager')) {
+            $snapshot_result = \WebCareProScanner\Integrity\LocalSnapshotManager::create_snapshot(
                 'emergency_containment_' . gmdate('Ymd_His'),
                 'Emergency Incident Containment Baseline Snapshot'
             );
@@ -157,9 +157,9 @@ class EmergencyContainmentManager {
         );
 
         NotificationDispatcher::trigger('containment_mode_activated', [
-            'title'   => __('1-Click Incident Containment Protocol ACTIVATED', 'wcp-security-scanner'),
+            'title'   => __('1-Click Incident Containment Protocol ACTIVATED', 'webcare-pro-security'),
             /* translators: 1: username, 2: reason, 3: number of terminated sessions */
-            'message' => sprintf(__('Incident containment mode engaged by %1$s. Reason: %2$s. Blast radius frozen, sessions terminated (%3$d).', 'wcp-security-scanner'), $username, $reason, $terminated_sessions_count),
+            'message' => sprintf(__('Incident containment mode engaged by %1$s. Reason: %2$s. Blast radius frozen, sessions terminated (%3$d).', 'webcare-pro-security'), $username, $reason, $terminated_sessions_count),
             'details' => [
                 'triggered_by'        => $username,
                 'reason'              => $reason,
@@ -179,7 +179,7 @@ class EmergencyContainmentManager {
             'sessions_purged'     => $terminated_sessions_count,
             'cloudflare_toggled'  => $cf_toggled,
             'snapshot_created'    => !empty($snapshot_result['success']),
-            'message'             => __('Emergency Containment Mode is now ACTIVE. The site blast radius has been frozen.', 'wcp-security-scanner'),
+            'message'             => __('Emergency Containment Mode is now ACTIVE. The site blast radius has been frozen.', 'webcare-pro-security'),
         ];
     }
 
@@ -202,9 +202,9 @@ class EmergencyContainmentManager {
 
         // Restore Cloudflare security level if it was toggled during activation
         if (!empty($old_meta['cloudflare_toggled'])) {
-            $settings = \WcpScanner\System\SettingsManager::get_settings();
+            $settings = \WebCareProScanner\System\SettingsManager::get_settings();
             if (!empty($settings['cloudflare_api_token']) && !empty($settings['cloudflare_zone_id'])) {
-                \WcpScanner\Cloudflare\CloudflareService::request(
+                \WebCareProScanner\Cloudflare\CloudflareService::request(
                     '/zones/' . $settings['cloudflare_zone_id'] . '/settings/security_level',
                     'PATCH',
                     ['value' => 'medium']
@@ -221,9 +221,9 @@ class EmergencyContainmentManager {
         );
 
         NotificationDispatcher::trigger('containment_mode_deactivated', [
-            'title'   => __('Incident Containment Protocol Disengaged', 'wcp-security-scanner'),
+            'title'   => __('Incident Containment Protocol Disengaged', 'webcare-pro-security'),
             /* translators: %s: username who disengaged containment mode */
-            'message' => sprintf(__('Incident containment mode disengaged by %s. Normal platform operations resumed.', 'wcp-security-scanner'), $username),
+            'message' => sprintf(__('Incident containment mode disengaged by %s. Normal platform operations resumed.', 'webcare-pro-security'), $username),
             'details' => [
                 'triggered_by' => $username,
                 'status'       => 'Platform Restored',
@@ -233,7 +233,7 @@ class EmergencyContainmentManager {
         return [
             'success' => true,
             'active'  => false,
-            'message' => __('Emergency Containment Mode has been deactivated. Standard operations restored.', 'wcp-security-scanner'),
+            'message' => __('Emergency Containment Mode has been deactivated. Standard operations restored.', 'webcare-pro-security'),
         ];
     }
 
@@ -467,7 +467,7 @@ class EmergencyContainmentManager {
                 </div>
                 <div>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-security-scanner#/firewall')); ?>" class="button button-primary" style="background: #dc2626; border-color: #b91c1c;">
-                        <?php esc_html_e('Open Security Console & Remediate', 'wcp-security-scanner'); ?>
+                        <?php esc_html_e('Open Security Console & Remediate', 'webcare-pro-security'); ?>
                     </a>
                 </div>
             </div>

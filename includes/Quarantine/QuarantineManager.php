@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Quarantine;
+namespace WebCareProScanner\Quarantine;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -17,7 +17,7 @@ class QuarantineManager {
     public static function get_quarantine_dir(): string {
         $uploads = wp_upload_dir();
         $base = untrailingslashit($uploads['basedir']);
-        return $base . '/wcp-security-scanner/.vault';
+        return $base . '/webcare-pro-security/.vault';
     }
 
     /**
@@ -60,7 +60,7 @@ class QuarantineManager {
         }
 
         // Security check: Must reside within WordPress installation root with directory boundary check
-        if (!\WcpScanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($file_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security violation: File resides outside ABSPATH.'];
         }
         $real_root = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
@@ -71,7 +71,7 @@ class QuarantineManager {
         $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';
         $wp_admin_dir = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
         if (strpos($normalized_real, $wp_includes_dir) === 0 || strpos($normalized_real, $wp_admin_dir) === 0) {
-            $provider = new \WcpScanner\Integrity\ChecksumProvider();
+            $provider = new \WebCareProScanner\Integrity\ChecksumProvider();
             $core_checksums = $provider->get_core_checksums();
             $rel_file = ltrim(str_replace($real_root, '', $normalized_real), '/');
 
@@ -107,7 +107,7 @@ class QuarantineManager {
 
         // Prohibit quarantining modified official files (which must be repaired/restored, not isolated)
         if ($issue_id) {
-            $table_issues = $wpdb->prefix . 'wcpscan_scan_issues';
+            $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
             $issue_sql = "SELECT type FROM {$table_issues} WHERE id = %d";
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $issue = $wpdb->get_row(
@@ -117,12 +117,12 @@ class QuarantineManager {
             if ($issue && (strpos($issue->type, 'modified_') === 0 || strpos($issue->type, 'wp_config_') === 0 || $issue->type === 'injected_wp_config')) {
                 return [
                     'success' => false,
-                    'message' => __('Action Blocked: This is an official component file that was modified. Please use Auto-Cure or code restoration rather than quarantine to avoid breaking website functionality.', 'wcp-security-scanner')
+                    'message' => __('Action Blocked: This is an official component file that was modified. Please use Auto-Cure or code restoration rather than quarantine to avoid breaking website functionality.', 'webcare-pro-security')
                 ];
             }
         }
 
-        if (strpos($normalized_real, '/plugins/wcp-security-scanner/') !== false) {
+        if (strpos($normalized_real, '/plugins/webcare-pro-security/') !== false) {
             return [
                 'success' => false,
                 'message' => "Action Blocked: Cannot quarantine security scanner plugin files."
@@ -170,7 +170,7 @@ class QuarantineManager {
             }
 
             // Encrypt file contents using SecretVault (AES-256-GCM authenticated AEAD encryption)
-            $encrypted_payload = \WcpScanner\Security\SecretVault::encrypt($file_content);
+            $encrypted_payload = \WebCareProScanner\Security\SecretVault::encrypt($file_content);
             $vault_payload = $guard_header . $encrypted_payload;
 
             // Write encrypted payload to protected vault
@@ -192,7 +192,7 @@ class QuarantineManager {
         wp_delete_file($real_path);
 
         // Record in database - ensure single authoritative record per original_path
-        $table = $wpdb->prefix . 'wcpscan_quarantine';
+        $table = $wpdb->prefix . 'webcareproscan_quarantine';
 
         // Check if previous records exist for this exact file path to avoid duplicates
         $exist_sql = "SELECT id, quarantine_filename FROM `{$table}` WHERE original_path = %s";
@@ -237,7 +237,7 @@ class QuarantineManager {
         $quarantine_id = $wpdb->insert_id;
 
         // Update issue status
-        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
         if ($issue_id) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($issues_table, ['status' => 'quarantined'], ['id' => $issue_id]);
@@ -248,14 +248,14 @@ class QuarantineManager {
         }
 
         // Trigger 72-Hour Reinfection Watchdog post-remediation surveillance
-        do_action('wcpscan_file_quarantined', $real_path, $sha256);
+        do_action('webcareproscan_file_quarantined', $real_path, $sha256);
 
         // Dispatch scan_auto_quarantine notification event
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('scan_auto_quarantine', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_auto_quarantine', [
                 'severity' => 'high',
                 /* translators: 1: original file basename */
-                'message'  => sprintf(__('Malicious file "%1$s" was neutralized and quarantined into the encrypted WCP Vault.', 'wcp-security-scanner'), basename($real_path)),
+                'message'  => sprintf(__('Malicious file "%1$s" was neutralized and quarantined into the encrypted WCP Vault.', 'webcare-pro-security'), basename($real_path)),
                 'details'  => [
                     'File Path'      => $real_path,
                     'SHA-256'        => $sha256,
@@ -282,7 +282,7 @@ class QuarantineManager {
      */
     public function restore_file($quarantine_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_quarantine';
+        $table = $wpdb->prefix . 'webcareproscan_quarantine';
 
         $rec_sql = "SELECT * FROM {$table} WHERE id = %d AND status = 'quarantined'";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -318,7 +318,7 @@ class QuarantineManager {
         $dest_path = $record['original_path'];
 
         // Security check: Destination must reside within ABSPATH boundary and be safe to write
-        if (!\WcpScanner\Filesystem\PathValidator::is_safe_write_target($dest_path, ABSPATH)) {
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_safe_write_target($dest_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security violation: Restore destination resides outside ABSPATH.'];
         }
         $real_root = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
@@ -418,8 +418,8 @@ class QuarantineManager {
             }
 
             // Decrypt ciphertext if encrypted
-            if (\WcpScanner\Security\SecretVault::is_encrypted($payload)) {
-                $decrypted = \WcpScanner\Security\SecretVault::decrypt($payload);
+            if (\WebCareProScanner\Security\SecretVault::is_encrypted($payload)) {
+                $decrypted = \WebCareProScanner\Security\SecretVault::decrypt($payload);
                 if ($decrypted === false) {
                     return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted vault ciphertext.'];
                 }
@@ -431,7 +431,7 @@ class QuarantineManager {
 
             // Atomically write restored plaintext to original destination, preventing symlink follower races
             $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
-            if (!\WcpScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
+            if (!\WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
                 return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
             }
         }
@@ -448,7 +448,7 @@ class QuarantineManager {
         ], ['id' => $quarantine_id]);
 
         // If issue exists, set status back to open
-        $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+        $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
         if (!empty($record['issue_id'])) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->update($issues_table, ['status' => 'open'], ['id' => (int) $record['issue_id']]);
@@ -458,12 +458,12 @@ class QuarantineManager {
             $wpdb->update($issues_table, ['status' => 'open'], ['file_path' => $record['original_path']]);
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_restored', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_restored', [
                 'severity' => 'warning',
                 'message'  => sprintf(
                     /* translators: %s: file path */
-                    __('A file in security quarantine was restored back to the active filesystem: "%s".', 'wcp-security-scanner'),
+                    __('A file in security quarantine was restored back to the active filesystem: "%s".', 'webcare-pro-security'),
                     $dest_path
                 ),
                 'details'  => [
@@ -485,7 +485,7 @@ class QuarantineManager {
      */
     public function list_records() {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_quarantine';
+        $table = $wpdb->prefix . 'webcareproscan_quarantine';
         $list_sql = "SELECT * FROM `{$table}` ORDER BY id DESC";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $results = $wpdb->get_results($list_sql, ARRAY_A);
@@ -557,7 +557,7 @@ class QuarantineManager {
      */
     public function clear_restored_records() {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_quarantine';
+        $table = $wpdb->prefix . 'webcareproscan_quarantine';
         $restored_sql = "SELECT id, quarantine_filename FROM `{$table}` WHERE status = 'restored'";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $restored = $wpdb->get_results($restored_sql, ARRAY_A);
@@ -577,14 +577,14 @@ class QuarantineManager {
                 'success' => true,
                 'message' => sprintf(
                     /* translators: %d: count of cleared log entries */
-                    __('Cleared %d restored history log entries. (Live website files remain untouched).', 'wcp-security-scanner'),
+                    __('Cleared %d restored history log entries. (Live website files remain untouched).', 'webcare-pro-security'),
                     count($restored)
                 )
             ];
         }
         return [
             'success' => true,
-            'message' => __('No restored records to clear.', 'wcp-security-scanner')
+            'message' => __('No restored records to clear.', 'webcare-pro-security')
         ];
     }
 
@@ -598,7 +598,7 @@ class QuarantineManager {
      */
     public function delete_record($quarantine_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'wcpscan_quarantine';
+        $table = $wpdb->prefix . 'webcareproscan_quarantine';
         $find_sql = "SELECT * FROM `{$table}` WHERE id = %d";
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $record = $wpdb->get_row(
@@ -632,7 +632,7 @@ class QuarantineManager {
 
         // When permanently deleting an active quarantined threat, mark matching scan issues as repaired
         if (!$was_restored) {
-            $issues_table = $wpdb->prefix . 'wcpscan_scan_issues';
+            $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
             if (!empty($record['issue_id'])) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update($issues_table, ['status' => 'repaired'], ['id' => (int) $record['issue_id']]);
@@ -642,11 +642,11 @@ class QuarantineManager {
                 $wpdb->update($issues_table, ['status' => 'repaired'], ['file_path' => $record['original_path']]);
             }
 
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_deleted', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('vault_quarantine_deleted', [
                     'severity' => 'info',
                     /* translators: %s: file path */
-                    'message'  => sprintf(__('Quarantined file was permanently purged from vault storage: "%s".', 'wcp-security-scanner'), $record['original_path'] ?? 'unknown'),
+                    'message'  => sprintf(__('Quarantined file was permanently purged from vault storage: "%s".', 'webcare-pro-security'), $record['original_path'] ?? 'unknown'),
                     'details'  => [
                         'file_path'     => $record['original_path'] ?? 'unknown',
                         'purged_by'     => wp_get_current_user()->user_login ?: 'admin',

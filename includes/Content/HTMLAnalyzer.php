@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\Content;
+namespace WebCareProScanner\Content;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -110,7 +110,7 @@ class HTMLAnalyzer {
 
         // 7. Inline JavaScript redirect in content (<script>...window.location... or location.replace)
         if (preg_match_all('/<script\b[^>]*>(.*?)<\/script>/is', $html, $script_matches)) {
-            $js_scanner = new \WcpScanner\Malware\JavaScriptSecurityScanner();
+            $js_scanner = new \WebCareProScanner\Malware\JavaScriptSecurityScanner();
             foreach ($script_matches[1] as $idx => $script_body) {
                 $script_body = trim($script_body);
                 if (empty($script_body)) {
@@ -150,22 +150,22 @@ class HTMLAnalyzer {
         }
 
         // 8. JSON-LD Structured Data Schema Poisoning & GEO AI SEO Shield
-        if (class_exists('\\WcpScanner\\Content\\GeoShieldService')) {
-            $jsonld_hits = \WcpScanner\Content\GeoShieldService::audit_jsonld_schemas($html);
+        if (class_exists('\\WebCareProScanner\\Content\\GeoShieldService')) {
+            $jsonld_hits = \WebCareProScanner\Content\GeoShieldService::audit_jsonld_schemas($html);
             if (!empty($jsonld_hits)) {
                 $detections = array_merge($detections, $jsonld_hits);
             }
 
             // 9. GEO Invisible CSS Cloaking (Transparent text, contrast cloaking, abused sr-only)
-            $geo_cloak_hits = \WcpScanner\Content\GeoShieldService::audit_geo_cloaking($html);
+            $geo_cloak_hits = \WebCareProScanner\Content\GeoShieldService::audit_geo_cloaking($html);
             if (!empty($geo_cloak_hits)) {
                 $detections = array_merge($detections, $geo_cloak_hits);
             }
         }
 
         // 10. WordPress 6.5+ Interactivity API & Gutenberg Block Directive Sanitization
-        if (class_exists('\\WcpScanner\\Content\\BlockDirectiveSanitizer')) {
-            $block_hits = \WcpScanner\Content\BlockDirectiveSanitizer::audit_content($html);
+        if (class_exists('\\WebCareProScanner\\Content\\BlockDirectiveSanitizer')) {
+            $block_hits = \WebCareProScanner\Content\BlockDirectiveSanitizer::audit_content($html);
             if (!empty($block_hits)) {
                 $detections = array_merge($detections, $block_hits);
             }

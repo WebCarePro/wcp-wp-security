@@ -1,8 +1,8 @@
 <?php
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -18,17 +18,17 @@ if (!defined('ABSPATH')) {
  */
 class HoneyTokenEngine {
 
-    const OPTION_CATCHES          = 'wcpscan_honeytoken_catches';
-    const OPTION_SETTINGS         = 'wcpscan_honeytoken_settings';
+    const OPTION_CATCHES          = 'webcareproscan_honeytoken_catches';
+    const OPTION_SETTINGS         = 'webcareproscan_honeytoken_settings';
     const FIELD_NAME              = 'wcp_security_verify';
     const FIELD_FLAG              = 'wcp_hp_active';
     const CANARY_ADMIN_USER        = 'wcp_canary_admin';
-    const CANARY_USER_META         = '_wcpscan_is_canary';
-    const OPTION_CANARY_DB_PLANTED = 'wcpscan_canary_db_planted';
+    const CANARY_USER_META         = '_webcareproscan_is_canary';
+    const OPTION_CANARY_DB_PLANTED = 'webcareproscan_canary_db_planted';
     const CANARY_HONEY_OPTIONS     = [
-        '_wcpscan_canary_aws_secret',
-        '_wcpscan_canary_stripe_secret',
-        '_wcpscan_canary_vault_backup',
+        '_webcareproscan_canary_aws_secret',
+        '_webcareproscan_canary_stripe_secret',
+        '_webcareproscan_canary_vault_backup',
     ];
 
     /**
@@ -180,9 +180,9 @@ class HoneyTokenEngine {
         }
 
         // Audit Trail: Log Honey-Token bot trap policy modification
-        $diff = \WcpScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'honeytoken_settings_updated',
                 'firewall',
                 [
@@ -311,11 +311,11 @@ class HoneyTokenEngine {
         // Check if IP is in the central WAF Whitelist or belongs to server / local gateway
         $is_whitelisted = false;
         if ((function_exists('current_user_can') && current_user_can('manage_options'))
-            || (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
+            || (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
             return; // Never terminate or ban a verified active administrator
         }
 
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             if (FirewallEngine::is_server_origin_or_loopback($client_ip)) {
                 return; // Never terminate or ban server origin or loopback/local dev gateways
             }
@@ -325,7 +325,7 @@ class HoneyTokenEngine {
 
         // Whitelisted IPs bypass honeypot termination, but MUST store audit telemetry in WAF Incident Logs
         if ($is_whitelisted) {
-            if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+            if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
                 FirewallEngine::log_incident([
                     'id'          => 'WAF-HONEYTOKEN-TRAP-BYPASS',
                     'name'        => 'Honey-Token Decoy Tripped (Whitelist Bypass)',
@@ -366,7 +366,7 @@ class HoneyTokenEngine {
         }
 
         // Log blocked incident to WAF Incident Logs
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             FirewallEngine::log_incident([
                 'id'          => 'WAF-HONEYTOKEN-TRAP-BLOCKED',
                 'name'        => 'Honey-Token Bot Decoy Tripped',
@@ -384,7 +384,7 @@ class HoneyTokenEngine {
         );
 
         // 3. Immediately terminate bot request with HTTP 403 Forbidden
-        if (php_sapi_name() !== 'cli' && !defined('WCPSCAN_TESTING')) {
+        if (php_sapi_name() !== 'cli' && !defined('WEBCAREPROSCAN_TESTING')) {
             status_header(403);
             header('Content-Type: text/plain; charset=utf-8');
             echo 'Access Denied: Automated bot activity detected and quarantined by WCP Security Scanner.';
@@ -400,10 +400,10 @@ class HoneyTokenEngine {
      */
     public static function ban_bot_ip(string $ip, int $duration_hours = 24) {
         if ((function_exists('current_user_can') && current_user_can('manage_options'))
-            || (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
+            || (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
             return;
         }
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             if (FirewallEngine::is_server_origin_or_loopback($ip)) {
                 return;
             }
@@ -428,7 +428,7 @@ class HoneyTokenEngine {
         }
 
         // Set transient with expiration for telemetry
-        set_transient('wcpscan_bot_ban_' . md5($ip), [
+        set_transient('webcareproscan_bot_ban_' . md5($ip), [
             'ip'         => $ip,
             'banned_at'  => time(),
             'expires_at' => time() + ($duration_hours * 3600),
@@ -442,7 +442,7 @@ class HoneyTokenEngine {
      * @return array
      */
     public static function unban_bot_ip(string $ip): array {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             FirewallEngine::remove_blocked_ip($ip);
         } else {
             $waf_settings = SettingsManager::get_settings();
@@ -452,7 +452,7 @@ class HoneyTokenEngine {
             $ip_list = array_values(array_filter($ip_list, fn($item) => $item !== $ip));
             SettingsManager::save_settings(['waf_blocked_ips' => implode("\n", $ip_list)]);
         }
-        delete_transient('wcpscan_bot_ban_' . md5($ip));
+        delete_transient('webcareproscan_bot_ban_' . md5($ip));
 
         AuditLogger::log(
             'honeytoken_ip_unbanned',
@@ -504,11 +504,11 @@ class HoneyTokenEngine {
         self::record_catch($catch_entry);
         self::ban_bot_ip($ip, $duration_hours);
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('behavioral_bot_trap_triggered', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('behavioral_bot_trap_triggered', [
                 'severity' => 'high',
                 /* translators: 1: IP address, 2: trap type */
-                'message'  => sprintf(__('Behavioral Honeytoken tripped by offensive bot IP "%1$s" via %2$s.', 'wcp-security-scanner'), $ip, $trap_type),
+                'message'  => sprintf(__('Behavioral Honeytoken tripped by offensive bot IP "%1$s" via %2$s.', 'webcare-pro-security'), $ip, $trap_type),
                 'details'  => [
                     'Offensive IP' => $ip,
                     'Trap Type'    => $trap_type,
@@ -611,17 +611,17 @@ class HoneyTokenEngine {
     }
 
     private static function alert_and_contain_c2(string $c2_ip, string $token): void {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             FirewallEngine::add_blocked_ip($c2_ip, 'Canary Honeytoken Triggered: External C2 probing decoy credentials', 86400, 'canary_trap', 'Honeytoken Alert');
         }
 
-        if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('canary_honeytoken_triggered', [
+        if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('canary_honeytoken_triggered', [
                 'severity' => 'critical',
                 'c2_ip'    => $c2_ip,
                 'token'    => $token,
                 'ua'       => isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '',
-                'title'    => __('Hostile C2 Honeytoken Callback Intercepted', 'wcp-security-scanner'),
+                'title'    => __('Hostile C2 Honeytoken Callback Intercepted', 'webcare-pro-security'),
             ]);
         }
     }
@@ -636,7 +636,7 @@ class HoneyTokenEngine {
         }
 
         // Fast path: if already seeded, skip to prevent overhead on every request
-        if (get_option('_wcpscan_canary_admin_planted', false)) {
+        if (get_option('_webcareproscan_canary_admin_planted', false)) {
             return;
         }
 
@@ -647,7 +647,7 @@ class HoneyTokenEngine {
                 if (!get_user_meta($existing->ID, self::CANARY_USER_META, true)) {
                     update_user_meta($existing->ID, self::CANARY_USER_META, 1);
                 }
-                update_option('_wcpscan_canary_admin_planted', time(), false);
+                update_option('_webcareproscan_canary_admin_planted', time(), false);
                 return;
             }
 
@@ -668,8 +668,8 @@ class HoneyTokenEngine {
 
             if (!is_wp_error($user_id)) {
                 update_user_meta($user_id, self::CANARY_USER_META, 1);
-                update_user_meta($user_id, '_wcpscan_canary_created', time());
-                update_option('_wcpscan_canary_admin_planted', time(), false);
+                update_user_meta($user_id, '_webcareproscan_canary_created', time());
+                update_option('_webcareproscan_canary_admin_planted', time(), false);
 
                 if (class_exists(AuditLogger::class)) {
                     AuditLogger::log(
@@ -727,11 +727,11 @@ class HoneyTokenEngine {
                     'username'    => $clean_user,
                     'ip'          => $client_ip,
                     'timestamp'   => current_time('mysql'),
-                    'title'       => __('CRITICAL TRIPWIRE: Canary Ghost Admin Login Attempted', 'wcp-security-scanner'),
+                    'title'       => __('CRITICAL TRIPWIRE: Canary Ghost Admin Login Attempted', 'webcare-pro-security'),
                 ]);
             }
 
-            return new \WP_Error('invalid_username', __('Unknown username. Check again or try your email address.', 'wcp-security-scanner'));
+            return new \WP_Error('invalid_username', __('Unknown username. Check again or try your email address.', 'webcare-pro-security'));
         }
 
         return $user;
@@ -771,9 +771,9 @@ class HoneyTokenEngine {
             $site_key = substr(md5(home_url() . $salt), 0, 16);
 
             $decoys = [
-                '_wcpscan_canary_aws_secret'    => 'AKIA' . strtoupper(substr(hash('sha256', 'aws:' . $site_key), 0, 16)) . ':' . bin2hex(random_bytes(20)),
-                '_wcpscan_canary_stripe_secret' => 'sk_live_canary_' . substr(hash('sha256', 'stripe:' . $site_key), 0, 24),
-                '_wcpscan_canary_vault_backup'  => 'https://vault-backup.internal/db-snap-' . $site_key . '.sql.enc',
+                '_webcareproscan_canary_aws_secret'    => 'AKIA' . strtoupper(substr(hash('sha256', 'aws:' . $site_key), 0, 16)) . ':' . bin2hex(random_bytes(20)),
+                '_webcareproscan_canary_stripe_secret' => 'sk_live_canary_' . substr(hash('sha256', 'stripe:' . $site_key), 0, 24),
+                '_webcareproscan_canary_vault_backup'  => 'https://vault-backup.internal/db-snap-' . $site_key . '.sql.enc',
             ];
 
             foreach ($decoys as $key => $val) {
@@ -813,20 +813,20 @@ class HoneyTokenEngine {
         }
 
         // Ignore internal CLI / cron executions
-        if ((defined('WP_CLI') && WP_CLI && !defined('WCPSCAN_TESTING')) || (defined('DOING_CRON') && DOING_CRON)) {
+        if ((defined('WP_CLI') && WP_CLI && !defined('WEBCAREPROSCAN_TESTING')) || (defined('DOING_CRON') && DOING_CRON)) {
             return $pre_val;
         }
 
         // If user is a verified administrator actively browsing wp-admin, bypass punitive termination
         if ((function_exists('current_user_can') && current_user_can('manage_options'))
-            || (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
+            || (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator())) {
             return $pre_val;
         }
 
         $client_ip = self::get_client_ip();
 
         // Local loopback and server origin IPs are always immune
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_server_origin_or_loopback($client_ip)) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_server_origin_or_loopback($client_ip)) {
             return $pre_val;
         }
 
@@ -845,7 +845,7 @@ class HoneyTokenEngine {
                 'option_name' => $option_name,
                 'ip'          => $client_ip,
                 'timestamp'   => current_time('mysql'),
-                'title'       => __('CRITICAL TRIPWIRE: Database Honey Option Accessed', 'wcp-security-scanner'),
+                'title'       => __('CRITICAL TRIPWIRE: Database Honey Option Accessed', 'webcare-pro-security'),
             ]);
         }
 
@@ -859,7 +859,7 @@ class HoneyTokenEngine {
      */
     public static function reseed_db_canaries(): array {
         delete_option(self::OPTION_CANARY_DB_PLANTED);
-        delete_option('_wcpscan_canary_admin_planted');
+        delete_option('_webcareproscan_canary_admin_planted');
 
         self::$internal_audit_bypass = true;
         try {
@@ -871,7 +871,7 @@ class HoneyTokenEngine {
 
         return [
             'success' => true,
-            'message' => __('Database Canary Honey-Tokens and Ghost Admin user verified and seeded successfully.', 'wcp-security-scanner'),
+            'message' => __('Database Canary Honey-Tokens and Ghost Admin user verified and seeded successfully.', 'webcare-pro-security'),
             'summary' => self::get_summary(),
         ];
     }
@@ -941,7 +941,7 @@ class HoneyTokenEngine {
      * Safe client IP resolution delegating to FirewallEngine.
      */
     private static function get_client_ip(): string {
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             return FirewallEngine::get_client_ip();
         }
         return isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1';

@@ -6,16 +6,16 @@
  * Executes 5 specialized multi-vector probes (Search Engine, Mobile UA, AI Search, Admin Gatekeeper, Baseline)
  * with differential DOM inspection, Web3 RPC C2 detection, ClickFix analysis, and Strict 3-Condition Auto-Heal.
  *
- * @package WcpScanner\Firewall
+ * @package WebCareProScanner\Firewall
  * @author  Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer
  */
 
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\Security\SecretVault;
-use WcpScanner\Notifications\NotificationDispatcher;
-use WcpScanner\System\WcpActivityLogger;
-use WcpScanner\System\SettingsManager;
+use WebCareProScanner\Security\SecretVault;
+use WebCareProScanner\Notifications\NotificationDispatcher;
+use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -23,10 +23,10 @@ if (!defined('ABSPATH')) {
 
 final class RedirectCanaryEngine {
 
-    public const STATE_OPTION        = 'wcpscan_redirect_canary_state';
-    public const BASELINE_OPTION     = 'wcpscan_canonical_host_baseline';
-    public const LAST_REPORT_OPTION  = 'wcpscan_redirect_canary_last_report';
-    public const AUTO_HEAL_OPTION    = 'wcpscan_redirect_auto_heal_enabled';
+    public const STATE_OPTION        = 'webcareproscan_redirect_canary_state';
+    public const BASELINE_OPTION     = 'webcareproscan_canonical_host_baseline';
+    public const LAST_REPORT_OPTION  = 'webcareproscan_redirect_canary_last_report';
+    public const AUTO_HEAL_OPTION    = 'webcareproscan_redirect_auto_heal_enabled';
     public const HMAC_HEADER         = 'X-WCP-Canary-Signature';
 
     /**
@@ -135,7 +135,7 @@ final class RedirectCanaryEngine {
                     'target_host' => $dest_host,
                     'description' => sprintf(
                         /* translators: %s: external destination URL */
-                        __('Baseline Probe A: Homepage immediately redirected direct desktop visitors to external host "%s".', 'wcp-security-scanner'),
+                        __('Baseline Probe A: Homepage immediately redirected direct desktop visitors to external host "%s".', 'webcare-pro-security'),
                         $probe_a['redirect_url']
                     ),
                 ];
@@ -166,7 +166,7 @@ final class RedirectCanaryEngine {
                 'target_host' => $probe_b['redirect_host'],
                 'description' => sprintf(
                     /* translators: 1: target URL, 2: referer */
-                    __('Search Engine Cloak Detected: Probe B was redirected to "%1$s" when arriving from "%2$s" with Googlebot User-Agent.', 'wcp-security-scanner'),
+                    __('Search Engine Cloak Detected: Probe B was redirected to "%1$s" when arriving from "%2$s" with Googlebot User-Agent.', 'webcare-pro-security'),
                     $probe_b['redirect_url'],
                     'https://www.google.com/'
                 ),
@@ -206,7 +206,7 @@ final class RedirectCanaryEngine {
                 'target_host' => $probe_c['redirect_host'],
                 'description' => sprintf(
                     /* translators: 1: target URL, 2: referer */
-                    __('Mobile Cloak Detected: Probe C was redirected to "%1$s" for mobile iPhone visitors referred by Google.', 'wcp-security-scanner'),
+                    __('Mobile Cloak Detected: Probe C was redirected to "%1$s" for mobile iPhone visitors referred by Google.', 'webcare-pro-security'),
                     $probe_c['redirect_url'],
                     'https://www.google.com/'
                 ),
@@ -259,7 +259,7 @@ final class RedirectCanaryEngine {
                     'target_host' => $dest_host,
                     'description' => sprintf(
                         /* translators: %s: external host */
-                        __('Critical Admin Hijack: Probe D discovered /wp-admin/ redirects administrators out-of-band to external host "%s".', 'wcp-security-scanner'),
+                        __('Critical Admin Hijack: Probe D discovered /wp-admin/ redirects administrators out-of-band to external host "%s".', 'webcare-pro-security'),
                         $dest_host
                     ),
                 ];
@@ -290,7 +290,7 @@ final class RedirectCanaryEngine {
                 'target_host' => $probe_e['redirect_host'],
                 'description' => sprintf(
                     /* translators: 1: target URL, 2: referer */
-                    __('AI Search Cloak Detected: Probe E was redirected to "%1$s" when referred by ChatGPT/Perplexity AI search engines.', 'wcp-security-scanner'),
+                    __('AI Search Cloak Detected: Probe E was redirected to "%1$s" when referred by ChatGPT/Perplexity AI search engines.', 'webcare-pro-security'),
                     $probe_e['redirect_url'],
                     'https://chatgpt.com/'
                 ),
@@ -432,7 +432,7 @@ final class RedirectCanaryEngine {
                     'target_host' => $target_host,
                     'description' => sprintf(
                         /* translators: %s: destination URL */
-                        __('Client-side <meta http-equiv="refresh"> redirect hijacking visitors to external host "%s".', 'wcp-security-scanner'),
+                        __('Client-side <meta http-equiv="refresh"> redirect hijacking visitors to external host "%s".', 'webcare-pro-security'),
                         $dest
                     ),
                 ];
@@ -453,7 +453,7 @@ final class RedirectCanaryEngine {
                     'target_host' => $target_host,
                     'description' => sprintf(
                         /* translators: %s: external base URL */
-                        __('Poisoned <base href> directive redirecting all relative asset and link queries to external host "%s".', 'wcp-security-scanner'),
+                        __('Poisoned <base href> directive redirecting all relative asset and link queries to external host "%s".', 'webcare-pro-security'),
                         $base_url
                     ),
                 ];
@@ -481,7 +481,7 @@ final class RedirectCanaryEngine {
                                 'evidence'    => '<' . 'script src="' . esc_url($src) . '">',
                                 'description' => sprintf(
                                     /* translators: 1: external domain, 2: script URL */
-                                    __('Cloaked Script Injection: External script from "%1$s" was delivered exclusively to cloaked probes (%2$s).', 'wcp-security-scanner'),
+                                    __('Cloaked Script Injection: External script from "%1$s" was delivered exclusively to cloaked probes (%2$s).', 'webcare-pro-security'),
                                     $s_host_low,
                                     substr($src, 0, 100)
                                 ),
@@ -503,7 +503,7 @@ final class RedirectCanaryEngine {
                         'score'       => 100,
                         'severity'    => 'critical',
                         'evidence'    => substr(trim($inline_code), 0, 160),
-                        'description' => __('Web3 Blockchain RPC C2 Resolver: Discovered dynamic script loader resolving command & control payloads via public blockchain RPCs.', 'wcp-security-scanner'),
+                        'description' => __('Web3 Blockchain RPC C2 Resolver: Discovered dynamic script loader resolving command & control payloads via public blockchain RPCs.', 'webcare-pro-security'),
                     ];
                 }
 
@@ -515,7 +515,7 @@ final class RedirectCanaryEngine {
                         'score'       => 100,
                         'severity'    => 'critical',
                         'evidence'    => substr(trim($inline_code), 0, 160),
-                        'description' => __('ClickFix Clipboard Hijacking: Discovered fake verification/Turnstile payload attempting to copy malicious shell execution commands into the visitor clipboard.', 'wcp-security-scanner'),
+                        'description' => __('ClickFix Clipboard Hijacking: Discovered fake verification/Turnstile payload attempting to copy malicious shell execution commands into the visitor clipboard.', 'webcare-pro-security'),
                     ];
                 }
 
@@ -530,7 +530,7 @@ final class RedirectCanaryEngine {
                             'evidence'    => substr($m_sw[0], 0, 120),
                             'description' => sprintf(
                                 /* translators: %s: worker path */
-                                __('Suspicious Service Worker Registration: Injected script registers service worker "%s" capable of persistent client-side traffic redirection.', 'wcp-security-scanner'),
+                                __('Suspicious Service Worker Registration: Injected script registers service worker "%s" capable of persistent client-side traffic redirection.', 'webcare-pro-security'),
                                 $sw_path
                             ),
                         ];
@@ -589,7 +589,7 @@ final class RedirectCanaryEngine {
                     'baseline_val'=> $baseline['home_url'],
                     'description' => sprintf(
                         /* translators: 1: current hijacked home url, 2: baseline home url */
-                        __('Database Core URL Hijack: The "home" option in wp_options was tampered to point to foreign domain "%1$s" (Baseline: "%2$s").', 'wcp-security-scanner'),
+                        __('Database Core URL Hijack: The "home" option in wp_options was tampered to point to foreign domain "%1$s" (Baseline: "%2$s").', 'webcare-pro-security'),
                         $current_home,
                         $baseline['home_url']
                     ),
@@ -610,7 +610,7 @@ final class RedirectCanaryEngine {
                     'baseline_val'=> $baseline['site_url'],
                     'description' => sprintf(
                         /* translators: 1: current hijacked siteurl, 2: baseline siteurl */
-                        __('Database Core URL Hijack: The "siteurl" option in wp_options was tampered to point to foreign domain "%1$s" (Baseline: "%2$s").', 'wcp-security-scanner'),
+                        __('Database Core URL Hijack: The "siteurl" option in wp_options was tampered to point to foreign domain "%1$s" (Baseline: "%2$s").', 'webcare-pro-security'),
                         $current_siteurl,
                         $baseline['site_url']
                     ),
@@ -707,7 +707,7 @@ final class RedirectCanaryEngine {
         if (empty($baseline['home_url']) || empty($baseline['site_url'])) {
             return [
                 'success' => false,
-                'message' => __('No verified cryptographic baseline exists to restore core URLs.', 'wcp-security-scanner'),
+                'message' => __('No verified cryptographic baseline exists to restore core URLs.', 'webcare-pro-security'),
             ];
         }
 
@@ -724,7 +724,7 @@ final class RedirectCanaryEngine {
         wp_cache_delete('siteurl', 'options');
         wp_cache_delete('alloptions', 'options');
 
-        if (class_exists('\\WcpScanner\\System\\WcpActivityLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
             WcpActivityLogger::log('database_core_urls_healed', 'database', 'critical', [
                 'restored_home'    => $baseline['home_url'],
                 'restored_siteurl' => $baseline['site_url'],
@@ -733,7 +733,7 @@ final class RedirectCanaryEngine {
 
         return [
             'success'          => true,
-            'message'          => __('Database "siteurl" and "home" options successfully restored from signed baseline.', 'wcp-security-scanner'),
+            'message'          => __('Database "siteurl" and "home" options successfully restored from signed baseline.', 'webcare-pro-security'),
             'restored_home'    => $baseline['home_url'],
             'restored_siteurl' => $baseline['site_url'],
         ];
@@ -825,12 +825,12 @@ final class RedirectCanaryEngine {
 
         // Transition 1: Clean -> Hostile (NEW ATTACK DETECTED)
         if ($prev_status === 'clean' && $new_status === 'hostile') {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 NotificationDispatcher::trigger('redirect_hack_detected', [
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: %s: incident description */
-                        __('Redirect Hack Detected by WCP Synthetic Canary: %s', 'wcp-security-scanner'),
+                        __('Redirect Hack Detected by WCP Synthetic Canary: %s', 'webcare-pro-security'),
                         $desc
                     ),
                     'details'  => [
@@ -852,10 +852,10 @@ final class RedirectCanaryEngine {
 
         // Transition 2: Hostile -> Clean (ATTACK REMEDIATED & RECOVERED)
         if ($prev_status === 'hostile' && $new_status === 'clean') {
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
                 NotificationDispatcher::trigger('redirect_hack_auto_healed', [
                     'severity' => 'info',
-                    'message'  => __('Redirect Incident Recovered: All 5 synthetic canary probes and core database URLs have verified normal clean status.', 'wcp-security-scanner'),
+                    'message'  => __('Redirect Incident Recovered: All 5 synthetic canary probes and core database URLs have verified normal clean status.', 'webcare-pro-security'),
                     'details'  => [
                         'Recovery Status' => 'All Probes Clean (HTTP 200 / Legitimate Canonical)',
                         'Remediated At'   => gmdate('Y-m-d H:i:s') . ' UTC',

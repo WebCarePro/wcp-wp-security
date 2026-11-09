@@ -1,5 +1,5 @@
 <?php
-namespace WcpScanner\SupplyChain;
+namespace WebCareProScanner\SupplyChain;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -42,7 +42,7 @@ class InstallRiskAdvisor {
         $resolved_slug = $slug ?: basename($real_dir);
 
         // Self-Exclusion: Never flag WCP Security Scanner itself
-        if ($resolved_slug === 'wcp-security-scanner') {
+        if ($resolved_slug === 'webcare-pro-security') {
             return [
                 'success'      => true,
                 'slug'         => $resolved_slug,
@@ -120,11 +120,11 @@ class InstallRiskAdvisor {
             $level = 'clean';
         }
 
-        if (($level === 'critical' || $level === 'high') && class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-            \WcpScanner\Notifications\NotificationDispatcher::trigger('supply_chain_risk_advisor_alert', [
+        if (($level === 'critical' || $level === 'high') && class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+            \WebCareProScanner\Notifications\NotificationDispatcher::trigger('supply_chain_risk_advisor_alert', [
                 'severity' => $level,
                 /* translators: 1: component slug, 2: risk level */
-                'message'  => sprintf(__('Shift-Left Supply-Chain Risk Alert: Component "%1$s" flagged with %2$s risk level (Risk Score: %3$d/100).', 'wcp-security-scanner'), $slug ?: basename($real_dir), strtoupper($level), $score),
+                'message'  => sprintf(__('Shift-Left Supply-Chain Risk Alert: Component "%1$s" flagged with %2$s risk level (Risk Score: %3$d/100).', 'webcare-pro-security'), $slug ?: basename($real_dir), strtoupper($level), $score),
                 'details'  => [
                     'Component Slug' => $slug ?: basename($real_dir),
                     'Risk Level'     => strtoupper($level),

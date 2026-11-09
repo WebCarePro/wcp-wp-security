@@ -1,7 +1,7 @@
 <?php
-namespace WcpScanner\Integrity;
+namespace WebCareProScanner\Integrity;
 
-use WcpScanner\Findings\Finding;
+use WebCareProScanner\Findings\Finding;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -87,8 +87,8 @@ class ImportantFileFIM {
         $findings = array_merge($findings, $mu_findings);
 
         // 4. Audit AI Search & GEO Foundation Files (llms.txt, llms-full.txt)
-        if (class_exists('\\WcpScanner\\Content\\GeoShieldService')) {
-            $geo_findings = \WcpScanner\Content\GeoShieldService::audit_fim_llms_files($scan_id);
+        if (class_exists('\\WebCareProScanner\\Content\\GeoShieldService')) {
+            $geo_findings = \WebCareProScanner\Content\GeoShieldService::audit_fim_llms_files($scan_id);
             $findings = array_merge($findings, $geo_findings);
         }
 

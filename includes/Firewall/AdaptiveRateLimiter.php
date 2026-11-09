@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace WcpScanner\Firewall;
+namespace WebCareProScanner\Firewall;
 
-use WcpScanner\System\SettingsManager;
-use WcpScanner\System\AuditLogger;
-use WcpScanner\Firewall\CAF\ThreatScoreTracker;
+use WebCareProScanner\System\SettingsManager;
+use WebCareProScanner\System\AuditLogger;
+use WebCareProScanner\Firewall\CAF\ThreatScoreTracker;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -33,8 +33,8 @@ if (!defined('ABSPATH')) {
  */
 class AdaptiveRateLimiter {
 
-    public const OPTION_SETTINGS      = 'wcpscan_rate_limiter_settings';
-    public const TRANSIENT_PREFIX     = 'wcpscan_rl_';
+    public const OPTION_SETTINGS      = 'webcareproscan_rate_limiter_settings';
+    public const TRANSIENT_PREFIX     = 'webcareproscan_rl_';
 
     // Bucket Identifier Constants
     public const BUCKET_AUTH          = 'auth';
@@ -118,8 +118,8 @@ class AdaptiveRateLimiter {
         update_option(self::OPTION_SETTINGS, $updated);
 
         $diff = SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WcpScanner\System\WcpActivityLogger')) {
-            \WcpScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            \WebCareProScanner\System\WcpActivityLogger::notice(
                 'rate_limiter_settings_updated',
                 'firewall',
                 [
@@ -159,7 +159,7 @@ class AdaptiveRateLimiter {
         if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
             $data = apcu_fetch($cache_key);
         } elseif (wp_using_ext_object_cache()) {
-            $data = wp_cache_get($cache_key, 'wcpscan_rl');
+            $data = wp_cache_get($cache_key, 'webcareproscan_rl');
         } else {
             $data = get_transient($cache_key);
         }
@@ -193,7 +193,7 @@ class AdaptiveRateLimiter {
             $has_fast_cache = true;
         }
         if (wp_using_ext_object_cache()) {
-            wp_cache_set($cache_key, $data, 'wcpscan_rl', $ttl);
+            wp_cache_set($cache_key, $data, 'webcareproscan_rl', $ttl);
             $has_fast_cache = true;
         }
 
@@ -229,7 +229,7 @@ class AdaptiveRateLimiter {
         }
 
         // Exempt logged-in administrators and editor/builders (including early authentication detection at plugins_loaded: 0)
-        if (class_exists('\\WcpScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator()) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && FirewallEngine::is_authenticated_administrator()) {
             return true;
         }
         if (function_exists('current_user_can') && current_user_can('manage_options')) {
@@ -311,14 +311,14 @@ class AdaptiveRateLimiter {
         $retry_after = (int) ($settings['retry_after_seconds'] ?? 30);
 
         // Record in differential threat score engine
-        if (class_exists('\\WcpScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             $event_tag = ($bucket === self::BUCKET_AUTH) ? 'auth_fail' : 'probe_404';
             ThreatScoreTracker::record_event($client_ip, $event_tag, 10.0);
         }
 
         // Escalation to temporary quarantine if blasting server (> 2.5x threshold)
         if (!empty($settings['escalate_to_ban']) && $count > ($limit * 2.5)) {
-            $ban_lock = 'wcpscan_rl_ban_log_' . md5($client_ip);
+            $ban_lock = 'webcareproscan_rl_ban_log_' . md5($client_ip);
             if (!get_transient($ban_lock)) {
                 set_transient($ban_lock, 1, 1800);
                 AuditLogger::log(
@@ -327,7 +327,7 @@ class AdaptiveRateLimiter {
                 );
             }
 
-            if (class_exists('\\WcpScanner\\Firewall\\HoneyTokenEngine')) {
+            if (class_exists('\\WebCareProScanner\\Firewall\\HoneyTokenEngine')) {
                 HoneyTokenEngine::ban_bot_ip($client_ip, 1);
             }
 
@@ -341,14 +341,14 @@ class AdaptiveRateLimiter {
         self::record_throttle_incident($client_ip, $bucket, $count, $limit);
 
         // Notify if behavioral rate limit exceeded notification is active (debounced per IP)
-        $rl_notif_lock = 'wcpscan_rl_notif_' . md5($client_ip . '_' . $bucket);
+        $rl_notif_lock = 'webcareproscan_rl_notif_' . md5($client_ip . '_' . $bucket);
         if (!get_transient($rl_notif_lock)) {
             set_transient($rl_notif_lock, 1, 900); // 15-minute debounce per IP and bucket
-            if (class_exists('\\WcpScanner\\Notifications\\NotificationDispatcher')) {
-                \WcpScanner\Notifications\NotificationDispatcher::trigger('behavioral_rate_limit_exceeded', [
+            if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
+                \WebCareProScanner\Notifications\NotificationDispatcher::trigger('behavioral_rate_limit_exceeded', [
                     'severity' => 'high',
                     /* translators: 1: client IP, 2: rate limit bucket name, 3: request count, 4: limit */
-                    'message'  => sprintf(__('Client IP %1$s exceeded the velocity threshold for %2$s (%3$d requests against limit of %4$d).', 'wcp-security-scanner'), $client_ip, strtoupper($bucket), $count, $limit),
+                    'message'  => sprintf(__('Client IP %1$s exceeded the velocity threshold for %2$s (%3$d requests against limit of %4$d).', 'webcare-pro-security'), $client_ip, strtoupper($bucket), $count, $limit),
                     'details'  => [
                         'Offending IP'    => $client_ip,
                         'Boundary Bucket' => strtoupper($bucket),
@@ -380,9 +380,9 @@ class AdaptiveRateLimiter {
                 'status'      => 429,
                 'error'       => 'too_many_requests',
                 /* translators: %1$s: velocity bucket name, %2$d: retry after seconds */
-                'message'     => sprintf(__('Too many %1$s requests. Please wait %2$d seconds before retrying.', 'wcp-security-scanner'), esc_html($bucket), $retry_after),
+                'message'     => sprintf(__('Too many %1$s requests. Please wait %2$d seconds before retrying.', 'webcare-pro-security'), esc_html($bucket), $retry_after),
                 /* translators: %d: retry after seconds */
-                'messages'    => sprintf('<ul class="woocommerce-error"><li>%s</li></ul>', esc_html(sprintf(__('Too many requests. Please wait %d seconds before retrying.', 'wcp-security-scanner'), $retry_after))),
+                'messages'    => sprintf('<ul class="woocommerce-error"><li>%s</li></ul>', esc_html(sprintf(__('Too many requests. Please wait %d seconds before retrying.', 'webcare-pro-security'), $retry_after))),
                 'retry_after' => $retry_after,
                 'bucket'      => $bucket,
             ]);
@@ -397,7 +397,7 @@ class AdaptiveRateLimiter {
      * Record a throttling incident.
      */
     private static function record_throttle_incident(string $ip, string $bucket, int $count, int $limit): void {
-        $transient_key = 'wcpscan_rl_stats_day';
+        $transient_key = 'webcareproscan_rl_stats_day';
         $stats = get_transient($transient_key);
         if (!is_array($stats)) {
             $stats = ['total_throttled' => 0, 'by_bucket' => []];
@@ -413,12 +413,12 @@ class AdaptiveRateLimiter {
      * @return array
      */
     public static function get_telemetry(): array {
-        $stats = get_transient('wcpscan_rl_stats_day');
+        $stats = get_transient('webcareproscan_rl_stats_day');
         if (!is_array($stats)) {
             $stats = ['total_throttled' => 0, 'by_bucket' => []];
         }
 
-        $distributed = class_exists('\\WcpScanner\\Firewall\\DistributedVelocityShield')
+        $distributed = class_exists('\\WebCareProScanner\\Firewall\\DistributedVelocityShield')
             ? DistributedVelocityShield::get_telemetry()
             : [];
 
