@@ -415,35 +415,35 @@ export const FirewallPage = ({
   const [cfDefinitions, setCfDefinitions] = useState<any>({
     compound_perimeter: {
       id: 'webcareproscan_compound_perimeter',
-      title: 'Rule 1: Master Perimeter & Sensitive File Armor',
+      title: 'Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
       badge: 'Edge Shield',
       description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.',
       action: 'block',
-      expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
+      expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
     },
-    compound_exploits: {
-      id: 'webcareproscan_compound_exploits',
-      title: 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
-      badge: 'Zero-Day Shield',
-      description: 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
+    compound_stackguard: {
+      id: 'webcareproscan_compound_stackguard',
+      title: 'Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches',
+      badge: 'StackGuard',
+      description: 'Automatically locks down all inactive/dormant plugin paths to neutralize zero-day scans, and deploys high-priority stack-scoped CVE virtual patches tailored to your active plugins.',
       action: 'block',
-      expression: ['(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "', 'base64', '_', 'decode', '" or http.request.uri.query contains "', 'ev', 'al', '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'].join('')
+      expression: '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")'
     },
     compound_login_bot: {
       id: 'webcareproscan_compound_login_bot',
-      title: 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
+      title: 'Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield',
       badge: 'Turnstile Challenge',
-      description: 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
+      description: 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and comment spam with Managed Challenge (Turnstile). Automatically escalates during active brute-force floods.',
       action: 'managed_challenge',
-      expression: '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot'
+      expression: '((http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/my-account"}) and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"})) or ((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot)) or (http.user_agent contains "sqlmap" or http.user_agent contains "wpscan" or http.user_agent contains "nuclei" or http.user_agent contains "nikto" or http.user_agent contains "masscan" or http.user_agent contains "python-requests")'
     },
-    compound_sqli: {
-      id: 'webcareproscan_compound_sqli',
-      title: 'Rule 4: Deep SQL Injection & Database Armor',
-      badge: 'SQLi Shield',
-      description: 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',
+    compound_sqli_lfi: {
+      id: 'webcareproscan_compound_sqli_lfi',
+      title: 'Rule 4: Deep SQLi, LFI & Reconnaissance Armor',
+      badge: 'Exploit Armor',
+      description: 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark), directory traversal, LFI, and user enumeration before touching WordPress PHP or MySQL.',
       action: 'block',
-      expression: '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")'
+      expression: '((lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")) or ((http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")) or ((http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in")))'
     }
   });
   const [loadingCf, setLoadingCf] = useState<boolean>(false);
@@ -461,9 +461,9 @@ export const FirewallPage = ({
   const [cfPurgeMessage, setCfPurgeMessage] = useState<string | null>(null);
   const [cfSelectedRules, setCfSelectedRules] = useState<{ [key: string]: boolean }>({
     compound_perimeter: true,
-    compound_exploits: true,
+    compound_stackguard: true,
     compound_login_bot: true,
-    compound_sqli: true,
+    compound_sqli_lfi: true,
   });
   const [cfRuleCustomizations, setCfRuleCustomizations] = useState<{
     [key: string]: {
@@ -767,39 +767,39 @@ export const FirewallPage = ({
   const [compoundRules, setCompoundRules] = useState<{ [key: string]: CompoundRule }>({
     compound_perimeter: {
       id: 'webcare_compound_perimeter',
-      title: 'Rule 1: Master Perimeter & Sensitive File Armor',
+      title: 'Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
       badge: 'Edge Shield',
       description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
       action: 'block',
       action_label: 'Block',
-      expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
+      expression: '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})'
     },
-    compound_exploits: {
-      id: 'webcare_compound_exploits',
-      title: 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
-      badge: 'Zero-Day Shield',
-      description: 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
+    compound_stackguard: {
+      id: 'webcare_compound_stackguard',
+      title: 'Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches',
+      badge: 'StackGuard',
+      description: 'Automatically locks down all inactive/dormant plugin paths to neutralize zero-day scans, and deploys high-priority stack-scoped CVE virtual patches tailored to your active plugins.',
       action: 'block',
       action_label: 'Block',
-      expression: ['(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "', 'base64', '_', 'decode', '" or http.request.uri.query contains "', 'ev', 'al', '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "wp-json/wp/v2/users/me"))'].join('')
+      expression: '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")'
     },
     compound_login_bot: {
       id: 'webcare_compound_login_bot',
-      title: 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
+      title: 'Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield',
       badge: 'Turnstile Challenge',
       description: 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
       action: 'managed_challenge',
       action_label: 'Managed Challenge',
-      expression: '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot'
+      expression: '((http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/my-account"}) and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"})) or ((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot)) or (http.user_agent contains "sqlmap" or http.user_agent contains "wpscan" or http.user_agent contains "nuclei" or http.user_agent contains "nikto" or http.user_agent contains "masscan" or http.user_agent contains "python-requests")'
     },
-    compound_sqli: {
-      id: 'webcare_compound_sqli',
-      title: 'Rule 4: Deep SQL Injection & Database Armor',
-      badge: 'SQLi Shield',
+    compound_sqli_lfi: {
+      id: 'webcare_compound_sqli_lfi',
+      title: 'Rule 4: Deep SQLi, LFI & Reconnaissance Armor',
+      badge: 'Exploit Armor',
       description: 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',
       action: 'block',
       action_label: 'Block',
-      expression: '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")'
+      expression: '((lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")) or ((http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")) or ((http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in")))'
     }
   });
   const [copiedRuleId, setCopiedRuleId] = useState<string | null>(null);
@@ -7725,9 +7725,12 @@ export const FirewallPage = ({
                   <span className="webcare-cf-badge-free">
                     4 Master Compound Rules
                   </span>
+                  <span className="webcare-badge-pill" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 600 }}>
+                    Slot 5 Guaranteed Free for Owner
+                  </span>
                 </div>
                 <p className="webcare-firewall-section-desc">
-                  Deploy high-density compound WordPress firewall rules directly into Cloudflare's Edge Rulesets. Inspect existing dashboard rules before deploying so you never exceed your plan slot quota.
+                  Deploy high-density compound WordPress firewall rules directly into Cloudflare's Edge Rulesets. Strictly caps usage to 4 rules, permanently preserving 1 free slot for you without touching any existing dashboard rules.
                 </p>
               </div>
 

@@ -10,12 +10,14 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Cloudflare Slot Optimizer (CAF Phase 2)
+ * Cloudflare Slot Optimizer (CAF Phase 2 - "4 + 1" Smart Cloudflare Edge System)
  *
- * Implements intelligent, non-destructive packing of CAF rules into Cloudflare's Free Plan WAF (5-rule quota):
- * - Slot 1: Threat List, Core Artifacts & Dormant Stack lockdown (Action: block)
- * - Slot 2: Auth brute-force challenge, comment spam & Origin Survival Mode (Action: managed_challenge)
- * - Slot 3: Priority-sorted StackGuard Virtual Patches for installed vulnerable components (Action: block)
+ * Implements intelligent, non-destructive packing of WebCare Pro Edge rules into Cloudflare's Free Plan WAF (5-rule quota):
+ * - Rule 1 (Action: BLOCK)             -> [WebCare Pro] Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List
+ * - Rule 2 (Action: BLOCK)             -> [WebCare Pro] Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches
+ * - Rule 3 (Action: MANAGED_CHALLENGE) -> [WebCare Pro] Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield
+ * - Rule 4 (Action: BLOCK)             -> [WebCare Pro] Rule 4: Deep SQLi, LFI & Reconnaissance Armor
+ * - Slot 5 (FREE / UNTOUCHED)          -> 100% Guaranteed Reserved for the Website Owner
  *
  * Enforces a strict 4,000-byte Wirefilter limit with graceful AST truncation and user rule preservation.
  *
@@ -24,9 +26,13 @@ if (!defined('ABSPATH')) {
  */
 class CloudflareSlotOptimizer {
 
-    public const MAX_EXPRESSION_BYTES = 4000; // Safety buffer below Cloudflare Free 4096-byte limit
-    public const WEBCARE_RULE_PREFIX      = '[WEBCARE-CAF:';
-    public const WEBCARE_LEGACY_TAG       = '[WebCare Pro Security & Firewall]';
+    public const MAX_EXPRESSION_BYTES       = 4000; // Safety buffer below Cloudflare Free 4096-byte limit
+    public const MAX_WEBCARE_SLOTS          = 4;    // Maximum slots WebCare can ever claim (Slot 5 is 100% reserved for owner)
+    public const MAX_WCP_SLOTS              = 4;    // Backward compatibility alias
+    public const WEBCARE_RULE_PREFIX        = '[WebCare Pro]';
+    public const WEBCARE_RULE_TAG           = '[WebCare Pro Security]';
+    public const WEBCARE_LEGACY_TAG         = '[WebCare Pro Security & Firewall]';
+    public const WEBCARE_CAF_LEGACY_PREFIX  = '[WEBCARE-CAF:';
 
     /**
      * Fetch existing rules from Cloudflare Zone Custom Rulesets entrypoint.
@@ -49,10 +55,12 @@ class CloudflareSlotOptimizer {
 
     /**
      * Calculate remaining slot budget for WebCare-managed rules.
-     * Preserves user-defined rules and claims up to min(3, max(0, 5 - count(user_rules))).
+     * Strictly preserves user-defined rules and guarantees 1 free slot for the website owner.
+     *
+     * WebCare claims at most min(4, max(0, 5 - count(user_rules))).
      *
      * @param array $existing_rules List of rules currently on Cloudflare
-     * @return int Number of available slots (0 to 3)
+     * @return int Number of available slots for WebCare (0 to 4)
      */
     public function calculate_webcare_slot_budget(array $existing_rules): int {
         $user_rules = 0;
@@ -63,17 +71,32 @@ class CloudflareSlotOptimizer {
             }
         }
 
-        return (int) min(3, max(0, 5 - $user_rules));
+        return (int) min(self::MAX_WEBCARE_SLOTS, max(0, 5 - $user_rules));
     }
 
     /**
-     * Construct up to 3 optimized rule payloads based on StackSnapshot and scoped patches.
+     * Check if a rule description indicates a WebCare-managed rule.
+     *
+     * @param string $description
+     * @return bool
+     */
+    public function is_webcare_rule(string $description): bool {
+        return str_starts_with($description, self::WEBCARE_RULE_PREFIX)
+            || str_starts_with($description, '[WebCare Pro:')
+            || str_starts_with($description, self::WEBCARE_RULE_TAG)
+            || str_starts_with($description, self::WEBCARE_LEGACY_TAG)
+            || str_starts_with($description, self::WEBCARE_CAF_LEGACY_PREFIX)
+            || str_contains($description, 'webcareproscan_compound_');
+    }
+
+    /**
+     * Construct up to 4 optimized Master Compound Rules based on StackSnapshot and scoped patches.
      *
      * @param StackSnapshot $snapshot Current WordPress stack snapshot
      * @param array $scoped_patches Priority-sorted virtual patches relevant to active stack
      * @param bool $has_custom_ip_list Whether Account IP List ($webcare_threat_blocklist) is active
      * @param bool $origin_survival_active Whether Origin Survival Mode is currently active
-     * @param int $slot_budget Maximum slots WebCare can occupy (default: 3)
+     * @param int $slot_budget Maximum slots WebCare can occupy (capped at 4)
      * @return array
      */
     public function pack_ruleset_expressions(
@@ -81,42 +104,59 @@ class CloudflareSlotOptimizer {
         array $scoped_patches = [],
         bool $has_custom_ip_list = false,
         bool $origin_survival_active = false,
-        int $slot_budget = 3
+        int $slot_budget = self::MAX_WEBCARE_SLOTS
     ): array {
-        if ($slot_budget <= 0) {
+        $budget = min(self::MAX_WEBCARE_SLOTS, max(0, $slot_budget));
+        if ($budget <= 0) {
             return [];
+        }
+
+        // If scoped patches not passed, fetch automatically from VirtualPatchManager
+        if (empty($scoped_patches) && class_exists('\\WebCareProScanner\\Firewall\\VirtualPatchManager')) {
+            $scoped_patches = \WebCareProScanner\Firewall\VirtualPatchManager::get_active_patches();
         }
 
         $webcare_rules = [];
 
-        // SLOT 1: Highest ROI Hard Block (Threat List + Core Sensitive Files + Dormant Stack Lockdown)
-        $slot1_expr = $this->compile_slot1_block_expression($snapshot, $has_custom_ip_list);
+        // RULE 1 (BLOCK): Zero-Day Perimeter, Malicious Sinks & Threat List
+        $rule1_expr = $this->compile_rule1_perimeter_expression($has_custom_ip_list);
         $webcare_rules[] = [
             'action'      => 'block',
-            'description' => self::WEBCARE_RULE_PREFIX . 'SLOT-1] Hard Block: Threat List, Core Artifacts & Dormant Stack',
+            'description' => self::WEBCARE_RULE_PREFIX . ' Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
             'enabled'     => true,
-            'expression'  => $this->truncate_to_byte_budget($slot1_expr, self::MAX_EXPRESSION_BYTES),
+            'expression'  => $this->truncate_to_byte_budget($rule1_expr, self::MAX_EXPRESSION_BYTES),
         ];
 
-        // SLOT 2: Smart Managed Challenge (Brute-Force, Spammers & Origin Survival Shield)
-        if ($slot_budget >= 2) {
-            $slot2_expr = $this->compile_slot2_challenge_expression($origin_survival_active);
+        // RULE 2 (BLOCK): StackGuard Inactive Plugin Lockdown & Stack-Scoped CVE Virtual Patches
+        if ($budget >= 2) {
+            $rule2_expr = $this->compile_rule2_stackguard_expression($snapshot, $scoped_patches);
             $webcare_rules[] = [
-                'action'      => 'managed_challenge',
-                'description' => self::WEBCARE_RULE_PREFIX . 'SLOT-2] Smart Challenge: Login, Spammers & Origin Load Shield',
+                'action'      => 'block',
+                'description' => self::WEBCARE_RULE_PREFIX . ' Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches',
                 'enabled'     => true,
-                'expression'  => $this->truncate_to_byte_budget($slot2_expr, self::MAX_EXPRESSION_BYTES),
+                'expression'  => $this->truncate_to_byte_budget($rule2_expr, self::MAX_EXPRESSION_BYTES),
             ];
         }
 
-        // SLOT 3: Priority-Sorted Stack-Scoped CVE Virtual Patches
-        if ($slot_budget >= 3) {
-            $slot3_expr = $this->compile_slot3_virtual_patch_expression($scoped_patches);
+        // RULE 3 (MANAGED_CHALLENGE): Adaptive Bot, Brute-Force & Under-Attack Velocity Shield
+        if ($budget >= 3) {
+            $rule3_expr = $this->compile_rule3_bot_challenge_expression($origin_survival_active);
+            $webcare_rules[] = [
+                'action'      => 'managed_challenge',
+                'description' => self::WEBCARE_RULE_PREFIX . ' Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield',
+                'enabled'     => true,
+                'expression'  => $this->truncate_to_byte_budget($rule3_expr, self::MAX_EXPRESSION_BYTES),
+            ];
+        }
+
+        // RULE 4 (BLOCK): Deep SQLi, LFI & Reconnaissance Armor
+        if ($budget >= 4) {
+            $rule4_expr = $this->compile_rule4_sqli_lfi_expression();
             $webcare_rules[] = [
                 'action'      => 'block',
-                'description' => self::WEBCARE_RULE_PREFIX . 'SLOT-3] StackGuard Virtual Patches & Exploit Signatures',
+                'description' => self::WEBCARE_RULE_PREFIX . ' Rule 4: Deep SQLi, LFI & Reconnaissance Armor',
                 'enabled'     => true,
-                'expression'  => $this->truncate_to_byte_budget($slot3_expr, self::MAX_EXPRESSION_BYTES),
+                'expression'  => $this->truncate_to_byte_budget($rule4_expr, self::MAX_EXPRESSION_BYTES),
             ];
         }
 
@@ -130,7 +170,7 @@ class CloudflareSlotOptimizer {
      * @param int $max_bytes Byte limit (default: 4000)
      * @return string
      */
-    public function truncate_to_byte_budget(string $expression, int $max_bytes = 4000): string {
+    public function truncate_to_byte_budget(string $expression, int $max_bytes = self::MAX_EXPRESSION_BYTES): string {
         if (strlen($expression) <= $max_bytes) {
             return $expression;
         }
@@ -151,6 +191,7 @@ class CloudflareSlotOptimizer {
 
     /**
      * Executes non-destructive upsert via Cloudflare Ruleset API.
+     * Strictly preserves user custom rules and guarantees 1 slot remains free for the owner.
      *
      * @param string $zone_id Cloudflare Zone ID
      * @param StackSnapshot|null $snapshot Optional snapshot; fetched automatically if omitted
@@ -182,8 +223,8 @@ class CloudflareSlotOptimizer {
             }
         }
 
-        // 2. Calculate slot budget (max 3 WebCare slots, preserving all user rules)
-        $slot_budget = (int) min(3, max(0, 5 - count($user_rules)));
+        // 2. Calculate slot budget (max 4 WebCare slots, preserving 1 slot for owner + all existing user rules)
+        $slot_budget = (int) min(self::MAX_WEBCARE_SLOTS, max(0, 5 - count($user_rules)));
         if ($slot_budget === 0) {
             return [
                 'success'     => false,
@@ -206,7 +247,7 @@ class CloudflareSlotOptimizer {
             $has_custom_ip_list = ($sync->detect_api_scope() === 'account');
         }
 
-        // 5. Build packed WebCare Rules
+        // 5. Build packed WebCare Rules (strictly up to $slot_budget, max 4)
         $webcare_rules = $this->pack_ruleset_expressions(
             $snapshot,
             $scoped_patches,
@@ -229,26 +270,46 @@ class CloudflareSlotOptimizer {
         );
 
         if (!empty($res['success'])) {
+            $reserved_owner_slots = max(0, 5 - count($final_rules));
+
             update_option('webcare_caf_last_cf_slot_sync', [
-                'timestamp'      => time(),
-                'slot_budget'    => $slot_budget,
-                'webcare_rules'      => count($webcare_rules),
-                'user_rules'     => count($user_rules),
-                'total_rules'    => count($final_rules),
-                'origin_survival'=> $origin_survival_active,
+                'timestamp'             => time(),
+                'slot_budget'           => $slot_budget,
+                'webcare_rules'         => count($webcare_rules),
+                'user_rules'            => count($user_rules),
+                'total_rules'           => count($final_rules),
+                'reserved_owner_slots'  => $reserved_owner_slots,
+                'origin_survival'       => $origin_survival_active,
             ]);
+
+            // Synchronize deployed edge rules cache for the Cloudflare settings tab
+            $deployed_cache = [];
+            foreach ($webcare_rules as $idx => $r) {
+                $keys = ['compound_perimeter', 'compound_stackguard', 'compound_login_bot', 'compound_sqli_lfi'];
+                $k = $keys[$idx] ?? ('rule_' . ($idx + 1));
+                $deployed_cache[$k] = [
+                    'id'          => $r['description'],
+                    'enabled'     => true,
+                    'action'      => $r['action'],
+                    'description' => $r['description'],
+                    'last_synced' => current_time('mysql'),
+                ];
+            }
+            update_option(CloudflareService::DEPLOYED_RULES_OPTION, $deployed_cache);
 
             return [
                 'success'     => true,
                 'message'     => sprintf(
-                    /* translators: %1$d: WebCare Rule count, %2$d: preserved user rule count */
-                    __('Successfully synchronized %1$d WebCare-managed rule(s) to Cloudflare Edge (%2$d user rule(s) safely preserved).', 'webcare-pro-security'),
+                    /* translators: %1$d: WebCare Rule count, %2$d: preserved user rule count, %3$d: free owner slots reserved */
+                    __('Successfully synchronized %1$d WebCare Master Compound Rules to Cloudflare Edge (%2$d user rule(s) preserved, %3$d slot(s) guaranteed free for site owner).', 'webcare-pro-security'),
                     count($webcare_rules),
-                    count($user_rules)
+                    count($user_rules),
+                    $reserved_owner_slots
                 ),
-                'slot_budget' => $slot_budget,
-                'webcare_rules'   => $webcare_rules,
-                'user_rules'  => $user_rules,
+                'slot_budget'          => $slot_budget,
+                'webcare_rules'        => $webcare_rules,
+                'user_rules'           => $user_rules,
+                'reserved_owner_slots' => $reserved_owner_slots,
             ];
         }
 
@@ -261,20 +322,38 @@ class CloudflareSlotOptimizer {
     }
 
     /**
-     * Compile Slot 1 expression: Hard block threat list, sensitive files, and dormant plugins.
+     * Compile Rule 1 expression: Zero-Day Perimeter, Malicious Sinks & Threat List.
+     *
+     * @param bool $has_custom_ip_list Whether Account IP list is available
+     * @return string
      */
-    private function compile_slot1_block_expression(StackSnapshot $snapshot, bool $has_custom_ip_list): string {
+    public function compile_rule1_perimeter_expression(bool $has_custom_ip_list): string {
         $clauses = [];
 
         if ($has_custom_ip_list) {
-            // Note: Wirefilter expressions in Cloudflare Rulesets reference Account IP lists by the list NAME prefixed with $
+            // Wirefilter Account IP List reference: $list_name
             $clauses[] = '(ip.src in $' . CloudflareIpListSynchronizer::LIST_NAME . ')';
         }
 
         $clauses[] = '(http.request.uri.path in {"/xmlrpc.php" "/wp-config.php" "/.env" "/.git/config" "/wp-content/debug.log"})';
-        $clauses[] = '(starts_with(http.request.uri.path, "/wp-content/uploads/") and ends_with(http.request.uri.path, ".php"))';
+        $clauses[] = '((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})';
+        $clauses[] = '(http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"})';
+        $clauses[] = '(http.request.method in {"TRACE" "TRACK" "DEBUG"})';
 
-        // Add dormant inactive plugins from snapshot
+        return implode(' or ', $clauses);
+    }
+
+    /**
+     * Compile Rule 2 expression: StackGuard Inactive Plugin Lockdown & Stack-Scoped CVE Virtual Patches.
+     *
+     * @param StackSnapshot $snapshot Current WordPress stack snapshot
+     * @param array $scoped_patches Active virtual patches
+     * @return string
+     */
+    public function compile_rule2_stackguard_expression(StackSnapshot $snapshot, array $scoped_patches = []): string {
+        $clauses = [];
+
+        // 1. Inactive Plugin Lockdown: Block bot probes targeting dormant/deactivated plugins
         $inactive_plugins = $snapshot->inactive_plugins;
         if (!empty($inactive_plugins) && is_array($inactive_plugins)) {
             foreach ($inactive_plugins as $plugin) {
@@ -284,71 +363,106 @@ class CloudflareSlotOptimizer {
                     continue;
                 }
 
-                // Strict Cloudflare Wirefilter syntax: double quotes around string literal, unescaped forward slashes
+                // Strict Cloudflare Wirefilter syntax: double quotes, forward slashes
                 $candidate = sprintf('(starts_with(http.request.uri.path, "/wp-content/plugins/%s/"))', $slug);
-                $projected = implode(' or ', array_merge($clauses, [$candidate]));
-                if (strlen($projected) > self::MAX_EXPRESSION_BYTES) {
-                    break; // Graceful truncation: remaining inactive plugins handled by local WAF
+                $projected = empty($clauses) ? $candidate : implode(' or ', array_merge($clauses, [$candidate]));
+                if (strlen($projected) > 2400) {
+                    // Reserve byte budget for CVE virtual patches
+                    break;
                 }
                 $clauses[] = $candidate;
             }
         }
 
+        // 2. Stack-Scoped CVE Virtual Patches
+        if (empty($scoped_patches) && class_exists('\\WebCareProScanner\\Firewall\\VirtualPatchManager')) {
+            $scoped_patches = \WebCareProScanner\Firewall\VirtualPatchManager::get_active_patches();
+        }
+
+        if (!empty($scoped_patches)) {
+            usort($scoped_patches, static function (array $a, array $b): int {
+                return ($b['priority'] ?? 0) <=> ($a['priority'] ?? 0);
+            });
+
+            foreach ($scoped_patches as $patch) {
+                $expr = trim((string) ($patch['cf_expression'] ?? ''));
+                if ($expr === '') {
+                    continue;
+                }
+
+                $candidate = '(' . $expr . ')';
+                $projected = empty($clauses) ? $candidate : implode(' or ', array_merge($clauses, [$candidate]));
+                if (strlen($projected) > self::MAX_EXPRESSION_BYTES) {
+                    break;
+                }
+                $clauses[] = $candidate;
+            }
+        }
+
+        if (empty($clauses)) {
+            // Default baseline protection if no inactive plugins and no active patches
+            $clauses[] = '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")';
+        }
+
         return implode(' or ', $clauses);
     }
 
     /**
-     * Compile Slot 2 expression: Smart Managed Challenge for bots, spammers, and Origin Survival Mode.
+     * Compile Rule 3 expression: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield.
+     *
+     * @param bool $origin_survival_active Whether Origin Survival Mode is currently active
+     * @return string
      */
-    private function compile_slot2_challenge_expression(bool $origin_survival_active): string {
+    public function compile_rule3_bot_challenge_expression(bool $origin_survival_active): string {
+        $has_woo = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+            : class_exists('WooCommerce');
+
+        $login_paths = $has_woo
+            ? '{"/wp-login.php" "/wp-register.php" "/my-account"}'
+            : '{"/wp-login.php" "/wp-register.php"}';
+
         $clauses = [
+            '((http.request.uri.path in ' . $login_paths . ') and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"}))',
+            '((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot))',
             '(http.user_agent contains "sqlmap" or http.user_agent contains "wpscan" or http.user_agent contains "nuclei" or http.user_agent contains "nikto" or http.user_agent contains "masscan" or http.user_agent contains "python-requests")',
-            '(http.request.uri.path eq "/wp-comments-post.php" and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0"))',
-            '(http.request.uri.path eq "/wp-login.php" and (cf.threat_score gt 10 or not http.request.version in {"HTTP/2" "HTTP/3"}))',
         ];
 
+        // Origin Survival Mode dynamic escalation (Carding swarm / brute-force surge / CPU stress)
         if ($origin_survival_active) {
-            $clauses[] = '(http.request.uri.path eq "/wp-login.php")';
+            $clauses[] = '(http.request.uri.path in ' . $login_paths . ')';
             $clauses[] = '(http.request.uri.query contains "s=" and not http.cookie contains "wordpress_logged_in_")';
+            if ($has_woo) {
+                $clauses[] = '((http.request.uri.path contains "/checkout" or http.request.uri.path contains "/cart") and cf.threat_score gt 5)';
+            }
         }
 
         return implode(' or ', $clauses);
     }
 
     /**
-     * Compile Slot 3 expression: Stack-scoped CVE virtual patches and high-risk exploit signatures.
+     * Compile Rule 4 expression: Deep SQLi, LFI & Reconnaissance Armor.
+     *
+     * @return string
      */
-    private function compile_slot3_virtual_patch_expression(array $active_virtual_patches): string {
-        // Sort patches by priority descending so high-severity RCE/SQLi patches fit first
-        usort($active_virtual_patches, static function (array $a, array $b): int {
-            return ($b['priority'] ?? 0) <=> ($a['priority'] ?? 0);
-        });
+    public function compile_rule4_sqli_lfi_expression(): string {
+        $has_woo = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')
+            ? AdaptiveFirewallAdvisor::has_ecosystem('woocommerce')
+            : class_exists('WooCommerce');
 
-        $clauses = [
-            '(http.request.uri.query contains "../" or http.request.uri.query contains "..%2f" or lower(http.request.uri.query) contains "union%20select" or lower(http.request.uri.query) contains "base64_decode(")',
-        ];
+        $sqli_clause = '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")';
 
-        foreach ($active_virtual_patches as $patch) {
-            $expr = trim((string) ($patch['cf_expression'] ?? ''));
-            if ($expr === '') {
-                continue;
-            }
+        $lfi_clause = '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")';
 
-            $candidate = '(' . $expr . ')';
-            $projected = implode(' or ', array_merge($clauses, [$candidate]));
-            if (strlen($projected) > self::MAX_EXPRESSION_BYTES) {
-                break;
-            }
-            $clauses[] = $candidate;
+        $user_enum_clause = '(http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))';
+
+        $combined = "({$sqli_clause}) or ({$lfi_clause}) or ({$user_enum_clause})";
+
+        // WooCommerce REST API exemption: ensure /wp-json/wc/store/ is exempt from query false positives while keeping SQLi blocks strict
+        if ($has_woo) {
+            return '(not starts_with(http.request.uri.path, "/wp-json/wc/store/")) and (' . $combined . ')';
         }
 
-        return implode(' or ', $clauses);
-    }
-
-    /**
-     * Check if a rule description indicates a WebCare-managed rule.
-     */
-    private function is_webcare_rule(string $description): bool {
-        return str_starts_with($description, self::WEBCARE_RULE_PREFIX) || str_starts_with($description, self::WEBCARE_LEGACY_TAG);
+        return $combined;
     }
 }

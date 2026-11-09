@@ -12128,7 +12128,7 @@ class ScannerRoutes {
         $breaker = class_exists('\\WebCareProScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker') ? new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker() : null;
 
         $existing_rules = [];
-        $slot_budget = 3;
+        $slot_budget = 4;
         $user_rules_count = 0;
         $webcare_rules_count = 0;
 
@@ -12138,7 +12138,7 @@ class ScannerRoutes {
 
             foreach ($existing_rules as $r) {
                 $desc = (string) ($r['description'] ?? '');
-                if (str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_RULE_PREFIX) || str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_LEGACY_TAG)) {
+                if ($optimizer->is_webcare_rule($desc)) {
                     $webcare_rules_count++;
                 } else {
                     $user_rules_count++;
@@ -12160,18 +12160,20 @@ class ScannerRoutes {
             'slot_usage'            => [
                 'total_quota'      => 5,
                 'user_rules'       => $user_rules_count,
-                'webcare_rules'        => $webcare_rules_count,
+                'webcare_rules'    => $webcare_rules_count,
                 'available_slots'  => $slot_budget,
                 'free_unallocated' => max(0, 5 - ($user_rules_count + $webcare_rules_count)),
+                'reserved_owner_slot' => 1,
             ],
-            'existing_rules'        => array_map(function ($r) {
+            'existing_rules'        => array_map(function ($r) use ($optimizer) {
+                $desc = (string) ($r['description'] ?? '');
                 return [
                     'id'          => $r['id'] ?? '',
-                    'description' => $r['description'] ?? '',
+                    'description' => $desc,
                     'action'      => $r['action'] ?? '',
                     'enabled'     => !empty($r['enabled']),
                     'bytes'       => strlen((string) ($r['expression'] ?? '')),
-                    'is_webcare'      => str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_RULE_PREFIX) || str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_LEGACY_TAG),
+                    'is_webcare'  => $optimizer ? $optimizer->is_webcare_rule($desc) : (strpos($desc, '[WebCare Pro]') !== false),
                 ];
             }, $existing_rules),
             'pending_ban_queue_size'=> $pending_count,

@@ -398,6 +398,12 @@ class DistributedVelocityShield {
             ]);
         }
 
+        // Autonomous Cloudflare Edge Escalation: Escalate Rule 3 to absorb swarm at CDN layer
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker')) {
+            $breaker = new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+            $breaker->escalate_edge_defense('', 'Distributed Velocity Swarm: ' . str_replace('_', ' ', $type));
+        }
+
         return self::get_under_attack_status();
     }
 
@@ -418,6 +424,12 @@ class DistributedVelocityShield {
                     'description' => 'Under-Attack Mode deactivated. Site returned to standard adaptive rate limiting.',
                 ]
             );
+        }
+
+        // Autonomous Cloudflare Edge De-escalation: Restore Rule 3 to baseline
+        if ($was_active && class_exists('\\WebCareProScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker')) {
+            $breaker = new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+            $breaker->deescalate_edge_defense('');
         }
 
         return true;

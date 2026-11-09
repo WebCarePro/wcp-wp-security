@@ -532,6 +532,7 @@ class AIService {
      * OpenAI API Implementation (GPT-6 series, GPT-6.1 Sol, GPT-6 Astra, etc.)
      */
     private static function call_openai(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
+        // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
         $url = 'https://api.openai.com/v1/chat/completions';
 
         $body = [
@@ -579,6 +580,7 @@ class AIService {
      */
     private static function call_gemini(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
         $model_name = $model ?: 'gemini-3.5-flash-lite';
+        // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model_name}:generateContent";
 
         $body = [
@@ -637,6 +639,7 @@ class AIService {
      * Anthropic Claude API Implementation (Claude Sonnet 5.5, Claude Opus 5.5, Claude Haiku 5.5, etc.)
      */
     private static function call_claude(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
+        // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
         $url = 'https://api.anthropic.com/v1/messages';
 
         $body = [
@@ -792,6 +795,7 @@ class AIService {
         $gemini_key = $settings['gemini_api_key'] ?? '';
         if (!empty($gemini_key)) {
             try {
+                // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
                 $url = "https://generativelanguage.googleapis.com/v1beta/models?key=" . urlencode($gemini_key);
                 $resp = wp_remote_get($url, ['timeout' => 15]);
                 if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
@@ -843,6 +847,7 @@ class AIService {
         $openai_key = $settings['openai_api_key'] ?? '';
         if (!empty($openai_key)) {
             try {
+                // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
                 $url = 'https://api.openai.com/v1/models';
                 $resp = wp_remote_get($url, [
                     'timeout' => 15,

@@ -460,51 +460,24 @@ class CloudflareService {
      *
      * @return array
      */
+    /**
+     * Get rule definitions for Master Cloudflare Free Custom WAF Rules (Consolidated & High-Density)
+     *
+     * Consolidates high-impact rules into exactly 4 Master Compound Rules:
+     * - Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List (Block)
+     * - Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches (Block)
+     * - Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield (Managed Challenge)
+     * - Rule 4: Deep SQLi, LFI & Reconnaissance Armor (Block)
+     * - Slot 5: 100% Reserved & Untouched for Site Owner
+     *
+     * @return array
+     */
     public static function get_compound_rule_definitions(): array {
-        return [
-            'compound_perimeter' => [
-                'id'           => 'webcareproscan_compound_perimeter',
-                'title'        => 'Rule 1: Master Perimeter & Sensitive File Armor',
-                'badge'        => 'Edge Shield',
-                'description'  => 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
-                'action'       => 'block',
-                'action_label' => 'Block',
-                'expression'   => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
-            ],
-            'compound_exploits' => [
-                'id'           => 'webcareproscan_compound_exploits',
-                'title'        => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
-                'badge'        => 'Zero-Day Shield',
-                'description'  => 'Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.',
-                'action'       => 'block',
-                'action_label' => 'Block',
-                'expression'   => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))',
-            ],
-            'compound_login_bot' => [
-                'id'           => 'webcareproscan_compound_login_bot',
-                'title'        => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
-                'badge'        => 'Turnstile Challenge',
-                'description'  => 'Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.',
-                'action'       => 'managed_challenge',
-                'action_label' => 'Managed Challenge',
-                'expression'   => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
-            ],
-            'compound_sqli' => [
-                'id'           => 'webcareproscan_compound_sqli',
-                'title'        => 'Rule 4: Deep SQL Injection & Database Armor',
-                'badge'        => 'SQLi Shield',
-                'description'  => 'Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.',
-                'action'       => 'block',
-                'action_label' => 'Block',
-                'expression'   => '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")',
-            ],
-        ];
+        return self::get_rule_definitions();
     }
 
     /**
      * Get rule definitions for Master Cloudflare Free Custom WAF Rules (Consolidated & High-Density)
-     *
-     * Consolidates high-impact rules to preserve Cloudflare Free plan quotas (leaving remaining slots free for user rules).
      *
      * @return array
      */
@@ -512,35 +485,35 @@ class CloudflareService {
         return [
             'compound_perimeter' => [
                 'id'          => 'webcareproscan_compound_perimeter',
-                'title'       => 'Rule 1: Master Perimeter & Sensitive File Armor',
+                'title'       => 'Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
                 'badge'       => 'Edge Shield',
                 'description' => __('Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.', 'webcare-pro-security'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json" or http.request.uri.path contains "readme.html" or http.request.uri.path contains "license.txt") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini" "sh"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
+                'expression'  => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
             ],
-            'compound_exploits' => [
-                'id'          => 'webcareproscan_compound_exploits',
-                'title'       => 'Rule 2: LFI/RFI Directory Traversal & Reconnaissance Shield',
-                'badge'       => 'Zero-Day Shield',
-                'description' => __('Terminates path traversal (../), dangerous script function injection parameters, null byte attacks, author query parameter enumeration (?author=1), and public REST user scraping.', 'webcare-pro-security'),
+            'compound_stackguard' => [
+                'id'          => 'webcareproscan_compound_stackguard',
+                'title'       => 'Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches',
+                'badge'       => 'StackGuard',
+                'description' => __('Automatically locks down all inactive/dormant plugin paths to neutralize zero-day scans, and deploys high-priority stack-scoped CVE virtual patches tailored to your active plugins.', 'webcare-pro-security'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_' . 'decode" or http.request.uri.query contains "eval' . '(" or http.request.uri contains "%00" or http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in"))',
+                'expression'  => '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")',
             ],
             'compound_login_bot' => [
                 'id'          => 'webcareproscan_compound_login_bot',
-                'title'       => 'Rule 3: Login Portal Automated Bot Defense (Anti-Brute Force)',
+                'title'       => 'Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield',
                 'badge'       => 'Turnstile Challenge',
-                'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and custom membership login/register portals with Cloudflare Managed Challenge (Turnstile) without annoying human administrators or valid users.', 'webcare-pro-security'),
+                'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and comment spam with Managed Challenge (Turnstile). Automatically escalates during active brute-force floods.', 'webcare-pro-security'),
                 'action'      => 'managed_challenge',
-                'expression'  => '(http.request.uri.path contains "wp-login.php" or http.request.uri.path contains "wp-custom-login" or http.request.uri.path contains "my-account" or http.request.uri.path contains "login" or http.request.uri.path contains "register") and cf.client.bot',
+                'expression'  => '((http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/my-account"}) and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"})) or ((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot)) or (http.user_agent contains "sqlmap" or http.user_agent contains "wpscan" or http.user_agent contains "nuclei" or http.user_agent contains "nikto" or http.user_agent contains "masscan" or http.user_agent contains "python-requests")',
             ],
-            'compound_sqli' => [
-                'id'          => 'webcareproscan_compound_sqli',
-                'title'       => 'Rule 4: Deep SQL Injection & Database Armor',
-                'badge'       => 'SQLi Shield',
-                'description' => __('Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark/waitfor), hex SQL payloads, concat/xml extraction, and Boolean bypasses in queries at Cloudflare Edge before touching WordPress PHP or MySQL.', 'webcare-pro-security'),
+            'compound_sqli_lfi' => [
+                'id'          => 'webcareproscan_compound_sqli_lfi',
+                'title'       => 'Rule 4: Deep SQLi, LFI & Reconnaissance Armor',
+                'badge'       => 'Exploit Armor',
+                'description' => __('Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark), directory traversal, LFI, and user enumeration before touching WordPress PHP or MySQL.', 'webcare-pro-security'),
                 'action'      => 'block',
-                'expression'  => '(lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")',
+                'expression'  => '((lower(http.request.uri.query) contains "union" and lower(http.request.uri.query) contains "select") or (lower(http.request.uri.query) contains "information_schema") or (lower(http.request.uri.query) contains "sleep(" or lower(http.request.uri.query) contains "benchmark(" or lower(http.request.uri.query) contains "waitfor delay") or (lower(http.request.uri.query) contains "concat(" and lower(http.request.uri.query) contains "0x") or (lower(http.request.uri.query) contains "extractvalue(" or lower(http.request.uri.query) contains "updatexml(") or (lower(http.request.uri.query) contains " and 1=0" or lower(http.request.uri.query) contains " and 1=1" or lower(http.request.uri.query) contains "\' or 1=1" or lower(http.request.uri.query) contains "\\" or 1=1" or lower(http.request.uri.query) contains "group_concat" or lower(http.request.uri.query) contains "into outfile" or lower(http.request.uri.query) contains "into dumpfile")) or ((http.request.uri contains "../" or http.request.uri contains "..%2f" or http.request.uri.query contains "etc/passwd" or http.request.uri.query contains "base64_decode" or http.request.uri.query contains "eval(" or http.request.uri contains "%00")) or ((http.request.uri.query contains "author=" or (http.request.uri.path contains "wp-json/wp/v2/users" and not http.request.uri.path contains "users/me" and not http.request.uri.query contains "context=edit" and not http.cookie contains "wordpress_logged_in")))',
             ],
         ];
     }
@@ -574,11 +547,24 @@ class CloudflareService {
 
         foreach ($rules as $r) {
             $desc = $r['description'] ?? '';
-            if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
+            $is_webcare = (
+                strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
+                strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
+                strpos($desc, '[WebCare Pro]') !== false ||
+                strpos($desc, '[WEBCARE-CAF:') !== false
+            );
+            if (!$is_webcare) {
                 continue;
             }
             foreach ($definitions as $key => $def) {
-                if (strpos($desc, $def['title']) !== false || (isset($def['id']) && strpos($desc, $def['id']) !== false)) {
+                if (
+                    strpos($desc, $def['title']) !== false ||
+                    (isset($def['id']) && strpos($desc, $def['id']) !== false) ||
+                    ($key === 'compound_perimeter' && strpos($desc, 'Rule 1') !== false) ||
+                    ($key === 'compound_stackguard' && (strpos($desc, 'Rule 2') !== false || strpos($desc, 'StackGuard') !== false || strpos($desc, 'compound_exploits') !== false)) ||
+                    ($key === 'compound_login_bot' && (strpos($desc, 'Rule 3') !== false || strpos($desc, 'Login') !== false)) ||
+                    ($key === 'compound_sqli_lfi' && (strpos($desc, 'Rule 4') !== false || strpos($desc, 'Deep SQL') !== false || strpos($desc, 'compound_sqli') !== false))
+                ) {
                     $deployed[$key] = [
                         'id'          => $r['id'] ?? '',
                         'enabled'     => !empty($r['enabled']),
@@ -658,12 +644,24 @@ class CloudflareService {
         if (!empty($res['success']) && !empty($res['result']['rules'])) {
             foreach ($res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                $is_webcare = (strpos($desc, self::WEBCARE_RULE_TAG) !== false || strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false);
+                $is_webcare = (
+                    strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
+                    strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
+                    strpos($desc, '[WebCare Pro]') !== false ||
+                    strpos($desc, '[WEBCARE-CAF:') !== false
+                );
 
                 if ($is_webcare) {
                     $matched_key = '';
                     foreach ($definitions as $k => $def) {
-                        if (strpos($desc, $def['title']) !== false || (isset($def['id']) && strpos($desc, $def['id']) !== false)) {
+                        if (
+                            strpos($desc, $def['title']) !== false ||
+                            (isset($def['id']) && strpos($desc, $def['id']) !== false) ||
+                            ($k === 'compound_perimeter' && strpos($desc, 'Rule 1') !== false) ||
+                            ($k === 'compound_stackguard' && (strpos($desc, 'Rule 2') !== false || strpos($desc, 'StackGuard') !== false || strpos($desc, 'compound_exploits') !== false)) ||
+                            ($k === 'compound_login_bot' && (strpos($desc, 'Rule 3') !== false || strpos($desc, 'Login') !== false)) ||
+                            ($k === 'compound_sqli_lfi' && (strpos($desc, 'Rule 4') !== false || strpos($desc, 'Deep SQL') !== false || strpos($desc, 'compound_sqli') !== false))
+                        ) {
                             $matched_key = $k;
                             break;
                         }
@@ -692,17 +690,21 @@ class CloudflareService {
 
         $total_used = count($user_rules) + count($webcare_rules);
         $free_slots = max(0, $max_slots - $total_used);
+        $max_webcare_slots = 4;
+        $reserved_owner_slots = max(0, 5 - (count($user_rules) + min($max_webcare_slots, max(0, 5 - count($user_rules)))));
 
         return [
-            'success'     => true,
-            'plan'        => $verify['plan'] ?? 'Free',
-            'max_slots'   => $max_slots,
-            'total_used'  => $total_used,
-            'free_slots'  => $free_slots,
-            'user_rules'  => $user_rules,
-            'webcare_rules'   => $webcare_rules,
-            'user_count'  => count($user_rules),
-            'webcare_count'   => count($webcare_rules),
+            'success'              => true,
+            'plan'                 => $verify['plan'] ?? 'Free',
+            'max_slots'            => $max_slots,
+            'max_webcare_slots'    => $max_webcare_slots,
+            'reserved_owner_slots' => $reserved_owner_slots,
+            'total_used'           => $total_used,
+            'free_slots'           => $free_slots,
+            'user_rules'           => $user_rules,
+            'webcare_rules'        => $webcare_rules,
+            'user_count'           => count($user_rules),
+            'webcare_count'        => count($webcare_rules),
         ];
     }
 
@@ -822,7 +824,13 @@ class CloudflareService {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
                 // Keep rules that do not belong to WebCare
-                if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
+                $is_webcare = (
+                    strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
+                    strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
+                    strpos($desc, '[WebCare Pro]') !== false ||
+                    strpos($desc, '[WEBCARE-CAF:') !== false
+                );
+                if (!$is_webcare) {
                     $preserved_rules[] = $rule;
                     continue;
                 }
@@ -921,7 +929,13 @@ class CloudflareService {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
                 // Keep rules that do not belong to WebCare
-                if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
+                $is_webcare = (
+                    strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
+                    strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
+                    strpos($desc, '[WebCare Pro]') !== false ||
+                    strpos($desc, '[WEBCARE-CAF:') !== false
+                );
+                if (!$is_webcare) {
                     $preserved_rules[] = $rule;
                 }
             }
@@ -964,8 +978,14 @@ class CloudflareService {
             }
         }
 
-        // Merge user non-WebCare Rules + WebCare Rules
-        $all_rules = array_merge($preserved_rules, $new_webcare_rules);
+        // Strict 4+1 rule budget: guarantee 1 free slot for site owner (5 max on Free plan)
+        $slot_budget = (int) min(4, max(0, 5 - count($preserved_rules)));
+        if (count($new_webcare_rules) > $slot_budget) {
+            $new_webcare_rules = array_slice($new_webcare_rules, 0, $slot_budget);
+        }
+
+        // Merge WebCare Rules (at top priority) + user custom rules
+        $all_rules = array_merge($new_webcare_rules, $preserved_rules);
 
         // 3. Put entrypoint ruleset
         $payload = [

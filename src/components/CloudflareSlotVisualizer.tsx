@@ -132,15 +132,29 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
   const webcareSlots = slot_usage?.webcare_rules || 0;
   const unallocatedSlots = Math.max(0, totalSlots - (userSlots + webcareSlots));
 
+  const webcareRuleLabels = [
+    'Rule 1: Perimeter Armor',
+    'Rule 2: StackGuard Lockdown',
+    'Rule 3: Bot & Velocity Shield',
+    'Rule 4: Exploit Armor',
+  ];
+
   const slotsArray = [];
   for (let i = 0; i < userSlots; i++) {
-    slotsArray.push({ type: 'user', label: 'User Custom Rule', color: '#64748b' });
+    slotsArray.push({ type: 'user', label: 'User Custom Rule', sublabel: 'Preserved & Untouched', color: '#64748b' });
   }
   for (let i = 0; i < webcareSlots; i++) {
-    slotsArray.push({ type: 'webcare', label: `WebCare Slot #${i + 1}`, color: '#ea580c' });
+    const label = webcareRuleLabels[i] || `WebCare Slot #${i + 1}`;
+    slotsArray.push({ type: 'webcare', label, sublabel: i === 2 ? 'Managed Challenge' : 'Block Action', color: '#ea580c' });
   }
   for (let i = 0; i < unallocatedSlots; i++) {
-    slotsArray.push({ type: 'free', label: 'Free Slot', color: '#10b981' });
+    const isOwnerGuaranteed = (i === unallocatedSlots - 1);
+    slotsArray.push({
+      type: 'free',
+      label: isOwnerGuaranteed ? 'Owner Free Slot' : 'Available Slot',
+      sublabel: isOwnerGuaranteed ? '100% Reserved for Owner' : 'Unallocated',
+      color: '#10b981'
+    });
   }
 
   const stress = circuit_breaker?.stress;
@@ -174,21 +188,24 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
         </div>
       )}
 
-      {/* Cloudflare Free-Plan 5-Slot Optimizer Visualizer Card */}
+      {/* Cloudflare Free-Plan "4 + 1" Slot Optimizer Visualizer Card */}
       <div className="webcare-firewall-section-group" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Layers size={18} color="#ea580c" />
               <h4 className="webcare-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
-                Cloudflare Free-Plan 5-Slot Optimizer (CAF Phase 2)
+                Cloudflare Free-Plan "4 + 1" Slot Optimizer
               </h4>
+              <span className="webcare-badge-pill" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 600 }}>
+                1 Slot Guaranteed Free for Owner
+              </span>
               <span className="webcare-badge-pill" style={{ background: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', border: '1px solid rgba(234, 88, 12, 0.3)' }}>
                 Wirefilter &lt; 4,000 Bytes
               </span>
             </div>
             <p className="webcare-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
-              Non-destructive rule packer. Automatically reserves your custom Cloudflare rules while claiming up to 3 slots for Dormant Lockdown, Managed Challenges, and StackGuard Virtual Patches.
+              Autonomous 4-Rule Compound Engine. Deploys up to 4 high-density master rules (Perimeter Armor, Inactive Plugin Lockdown, Bot/Brute-Force Shield, and Deep Exploit Armor) while permanently reserving Slot 5 untouched for the website owner.
             </p>
           </div>
 
@@ -213,7 +230,7 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
               }}
             >
               {syncing ? <Loader2 size={13} className="webcare-spin" /> : <RefreshCw size={13} />}
-              Sync Slots &amp; Ban Queue Now
+              Sync 4 Master Rules Now
             </button>
           </div>
         </div>
@@ -222,12 +239,12 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
         <div style={{ marginBottom: '18px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px', color: 'var(--webcare-text-muted, #64748b)' }}>
             <span>
-              <strong>{userSlots}</strong> User Defined • <strong>{webcareSlots}</strong> WebCare Managed • <strong>{unallocatedSlots}</strong> Available
+              <strong>{userSlots}</strong> User Defined • <strong>{webcareSlots}</strong> WebCare Master Rules • <strong>{unallocatedSlots}</strong> Available (1 Guaranteed Free for Owner)
             </span>
             <span>
               API Token Scope:{' '}
               <strong style={{ color: token_scope === 'account' ? '#10b981' : token_scope === 'zone' ? '#38bdf8' : '#ef4444' }}>
-                {token_scope === 'account' ? 'Account Custom Lists (10,000 items)' : token_scope === 'zone' ? 'Zone Access Rules (Fallback)' : 'Unverified'}
+                {token_scope === 'account' ? 'Account Custom Lists (10,000 items)' : token_scope === 'zone' ? 'Zone Access Rules (50,000 items)' : 'Unverified'}
               </strong>
             </span>
           </div>
@@ -260,6 +277,11 @@ export const CloudflareSlotVisualizer: React.FC<CloudflareSlotVisualizerProps> =
                 <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--webcare-text-primary, #0f172a)', marginTop: '2px' }}>
                   {slot.label}
                 </div>
+                {slot.sublabel && (
+                  <div style={{ fontSize: '10.5px', color: 'var(--webcare-text-muted, #64748b)', marginTop: '2px' }}>
+                    {slot.sublabel}
+                  </div>
+                )}
               </div>
             ))}
           </div>

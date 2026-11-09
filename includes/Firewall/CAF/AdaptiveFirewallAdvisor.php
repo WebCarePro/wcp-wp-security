@@ -584,20 +584,68 @@ final class AdaptiveFirewallAdvisor {
 	}
 
 	/**
-	 * Register lifecycle hooks for automatic stack re-profiling and WAF compilation.
+	 * Register lifecycle hooks for automatic stack re-profiling, WAF compilation, and Cloudflare Edge synchronization.
 	 */
 	public static function register_lifecycle_hooks(): void {
 		$handler = static function () {
 			$advisor = new self();
-			$snapshot = $advisor->capture_stack_snapshot();
+			$advisor->capture_stack_snapshot();
 			if ( class_exists( MicroWafCompiler::class ) ) {
 				MicroWafCompiler::compile_script();
 			}
+			self::schedule_edge_auto_sync();
 		};
 
 		add_action( 'activated_plugin', $handler, 999 );
 		add_action( 'deactivated_plugin', $handler, 999 );
 		add_action( 'switch_theme', $handler, 999 );
 		add_action( 'upgrader_process_complete', $handler, 999 );
+		add_action( 'webcareproscan_settings_updated', $handler, 999 );
+
+		// Register single-event background cron hook for non-blocking edge sync
+		add_action( 'webcare_cf_auto_sync_edge_cron', [ __CLASS__, 'execute_edge_auto_sync' ] );
+	}
+
+	/**
+	 * Schedule non-blocking asynchronous Cloudflare Edge rule synchronization.
+	 */
+	public static function schedule_edge_auto_sync(): void {
+		$settings = \WebCareProScanner\System\SettingsManager::get_settings();
+		$token = $settings['cloudflare_api_token'] ?? '';
+		$zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+		if ( empty( $token ) || empty( $zone_id ) ) {
+			return;
+		}
+
+		$auto_sync = get_option( 'webcare_cf_auto_sync_edge', true );
+		if ( ! $auto_sync ) {
+			return;
+		}
+
+		if ( ! wp_next_scheduled( 'webcare_cf_auto_sync_edge_cron' ) ) {
+			wp_schedule_single_event( time() + 5, 'webcare_cf_auto_sync_edge_cron' );
+		}
+	}
+
+	/**
+	 * Background execution worker for Cloudflare Edge rule synchronization.
+	 */
+	public static function execute_edge_auto_sync(): void {
+		$settings = \WebCareProScanner\System\SettingsManager::get_settings();
+		$token = $settings['cloudflare_api_token'] ?? '';
+		$zone_id = $settings['cloudflare_zone_id'] ?? '';
+
+		if ( empty( $token ) || empty( $zone_id ) || ! class_exists( CloudflareSlotOptimizer::class ) ) {
+			return;
+		}
+
+		$optimizer = new CloudflareSlotOptimizer();
+		$breaker = class_exists( OriginLoadCircuitBreaker::class ) ? new OriginLoadCircuitBreaker() : null;
+		$origin_survival = $breaker ? $breaker->is_survival_mode_active() : false;
+
+		$optimizer->deploy_to_cloudflare( $zone_id, null, [], $origin_survival );
+
+		update_option( 'webcare_cf_last_auto_sync_time', time(), false );
 	}
 }
