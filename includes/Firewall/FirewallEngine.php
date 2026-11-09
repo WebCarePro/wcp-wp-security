@@ -1660,6 +1660,7 @@ class FirewallEngine {
     private static function evaluate_rules(array $settings, bool $is_complementary): ?array {
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Inspecting raw unstripped request URI for attack payloads
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
+        $request_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
 
         // Multi-pass URL decode for robust detection across multiple encoding layers
         $decoded_uri = $raw_uri;

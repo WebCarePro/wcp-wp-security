@@ -287,6 +287,26 @@ class AdminMenu {
             'webcare-pro-activity-logs',
             [__CLASS__, 'render_app_container']
         );
+
+        // Sub-Page: Context-Adaptive Firewall (CAF)
+        add_submenu_page(
+            null,
+            __('Context-Adaptive Firewall (CAF) & StackGuard', 'webcare-pro-security'),
+            __('CAF Defense', 'webcare-pro-security'),
+            'manage_options',
+            'webcare-pro-caf',
+            [__CLASS__, 'render_app_container']
+        );
+
+        // Sub-Page: Quarantine Vault
+        add_submenu_page(
+            null,
+            __('Quarantine Vault & Safety Recoveries', 'webcare-pro-security'),
+            __('Quarantine Vault', 'webcare-pro-security'),
+            'manage_options',
+            'webcare-pro-quarantine',
+            [__CLASS__, 'render_app_container']
+        );
     }
 
     /**
