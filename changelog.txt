@@ -1,4 +1,6 @@
 v:2.9.0 - 2026-11-09
+- AI Settings UI Refinement (SettingsPage.tsx):
+  * Removed the third-party 'Install Compatible AI Engine Plugin' button from the AI Cybersecurity Intelligence Engine settings panel, keeping the configuration interface clean, minimal, and focused on native WordPress AI Connectors and direct AES-256-GCM vault-encrypted API credentials (Google Gemini, OpenAI, Claude).
 - Database Backup Vault Lockdown & File Filtering (DatabaseBackup.php & DatabaseBackupVault.tsx):
   * Vault Security File Filtering: Hardened list_backups() in DatabaseBackup.php to strictly filter out IIS web.config, Apache .htaccess, index.php, robots.txt, and hidden dot-prefixed system files. Eliminates the issue where the proactive Microsoft IIS vault security lockdown file (web.config) was listed as an empty (0 MB) database backup snapshot in the admin vault table.
   * Strict Database Archive Extension Whitelisting: Enforced strict regex extension filtering (.(sql|sql.gz|gz|zip)$) across list_backups(), get_backup_path(), and delete_backup(), guaranteeing that only authentic database archives can be listed, downloaded, or deleted, while safeguarding directory lockdown files from accidental removal or direct web serving.
