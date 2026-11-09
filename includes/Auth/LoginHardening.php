@@ -264,7 +264,7 @@ class LoginHardening {
             if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
                 \WebCareProScanner\Cloudflare\CloudflareService::block_ip(
                     $ip,
-                    "WCP Brute Force: {$attempts} failed logins for {$username}"
+                    "WebCare Brute Force: {$attempts} failed logins for {$username}"
                 );
 
                 if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {

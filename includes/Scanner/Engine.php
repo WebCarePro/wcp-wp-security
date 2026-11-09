@@ -120,7 +120,7 @@ class Engine {
                     }
 
                     // Internal plugin storage exclusions
-                    if (in_array($name, ['.vault', '.backups', 'wcp-backups', 'webcare-pro-security', 'wcp-quarantine', 'wcp-scanner-quarantine', 'wcp-vault', 'wcp-waf', '.vscode', '.idea'], true)) {
+                    if (in_array($name, ['.vault', '.backups', 'webcare-backups', 'webcare-pro-security', 'webcare-quarantine', 'webcare-pro-quarantine', 'webcare-vault', 'webcare-waf', '.vscode', '.idea'], true)) {
                         return false;
                     }
                     if ($has_settings_manager && \WebCareProScanner\System\SettingsManager::is_path_excluded($pathname)) {
@@ -161,7 +161,7 @@ class Engine {
             }
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('WCP Scanner: File discovery error in ' . $dir . ': ' . $e->getMessage());
+            error_log('WebCare Pro: File discovery error in ' . $dir . ': ' . $e->getMessage());
         }
 
         return $count;

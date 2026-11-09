@@ -34,8 +34,8 @@ class ActivityRetention {
      * @return string
      */
     public static function get_checkpoint_genesis_hash(): string {
-        $install_hash = get_option('webcareproscan_install_hash', 'wcp_default_seed');
-        return hash('sha256', 'WCP_CHECKPOINT_GENESIS::' . $install_hash);
+        $install_hash = get_option('webcareproscan_install_hash', 'webcare_default_seed');
+        return hash('sha256', 'WEBCARE_CHECKPOINT_GENESIS::' . $install_hash);
     }
 
     /**

@@ -239,8 +239,8 @@ try {
   }
   const currentVersion = manifestData.version;
   vData.version = currentVersion;
-  vData.download_url = `https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/${PLUGIN_SLUG}.zip`;
-  vData.manifest_url = `https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json`;
+  vData.download_url = `https://raw.githubusercontent.com/WebCarePro/webcare-wp-security/main/${PLUGIN_SLUG}.zip`;
+  vData.manifest_url = `https://raw.githubusercontent.com/WebCarePro/webcare-wp-security/main/includes/System/plugin-manifest.json`;
   vData.released_at = new Date().toISOString().split('T')[0];
   fs.writeFileSync(versionJsonPath, JSON.stringify(vData, null, 2), 'utf8');
   console.log(`✓ Synchronized version.json for version ${currentVersion}`);

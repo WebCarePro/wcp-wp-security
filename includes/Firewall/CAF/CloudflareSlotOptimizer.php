@@ -25,8 +25,8 @@ if (!defined('ABSPATH')) {
 class CloudflareSlotOptimizer {
 
     public const MAX_EXPRESSION_BYTES = 4000; // Safety buffer below Cloudflare Free 4096-byte limit
-    public const WCP_RULE_PREFIX      = '[WCP-CAF:';
-    public const WCP_LEGACY_TAG       = '[WCP Security Scanner]';
+    public const WEBCARE_RULE_PREFIX      = '[WEBCARE-CAF:';
+    public const WEBCARE_LEGACY_TAG       = '[WebCare Pro Security & Firewall]';
 
     /**
      * Fetch existing rules from Cloudflare Zone Custom Rulesets entrypoint.
@@ -48,17 +48,17 @@ class CloudflareSlotOptimizer {
     }
 
     /**
-     * Calculate remaining slot budget for WCP-managed rules.
+     * Calculate remaining slot budget for WebCare-managed rules.
      * Preserves user-defined rules and claims up to min(3, max(0, 5 - count(user_rules))).
      *
      * @param array $existing_rules List of rules currently on Cloudflare
      * @return int Number of available slots (0 to 3)
      */
-    public function calculate_wcp_slot_budget(array $existing_rules): int {
+    public function calculate_webcare_slot_budget(array $existing_rules): int {
         $user_rules = 0;
         foreach ($existing_rules as $rule) {
             $desc = (string) ($rule['description'] ?? '');
-            if (!$this->is_wcp_rule($desc)) {
+            if (!$this->is_webcare_rule($desc)) {
                 $user_rules++;
             }
         }
@@ -71,9 +71,9 @@ class CloudflareSlotOptimizer {
      *
      * @param StackSnapshot $snapshot Current WordPress stack snapshot
      * @param array $scoped_patches Priority-sorted virtual patches relevant to active stack
-     * @param bool $has_custom_ip_list Whether Account IP List ($wcp_threat_blocklist) is active
+     * @param bool $has_custom_ip_list Whether Account IP List ($webcare_threat_blocklist) is active
      * @param bool $origin_survival_active Whether Origin Survival Mode is currently active
-     * @param int $slot_budget Maximum slots WCP can occupy (default: 3)
+     * @param int $slot_budget Maximum slots WebCare can occupy (default: 3)
      * @return array
      */
     public function pack_ruleset_expressions(
@@ -87,13 +87,13 @@ class CloudflareSlotOptimizer {
             return [];
         }
 
-        $wcp_rules = [];
+        $webcare_rules = [];
 
         // SLOT 1: Highest ROI Hard Block (Threat List + Core Sensitive Files + Dormant Stack Lockdown)
         $slot1_expr = $this->compile_slot1_block_expression($snapshot, $has_custom_ip_list);
-        $wcp_rules[] = [
+        $webcare_rules[] = [
             'action'      => 'block',
-            'description' => self::WCP_RULE_PREFIX . 'SLOT-1] Hard Block: Threat List, Core Artifacts & Dormant Stack',
+            'description' => self::WEBCARE_RULE_PREFIX . 'SLOT-1] Hard Block: Threat List, Core Artifacts & Dormant Stack',
             'enabled'     => true,
             'expression'  => $this->truncate_to_byte_budget($slot1_expr, self::MAX_EXPRESSION_BYTES),
         ];
@@ -101,9 +101,9 @@ class CloudflareSlotOptimizer {
         // SLOT 2: Smart Managed Challenge (Brute-Force, Spammers & Origin Survival Shield)
         if ($slot_budget >= 2) {
             $slot2_expr = $this->compile_slot2_challenge_expression($origin_survival_active);
-            $wcp_rules[] = [
+            $webcare_rules[] = [
                 'action'      => 'managed_challenge',
-                'description' => self::WCP_RULE_PREFIX . 'SLOT-2] Smart Challenge: Login, Spammers & Origin Load Shield',
+                'description' => self::WEBCARE_RULE_PREFIX . 'SLOT-2] Smart Challenge: Login, Spammers & Origin Load Shield',
                 'enabled'     => true,
                 'expression'  => $this->truncate_to_byte_budget($slot2_expr, self::MAX_EXPRESSION_BYTES),
             ];
@@ -112,15 +112,15 @@ class CloudflareSlotOptimizer {
         // SLOT 3: Priority-Sorted Stack-Scoped CVE Virtual Patches
         if ($slot_budget >= 3) {
             $slot3_expr = $this->compile_slot3_virtual_patch_expression($scoped_patches);
-            $wcp_rules[] = [
+            $webcare_rules[] = [
                 'action'      => 'block',
-                'description' => self::WCP_RULE_PREFIX . 'SLOT-3] StackGuard Virtual Patches & Exploit Signatures',
+                'description' => self::WEBCARE_RULE_PREFIX . 'SLOT-3] StackGuard Virtual Patches & Exploit Signatures',
                 'enabled'     => true,
                 'expression'  => $this->truncate_to_byte_budget($slot3_expr, self::MAX_EXPRESSION_BYTES),
             ];
         }
 
-        return $wcp_rules;
+        return $webcare_rules;
     }
 
     /**
@@ -177,17 +177,17 @@ class CloudflareSlotOptimizer {
 
         foreach ($existing_rules as $rule) {
             $desc = (string) ($rule['description'] ?? '');
-            if (!$this->is_wcp_rule($desc)) {
+            if (!$this->is_webcare_rule($desc)) {
                 $user_rules[] = $rule;
             }
         }
 
-        // 2. Calculate slot budget (max 3 WCP slots, preserving all user rules)
+        // 2. Calculate slot budget (max 3 WebCare slots, preserving all user rules)
         $slot_budget = (int) min(3, max(0, 5 - count($user_rules)));
         if ($slot_budget === 0) {
             return [
                 'success'     => false,
-                'message'     => __('All 5 Cloudflare Free Plan custom rules are occupied by user-defined rules. WCP cannot deploy edge rules without overwriting custom rules.', 'webcare-pro-security'),
+                'message'     => __('All 5 Cloudflare Free Plan custom rules are occupied by user-defined rules. WebCare cannot deploy edge rules without overwriting custom rules.', 'webcare-pro-security'),
                 'user_rules'  => count($user_rules),
                 'slot_budget' => 0,
             ];
@@ -206,8 +206,8 @@ class CloudflareSlotOptimizer {
             $has_custom_ip_list = ($sync->detect_api_scope() === 'account');
         }
 
-        // 5. Build packed WCP rules
-        $wcp_rules = $this->pack_ruleset_expressions(
+        // 5. Build packed WebCare Rules
+        $webcare_rules = $this->pack_ruleset_expressions(
             $snapshot,
             $scoped_patches,
             $has_custom_ip_list,
@@ -215,8 +215,8 @@ class CloudflareSlotOptimizer {
             $slot_budget
         );
 
-        // 6. Merge WCP rules + preserved user rules (WCP rules placed at top priority)
-        $final_rules = array_merge($wcp_rules, $user_rules);
+        // 6. Merge WebCare Rules + preserved user rules (WebCare Rules placed at top priority)
+        $final_rules = array_merge($webcare_rules, $user_rules);
 
         $payload = [
             'rules' => $final_rules,
@@ -229,10 +229,10 @@ class CloudflareSlotOptimizer {
         );
 
         if (!empty($res['success'])) {
-            update_option('wcp_caf_last_cf_slot_sync', [
+            update_option('webcare_caf_last_cf_slot_sync', [
                 'timestamp'      => time(),
                 'slot_budget'    => $slot_budget,
-                'wcp_rules'      => count($wcp_rules),
+                'webcare_rules'      => count($webcare_rules),
                 'user_rules'     => count($user_rules),
                 'total_rules'    => count($final_rules),
                 'origin_survival'=> $origin_survival_active,
@@ -241,13 +241,13 @@ class CloudflareSlotOptimizer {
             return [
                 'success'     => true,
                 'message'     => sprintf(
-                    /* translators: %1$d: WCP rule count, %2$d: preserved user rule count */
-                    __('Successfully synchronized %1$d WCP-managed rule(s) to Cloudflare Edge (%2$d user rule(s) safely preserved).', 'webcare-pro-security'),
-                    count($wcp_rules),
+                    /* translators: %1$d: WebCare Rule count, %2$d: preserved user rule count */
+                    __('Successfully synchronized %1$d WebCare-managed rule(s) to Cloudflare Edge (%2$d user rule(s) safely preserved).', 'webcare-pro-security'),
+                    count($webcare_rules),
                     count($user_rules)
                 ),
                 'slot_budget' => $slot_budget,
-                'wcp_rules'   => $wcp_rules,
+                'webcare_rules'   => $webcare_rules,
                 'user_rules'  => $user_rules,
             ];
         }
@@ -346,9 +346,9 @@ class CloudflareSlotOptimizer {
     }
 
     /**
-     * Check if a rule description indicates a WCP-managed rule.
+     * Check if a rule description indicates a WebCare-managed rule.
      */
-    private function is_wcp_rule(string $description): bool {
-        return str_starts_with($description, self::WCP_RULE_PREFIX) || str_starts_with($description, self::WCP_LEGACY_TAG);
+    private function is_webcare_rule(string $description): bool {
+        return str_starts_with($description, self::WEBCARE_RULE_PREFIX) || str_starts_with($description, self::WEBCARE_LEGACY_TAG);
     }
 }

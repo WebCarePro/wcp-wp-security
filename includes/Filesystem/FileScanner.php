@@ -76,7 +76,7 @@ class FileScanner {
         $norm_path = str_replace('\\', '/', $file_path);
         if (strpos($norm_path, '/wp-content/uploads/') !== false) {
             // Exclude plugin's internal secure storage (quarantine, logs, backups, fim-vault, etc.) and user exclusions
-            if (!preg_match('#/(wcp-security-scanner|wcp-scanner-quarantine|wcp-vault|wcp-waf|wcp-quarantine|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WebCareProScanner\System\SettingsManager::is_path_excluded($norm_path)) {
+            if (!preg_match('#/(webcare-pro-security|webcare-pro-quarantine|webcare-vault|webcare-waf|webcare-quarantine|node_modules|\.git|updraft|wfcache)/#i', $norm_path) && !\WebCareProScanner\System\SettingsManager::is_path_excluded($norm_path)) {
                 $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
                 $basename = strtolower(basename($file_path));
                 if (in_array($ext, ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar'], true)) {

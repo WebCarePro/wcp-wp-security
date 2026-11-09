@@ -24,10 +24,10 @@ This architecture defeats all five layers **without breaking legitimate SEO plug
 | **1** | **Strict 3-Condition Auto-Heal Formula** | Automatic `.htaccess` restoration executes **ONLY IF ALL THREE CONDITIONS ARE MET**:<br>1. Canary probe (or Preload Micro-WAF check) confirms a hostile external redirect or cloaked payload.<br>2. Live `.htaccess` contains a matching hostile pattern (external target + cloaking condition or catch-all rewrite).<br>3. No verified admin/plugin rewrite flush (`flush_rewrite_rules` transient) occurred within a 5-minute grace window.<br>*(If the canary is hostile but `.htaccess` is clean, the engine does NOT touch `.htaccess`; it alerts immediately and attributes the redirect to Nginx, database `siteurl`/`home`, or a PHP hook/drop-in.)* |
 | **2** | **Preload Micro-WAF Anti-Deadlock Watchdog** | A catch-all `.htaccess` redirect (`RewriteRule ^.*$ https://spam.xyz [R=302,L]`) breaks `wp-cron.php` loopback requests, which would otherwise deadlock scheduled canary crons. To prevent deadlock, `micro-waf-compiled.php` (`auto_prepend_file`) performs an O(1) `filemtime()` check on `ABSPATH . '.htaccess'` during any PHP execution and triggers immediate semantic verification and vault auto-heal if `.htaccess` was tampered with outside a legitimate flush window. |
 | **3** | **HTTP `200 OK` Differential DOM Comparison** | Canary probes do **not** stop at checking `3xx` `Location` headers. On `HTTP 200 OK` responses, `RedirectCanaryEngine` compares the `<head>`, `<script src="...">`, `<meta http-equiv="refresh">`, and `<base href>` elements of **Probe A (Baseline Admin/Direct View)** against **Probes B, C, and E (Googlebot, Mobile, and AI Search Referrers)**. Any external script domain or redirect tag present in Probes B/C/E but absent in Probe A is flagged as a **Cloaked Injection**. |
-| **4** | **Simulated Residential IP Forwarding for Self-Probes** | Malware frequently bypasses `127.0.0.1` and datacenter ASNs (`$_SERVER['REMOTE_ADDR'] === $_SERVER['SERVER_ADDR']`). Canary self-probes send a randomized public residential test IP via `X-Forwarded-For` accompanied by a short-lived internal HMAC header (`X-WCP-Canary-Signature`) so `FirewallEngine` honors the probe while third-party malware sees an external visitor IP. |
+| **4** | **Simulated Residential IP Forwarding for Self-Probes** | Malware frequently bypasses `127.0.0.1` and datacenter ASNs (`$_SERVER['REMOTE_ADDR'] === $_SERVER['SERVER_ADDR']`). Canary self-probes send a randomized public residential test IP via `X-Forwarded-For` accompanied by a short-lived internal HMAC header (`X-WEBCARE-Canary-Signature`) so `FirewallEngine` honors the probe while third-party malware sees an external visitor IP. |
 | **5** | **Canary Edge-Case Immunity** | * **Admin Probe D:** A `302 Found` from `/wp-admin/` to `wp-login.php` on the same host is verified as **CLEAN**.<br>* Canonical `http → https` and `www ↔ non-www` redirects matching `home_url()` or `site_url()` hostnames are verified as **CLEAN**.<br>* Network timeouts or `cURL` errors are logged as connectivity warnings, **NEVER** flagged as redirect hacks. |
 | **6** | **Inside-Block Semantic Scoring** | Vendor markers (`# BEGIN WordPress`, `# BEGIN LSCACHE`, `# BEGIN WP Rocket`) are **never** treated as a blind whitelist. Rules injected inside `# BEGIN WordPress` undergo full directive-level semantic scoring. |
-| **7** | **Dual-Medium Rolling Vault (`.vault/` + Encrypted DB)** | The last 5 verified-clean `.htaccess` snapshots are stored both on disk (`wp-content/uploads/wcp-security-scanner/.vault/.htaccess.vault.1..5` with `0600` permissions and Apache/LiteSpeed deny rules) **AND** encrypted via `SecretVault` inside the database (`wcpscan_htaccess_vault_ mirrored`). If a resident PHP shell deletes `.vault/` on disk, restoration seamlessly falls back to the encrypted database snapshot. |
+| **7** | **Dual-Medium Rolling Vault (`.vault/` + Encrypted DB)** | The last 5 verified-clean `.htaccess` snapshots are stored both on disk (`wp-content/uploads/webcare-security-scanner/.vault/.htaccess.vault.1..5` with `0600` permissions and Apache/LiteSpeed deny rules) **AND** encrypted via `SecretVault` inside the database (`wcpscan_htaccess_vault_ mirrored`). If a resident PHP shell deletes `.vault/` on disk, restoration seamlessly falls back to the encrypted database snapshot. |
 | **8** | **Runtime `wp_redirect` Call-Stack Firewall** | Hooks `wp_redirect` at priority `999999` on front-end guest requests. If PHP code attempts to redirect an unauthenticated visitor to an unapproved external domain (excluding Stripe, PayPal, WooCommerce gateways, OAuth providers, and whitelisted domains), the redirect is blocked in real time and `debug_backtrace()` records the exact offending PHP file and line number. |
 | **9** | **Service Worker Eviction (`Clear-Site-Data`)** | When an active redirect or rogue Service Worker (`navigator.serviceWorker.register`) is remediated, the plugin can optionally emit `Clear-Site-Data: "cache", "storage"` headers for 24 hours on front-end responses so returning visitors' browsers automatically purge poisoned caches and rogue Service Workers. |
 | **10** | **State-Transition Deduplication** | Background canaries run every 15 minutes (`wcp_15min`). Out-of-band alerts (Discord, Slack, Email) fire strictly on state transitions (`Clean → Hostile` and `Hostile → Recovered`) to prevent alert fatigue. |
@@ -59,12 +59,12 @@ This architecture defeats all five layers **without breaking legitimate SEO plug
    * Hooks `flush_rewrite_rules_hard` and `activated_plugin` / `deactivated_plugin` to set a 5-minute signed transient (`wcpscan_htaccess_flush_grace`) and automatically snapshots the newly generated `.htaccess` if it passes semantic scanning.
 2. **Directive-Grouping Semantic Classifier (`analyze_htaccess_content(string $content)`):**
    * Parses `.htaccess` line-by-line (ignoring `# BEGIN ...` / `# END ...` wrapper labels as trust boundaries) while grouping contiguous `RewriteCond` directives with their governing `RewriteRule`:
-     * **Clean (Score 0):** `RewriteRule ^index\.php$ - [L]`, internal relative rewrites, same-host HTTPS/www canonical redirects, `ExpiresByType`, `Header set`, `AddOutputFilterByType`, and WCP's own `# BEGIN WCP_SECURITY_RULES` block.
+     * **Clean (Score 0):** `RewriteRule ^index\.php$ - [L]`, internal relative rewrites, same-host HTTPS/www canonical redirects, `ExpiresByType`, `Header set`, `AddOutputFilterByType`, and WebCare's own `# BEGIN WCP_SECURITY_RULES` block.
      * **High / Critical (Score 80–100):**
        * `RewriteCond %{HTTP_REFERER} .*(google|bing|yahoo|yandex|duckduckgo|chatgpt|perplexity).*` paired with an external `RewriteRule` or `RedirectMatch`.
        * `RewriteCond %{HTTP_USER_AGENT} .*(android|iphone|ipad|mobile|googlebot|bingbot).*` paired with an external `RewriteRule`.
        * Catch-all `RewriteRule` or `RedirectMatch` (`^\.*$`, `^/?$`, `\.php$`) pointing to an external `https?://` host.
-       * Rogue handler injection (`AddHandler application/x-httpd-php .jpg .png .ico`, `SetHandler application/x-httpd-php`, or unauthorized `auto_prepend_file` pointing outside WCP's own `micro-waf-compiled.php`).
+       * Rogue handler injection (`AddHandler application/x-httpd-php .jpg .png .ico`, `SetHandler application/x-httpd-php`, or unauthorized `auto_prepend_file` pointing outside WebCare's own `micro-waf-compiled.php`).
 3. **Runtime PHP Redirect Firewall (`inspect_runtime_redirect(string $location, int $status)`):**
    * Hooked via `add_filter('wp_redirect', [__CLASS__, 'inspect_runtime_redirect'], 999999, 2)`.
    * On unauthenticated front-end requests (`!is_user_logged_in()` and `!is_admin()`), validates the target host of `$location`:
@@ -75,7 +75,7 @@ This architecture defeats all five layers **without breaking legitimate SEO plug
 
 1. **5-Version Rolling Vault (Disk + Encrypted DB):**
    * Stores up to 5 deduplicated, verified-clean `.htaccess` versions (only pushing a new version when the SHA-256 hash of a clean `.htaccess` changes):
-     * Disk path: `wp-content/uploads/wcp-security-scanner/.vault/.htaccess.vault.{1..5}.php` (wrapped with `<?php http_response_code(403); exit; __halt_compiler(); ?>` + AES-256-GCM encrypted payload via `SecretVault`, permissions `0600`).
+     * Disk path: `wp-content/uploads/webcare-security-scanner/.vault/.htaccess.vault.{1..5}.php` (wrapped with `<?php http_response_code(403); exit; __halt_compiler(); ?>` + AES-256-GCM encrypted payload via `SecretVault`, permissions `0600`).
      * Database mirror: Stored in `wp_options` (`wcpscan_htaccess_vault_snapshots`, `autoload = false`) so snapshots survive even if an attacker deletes the `.vault/` directory on disk.
 2. **Atomic Restore + File Permission Lock + Cache Purge (`restore_snapshot(int $version = 1)`):**
    * Verifies target snapshot passes `HtaccessShield::analyze_htaccess_content()` before writing.
@@ -141,7 +141,7 @@ This architecture defeats all five layers **without breaking legitimate SEO plug
 
 ### Phase 1: `HtaccessVaultManager.php` & `HtaccessShield.php` (Core Armor & Vault)
 1. Create `includes/Firewall/HtaccessVaultManager.php`:
-   * Implement 5-version rolling vault stored in `wp-content/uploads/wcp-security-scanner/.vault/` (`0600` perms, `<?php exit; __halt_compiler(); ?>` header + `SecretVault::encrypt()`) **plus** encrypted database fallback in `wp_options` (`wcpscan_htaccess_vault_snapshots`, `autoload = false`).
+   * Implement 5-version rolling vault stored in `wp-content/uploads/webcare-security-scanner/.vault/` (`0600` perms, `<?php exit; __halt_compiler(); ?>` header + `SecretVault::encrypt()`) **plus** encrypted database fallback in `wp_options` (`wcpscan_htaccess_vault_snapshots`, `autoload = false`).
    * Implement `snapshot_current_if_clean()`, `restore_snapshot($version = 1)`, `purge_all_site_caches()`, and WP-CLI command registration (`wp wcp htaccess status|vault|restore`).
 2. Create `includes/Firewall/HtaccessShield.php`:
    * Implement directive-grouping semantic parser `analyze_htaccess_content($raw_htaccess)` that pairs `RewriteCond` + `RewriteRule`, inspects inside `# BEGIN WordPress`, and scores hostile external redirects, referrer/UA cloaks, and rogue `AddHandler`/`SetHandler`/`auto_prepend_file` directives.
@@ -164,14 +164,14 @@ This architecture defeats all five layers **without breaking legitimate SEO plug
 
 ### Phase 4: REST API Endpoints & React Cockpit UI
 1. Register REST endpoints in `includes/Api/ScannerRoutes.php`:
-   * `GET /wcp-scanner/v1/firewall/redirect-shield/status` (live canary status, `.htaccess` semantic score, `siteurl`/`home` baseline status, and vault snapshot list).
-   * `POST /wcp-scanner/v1/firewall/redirect-shield/probe` (run on-demand 5-vector canary probe).
-   * `POST /wcp-scanner/v1/firewall/redirect-shield/restore` (restore `.htaccess` from selected vault snapshot #1–#5 and purge caches).
-   * `POST /wcp-scanner/v1/firewall/redirect-shield/lock` (toggle `.htaccess` read-only `0444` lock and auto-heal mode).
+   * `GET /webcare-scanner/v1/firewall/redirect-shield/status` (live canary status, `.htaccess` semantic score, `siteurl`/`home` baseline status, and vault snapshot list).
+   * `POST /webcare-scanner/v1/firewall/redirect-shield/probe` (run on-demand 5-vector canary probe).
+   * `POST /webcare-scanner/v1/firewall/redirect-shield/restore` (restore `.htaccess` from selected vault snapshot #1–#5 and purge caches).
+   * `POST /webcare-scanner/v1/firewall/redirect-shield/lock` (toggle `.htaccess` read-only `0444` lock and auto-heal mode).
 2. Build the React UI panel in the Firewall / Server Armor tab with visual `.htaccess` diff viewer, 5-probe canary simulator, and 1-click Vault Restore.
 
 ### Phase 5: Manifest Sync & Packaging (v2.7.2)
-1. Bump version to `2.7.2` across `wcp-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`, and `changelog.txt`.
+1. Bump version to `2.7.2` across `webcare-wp-scanner.php`, `readme.txt`, `package.json`, `README.md`, `version.json`, and `changelog.txt`.
 2. Run `npm run build` and `npm run package` to regenerate `includes/System/plugin-manifest.json` with updated SHA-256 hashes and byte sizes.
 
 ## 6. Grok Implementation Guardrails & Method-Level Interface Stubs
@@ -185,8 +185,8 @@ To ensure zero regressions during implementation, Antigravity must adhere to the
    * `HtaccessShield::inspect_runtime_redirect()` must merge a default trusted domain list (`checkout.stripe.com`, `hooks.stripe.com`, `paypal.com`, `sandbox.paypal.com`, `accounts.google.com`, `login.microsoftonline.com`, `appleid.apple.com`, `auth0.com`, `okta.com`, `squareup.com`, `mollie.com`, `surecart.com`, `paddle.com`, `lemonsqueezy.com`) with the user-configurable `SettingsManager::get('waf_redirect_allowlist')` array and any domains registered in active redirection plugins (`wp_redirection_items`, `rank_math_redirections`, `wpseo_redirects`).
 3. **`Clear-Site-Data` Scope (`"cache"` Only by Default):**
    * When emitting `Clear-Site-Data` after remediating a redirect incident, emit `Clear-Site-Data: "cache"` (and only include `"storage"` if a rogue Service Worker was explicitly detected and the admin opted in), so logged-in administrators and shoppers do not lose session cookies or local cart state.
-4. **Unified Vault Path (`wp-content/uploads/wcp-security-scanner/.vault/`):**
-   * Standardize on `wp_upload_dir()['basedir'] . '/wcp-security-scanner/.vault'` across all classes (consistent with `.quarantine`, `.db-backups`, and `.remediation`), hardened with `.htaccess` (`<IfModule !mod_authz_core.c>` + `<IfModule mod_authz_core.c>`), `index.php`, `0600` file permissions, `<?php http_response_code(403); exit; __halt_compiler(); ?>` guard header, and `SecretVault::encrypt()` AEAD payload + `wp_options` encrypted database mirror.
+4. **Unified Vault Path (`wp-content/uploads/webcare-security-scanner/.vault/`):**
+   * Standardize on `wp_upload_dir()['basedir'] . '/webcare-security-scanner/.vault'` across all classes (consistent with `.quarantine`, `.db-backups`, and `.remediation`), hardened with `.htaccess` (`<IfModule !mod_authz_core.c>` + `<IfModule mod_authz_core.c>`), `index.php`, `0600` file permissions, `<?php http_response_code(403); exit; __halt_compiler(); ?>` guard header, and `SecretVault::encrypt()` AEAD payload + `wp_options` encrypted database mirror.
 5. **Sub-Phased Delivery Gate (Tests 2, 3, 5, 7, 11, 12):**
    * Implement and verify in three sequential commits:
      * **Step 1A:** `HtaccessVaultManager` (Dual-medium vault + WP-CLI `wp wcp htaccess` + cache purge) + Preload `filemtime()` watchdog.

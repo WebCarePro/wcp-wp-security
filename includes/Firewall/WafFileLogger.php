@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
  */
 class WafFileLogger {
 
-    const SUBDIR = 'wcp-security-scanner/.waf-logs';
+    const SUBDIR = 'webcare-pro-security/.waf-logs';
     const RETENTION_OPTION = 'webcareproscan_waf_log_retention_days';
     const DEFAULT_RETENTION_DAYS = 60;
     const CRON_HOOK = 'webcareproscan_waf_log_retention_prune';
@@ -133,7 +133,7 @@ class WafFileLogger {
 
         // Red Team Synthetic Attack Drill probe suppression
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $drill_token = isset($_GET['wcp_drill_token']) ? sanitize_text_field(wp_unslash($_GET['wcp_drill_token'])) : (isset($_SERVER['HTTP_X_WCP_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WCP_DRILL_TOKEN'])) : '');
+        $drill_token = isset($_GET['webcare_drill_token']) ? sanitize_text_field(wp_unslash($_GET['webcare_drill_token'])) : (isset($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN'])) : '');
         if (!empty($drill_token) && class_exists('\\WebCareProScanner\\Security\\AttackSimulationEngine') && \WebCareProScanner\Security\AttackSimulationEngine::verify_drill_token($drill_token)) {
             return null;
         }
@@ -155,10 +155,10 @@ class WafFileLogger {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection of incoming authentication attempt parameter for deduplication keying
             $raw_log = isset($_POST['log']) ? sanitize_user(wp_unslash($_POST['log'])) : '';
             $dedup_username = !empty($rule['username']) ? sanitize_user($rule['username']) : $raw_log;
-            $cache_key = 'wcp_dedup_' . md5($ip . '_' . $category . '_' . $dedup_username . '_' . ($rule['id'] ?? ''));
+            $cache_key = 'webcare_dedup_' . md5($ip . '_' . $category . '_' . $dedup_username . '_' . ($rule['id'] ?? ''));
             $dedup_ttl = 3;
         } else {
-            $cache_key = 'wcp_dedup_' . md5($ip . '_' . $category);
+            $cache_key = 'webcare_dedup_' . md5($ip . '_' . $category);
         }
 
         if (get_transient($cache_key)) {
@@ -167,7 +167,7 @@ class WafFileLogger {
         set_transient($cache_key, 1, $dedup_ttl);
 
         if (empty($incident_id)) {
-            $incident_id = 'WCP-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
+            $incident_id = 'WEBCARE-' . strtoupper(substr(md5($ip . microtime(true) . wp_rand()), 0, 8));
         }
 
         // Determine HTTP Status Code
@@ -217,7 +217,7 @@ class WafFileLogger {
         $payload = preg_replace('/(pwd|password|pass|secret|token)=([^&]+)/i', '$1=********', $payload);
 
         $incident_record = [
-            'id'               => 'wcp_' . substr(md5(uniqid((string) wp_rand(), true)), 0, 12),
+            'id'               => 'webcare_' . substr(md5(uniqid((string) wp_rand(), true)), 0, 12),
             'incident_id'      => sanitize_text_field($incident_id),
             'timestamp'        => time(),
             'created_at'       => current_time('mysql'),
@@ -230,7 +230,7 @@ class WafFileLogger {
             'rule_id'          => !empty($rule['id']) ? sanitize_text_field($rule['id']) : null,
             'rule_name'        => !empty($rule['name']) ? sanitize_text_field($rule['name']) : null,
             'rule_category'    => $category,
-            'rule_description' => sanitize_text_field($rule['description'] ?? $rule['name'] ?? 'Threat payload intercepted by WCP firewall.'),
+            'rule_description' => sanitize_text_field($rule['description'] ?? $rule['name'] ?? 'Threat payload intercepted by WebCare firewall.'),
             'payload_sample'   => $payload,
             'user_agent'       => $user_agent,
             'action_taken'     => sanitize_key($action),

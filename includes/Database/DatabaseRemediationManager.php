@@ -32,7 +32,7 @@ class DatabaseRemediationManager {
 
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
         }
     }
 

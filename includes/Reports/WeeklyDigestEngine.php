@@ -90,7 +90,7 @@ class WeeklyDigestEngine {
         $carding_blocks  = number_format($telemetry['carding_blocks']);
         $verified_files  = number_format($telemetry['verified_files']);
         $has_woo         = !empty($telemetry['has_woocommerce']);
-        $dashboard_url   = esc_url(admin_url('admin.php?page=wcp-security-scanner'));
+        $dashboard_url   = esc_url(admin_url('admin.php?page=webcare-pro-security'));
 
         ob_start();
         ?>
@@ -167,7 +167,7 @@ class WeeklyDigestEngine {
 
             <tr>
               <td style="padding: 20px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
-                You received this digest because Monday Morning Peace-of-Mind Digest is enabled in your WCP Notification Center.<br>
+                You received this digest because Monday Morning Peace-of-Mind Digest is enabled in your WebCare Notification Center.<br>
                 To customize or disable notifications, visit your <a href="<?php echo esc_url($dashboard_url); ?>" style="color: #64748b;">Notification Center settings</a>.
               </td>
             </tr>

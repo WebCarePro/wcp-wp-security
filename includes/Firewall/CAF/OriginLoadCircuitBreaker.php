@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
  * Real-world cPanel / shared hosting survival mode against 508 Resource Limit crashes:
  * - Monitors CPU load (`sys_getloadavg()`), memory consumption, and 60-second probe velocity.
  * - Detects origin distress (> 4.0 load average or > 120 bad requests/min).
- * - Escalate: Triggers Cloudflare "Under Attack Mode" or shifts WCP Edge rules to Managed Challenge.
+ * - Escalate: Triggers Cloudflare "Under Attack Mode" or shifts WebCare Edge rules to Managed Challenge.
  * - Deescalate: Automatically restores normal baseline when origin metrics remain healthy for 10 minutes.
  *
  * Author: Mir Alamin (WebCare Pro)
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
  */
 class OriginLoadCircuitBreaker {
 
-    public const OPTION_STATE             = 'wcp_origin_survival_state';
+    public const OPTION_STATE             = 'webcare_origin_survival_state';
     public const CPU_THRESHOLD            = 4.0;
     public const PROBE_VELOCITY_THRESHOLD = 120; // 403/404 per minute
     public const RECOVERY_WINDOW_SECONDS  = 600; // 10 minutes
@@ -49,7 +49,7 @@ class OriginLoadCircuitBreaker {
         $memory_limit = ini_get('memory_limit');
 
         // Probe velocity: inspect recent bad requests in transient buffer
-        $probe_velocity = (int) get_transient('wcp_waf_probe_velocity_60s');
+        $probe_velocity = (int) get_transient('webcare_waf_probe_velocity_60s');
         if ($probe_velocity === 0 && class_exists(WafFileLogger::class)) {
             // Read lightweight stats from today's log if transient empty
             $stats = WafFileLogger::get_log_stats('today');

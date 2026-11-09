@@ -31,7 +31,7 @@ class WebhookService {
         $settings = SettingsManager::get_settings();
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress';
         $site_url  = get_site_url();
-        $dashboard_url = admin_url('admin.php?page=wcp-security-scanner');
+        $dashboard_url = admin_url('admin.php?page=webcare-pro-security');
         $plugin_version = defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1';
 
         if ($platform === 'slack') {
@@ -82,10 +82,10 @@ class WebhookService {
             }
 
             $payload = [
-                'username' => 'WCP Security Bot',
+                'username' => 'WebCare Pro Security Bot',
                 'embeds' => [
                     [
-                        'title' => '🧪 WCP Security Webhook Test',
+                        'title' => '🧪 WebCare Pro Security Webhook Test',
                         'description' => "Real-time security alert integration with **{$site_name}** is operational.",
                         'url' => $dashboard_url,
                         'color' => 1096065, // Emerald green
@@ -157,7 +157,7 @@ class WebhookService {
                 'dashboard_url' => $dashboard_url,
                 'version'       => $plugin_version,
                 'severity'      => 'info',
-                'title'         => "🧪 WCP Security Webhook Test",
+                'title'         => "🧪 WebCare Pro Security Webhook Test",
                 'message'       => "Automation webhook delivery test from {$site_name} was successful.",
                 'timestamp'     => time(),
                 'datetime'      => gmdate('c'),
@@ -200,7 +200,7 @@ class WebhookService {
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress';
         $site_url  = get_site_url();
-        $dashboard_url = admin_url('admin.php?page=wcp-security-scanner');
+        $dashboard_url = admin_url('admin.php?page=webcare-pro-security');
         $plugin_version = defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.7.1';
 
         $is_danger = ($critical_count > 0 || $high_count > 0);
@@ -225,7 +225,7 @@ class WebhookService {
                         'blocks' => [
                             [
                                 'type' => 'header',
-                                'text' => ['type' => 'plain_text', 'text' => "{$status_emoji} WCP Security Scan Report", 'emoji' => true]
+                                'text' => ['type' => 'plain_text', 'text' => "{$status_emoji} WebCare Pro Security Scan Report", 'emoji' => true]
                             ],
                             [
                                 'type' => 'section',
@@ -260,7 +260,7 @@ class WebhookService {
         // 2. Dispatch Discord
         if ($has_discord) {
             $discord_payload = [
-                'username' => 'WCP Security Bot',
+                'username' => 'WebCare Pro Security Bot',
                 'embeds' => [
                     [
                         'title' => "{$status_emoji} Security Scan #{$scan_id} Completed",
@@ -386,7 +386,7 @@ class WebhookService {
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress';
         $site_url  = get_site_url();
-        $fim_url   = admin_url('admin.php?page=wcp-scanner-fim');
+        $fim_url   = admin_url('admin.php?page=webcare-pro-fim');
         $count     = count($changed_files);
 
         $sample_paths = array_slice(array_map(function ($f) {
@@ -432,7 +432,7 @@ class WebhookService {
 
         if ($has_discord) {
             $discord_payload = [
-                'username' => 'WCP FIM Monitor',
+                'username' => 'WebCare FIM Monitor',
                 'embeds' => [
                     [
                         'title' => '⚠️ File Integrity Changes Detected',
@@ -443,7 +443,7 @@ class WebhookService {
                             ['name' => 'Modified Count', 'value' => (string) $count, 'inline' => true],
                             ['name' => 'Site', 'value' => $site_name, 'inline' => true],
                         ],
-                        'footer' => ['text' => 'WCP File Integrity Monitoring'],
+                        'footer' => ['text' => 'WebCare File Integrity Monitoring'],
                         'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
                     ]
                 ]
@@ -520,7 +520,7 @@ class WebhookService {
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress';
         $site_url  = get_site_url();
-        $waf_url   = admin_url('admin.php?page=wcp-scanner-firewall');
+        $waf_url   = admin_url('admin.php?page=webcare-pro-firewall');
 
         $category = $incident['category'] ?? 'Exploit Probe';
         $rule     = $incident['name'] ?? 'WAF Rule';
@@ -564,7 +564,7 @@ class WebhookService {
 
         if ($has_discord) {
             $discord_payload = [
-                'username' => 'WCP Firewall Bot',
+                'username' => 'WebCare Firewall Bot',
                 'embeds' => [
                     [
                         'title' => '🛡️ WAF Lite Attack Intercepted',
@@ -576,7 +576,7 @@ class WebhookService {
                             ['name' => 'Category', 'value' => $category, 'inline' => true],
                             ['name' => 'Rule', 'value' => $rule, 'inline' => true],
                         ],
-                        'footer' => ['text' => 'WCP Web Application Firewall'],
+                        'footer' => ['text' => 'WebCare Web Application Firewall'],
                         'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
                     ]
                 ]

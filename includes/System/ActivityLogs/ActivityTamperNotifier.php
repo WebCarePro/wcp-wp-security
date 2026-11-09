@@ -111,7 +111,7 @@ class ActivityTamperNotifier {
         $message .= "an unauthorized direct file modification.\n\n";
         $message .= "IMMEDIATE RECOMMENDED ACTIONS:\n";
         $message .= "1. Log into your WordPress administrative dashboard to review the incident report:\n";
-        $message .= "   " . admin_url('admin.php?page=wcp-scanner&tab=activity-logs') . "\n";
+        $message .= "   " . admin_url('admin.php?page=webcare-pro-activity-logs') . "\n";
         $message .= "2. Inspect web server access logs around " . $time_utc . ".\n";
         $message .= "3. Run a complete WebCare Pro Security Deep System & Malware Audit.\n";
         $message .= "4. Check for newly created or modified administrator accounts.\n\n";
@@ -137,7 +137,7 @@ class ActivityTamperNotifier {
 
         $payload = [
             'details'         => $details,
-            'event'           => 'wcp_log_tampering_detected',
+            'event'           => 'webcare_log_tampering_detected',
             'severity'        => 'CRITICAL',
             'site_name'       => get_bloginfo('name'),
             'site_url'        => get_site_url(),

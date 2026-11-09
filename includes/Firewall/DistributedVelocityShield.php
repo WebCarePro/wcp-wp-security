@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace WebCareProScanner\Firewall;
 
 use WebCareProScanner\System\SettingsManager;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
@@ -141,8 +141,8 @@ class DistributedVelocityShield {
 
         update_option(self::OPTION_SETTINGS, $updated);
 
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::notice(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::notice(
                 'distributed_shield_settings_updated',
                 'firewall',
                 [
@@ -360,8 +360,8 @@ class DistributedVelocityShield {
         update_option(self::OPTION_ATTACK_HISTORY, $history, false);
 
         // Telemetry Logging
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'distributed_botnet_attack_detected',
                 'firewall',
                 'critical',
@@ -410,8 +410,8 @@ class DistributedVelocityShield {
         $was_active = self::is_under_attack();
         delete_transient(self::TRANSIENT_UNDER_ATTACK);
 
-        if ($was_active && class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::info(
+        if ($was_active && class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::info(
                 'distributed_shield_deactivated',
                 'firewall',
                 [
@@ -503,11 +503,11 @@ class DistributedVelocityShield {
 
         // Check if client submitted a PoW solution with checkout request
         // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        if (isset($_POST['wcp_pow_challenge'], $_POST['wcp_pow_nonce'])) {
+        if (isset($_POST['webcare_pow_challenge'], $_POST['webcare_pow_nonce'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $challenge = sanitize_text_field(wp_unslash($_POST['wcp_pow_challenge']));
+            $challenge = sanitize_text_field(wp_unslash($_POST['webcare_pow_challenge']));
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $nonce     = sanitize_text_field(wp_unslash($_POST['wcp_pow_nonce']));
+            $nonce     = sanitize_text_field(wp_unslash($_POST['webcare_pow_nonce']));
 
             if (class_exists(BotReconDefense::class) && BotReconDefense::verify_pow_solution($challenge, $nonce, $ip, $ua)) {
                 BotReconDefense::issue_clearance_cookie($ip, $ua);
@@ -541,7 +541,7 @@ class DistributedVelocityShield {
             wp_send_json([
                 'result'       => 'failure',
                 'status'       => 429,
-                'error'        => 'wcp_under_attack_challenge_required',
+                'error'        => 'webcare_under_attack_challenge_required',
                 'messages'     => '<ul class="woocommerce-error" role="alert"><li>' . esc_html__('Security Verification: High-velocity automated traffic detected. Please reload this page to complete standard browser verification before completing your order.', 'webcare-pro-security') . '</li></ul>',
                 'pow_required' => true,
                 'challenge'    => $challenge,
@@ -582,11 +582,11 @@ class DistributedVelocityShield {
 
         // Check if solution submitted in login POST
         // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        if (isset($_POST['wcp_pow_challenge'], $_POST['wcp_pow_nonce'])) {
+        if (isset($_POST['webcare_pow_challenge'], $_POST['webcare_pow_nonce'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $challenge = sanitize_text_field(wp_unslash($_POST['wcp_pow_challenge']));
+            $challenge = sanitize_text_field(wp_unslash($_POST['webcare_pow_challenge']));
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $nonce     = sanitize_text_field(wp_unslash($_POST['wcp_pow_nonce']));
+            $nonce     = sanitize_text_field(wp_unslash($_POST['webcare_pow_nonce']));
 
             if (class_exists(BotReconDefense::class) && BotReconDefense::verify_pow_solution($challenge, $nonce, $ip, $ua)) {
                 BotReconDefense::issue_clearance_cookie($ip, $ua);
@@ -602,7 +602,7 @@ class DistributedVelocityShield {
 
         // For REST / XML-RPC auth
         return new \WP_Error(
-            'wcp_under_attack_auth_locked',
+            'webcare_under_attack_auth_locked',
             esc_html__('Site is currently defending against a distributed credential-stuffing swarm. Interactive browser verification required to sign in.', 'webcare-pro-security'),
             ['status' => 429]
         );

@@ -54,7 +54,7 @@ class AiAgentInventoryScanner {
                 $value = (string) $opt['option_value'];
 
                 foreach (self::SUSPICIOUS_OPTION_PATTERNS as $pattern) {
-                    if (preg_match($pattern, $name) && $value !== '' && !str_starts_with($value, 'wcp_gcm:') && !str_starts_with($value, 'wcp_enc_')) {
+                    if (preg_match($pattern, $name) && $value !== '' && !str_starts_with($value, 'webcare_gcm:') && !str_starts_with($value, 'webcare_enc_')) {
                         $unencrypted_keys[] = [
                             'option_name' => $name,
                             'length'      => strlen($value),
@@ -71,7 +71,7 @@ class AiAgentInventoryScanner {
                 'severity'       => 'high',
                 'count'          => count($unencrypted_keys),
                 'details'        => $unencrypted_keys,
-                'recommendation' => 'Migrate plaintext AI keys into the WCP Secret Vault (AES-256-GCM).',
+                'recommendation' => 'Migrate plaintext AI keys into the WebCare Secret Vault (AES-256-GCM).',
             ];
         }
 
@@ -140,7 +140,7 @@ class AiAgentInventoryScanner {
                 $name  = $opt['option_name'];
                 $value = (string) $opt['option_value'];
 
-                if ($value !== '' && !str_starts_with($value, 'wcp_gcm:') && !str_starts_with($value, 'wcp_enc_') && strlen($value) > 15) {
+                if ($value !== '' && !str_starts_with($value, 'webcare_gcm:') && !str_starts_with($value, 'webcare_enc_') && strlen($value) > 15) {
                     $encrypted = SecretVault::encrypt_secret($value);
                     if ($encrypted) {
                         update_option($name, $encrypted, false);

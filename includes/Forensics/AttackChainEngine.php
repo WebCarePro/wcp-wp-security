@@ -53,7 +53,7 @@ class AttackChainEngine {
         $persistence_scanner = new PersistenceScanner();
         $persistence_audit = $persistence_scanner->audit_full();
 
-        // 3. Gather Recent Firewall Exploit Probes from wp_wcp_firewall_logs (Past 14 Days)
+        // 3. Gather Recent Firewall Exploit Probes from wp_webcareproscan_firewall_logs (Past 14 Days)
         $firewall_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
         $firewall_probes = [];
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

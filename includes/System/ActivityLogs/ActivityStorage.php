@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Crash-Safe Storage Engine for WCP Activity & Audit Logging.
+ * Crash-Safe Storage Engine for WebCare Activity & Audit Logging.
  *
  * Implements:
  * 1. 3-Tier Mutex Lock Hierarchy: Level 1 (.chain-state.lock) -> Level 2 (.journal.lock) -> Level 3 (Segment Lock).

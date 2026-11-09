@@ -16,8 +16,8 @@ if (!defined('ABSPATH')) {
 class CloudflareService {
 
     const API_BASE = 'https://api.cloudflare.com/client/v4';
-    const WCP_RULE_TAG = '[WebCare Pro Security]';
-    const WCP_LEGACY_RULE_TAG = '[WCP Security Scanner]';
+    const WEBCARE_RULE_TAG = '[WebCare Pro Security]';
+    const WEBCARE_LEGACY_RULE_TAG = '[WebCare Pro Security & Firewall]';
 
     /**
      * Send authenticated HTTP request to Cloudflare API
@@ -281,7 +281,7 @@ class CloudflareService {
             ];
         }
 
-        // Fetch deployed WCP custom rules
+        // Fetch deployed WebCare custom rules
         $active_rules = self::get_deployed_custom_rules($zone_id);
         $rate_limit_info = self::get_rate_limiting_info($zone_id);
         $rate_limit = !empty($rate_limit_info['enabled']);
@@ -451,7 +451,7 @@ class CloudflareService {
             'savings_estimate'  => $savings_estimate,
             'headline'          => __('Shared Hosting & Resource Optimization Advisory', 'webcare-pro-security'),
             'summary'           => __('On shared cPanel, Plesk, or CloudLinux hosting, running deep PHP inspection for high-volume bot probes can exhaust strictly throttled CPU and RAM limits (often triggering 508 Resource Limit Reached). Offloading perimeter protection to Cloudflare Free Edge blocks 90%+ of automated probes before they ever reach your hosting server.', 'webcare-pro-security'),
-            'expert_note'       => __('Advisory by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer. Offload perimeter probes to Cloudflare Free Edge, while WCP local origin firewall handles authenticated WordPress sessions and deep POST payloads.', 'webcare-pro-security'),
+            'expert_note'       => __('Advisory by Mir Alamin (WebCare Pro) — Senior Linux SysAdmin & WordPress Security Engineer. Offload perimeter probes to Cloudflare Free Edge, while WebCare local origin firewall handles authenticated WordPress sessions and deep POST payloads.', 'webcare-pro-security'),
         ];
     }
 
@@ -551,7 +551,7 @@ class CloudflareService {
     const DEPLOYED_RULES_OPTION = 'webcareproscan_cf_deployed_edge_rules';
 
     /**
-     * Retrieve currently deployed WCP rules from the zone entrypoint ruleset
+     * Retrieve currently deployed WebCare Rules from the zone entrypoint ruleset
      *
      * @param string $zone_id
      * @return array
@@ -574,7 +574,7 @@ class CloudflareService {
 
         foreach ($rules as $r) {
             $desc = $r['description'] ?? '';
-            if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
+            if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
                 continue;
             }
             foreach ($definitions as $key => $def) {
@@ -618,7 +618,7 @@ class CloudflareService {
     }
 
     /**
-     * Retrieve complete edge rules analysis: plan quota, user custom rules vs WCP managed rules, and free slots
+     * Retrieve complete edge rules analysis: plan quota, user custom rules vs WebCare Managed rules, and free slots
      *
      * @param string $zone_id
      * @return array
@@ -634,7 +634,7 @@ class CloudflareService {
                 'total_used' => 0,
                 'free_slots' => 5,
                 'user_rules' => [],
-                'wcp_rules' => [],
+                'webcare_rules' => [],
             ];
         }
 
@@ -652,15 +652,15 @@ class CloudflareService {
 
         $res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
         $user_rules = [];
-        $wcp_rules = [];
+        $webcare_rules = [];
         $definitions = self::get_rule_definitions();
 
         if (!empty($res['success']) && !empty($res['result']['rules'])) {
             foreach ($res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                $is_wcp = (strpos($desc, self::WCP_RULE_TAG) !== false || strpos($desc, self::WCP_LEGACY_RULE_TAG) !== false);
+                $is_webcare = (strpos($desc, self::WEBCARE_RULE_TAG) !== false || strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false);
 
-                if ($is_wcp) {
+                if ($is_webcare) {
                     $matched_key = '';
                     foreach ($definitions as $k => $def) {
                         if (strpos($desc, $def['title']) !== false || (isset($def['id']) && strpos($desc, $def['id']) !== false)) {
@@ -668,7 +668,7 @@ class CloudflareService {
                             break;
                         }
                     }
-                    $wcp_rules[] = [
+                    $webcare_rules[] = [
                         'id'          => $rule['id'] ?? '',
                         'key'         => $matched_key,
                         'description' => $desc,
@@ -690,7 +690,7 @@ class CloudflareService {
             }
         }
 
-        $total_used = count($user_rules) + count($wcp_rules);
+        $total_used = count($user_rules) + count($webcare_rules);
         $free_slots = max(0, $max_slots - $total_used);
 
         return [
@@ -700,9 +700,9 @@ class CloudflareService {
             'total_used'  => $total_used,
             'free_slots'  => $free_slots,
             'user_rules'  => $user_rules,
-            'wcp_rules'   => $wcp_rules,
+            'webcare_rules'   => $webcare_rules,
             'user_count'  => count($user_rules),
-            'wcp_count'   => count($wcp_rules),
+            'webcare_count'   => count($webcare_rules),
         ];
     }
 
@@ -765,7 +765,7 @@ class CloudflareService {
                 'target' => $target,
                 'value'  => $target_value,
             ],
-            'notes'         => self::WCP_RULE_TAG . ' ' . substr($notes, 0, 70),
+            'notes'         => self::WEBCARE_RULE_TAG . ' ' . substr($notes, 0, 70),
         ];
 
         $res = self::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);
@@ -821,12 +821,12 @@ class CloudflareService {
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                // Keep rules that do not belong to WCP
-                if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
+                // Keep rules that do not belong to WebCare
+                if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
                     $preserved_rules[] = $rule;
                     continue;
                 }
-                // For WCP rules: keep all OTHER WCP rules, exclude only this target rule (which we will re-add if enable is true)
+                // For WebCare Rules: keep all OTHER WebCare Rules, exclude only this target rule (which we will re-add if enable is true)
                 if (strpos($desc, $target_title) === false && (empty($target_def['id']) || strpos($desc, $target_def['id']) === false)) {
                     $preserved_rules[] = $rule;
                 }
@@ -856,7 +856,7 @@ class CloudflareService {
             $preserved_rules[] = [
                 'action'      => $action,
                 'expression'  => $expression,
-                'description' => self::WCP_RULE_TAG . ' ' . $target_title,
+                'description' => self::WEBCARE_RULE_TAG . ' ' . $target_title,
                 'enabled'     => true,
             ];
         }
@@ -913,23 +913,23 @@ class CloudflareService {
             return ['success' => false, 'message' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security')];
         }
 
-        // 1. Fetch existing phase ruleset to avoid overwriting user's non-WCP rules
+        // 1. Fetch existing phase ruleset to avoid overwriting user's non-WebCare Rules
         $existing_res = self::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
         $preserved_rules = [];
 
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                // Keep rules that do not belong to WCP
-                if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
+                // Keep rules that do not belong to WebCare
+                if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
                     $preserved_rules[] = $rule;
                 }
             }
         }
 
-        // 2. Build newly selected WCP rules (with customization support)
+        // 2. Build newly selected WebCare Rules (with customization support)
         $definitions = self::get_rule_definitions();
-        $new_wcp_rules = [];
+        $new_webcare_rules = [];
 
         foreach ($definitions as $key => $def) {
             $rule_config = $selected_rules[$key] ?? null;
@@ -955,17 +955,17 @@ class CloudflareService {
                     }
                 }
 
-                $new_wcp_rules[] = [
+                $new_webcare_rules[] = [
                     'action'      => $action,
                     'expression'  => $expression,
-                    'description' => self::WCP_RULE_TAG . ' ' . $def['title'],
+                    'description' => self::WEBCARE_RULE_TAG . ' ' . $def['title'],
                     'enabled'     => true,
                 ];
             }
         }
 
-        // Merge user non-WCP rules + WCP rules
-        $all_rules = array_merge($preserved_rules, $new_wcp_rules);
+        // Merge user non-WebCare Rules + WebCare Rules
+        $all_rules = array_merge($preserved_rules, $new_webcare_rules);
 
         // 3. Put entrypoint ruleset
         $payload = [
@@ -983,9 +983,9 @@ class CloudflareService {
                 \WebCareProScanner\Notifications\NotificationDispatcher::trigger('cf_firewall_updated', [
                     'severity' => 'info',
                     /* translators: %d: count of synced rules */
-                    'message'  => sprintf(__('%d Cloudflare Edge WAF rules were successfully deployed and synchronized.', 'webcare-pro-security'), count($new_wcp_rules)),
+                    'message'  => sprintf(__('%d Cloudflare Edge WAF rules were successfully deployed and synchronized.', 'webcare-pro-security'), count($new_webcare_rules)),
                     'details'  => [
-                        'Synced Rules Count' => count($new_wcp_rules),
+                        'Synced Rules Count' => count($new_webcare_rules),
                         'Zone ID'            => $zone_id,
                     ],
                 ]);
@@ -995,7 +995,7 @@ class CloudflareService {
                 'message' => sprintf(
                     /* translators: %d: count of synced rules */
                     __('Successfully synced %d Cloudflare Edge WAF rules.', 'webcare-pro-security'),
-                    count($new_wcp_rules)
+                    count($new_webcare_rules)
                 ),
                 'active_rules' => self::get_deployed_custom_rules($zone_id),
             ];
@@ -1009,7 +1009,7 @@ class CloudflareService {
     }
 
     /**
-     * Get WCP rate limiting rule status and configuration
+     * Get WebCare rate limiting rule status and configuration
      *
      * @param string $zone_id
      * @return array
@@ -1040,7 +1040,7 @@ class CloudflareService {
 
         foreach ($res['result']['rules'] as $rule) {
             $desc = $rule['description'] ?? '';
-            if ((strpos($desc, self::WCP_RULE_TAG) !== false || strpos($desc, self::WCP_LEGACY_RULE_TAG) !== false) && !empty($rule['enabled'])) {
+            if ((strpos($desc, self::WEBCARE_RULE_TAG) !== false || strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false) && !empty($rule['enabled'])) {
                 $config['enabled'] = true;
                 if (!empty($rule['action'])) {
                     $config['action'] = $rule['action'];
@@ -1062,7 +1062,7 @@ class CloudflareService {
     }
 
     /**
-     * Check if WCP rate limiting rule is active
+     * Check if WebCare rate limiting rule is active
      *
      * @param string $zone_id
      * @return bool
@@ -1138,7 +1138,7 @@ class CloudflareService {
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = $rule['description'] ?? '';
-                if (strpos($desc, self::WCP_RULE_TAG) === false && strpos($desc, self::WCP_LEGACY_RULE_TAG) === false) {
+                if (strpos($desc, self::WEBCARE_RULE_TAG) === false && strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) === false) {
                     $preserved_rules[] = $rule;
                 }
             }
@@ -1176,7 +1176,7 @@ class CloudflareService {
             $preserved_rules[] = [
                 'action'            => $action,
                 'expression'        => $expression,
-                'description'       => self::WCP_RULE_TAG . ' ' . $rule_summary . ' Rate Limiter (' . $requests . ' req / ' . $period . 's)',
+                'description'       => self::WEBCARE_RULE_TAG . ' ' . $rule_summary . ' Rate Limiter (' . $requests . ' req / ' . $period . 's)',
                 'enabled'           => true,
                 'ratelimit'         => [
                     'characteristics'     => ['ip.src', 'cf.colo.id'],
@@ -1204,7 +1204,7 @@ class CloudflareService {
             if ($needs_timeout_fallback) {
                 $timeout = 10;
                 foreach ($preserved_rules as &$p_rule) {
-                    if (isset($p_rule['description']) && (strpos($p_rule['description'], self::WCP_RULE_TAG) !== false || strpos($p_rule['description'], self::WCP_LEGACY_RULE_TAG) !== false)) {
+                    if (isset($p_rule['description']) && (strpos($p_rule['description'], self::WEBCARE_RULE_TAG) !== false || strpos($p_rule['description'], self::WEBCARE_LEGACY_RULE_TAG) !== false)) {
                         $p_rule['ratelimit']['mitigation_timeout'] = 10;
                     }
                 }
@@ -1264,13 +1264,13 @@ class CloudflareService {
     }
 
     /**
-     * Get count of WCP IP access rules
+     * Get count of WebCare IP access rules
      *
      * @param string $zone_id
      * @return int
      */
     public static function get_ip_rules_count(string $zone_id): int {
-        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?notes=" . urlencode(self::WCP_RULE_TAG) . '&per_page=1');
+        $res = self::request("zones/{$zone_id}/firewall/access_rules/rules?notes=" . urlencode(self::WEBCARE_RULE_TAG) . '&per_page=1');
         if (!empty($res['success']) && isset($res['result_info']['total_count'])) {
             return (int) $res['result_info']['total_count'];
         }
@@ -1369,7 +1369,7 @@ class CloudflareService {
                 'target' => $target,
                 'value'  => $target_value,
             ],
-            'notes'         => self::WCP_RULE_TAG . ' ' . substr($reason, 0, 70),
+            'notes'         => self::WEBCARE_RULE_TAG . ' ' . substr($reason, 0, 70),
         ];
 
         $res = self::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);
@@ -1420,7 +1420,7 @@ class CloudflareService {
             foreach ($res['result'] as $rule) {
                 $raw_notes = $rule['notes'] ?? '';
                 // Strip the tag prefix to extract clean ban reason
-                $clean_reason = trim(str_replace([self::WCP_RULE_TAG, self::WCP_LEGACY_RULE_TAG, '[WCP Security]'], '', $raw_notes));
+                $clean_reason = trim(str_replace([self::WEBCARE_RULE_TAG, self::WEBCARE_LEGACY_RULE_TAG, '[WebCare Pro Security]'], '', $raw_notes));
                 if (empty($clean_reason)) {
                     $clean_reason = __('Malicious activity detected by WAF / Brute-force', 'webcare-pro-security');
                 }
@@ -1481,7 +1481,7 @@ class CloudflareService {
             $rules = [];
             foreach ($res['result'] as $rule) {
                 $raw_notes = $rule['notes'] ?? '';
-                $clean_notes = trim(str_replace([self::WCP_RULE_TAG, self::WCP_LEGACY_RULE_TAG, '[WCP Security]'], '', $raw_notes));
+                $clean_notes = trim(str_replace([self::WEBCARE_RULE_TAG, self::WEBCARE_LEGACY_RULE_TAG, '[WebCare Pro Security]'], '', $raw_notes));
                 if (empty($clean_notes)) {
                     $clean_notes = __('Administrator / Developer Whitelist', 'webcare-pro-security');
                 }
@@ -1675,7 +1675,7 @@ class CloudflareService {
     }
 
     /**
-     * Get path to the secure WCP Vault JSON storage for Cloudflare Edge Events.
+     * Get path to the secure WebCare Vault JSON storage for Cloudflare Edge Events.
      *
      * @return string
      */
@@ -1691,20 +1691,20 @@ class CloudflareService {
         // Defensive guard files to prevent direct web execution / download
         $htaccess = $vault_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            $rules = "# Block all public web access to WCP vault\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n<FilesMatch \".*\">\n    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n    <IfModule !mod_authz_core.c>\n        Order deny,allow\n        Deny from all\n    </IfModule>\n</FilesMatch>\n";
+            $rules = "# Block all public web access to WebCare Vault\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n<FilesMatch \".*\">\n    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n    <IfModule !mod_authz_core.c>\n        Order deny,allow\n        Deny from all\n    </IfModule>\n</FilesMatch>\n";
             @file_put_contents($htaccess, $rules);
         }
 
         $index = $vault_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
         }
 
         return $vault_dir . '/cloudflare-edge-events.json';
     }
 
     /**
-     * Get stored Cloudflare Edge Security Events from WCP Vault JSON file.
+     * Get stored Cloudflare Edge Security Events from WebCare Vault JSON file.
      * Fast retrieval with zero external API calls or MySQL database load.
      *
      * @return array
@@ -1758,7 +1758,7 @@ class CloudflareService {
     }
 
     /**
-     * Clear all stored Cloudflare Edge Security Events from WCP Vault JSON file.
+     * Clear all stored Cloudflare Edge Security Events from WebCare Vault JSON file.
      *
      * @return array
      */
@@ -1779,7 +1779,7 @@ class CloudflareService {
     }
 
     /**
-     * Fetch latest Cloudflare Edge Security Events via GraphQL API and store into WCP Vault JSON file.
+     * Fetch latest Cloudflare Edge Security Events via GraphQL API and store into WebCare Vault JSON file.
      *
      * @param int $limit Max events to request in this fetch (default 100)
      * @return array
@@ -1906,7 +1906,7 @@ class CloudflareService {
             elseif (!empty($rule_id) && isset($zone_custom_rules[$rule_id]) && !empty($zone_custom_rules[$rule_id])) {
                 $rule_name = $zone_custom_rules[$rule_id];
             }
-            // 3. Fallback: check WCP compound definitions if ruleId matches
+            // 3. Fallback: check WebCare Compound definitions if ruleId matches
             else {
                 foreach ($definitions as $def) {
                     if (!empty($rule_id) && !empty($def['id']) && $rule_id === $def['id']) {
@@ -1916,9 +1916,9 @@ class CloudflareService {
                 }
             }
 
-            // Clean WCP tag prefix from rule name for clean display if present
+            // Clean WebCare tag prefix from rule name for clean display if present
             if (!empty($rule_name)) {
-                $rule_name = trim(str_replace('[WCP Security]', '', $rule_name));
+                $rule_name = trim(str_replace('[WebCare Pro Security]', '', $rule_name));
             } else {
                 $src = $ev['source'] ?? '';
                 $rule_name = $src ? ucfirst($src) . ' Rule' : 'Edge Security Rule';
@@ -2000,7 +2000,7 @@ class CloudflareService {
             'events'      => $all_events,
         ];
 
-        // Atomically write JSON to WCP Vault
+        // Atomically write JSON to WebCare Vault
         $filepath = self::get_vault_events_filepath();
         @file_put_contents($filepath, wp_json_encode($data_to_store, JSON_PRETTY_PRINT), LOCK_EX);
 

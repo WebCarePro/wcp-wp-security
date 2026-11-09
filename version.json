@@ -4,15 +4,15 @@
   "version": "2.9.0",
   "requires_wp": "7.0",
   "requires_php": "8.3",
-  "download_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/webcare-pro-security.zip",
-  "manifest_url": "https://raw.githubusercontent.com/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json",
+  "download_url": "https://raw.githubusercontent.com/WebCarePro/webcare-wp-security/main/webcare-pro-security.zip",
+  "manifest_url": "https://raw.githubusercontent.com/WebCarePro/webcare-wp-security/main/includes/System/plugin-manifest.json",
   "released_at": "2026-11-09",
   "author": "Mir Alamin (WebCare Pro)",
   "author_homepage": "https://profiles.wordpress.org/webcarepro/",
-  "homepage": "https://github.com/WebCarePro/wcp-wp-security",
+  "homepage": "https://github.com/WebCarePro/webcare-wp-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",
-    "changelog": "v:2.1.0 - 2026-11-01:\n- Cryptographic Plugin Activity & Audit Logging Engine with unbroken SHA-256 chain, AES-256-GCM envelope encryption, and 7-day immutable checkpointing.\n- Active Lockouts & Central Blocklist Forensics: Specific rule attribution, cryptographic incident tracking ID (WCP-XXXXXXXX), live countdowns, and recent attack history drawer.\n- Blocked & Whitelisted IPs Table Redesign: Phased out textareas in favor of structured, interactive tables with dedicated IP and Reason inputs, live search, and verified administrator authorization.\n- High-Security 2FA Authentication: SHA-512 8-digit TOTP cryptographic algorithm support with backward compatibility for SHA-1.\n- Native W3C WebAuthn Biometric Passkeys: Cryptographic signature verification, origin validation, and user presence enforcement for hardware FIDO2 and platform passkeys (Windows Hello, TouchID, FaceID)."
+    "changelog": "v:2.1.0 - 2026-11-01:\n- Cryptographic Plugin Activity & Audit Logging Engine with unbroken SHA-256 chain, AES-256-GCM envelope encryption, and 7-day immutable checkpointing.\n- Active Lockouts & Central Blocklist Forensics: Specific rule attribution, cryptographic incident tracking ID (WEBCARE-XXXXXXXX), live countdowns, and recent attack history drawer.\n- Blocked & Whitelisted IPs Table Redesign: Phased out textareas in favor of structured, interactive tables with dedicated IP and Reason inputs, live search, and verified administrator authorization.\n- High-Security 2FA Authentication: SHA-512 8-digit TOTP cryptographic algorithm support with backward compatibility for SHA-1.\n- Native W3C WebAuthn Biometric Passkeys: Cryptographic signature verification, origin validation, and user presence enforcement for hardware FIDO2 and platform passkeys (Windows Hello, TouchID, FaceID)."
   },
   "previous_versions": [
     {

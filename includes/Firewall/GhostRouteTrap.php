@@ -21,16 +21,16 @@ class GhostRouteTrap {
 
     const OPTION_SETTINGS    = 'webcareproscan_ghost_trap_settings';
     const OPTION_CATCHES     = 'webcareproscan_ghost_trap_catches';
-    const CANARY_QUERY_VAR   = 'wcp_canary_trap';
-    const CANARY_PATH_PREFIX = 'wcp-internal-canary-bot-trap';
+    const CANARY_QUERY_VAR   = 'webcare_canary_trap';
+    const CANARY_PATH_PREFIX = 'webcare-internal-canary-bot-trap';
 
     /**
      * Phantom decoy REST endpoints.
      */
     const PHANTOM_REST_ROUTES = [
-        'telemetry' => '/wcp-internal/v1/telemetry-debug',
-        'sysenv'    => '/wcp-core/v1/system-env',
-        'dbdump'    => '/wcp-admin/v1/database-dump',
+        'telemetry' => '/webcare-internal/v1/telemetry-debug',
+        'sysenv'    => '/webcare-core/v1/system-env',
+        'dbdump'    => '/webcare-admin/v1/database-dump',
     ];
 
     /**
@@ -95,8 +95,8 @@ class GhostRouteTrap {
 
         // Audit Trail: Log Ghost Route Decoy changes
         $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $final);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'ghost_route_settings_updated',
                 'firewall',
                 [
@@ -217,7 +217,7 @@ class GhostRouteTrap {
         if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
             WafFileLogger::log_incident([
                 'category'    => 'ghost_route_trap',
-                'rule_id'     => 'wcp_canary_ai_trap',
+                'rule_id'     => 'webcare_canary_ai_trap',
                 'description' => sprintf('Autonomous reconnaissance or AI scraper probed canary honeypot: %s (%s)', $trigger_type, $target_surface),
                 'payload'     => $target_surface,
             ], !empty($settings['block_client_ip']) ? 'blocked' : 'detected');
@@ -244,7 +244,7 @@ class GhostRouteTrap {
         // 4. Sync to Cloudflare Edge IP Lists if configured
         if (!empty($settings['sync_cloudflare_edge']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
             try {
-                CloudflareService::block_ip($ip, 'WCP Decoy Ghost Trap Probed');
+                CloudflareService::block_ip($ip, 'WebCare Decoy Ghost Trap Probed');
             } catch (\Throwable $e) {
                 // Ignore Cloudflare API network failure during high-speed mitigation
             }
@@ -261,7 +261,7 @@ class GhostRouteTrap {
         header('X-Robots-Tag: noindex, nofollow, noarchive');
         header('Content-Type: application/json; charset=utf-8');
         echo wp_json_encode([
-            'code'    => 'wcp_canary_intercept',
+            'code'    => 'webcare_canary_intercept',
             'message' => 'Automated access prohibited. Canary trap activated.',
             'status'  => 403,
         ]);
@@ -276,7 +276,7 @@ class GhostRouteTrap {
      * @return string
      */
     public static function filter_robots_txt(string $output, bool $public): string {
-        $output .= "\n# WCP Decoy Canary Shield - Prohibit Automated Traversal\n";
+        $output .= "\n# WebCare Decoy Canary Shield - Prohibit Automated Traversal\n";
         $output .= "Disallow: /" . self::CANARY_PATH_PREFIX . "/\n";
         $output .= "Disallow: /*" . self::CANARY_QUERY_VAR . "=\n";
         return $output;

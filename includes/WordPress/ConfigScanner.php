@@ -80,11 +80,11 @@ class ConfigScanner {
                     if (!empty($matches[1])) {
                         $target = trim($matches[1]);
                         $norm = wp_normalize_path($target);
-                        $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
+                        $is_webcare = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
                         $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
                             ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
                             : ['is_trusted' => false];
-                        $is_trusted = $is_wcp || !empty($verification['is_trusted']);
+                        $is_trusted = $is_webcare || !empty($verification['is_trusted']);
                     }
 
                     if (!$is_trusted) {
@@ -114,11 +114,11 @@ class ConfigScanner {
                     if (!empty($matches[1]) && !empty($matches[2])) {
                         $target = trim($matches[2]);
                         $norm = wp_normalize_path($target);
-                        $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
+                        $is_webcare = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
                         $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
                             ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
                             : ['is_trusted' => false];
-                        $is_trusted = $is_wcp || !empty($verification['is_trusted']);
+                        $is_trusted = $is_webcare || !empty($verification['is_trusted']);
                     }
 
                     if (!$is_trusted) {

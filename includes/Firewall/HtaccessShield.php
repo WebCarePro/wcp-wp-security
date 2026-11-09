@@ -13,7 +13,7 @@
 namespace WebCareProScanner\Firewall;
 
 use WebCareProScanner\System\SettingsManager;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
@@ -38,8 +38,8 @@ final class HtaccessShield {
         'Yoast',
         'Rank Math',
         'Redirection',
-        'WCP_SECURITY_SCANNER_SERVER_RULES',
-        'WCP_MICRO_WAF',
+        'WEBCARE_SECURITY_SERVER_RULES',
+        'WEBCARE_MICRO_WAF',
     ];
 
     /**
@@ -319,7 +319,7 @@ final class HtaccessShield {
                 $directive_name = $prep_match[1];
                 $target_path    = $prep_match[2];
 
-                // Whitelist WCP's own compiled micro-waf file
+                // Whitelist WebCare's own compiled micro-waf file
                 if (!str_contains($target_path, 'micro-waf-compiled.php') && !str_contains($target_path, 'wordfence-waf.php')) {
                     $score        = 95;
                     $total_score += $score;
@@ -683,8 +683,8 @@ final class HtaccessShield {
         $attribution = sprintf('%s:%d', $offending_file, $offending_line);
 
         // Log forensic activity
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            WcpActivityLogger::log(
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            WebCareActivityLogger::log(
                 'waf_runtime_redirect_intercepted',
                 'firewall',
                 'critical',
@@ -703,7 +703,7 @@ final class HtaccessShield {
                 'severity' => 'critical',
                 'message'  => sprintf(
                     /* translators: 1: target destination, 2: attributed PHP file */
-                    __('Unauthorized guest runtime redirect intercepted by WCP Redirect Firewall: "%1$s" initiated by "%2$s".', 'webcare-pro-security'),
+                    __('Unauthorized guest runtime redirect intercepted by WebCare Redirect Firewall: "%1$s" initiated by "%2$s".', 'webcare-pro-security'),
                     $trimmed,
                     $attribution
                 ),

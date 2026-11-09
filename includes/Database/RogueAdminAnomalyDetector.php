@@ -149,7 +149,7 @@ class RogueAdminAnomalyDetector {
                  OR option_name LIKE '%system_test%' 
                  OR option_name LIKE '%core_update_patch%' 
                  OR option_name LIKE '%cache_salt_hash%')
-                AND option_name NOT LIKE '%wcp_%' 
+                AND option_name NOT LIKE '%webcare_%' 
              LIMIT 50"
         );
 

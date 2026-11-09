@@ -153,7 +153,7 @@ class FimDriftDetector {
                 'success'         => false,
                 'has_tamper'      => true,
                 'tampered_shards' => $vault_status['tampered_shards'],
-                'message'         => 'CRITICAL: Vault FIM baseline manifest has been modified or forged outside WCP Security Suite!',
+                'message'         => 'CRITICAL: Vault FIM baseline manifest has been modified or forged outside WebCare Pro Security Suite!',
                 'drift_items'     => [],
                 'stats'           => [
                     'modified_count' => 0,
@@ -615,7 +615,7 @@ class FimDriftDetector {
      * Check if a path should be skipped from FIM tracking.
      */
     private static function is_ignored_path(string $path): bool {
-        return (bool) preg_match('#/(node_modules|\.git|cache|wcp-security-scanner|updraft|backups|wfcache|wcp-vault|wcp-waf|wcp-quarantine|wcp-scanner-quarantine|ai1wm-backups|et-cache|wp-optimize-cache|autoptimize|litespeed|elementor/css)/#i', $path);
+        return (bool) preg_match('#/(node_modules|\.git|cache|webcare-pro-security|updraft|backups|wfcache|webcare-vault|webcare-waf|webcare-quarantine|webcare-pro-quarantine|ai1wm-backups|et-cache|wp-optimize-cache|autoptimize|litespeed|elementor/css)/#i', $path);
     }
 
     /**

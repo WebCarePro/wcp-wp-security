@@ -2,7 +2,7 @@
 namespace WebCareProScanner\Content;
 
 use WebCareProScanner\Findings\Finding;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 use WebCareProScanner\Notifications\NotificationDispatcher;
 
 if (!defined('ABSPATH')) {
@@ -110,8 +110,8 @@ class BlockDirectiveSanitizer {
             self::$neutralized_count += count($audit_result['threats']);
 
             // Log security incident
-            if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-                WcpActivityLogger::log(
+            if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+                WebCareActivityLogger::log(
                     'gutenberg_block_directive_neutralized',
                     'firewall',
                     'high',
@@ -170,7 +170,7 @@ class BlockDirectiveSanitizer {
                 'webcareproscan_interactivity_directive_blocked',
                 sprintf(
                     /* translators: %s: threat summary */
-                    __('WCP Block Security: Submission blocked due to unauthorized or hostile Interactivity API directive (%s).', 'webcare-pro-security'),
+                    __('WebCare Block Security: Submission blocked due to unauthorized or hostile Interactivity API directive (%s).', 'webcare-pro-security'),
                     esc_html($threat_summary)
                 ),
                 ['status' => 403]

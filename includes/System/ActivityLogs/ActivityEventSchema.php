@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Event Schema Validator & Factory for WCP Activity & Audit Logging.
+ * Event Schema Validator & Factory for WebCare Activity & Audit Logging.
  *
  * Enforces:
  * - Dual attribution: Actor (originating human or system) vs. Executor (execution context).
@@ -72,7 +72,7 @@ class ActivityEventSchema {
         $now = time();
         $event_id = 'act_' . wp_generate_password(16, false, false);
         if (empty($correlation_id)) {
-            $correlation_id = 'req_' . substr(md5(uniqid('wcp_corr_', true)), 0, 16);
+            $correlation_id = 'req_' . substr(md5(uniqid('webcare_corr_', true)), 0, 16);
         }
 
         // Resolve Actor

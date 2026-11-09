@@ -214,7 +214,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
   // Findings View Mode: Technical Table (Default) vs Simple Cards
   const [findingsViewMode, setFindingsViewMode] = useState<'simple' | 'technical'>(() => {
-    return (localStorage.getItem('wcp_findings_view_mode') as 'simple' | 'technical') || 'technical';
+    return (localStorage.getItem('webcare_findings_view_mode') as 'simple' | 'technical') || 'technical';
   });
 
   // Telemetry HUD expansion toggle (collapsed by default for clean non-technical experience)
@@ -337,7 +337,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         setIsFixingAllPerms(true);
         try {
           const res: any = await apiRequest({
-            path: '/wcp-scanner/v1/permissions/fix-all',
+            path: '/webcare-scanner/v1/permissions/fix-all',
             method: 'POST',
           });
           if (res?.success) {
@@ -397,7 +397,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
     if (issue.type?.includes('core') || issue.engine === 'integrity-core' || issue.file_path?.includes('/wp-admin/') || issue.file_path?.includes('/wp-includes/')) {
       return 'WordPress core file integrity mismatch. Core files must never be modified directly. Click "Restore Clean Copy" to restore official WordPress core files.';
     }
-    if (issue.type?.includes('unknown') || issue.type?.includes('webshell') || issue.type?.includes('backdoor') || issue.type?.includes('malware') || issue.file_path?.endsWith('wcp-test-runner.php')) {
+    if (issue.type?.includes('unknown') || issue.type?.includes('webshell') || issue.type?.includes('backdoor') || issue.type?.includes('malware') || issue.file_path?.endsWith('webcare-test-runner.php')) {
       return 'Unrecognized or standalone script in WordPress root directory. These scripts can be executed directly without authentication. Move to Safe Quarantine to encrypt and isolate.';
     }
     if (issue.type?.includes('dropin') || issue.file_path?.includes('object-cache.php')) {
@@ -421,10 +421,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
       {/* =========================================================
           HERO STATUS CARD & LATEST AUDIT GAUGE
           ========================================================= */}
-      <div className="wcp-hero-status-card" style={{ marginBottom: '20px' }}>
-        <div className="wcp-hero-status-left">
+      <div className="webcare-hero-status-card" style={{ marginBottom: '20px' }}>
+        <div className="webcare-hero-status-left">
           <div
-            className="wcp-hero-badge"
+            className="webcare-hero-badge"
             style={{
               background: 'rgba(6, 182, 212, 0.08)',
               border: '1px solid rgba(6, 182, 212, 0.3)',
@@ -435,36 +435,36 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
             <span>FULL-STACK SECURITY AUDIT &amp; MALWARE DETECTION</span>
           </div>
 
-          <h2 className="wcp-hero-title">
+          <h2 className="webcare-hero-title">
             Deep WordPress Security Scanner
           </h2>
 
-          <p className="wcp-hero-desc">
+          <p className="webcare-hero-desc">
             Audit all WordPress core files, installed plugins, themes, database tables, and user comments for webshells, obfuscated malware, backdoors, and known CVE vulnerabilities.
           </p>
 
-          <div className="wcp-hero-highlights">
-            <span className="wcp-hero-highlight-pill">
+          <div className="webcare-hero-highlights">
+            <span className="webcare-hero-highlight-pill">
               <ShieldCheck size={13} color="#10b981" />
               <span>23 Active Security Engines</span>
             </span>
-            <span className="wcp-hero-highlight-pill">
+            <span className="webcare-hero-highlight-pill">
               <Sparkles size={13} color="#0284c7" />
               <span>Real-Time Telemetry &amp; Resource HUD</span>
             </span>
-            <span className="wcp-hero-highlight-pill">
+            <span className="webcare-hero-highlight-pill">
               <Lock size={13} color="#8b5cf6" />
               <span>Safe 1-Click Vault Quarantine</span>
             </span>
           </div>
         </div>
 
-        <div className="wcp-hero-gauge-box">
-          <span className="wcp-gauge-label" style={{ fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+        <div className="webcare-hero-gauge-box">
+          <span className="webcare-gauge-label" style={{ fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
             LATEST AUDIT STATUS
           </span>
           <div
-            className="wcp-gauge-status"
+            className="webcare-gauge-status"
             style={{
               fontSize: '22px',
               fontWeight: 900,
@@ -475,10 +475,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           >
             {isClean ? 'Clean & Protected' : `${totalThreats} Threats Found`}
           </div>
-          <div className="wcp-gauge-sub" style={{ fontSize: '12px', marginBottom: '6px' }}>
+          <div className="webcare-gauge-sub" style={{ fontSize: '12px', marginBottom: '6px' }}>
             {currentScan?.scanned_files ? `${currentScan.scanned_files.toLocaleString()} files inspected` : 'Ready to inspect'}
           </div>
-          <div className="wcp-gauge-time" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="webcare-gauge-time" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span>Completed: {currentScan?.completed_at ? formatTelemetryTime(currentScan.completed_at) : (currentScan?.started_at ? formatTelemetryTime(currentScan.started_at) : 'Never')}</span>
           </div>
         </div>
@@ -487,7 +487,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
       {/* =========================================================
           RUN A SECURITY SCAN LAUNCHER CARD
           ========================================================= */}
-      <div className="wcp-scan-launcher-card" style={{ marginBottom: '20px' }}>
+      <div className="webcare-scan-launcher-card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', marginBottom: '6px' }}>
           <div>
             <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800 }}>
@@ -501,16 +501,16 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <button
               type="button"
-              className="wcp-btn"
+              className="webcare-btn"
               onClick={() => onNavigateTab('settings', 'performance')}
               style={{
-                background: 'var(--wcp-bg-surface, #f8fafc)',
-                border: '1px solid var(--wcp-border, #cbd5e1)',
+                background: 'var(--webcare-bg-surface, #f8fafc)',
+                border: '1px solid var(--webcare-border, #cbd5e1)',
                 borderRadius: '8px',
                 padding: '8px 14px',
                 fontSize: '12.5px',
                 fontWeight: 600,
-                color: 'var(--wcp-text-primary, #334155)',
+                color: 'var(--webcare-text-primary, #334155)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -524,16 +524,16 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className="wcp-btn"
+              className="webcare-btn"
               onClick={onOpenCustomScanModal}
               style={{
-                background: 'var(--wcp-bg-surface, #f8fafc)',
-                border: '1px solid var(--wcp-border, #cbd5e1)',
+                background: 'var(--webcare-bg-surface, #f8fafc)',
+                border: '1px solid var(--webcare-border, #cbd5e1)',
                 borderRadius: '8px',
                 padding: '8px 14px',
                 fontSize: '12.5px',
                 fontWeight: 600,
-                color: 'var(--wcp-text-primary, #334155)',
+                color: 'var(--webcare-text-primary, #334155)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -565,7 +565,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
                   }}
                 >
-                  <RotateCw size={15} className="wcp-spin-icon" />
+                  <RotateCw size={15} className="webcare-spin-icon" />
                   <span>{activeScanTrigger === 'scheduled' ? 'Scheduled Scan Running...' : 'Scanning Website...'}</span>
                 </button>
 
@@ -627,19 +627,19 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         </div>
 
         {/* 3 Profile Option Cards */}
-        <div className="wcp-scan-options-grid">
+        <div className="webcare-scan-options-grid">
           {/* Option 1: Quick Scan */}
           <div
-            className={`wcp-scan-option-pill ${scanTarget === 'plugins_themes' ? 'is-selected' : ''}`}
+            className={`webcare-scan-option-pill ${scanTarget === 'plugins_themes' ? 'is-selected' : ''}`}
             onClick={() => !scanning && setScanTarget('plugins_themes')}
           >
             <div>
               <div
-                className={`wcp-scan-option-badge ${scanTarget === 'plugins_themes' ? 'badge-selected' : 'badge-unselected'}`}
+                className={`webcare-scan-option-badge ${scanTarget === 'plugins_themes' ? 'badge-selected' : 'badge-unselected'}`}
               >
-                RECOMMENDED DAILY <span className="wcp-dot-bullet" /> FAST (~10S)
+                RECOMMENDED DAILY <span className="webcare-dot-bullet" /> FAST (~10S)
               </div>
-              <div className="wcp-scan-option-title">
+              <div className="webcare-scan-option-title">
                 <input
                   type="radio"
                   name="scan_target_profile"
@@ -650,7 +650,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 />
                 <span>Quick Scan (Plugins &amp; Themes)</span>
               </div>
-              <div className="wcp-scan-option-desc">
+              <div className="webcare-scan-option-desc">
                 Rapidly checks all active plugins and themes where 90% of WordPress security vulnerabilities happen.
               </div>
             </div>
@@ -658,16 +658,16 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
           {/* Option 2: Complete Scan */}
           <div
-            className={`wcp-scan-option-pill ${scanTarget === 'full' ? 'is-selected' : ''}`}
+            className={`webcare-scan-option-pill ${scanTarget === 'full' ? 'is-selected' : ''}`}
             onClick={() => !scanning && setScanTarget('full')}
           >
             <div>
               <div
-                className={`wcp-scan-option-badge ${scanTarget === 'full' ? 'badge-selected' : 'badge-unselected'}`}
+                className={`webcare-scan-option-badge ${scanTarget === 'full' ? 'badge-selected' : 'badge-unselected'}`}
               >
-                DEEPEST AUDIT <span className="wcp-dot-bullet" /> FULL PROTECTION
+                DEEPEST AUDIT <span className="webcare-dot-bullet" /> FULL PROTECTION
               </div>
-              <div className="wcp-scan-option-title">
+              <div className="webcare-scan-option-title">
                 <input
                   type="radio"
                   name="scan_target_profile"
@@ -678,7 +678,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 />
                 <span>Complete Website Scan</span>
               </div>
-              <div className="wcp-scan-option-desc">
+              <div className="webcare-scan-option-desc">
                 Comprehensive audit across all WordPress core files, media uploads, database options, and user comments.
               </div>
             </div>
@@ -686,13 +686,13 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
           {/* Option 3: Custom Scan */}
           <div
-            className={`wcp-scan-option-pill ${scanTarget === 'custom' ? 'is-selected' : ''}`}
+            className={`webcare-scan-option-pill ${scanTarget === 'custom' ? 'is-selected' : ''}`}
             onClick={() => !scanning && setScanTarget('custom')}
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span
-                  className={`wcp-scan-option-badge ${scanTarget === 'custom' ? 'badge-custom-selected' : 'badge-unselected'}`}
+                  className={`webcare-scan-option-badge ${scanTarget === 'custom' ? 'badge-custom-selected' : 'badge-unselected'}`}
                   style={{ margin: 0 }}
                 >
                   {Object.values(customScanOptions).filter(Boolean).length} ENGINES SELECTED
@@ -716,7 +716,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   <ArrowRight size={12} />
                 </span>
               </div>
-              <div className="wcp-scan-option-title">
+              <div className="webcare-scan-option-title">
                 <input
                   type="radio"
                   name="scan_target_profile"
@@ -727,7 +727,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 />
                 <span>Custom Security Engines</span>
               </div>
-              <div className="wcp-scan-option-desc">
+              <div className="webcare-scan-option-desc">
                 Pick exact engines: backdoor heuristics, trojans, SQL injections, CVEs, or suspicious admin users.
               </div>
             </div>
@@ -737,28 +737,28 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         {/* If scanning: show live progress area */}
         {scanning && (
           <div
-            className="wcp-live-scan-progress-area"
+            className="webcare-live-scan-progress-area"
             style={{
               marginTop: '20px',
               paddingTop: '16px',
-              borderTop: '1px solid var(--wcp-border, #e2e8f0)'
+              borderTop: '1px solid var(--webcare-border, #e2e8f0)'
             }}
           >
             {/* Stage & Progress Percentage Row */}
-            <div className="wcp-live-scan-status-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
-              <div className="wcp-live-scan-stage" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: 'var(--wcp-text-primary, #0f172a)' }}>
-                <RotateCw size={14} className="wcp-spin-icon" color="var(--wcp-primary, #4f46e5)" />
+            <div className="webcare-live-scan-status-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+              <div className="webcare-live-scan-stage" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: 'var(--webcare-text-primary, #0f172a)' }}>
+                <RotateCw size={14} className="webcare-spin-icon" color="var(--webcare-primary, #4f46e5)" />
                 <span>{scanStage || 'Stage 1/2: Scanning Files & Malware Heuristics...'}</span>
               </div>
-              <span className="wcp-live-scan-percent" style={{ color: 'var(--wcp-primary, #4f46e5)', fontFamily: 'monospace', fontWeight: 800 }}>
+              <span className="webcare-live-scan-percent" style={{ color: 'var(--webcare-primary, #4f46e5)', fontFamily: 'monospace', fontWeight: 800 }}>
                 {progress}%
               </span>
             </div>
 
             {/* Sleek Progress Bar */}
-            <div className="wcp-progress-bar-bg" style={{ height: '6px', borderRadius: '999px', background: 'rgba(99, 102, 241, 0.15)', overflow: 'hidden' }}>
+            <div className="webcare-progress-bar-bg" style={{ height: '6px', borderRadius: '999px', background: 'rgba(99, 102, 241, 0.15)', overflow: 'hidden' }}>
               <div
-                className="wcp-progress-fill"
+                className="webcare-progress-fill"
                 style={{
                   width: `${progress}%`,
                   height: '100%',
@@ -771,7 +771,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             {/* Dynamic Governor / Turbo Headroom Status Strip */}
             <div
-              className="wcp-governor-status-bar"
+              className="webcare-governor-status-bar"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -821,7 +821,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     ? 'Adaptive Visitor Throttle'
                     : '+ TURBO HEADROOM'}
                 </span>
-                <span style={{ color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 600 }}>
+                <span style={{ color: 'var(--webcare-text-primary, #0f172a)', fontWeight: 600 }}>
                   {scanTelemetry?.governor?.reason || (
                     scanTelemetry?.memory_percent !== undefined
                       ? `Turbo Throughput: Spacious memory & CPU headroom (${scanTelemetry.memory_percent}%)`
@@ -829,7 +829,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   )}
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--wcp-text-muted, #64748b)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--webcare-text-muted, #64748b)' }}>
                 <span>Safety Envelope: <strong>{scanTelemetry?.governor?.max_safe_percent || 70}% max</strong></span>
                 <span>•</span>
                 <span>Headroom: <strong style={{ color: '#10b981' }}>{scanTelemetry?.governor?.memory_free_mb || scanTelemetry?.memory_free_mb || 870} MB Free</strong></span>
@@ -876,18 +876,18 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     >
                       <Database size={11} /> MySQL Engine
                     </span>
-                    <span style={{ color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 700, fontFamily: 'monospace' }}>
+                    <span style={{ color: 'var(--webcare-text-primary, #0f172a)', fontWeight: 700, fontFamily: 'monospace' }}>
                       {dbProgress.current_table}
                     </span>
-                    <span style={{ color: 'var(--wcp-text-muted, #64748b)', fontSize: '11px' }}>
+                    <span style={{ color: 'var(--webcare-text-muted, #64748b)', fontSize: '11px' }}>
                       (Table {dbProgress.table_index} of {dbProgress.total_tables})
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--wcp-text-secondary, #475569)', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--webcare-text-secondary, #475569)', flexWrap: 'wrap' }}>
                     <span>
-                      Current Table: <strong style={{ color: 'var(--wcp-text-primary, #0f172a)' }}>{dbProgress.table_rows_scanned?.toLocaleString()}</strong>
+                      Current Table: <strong style={{ color: 'var(--webcare-text-primary, #0f172a)' }}>{dbProgress.table_rows_scanned?.toLocaleString()}</strong>
                       {dbProgress.table_approx_rows > 0 && (
-                        <span style={{ color: 'var(--wcp-text-muted, #64748b)' }}> / ~{dbProgress.table_approx_rows?.toLocaleString()} rows</span>
+                        <span style={{ color: 'var(--webcare-text-muted, #64748b)' }}> / ~{dbProgress.table_approx_rows?.toLocaleString()} rows</span>
                       )}
                     </span>
                     {typeof dbProgress.overall_rows_scanned === 'number' && (
@@ -896,7 +896,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         <span>
                           Total DB Rows Scanned: <strong style={{ color: '#4f46e5' }}>{dbProgress.overall_rows_scanned?.toLocaleString()}</strong>
                           {dbProgress.overall_total_rows ? (
-                            <span style={{ color: 'var(--wcp-text-muted, #64748b)' }}> / ~{dbProgress.overall_total_rows?.toLocaleString()}</span>
+                            <span style={{ color: 'var(--webcare-text-muted, #64748b)' }}> / ~{dbProgress.overall_total_rows?.toLocaleString()}</span>
                           ) : null}
                         </span>
                       </>
@@ -936,23 +936,23 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             {/* Inspecting File Path */}
             {currentFile && (
-              <div className="wcp-live-scan-inspecting-file" style={{ color: 'var(--wcp-text-muted, #64748b)', fontFamily: 'monospace', fontSize: '11px', marginTop: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div className="webcare-live-scan-inspecting-file" style={{ color: 'var(--webcare-text-muted, #64748b)', fontFamily: 'monospace', fontSize: '11px', marginTop: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 <span>Currently Inspecting: </span>
-                <span className="wcp-live-scan-file-path" style={{ color: 'var(--wcp-text-primary, #0f172a)', fontWeight: 600 }}>{currentFile}</span>
+                <span className="webcare-live-scan-file-path" style={{ color: 'var(--webcare-text-primary, #0f172a)', fontWeight: 600 }}>{currentFile}</span>
               </div>
             )}
 
             {/* Real-Time Audit Telemetry & Resource Consumption HUD */}
-            <div className="wcp-scan-hud-container" style={{ marginTop: '16px' }}>
-              <div className="wcp-scan-hud-header">
-                <div className="wcp-scan-hud-title">
-                  <span className="wcp-scan-hud-pulse-dot">
-                    <span className="wcp-scan-hud-pulse-ring" />
-                    <span className="wcp-scan-hud-pulse-core" />
+            <div className="webcare-scan-hud-container" style={{ marginTop: '16px' }}>
+              <div className="webcare-scan-hud-header">
+                <div className="webcare-scan-hud-title">
+                  <span className="webcare-scan-hud-pulse-dot">
+                    <span className="webcare-scan-hud-pulse-ring" />
+                    <span className="webcare-scan-hud-pulse-core" />
                   </span>
                   <span>Real-Time Audit Telemetry &amp; Resource Consumption</span>
                 </div>
-                <div className="wcp-scan-hud-specs">
+                <div className="webcare-scan-hud-specs">
                   <span>PHP {scanTelemetry?.php_version || '8.3.36'}</span>
                   <span>•</span>
                   <span>Limit: {scanTelemetry?.memory_limit_raw || '1024M'}</span>
@@ -968,21 +968,21 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     </>
                   )}
                   <span>•</span>
-                  <span className="wcp-scan-hud-onpremise">100% On-Premise</span>
+                  <span className="webcare-scan-hud-onpremise">100% On-Premise</span>
                 </div>
               </div>
 
-              <div className="wcp-scan-hud-grid">
+              <div className="webcare-scan-hud-grid">
                 {/* Card 1: Time Elapsed */}
-                <div className="wcp-scan-hud-card">
-                  <div className="wcp-scan-hud-card-label">
-                    <Clock size={12} color="var(--wcp-primary, #4f46e5)" />
+                <div className="webcare-scan-hud-card">
+                  <div className="webcare-scan-hud-card-label">
+                    <Clock size={12} color="var(--webcare-primary, #4f46e5)" />
                     <span>Time Elapsed</span>
                   </div>
-                  <div className="wcp-scan-hud-card-value">
+                  <div className="webcare-scan-hud-card-value">
                     {formatElapsedTimer(scanElapsed)}
                   </div>
-                  <div className="wcp-scan-hud-card-sub wcp-scan-hud-sub-cyan">
+                  <div className="webcare-scan-hud-card-sub webcare-scan-hud-sub-cyan">
                     {(() => {
                       const eta = scanTelemetry?.eta_seconds;
                       if (eta === null || eta === undefined || eta <= 0 || !isFinite(eta)) {
@@ -997,37 +997,37 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 </div>
 
                 {/* Card 2: PHP Memory */}
-                <div className="wcp-scan-hud-card">
-                  <div className="wcp-scan-hud-card-label" style={{ justifyContent: 'space-between' }}>
+                <div className="webcare-scan-hud-card">
+                  <div className="webcare-scan-hud-card-label" style={{ justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Cpu size={12} color="#8b5cf6" />
                       <span>PHP Memory</span>
                     </div>
-                    <span className={`wcp-scan-hud-pill ${(scanTelemetry?.memory_percent ?? 15) > 80 ? 'wcp-pill-danger' : (scanTelemetry?.memory_percent ?? 15) > 60 ? 'wcp-pill-warn' : 'wcp-pill-safe'}`}>
+                    <span className={`webcare-scan-hud-pill ${(scanTelemetry?.memory_percent ?? 15) > 80 ? 'webcare-pill-danger' : (scanTelemetry?.memory_percent ?? 15) > 60 ? 'webcare-pill-warn' : 'webcare-pill-safe'}`}>
                       {scanTelemetry?.memory_percent !== undefined ? scanTelemetry.memory_percent : 15}%
                     </span>
                   </div>
-                  <div className="wcp-scan-hud-card-value">
+                  <div className="webcare-scan-hud-card-value">
                     {scanTelemetry?.memory_mb !== undefined ? `${scanTelemetry.memory_mb} MB` : '154 MB'}
                   </div>
-                  <div className="wcp-scan-hud-card-sub">
+                  <div className="webcare-scan-hud-card-sub">
                     Peak: <strong>{scanTelemetry?.memory_peak_mb || 154} MB</strong>
-                    <span> • <span className="wcp-scan-hud-sub-green">{scanTelemetry?.memory_free_mb || 870} MB safe</span></span>
+                    <span> • <span className="webcare-scan-hud-sub-green">{scanTelemetry?.memory_free_mb || 870} MB safe</span></span>
                   </div>
                 </div>
 
                 {/* Card 3: CPU / Load */}
-                <div className="wcp-scan-hud-card">
-                  <div className="wcp-scan-hud-card-label">
+                <div className="webcare-scan-hud-card">
+                  <div className="webcare-scan-hud-card-label">
                     <Activity size={12} color="#f59e0b" />
                     <span>CPU / Load</span>
                   </div>
-                  <div className="wcp-scan-hud-card-value">
+                  <div className="webcare-scan-hud-card-value">
                     {scanTelemetry?.cpu_percent != null
                       ? `${scanTelemetry.cpu_percent}% CPU`
                       : '93.4% CPU'}
                   </div>
-                  <div className="wcp-scan-hud-card-sub">
+                  <div className="webcare-scan-hud-card-sub">
                     {scanTelemetry?.cpu_load?.['1m'] !== undefined ? (
                       <span>Load 1m: <strong>{scanTelemetry.cpu_load['1m']}</strong></span>
                     ) : (
@@ -1037,19 +1037,19 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 </div>
 
                 {/* Card 4: Throughput */}
-                <div className="wcp-scan-hud-card">
-                  <div className="wcp-scan-hud-card-label">
+                <div className="webcare-scan-hud-card">
+                  <div className="webcare-scan-hud-card-label">
                     <Gauge size={12} color="#10b981" />
                     <span>Throughput</span>
                   </div>
-                  <div className="wcp-scan-hud-card-value">
+                  <div className="webcare-scan-hud-card-value">
                     {scanTelemetry?.files_per_sec !== undefined && scanTelemetry.files_per_sec > 0
                       ? `${scanTelemetry.files_per_sec} f/s`
                       : scanElapsed > 0 && scanTelemetry?.scanned_files
                       ? `${Math.round(scanTelemetry.scanned_files / Math.max(1, scanElapsed))} f/s`
                       : '51.4 f/s'}
                   </div>
-                  <div className="wcp-scan-hud-card-sub">
+                  <div className="webcare-scan-hud-card-sub">
                     {scanTelemetry?.total_files ? (
                       <span>{scanTelemetry.scanned_files || 0} / {scanTelemetry.total_files} files</span>
                     ) : (
@@ -1059,15 +1059,15 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 </div>
 
                 {/* Card 5: Threats Flagged */}
-                <div className="wcp-scan-hud-card">
-                  <div className="wcp-scan-hud-card-label">
+                <div className="webcare-scan-hud-card">
+                  <div className="webcare-scan-hud-card-label">
                     <ShieldAlert size={12} color={scanTelemetry?.issues_found ? '#ef4444' : '#10b981'} />
                     <span>Threats Flagged</span>
                   </div>
-                  <div className={`wcp-scan-hud-card-value ${scanTelemetry?.issues_found ? 'wcp-value-danger' : 'wcp-value-clean'}`}>
+                  <div className={`webcare-scan-hud-card-value ${scanTelemetry?.issues_found ? 'webcare-value-danger' : 'webcare-value-clean'}`}>
                     {scanTelemetry?.issues_found !== undefined ? `${scanTelemetry.issues_found} Threats` : '0 Threats'}
                   </div>
-                  <div className={`wcp-scan-hud-card-sub ${scanTelemetry?.issues_found ? 'wcp-scan-hud-sub-red' : 'wcp-scan-hud-sub-green'}`}>
+                  <div className={`webcare-scan-hud-card-sub ${scanTelemetry?.issues_found ? 'webcare-scan-hud-sub-red' : 'webcare-scan-hud-sub-green'}`}>
                     {scanTelemetry?.issues_found ? 'Quarantine queued' : 'Zero High-Risk'}
                   </div>
                 </div>
@@ -1081,7 +1081,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           HISTORICAL TELEMETRY RIBBON (2-ROW SYSTEM HUD)
           ========================================================= */}
       {currentScan && (
-        <div className="wcp-telemetry-ribbon" style={{
+        <div className="webcare-telemetry-ribbon" style={{
           borderRadius: '14px',
           padding: '14px 20px',
           display: 'flex',
@@ -1089,8 +1089,8 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           gap: '12px',
           fontSize: '12px',
           marginTop: '16px',
-          background: 'var(--wcp-bg-surface, #f8fafc)',
-          border: '1px solid var(--wcp-border, #e2e8f0)'
+          background: 'var(--webcare-bg-surface, #f8fafc)',
+          border: '1px solid var(--webcare-border, #e2e8f0)'
         }}>
           {/* ROW 1: Run Select, Profile, Timestamps & RAM */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
@@ -1099,7 +1099,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 <ShieldCheck size={14} color="#0284c7" />
                 <span style={{ fontWeight: 600 }}>Scan Run:</span>
                 <select
-                  className="wcp-ribbon-select"
+                  className="webcare-ribbon-select"
                   value={selectedDashboardScanId || currentScan?.id || ''}
                   onChange={(e) => {
                     const sid = parseInt(e.target.value, 10);
@@ -1138,7 +1138,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       <Layers size={14} color="#0284c7" />
                     )}
                     <span style={{ fontWeight: 600 }}>Profile:</span>
-                    <strong className="wcp-ribbon-profile-badge" style={{
+                    <strong className="webcare-ribbon-profile-badge" style={{
                       color: currTargetInfo.badgeColor,
                       background: currTargetInfo.badgeBg,
                       border: `1px solid ${currTargetInfo.badgeBorder}`,
@@ -1160,7 +1160,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title={`Scan Started: ${formatTelemetryDateFull(currentScan.started_at)}`}>
                   <Play size={13} color="#10b981" />
                   <span style={{ fontWeight: 600 }}>Started:</span>
-                  <strong className="wcp-ribbon-val" style={{ fontFamily: 'monospace' }}>
+                  <strong className="webcare-ribbon-val" style={{ fontFamily: 'monospace' }}>
                     {formatTelemetryTime(currentScan.started_at)}
                   </strong>
                 </div>
@@ -1170,7 +1170,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title={`Scan Finished: ${formatTelemetryDateFull(currentScan.completed_at)}`}>
                   <Clock size={13} color="#0284c7" />
                   <span style={{ fontWeight: 600 }}>Ended:</span>
-                  <strong className="wcp-ribbon-val" style={{ fontFamily: 'monospace' }}>
+                  <strong className="webcare-ribbon-val" style={{ fontFamily: 'monospace' }}>
                     {formatTelemetryTime(currentScan.completed_at)}
                   </strong>
                 </div>
@@ -1179,7 +1179,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Total duration of audit execution">
                 <Clock size={14} color="#0284c7" />
                 <span style={{ fontWeight: 600 }}>Duration:</span>
-                <strong className="wcp-ribbon-val">
+                <strong className="webcare-ribbon-val">
                   {currentScan.diagnostics?.duration_formatted || (currentScan.duration_formatted ? currentScan.duration_formatted : (currentScan.duration ? `${currentScan.duration}s` : 'N/A'))}
                 </strong>
               </div>
@@ -1187,11 +1187,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="PHP Peak RAM consumed during audit execution">
                 <Zap size={14} color="#8b5cf6" />
                 <span style={{ fontWeight: 600 }}>Peak RAM:</span>
-                <strong className="wcp-ribbon-val">
+                <strong className="webcare-ribbon-val">
                   {currentScan.diagnostics?.peak_memory_fmt || 'N/A'}
                 </strong>
                 {currentScan.diagnostics?.memory_limit_raw && (
-                  <span className="wcp-ribbon-sub" style={{ fontSize: '11px', color: '#64748b' }}>
+                  <span className="webcare-ribbon-sub" style={{ fontSize: '11px', color: '#64748b' }}>
                     / {currentScan.diagnostics.memory_limit_raw} ({currentScan.diagnostics.memory_percent}%)
                   </span>
                 )}
@@ -1200,12 +1200,12 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           </div>
 
           {/* ROW 2: Throughput, CPU Load, Files, Threats, System Pills, Reload */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', paddingTop: '8px', borderTop: '1px solid var(--wcp-border, #e2e8f0)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', paddingTop: '8px', borderTop: '1px solid var(--webcare-border, #e2e8f0)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Audit throughput processing speed">
                 <Activity size={14} color="#10b981" />
                 <span style={{ fontWeight: 600 }}>Throughput:</span>
-                <strong className="wcp-ribbon-val">
+                <strong className="webcare-ribbon-val">
                   {currentScan.diagnostics?.files_per_second ? `${currentScan.diagnostics.files_per_second} files/sec` : '57.4 files/sec'}
                 </strong>
               </div>
@@ -1213,7 +1213,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Server CPU Load Average">
                 <Cpu size={14} color="#f59e0b" />
                 <span style={{ fontWeight: 600 }}>CPU Load:</span>
-                <strong className="wcp-ribbon-val" style={{ fontFamily: 'monospace' }}>
+                <strong className="webcare-ribbon-val" style={{ fontFamily: 'monospace' }}>
                   {(() => {
                     const load = currentScan.diagnostics?.cpu_load;
                     if (!load) return '0.1';
@@ -1228,7 +1228,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Total files audited in this scan">
                 <FileText size={13} color="#0284c7" />
                 <span style={{ fontWeight: 600 }}>Files:</span>
-                <strong className="wcp-ribbon-val" style={{ fontFamily: 'monospace' }}>
+                <strong className="webcare-ribbon-val" style={{ fontFamily: 'monospace' }}>
                   {currentScan.scanned_files?.toLocaleString() || 0}
                 </strong>
               </div>
@@ -1237,7 +1237,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 <ShieldAlert size={13} color={(currentScan.issues_found || 0) > 0 ? '#ef4444' : '#10b981'} />
                 <span style={{ fontWeight: 600 }}>Threats:</span>
                 <strong
-                  className={`wcp-ribbon-threat-badge ${(currentScan.issues_found || 0) > 0 ? 'is-danger' : 'is-clean'}`}
+                  className={`webcare-ribbon-threat-badge ${(currentScan.issues_found || 0) > 0 ? 'is-danger' : 'is-clean'}`}
                   style={{
                     padding: '1px 8px',
                     borderRadius: '6px',
@@ -1254,7 +1254,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px' }}>
-              <span className="wcp-ribbon-php-pill" style={{
+              <span className="webcare-ribbon-php-pill" style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
@@ -1269,7 +1269,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 PHP {currentScan.diagnostics?.php_version || '8.3.36'} ({currentScan.diagnostics?.php_sapi || 'fpm-fcgi'})
               </span>
 
-              <span className="wcp-ribbon-engines-pill" style={{
+              <span className="webcare-ribbon-engines-pill" style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
@@ -1286,7 +1286,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
               <button
                 type="button"
-                className="wcp-ribbon-reload-btn"
+                className="webcare-ribbon-reload-btn"
                 onClick={() => onReloadLatestScan()}
                 disabled={loading || scanning}
                 title="Reload Most Recent Audit"
@@ -1296,15 +1296,15 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   gap: '5px',
                   padding: '4px 10px',
                   borderRadius: '6px',
-                  background: 'var(--wcp-bg-surface, #ffffff)',
-                  border: '1px solid var(--wcp-border, #cbd5e1)',
-                  color: 'var(--wcp-text-primary, #334155)',
+                  background: 'var(--webcare-bg-surface, #ffffff)',
+                  border: '1px solid var(--webcare-border, #cbd5e1)',
+                  color: 'var(--webcare-text-primary, #334155)',
                   fontSize: '11px',
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >
-                <RefreshCw size={11} className={loading ? 'wcp-spin-icon' : ''} color="#0284c7" />
+                <RefreshCw size={11} className={loading ? 'webcare-spin-icon' : ''} color="#0284c7" />
                 <span>Latest</span>
               </button>
             </div>
@@ -1345,7 +1345,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
         <button
           type="button"
-          className="wcp-btn"
+          className="webcare-btn"
           style={{
             background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
             color: '#ffffff',
@@ -1370,7 +1370,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
       {/* =========================================================
           FINDINGS, QUARANTINE VAULT & AUDITED FILES HUB
           ========================================================= */}
-      <div id="wcp-findings-hub-card" className="wcp-findings-hub-card" style={{
+      <div id="webcare-findings-hub-card" className="webcare-findings-hub-card" style={{
         marginTop: '20px',
         borderRadius: '16px',
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
@@ -1378,7 +1378,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         position: 'relative'
       }}>
         {/* Top Hub Header & Sub-Tab Switcher */}
-        <div className="wcp-findings-hub-header" style={{
+        <div className="webcare-findings-hub-header" style={{
           padding: '16px 22px',
           display: 'flex',
           justifyContent: 'space-between',
@@ -1387,10 +1387,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           gap: '12px'
         }}>
           {/* Main Subtabs */}
-          <div className="wcp-findings-subtabs" style={{ display: 'flex', padding: '3px', borderRadius: '10px', gap: '4px' }}>
+          <div className="webcare-findings-subtabs" style={{ display: 'flex', padding: '3px', borderRadius: '10px', gap: '4px' }}>
             <button
               type="button"
-              className={`wcp-findings-subtab-btn ${dashboardSubTab === 'issues' ? 'is-active' : ''}`}
+              className={`webcare-findings-subtab-btn ${dashboardSubTab === 'issues' ? 'is-active' : ''}`}
               onClick={() => setDashboardSubTab('issues')}
             >
               <AlertTriangle size={14} color={dashboardSubTab === 'issues' ? '#ef4444' : '#64748b'} />
@@ -1399,7 +1399,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-findings-subtab-btn ${dashboardSubTab === 'quarantine' ? 'is-active' : ''}`}
+              className={`webcare-findings-subtab-btn ${dashboardSubTab === 'quarantine' ? 'is-active' : ''}`}
               onClick={() => setDashboardSubTab('quarantine')}
             >
               <Archive size={14} color={dashboardSubTab === 'quarantine' ? '#3b82f6' : '#64748b'} />
@@ -1408,7 +1408,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-findings-subtab-btn ${dashboardSubTab === 'files' ? 'is-active' : ''}`}
+              className={`webcare-findings-subtab-btn ${dashboardSubTab === 'files' ? 'is-active' : ''}`}
               onClick={() => setDashboardSubTab('files')}
             >
               <FileText size={14} color={dashboardSubTab === 'files' ? '#0284c7' : '#64748b'} />
@@ -1417,7 +1417,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-findings-subtab-btn ${dashboardSubTab === 'whitelist' ? 'is-active' : ''}`}
+              className={`webcare-findings-subtab-btn ${dashboardSubTab === 'whitelist' ? 'is-active' : ''}`}
               onClick={() => setDashboardSubTab('whitelist')}
             >
               <ShieldCheck size={14} color={dashboardSubTab === 'whitelist' ? '#10b981' : '#64748b'} />
@@ -1426,7 +1426,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-findings-subtab-btn ${dashboardSubTab === 'baseline' ? 'is-active' : ''}`}
+              className={`webcare-findings-subtab-btn ${dashboardSubTab === 'baseline' ? 'is-active' : ''}`}
               onClick={() => setDashboardSubTab('baseline')}
             >
               <Activity size={14} color={dashboardSubTab === 'baseline' ? '#8b5cf6' : '#64748b'} />
@@ -1435,7 +1435,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-findings-subtab-btn ${dashboardSubTab === 'transactions' ? 'is-active' : ''}`}
+              className={`webcare-findings-subtab-btn ${dashboardSubTab === 'transactions' ? 'is-active' : ''}`}
               onClick={() => setDashboardSubTab('transactions')}
             >
               <Clock size={14} color={dashboardSubTab === 'transactions' ? '#f59e0b' : '#64748b'} />
@@ -1445,7 +1445,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
             {/* Direct Gateway to Dedicated System Forensics Page */}
             <button
               type="button"
-              className="wcp-forensics-gateway-btn"
+              className="webcare-forensics-gateway-btn"
               onClick={() => onNavigateTab('forensics', 'persistence')}
               title="Open dedicated System Forensics & Deep Diagnostics page"
             >
@@ -1459,10 +1459,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
           {dashboardSubTab === 'issues' && (
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Status Scope Selector */}
-              <div className="wcp-status-filter-group" style={{ display: 'inline-flex', padding: '3px', borderRadius: '8px' }}>
+              <div className="webcare-status-filter-group" style={{ display: 'inline-flex', padding: '3px', borderRadius: '8px' }}>
                 <button
                   type="button"
-                  className={`wcp-status-filter-btn ${issueStatusFilter === 'open' ? 'is-active is-open' : ''}`}
+                  className={`webcare-status-filter-btn ${issueStatusFilter === 'open' ? 'is-active is-open' : ''}`}
                   onClick={() => setIssueStatusFilter('open')}
                   title="Show active, open threats requiring remediation"
                 >
@@ -1471,7 +1471,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 </button>
                 <button
                   type="button"
-                  className={`wcp-status-filter-btn ${issueStatusFilter === 'ignored' ? 'is-active is-ignored' : ''}`}
+                  className={`webcare-status-filter-btn ${issueStatusFilter === 'ignored' ? 'is-active is-ignored' : ''}`}
                   onClick={() => setIssueStatusFilter('ignored')}
                   title="Show suppressed and whitelisted findings"
                 >
@@ -1480,7 +1480,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 </button>
                 <button
                   type="button"
-                  className={`wcp-status-filter-btn ${issueStatusFilter === 'all' ? 'is-active' : ''}`}
+                  className={`webcare-status-filter-btn ${issueStatusFilter === 'all' ? 'is-active' : ''}`}
                   onClick={() => setIssueStatusFilter('all')}
                   title="Show all findings"
                 >
@@ -1489,13 +1489,13 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
               </div>
 
               {/* Table View vs Smart Cards View Mode Switcher */}
-              <div className="wcp-status-filter-group wcp-findings-view-mode-toggle" style={{ display: 'inline-flex', padding: '3px', borderRadius: '8px' }}>
+              <div className="webcare-status-filter-group webcare-findings-view-mode-toggle" style={{ display: 'inline-flex', padding: '3px', borderRadius: '8px' }}>
                 <button
                   type="button"
-                  className={`wcp-status-filter-btn ${findingsViewMode === 'technical' ? 'is-active' : ''}`}
+                  className={`webcare-status-filter-btn ${findingsViewMode === 'technical' ? 'is-active' : ''}`}
                   onClick={() => {
                     setFindingsViewMode('technical');
-                    localStorage.setItem('wcp_findings_view_mode', 'technical');
+                    localStorage.setItem('webcare_findings_view_mode', 'technical');
                   }}
                   title="Interactive security table with instant 1-click mitigations and expandable forensic drawers"
                 >
@@ -1503,10 +1503,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 </button>
                 <button
                   type="button"
-                  className={`wcp-status-filter-btn ${findingsViewMode === 'simple' ? 'is-active' : ''}`}
+                  className={`webcare-status-filter-btn ${findingsViewMode === 'simple' ? 'is-active' : ''}`}
                   onClick={() => {
                     setFindingsViewMode('simple');
-                    localStorage.setItem('wcp_findings_view_mode', 'simple');
+                    localStorage.setItem('webcare_findings_view_mode', 'simple');
                   }}
                   title="Concept D Smart Impact Cards with tailored plain-English recommendations"
                 >
@@ -1516,7 +1516,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
               {/* Severity Filter */}
               <select
-                className="wcp-filter-select"
+                className="webcare-filter-select"
                 value={severityFilter}
                 onChange={(e) => setSeverityFilter(e.target.value)}
               >
@@ -1532,7 +1532,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="text"
-                  className="wcp-filter-search-input"
+                  className="webcare-filter-search-input"
                   placeholder="Search paths or vectors..."
                   value={issueSearch}
                   onChange={(e) => setIssueSearch(e.target.value)}
@@ -1553,7 +1553,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Per Page:</span>
                 <select
-                  className="wcp-filter-select"
+                  className="webcare-filter-select"
                   value={findingsPageSize}
                   onChange={(e) => setFindingsPageSize(Number(e.target.value))}
                   style={{ padding: '6px 10px', fontSize: '12px', minWidth: '95px' }}
@@ -1578,20 +1578,20 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
         {/* Smart Category Filter Pills (When viewing Findings) */}
         {dashboardSubTab === 'issues' && (
-          <div className="wcp-category-filter-bar" style={{
+          <div className="webcare-category-filter-bar" style={{
             padding: '10px 22px',
             display: 'flex',
             gap: '8px',
             alignItems: 'center',
             flexWrap: 'wrap'
           }}>
-            <span className="wcp-category-label" style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px' }}>
+            <span className="webcare-category-label" style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px' }}>
               Category:
             </span>
 
             <button
               type="button"
-              className={`wcp-category-pill ${categoryFilter === 'all' ? 'is-active' : ''}`}
+              className={`webcare-category-pill ${categoryFilter === 'all' ? 'is-active' : ''}`}
               onClick={() => setCategoryFilter('all')}
             >
               All ({uniqueIssues.length})
@@ -1599,7 +1599,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-category-pill ${categoryFilter === 'critical' ? 'is-active' : ''}`}
+              className={`webcare-category-pill ${categoryFilter === 'critical' ? 'is-active' : ''}`}
               onClick={() => setCategoryFilter('critical')}
             >
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
@@ -1608,7 +1608,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-category-pill ${categoryFilter === 'fim' ? 'is-active' : ''}`}
+              className={`webcare-category-pill ${categoryFilter === 'fim' ? 'is-active' : ''}`}
               onClick={() => setCategoryFilter('fim')}
             >
               <FileCode size={12} color="#0284c7" />
@@ -1617,7 +1617,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-category-pill ${categoryFilter === 'cve' ? 'is-active' : ''}`}
+              className={`webcare-category-pill ${categoryFilter === 'cve' ? 'is-active' : ''}`}
               onClick={() => setCategoryFilter('cve')}
             >
               <ShieldAlert size={12} color="#f59e0b" />
@@ -1626,7 +1626,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-category-pill ${categoryFilter === 'spam' ? 'is-active' : ''}`}
+              className={`webcare-category-pill ${categoryFilter === 'spam' ? 'is-active' : ''}`}
               onClick={() => setCategoryFilter('spam')}
             >
               <MessageSquare size={12} color="#8b5cf6" />
@@ -1635,7 +1635,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
             <button
               type="button"
-              className={`wcp-category-pill ${categoryFilter === 'users' ? 'is-active' : ''}`}
+              className={`webcare-category-pill ${categoryFilter === 'users' ? 'is-active' : ''}`}
               onClick={() => setCategoryFilter('users')}
             >
               <UserCheck size={12} color="#ea580c" />
@@ -1671,7 +1671,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
             </div>
             <button
               type="button"
-              className="wcp-btn"
+              className="webcare-btn"
               disabled={isFixingAllPerms}
               onClick={handleFixAllDetectedPermissions}
               style={{
@@ -1700,14 +1700,14 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         {dashboardSubTab === 'issues' && (
           <div>
             {filteredIssues.length === 0 ? (
-              <div className="wcp-empty-state-clean">
-                <div className="wcp-empty-state-icon-wrap">
+              <div className="webcare-empty-state-clean">
+                <div className="webcare-empty-state-icon-wrap">
                   <ShieldCheck size={36} color="#10b981" />
                 </div>
-                <h4 className="wcp-empty-state-title">
+                <h4 className="webcare-empty-state-title">
                   {uniqueIssues.length === 0 ? 'No Threats Detected · Your Website is 100% Clean' : 'No Findings Match Active Filters'}
                 </h4>
-                <p className="wcp-empty-state-desc">
+                <p className="webcare-empty-state-desc">
                   {uniqueIssues.length === 0
                     ? 'Zero active webshells, backdoor code, unauthorized scripts, or database injections detected. All core files and active components satisfy official security benchmarks.'
                     : 'Try resetting your search query or category filters to inspect all security records.'}
@@ -1715,7 +1715,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 {uniqueIssues.length > 0 && (
                   <button
                     type="button"
-                    className="wcp-btn wcp-btn-primary"
+                    className="webcare-btn webcare-btn-primary"
                     style={{ marginTop: '16px', fontSize: '12px', padding: '6px 14px' }}
                     onClick={() => {
                       setSeverityFilter('all');
@@ -1815,10 +1815,10 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   return (
                     <div
                       key={`concept-d-card-${issue.id}`}
-                      className="wcp-simple-threat-card"
+                      className="webcare-simple-threat-card"
                       style={{
-                        background: 'var(--wcp-bg-card, #ffffff)',
-                        border: '1px solid var(--wcp-border, #e2e8f0)',
+                        background: 'var(--webcare-bg-card, #ffffff)',
+                        border: '1px solid var(--webcare-border, #e2e8f0)',
                         borderLeft: `4px solid ${borderAccentColor}`,
                         borderRadius: '14px',
                         padding: '18px 22px',
@@ -1829,13 +1829,13 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       {/* Concept D Header: Title, Severity, Category, & Target Pill */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--wcp-text-muted, #64748b)', fontFamily: 'monospace' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--webcare-text-muted, #64748b)', fontFamily: 'monospace' }}>
                             #{absoluteIndex}
                           </span>
-                          <span className={`wcp-badge wcp-badge-${issue.severity}`} style={{ fontSize: '11px', padding: '3px 9px', textTransform: 'uppercase', fontWeight: 800 }}>
+                          <span className={`webcare-badge webcare-badge-${issue.severity}`} style={{ fontSize: '11px', padding: '3px 9px', textTransform: 'uppercase', fontWeight: 800 }}>
                             {issue.severity}
                           </span>
-                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--wcp-text-primary, #0f172a)' }}>
+                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--webcare-text-primary, #0f172a)' }}>
                             {displayTitle}
                           </h4>
                           {isUser ? (
@@ -1859,7 +1859,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               CORE FILESYSTEM
                             </span>
                           ) : (
-                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'var(--wcp-bg-surface, #f1f5f9)', color: 'var(--wcp-text-secondary, #64748b)', border: '1px solid var(--wcp-border, #e2e8f0)' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'var(--webcare-bg-surface, #f1f5f9)', color: 'var(--webcare-text-secondary, #64748b)', border: '1px solid var(--webcare-border, #e2e8f0)' }}>
                               {issue.engine || 'SECURITY VECTOR'}
                             </span>
                           )}
@@ -1898,11 +1898,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               style={{
                                 fontFamily: 'monospace',
                                 fontSize: '11.5px',
-                                background: 'var(--wcp-bg-surface, #f1f5f9)',
-                                border: '1px solid var(--wcp-border, #e2e8f0)',
+                                background: 'var(--webcare-bg-surface, #f1f5f9)',
+                                border: '1px solid var(--webcare-border, #e2e8f0)',
                                 padding: '3px 8px',
                                 borderRadius: '6px',
-                                color: 'var(--wcp-text-primary, #0f172a)',
+                                color: 'var(--webcare-text-primary, #0f172a)',
                                 maxWidth: '380px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
@@ -1919,7 +1919,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 background: 'none',
                                 border: 'none',
                                 cursor: 'pointer',
-                                color: copiedIssuePath === issue.file_path ? '#16a34a' : 'var(--wcp-text-muted, #64748b)',
+                                color: copiedIssuePath === issue.file_path ? '#16a34a' : 'var(--webcare-text-muted, #64748b)',
                                 padding: '4px'
                               }}
                               title="Copy path to clipboard"
@@ -1937,16 +1937,16 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         gap: '10px',
                         padding: '12px 14px',
                         borderRadius: '10px',
-                        background: 'var(--wcp-bg-surface, #f8fafc)',
-                        border: '1px solid var(--wcp-border, #e2e8f0)',
+                        background: 'var(--webcare-bg-surface, #f8fafc)',
+                        border: '1px solid var(--webcare-border, #e2e8f0)',
                         fontSize: '12.5px',
-                        color: 'var(--wcp-text-primary, #0f172a)',
+                        color: 'var(--webcare-text-primary, #0f172a)',
                         lineHeight: '1.5',
                         marginBottom: '14px'
                       }}>
                         <span style={{ fontSize: '16px', lineHeight: 1 }}>💡</span>
                         <div>
-                          <strong style={{ color: 'var(--wcp-primary, #4f46e5)' }}>Recommendation: </strong>
+                          <strong style={{ color: 'var(--webcare-primary, #4f46e5)' }}>Recommendation: </strong>
                           <span>{getFindingRecommendationText(issue)}</span>
                         </div>
                       </div>
@@ -1959,7 +1959,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         flexWrap: 'wrap',
                         gap: '10px',
                         paddingTop: '10px',
-                        borderTop: '1px solid var(--wcp-border, #e2e8f0)'
+                        borderTop: '1px solid var(--webcare-border, #e2e8f0)'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           {/* 1. Orphaned Author: Reassign Posts Action */}
@@ -1968,7 +1968,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               href={`edit.php?author=${orphanedAuthorId}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
                                 background: '#4f46e5',
                                 color: '#ffffff',
@@ -1996,7 +1996,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               href={`user-edit.php?user_id=${(issue.file_path && issue.file_path.match(/user:\s*(\d+)/i)?.[1]) || issue.user_id || 1}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
                                 background: '#4f46e5',
                                 color: '#ffffff',
@@ -2025,7 +2025,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 href={issue.update_url || 'plugins.php'}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="wcp-btn"
+                                className="webcare-btn"
                                 style={{
                                   background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
                                   color: '#ffffff',
@@ -2049,7 +2049,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               {onOpenChangelog && (
                                 <button
                                   type="button"
-                                  className="wcp-btn"
+                                  className="webcare-btn"
                                   style={{
                                     background: 'rgba(2, 132, 199, 0.1)',
                                     color: '#0284c7',
@@ -2077,7 +2077,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {issue.status === 'open' && isPhysicalFile && !issue.is_dir && (
                             <button
                               type="button"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
                                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                 color: '#ffffff',
@@ -2104,7 +2104,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {issue.status === 'open' && !isUpdate && !isCustomOrPremium && !isChecksumsUnavailable && !isUnknownFile && !issue.file_path?.endsWith('wp-config.php') && (isPlugin || isCore || isTheme) && (
                             <button
                               type="button"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
                                 background: '#f0fdf4',
                                 color: '#16a34a',
@@ -2130,7 +2130,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {isFimEligible && (
                             <button
                               type="button"
-                              className="wcp-btn-diff"
+                              className="webcare-btn-diff"
                               style={{
                                 background: 'rgba(2, 132, 199, 0.1)',
                                 color: '#0284c7',
@@ -2156,7 +2156,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {issue.status === 'open' && issue.type === 'unsafe_permissions' && (
                             <button
                               type="button"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
                                 background: '#fffbeb',
                                 color: '#d97706',
@@ -2181,11 +2181,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {issue.status === 'open' && (
                             <button
                               type="button"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
-                                background: 'var(--wcp-bg-surface, #f8fafc)',
-                                color: 'var(--wcp-text-secondary, #475569)',
-                                border: '1px solid var(--wcp-border, #cbd5e1)',
+                                background: 'var(--webcare-bg-surface, #f8fafc)',
+                                color: 'var(--webcare-text-secondary, #475569)',
+                                border: '1px solid var(--webcare-border, #cbd5e1)',
                                 padding: '6px 12px',
                                 borderRadius: '7px',
                                 fontSize: '12px',
@@ -2207,11 +2207,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {isIgnored && (
                             <button
                               type="button"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
-                                background: 'var(--wcp-bg-surface, #f8fafc)',
-                                color: 'var(--wcp-text-secondary, #475569)',
-                                border: '1px solid var(--wcp-border, #cbd5e1)',
+                                background: 'var(--webcare-bg-surface, #f8fafc)',
+                                color: 'var(--webcare-text-secondary, #475569)',
+                                border: '1px solid var(--webcare-border, #cbd5e1)',
                                 padding: '6px 12px',
                                 borderRadius: '7px',
                                 fontSize: '12px',
@@ -2234,11 +2234,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {issue.file_path && !issue.is_dir && !isUser && !isUpdate && (
                             <button
                               type="button"
-                              className="wcp-btn"
+                              className="webcare-btn"
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: 'var(--wcp-primary, #4f46e5)',
+                                color: 'var(--webcare-primary, #4f46e5)',
                                 fontSize: '12px',
                                 fontWeight: 700,
                                 cursor: 'pointer',
@@ -2257,11 +2257,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           {/* Old Expand Details Toggle Button */}
                           <button
                             type="button"
-                            className="wcp-btn wcp-btn-secondary"
+                            className="webcare-btn webcare-btn-secondary"
                             style={{
-                              background: isExpanded ? 'rgba(99, 102, 241, 0.15)' : 'var(--wcp-bg-surface, #f8fafc)',
-                              color: isExpanded ? '#4f46e5' : 'var(--wcp-text-primary, #0f172a)',
-                              border: '1px solid ' + (isExpanded ? 'rgba(99, 102, 241, 0.35)' : 'var(--wcp-border, #cbd5e1)'),
+                              background: isExpanded ? 'rgba(99, 102, 241, 0.15)' : 'var(--webcare-bg-surface, #f8fafc)',
+                              color: isExpanded ? '#4f46e5' : 'var(--webcare-text-primary, #0f172a)',
+                              border: '1px solid ' + (isExpanded ? 'rgba(99, 102, 241, 0.35)' : 'var(--webcare-border, #cbd5e1)'),
                               fontSize: '12px',
                               padding: '5px 12px',
                               borderRadius: '7px',
@@ -2308,7 +2308,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                  TECHNICAL VIEW: FULL DEVELOPER & SYSADMIN FORENSIC TABLE
                  ======================================================= */
               <div style={{ overflowX: 'auto' }}>
-                <table className="wcp-threat-table">
+                <table className="webcare-threat-table">
                   <thead>
                     <tr>
                       <th style={{ width: '48px', textAlign: 'center' }}>#</th>
@@ -2422,7 +2422,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                       return (
                         <Fragment key={`technical-finding-${issue.id}`}>
-                          <tr key={`threat-row-${issue.id}`} className={`wcp-threat-row ${rowSeverityClass}`}>
+                          <tr key={`threat-row-${issue.id}`} className={`webcare-threat-row ${rowSeverityClass}`}>
                             <td style={{ textAlign: 'center', padding: '12px 6px' }}>
                               <button
                                 type="button"
@@ -2454,7 +2454,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             </td>
 
                             <td>
-                              <span className={`wcp-badge wcp-badge-${issue.severity}`}>
+                              <span className={`webcare-badge webcare-badge-${issue.severity}`}>
                                 {issue.severity}
                               </span>
                             </td>
@@ -2462,37 +2462,37 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             <td>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)', fontSize: '13px' }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--webcare-text-primary, #0f172a)', fontSize: '13px' }}>
                                     {getFindingDisplayTitle(issue)}
                                   </span>
                                   {isComment ? (
-                                    <span className="wcp-type-badge-comment" style={{ background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                                    <span className="webcare-type-badge-comment" style={{ background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
                                       COMMENT
                                     </span>
                                   ) : isPost ? (
-                                    <span className="wcp-type-badge-post">
+                                    <span className="webcare-type-badge-post">
                                       {(issue.post_type || 'post').toUpperCase()}
                                     </span>
                                   ) : isUser ? (
-                                    <span className="wcp-type-badge-user" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                                    <span className="webcare-type-badge-user" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
                                       USER
                                     </span>
                                   ) : isDbTable ? (
-                                    <span className="wcp-type-badge-db" style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                                    <span className="webcare-type-badge-db" style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
                                       DB ROW
                                     </span>
                                   ) : isUpdate ? (
-                                    <span className="wcp-type-badge-update" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                                    <span className="webcare-type-badge-update" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
                                       UPDATE
                                     </span>
                                   ) : (
-                                    <span className="wcp-type-badge-file">FILE</span>
+                                    <span className="webcare-type-badge-file">FILE</span>
                                   )}
 
                                   {issue.cves && issue.cves.length > 0 && (
                                     <button
                                       type="button"
-                                      className="wcp-cve-pill-btn"
+                                      className="webcare-cve-pill-btn"
                                       onClick={() => onOpenCveModal(issue)}
                                       title={`View ${issue.cves.length} CVEs`}
                                     >
@@ -2518,7 +2518,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 </div>
                               ) : (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--wcp-text-primary, #0f172a)', wordBreak: 'break-all' }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--webcare-text-primary, #0f172a)', wordBreak: 'break-all' }}>
                                     {issue.file_path || 'N/A'}
                                   </span>
                                   {issue.file_path && (
@@ -2536,7 +2536,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             </td>
 
                             <td>
-                              <span className="wcp-badge" style={{
+                              <span className="webcare-badge" style={{
                                 background: issue.status === 'open' ? '#fee2e2' : '#ecfdf5',
                                 color: issue.status === 'open' ? '#b91c1c' : '#047857'
                               }}>
@@ -2552,7 +2552,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                     href={`edit.php?author=${orphanedAuthorId}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
                                       background: '#eef2ff',
                                       color: '#4f46e5',
@@ -2579,7 +2579,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                     href={`user-edit.php?user_id=${(issue.file_path && issue.file_path.match(/user:\s*(\d+)/i)?.[1]) || issue.user_id || 1}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
                                       background: '#eef2ff',
                                       color: '#4f46e5',
@@ -2607,7 +2607,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                       href={issue.update_url || 'plugins.php'}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="wcp-btn"
+                                      className="webcare-btn"
                                       style={{
                                         background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
                                         color: '#ffffff',
@@ -2630,7 +2630,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                     {onOpenChangelog && (
                                       <button
                                         type="button"
-                                        className="wcp-btn"
+                                        className="webcare-btn"
                                         style={{
                                           background: 'rgba(2, 132, 199, 0.1)',
                                           color: '#0284c7',
@@ -2658,7 +2658,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {issue.status === 'open' && !isUpdate && !isCustomOrPremium && !isChecksumsUnavailable && !isUnknownFile && !issue.file_path?.endsWith('wp-config.php') && (isPlugin || isCore || isTheme) && (
                                   <button
                                     type="button"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
                                       background: '#ecfdf5',
                                       color: '#047857',
@@ -2683,7 +2683,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {issue.status === 'open' && isPhysicalFile && !issue.is_dir && (
                                   <button
                                     type="button"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
                                       background: '#fee2e2',
                                       color: '#b91c1c',
@@ -2708,7 +2708,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {issue.status === 'open' && issue.type === 'unsafe_permissions' && (
                                   <button
                                     type="button"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
                                       background: '#fffbeb',
                                       color: '#d97706',
@@ -2733,7 +2733,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {isFimEligible && (
                                   <button
                                     type="button"
-                                    className="wcp-btn-diff"
+                                    className="webcare-btn-diff"
                                     onClick={() => onOpenVisualDiff(issue.file_path, issue.id)}
                                     title="Inspect side-by-side visual diff against official baseline"
                                   >
@@ -2746,7 +2746,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {issue.file_path && !issue.is_dir && !isUser && !isUpdate && (
                                   <button
                                     type="button"
-                                    className="wcp-btn wcp-btn-view-file"
+                                    className="webcare-btn webcare-btn-view-file"
                                     onClick={() => onOpenFileViewer(issue)}
                                     title="Inspect file source code"
                                   >
@@ -2759,11 +2759,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {issue.status === 'open' && (
                                   <button
                                     type="button"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
-                                      background: 'var(--wcp-bg-surface, #f8fafc)',
-                                      color: 'var(--wcp-text-secondary, #64748b)',
-                                      border: '1px solid var(--wcp-border, #cbd5e1)',
+                                      background: 'var(--webcare-bg-surface, #f8fafc)',
+                                      color: 'var(--webcare-text-secondary, #64748b)',
+                                      border: '1px solid var(--webcare-border, #cbd5e1)',
                                       fontSize: '12px',
                                       padding: '4px 10px',
                                       borderRadius: '6px',
@@ -2781,9 +2781,9 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {isIgnored && (
                                   <button
                                     type="button"
-                                    className="wcp-btn"
+                                    className="webcare-btn"
                                     style={{
-                                      background: 'var(--wcp-bg-surface, #f8fafc)',
+                                      background: 'var(--webcare-bg-surface, #f8fafc)',
                                       color: '#475569',
                                       border: '1px solid #cbd5e1',
                                       fontSize: '12px',
@@ -2801,11 +2801,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 {/* 9. Dedicated Old Expand Button */}
                                 <button
                                   type="button"
-                                  className="wcp-btn wcp-btn-secondary"
+                                  className="webcare-btn webcare-btn-secondary"
                                   style={{
-                                    background: isExpanded ? 'rgba(99, 102, 241, 0.15)' : 'var(--wcp-bg-surface, #f8fafc)',
-                                    color: isExpanded ? '#4f46e5' : 'var(--wcp-text-primary, #0f172a)',
-                                    border: '1px solid ' + (isExpanded ? 'rgba(99, 102, 241, 0.35)' : 'var(--wcp-border, #cbd5e1)'),
+                                    background: isExpanded ? 'rgba(99, 102, 241, 0.15)' : 'var(--webcare-bg-surface, #f8fafc)',
+                                    color: isExpanded ? '#4f46e5' : 'var(--webcare-text-primary, #0f172a)',
+                                    border: '1px solid ' + (isExpanded ? 'rgba(99, 102, 241, 0.35)' : 'var(--webcare-border, #cbd5e1)'),
                                     fontSize: '12px',
                                     padding: '4px 10px',
                                     borderRadius: '6px',
@@ -2832,7 +2832,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                           {/* Technical Expanded Row Drawer with Unified Forensic Dossier */}
                           {isExpanded && (
-                            <tr className="wcp-threat-expanded-row">
+                            <tr className="webcare-threat-expanded-row">
                               <td colSpan={6} style={{ padding: '14px 20px', background: 'transparent' }}>
                                 <FindingForensicsDrawer
                                   issue={issue}
@@ -2864,8 +2864,8 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '12px 22px',
-                  borderTop: '1px solid var(--wcp-border, #e2e8f0)',
-                  background: 'var(--wcp-bg-surface, #f8fafc)',
+                  borderTop: '1px solid var(--webcare-border, #e2e8f0)',
+                  background: 'var(--webcare-bg-surface, #f8fafc)',
                   borderBottomLeftRadius: '16px',
                   borderBottomRightRadius: '16px',
                   flexWrap: 'wrap',
@@ -2873,18 +2873,18 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                   fontSize: '12px'
                 }}
               >
-                <div style={{ color: 'var(--wcp-text-muted, #64748b)' }}>
+                <div style={{ color: 'var(--webcare-text-muted, #64748b)' }}>
                   Showing findings <strong>{(findingsPage - 1) * findingsPageSize + 1}</strong> &ndash; <strong>{Math.min(totalFindingsCount, findingsPage * findingsPageSize)}</strong> of <strong>{totalFindingsCount.toLocaleString()}</strong> total threats
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
-                    className="wcp-btn-micro"
+                    className="webcare-btn-micro"
                     disabled={findingsPage <= 1}
                     onClick={() => {
                       setFindingsPage(prev => Math.max(1, prev - 1));
-                      const el = document.getElementById('wcp-findings-hub-card');
+                      const el = document.getElementById('webcare-findings-hub-card');
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: findingsPage <= 1 ? 'not-allowed' : 'pointer' }}
@@ -2892,17 +2892,17 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     <ChevronLeft size={14} /> Previous
                   </button>
 
-                  <span style={{ fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)', padding: '0 6px', fontWeight: 600 }}>
+                  <span style={{ fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)', padding: '0 6px', fontWeight: 600 }}>
                     Page {findingsPage} of {totalFindingsPages}
                   </span>
 
                   <button
                     type="button"
-                    className="wcp-btn-micro"
+                    className="webcare-btn-micro"
                     disabled={findingsPage >= totalFindingsPages}
                     onClick={() => {
                       setFindingsPage(prev => Math.min(totalFindingsPages, prev + 1));
-                      const el = document.getElementById('wcp-findings-hub-card');
+                      const el = document.getElementById('webcare-findings-hub-card');
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: findingsPage >= totalFindingsPages ? 'not-allowed' : 'pointer' }}
@@ -2973,14 +2973,14 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
         {/* Quarantine Vault Table */}
         {dashboardSubTab === 'quarantine' && (
-          <div style={{ width: '100%', overflowX: 'auto', background: 'var(--wcp-bg-card, #ffffff)', borderRadius: '12px', border: '1px solid var(--wcp-border, #e2e8f0)' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--wcp-border, #e2e8f0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ fontSize: '13px', color: 'var(--wcp-text-secondary, #64748b)', fontWeight: 600 }}>
+          <div style={{ width: '100%', overflowX: 'auto', background: 'var(--webcare-bg-card, #ffffff)', borderRadius: '12px', border: '1px solid var(--webcare-border, #e2e8f0)' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--webcare-border, #e2e8f0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--webcare-text-secondary, #64748b)', fontWeight: 600 }}>
                 Threat Isolation Vault ({quarantinedFiles.filter(q => q.status === 'quarantined').length} active, {quarantinedFiles.filter(q => q.status === 'restored').length} restored)
               </div>
               <button
                 type="button"
-                className="wcp-btn"
+                className="webcare-btn"
                 onClick={() => onNavigateTab('quarantine')}
                 style={{
                   background: '#0284c7',
@@ -3005,28 +3005,28 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
             {quarantinedFiles.length === 0 ? (
               <div style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
                 <Archive size={48} color="#94a3b8" style={{ margin: '0 auto 12px auto' }} />
-                <h4 style={{ margin: '0 0 6px 0', fontSize: '18px', color: 'var(--wcp-text-primary, #1e293b)' }}>Quarantine Vault is Empty</h4>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '18px', color: 'var(--webcare-text-primary, #1e293b)' }}>Quarantine Vault is Empty</h4>
                 <p style={{ margin: 0, fontSize: '14px' }}>
                   Files quarantined from security findings will appear here with cryptographic SHA256 hashes and 1-click restore options.
                 </p>
               </div>
             ) : (
-              <table className="wcp-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
+              <table className="webcare-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
                 <thead>
-                  <tr style={{ background: 'var(--wcp-bg-surface, #f8fafc)', borderBottom: '1px solid var(--wcp-border, #e2e8f0)' }}>
-                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--wcp-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <tr style={{ background: 'var(--webcare-bg-surface, #f8fafc)', borderBottom: '1px solid var(--webcare-border, #e2e8f0)' }}>
+                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--webcare-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Quarantined File &amp; Storage Hash
                     </th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--wcp-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--webcare-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>
                       Size
                     </th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--wcp-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '160px' }}>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--webcare-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '160px' }}>
                       Quarantined At
                     </th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--wcp-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '130px' }}>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--webcare-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '130px' }}>
                       Status
                     </th>
-                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--wcp-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right', width: '230px' }}>
+                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--webcare-text-secondary, #475569)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right', width: '230px' }}>
                       Actions
                     </th>
                   </tr>
@@ -3038,8 +3038,8 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       <tr
                         key={q.id}
                         style={{
-                          background: isEven ? 'var(--wcp-bg-card, #ffffff)' : 'var(--wcp-bg-surface, #f8fafc)',
-                          borderBottom: '1px solid var(--wcp-border, #f1f5f9)',
+                          background: isEven ? 'var(--webcare-bg-card, #ffffff)' : 'var(--webcare-bg-surface, #f8fafc)',
+                          borderBottom: '1px solid var(--webcare-border, #f1f5f9)',
                           transition: 'background 0.15s ease',
                         }}
                       >
@@ -3051,14 +3051,14 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '6px',
-                                  background: 'var(--wcp-bg-surface, #f1f5f9)',
-                                  border: '1px solid var(--wcp-border, #e2e8f0)',
+                                  background: 'var(--webcare-bg-surface, #f1f5f9)',
+                                  border: '1px solid var(--webcare-border, #e2e8f0)',
                                   borderRadius: '6px',
                                   padding: '4px 10px',
                                   fontFamily: 'monospace',
                                   fontSize: '12px',
                                   fontWeight: 600,
-                                  color: 'var(--wcp-text-primary, #0f172a)',
+                                  color: 'var(--webcare-text-primary, #0f172a)',
                                   wordBreak: 'break-all',
                                 }}
                               >
@@ -3105,8 +3105,8 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                   alignItems: 'center',
                                   gap: '4px',
                                   fontFamily: 'monospace',
-                                  background: 'var(--wcp-bg-surface, #f8fafc)',
-                                  border: '1px solid var(--wcp-border, #e2e8f0)',
+                                  background: 'var(--webcare-bg-surface, #f8fafc)',
+                                  border: '1px solid var(--webcare-border, #e2e8f0)',
                                   padding: '2px 6px',
                                   borderRadius: '4px',
                                 }}
@@ -3135,7 +3135,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           </div>
                         </td>
 
-                        <td style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--wcp-text-primary, #334155)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--webcare-text-primary, #334155)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {(q.file_size / 1024).toFixed(1)} KB
                         </td>
 
@@ -3145,7 +3145,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
 
                         <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
                           <span
-                            className="wcp-badge"
+                            className="webcare-badge"
                             style={{
                               background: q.status === 'quarantined' ? '#fee2e2' : '#ecfdf5',
                               color: q.status === 'quarantined' ? '#b91c1c' : '#047857',
@@ -3180,7 +3180,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                               <>
                                 <button
                                   type="button"
-                                  className="wcp-btn"
+                                  className="webcare-btn"
                                   style={{
                                     background: '#ecfdf5',
                                     color: '#047857',
@@ -3202,7 +3202,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  className="wcp-btn"
+                                  className="webcare-btn"
                                   style={{
                                     background: '#fef2f2',
                                     color: '#dc2626',
@@ -3226,11 +3226,11 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             ) : (
                               <button
                                 type="button"
-                                className="wcp-btn"
+                                className="webcare-btn"
                                 style={{
-                                  background: 'var(--wcp-bg-surface, #f8fafc)',
+                                  background: 'var(--webcare-bg-surface, #f8fafc)',
                                   color: '#64748b',
-                                  border: '1px solid var(--wcp-border, #cbd5e1)',
+                                  border: '1px solid var(--webcare-border, #cbd5e1)',
                                   padding: '5px 12px',
                                   fontSize: '12px',
                                   fontWeight: 600,
@@ -3261,7 +3261,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
         {/* Scanned Files List Sub-Tab */}
         {dashboardSubTab === 'files' && (
           <div>
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--wcp-border, #e2e8f0)', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--webcare-border, #e2e8f0)', display: 'flex', justifyContent: 'flex-end' }}>
               <input
                 type="text"
                 placeholder="Filter scanned paths..."
@@ -3270,15 +3270,15 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px',
-                  border: '1px solid var(--wcp-border, #cbd5e1)',
+                  border: '1px solid var(--webcare-border, #cbd5e1)',
                   width: '280px',
-                  background: 'var(--wcp-bg-surface, #ffffff)',
-                  color: 'var(--wcp-text-primary, #0f172a)'
+                  background: 'var(--webcare-bg-surface, #ffffff)',
+                  color: 'var(--webcare-text-primary, #0f172a)'
                 }}
               />
             </div>
             <div style={{ maxHeight: '440px', overflowY: 'auto' }}>
-              <table className="wcp-table">
+              <table className="webcare-table">
                 <thead>
                   <tr>
                     <th>Path</th>
@@ -3294,7 +3294,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{file.file_path}</td>
                       <td>{(file.file_size / 1024).toFixed(1)} KB</td>
                       <td>
-                        <span className="wcp-badge" style={{ background: file.status === 'threat' ? '#fee2e2' : '#ecfdf5', color: file.status === 'threat' ? '#b91c1c' : '#047857' }}>
+                        <span className="webcare-badge" style={{ background: file.status === 'threat' ? '#fee2e2' : '#ecfdf5', color: file.status === 'threat' ? '#b91c1c' : '#047857' }}>
                           {file.status}
                         </span>
                       </td>
@@ -3302,7 +3302,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                       <td style={{ textAlign: 'right' }}>
                         <button
                           type="button"
-                          className="wcp-btn-inline-view"
+                          className="webcare-btn-inline-view"
                           onClick={() => onOpenFileViewer(undefined, file.file_path)}
                           title="Inspect file source code in popup"
                         >

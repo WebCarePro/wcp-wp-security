@@ -596,7 +596,7 @@ Require all denied
                         }
                     }
 
-                    // Virtual cron hook targets (e.g. "cron:wcp_scheduled_scan")
+                    // Virtual cron hook targets (e.g. "cron:webcare_scheduled_scan")
                     if (strpos($norm_p1, 'cron:') === 0 && strpos($norm_p2, 'cron:') === 0) {
                         if (explode(' ', $norm_p1)[0] === explode(' ', $norm_p2)[0]) {
                             return $rule;

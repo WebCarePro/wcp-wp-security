@@ -14,7 +14,7 @@ namespace WebCareProScanner\Firewall;
 
 use WebCareProScanner\Security\SecretVault;
 use WebCareProScanner\Notifications\NotificationDispatcher;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 use WebCareProScanner\System\SettingsManager;
 
 if (!defined('ABSPATH')) {
@@ -27,7 +27,7 @@ final class RedirectCanaryEngine {
     public const BASELINE_OPTION     = 'webcareproscan_canonical_host_baseline';
     public const LAST_REPORT_OPTION  = 'webcareproscan_redirect_canary_last_report';
     public const AUTO_HEAL_OPTION    = 'webcareproscan_redirect_auto_heal_enabled';
-    public const HMAC_HEADER         = 'X-WCP-Canary-Signature';
+    public const HMAC_HEADER         = 'X-WebCare-Canary-Signature';
 
     /**
      * User-Agent Strings for Probing.
@@ -334,8 +334,8 @@ final class RedirectCanaryEngine {
         // Simulated residential public IP pool to bypass 127.0.0.1 / server-IP cloaking gates
         $simulated_ip = '198.51.100.' . wp_rand(11, 240);
 
-        // Internal HMAC verification header so WCP firewall engine recognizes internal probe
-        $hmac_sig = hash_hmac('sha256', 'wcp-canary-probe', SecretVault::get_key());
+        // Internal HMAC verification header so WebCare firewall engine recognizes internal probe
+        $hmac_sig = hash_hmac('sha256', 'webcare-canary-probe', SecretVault::get_key());
 
         $headers = [
             'User-Agent'             => $user_agent,
@@ -724,8 +724,8 @@ final class RedirectCanaryEngine {
         wp_cache_delete('siteurl', 'options');
         wp_cache_delete('alloptions', 'options');
 
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            WcpActivityLogger::log('database_core_urls_healed', 'database', 'critical', [
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            WebCareActivityLogger::log('database_core_urls_healed', 'database', 'critical', [
                 'restored_home'    => $baseline['home_url'],
                 'restored_siteurl' => $baseline['site_url'],
             ]);
@@ -830,7 +830,7 @@ final class RedirectCanaryEngine {
                     'severity' => 'critical',
                     'message'  => sprintf(
                         /* translators: %s: incident description */
-                        __('Redirect Hack Detected by WCP Synthetic Canary: %s', 'webcare-pro-security'),
+                        __('Redirect Hack Detected by WebCare Synthetic Canary: %s', 'webcare-pro-security'),
                         $desc
                     ),
                     'details'  => [

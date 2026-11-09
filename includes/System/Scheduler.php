@@ -31,7 +31,7 @@ class Scheduler {
 
         // Schedule 15-minute synthetic redirect canary watchdog
         if (!wp_next_scheduled(self::CANARY_HOOK)) {
-            wp_schedule_event(time() + 60, 'wcp_15min', self::CANARY_HOOK);
+            wp_schedule_event(time() + 60, 'webcare_15min', self::CANARY_HOOK);
         }
 
         // Custom cron intervals (e.g., weekly, 5-minutes, 15-minutes)
@@ -42,16 +42,16 @@ class Scheduler {
                     'display'  => __('Once Weekly', 'webcare-pro-security'),
                 ];
             }
-            if (!isset($schedules['wcp_every_five_minutes'])) {
-                $schedules['wcp_every_five_minutes'] = [
+            if (!isset($schedules['webcare_every_five_minutes'])) {
+                $schedules['webcare_every_five_minutes'] = [
                     'interval' => 300,
-                    'display'  => __('Every 5 Minutes (WCP Security)', 'webcare-pro-security'),
+                    'display'  => __('Every 5 Minutes (WebCare Pro Security)', 'webcare-pro-security'),
                 ];
             }
-            if (!isset($schedules['wcp_15min'])) {
-                $schedules['wcp_15min'] = [
+            if (!isset($schedules['webcare_15min'])) {
+                $schedules['webcare_15min'] = [
                     'interval' => 900,
-                    'display'  => __('Every 15 Minutes (WCP Redirect Canary)', 'webcare-pro-security'),
+                    'display'  => __('Every 15 Minutes (WebCare Redirect Canary)', 'webcare-pro-security'),
                 ];
             }
             return $schedules;
@@ -159,7 +159,7 @@ class Scheduler {
          set_transient("webcareproscan_scan_start_micro_{$scan_id}", $start_time, HOUR_IN_SECONDS);
 
          // Audit Trail: Log scheduled scan started (Attributed to System WP-Cron)
-         \WebCareProScanner\System\WcpActivityLogger::info(
+         \WebCareProScanner\System\WebCareActivityLogger::info(
              'scheduled_scan_started',
              'scan',
              [
@@ -393,7 +393,7 @@ class Scheduler {
              self::send_scan_notification($scan_id, $open_issues_count, $risk_score, $target);
 
              // Audit Trail: Log scheduled scan completed
-             \WebCareProScanner\System\WcpActivityLogger::info(
+             \WebCareProScanner\System\WebCareActivityLogger::info(
                  'scheduled_scan_completed',
                  'scan',
                  [
@@ -439,7 +439,7 @@ class Scheduler {
                  'completed_at' => \WebCareProScanner\Api\ScannerRoutes::now_fractional_mysql(),
              ], ['id' => $scan_id]);
              // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-             error_log('[WCP Scanner] Scheduled scan failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+             error_log('[WebCare Pro] Scheduled scan failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
          }
     }
 
@@ -547,7 +547,7 @@ class Scheduler {
 
         $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
         $site_url = get_site_url();
-        $admin_url = admin_url('admin.php?page=wcp-security-scanner');
+        $admin_url = admin_url('admin.php?page=webcare-pro-security');
 
         $status_label = ($critical_count > 0 || $high_count > 0) ? '🔴 SECURITY ALERT' : '🛡️ Security Scan Report';
         $host = wp_parse_url($site_url, PHP_URL_HOST) ?: $site_url;
@@ -571,7 +571,7 @@ class Scheduler {
         $json_ld = [
             '@context'         => 'https://schema.org',
             '@type'            => 'SecurityAssessment',
-            'name'             => "WCP Security Scan #{$scan_id}",
+            'name'             => "WebCare Pro Security Scan #{$scan_id}",
             'description'      => $ai_summary_line,
             'datePublished'    => gmdate('Y-m-d H:i:s') . ' GMT',
             'about'            => [
@@ -600,8 +600,8 @@ class Scheduler {
 
         $body = "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>";
         $body .= "<meta name='description' content='" . esc_attr($ai_summary_line) . "'>";
-        $body .= "<meta name='wcp-risk-score' content='" . esc_attr((string)$risk_score) . "'>";
-        $body .= "<meta name='wcp-critical-threats' content='" . esc_attr((string)$critical_count) . "'>";
+        $body .= "<meta name='webcare-risk-score' content='" . esc_attr((string)$risk_score) . "'>";
+        $body .= "<meta name='webcare-critical-threats' content='" . esc_attr((string)$critical_count) . "'>";
         $body .= "<script type='application/ld+json'>{$json_ld_string}</script>";
         $body .= "</head><body style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;background-color:#f1f5f9;margin:0;padding:28px 12px;color:#0f172a;'>";
 
@@ -715,9 +715,9 @@ class Scheduler {
         $body .= "<p style='margin:0 0 16px 0;color:#cbd5e1;font-size:12.5px;line-height:1.6;'>";
         $body .= "WebCare Pro helps businesses build, secure, optimize, and manage high-performance websites and servers. From Linux &amp; cloud infrastructure to blazing-fast performance, website security, migrations, Cloudflare, DNS, managed hosting, and modern web development—we keep your online presence fast, secure, and always available.";
         $body .= "</p>";
-        $notif_url = admin_url('admin.php?page=wcp-scanner-notifications');
+        $notif_url = admin_url('admin.php?page=webcare-pro-notifications');
         $body .= "<div style='border-top:1px solid #1e293b;padding-top:14px;font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;'>";
-        $body .= "Automated Security Audit Report generated on <span style='color:#e2e8f0;font-weight:600;'>" . gmdate('Y-m-d H:i:s') . " GMT</span>. You can manage granular notification preferences anytime under <strong>WCP Scanner &gt; <a href='{$notif_url}' style='color:#38bdf8;text-decoration:underline;font-weight:600;'>Notifications</a></strong>.";
+        $body .= "Automated Security Audit Report generated on <span style='color:#e2e8f0;font-weight:600;'>" . gmdate('Y-m-d H:i:s') . " GMT</span>. You can manage granular notification preferences anytime under <strong>WebCare Pro &gt; <a href='{$notif_url}' style='color:#38bdf8;text-decoration:underline;font-weight:600;'>Notifications</a></strong>.";
         $body .= "</div>";
         $body .= "</div>";
 

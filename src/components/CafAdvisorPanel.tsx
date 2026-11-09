@@ -126,9 +126,9 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
 
   if (loading && !data) {
     return (
-      <div className="wcp-card wcp-firewall-card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <Loader2 className="wcp-spin" size={20} color="#0284c7" />
-        <span style={{ fontSize: '14px', color: 'var(--wcp-text-secondary, #475569)' }}>Analyzing WordPress stack anatomy &amp; CAF Advisor...</span>
+      <div className="webcare-card webcare-firewall-card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <Loader2 className="webcare-spin" size={20} color="#0284c7" />
+        <span style={{ fontSize: '14px', color: 'var(--webcare-text-secondary, #475569)' }}>Analyzing WordPress stack anatomy &amp; CAF Advisor...</span>
       </div>
     );
   }
@@ -179,22 +179,22 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
   ];
 
   return (
-    <div className="wcp-card wcp-firewall-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="webcare-card webcare-firewall-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--wcp-border, #e2e8f0)', paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--webcare-border, #e2e8f0)', paddingBottom: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ display: 'inline-flex', padding: '6px', borderRadius: '8px', background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7' }}>
               <Sparkles size={20} />
             </span>
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--wcp-text-heading, #0f172a)' }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--webcare-text-heading, #0f172a)' }}>
               Context-Adaptive Firewall (CAF) &amp; StackGuard Engine
             </h3>
-            <span className="wcp-badge-pill wcp-badge-info" style={{ fontSize: '11px', textTransform: 'uppercase' }}>
+            <span className="webcare-badge-pill webcare-badge-info" style={{ fontSize: '11px', textTransform: 'uppercase' }}>
               Phase 1 Active
             </span>
           </div>
-          <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--wcp-text-secondary, #475569)' }}>
+          <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--webcare-text-secondary, #475569)' }}>
             Deeply inspects installed plugins, themes, and REST routes to synthesize hyper-tailored, zero-friction firewall rules.
           </p>
         </div>
@@ -202,18 +202,18 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
-            className="wcp-btn wcp-btn-secondary"
+            className="webcare-btn webcare-btn-secondary"
             onClick={handleReprofile}
             disabled={refreshing}
             style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <RefreshCw size={14} className={refreshing ? 'wcp-spin' : ''} />
+            <RefreshCw size={14} className={refreshing ? 'webcare-spin' : ''} />
             {refreshing ? 'Re-profiling...' : 'Re-Profile Stack'}
           </button>
 
           <button
             type="button"
-            className={`wcp-btn ${isKilled ? 'wcp-btn-danger' : 'wcp-btn-secondary'}`}
+            className={`webcare-btn ${isKilled ? 'webcare-btn-danger' : 'webcare-btn-secondary'}`}
             onClick={handleToggleKillswitch}
             disabled={togglingKillswitch}
             title={isKilled ? 'Preload WAF is bypassed. Click to reactivate.' : 'Emergency Killswitch: Bypass preload WAF instantly.'}
@@ -227,7 +227,7 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
 
       {notice && (
         <div
-          className={`wcp-alert ${notice.type === 'success' ? 'wcp-alert-success' : 'wcp-alert-danger'}`}
+          className={`webcare-alert ${notice.type === 'success' ? 'webcare-alert-success' : 'webcare-alert-danger'}`}
           style={{ padding: '10px 14px', borderRadius: '6px', fontSize: '13px' }}
         >
           <div style={{ fontWeight: 600, marginBottom: (notice as any).autoEnabled?.length > 0 ? '6px' : 0 }}>
@@ -238,7 +238,7 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <CheckCircle2 size={12} /> Auto-Enabled on Firewall Rules &amp; Controls:
               </div>
-              <ul style={{ margin: '0', padding: '0 0 0 16px', fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)' }}>
+              <ul style={{ margin: '0', padding: '0 0 0 16px', fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)' }}>
                 {(notice as any).autoEnabled.map((item: string, idx: number) => (
                   <li key={idx} style={{ marginBottom: '2px' }}>{item}</li>
                 ))}
@@ -250,42 +250,42 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
 
       {/* Anatomy Summary Cockpit */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <div className="wcp-firewall-rule-card" style={{ padding: '14px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-muted, #64748b)', textTransform: 'uppercase' }}>WordPress &amp; PHP Stack</div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--wcp-text-heading, #0f172a)', marginTop: '4px' }}>
+        <div className="webcare-firewall-rule-card" style={{ padding: '14px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--webcare-text-muted, #64748b)', textTransform: 'uppercase' }}>WordPress &amp; PHP Stack</div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--webcare-text-heading, #0f172a)', marginTop: '4px' }}>
             WP v{snapshot.wp_version || '7.1'} • PHP {snapshot.php_version || '8.3'}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)', marginTop: '2px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)', marginTop: '2px' }}>
             {Object.keys(snapshot.active_plugins || {}).length} Active Plugins • Theme: {snapshot.active_themes?.active?.slug || 'Active'}
           </div>
         </div>
 
-        <div className="wcp-firewall-rule-card" style={{ padding: '14px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-muted, #64748b)', textTransform: 'uppercase' }}>Dormant Attack Surface</div>
+        <div className="webcare-firewall-rule-card" style={{ padding: '14px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--webcare-text-muted, #64748b)', textTransform: 'uppercase' }}>Dormant Attack Surface</div>
           <div style={{ fontSize: '15px', fontWeight: 700, color: recs.lock_dormant_surface ? '#10b981' : '#f59e0b', marginTop: '4px' }}>
             {recs.dormant_plugin_count || 0} Deactivated Plugins
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)', marginTop: '2px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)', marginTop: '2px' }}>
             {recs.lock_dormant_surface ? '🔒 Locked down at WAF layer' : '⚠️ Unprotected direct access'}
           </div>
         </div>
 
-        <div className="wcp-firewall-rule-card" style={{ padding: '14px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-muted, #64748b)', textTransform: 'uppercase' }}>Conflict Avoidance Shields</div>
+        <div className="webcare-firewall-rule-card" style={{ padding: '14px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--webcare-text-muted, #64748b)', textTransform: 'uppercase' }}>Conflict Avoidance Shields</div>
           <div style={{ fontSize: '15px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>
             {recs.conflict_exemptions?.scoped_rules?.length || 0} Context Safe-Passes
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)', marginTop: '2px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)', marginTop: '2px' }}>
             Zero false-positive e-commerce &amp; builder saves
           </div>
         </div>
 
-        <div className="wcp-firewall-rule-card" style={{ padding: '14px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--wcp-text-muted, #64748b)', textTransform: 'uppercase' }}>Residual Risk Score</div>
+        <div className="webcare-firewall-rule-card" style={{ padding: '14px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--webcare-text-muted, #64748b)', textTransform: 'uppercase' }}>Residual Risk Score</div>
           <div style={{ fontSize: '15px', fontWeight: 700, color: riskScore > 50 ? '#ef4444' : '#10b981', marginTop: '4px' }}>
             {riskScore} / 100
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)', marginTop: '2px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)', marginTop: '2px' }}>
             {riskScore <= 20 ? 'Optimal Protection Posture' : 'Hardening recommended'}
           </div>
         </div>
@@ -294,10 +294,10 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
       {/* Smart Protection Profiles */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--wcp-text-heading, #0f172a)' }}>
+          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--webcare-text-heading, #0f172a)' }}>
             Smart Protection Profiles
           </h4>
-          <span style={{ fontSize: '12px', color: 'var(--wcp-text-muted, #64748b)' }}>
+          <span style={{ fontSize: '12px', color: 'var(--webcare-text-muted, #64748b)' }}>
             Recommended: <strong style={{ color: '#0284c7' }}>{profiles.find(p => p.id === recs.recommended_profile)?.name || 'E-Commerce Hardened'}</strong>
           </span>
         </div>
@@ -311,43 +311,43 @@ export const CafAdvisorPanel: React.FC<CafAdvisorPanelProps> = ({ apiRequest, on
             return (
               <div
                 key={p.id}
-                className="wcp-firewall-rule-card"
+                className="webcare-firewall-rule-card"
                 style={{
                   padding: '16px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  border: isCurrent ? '2px solid #0284c7' : '1px solid var(--wcp-border, #e2e8f0)',
-                  background: isCurrent ? 'var(--wcp-bg-surface-elevated, rgba(2, 132, 199, 0.04))' : undefined
+                  border: isCurrent ? '2px solid #0284c7' : '1px solid var(--webcare-border, #e2e8f0)',
+                  background: isCurrent ? 'var(--webcare-bg-surface-elevated, rgba(2, 132, 199, 0.04))' : undefined
                 }}
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {p.icon}
-                      <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--wcp-text-heading, #0f172a)' }}>
+                      <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--webcare-text-heading, #0f172a)' }}>
                         {p.name}
                       </span>
                     </div>
                     {isRec && (
-                      <span className="wcp-badge-pill wcp-badge-clean" style={{ fontSize: '10px' }}>
+                      <span className="webcare-badge-pill webcare-badge-clean" style={{ fontSize: '10px' }}>
                         Recommended
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: '8px 0 14px', fontSize: '12px', color: 'var(--wcp-text-secondary, #475569)', lineHeight: 1.4 }}>
+                  <p style={{ margin: '8px 0 14px', fontSize: '12px', color: 'var(--webcare-text-secondary, #475569)', lineHeight: 1.4 }}>
                     {p.desc}
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--wcp-border, #e2e8f0)', paddingTop: '10px', marginTop: 'auto' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: isCurrent ? '#0284c7' : 'var(--wcp-text-muted, #64748b)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--webcare-border, #e2e8f0)', paddingTop: '10px', marginTop: 'auto' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: isCurrent ? '#0284c7' : 'var(--webcare-text-muted, #64748b)' }}>
                     {isCurrent ? '● Active Profile' : 'Inactive'}
                   </span>
 
                   <button
                     type="button"
-                    className={`wcp-btn ${isCurrent ? 'wcp-btn-secondary' : 'wcp-btn-primary'}`}
+                    className={`webcare-btn ${isCurrent ? 'webcare-btn-secondary' : 'webcare-btn-primary'}`}
                     disabled={isCurrent || isApplying}
                     onClick={() => handleApplyProfile(p.id)}
                     style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '4px' }}

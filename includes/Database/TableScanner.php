@@ -186,7 +186,7 @@ class TableScanner {
                     strpos($opt_name, 'feed_') === 0 ||
                     strpos($opt_name, 'cache_') === 0 ||
                     strpos($opt_name, 'webcareproscan_') === 0 ||
-                    strpos($opt_name, 'wcp_') === 0) {
+                    strpos($opt_name, 'webcare_') === 0) {
                     continue; // Skip transient/cache entries and plugin's own internal security telemetry options
                 }
             }

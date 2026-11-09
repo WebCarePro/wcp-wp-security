@@ -3,7 +3,7 @@ namespace WebCareProScanner\Auth;
 
 use WebCareProScanner\Firewall\FirewallEngine;
 use WebCareProScanner\Notifications\NotificationDispatcher;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -108,7 +108,7 @@ class ApplicationPasswordSentinel {
         if (!empty(get_option(self::OPTION_DISABLED, 0))) {
             $error->add(
                 'webcareproscan_app_pass_disabled',
-                __('WCP Security Sentinel: Application Passwords have been disabled site-wide by your administrator.', 'webcare-pro-security')
+                __('WebCare Pro Security Sentinel: Application Passwords have been disabled site-wide by your administrator.', 'webcare-pro-security')
             );
             return $error;
         }
@@ -119,7 +119,7 @@ class ApplicationPasswordSentinel {
             if (!$user instanceof \WP_User || !user_can($user, 'manage_options')) {
                 $error->add(
                     'webcareproscan_app_pass_admin_only',
-                    __('WCP Security Sentinel: Application Passwords on this site are restricted strictly to Administrators.', 'webcare-pro-security')
+                    __('WebCare Pro Security Sentinel: Application Passwords on this site are restricted strictly to Administrators.', 'webcare-pro-security')
                 );
                 return $error;
             }
@@ -143,8 +143,8 @@ class ApplicationPasswordSentinel {
                 $user_id   = $user instanceof \WP_User ? (int) $user->ID : 0;
 
                 // Log critical phishing trap incident
-                if (class_exists(WcpActivityLogger::class)) {
-                    WcpActivityLogger::log(
+                if (class_exists(WebCareActivityLogger::class)) {
+                    WebCareActivityLogger::log(
                         'app_password_consent_trap_blocked',
                         'auth',
                         'critical',
@@ -184,7 +184,7 @@ class ApplicationPasswordSentinel {
                     'webcareproscan_untrusted_callback',
                     sprintf(
                         /* translators: 1: Application name, 2: Destination host */
-                        __('SECURITY ALERT (WCP Sentinel): Authorization for "%1$s" was blocked because the callback domain "%2$s" is an untrusted external host. Directing Application Passwords to unapproved external servers is blocked to prevent 1-click token phishing and 2FA bypass.', 'webcare-pro-security'),
+                        __('SECURITY ALERT (WebCare Sentinel): Authorization for "%1$s" was blocked because the callback domain "%2$s" is an untrusted external host. Directing Application Passwords to unapproved external servers is blocked to prevent 1-click token phishing and 2FA bypass.', 'webcare-pro-security'),
                         esc_html($app_name ?: __('Unknown Application', 'webcare-pro-security')),
                         esc_html($host ?: __('Malformed URL', 'webcare-pro-security'))
                     )
@@ -205,7 +205,7 @@ class ApplicationPasswordSentinel {
                     'webcareproscan_untrusted_reject_callback',
                     sprintf(
                         /* translators: 1: Destination host */
-                        __('SECURITY ALERT (WCP Sentinel): The reject callback domain "%1$s" is not in the approved domain whitelist.', 'webcare-pro-security'),
+                        __('SECURITY ALERT (WebCare Sentinel): The reject callback domain "%1$s" is not in the approved domain whitelist.', 'webcare-pro-security'),
                         esc_html($reject_host ?: __('Malformed URL', 'webcare-pro-security'))
                     )
                 );
@@ -231,7 +231,7 @@ class ApplicationPasswordSentinel {
                 if ($step_up_code === '') {
                     $error->add(
                         'webcareproscan_step_up_totp_required',
-                        __('WCP Security Sentinel: Re-authentication required. Please enter your 6 or 8-digit Two-Factor Authentication (TOTP) code to authorize minting this Application Password.', 'webcare-pro-security')
+                        __('WebCare Pro Security Sentinel: Re-authentication required. Please enter your 6 or 8-digit Two-Factor Authentication (TOTP) code to authorize minting this Application Password.', 'webcare-pro-security')
                     );
                     return $error;
                 }
@@ -249,13 +249,13 @@ class ApplicationPasswordSentinel {
                 if (!$totp_valid) {
                     $error->add(
                         'webcareproscan_step_up_totp_invalid',
-                        __('WCP Security Sentinel: Invalid Two-Factor Authentication code. Please verify the code in your authenticator app and try again.', 'webcare-pro-security')
+                        __('WebCare Pro Security Sentinel: Invalid Two-Factor Authentication code. Please verify the code in your authenticator app and try again.', 'webcare-pro-security')
                     );
                     return $error;
                 }
 
-                if (class_exists(WcpActivityLogger::class)) {
-                    WcpActivityLogger::log(
+                if (class_exists(WebCareActivityLogger::class)) {
+                    WebCareActivityLogger::log(
                         'app_password_step_up_verified',
                         'auth',
                         'info',
@@ -278,7 +278,7 @@ class ApplicationPasswordSentinel {
                 if ($step_up_pass === '') {
                     $error->add(
                         'webcareproscan_step_up_password_required',
-                        __('WCP Security Sentinel: Re-authentication required. Please enter your WordPress account password to approve minting this Application Password.', 'webcare-pro-security')
+                        __('WebCare Pro Security Sentinel: Re-authentication required. Please enter your WordPress account password to approve minting this Application Password.', 'webcare-pro-security')
                     );
                     return $error;
                 }
@@ -286,13 +286,13 @@ class ApplicationPasswordSentinel {
                 if (!wp_check_password($step_up_pass, $user->user_pass, $user_id)) {
                     $error->add(
                         'webcareproscan_step_up_password_invalid',
-                        __('WCP Security Sentinel: Incorrect account password entered for step-up identity verification.', 'webcare-pro-security')
+                        __('WebCare Pro Security Sentinel: Incorrect account password entered for step-up identity verification.', 'webcare-pro-security')
                     );
                     return $error;
                 }
 
-                if (class_exists(WcpActivityLogger::class)) {
-                    WcpActivityLogger::log(
+                if (class_exists(WebCareActivityLogger::class)) {
+                    WebCareActivityLogger::log(
                         'app_password_step_up_verified',
                         'auth',
                         'info',
@@ -322,7 +322,7 @@ class ApplicationPasswordSentinel {
         if (!empty(get_option(self::OPTION_DISABLED, 0))) {
             wp_die(
                 '<h1>' . esc_html__('Application Passwords Disabled', 'webcare-pro-security') . '</h1>' .
-                '<p>' . esc_html__('WCP Security Sentinel: REST Application Passwords have been disabled on this site to prevent unauthorized API access.', 'webcare-pro-security') . '</p>',
+                '<p>' . esc_html__('WebCare Pro Security Sentinel: REST Application Passwords have been disabled on this site to prevent unauthorized API access.', 'webcare-pro-security') . '</p>',
                 esc_html__('Authorization Blocked', 'webcare-pro-security'),
                 ['response' => 403]
             );
@@ -353,10 +353,10 @@ class ApplicationPasswordSentinel {
 
         if ($has_2fa) {
             ?>
-            <div class="wcp-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #c7d2fe; border-radius: 8px; background: #f8faff;">
+            <div class="webcare-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #c7d2fe; border-radius: 8px; background: #f8faff;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
                     <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #4f46e5;"></span>
-                    <strong style="color: #1e1b4b; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up 2FA Verification Required', 'webcare-pro-security'); ?></strong>
+                    <strong style="color: #1e1b4b; font-size: 14px;"><?php esc_html_e('WebCare Pro Security Sentinel: Step-Up 2FA Verification Required', 'webcare-pro-security'); ?></strong>
                 </div>
                 <p style="margin: 0 0 12px; font-size: 13px; color: #4338ca; line-height: 1.5;">
                     <?php esc_html_e('Because Application Passwords grant persistent REST API access, you must verify your identity with your Two-Factor Authentication (TOTP) code before minting this credential.', 'webcare-pro-security'); ?>
@@ -371,10 +371,10 @@ class ApplicationPasswordSentinel {
             <?php
         } else {
             ?>
-            <div class="wcp-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #fed7aa; border-radius: 8px; background: #fffaf5;">
+            <div class="webcare-step-up-card" style="margin: 20px 0; padding: 18px; border: 1px solid #fed7aa; border-radius: 8px; background: #fffaf5;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
                     <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ea580c;"></span>
-                    <strong style="color: #7c2d12; font-size: 14px;"><?php esc_html_e('WCP Security Sentinel: Step-Up Identity Verification Required', 'webcare-pro-security'); ?></strong>
+                    <strong style="color: #7c2d12; font-size: 14px;"><?php esc_html_e('WebCare Pro Security Sentinel: Step-Up Identity Verification Required', 'webcare-pro-security'); ?></strong>
                 </div>
                 <p style="margin: 0 0 12px; font-size: 13px; color: #9a3412; line-height: 1.5;">
                     <?php esc_html_e('To protect against 1-click consent traps and unattended session misuse, enter your account password before minting this Application Password.', 'webcare-pro-security'); ?>
@@ -468,9 +468,9 @@ class ApplicationPasswordSentinel {
         $uuid      = sanitize_text_field($new_item['uuid'] ?? '');
         $client_ip = class_exists(FirewallEngine::class) ? FirewallEngine::get_client_ip() : (sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1')));
 
-        // Log to WcpActivityLogger
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        // Log to WebCareActivityLogger
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'application_password_created',
                 'auth',
                 'notice',
@@ -593,8 +593,8 @@ class ApplicationPasswordSentinel {
 
         $result = \WP_Application_Passwords::delete_application_password($user_id, $uuid);
 
-        if ($result && class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if ($result && class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'application_password_revoked',
                 'auth',
                 'notice',
@@ -626,8 +626,8 @@ class ApplicationPasswordSentinel {
 
         $result = \WP_Application_Passwords::delete_all_application_passwords($user_id);
 
-        if ($result && class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if ($result && class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'application_passwords_bulk_revoked',
                 'auth',
                 'notice',
@@ -726,8 +726,8 @@ class ApplicationPasswordSentinel {
             update_option(self::OPTION_ALLOWED_DOMAINS, array_values(array_unique($cleaned)));
         }
 
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'app_password_sentinel_settings_updated',
                 'settings',
                 'info',

@@ -211,7 +211,7 @@ class IncidentReportEngine {
             'status_ledger'        => $status_ledger,
         ]);
 
-        $report_id = 'WCP-IR-' . gmdate('Ymd') . '-' . strtoupper(substr(md5($site_url . ($scan['id'] ?? '0')), 0, 6));
+        $report_id = 'WEBCARE-IR-' . gmdate('Ymd') . '-' . strtoupper(substr(md5($site_url . ($scan['id'] ?? '0')), 0, 6));
 
         return [
             'report_id'    => $report_id,
@@ -795,7 +795,7 @@ class IncidentReportEngine {
     <!-- No-Print Action Bar -->
     <div class=\"action-bar no-print\">
         <div>
-            <strong>WCP Executive Incident Report Engine</strong> &bull; v{$escape($report['version'])}
+            <strong>WebCare Executive Incident Report Engine</strong> &bull; v{$escape($report['version'])}
         </div>
         <div style=\"display:flex;\">
             <button class=\"action-bar-btn\" onclick=\"window.print()\">

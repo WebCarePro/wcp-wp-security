@@ -307,7 +307,7 @@ class SessionSentinel {
                     'session_hijack_deflected',
                     sprintf('Deflected hijacked administrative session for %s. Baseline IP %s (ASN %s) vs Incoming IP %s (ASN %s). Session liquidated.', $user->user_login, $current_login_ip, $recorded_asn ?: 'N/A', $ip, $current_asn ?: 'N/A')
                 );
-                wp_safe_redirect(add_query_arg('wcp_session_invalidated', '1', wp_login_url()));
+                wp_safe_redirect(add_query_arg('webcare_session_invalidated', '1', wp_login_url()));
                 exit;
             }
         } catch (\Throwable $e) {
@@ -546,7 +546,7 @@ class SessionSentinel {
             return true;
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('[WCP Security] Error terminating session: ' . $e->getMessage());
+            error_log('[WebCare Pro Security] Error terminating session: ' . $e->getMessage());
             return false;
         }
     }
@@ -607,7 +607,7 @@ class SessionSentinel {
             return true;
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('[WCP Security] Error terminating other sessions: ' . $e->getMessage());
+            error_log('[WebCare Pro Security] Error terminating other sessions: ' . $e->getMessage());
             return false;
         }
     }

@@ -2,7 +2,7 @@
 /**
  * Fired when the plugin is deleted via the WordPress Admin Plugins screen.
  *
- * @package WCP_Security_Scanner
+ * @package WebCare_Pro_Security
  */
 
 if (!defined('WP_UNINSTALL_PLUGIN')) {
@@ -94,7 +94,7 @@ if (file_exists($webcareproscan_server_sec_file)) {
 
 // Remove Must-Use (MU) plugin watchdog unconditionally upon uninstall
 $webcareproscan_mu_dir = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins';
-$webcareproscan_mu_file = $webcareproscan_mu_dir . '/wcp-jit-guardian.php';
+$webcareproscan_mu_file = $webcareproscan_mu_dir . '/webcare-jit-guardian.php';
 if (file_exists($webcareproscan_mu_file)) {
     wp_delete_file($webcareproscan_mu_file);
 }
@@ -123,12 +123,12 @@ if ($webcareproscan_delete_data) {
             $wpdb->prefix . 'webcareproscan_quarantine',
             $wpdb->prefix . 'webcareproscan_firewall_logs',
             $wpdb->prefix . 'webcareproscan_login_history',
-            $wpdb->prefix . 'wcp_scans',
-            $wpdb->prefix . 'wcp_scan_issues',
-            $wpdb->prefix . 'wcp_scan_files',
-            $wpdb->prefix . 'wcp_quarantine',
-            $wpdb->prefix . 'wcp_firewall_logs',
-            $wpdb->prefix . 'wcp_login_history',
+            $wpdb->prefix . 'webcare_scans',
+            $wpdb->prefix . 'webcare_scan_issues',
+            $wpdb->prefix . 'webcare_scan_files',
+            $wpdb->prefix . 'webcare_quarantine',
+            $wpdb->prefix . 'webcare_firewall_logs',
+            $wpdb->prefix . 'webcare_login_history',
         ];
 
         foreach ($webcareproscan_tables as $webcareproscan_table) {
@@ -203,7 +203,7 @@ if ($webcareproscan_delete_data) {
     if ($webcareproscan_delete_uploads) {
         $webcareproscan_upload_dir = wp_upload_dir();
         if (!empty($webcareproscan_upload_dir['basedir'])) {
-            $webcareproscan_storage_dir = untrailingslashit($webcareproscan_upload_dir['basedir']) . '/wcp-security-scanner';
+            $webcareproscan_storage_dir = untrailingslashit($webcareproscan_upload_dir['basedir']) . '/webcare-pro-security';
             if (is_dir($webcareproscan_storage_dir)) {
                 global $wp_filesystem;
                 if (!$wp_filesystem) {

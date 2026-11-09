@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Secure Streaming Exporter for WCP Activity & Audit Logs.
+ * Secure Streaming Exporter for WebCare Activity & Audit Logs.
  *
  * Implements:
  * 1. CSV Formula Injection Defense (escapes '=', '+', '-', '@', tabs, and leading spaces with single quote).
@@ -39,7 +39,7 @@ class ActivityExporter {
      * @param string $filename Download filename.
      * @param bool $include_system_info Whether to prepend environmental snapshot preamble.
      */
-    public static function stream_csv(array $records, string $filename = 'wcp-activity-logs.csv', bool $include_system_info = false): void {
+    public static function stream_csv(array $records, string $filename = 'webcare-activity-logs.csv', bool $include_system_info = false): void {
         if (ob_get_level()) {
             ob_end_clean();
         }
@@ -146,7 +146,7 @@ class ActivityExporter {
      * @param string $filename
      * @param bool $include_system_info Whether to embed environmental snapshot.
      */
-    public static function stream_json(array $records, string $filename = 'wcp-activity-logs.json', bool $include_system_info = false): void {
+    public static function stream_json(array $records, string $filename = 'webcare-activity-logs.json', bool $include_system_info = false): void {
         if (ob_get_level()) {
             ob_end_clean();
         }

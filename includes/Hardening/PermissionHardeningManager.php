@@ -140,12 +140,12 @@ class PermissionHardeningManager {
             'cache',
             'wfcache',
             '.backups',
-            'wcp-backups',
+            'webcare-backups',
             'webcare-pro-security',
-            'wcp-quarantine',
-            'wcp-scanner-quarantine',
-            'wcp-vault',
-            'wcp-waf',
+            'webcare-quarantine',
+            'webcare-pro-quarantine',
+            'webcare-vault',
+            'webcare-waf',
         ];
 
         // Evaluate root directory itself.
@@ -360,7 +360,7 @@ class PermissionHardeningManager {
             }
         } catch (\Exception $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('WCP Permission Hardening Audit Error: ' . $e->getMessage());
+            error_log('WebCare Permission Hardening Audit Error: ' . $e->getMessage());
         }
 
         $cli_commands = self::generate_cli_commands($root, $server_info['user'], $server_info['group']);
@@ -410,12 +410,12 @@ class PermissionHardeningManager {
             'cache',
             'wfcache',
             '.backups',
-            'wcp-backups',
+            'webcare-backups',
             'webcare-pro-security',
-            'wcp-quarantine',
-            'wcp-scanner-quarantine',
-            'wcp-vault',
-            'wcp-waf',
+            'webcare-quarantine',
+            'webcare-pro-quarantine',
+            'webcare-vault',
+            'webcare-waf',
         ];
 
         // 1. Fix root directory itself if needed.
@@ -516,10 +516,10 @@ class PermissionHardeningManager {
             }
         } catch (\Exception $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('WCP Permission Hardening Fix Error: ' . $e->getMessage());
+            error_log('WebCare Permission Hardening Fix Error: ' . $e->getMessage());
         }
 
-        // 2. Auto-reconcile active scan issues in wp_wcp_scan_issues
+        // 2. Auto-reconcile active scan issues in wp_webcareproscan_scan_issues
         $reconciled_issues_count = self::reconcile_scan_issues($fixed_paths);
 
         // 3. Record in Audit Log

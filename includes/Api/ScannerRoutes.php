@@ -37,7 +37,7 @@ if (!defined('ABSPATH')) {
 }
 
 class ScannerRoutes {
-    const NAMESPACE = 'wcp-scanner/v1';
+    const NAMESPACE = 'webcare-pro-security/v1';
 
     public static function register() {
         $permission = function () {
@@ -1966,7 +1966,7 @@ class ScannerRoutes {
         $is_whitelisted = strpos($current_whitelist, $client_ip) !== false;
 
         $uid = get_current_user_id();
-        $support_code = '#WCP-' . strtoupper(substr(md5((string) $uid . wp_salt('auth')), 0, 4));
+        $support_code = '#WEBCARE-' . strtoupper(substr(md5((string) $uid . wp_salt('auth')), 0, 4));
 
         $site_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
         $root_domain = class_exists('\WebCareProScanner\Cloudflare\CloudflareService')
@@ -2153,7 +2153,7 @@ class ScannerRoutes {
 
         return new \WP_REST_Response([
             'success' => true,
-            'message' => __('WCP Protection Quickstart successfully configured.', 'webcare-pro-security'),
+            'message' => __('WebCare Protection Quickstart successfully configured.', 'webcare-pro-security'),
         ], 200);
     }
 
@@ -3107,7 +3107,7 @@ class ScannerRoutes {
         } catch (\Throwable $e) {
             ScanLock::release($scan_id);
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('[WCP Scanner] Error during deep audit: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            error_log('[WebCare Pro] Error during deep audit: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
 
             return new \WP_Error(
                 'audit_error',
@@ -6700,7 +6700,7 @@ class ScannerRoutes {
         $is_support = false;
         $restrictions = [];
         if ($uid) {
-            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
             $is_support = !empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]));
             if ($is_support && is_array($support_users) && isset($support_users[$uid])) {
                 $restrictions = $support_users[$uid];
@@ -6742,7 +6742,7 @@ class ScannerRoutes {
     public static function save_settings(\WP_REST_Request $request) {
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
             if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 $cfg = $support_users[$uid] ?? [];
                 if (!isset($cfg['block_settings_modification']) || !empty($cfg['block_settings_modification'])) {
@@ -6846,7 +6846,7 @@ class ScannerRoutes {
 
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
             if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 return new \WP_Error(
                     'rest_forbidden',
@@ -6874,7 +6874,7 @@ class ScannerRoutes {
     public static function reset_settings(\WP_REST_Request $request) {
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
             if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 return new \WP_Error(
                     'rest_forbidden',
@@ -7234,10 +7234,10 @@ class ScannerRoutes {
             $user_login
         );
 
-        if ($added && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if ($added && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'firewall_ip_blocked',
                 'firewall',
                 [
@@ -7262,12 +7262,12 @@ class ScannerRoutes {
         }
 
         $unblocked = \WebCareProScanner\Firewall\FirewallEngine::remove_blocked_ip($ip);
-        if ($unblocked && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if ($unblocked && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'firewall_ip_unblocked',
                 'firewall',
                 [
@@ -7286,7 +7286,7 @@ class ScannerRoutes {
     }
 
     /**
-     * Customer Lockout Finder: Look up blocked customer by 6-digit Support Code (#WCP-XXXX) or IP address
+     * Customer Lockout Finder: Look up blocked customer by 6-digit Support Code (#WEBCARE-XXXX) or IP address
      */
     public static function lookup_customer_lockout(\WP_REST_Request $request) {
         $query = strtoupper(trim($request->get_param('code') ?? ''));
@@ -7294,10 +7294,10 @@ class ScannerRoutes {
             return new \WP_Error('missing_code', __('Support Code or IP address is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        // Clean code formatting: allow #WCP-492A, WCP-492A, or 492A
+        // Clean code formatting: allow #WEBCARE-492A, WEBCARE-492A, or 492A
         $clean_code = ltrim($query, '#');
-        if (!str_starts_with($clean_code, 'WCP-') && strlen($clean_code) === 4) {
-            $clean_code = 'WCP-' . $clean_code;
+        if (!str_starts_with($clean_code, 'WEBCARE-') && strlen($clean_code) === 4) {
+            $clean_code = 'WEBCARE-' . $clean_code;
         }
 
         // 1. Try finding by support reference code
@@ -7318,7 +7318,7 @@ class ScannerRoutes {
                 $top = $file_query['logs'][0];
                 $data = [
                     'ref_code'       => $query,
-                    'incident_id'    => $top['incident_id'] ?? 'WCP-LOG',
+                    'incident_id'    => $top['incident_id'] ?? 'WEBCARE-LOG',
                     'client_ip'      => $top['ip_address'] ?? '',
                     'rule_id'        => $top['rule_id'] ?? 'WAF-BLOCK',
                     'rule_name'      => $top['rule_name'] ?? ($top['rule_category'] ?? 'Security Shield'),
@@ -7373,8 +7373,8 @@ class ScannerRoutes {
 
         if (empty($ip) && !empty($code)) {
             $clean_code = ltrim($code, '#');
-            if (!str_starts_with($clean_code, 'WCP-') && strlen($clean_code) === 4) {
-                $clean_code = 'WCP-' . $clean_code;
+            if (!str_starts_with($clean_code, 'WEBCARE-') && strlen($clean_code) === 4) {
+                $clean_code = 'WEBCARE-' . $clean_code;
             }
             $t = get_transient('webcareproscan_lockout_' . $clean_code);
             if (!empty($t['client_ip'])) {
@@ -7393,10 +7393,10 @@ class ScannerRoutes {
         set_transient('webcareproscan_temp_allow_' . md5($ip), 1, 24 * HOUR_IN_SECONDS);
 
         // 3. Log audit event
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'customer_lockout_unblocked',
                 'firewall',
                 [
@@ -7448,13 +7448,13 @@ class ScannerRoutes {
         ];
 
         $added = \WebCareProScanner\Firewall\FirewallEngine::add_whitelisted_ip($ip, $reason, $user_login, $scope_args);
-        if ($added && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if ($added && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
             $scope_desc = $scope_args['scope'] === 'rule' 
                 ? sprintf('Rule: %s', implode(', ', $scope_args['allowed_rules'])) 
                 : ($scope_args['scope'] === 'category' ? sprintf('Category: %s', implode(', ', $scope_args['allowed_cats'])) : 'Global Bypass');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'firewall_ip_whitelisted',
                 'firewall',
                 [
@@ -7486,12 +7486,12 @@ class ScannerRoutes {
         }
 
         $removed = \WebCareProScanner\Firewall\FirewallEngine::remove_whitelisted_ip($ip);
-        if ($removed && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if ($removed && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'firewall_ip_whitelist_removed',
                 'firewall',
                 [
@@ -7523,14 +7523,14 @@ class ScannerRoutes {
 
     public static function clear_firewall_logs() {
         $cleared = \WebCareProScanner\Firewall\FirewallEngine::clear_logs();
-        if ($cleared && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if ($cleared && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'firewall_logs_cleared',
                 'firewall',
                 [
@@ -7628,14 +7628,14 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Firewall\ServerSecurityEngine::save_config_file($server_type, $options);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'server_security_saved',
                 'firewall',
                 [
@@ -7660,14 +7660,14 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Firewall\ServerSecurityEngine::deploy_to_htaccess($options);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'server_security_htaccess_deployed',
                 'firewall',
                 [
@@ -7892,7 +7892,7 @@ class ScannerRoutes {
             return rest_ensure_response($result);
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('[WCP-FIM] Calibration Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            error_log('[WEBCARE-FIM] Calibration Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return new \WP_Error(
                 'fim_calibration_failed',
                 'FIM Vault Calibration Failed: ' . $e->getMessage(),
@@ -7918,7 +7918,7 @@ class ScannerRoutes {
             return rest_ensure_response($result);
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('[WCP-FIM] Drift Audit Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            error_log('[WEBCARE-FIM] Drift Audit Fatal Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return new \WP_Error(
                 'fim_drift_audit_failed',
                 'FIM Drift Audit Failed: ' . $e->getMessage(),
@@ -7930,7 +7930,7 @@ class ScannerRoutes {
     public static function get_integrity_file_diff(\WP_REST_Request $request) {
         $uid = get_current_user_id();
         if ($uid) {
-            $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+            $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
             if (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid]))) {
                 $cfg = $support_users[$uid] ?? [];
                 $scope = $cfg['scope'] ?? 'read_only';
@@ -8363,7 +8363,7 @@ class ScannerRoutes {
      */
     public static function remediate_database_row(\WP_REST_Request $request) {
         $uid = get_current_user_id();
-        $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
         if ($uid && (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
             return new \WP_Error('rest_forbidden', __('Access Denied: Database row remediation and deletion is prohibited during temporary support sessions.', 'webcare-pro-security'), ['status' => 403]);
         }
@@ -8442,7 +8442,7 @@ class ScannerRoutes {
      */
     public static function restore_database_row(\WP_REST_Request $request) {
         $uid = get_current_user_id();
-        $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
         if ($uid && (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
             return new \WP_Error('rest_forbidden', __('Access Denied: Database restoration is prohibited during temporary support sessions.', 'webcare-pro-security'), ['status' => 403]);
         }
@@ -8474,7 +8474,7 @@ class ScannerRoutes {
      */
     public static function remediate_user(\WP_REST_Request $request) {
         $uid = get_current_user_id();
-        $support_users = get_option(\WebCareProScanner\Identity\WcpJitMuGuardian::OPTION_SUPPORT_USERS, []);
+        $support_users = get_option(\WebCareProScanner\Identity\WebCareJitMuGuardian::OPTION_SUPPORT_USERS, []);
         if ($uid && (!empty(get_user_meta($uid, 'webcareproscan_is_temporary_support', true)) || (is_array($support_users) && isset($support_users[$uid])))) {
             return new \WP_Error('rest_forbidden', __('Access Denied: User account remediation is prohibited during temporary support sessions.', 'webcare-pro-security'), ['status' => 403]);
         }
@@ -9372,7 +9372,7 @@ class ScannerRoutes {
             /* translators: %s: event title */
             'title'   => sprintf(__('[TEST] %s', 'webcare-pro-security'), $catalog[$event_key]['title']),
             /* translators: %s: event title */
-            'message' => sprintf(__('This is an instant verification alert triggered from the WCP Notification Center for "%s".', 'webcare-pro-security'), $catalog[$event_key]['title']),
+            'message' => sprintf(__('This is an instant verification alert triggered from the WebCare Notification Center for "%s".', 'webcare-pro-security'), $catalog[$event_key]['title']),
             'details' => [
                 'triggered_by' => wp_get_current_user()->user_login ?: 'admin',
                 'event_code'   => $event_key,
@@ -9449,14 +9449,14 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Cloudflare\CloudflareService::deploy_custom_rules($rules);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_rules_deployed',
                 'firewall',
                 [
@@ -9480,7 +9480,7 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Cloudflare\CloudflareService::deploy_single_rule($rule_key, $config, $enable);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
@@ -9488,7 +9488,7 @@ class ScannerRoutes {
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $action_state = $enable ? 'enabled' : 'disabled';
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_rule_modified',
                 'firewall',
                 [
@@ -9512,7 +9512,7 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Cloudflare\CloudflareService::toggle_rate_limiting($enable, $options);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
@@ -9520,7 +9520,7 @@ class ScannerRoutes {
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $state_text = $enable ? 'activated' : 'paused';
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_rate_limiting_toggled',
                 'firewall',
                 [
@@ -9543,14 +9543,14 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Cloudflare\CloudflareService::block_ip($ip, $reason);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_ip_blocked',
                 'firewall',
                 [
@@ -9592,7 +9592,7 @@ class ScannerRoutes {
             return new \WP_Error('invalid_param', __('Either rule_id or ip is required to unblock.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
@@ -9604,7 +9604,7 @@ class ScannerRoutes {
                 ? sprintf('Cloudflare Edge block rule for IP %s removed by %s from IP %s (Rule ID: %s).', $target_ip, $user_login, $client_ip, $rule_id)
                 : sprintf('Cloudflare Edge block rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip);
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_ip_unblocked',
                 'firewall',
                 [
@@ -9627,7 +9627,7 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Cloudflare\CloudflareService::purge_cache($files);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
@@ -9635,7 +9635,7 @@ class ScannerRoutes {
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
             $target_desc = !empty($files) ? sprintf('%d specific file(s)', count($files)) : 'all cached assets (Everything)';
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_cache_purged',
                 'firewall',
                 [
@@ -9681,7 +9681,7 @@ class ScannerRoutes {
         if (!empty($result['success'])) {
             $result['message'] = __('Whitelisted IP rule successfully removed from Cloudflare Edge.', 'webcare-pro-security');
 
-            if (class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+            if (class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
                 $current_user = wp_get_current_user();
                 $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
                 $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
@@ -9692,7 +9692,7 @@ class ScannerRoutes {
                     ? sprintf('Cloudflare Edge allowlist rule for IP %s removed by %s from IP %s (Rule ID: %s).', $target_ip, $user_login, $client_ip, $rule_id)
                     : sprintf('Cloudflare Edge allowlist rule %s removed by %s from IP %s.', $rule_id, $user_login, $client_ip);
 
-                \WebCareProScanner\System\WcpActivityLogger::notice(
+                \WebCareProScanner\System\WebCareActivityLogger::notice(
                     'cloudflare_whitelist_removed',
                     'firewall',
                     [
@@ -9712,18 +9712,18 @@ class ScannerRoutes {
         }
         $params = $request->get_json_params() ?: [];
         $ip     = sanitize_text_field($params['ip'] ?? '');
-        $notes  = sanitize_text_field($params['notes'] ?? 'Administrator / Developer Whitelist via WCP');
+        $notes  = sanitize_text_field($params['notes'] ?? 'Administrator / Developer Whitelist via WebCare');
 
         $result = \WebCareProScanner\Cloudflare\CloudflareService::whitelist_ip($ip, $notes);
 
-        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
+        if (!empty($result['success']) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
             $current_user = wp_get_current_user();
             $user_login = ($current_user && $current_user->exists()) ? $current_user->user_login : 'admin';
             $client_ip = class_exists('\WebCareProScanner\Firewall\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
 
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'cloudflare_ip_whitelisted',
                 'firewall',
                 [
@@ -10615,7 +10615,7 @@ class ScannerRoutes {
     }
 
     // ==========================================
-    // 18. Unified WCP Vault Status & Rotator
+    // 18. Unified WebCare Vault Status & Rotator
     // ==========================================
 
     public static function get_vault_status(\WP_REST_Request $request) {
@@ -10650,16 +10650,16 @@ class ScannerRoutes {
 
         // 4. Secret Vault & Key Rotator stats
         $key_source = 'wp_salt';
-        $env_key = getenv('WCP_VAULT_KEY');
+        $env_key = getenv('WEBCARE_VAULT_KEY');
         if (!empty($env_key)) {
             $key_source = 'env';
-        } elseif (defined('WCP_VAULT_KEY') && !empty(WCP_VAULT_KEY)) {
+        } elseif (defined('WEBCARE_VAULT_KEY') && !empty(WEBCARE_VAULT_KEY)) {
             $key_source = 'constant';
         }
 
         $raw_key = \WebCareProScanner\Security\SecretVault::get_key();
         $key_fingerprint = substr(hash('sha256', $raw_key), 0, 16) . '...';
-        $is_hex_key = defined('WCP_VAULT_KEY') && strlen((string) WCP_VAULT_KEY) === 64 && ctype_xdigit((string) WCP_VAULT_KEY);
+        $is_hex_key = defined('WEBCARE_VAULT_KEY') && strlen((string) WEBCARE_VAULT_KEY) === 64 && ctype_xdigit((string) WEBCARE_VAULT_KEY);
 
         $openssl_ok = function_exists('openssl_encrypt');
         $gcm_ok = $openssl_ok && in_array(\WebCareProScanner\Security\SecretVault::CIPHER_GCM, openssl_get_cipher_methods(), true);
@@ -10721,7 +10721,7 @@ class ScannerRoutes {
                 'cipher'              => 'AES-256-GCM AEAD',
                 'key_source'          => $key_source,
                 'key_fingerprint'     => $key_fingerprint,
-                'is_constant_defined' => defined('WCP_VAULT_KEY') && !empty(WCP_VAULT_KEY),
+                'is_constant_defined' => defined('WEBCARE_VAULT_KEY') && !empty(WEBCARE_VAULT_KEY),
                 'is_hex_256'          => $is_hex_key,
                 'openssl_available'   => $openssl_ok,
                 'gcm_available'       => $gcm_ok,
@@ -11852,7 +11852,7 @@ class ScannerRoutes {
         $severity   = sanitize_key($request->get_param('severity') ?: '');
         $search     = sanitize_text_field($request->get_param('search') ?: '');
 
-        $result = \WebCareProScanner\System\WcpActivityLogger::query_records([
+        $result = \WebCareProScanner\System\WebCareActivityLogger::query_records([
             'actor_type' => $actor_type,
             'category'   => $category,
             'limit'      => $limit,
@@ -11883,7 +11883,7 @@ class ScannerRoutes {
     }
 
     public static function verify_activity_logs_integrity(\WP_REST_Request $request) {
-        $report = \WebCareProScanner\System\WcpActivityLogger::verify_integrity();
+        $report = \WebCareProScanner\System\WebCareActivityLogger::verify_integrity();
         return rest_ensure_response([
             'report'  => $report,
             'success' => true,
@@ -11899,7 +11899,7 @@ class ScannerRoutes {
         $date                = sanitize_text_field($request->get_param('date') ?: '');
         $include_system_info = !empty($request->get_param('include_system_info'));
 
-        $result = \WebCareProScanner\System\WcpActivityLogger::query_records([
+        $result = \WebCareProScanner\System\WebCareActivityLogger::query_records([
             'actor_type' => $actor_type,
             'category'   => $category,
             'is_export'  => true,
@@ -11928,7 +11928,7 @@ class ScannerRoutes {
         $results = \WebCareProScanner\System\ActivityLogs\ActivityRetention::prune_expired_partitions();
 
         // Audit Trail: Log manual partition prune execution
-        \WebCareProScanner\System\WcpActivityLogger::notice(
+        \WebCareProScanner\System\WebCareActivityLogger::notice(
             'logs_pruned',
             'retention',
             [
@@ -12021,7 +12021,7 @@ class ScannerRoutes {
 
         // Preload status
         $killswitch_file = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/webcare-pro-security/.killswitch') : '';
-        $is_killed = (defined('WCP_CAF_DISABLE_PRELOAD') && WCP_CAF_DISABLE_PRELOAD) || ($killswitch_file && file_exists($killswitch_file));
+        $is_killed = (defined('WEBCARE_CAF_DISABLE_PRELOAD') && WEBCARE_CAF_DISABLE_PRELOAD) || ($killswitch_file && file_exists($killswitch_file));
 
         return rest_ensure_response([
             'success'              => true,
@@ -12091,7 +12091,7 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $enable_killswitch = !empty($params['killswitch']);
 
-        $vault_dir = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/wcp-security-scanner') : '';
+        $vault_dir = defined('WP_CONTENT_DIR') ? (WP_CONTENT_DIR . '/uploads/webcare-pro-security') : '';
         if (!$vault_dir || !is_dir($vault_dir)) {
             wp_mkdir_p($vault_dir);
         }
@@ -12130,16 +12130,16 @@ class ScannerRoutes {
         $existing_rules = [];
         $slot_budget = 3;
         $user_rules_count = 0;
-        $wcp_rules_count = 0;
+        $webcare_rules_count = 0;
 
         if ($configured && $optimizer) {
             $existing_rules = $optimizer->get_zone_rules($zone_id);
-            $slot_budget = $optimizer->calculate_wcp_slot_budget($existing_rules);
+            $slot_budget = $optimizer->calculate_webcare_slot_budget($existing_rules);
 
             foreach ($existing_rules as $r) {
                 $desc = (string) ($r['description'] ?? '');
-                if (str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG)) {
-                    $wcp_rules_count++;
+                if (str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_RULE_PREFIX) || str_starts_with($desc, \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_LEGACY_TAG)) {
+                    $webcare_rules_count++;
                 } else {
                     $user_rules_count++;
                 }
@@ -12160,9 +12160,9 @@ class ScannerRoutes {
             'slot_usage'            => [
                 'total_quota'      => 5,
                 'user_rules'       => $user_rules_count,
-                'wcp_rules'        => $wcp_rules_count,
+                'webcare_rules'        => $webcare_rules_count,
                 'available_slots'  => $slot_budget,
-                'free_unallocated' => max(0, 5 - ($user_rules_count + $wcp_rules_count)),
+                'free_unallocated' => max(0, 5 - ($user_rules_count + $webcare_rules_count)),
             ],
             'existing_rules'        => array_map(function ($r) {
                 return [
@@ -12171,7 +12171,7 @@ class ScannerRoutes {
                     'action'      => $r['action'] ?? '',
                     'enabled'     => !empty($r['enabled']),
                     'bytes'       => strlen((string) ($r['expression'] ?? '')),
-                    'is_wcp'      => str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_RULE_PREFIX) || str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WCP_LEGACY_TAG),
+                    'is_webcare'      => str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_RULE_PREFIX) || str_starts_with((string) ($r['description'] ?? ''), \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer::WEBCARE_LEGACY_TAG),
                 ];
             }, $existing_rules),
             'pending_ban_queue_size'=> $pending_count,
@@ -12255,7 +12255,7 @@ class ScannerRoutes {
         $learning_observations = get_option(\WebCareProScanner\Firewall\CAF\LearningModeEngine::OPTION_OBSERVATIONS, []);
         $synthesized_exemptions = get_option(\WebCareProScanner\Firewall\CAF\LearningModeEngine::OPTION_SYNTHESIZED, []);
 
-        $pow_enforced_ips = get_option('wcp_pow_enforced_ips', []);
+        $pow_enforced_ips = get_option('webcare_pow_enforced_ips', []);
 
         return rest_ensure_response([
             'success'                => true,
@@ -12309,7 +12309,7 @@ class ScannerRoutes {
             ], 400);
         }
 
-        $enforced = get_option('wcp_pow_enforced_ips', []);
+        $enforced = get_option('webcare_pow_enforced_ips', []);
         if (!is_array($enforced)) {
             $enforced = [];
         }
@@ -12324,7 +12324,7 @@ class ScannerRoutes {
             unset($enforced[$ip]);
         }
 
-        update_option('wcp_pow_enforced_ips', $enforced, false);
+        update_option('webcare_pow_enforced_ips', $enforced, false);
 
         return rest_ensure_response([
             'success' => true,

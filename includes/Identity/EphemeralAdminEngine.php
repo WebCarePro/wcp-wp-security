@@ -26,14 +26,14 @@ class EphemeralAdminEngine {
      * Bootstrap Ephemeral Admin engine.
      */
     public static function init() {
-        // Emergency bypass constant: define('WCP_DISABLE_JIT', true); in wp-config.php completely disables JIT restrictions
-        if (defined('WCP_DISABLE_JIT') && WCP_DISABLE_JIT) {
+        // Emergency bypass constant: define('WEBCARE_DISABLE_JIT', true); in wp-config.php completely disables JIT restrictions
+        if (defined('WEBCARE_DISABLE_JIT') && WEBCARE_DISABLE_JIT) {
             return;
         }
 
         // Auto-install / sync the Must-Use (MU) plugin watchdog
-        if (class_exists('\\WebCareProScanner\\Identity\\WcpJitMuGuardian')) {
-            WcpJitMuGuardian::ensure_installed();
+        if (class_exists('\\WebCareProScanner\\Identity\\WebCareJitMuGuardian')) {
+            WebCareJitMuGuardian::ensure_installed();
         }
 
         // Cron expiration handler
@@ -197,21 +197,21 @@ class EphemeralAdminEngine {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
 
-        $is_targeting_wcp = false;
+        $is_targeting_webcare = false;
         if ($plugin && strpos($plugin, 'webcare-pro-security') !== false) {
-            $is_targeting_wcp = true;
+            $is_targeting_webcare = true;
         }
 
         if (!empty($checked)) {
             foreach ($checked as $p) {
                 if (strpos($p, 'webcare-pro-security') !== false) {
-                    $is_targeting_wcp = true;
+                    $is_targeting_webcare = true;
                     break;
                 }
             }
         }
 
-        if ($is_targeting_wcp && in_array($action, ['deactivate', 'delete-selected', 'deactivate-selected'], true)) {
+        if ($is_targeting_webcare && in_array($action, ['deactivate', 'delete-selected', 'deactivate-selected'], true)) {
             AuditLogger::log(
                 'jit_tamper_attempt_blocked',
                 sprintf('Security alert: JIT elevated user (ID %d) attempted to deactivate or delete WebCare Pro Security. Action was blocked.', $user_id)
@@ -228,7 +228,7 @@ class EphemeralAdminEngine {
     }
 
     /**
-     * Map meta capabilities to forbid JIT elevated admins from deactivating WCP or modifying permanent admins.
+     * Map meta capabilities to forbid JIT elevated admins from deactivating WebCare or modifying permanent admins.
      *
      * @param array $caps
      * @param string $cap
@@ -543,9 +543,9 @@ class EphemeralAdminEngine {
         $badge_title = sprintf('⚡ JIT Admin: %dm left', $remaining_mins);
 
         $wp_admin_bar->add_node([
-            'id'    => 'wcp-jit-elevation-badge',
+            'id'    => 'webcare-jit-elevation-badge',
             'title' => '<span style="background:#ea580c;color:#ffffff;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px;">' . esc_html($badge_title) . '</span>',
-            'href'  => admin_url('admin.php?page=wcp-security-auth&tab=zero_trust'),
+            'href'  => admin_url('admin.php?page=webcare-pro-auth&tab=zero_trust'),
             'meta'  => [
                 'title' => sprintf('Temporary elevation expires in %d minutes. Click to view Zero-Trust details.', $remaining_mins),
             ],

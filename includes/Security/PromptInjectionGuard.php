@@ -4,7 +4,7 @@ namespace WebCareProScanner\Security;
 use WebCareProScanner\System\AuditLogger;
 use WebCareProScanner\Firewall\WafFileLogger;
 use WebCareProScanner\Notifications\NotificationDispatcher;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -162,8 +162,8 @@ class PromptInjectionGuard {
         $final = array_merge($current, $updated);
         $res = update_option(self::OPTION_SETTINGS, $final, false);
 
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'prompt_injection_settings_updated',
                 'firewall',
                 'info',
@@ -318,7 +318,7 @@ class PromptInjectionGuard {
             if ($settings['action'] === 'block') {
                 wp_die(
                     '<h1>' . esc_html__('Submission Rejected', 'webcare-pro-security') . '</h1>' .
-                    '<p>' . esc_html__('WCP Prompt Injection Guard: Your comment contains disallowed adversarial directives or instruction tokens.', 'webcare-pro-security') . '</p>',
+                    '<p>' . esc_html__('WebCare Prompt Injection Guard: Your comment contains disallowed adversarial directives or instruction tokens.', 'webcare-pro-security') . '</p>',
                     esc_html__('Prompt Injection Blocked', 'webcare-pro-security'),
                     ['response' => 403, 'back_link' => true]
                 );
@@ -366,7 +366,7 @@ class PromptInjectionGuard {
                 $order->add_order_note(
                     sprintf(
                         /* translators: %s: threat findings */
-                        __('WCP Security Sentinel: Sanitized potential indirect AI prompt injection from customer order note: %s. Delimiters and invisible Unicode tags neutralized.', 'webcare-pro-security'),
+                        __('WebCare Pro Security Sentinel: Sanitized potential indirect AI prompt injection from customer order note: %s. Delimiters and invisible Unicode tags neutralized.', 'webcare-pro-security'),
                         implode(', ', $analysis['findings'])
                     ),
                     false
@@ -424,7 +424,7 @@ class PromptInjectionGuard {
             if ($settings['action'] === 'block') {
                 wp_die(
                     '<h1>' . esc_html__('Content Rejected', 'webcare-pro-security') . '</h1>' .
-                    '<p>' . esc_html__('WCP Prompt Injection Guard: Inbound content contains adversarial prompt injection directives.', 'webcare-pro-security') . '</p>',
+                    '<p>' . esc_html__('WebCare Prompt Injection Guard: Inbound content contains adversarial prompt injection directives.', 'webcare-pro-security') . '</p>',
                     esc_html__('Content Blocked', 'webcare-pro-security'),
                     ['response' => 403, 'back_link' => true]
                 );
@@ -508,7 +508,7 @@ class PromptInjectionGuard {
             WafFileLogger::log_incident([
                 'ip'              => $ip,
                 'category'        => 'prompt_injection_guard',
-                'rule_id'         => 'wcp_ai_prompt_injection',
+                'rule_id'         => 'webcare_ai_prompt_injection',
                 'reason'          => implode(' | ', $findings),
                 'action'          => ($action === 'block') ? 'block' : 'sanitize',
                 'http_status'     => ($action === 'block') ? 403 : 200,
@@ -518,8 +518,8 @@ class PromptInjectionGuard {
             ]);
         }
 
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'ai_prompt_injection_intercepted',
                 'firewall',
                 'warning',

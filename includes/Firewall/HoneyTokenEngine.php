@@ -20,9 +20,9 @@ class HoneyTokenEngine {
 
     const OPTION_CATCHES          = 'webcareproscan_honeytoken_catches';
     const OPTION_SETTINGS         = 'webcareproscan_honeytoken_settings';
-    const FIELD_NAME              = 'wcp_security_verify';
-    const FIELD_FLAG              = 'wcp_hp_active';
-    const CANARY_ADMIN_USER        = 'wcp_canary_admin';
+    const FIELD_NAME              = 'webcare_security_verify';
+    const FIELD_FLAG              = 'webcare_hp_active';
+    const CANARY_ADMIN_USER        = 'webcare_canary_admin';
     const CANARY_USER_META         = '_webcareproscan_is_canary';
     const OPTION_CANARY_DB_PLANTED = 'webcareproscan_canary_db_planted';
     const CANARY_HONEY_OPTIONS     = [
@@ -32,7 +32,7 @@ class HoneyTokenEngine {
     ];
 
     /**
-     * Internal audit bypass flag to allow WCP Scanner telemetry to inspect canary options safely.
+     * Internal audit bypass flag to allow WebCare Pro telemetry to inspect canary options safely.
      *
      * @var bool
      */
@@ -181,8 +181,8 @@ class HoneyTokenEngine {
 
         // Audit Trail: Log Honey-Token bot trap policy modification
         $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'honeytoken_settings_updated',
                 'firewall',
                 [
@@ -267,8 +267,8 @@ class HoneyTokenEngine {
     public static function check_phantom_endpoints() {
         $uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $decoys = [
-            '/.well-known/wcp-security-decoy' => 'Phantom Well-Known Probe Decoy',
-            '/wp-json/wcp-honeytoken/v1/auth' => 'Phantom REST Auth Decoy',
+            '/.well-known/webcare-security-decoy' => 'Phantom Well-Known Probe Decoy',
+            '/wp-json/webcare-honeytoken/v1/auth' => 'Phantom REST Auth Decoy',
             '/xmlrpc_backup.php'              => 'Phantom XML-RPC Backup Decoy',
             '/wp-content/debug_dump.sql'      => 'Phantom Database Dump Decoy',
         ];
@@ -525,7 +525,7 @@ class HoneyTokenEngine {
         );
     }
 
-    const CANARY_PREFIX   = 'sk-wcp-canary-';
+    const CANARY_PREFIX   = 'sk-webcare-canary-';
 
     /**
      * Generate a realistic decoy .env payload with an active canary token tied to the probing IP.
@@ -537,11 +537,11 @@ class HoneyTokenEngine {
         $canary_id  = self::create_signed_canary_id($probing_ip);
         $api_token  = self::CANARY_PREFIX . $canary_id;
         $canary_url = add_query_arg(
-            ['wcp_canary_ping' => $canary_id],
-            home_url('/wp-json/wcp/v1/health-sync')
+            ['webcare_canary_ping' => $canary_id],
+            home_url('/wp-json/webcare/v1/health-sync')
         );
 
-        $salt = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_canary_salt';
+        $salt = defined('AUTH_KEY') ? AUTH_KEY : 'webcare_canary_salt';
         $fake_aws_key = 'AKIA' . strtoupper(substr(hash_hmac('sha256', 'aws:' . $canary_id, $salt), 0, 16));
 
         return implode(
@@ -550,7 +550,7 @@ class HoneyTokenEngine {
                 'APP_ENV=production',
                 'DB_HOST=127.0.0.1',
                 'OPENAI_API_KEY=' . $api_token,
-                'WCP_MANAGEMENT_WEBHOOK=' . $canary_url,
+                'WEBCARE_MANAGEMENT_WEBHOOK=' . $canary_url,
                 'AWS_ACCESS_KEY_ID=' . $fake_aws_key,
             ]
         ) . "\n";
@@ -565,9 +565,9 @@ class HoneyTokenEngine {
         $triggered_token = '';
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if (!empty($_GET['wcp_canary_ping'])) {
+        if (!empty($_GET['webcare_canary_ping'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $triggered_token = sanitize_text_field(wp_unslash($_GET['wcp_canary_ping']));
+            $triggered_token = sanitize_text_field(wp_unslash($_GET['webcare_canary_ping']));
         }
 
         $auth_header = isset($_SERVER['HTTP_AUTHORIZATION']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_AUTHORIZATION'])) : '';
@@ -589,7 +589,7 @@ class HoneyTokenEngine {
     private static function create_signed_canary_id(string $probing_ip): string {
         $timestamp = (string) time();
         $data      = $probing_ip . '|' . $timestamp;
-        $salt      = defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : 'wcp_canary_secure_salt';
+        $salt      = defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : 'webcare_canary_secure_salt';
         $mac       = substr(hash_hmac('sha256', $data, $salt), 0, 24);
         return base64_encode($data) . '.' . $mac;
     }
@@ -605,7 +605,7 @@ class HoneyTokenEngine {
             return false;
         }
 
-        $salt = defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : 'wcp_canary_secure_salt';
+        $salt = defined('SECURE_AUTH_KEY') ? SECURE_AUTH_KEY : 'webcare_canary_secure_salt';
         $expected_mac = substr(hash_hmac('sha256', $decoded, $salt), 0, 24);
         return hash_equals($expected_mac, $parts[1]);
     }
@@ -661,7 +661,7 @@ class HoneyTokenEngine {
                 'user_pass'     => $impossible_pass,
                 'user_email'    => $user_email,
                 'user_nicename' => 'security-canary',
-                'display_name'  => 'WCP Security Canary Admin',
+                'display_name'  => 'WebCare Pro Security Canary Admin',
                 'nickname'      => 'canary-admin',
                 'role'          => 'administrator',
             ]);
@@ -767,7 +767,7 @@ class HoneyTokenEngine {
         self::$internal_audit_bypass = true;
         try {
             global $wpdb;
-            $salt     = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_canary_salt';
+            $salt     = defined('AUTH_KEY') ? AUTH_KEY : 'webcare_canary_salt';
             $site_key = substr(md5(home_url() . $salt), 0, 16);
 
             $decoys = [

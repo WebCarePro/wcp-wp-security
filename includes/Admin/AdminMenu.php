@@ -22,14 +22,14 @@ class AdminMenu {
     }
 
     /**
-     * Ensure WCP scripts are parsed explicitly with UTF-8 character encoding across all browsers and locales.
+     * Ensure WebCare scripts are parsed explicitly with UTF-8 character encoding across all browsers and locales.
      *
      * @param string $tag The <script> tag for the enqueued script.
      * @param string $handle The script's registered handle.
      * @return string
      */
     public static function add_charset_to_scripts($tag, $handle) {
-        if (in_array($handle, ['wcp-scanner-app', 'wcp-global-script', 'wcp-popover-dialogs'], true) && strpos($tag, 'charset=') === false) {
+        if (in_array($handle, ['webcare-pro-app', 'webcare-global-script', 'webcare-popover-dialogs'], true) && strpos($tag, 'charset=') === false) {
             $tag = str_replace('<script ', '<script charset="UTF-8" ', $tag);
         }
         return $tag;
@@ -100,7 +100,7 @@ class AdminMenu {
             __('Security Scan & Findings', 'webcare-pro-security'),
             __('Security Scanner', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-scan',
+            'webcare-pro-scan',
             [__CLASS__, 'render_app_container']
         );
 
@@ -110,7 +110,7 @@ class AdminMenu {
             __('Web Application Firewall & Traffic Defense', 'webcare-pro-security'),
             __('Firewall & WAF', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-firewall',
+            'webcare-pro-firewall',
             [__CLASS__, 'render_app_container']
         );
 
@@ -120,7 +120,7 @@ class AdminMenu {
             __('Zero-Trust Identity, 2FA & Access Control', 'webcare-pro-security'),
             __('Identity & Access', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-auth',
+            'webcare-pro-auth',
             [__CLASS__, 'render_app_container']
         );
 
@@ -130,7 +130,7 @@ class AdminMenu {
             __('Quarantine Vault & Safety Recoveries', 'webcare-pro-security'),
             __('Quarantine & Vault', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-vault',
+            'webcare-pro-vault',
             [__CLASS__, 'render_app_container']
         );
 
@@ -140,7 +140,7 @@ class AdminMenu {
             __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
             __('System Forensics', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-forensics',
+            'webcare-pro-forensics',
             [__CLASS__, 'render_app_container']
         );
 
@@ -150,7 +150,7 @@ class AdminMenu {
             __('Scanner Settings, AI Copilot & Governance', 'webcare-pro-security'),
             __('Settings & AI', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-settings',
+            'webcare-pro-settings',
             [__CLASS__, 'render_app_container']
         );
 
@@ -164,7 +164,7 @@ class AdminMenu {
             __('Virtual Patching & 0-Day Exploit Studio', 'webcare-pro-security'),
             __('Virtual Patching', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-vpatch',
+            'webcare-pro-vpatch',
             [__CLASS__, 'render_app_container']
         );
 
@@ -174,7 +174,7 @@ class AdminMenu {
             __('About WebCare Pro & Direct Support', 'webcare-pro-security'),
             __('About & Support', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-about',
+            'webcare-pro-about',
             [__CLASS__, 'render_app_container']
         );
 
@@ -184,7 +184,7 @@ class AdminMenu {
             __('Targeted Security Audits', 'webcare-pro-security'),
             __('Targeted Scans', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-tools',
+            'webcare-pro-tools',
             [__CLASS__, 'render_app_container']
         );
 
@@ -194,7 +194,7 @@ class AdminMenu {
             __('Scan Logs & Audit History', 'webcare-pro-security'),
             __('Scan Logs', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-logs',
+            'webcare-pro-logs',
             [__CLASS__, 'render_app_container']
         );
 
@@ -204,7 +204,7 @@ class AdminMenu {
             __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
             __('System Forensics', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-forensics',
+            'webcare-pro-forensics',
             [__CLASS__, 'render_app_container']
         );
 
@@ -214,7 +214,7 @@ class AdminMenu {
             __('File Integrity Monitoring (FIM) & Code Diff', 'webcare-pro-security'),
             __('File Integrity (FIM)', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-fim',
+            'webcare-pro-fim',
             [__CLASS__, 'render_app_container']
         );
 
@@ -224,7 +224,7 @@ class AdminMenu {
             __('Vulnerabilities & Updates', 'webcare-pro-security'),
             __('Vulnerabilities', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-vulnerabilities',
+            'webcare-pro-vulnerabilities',
             [__CLASS__, 'render_app_container']
         );
 
@@ -234,7 +234,7 @@ class AdminMenu {
             __('WebCare Pro Protection Quickstart Wizard', 'webcare-pro-security'),
             __('Protection Wizard', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-wizard',
+            'webcare-pro-wizard',
             [__CLASS__, 'render_app_container']
         );
 
@@ -244,7 +244,7 @@ class AdminMenu {
             __('Database Backup Vault', 'webcare-pro-security'),
             __('Database Backup', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-backup',
+            'webcare-pro-backup',
             [__CLASS__, 'render_app_container']
         );
 
@@ -254,7 +254,7 @@ class AdminMenu {
             __('Server & Host Infrastructure Telemetry', 'webcare-pro-security'),
             __('Host Telemetry', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-server',
+            'webcare-pro-server',
             [__CLASS__, 'render_app_container']
         );
 
@@ -264,7 +264,7 @@ class AdminMenu {
             __('WAF Incident Logs & Attack Forensics', 'webcare-pro-security'),
             __('WAF Logs', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-waf-logs',
+            'webcare-pro-waf-logs',
             [__CLASS__, 'render_app_container']
         );
 
@@ -274,7 +274,7 @@ class AdminMenu {
             __('Notifications & Security Alerts', 'webcare-pro-security'),
             __('Notifications', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-notifications',
+            'webcare-pro-notifications',
             [__CLASS__, 'render_app_container']
         );
 
@@ -284,13 +284,13 @@ class AdminMenu {
             __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
             __('Activity Logs', 'webcare-pro-security'),
             'manage_options',
-            'wcp-scanner-activity-logs',
+            'webcare-pro-activity-logs',
             [__CLASS__, 'render_app_container']
         );
     }
 
     /**
-     * Ensure global $title is a valid string for all WCP admin screens before WordPress core admin-header.php runs.
+     * Ensure global $title is a valid string for all WebCare admin screens before WordPress core admin-header.php runs.
      * Prevents PHP 8.4 deprecation: strip_tags(): Passing null to parameter #1 ($string) is deprecated.
      */
     public static function ensure_admin_screen_title(): void {
@@ -300,115 +300,115 @@ class AdminMenu {
             $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
             $title_map = [
                 'webcare-pro-security'       => __('WebCare Pro Security & Firewall', 'webcare-pro-security'),
-                'wcp-scanner-scan'           => __('Security Scan & Findings', 'webcare-pro-security'),
-                'wcp-scanner-firewall'       => __('Web Application Firewall (WAF Lite)', 'webcare-pro-security'),
-                'wcp-scanner-caf'            => __('Context-Adaptive Firewall (CAF) & StackGuard', 'webcare-pro-security'),
-                'wcp-scanner-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'webcare-pro-security'),
-                'wcp-scanner-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'webcare-pro-security'),
-                'wcp-scanner-vault'          => __('WebCare Pro Vault & Safety Recoveries', 'webcare-pro-security'),
-                'wcp-scanner-settings'       => __('Scanner Settings & AI Configuration', 'webcare-pro-security'),
-                'wcp-scanner-about'          => __('About WebCare Pro & Services', 'webcare-pro-security'),
-                'wcp-scanner-tools'          => __('Targeted Security Audits', 'webcare-pro-security'),
-                'wcp-scanner-logs'           => __('Scan Logs & Audit History', 'webcare-pro-security'),
-                'wcp-scanner-forensics'      => __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
-                'wcp-scanner-fim'            => __('File Integrity Monitoring (FIM) & Code Diff', 'webcare-pro-security'),
-                'wcp-scanner-vulnerabilities'=> __('Vulnerabilities & Updates', 'webcare-pro-security'),
-                'wcp-scanner-backup'         => __('Database Backup Vault', 'webcare-pro-security'),
-                'wcp-scanner-server'         => __('Server & Host Infrastructure Telemetry', 'webcare-pro-security'),
-                'wcp-scanner-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'webcare-pro-security'),
-                'wcp-scanner-notifications'  => __('Notifications & Security Alerts', 'webcare-pro-security'),
-                'wcp-scanner-activity-logs'   => __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
+                'webcare-pro-scan'           => __('Security Scan & Findings', 'webcare-pro-security'),
+                'webcare-pro-firewall'       => __('Web Application Firewall (WAF Lite)', 'webcare-pro-security'),
+                'webcare-pro-caf'            => __('Context-Adaptive Firewall (CAF) & StackGuard', 'webcare-pro-security'),
+                'webcare-pro-vpatch'         => __('Virtual Patching & 0-Day Exploit Studio', 'webcare-pro-security'),
+                'webcare-pro-auth'           => __('Multi-Factor Authentication (2FA) & Login Security', 'webcare-pro-security'),
+                'webcare-pro-vault'          => __('WebCare Pro Vault & Safety Recoveries', 'webcare-pro-security'),
+                'webcare-pro-settings'       => __('Scanner Settings & AI Configuration', 'webcare-pro-security'),
+                'webcare-pro-about'          => __('About WebCare Pro & Services', 'webcare-pro-security'),
+                'webcare-pro-tools'          => __('Targeted Security Audits', 'webcare-pro-security'),
+                'webcare-pro-logs'           => __('Scan Logs & Audit History', 'webcare-pro-security'),
+                'webcare-pro-forensics'      => __('System Forensics & Deep Diagnostics', 'webcare-pro-security'),
+                'webcare-pro-fim'            => __('File Integrity Monitoring (FIM) & Code Diff', 'webcare-pro-security'),
+                'webcare-pro-vulnerabilities'=> __('Vulnerabilities & Updates', 'webcare-pro-security'),
+                'webcare-pro-backup'         => __('Database Backup Vault', 'webcare-pro-security'),
+                'webcare-pro-server'         => __('Server & Host Infrastructure Telemetry', 'webcare-pro-security'),
+                'webcare-pro-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'webcare-pro-security'),
+                'webcare-pro-notifications'  => __('Notifications & Security Alerts', 'webcare-pro-security'),
+                'webcare-pro-activity-logs'   => __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
             ];
 
             if (isset($title_map[$page])) {
                 $title = $title_map[$page];
-            } elseif (strpos($page, 'wcp-') !== false || $page === 'webcare-pro-security') {
+            } elseif (strpos($page, 'webcare-') !== false || $page === 'webcare-pro-security') {
                 $title = __('WebCare Pro Security & Firewall', 'webcare-pro-security');
             }
         }
     }
 
     public static function render_app_container() {
-        echo '<div class="wrap"><div id="wcp-scanner-root"></div></div>';
+        echo '<div class="wrap"><div id="webcare-pro-root"></div></div>';
     }
 
     public static function enqueue_assets($hook) {
         $valid_hooks = [
             'toplevel_page_webcare-pro-security',
-            'toplevel_page_wcp-security-scanner',
-            'webcare-pro-security_page_wcp-scanner-scan',
-            'webcare-pro-security_page_wcp-scanner-vault',
-            'webcare-pro-security_page_wcp-scanner-tools',
-            'webcare-pro-security_page_wcp-scanner-logs',
-            'webcare-pro-security_page_wcp-scanner-forensics',
-            'webcare-pro-security_page_wcp-scanner-quarantine',
-            'webcare-pro-security_page_wcp-scanner-backup',
-            'webcare-pro-security_page_wcp-scanner-server',
-            'webcare-pro-security_page_wcp-scanner-vulnerabilities',
-            'webcare-pro-security_page_wcp-scanner-firewall',
-            'webcare-pro-security_page_wcp-scanner-caf',
-            'webcare-pro-security_page_wcp-scanner-vpatch',
-            'webcare-pro-security_page_wcp-scanner-waf-logs',
-            'webcare-pro-security_page_wcp-scanner-fim',
-            'webcare-pro-security_page_wcp-scanner-auth',
-            'webcare-pro-security_page_wcp-scanner-notifications',
-            'webcare-pro-security_page_wcp-scanner-activity-logs',
-            'webcare-pro-security_page_wcp-scanner-settings',
-            'webcare-pro-security_page_wcp-scanner-about',
-            'wcp-security-scanner_page_wcp-scanner-scan',
-            'wcp-security-scanner_page_wcp-scanner-vault',
-            'wcp-security-scanner_page_wcp-scanner-tools',
-            'wcp-security-scanner_page_wcp-scanner-logs',
-            'wcp-security-scanner_page_wcp-scanner-forensics',
-            'wcp-security-scanner_page_wcp-scanner-quarantine',
-            'wcp-security-scanner_page_wcp-scanner-backup',
-            'wcp-security-scanner_page_wcp-scanner-server',
-            'wcp-security-scanner_page_wcp-scanner-vulnerabilities',
-            'wcp-security-scanner_page_wcp-scanner-firewall',
-            'wcp-security-scanner_page_wcp-scanner-caf',
-            'wcp-security-scanner_page_wcp-scanner-vpatch',
-            'wcp-security-scanner_page_wcp-scanner-waf-logs',
-            'wcp-security-scanner_page_wcp-scanner-fim',
-            'wcp-security-scanner_page_wcp-scanner-auth',
-            'wcp-security-scanner_page_wcp-scanner-notifications',
-            'wcp-security-scanner_page_wcp-scanner-activity-logs',
-            'wcp-security-scanner_page_wcp-scanner-settings',
-            'wcp-security-scanner_page_wcp-scanner-about',
-            'security-scanner_page_wcp-scanner-scan',
-            'security-scanner_page_wcp-scanner-vault',
-            'security-scanner_page_wcp-scanner-tools',
-            'security-scanner_page_wcp-scanner-logs',
-            'security-scanner_page_wcp-scanner-forensics',
-            'security-scanner_page_wcp-scanner-quarantine',
-            'security-scanner_page_wcp-scanner-backup',
-            'security-scanner_page_wcp-scanner-server',
-            'security-scanner_page_wcp-scanner-vulnerabilities',
-            'security-scanner_page_wcp-scanner-firewall',
-            'security-scanner_page_wcp-scanner-caf',
-            'security-scanner_page_wcp-scanner-vpatch',
-            'security-scanner_page_wcp-scanner-waf-logs',
-            'security-scanner_page_wcp-scanner-fim',
-            'security-scanner_page_wcp-scanner-auth',
-            'security-scanner_page_wcp-scanner-notifications',
-            'security-scanner_page_wcp-scanner-activity-logs',
-            'security-scanner_page_wcp-scanner-settings',
-            'security-scanner_page_wcp-scanner-about',
+            'toplevel_page_webcare-pro-security',
+            'webcare-pro-security_page_webcare-pro-scan',
+            'webcare-pro-security_page_webcare-pro-vault',
+            'webcare-pro-security_page_webcare-pro-tools',
+            'webcare-pro-security_page_webcare-pro-logs',
+            'webcare-pro-security_page_webcare-pro-forensics',
+            'webcare-pro-security_page_webcare-pro-quarantine',
+            'webcare-pro-security_page_webcare-pro-backup',
+            'webcare-pro-security_page_webcare-pro-server',
+            'webcare-pro-security_page_webcare-pro-vulnerabilities',
+            'webcare-pro-security_page_webcare-pro-firewall',
+            'webcare-pro-security_page_webcare-pro-caf',
+            'webcare-pro-security_page_webcare-pro-vpatch',
+            'webcare-pro-security_page_webcare-pro-waf-logs',
+            'webcare-pro-security_page_webcare-pro-fim',
+            'webcare-pro-security_page_webcare-pro-auth',
+            'webcare-pro-security_page_webcare-pro-notifications',
+            'webcare-pro-security_page_webcare-pro-activity-logs',
+            'webcare-pro-security_page_webcare-pro-settings',
+            'webcare-pro-security_page_webcare-pro-about',
+            'webcare-pro-security_page_webcare-pro-scan',
+            'webcare-pro-security_page_webcare-pro-vault',
+            'webcare-pro-security_page_webcare-pro-tools',
+            'webcare-pro-security_page_webcare-pro-logs',
+            'webcare-pro-security_page_webcare-pro-forensics',
+            'webcare-pro-security_page_webcare-pro-quarantine',
+            'webcare-pro-security_page_webcare-pro-backup',
+            'webcare-pro-security_page_webcare-pro-server',
+            'webcare-pro-security_page_webcare-pro-vulnerabilities',
+            'webcare-pro-security_page_webcare-pro-firewall',
+            'webcare-pro-security_page_webcare-pro-caf',
+            'webcare-pro-security_page_webcare-pro-vpatch',
+            'webcare-pro-security_page_webcare-pro-waf-logs',
+            'webcare-pro-security_page_webcare-pro-fim',
+            'webcare-pro-security_page_webcare-pro-auth',
+            'webcare-pro-security_page_webcare-pro-notifications',
+            'webcare-pro-security_page_webcare-pro-activity-logs',
+            'webcare-pro-security_page_webcare-pro-settings',
+            'webcare-pro-security_page_webcare-pro-about',
+            'security-scanner_page_webcare-pro-scan',
+            'security-scanner_page_webcare-pro-vault',
+            'security-scanner_page_webcare-pro-tools',
+            'security-scanner_page_webcare-pro-logs',
+            'security-scanner_page_webcare-pro-forensics',
+            'security-scanner_page_webcare-pro-quarantine',
+            'security-scanner_page_webcare-pro-backup',
+            'security-scanner_page_webcare-pro-server',
+            'security-scanner_page_webcare-pro-vulnerabilities',
+            'security-scanner_page_webcare-pro-firewall',
+            'security-scanner_page_webcare-pro-caf',
+            'security-scanner_page_webcare-pro-vpatch',
+            'security-scanner_page_webcare-pro-waf-logs',
+            'security-scanner_page_webcare-pro-fim',
+            'security-scanner_page_webcare-pro-auth',
+            'security-scanner_page_webcare-pro-notifications',
+            'security-scanner_page_webcare-pro-activity-logs',
+            'security-scanner_page_webcare-pro-settings',
+            'security-scanner_page_webcare-pro-about',
         ];
 
         // Also check query param fallback
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        $is_wcp_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'wcp-scanner') !== false || $current_page === 'webcare-pro-security';
+        $is_webcare_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'webcare-pro-security') !== false || $current_page === 'webcare-pro-security';
 
-        if (!$is_wcp_page) {
+        if (!$is_webcare_page) {
             return;
         }
 
         // Enqueue universal in-page popover dialog system for alerts & near-button confirmations
-        $popover_js_url = WEBCAREPROSCAN_URL . 'assets/js/wcp-popover-dialogs.js';
-        $popover_js_path = WEBCAREPROSCAN_PATH . 'assets/js/wcp-popover-dialogs.js';
+        $popover_js_url = WEBCAREPROSCAN_URL . 'assets/js/webcare-popover-dialogs.js';
+        $popover_js_path = WEBCAREPROSCAN_PATH . 'assets/js/webcare-popover-dialogs.js';
         if (file_exists($popover_js_path)) {
-            wp_enqueue_script('wcp-popover-dialogs', $popover_js_url, [], WEBCAREPROSCAN_VERSION, false);
+            wp_enqueue_script('webcare-popover-dialogs', $popover_js_url, [], WEBCAREPROSCAN_VERSION, false);
         }
 
         $active_tab = 'dashboard';
@@ -416,24 +416,24 @@ class AdminMenu {
         $tab_param = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
 
         // Prioritize explicit tab parameter if passed in query string
-        if ($tab_param === 'logs' || $current_page === 'wcp-scanner-logs') $active_tab = 'logs';
-        elseif ($tab_param === 'targeted' || $current_page === 'wcp-scanner-tools') $active_tab = 'targeted';
-        elseif ($tab_param === 'vulnerabilities' || $current_page === 'wcp-scanner-vulnerabilities') $active_tab = 'vulnerabilities';
-        elseif ($tab_param === 'fim' || $current_page === 'wcp-scanner-fim') $active_tab = 'fim';
-        elseif ($tab_param === 'quarantine' || $current_page === 'wcp-scanner-quarantine') $active_tab = 'quarantine';
-        elseif ($tab_param === 'backup' || $current_page === 'wcp-scanner-backup') $active_tab = 'backup';
-        elseif ($tab_param === 'server' || $current_page === 'wcp-scanner-server') $active_tab = 'server';
-        elseif ($tab_param === 'forensics' || $current_page === 'wcp-scanner-forensics') $active_tab = 'forensics';
-        elseif ($tab_param === 'vault' || $current_page === 'wcp-scanner-vault') $active_tab = 'vault';
-        elseif ($tab_param === 'waf_logs' || $current_page === 'wcp-scanner-waf-logs') $active_tab = 'waf_logs';
-        elseif (in_array($tab_param, ['firewall', 'vpatch', 'caf'], true) || in_array($current_page, ['wcp-scanner-firewall', 'wcp-scanner-vpatch', 'wcp-scanner-caf'], true)) $active_tab = 'firewall';
-        elseif ($tab_param === 'auth' || $current_page === 'wcp-scanner-auth') $active_tab = 'auth';
-        elseif ($tab_param === 'notifications' || $current_page === 'wcp-scanner-notifications') $active_tab = 'notifications';
-        elseif ($tab_param === 'activity_logs' || $current_page === 'wcp-scanner-activity-logs') $active_tab = 'activity_logs';
-        elseif ($tab_param === 'settings' || $current_page === 'wcp-scanner-settings') $active_tab = 'settings';
-        elseif ($tab_param === 'about' || $current_page === 'wcp-scanner-about') $active_tab = 'about';
-        elseif ($tab_param === 'wizard' || $current_page === 'wcp-scanner-wizard') $active_tab = 'wizard';
-        elseif ($current_page === 'wcp-scanner-scan' || $tab_param === 'scan') $active_tab = 'scan';
+        if ($tab_param === 'logs' || $current_page === 'webcare-pro-logs') $active_tab = 'logs';
+        elseif ($tab_param === 'targeted' || $current_page === 'webcare-pro-tools') $active_tab = 'targeted';
+        elseif ($tab_param === 'vulnerabilities' || $current_page === 'webcare-pro-vulnerabilities') $active_tab = 'vulnerabilities';
+        elseif ($tab_param === 'fim' || $current_page === 'webcare-pro-fim') $active_tab = 'fim';
+        elseif ($tab_param === 'quarantine' || $current_page === 'webcare-pro-quarantine') $active_tab = 'quarantine';
+        elseif ($tab_param === 'backup' || $current_page === 'webcare-pro-backup') $active_tab = 'backup';
+        elseif ($tab_param === 'server' || $current_page === 'webcare-pro-server') $active_tab = 'server';
+        elseif ($tab_param === 'forensics' || $current_page === 'webcare-pro-forensics') $active_tab = 'forensics';
+        elseif ($tab_param === 'vault' || $current_page === 'webcare-pro-vault') $active_tab = 'vault';
+        elseif ($tab_param === 'waf_logs' || $current_page === 'webcare-pro-waf-logs') $active_tab = 'waf_logs';
+        elseif (in_array($tab_param, ['firewall', 'vpatch', 'caf'], true) || in_array($current_page, ['webcare-pro-firewall', 'webcare-pro-vpatch', 'webcare-pro-caf'], true)) $active_tab = 'firewall';
+        elseif ($tab_param === 'auth' || $current_page === 'webcare-pro-auth') $active_tab = 'auth';
+        elseif ($tab_param === 'notifications' || $current_page === 'webcare-pro-notifications') $active_tab = 'notifications';
+        elseif ($tab_param === 'activity_logs' || $current_page === 'webcare-pro-activity-logs') $active_tab = 'activity_logs';
+        elseif ($tab_param === 'settings' || $current_page === 'webcare-pro-settings') $active_tab = 'settings';
+        elseif ($tab_param === 'about' || $current_page === 'webcare-pro-about') $active_tab = 'about';
+        elseif ($tab_param === 'wizard' || $current_page === 'webcare-pro-wizard') $active_tab = 'wizard';
+        elseif ($current_page === 'webcare-pro-scan' || $tab_param === 'scan') $active_tab = 'scan';
 
         $global_css_file = WEBCAREPROSCAN_PATH . 'build/global.css';
         $global_js_file  = WEBCAREPROSCAN_PATH . 'build/global.js';
@@ -442,13 +442,13 @@ class AdminMenu {
 
         // 1. Enqueue Global Core Shell Assets (Design tokens, CSS variables & typography)
         if (file_exists($global_css_file)) {
-            wp_enqueue_style('wcp-global-style', WEBCAREPROSCAN_URL . 'build/global.css', ['wp-components'], $global_css_ver);
+            wp_enqueue_style('webcare-global-style', WEBCAREPROSCAN_URL . 'build/global.css', ['wp-components'], $global_css_ver);
         }
         if (file_exists($global_js_file)) {
-            wp_enqueue_script('wcp-global-script', WEBCAREPROSCAN_URL . 'build/global.js', ['wp-element'], $global_js_ver, true);
+            wp_enqueue_script('webcare-global-script', WEBCAREPROSCAN_URL . 'build/global.js', ['wp-element'], $global_js_ver, true);
         }
 
-        $is_scan_cluster = ($current_page === 'wcp-scanner-scan')
+        $is_scan_cluster = ($current_page === 'webcare-pro-scan')
             || in_array($active_tab, ['scan', 'targeted', 'logs', 'vulnerabilities'], true);
 
         // 2. Select decoupled per-page bundle (ensures individual page updates never break other pages)
@@ -524,9 +524,9 @@ class AdminMenu {
                 ];
             }
 
-            wp_enqueue_script('wcp-scanner-app', $js_url, $deps, $version, true);
-            wp_localize_script('wcp-scanner-app', 'wcpScannerSettings', [
-                'root'            => esc_url_raw(rest_url('wcp-scanner/v1')),
+            wp_enqueue_script('webcare-pro-app', $js_url, $deps, $version, true);
+            wp_localize_script('webcare-pro-app', 'webcareScannerSettings', [
+                'root'            => esc_url_raw(rest_url('webcare-pro-security/v1')),
                 'nonce'           => wp_create_nonce('wp_rest'),
                 'siteUrl'         => get_site_url(),
                 'siteName'        => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
@@ -556,7 +556,7 @@ class AdminMenu {
 
         if (!empty($css_rel) && file_exists(WEBCAREPROSCAN_PATH . $css_rel)) {
             $css_ver = (string) filemtime(WEBCAREPROSCAN_PATH . $css_rel);
-            wp_enqueue_style('wcp-scanner-style', $css_url, ['wcp-global-style'], $css_ver);
+            wp_enqueue_style('webcare-pro-style', $css_url, ['webcare-global-style'], $css_ver);
         }
     }
 
@@ -567,7 +567,7 @@ class AdminMenu {
      * @return array
      */
     public static function add_plugin_action_links(array $actions): array {
-        $settings_url = admin_url('admin.php?page=wcp-scanner-settings');
+        $settings_url = admin_url('admin.php?page=webcare-pro-settings');
         $settings_link = '<a href="' . esc_url($settings_url) . '">' . esc_html__('Settings', 'webcare-pro-security') . '</a>';
 
         $new_actions = [];
@@ -595,7 +595,7 @@ class AdminMenu {
         $logo_url = self::get_menu_icon();
         $custom_css = "
             /* WebCare Pro Security - Sidebar Menu Icon */
-            #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image img {
+            #adminmenu #toplevel_page_webcare-pro-security .wp-menu-image img {
                 width: 20px !important;
                 height: 20px !important;
                 padding: 6px 0 0 !important;
@@ -603,23 +603,22 @@ class AdminMenu {
                 border-radius: 4px !important;
                 transition: transform 0.15s ease-in-out !important;
             }
-            #adminmenu #toplevel_page_wcp-security-scanner .wp-menu-image.svg {
+            #adminmenu #toplevel_page_webcare-pro-security .wp-menu-image.svg {
                 background-repeat: no-repeat;
                 background-position: center;
                 background-size: 20px 20px;
                 opacity: 0.88;
                 transition: transform 0.15s ease-in-out, opacity 0.15s ease-in-out;
             }
-            #adminmenu #toplevel_page_wcp-security-scanner:hover .wp-menu-image img,
-            #adminmenu #toplevel_page_wcp-security-scanner.wp-has-current-submenu .wp-menu-image img,
-            #adminmenu #toplevel_page_wcp-security-scanner:hover .wp-menu-image.svg,
-            #adminmenu #toplevel_page_wcp-security-scanner.wp-has-current-submenu .wp-menu-image.svg {
+            #adminmenu #toplevel_page_webcare-pro-security:hover .wp-menu-image img,
+            #adminmenu #toplevel_page_webcare-pro-security.wp-has-current-submenu .wp-menu-image img,
+            #adminmenu #toplevel_page_webcare-pro-security:hover .wp-menu-image.svg,
+            #adminmenu #toplevel_page_webcare-pro-security.wp-has-current-submenu .wp-menu-image.svg {
                 opacity: 1;
                 transform: scale(1.1);
             }
             /* WebCare Pro Security - Plugins List Page Brand Logo */
-            .plugins tr[data-plugin*=\"wcp-wp-scanner.php\"] .plugin-title strong::before,
-            .plugins tr[data-plugin*=\"wcp-security-scanner.php\"] .plugin-title strong::before {
+            .plugins tr[data-plugin*=\"webcare-pro-security.php\"] .plugin-title strong::before {
                 content: \"\";
                 display: inline-block;
                 vertical-align: -4px;
@@ -632,9 +631,9 @@ class AdminMenu {
             }
         ";
 
-        wp_register_style('wcpscan-admin-brand', false, [], defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.0.0');
-        wp_enqueue_style('wcpscan-admin-brand');
-        wp_add_inline_style('wcpscan-admin-brand', $custom_css);
+        wp_register_style('webcare-admin-brand', false, [], defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.0.0');
+        wp_enqueue_style('webcare-admin-brand');
+        wp_add_inline_style('webcare-admin-brand', $custom_css);
     }
 
     /**
@@ -683,7 +682,7 @@ class AdminMenu {
 
         $ajax_dismiss_nonce = wp_create_nonce('webcareproscan_dismiss_quarantined_notice_nonce');
 
-        echo '<div id="wcpscan-quarantined-users-notice" class="notice notice-warning is-dismissible" data-nonce="' . esc_attr($ajax_dismiss_nonce) . '" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
+        echo '<div id="webcare-quarantined-users-notice" class="notice notice-warning is-dismissible" data-nonce="' . esc_attr($ajax_dismiss_nonce) . '" style="padding: 14px 18px; border-left: 4px solid #22c55e; background: #f0fdf4; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
         echo '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">';
         echo '<div style="font-size: 13px; color: #14532d;">';
         echo '<strong>' . esc_html__('WebCare Pro Security:', 'webcare-pro-security') . '</strong> ';
@@ -712,7 +711,7 @@ class AdminMenu {
         ?>
         <script>
         (function() {
-            var notice = document.getElementById('wcpscan-quarantined-users-notice');
+            var notice = document.getElementById('webcare-quarantined-users-notice');
             if (!notice) return;
             notice.addEventListener('click', function(e) {
                 var btn = e.target.closest('.notice-dismiss');
@@ -783,8 +782,8 @@ class AdminMenu {
 
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-            if ($page !== 'wcp-scanner-wizard') {
-                wp_safe_redirect(admin_url('admin.php?page=wcp-scanner-wizard'));
+            if ($page !== 'webcare-pro-wizard') {
+                wp_safe_redirect(admin_url('admin.php?page=webcare-pro-wizard'));
                 exit;
             }
         }
@@ -840,8 +839,8 @@ class AdminMenu {
         $is_purge_checked = !empty($settings['delete_data_on_uninstall']);
         ?>
         <!-- WebCare Pro Security Uninstall Confirmation Modal -->
-        <div id="wcpscan-uninstall-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 100050; backdrop-filter: blur(3px); align-items: center; justify-content: center;">
-            <div id="wcpscan-uninstall-modal" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 520px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif; border: 1px solid #e2e8f0; animation: wcpscanFadeIn 0.2s ease-out;">
+        <div id="webcare-uninstall-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); z-index: 100050; backdrop-filter: blur(3px); align-items: center; justify-content: center;">
+            <div id="webcare-uninstall-modal" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 520px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif; border: 1px solid #e2e8f0; animation: webcareFadeIn 0.2s ease-out;">
                 
                 <!-- Header -->
                 <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px;">
@@ -898,10 +897,10 @@ class AdminMenu {
 
                 <!-- Footer Buttons -->
                 <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="button" id="wcpscan-uninstall-cancel-btn" class="button" style="padding: 4px 14px; font-size: 13px; font-weight: 600;">
+                    <button type="button" id="webcare-uninstall-cancel-btn" class="button" style="padding: 4px 14px; font-size: 13px; font-weight: 600;">
                         <?php echo esc_html__('Cancel', 'webcare-pro-security'); ?>
                     </button>
-                    <button type="button" id="wcpscan-uninstall-confirm-btn" class="button button-primary" style="background: #dc2626; border-color: #b91c1c; padding: 4px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25);">
+                    <button type="button" id="webcare-uninstall-confirm-btn" class="button button-primary" style="background: #dc2626; border-color: #b91c1c; padding: 4px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25);">
                         <?php echo esc_html__('Proceed with Deletion', 'webcare-pro-security'); ?>
                     </button>
                 </div>
@@ -911,9 +910,9 @@ class AdminMenu {
         <script>
         (function() {
             var targetDeleteLink = null;
-            var overlay = document.getElementById('wcpscan-uninstall-modal-overlay');
-            var cancelBtn = document.getElementById('wcpscan-uninstall-cancel-btn');
-            var confirmBtn = document.getElementById('wcpscan-uninstall-confirm-btn');
+            var overlay = document.getElementById('webcare-uninstall-modal-overlay');
+            var cancelBtn = document.getElementById('webcare-uninstall-cancel-btn');
+            var confirmBtn = document.getElementById('webcare-uninstall-confirm-btn');
 
             if (!overlay || !cancelBtn || !confirmBtn) return;
 
@@ -924,14 +923,14 @@ class AdminMenu {
 
                 var href = link.getAttribute('href') || '';
                 var isDelete = href.indexOf('action=delete-selected') !== -1 || (link.classList.contains('delete') && href.indexOf('plugins.php') !== -1);
-                var isWcpPlugin = href.indexOf('webcare-pro-security') !== -1;
+                var isWebCarePlugin = href.indexOf('webcare-pro-security') !== -1;
 
-                if (!isWcpPlugin) {
-                    var row = link.closest('tr[data-plugin*="wcp-"]');
-                    if (row) isWcpPlugin = true;
+                if (!isWebCarePlugin) {
+                    var row = link.closest('tr[data-plugin*="webcare-"]');
+                    if (row) isWebCarePlugin = true;
                 }
 
-                if (isDelete && isWcpPlugin) {
+                if (isDelete && isWebCarePlugin) {
                     e.preventDefault();
                     e.stopImmediatePropagation();
                     targetDeleteLink = href;

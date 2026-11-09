@@ -1073,7 +1073,7 @@ class SettingsManager {
             }
 
             // Suppress secondary generic firewall_ruleset_modified when an explicit IP action is logged or suppressed
-            if (!empty($diff) && (self::$suppress_firewall_ruleset_log || (class_exists('\WebCareProScanner\System\WcpActivityLogger') && \WebCareProScanner\System\WcpActivityLogger::has_action_logged('firewall_ip_unblocked', 'firewall_ip_blocked', 'firewall_ip_whitelisted', 'firewall_ip_whitelist_removed')))) {
+            if (!empty($diff) && (self::$suppress_firewall_ruleset_log || (class_exists('\WebCareProScanner\System\WebCareActivityLogger') && \WebCareProScanner\System\WebCareActivityLogger::has_action_logged('firewall_ip_unblocked', 'firewall_ip_blocked', 'firewall_ip_whitelisted', 'firewall_ip_whitelist_removed')))) {
                 $diff_keys_check = array_keys($diff);
                 $substantive_keys = array_diff($diff_keys_check, ['waf_blocked_ips', 'waf_whitelisted_ips']);
                 if (empty($substantive_keys)) {
@@ -1114,7 +1114,7 @@ class SettingsManager {
                         }
                     }
 
-                    \WebCareProScanner\System\WcpActivityLogger::notice(
+                    \WebCareProScanner\System\WebCareActivityLogger::notice(
                         'firewall_ruleset_modified',
                         'firewall',
                         [
@@ -1125,7 +1125,7 @@ class SettingsManager {
                         ]
                     );
                 } else {
-                    \WebCareProScanner\System\WcpActivityLogger::notice(
+                    \WebCareProScanner\System\WebCareActivityLogger::notice(
                         'settings_updated',
                         'settings',
                         [

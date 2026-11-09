@@ -55,7 +55,7 @@ class NotificationDispatcher {
                 'category'    => 'scans',
                 'category_label' => __('Core Scans & Threats', 'webcare-pro-security'),
                 'title'       => __('Auto-Quarantined Malicious Threat', 'webcare-pro-security'),
-                'description' => __('Fires when an active exploit or malicious payload is safely neutralized into the WCP Vault.', 'webcare-pro-security'),
+                'description' => __('Fires when an active exploit or malicious payload is safely neutralized into the WebCare Vault.', 'webcare-pro-security'),
                 'severity'    => 'high',
             ],
             'scan_aborted_timeout' => [
@@ -701,8 +701,8 @@ class NotificationDispatcher {
             'datetime'    => $gmt_time,
             'site_name'   => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) ?: 'WordPress',
             'site_url'    => get_site_url(),
-            'dashboard_url' => admin_url('admin.php?page=wcp-security-scanner'),
-            'notifications_url' => admin_url('admin.php?page=wcp-scanner-notifications'),
+            'dashboard_url' => admin_url('admin.php?page=webcare-pro-security'),
+            'notifications_url' => admin_url('admin.php?page=webcare-pro-notifications'),
         ], $payload);
 
         $full_payload['details'] = $enhanced_details;
@@ -742,7 +742,7 @@ class NotificationDispatcher {
         $time      = $payload['datetime'];
         $site_url  = $payload['site_url'];
         $dash_url  = $payload['dashboard_url'];
-        $notif_url = !empty($payload['notifications_url']) ? $payload['notifications_url'] : admin_url('admin.php?page=wcp-scanner-notifications');
+        $notif_url = !empty($payload['notifications_url']) ? $payload['notifications_url'] : admin_url('admin.php?page=webcare-pro-notifications');
 
         // High-density factual subject line for AI parsing
         $host = wp_parse_url($site_url, PHP_URL_HOST) ?: $site_url;
@@ -808,21 +808,21 @@ class NotificationDispatcher {
 
         $html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">';
         $html .= '<meta name="description" content="' . esc_attr($ai_overview_summary) . '">';
-        $html .= '<meta name="wcp-security-severity" content="' . esc_attr($severity) . '">';
-        $html .= '<meta name="wcp-event-code" content="' . esc_attr($payload['event_key'] ?? '') . '">';
-        $html .= '<meta name="wcp-site-url" content="' . esc_attr($site_url) . '">';
+        $html .= '<meta name="webcare-security-severity" content="' . esc_attr($severity) . '">';
+        $html .= '<meta name="webcare-event-code" content="' . esc_attr($payload['event_key'] ?? '') . '">';
+        $html .= '<meta name="webcare-site-url" content="' . esc_attr($site_url) . '">';
         $html .= '<script type="application/ld+json">' . $json_ld_string . '</script>';
         $html .= '<style>';
         $html .= '@media only screen and (max-width: 540px) {';
-        $html .= '  .wcp-container { width: 100% !important; border-radius: 0 !important; }';
-        $html .= '  .wcp-content { padding: 22px 16px !important; }';
-        $html .= '  .wcp-header { padding: 24px 18px !important; }';
-        $html .= '  .wcp-kv-table { width: 100% !important; }';
-        $html .= '  .wcp-kv-row { display: block !important; width: 100% !important; padding: 10px 14px !important; box-sizing: border-box !important; }';
-        $html .= '  .wcp-kv-label { display: block !important; width: 100% !important; padding: 0 0 4px 0 !important; font-size: 11px !important; }';
-        $html .= '  .wcp-kv-val { display: block !important; width: 100% !important; padding: 0 !important; font-size: 12.5px !important; word-break: break-word !important; }';
-        $html .= '  .wcp-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }';
-        $html .= '  .wcp-footer { padding: 22px 18px !important; }';
+        $html .= '  .webcare-container { width: 100% !important; border-radius: 0 !important; }';
+        $html .= '  .webcare-content { padding: 22px 16px !important; }';
+        $html .= '  .webcare-header { padding: 24px 18px !important; }';
+        $html .= '  .webcare-kv-table { width: 100% !important; }';
+        $html .= '  .webcare-kv-row { display: block !important; width: 100% !important; padding: 10px 14px !important; box-sizing: border-box !important; }';
+        $html .= '  .webcare-kv-label { display: block !important; width: 100% !important; padding: 0 0 4px 0 !important; font-size: 11px !important; }';
+        $html .= '  .webcare-kv-val { display: block !important; width: 100% !important; padding: 0 !important; font-size: 12.5px !important; word-break: break-word !important; }';
+        $html .= '  .webcare-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }';
+        $html .= '  .webcare-footer { padding: 22px 18px !important; }';
         $html .= '}';
         $html .= '</style>';
         $html .= '</head><body style="margin: 0; padding: 24px 8px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a;">';
@@ -835,13 +835,13 @@ class NotificationDispatcher {
 
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f1f5f9;">';
         $html .= '<tr><td align="center">';
-        $html .= '<table role="presentation" class="wcp-container" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);">';
+        $html .= '<table role="presentation" class="webcare-container" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);">';
 
         // Top Accent Gradient Bar
         $html .= '<tr><td style="height: 4px; background: linear-gradient(90deg, #4f46e5 0%, #38bdf8 50%, ' . esc_attr($severity_color) . ' 100%);"></td></tr>';
 
         // Header: Deep Obsidian (#0f172a), high-contrast badges, logo, and title
-        $html .= '<tr><td class="wcp-header" style="padding: 30px 32px; background: #0f172a; text-align: left; border-bottom: 3px solid ' . esc_attr($severity_color) . ';">';
+        $html .= '<tr><td class="webcare-header" style="padding: 30px 32px; background: #0f172a; text-align: left; border-bottom: 3px solid ' . esc_attr($severity_color) . ';">';
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>';
 
         // Severity Status Pill Badge
@@ -876,7 +876,7 @@ class NotificationDispatcher {
         $html .= '</td></tr></table></td></tr>';
 
         // Content Body: Clean White Surface
-        $html .= '<tr><td class="wcp-content" style="padding: 28px 32px; background: #ffffff;">';
+        $html .= '<tr><td class="webcare-content" style="padding: 28px 32px; background: #ffffff;">';
 
         // AI Summary Quick-Glance Callout (Clean Blue Card)
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; margin-bottom: 20px;">';
@@ -890,7 +890,7 @@ class NotificationDispatcher {
         // Diagnostic Details: Clean Matrix (#f8fafc with #e2e8f0 border)
         if (!empty($payload['details']) && is_array($payload['details'])) {
             $html .= '<div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 10px;">Forensic Event Dossier</div>';
-            $html .= '<table role="presentation" class="wcp-kv-table" width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 24px;">';
+            $html .= '<table role="presentation" class="webcare-kv-table" width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 24px;">';
             $total_items = count($payload['details']);
             $curr = 0;
             foreach ($payload['details'] as $k => $v) {
@@ -906,10 +906,10 @@ class NotificationDispatcher {
                     $val_color = '#b45309';
                 }
 
-                $html .= '<tr><td style="padding: 12px 16px; ' . $border_style . '" class="wcp-kv-row">';
+                $html .= '<tr><td style="padding: 12px 16px; ' . $border_style . '" class="webcare-kv-row">';
                 $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>';
-                $html .= '<td width="35%" class="wcp-kv-label" style="font-size: 12px; color: #64748b; font-weight: 600; vertical-align: top;">' . esc_html(ucwords(str_replace('_', ' ', (string)$k))) . '</td>';
-                $html .= '<td width="65%" class="wcp-kv-val" style="font-size: 13px; color: ' . esc_attr($val_color) . '; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; vertical-align: top;">' . esc_html((string)$val) . '</td>';
+                $html .= '<td width="35%" class="webcare-kv-label" style="font-size: 12px; color: #64748b; font-weight: 600; vertical-align: top;">' . esc_html(ucwords(str_replace('_', ' ', (string)$k))) . '</td>';
+                $html .= '<td width="65%" class="webcare-kv-val" style="font-size: 13px; color: ' . esc_attr($val_color) . '; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; vertical-align: top;">' . esc_html((string)$val) . '</td>';
                 $html .= '</tr></table></td></tr>';
             }
             $html .= '</table>';
@@ -918,14 +918,14 @@ class NotificationDispatcher {
         // Action CTA Button
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">';
         $html .= '<tr><td align="center">';
-        $html .= '<a href="' . esc_url($dash_url) . '" class="wcp-btn" style="display: inline-block; background: #4f46e5; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);">';
-        $html .= 'Open WCP Security Dashboard &rarr;';
+        $html .= '<a href="' . esc_url($dash_url) . '" class="webcare-btn" style="display: inline-block; background: #4f46e5; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 8px; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);">';
+        $html .= 'Open WebCare Pro Security Dashboard &rarr;';
         $html .= '</a></td></tr></table>';
 
         $html .= '</td></tr>';
 
         // Sleek Dark Footer matching exact requested screenshot format
-        $html .= '<tr><td class="wcp-footer" style="background: #0b1120; padding: 28px 32px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; color: #94a3b8; line-height: 1.6;">';
+        $html .= '<tr><td class="webcare-footer" style="background: #0b1120; padding: 28px 32px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; color: #94a3b8; line-height: 1.6;">';
         $html .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>';
         $html .= '<div style="margin-bottom: 12px;">';
         $html .= '<strong style="color: #ffffff; font-size: 14px; letter-spacing: 0.2px;">About WebCare Pro</strong>';
@@ -946,7 +946,7 @@ class NotificationDispatcher {
             return (bool) wp_mail($to, $subject, $html, $headers);
         } catch (\Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('WCP Scanner: wp_mail failed due to mailer engine error: ' . $e->getMessage());
+            error_log('WebCare Pro: wp_mail failed due to mailer engine error: ' . $e->getMessage());
             return false;
         }
     }
@@ -1018,7 +1018,7 @@ class NotificationDispatcher {
         // 2. Discord
         if ($has_discord) {
             $discord_payload = [
-                'username' => 'WCP Security Sentinel',
+                'username' => 'WebCare Pro Security Sentinel',
                 'embeds' => [
                     [
                         'title' => "{$status_emoji} {$title}",
@@ -1045,7 +1045,7 @@ class NotificationDispatcher {
                 'name'        => "{$status_emoji} [{$payload['severity']}] {$title} - {$site_name}",
                 'content'     => "{$message}\n\n- Site: {$site_name} ({$site_url})\n- Security Dashboard: {$dash_url}",
                 'priority'    => $is_danger ? 1 : 3,
-                'tags'        => ['security', 'wcp-scanner', $payload['event_key']],
+                'tags'        => ['security', 'webcare-pro-security', $payload['event_key']],
                 'event'       => $payload['event_key'],
                 'site_name'   => $site_name,
             ];

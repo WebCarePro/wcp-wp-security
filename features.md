@@ -33,7 +33,7 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 23. [Multi-Provider AI Code Forensics (ChatGPT, Gemini, Claude)](#23-multi-provider-ai-code-forensics-chatgpt-gemini-claude)
 24. [Model Context Protocol (MCP) Agentic Surface (AI SecOps Automation)](#24-model-context-protocol-mcp-agentic-surface-ai-secops-automation)
 25. [Cryptographic Secret Vault (Pure AES-256-GCM AEAD & Two-Phase Key Rotation)](#25-cryptographic-secret-vault-pure-aes-256-gcm-aead--two-phase-key-rotation)
-26. [Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)](#26-unified-wcp-vault-console-4-consolidated-isolation--recovery-facilities)
+26. [Unified WebCare Vault Console (4 Consolidated Isolation & Recovery Facilities)](#26-unified-webcare-vault-console-4-consolidated-isolation--recovery-facilities)
 27. [On-Demand Database Backup Vault (`.sql.gz`)](#27-on-demand-database-backup-vault-sqlgz)
 28. [High-Precision Microsecond Telemetry & Diagnostics](#28-high-precision-microsecond-telemetry--diagnostics)
 29. [Behavioral Baseline & Attack Chain Correlation](#29-behavioral-baseline--attack-chain-correlation)
@@ -202,7 +202,7 @@ Finding malware is only half the battle—fixing it without breaking your websit
 When dangerous hacker files or alien scripts are found, you shouldn't just leave them sitting there, but deleting them immediately might be risky if you aren't sure what they are. The Quarantine Vault works like a hospital isolation ward: it locks the infected file inside a secure, encrypted folder where it cannot run, spread, or execute. You can inspect it safely, and either restore it if it's harmless or permanently delete it forever.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Safe Cryptographic Isolation:** Safely isolates infected or unknown files into a protected, `.htaccess`-guarded directory outside executable paths. Preserves original file permissions, timestamps, and SHA-256 cryptographic hashes in `wp_wcp_quarantine`.
+- **Safe Cryptographic Isolation:** Safely isolates infected or unknown files into a protected, `.htaccess`-guarded directory outside executable paths. Preserves original file permissions, timestamps, and SHA-256 cryptographic hashes in `wp_webcareproscan_quarantine`.
 - **Intelligent Quarantine Eligibility Safeguards:** Enforces strict boundary checks (`canQuarantineIssue`): prevents quarantining critical configuration files (`wp-config.php`, `.htaccess`, `wp-settings.php`, `wp-load.php`) to eliminate site crashes. Restricts quarantine strictly to alien and rogue files.
 - **Quarantine Vault Hub (`QuarantineTab`):** Responsive table with horizontal overflow support, displaying original path, quarantine filename, isolation date, file size, and SHA-256 hash, with 1-click instant file restoration and permanent vault deletion.
 
@@ -272,7 +272,7 @@ A Web Application Firewall (WAF) is like a digital security guard standing at yo
 When attacks are blocked, this screen shows you full forensic proof of what happened. You can see the attacker's IP address, what country they came from, what malicious code they tried to inject, and the exact time it happened. You can search the logs easily or download clean reports to show your hosting company or IT director.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Full-Page Forensic Analytics Hub (`admin.php?page=wcp-scanner-waf-logs`):** Deep-linked directly from Firewall header actions and navigation bar.
+- **Full-Page Forensic Analytics Hub (`admin.php?page=webcare-scanner-waf-logs`):** Deep-linked directly from Firewall header actions and navigation bar.
 - **Real-Time KPI Threat Metrics:** 4 live KPI cards displaying Total Incursions Blocked, 24h Attack Surge, Distinct Attack IPs, and Simulation/Learning Mode hits.
 - **Threat Vector & Offender Analytics Grid:** Top Attack Vectors breakdown with proportional percentage bars and Frequent Offending Hostile IP Directory with hit counts and 1-click Filter/Block actions.
 - **Multi-Field Forensic Search:** Real-time search across IP addresses, target URIs, malicious payload signatures, and User-Agents, combined with category, action, and HTTP method filters.
@@ -340,7 +340,7 @@ If a hacker steals an administrator's browser cookie (through a malicious browse
 Ever wonder who is currently logged into your site and where they are connecting from? This feature provides an interactive, expandable view under every user account. You can click on any active session to see their browser type, operating system, last activity timestamp, and whether their IP address has changed since they logged in.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Inline Forensic Drawer (`.wcp-waf-expanded-row`):** Deep inspection accordion rendering full user session records, user-agent fingerprints, session duration, and expiration counters.
+- **Inline Forensic Drawer (`.webcare-waf-expanded-row`):** Deep inspection accordion rendering full user session records, user-agent fingerprints, session duration, and expiration counters.
 - **Accurate Real-IP Resolution:** Resolves real visitor IPs behind CDNs and reverse proxies (`CF-Connecting-IP`, `X-Forwarded-For`, `X-Real-IP`) with strict trusted proxy validation to prevent header spoofing.
 - **Session IP Roaming Telemetry:** Highlights when a session switches IP addresses mid-lifecycle, alerting administrators to potential cookie hijacking or ISP mobile cell tower shifts.
 
@@ -367,7 +367,7 @@ Imagine logging into your WordPress website the exact same way you unlock your s
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Complete Native WebAuthn Ceremony (`WebAuthnManager.php`):** Implements the official W3C WebAuthn Level 3 protocol directly inside WordPress core login lifecycle (`wp-login.php`).
-- **Native Windows Hello & Biometric Integration:** Connects the "Sign in with Passkey / Biometrics" login button to an asynchronous assertion handler hooked on `login_footer`. It fetches cryptographic challenge options from `/wcp-scanner/v1/auth/webauthn/login-options`, triggers `navigator.credentials.get()`, and launches the native platform authenticator (Windows Hello PIN/Fingerprint, Apple Touch ID/Face ID, Android Biometrics, or USB FIDO2 security keys).
+- **Native Windows Hello & Biometric Integration:** Connects the "Sign in with Passkey / Biometrics" login button to an asynchronous assertion handler hooked on `login_footer`. It fetches cryptographic challenge options from `/webcare-scanner/v1/auth/webauthn/login-options`, triggers `navigator.credentials.get()`, and launches the native platform authenticator (Windows Hello PIN/Fingerprint, Apple Touch ID/Face ID, Android Biometrics, or USB FIDO2 security keys).
 - **Zero-Password Phishing Resistance:** Validates cryptographic client data JSON and authenticator signatures against public keys stored in `wp_usermeta` with replay-resistant counter verification.
 - **Frictionless Session Cookie Issuance:** Upon successful verification at `/auth/webauthn/login-verify`, generates secure WordPress authentication cookies and automatically redirects the user into the admin dashboard.
 
@@ -411,7 +411,7 @@ When web developers build or fix a website, they often turn on a developer setti
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Automated Configuration Remediation (`RemediationManager::disable_wp_debug`):** Safely parses and updates `wp-config.php` via REST endpoint `/remediation/disable-wp-debug`.
 - **Atomic File Alteration with Syntax Tokenizer Validation:** Uses PHP's native `token_get_all()` parser to safely locate and update `WP_DEBUG`, `WP_DEBUG_LOG`, and `WP_DEBUG_DISPLAY` constants to `false` without syntax corruption.
-- **Pre-Remediation Vault Backup:** Captures an encrypted safety backup snapshot of `wp-config.php` into the WCP Vault prior to modification.
+- **Pre-Remediation Vault Backup:** Captures an encrypted safety backup snapshot of `wp-config.php` into the WebCare Vault prior to modification.
 - **OPcache Invalidation:** Immediately calls `opcache_invalidate()` on `wp-config.php` to guarantee the changes take effect immediately across all PHP worker processes.
 
 ---
@@ -447,7 +447,7 @@ When the scanner finds suspicious code, you might not know whether it is safe or
 Model Context Protocol (MCP) is the cutting-edge standard that allows modern AI developer assistants (like Claude Desktop or Cursor) to safely connect to your website. If you work with an AI assistant, it can run scans, check security status, or review logs on your website directly through a secure, permission-controlled channel.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Official MCP JSON-RPC 2.0 Compliance (`MCPAgentService.php`):** Implements an agentic server endpoint at `/wp-json/wcp-scanner/v1/mcp` accepting JSON-RPC 2.0 tool discovery and execution requests.
+- **Official MCP JSON-RPC 2.0 Compliance (`MCPAgentService.php`):** Implements an agentic server endpoint at `/wp-json/webcare-scanner/v1/mcp` accepting JSON-RPC 2.0 tool discovery and execution requests.
 - **Full Tool Suite:** Exposes structured security tools: `wcp_get_security_posture`, `wcp_list_findings`, `wcp_trigger_scan`, `wcp_quarantine_file`, and `wcp_whitelist_finding`.
 - **Strict Read-Only Default Governance:** Defaults `mcp_permission_scope` to `'read_only'`, strictly forbidding mutating operations (quarantine, file edits, user changes) unless an administrator explicitly elevates permissions in settings.
 - **Sliding-Window Rate Limiting & Ring-Buffer Audit:** Per-token rate-limiter (30–300 req/min) and persistent 150-event ring-buffer execution log (`wcpscan_mcp_audit_log`) recording tool calls, timestamps, client IPs, and durations.
@@ -468,13 +468,13 @@ Most WordPress plugins save your third-party API keys, webhook addresses, and pa
 
 ---
 
-## 26. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
+## 26. Unified WebCare Vault Console (4 Consolidated Isolation & Recovery Facilities)
 
 ### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
-The WCP Vault Console is a centralized emergency center that brings together all your backups, quarantined files, and encryption controls in one clean interface. If you ever need to restore a quarantined file, download a database backup, or undo an auto-cure repair, you can do it all right here with one click.
+The WebCare Vault Console is a centralized emergency center that brings together all your backups, quarantined files, and encryption controls in one clean interface. If you ever need to restore a quarantined file, download a database backup, or undo an auto-cure repair, you can do it all right here with one click.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Centralized Security Vault Page (`wcp-vault`):** Unified administrative console consolidating 4 security facilities with real-time status telemetry and deep-linking:
+- **Centralized Security Vault Page (`webcare-vault`):** Unified administrative console consolidating 4 security facilities with real-time status telemetry and deep-linking:
   - *Facility 1 — File Quarantine Isolation Vault:* Inspect, restore, or permanently purge quarantined threats.
   - *Facility 2 — Database Snapshot & Point-in-Time Recovery Vault:* On-demand Gzip-compressed `.sql.gz` database dumps.
   - *Facility 3 — Pre-Cure Safety Rollback & Remediation Vault:* Inspect safety diffs and restore modified files prior to remediation.
@@ -555,7 +555,7 @@ Normally, WordPress plugins only run after WordPress loads its core files and co
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Zero-Dependency Standalone Runtime (`MicroWafCompiler.php`):** Compiles WAF rules to OPcache-shared static PHP arrays (`micro-waf-compiled.php`), intercepting malicious requests in PHP's early request lifecycle via `auto_prepend_file` before WordPress core boots or database connections initialize.
-- **Linux Fail2ban & CrowdSec Integration:** Automatically formats and appends early dropped requests to a standardized append-only syslog (`wp-content/uploads/wcp-security-scanner/waf-logs/fail2ban.log`), enabling instant kernel/network-level blocking via Linux Fail2ban jails and CrowdSec parsers.
+- **Linux Fail2ban & CrowdSec Integration:** Automatically formats and appends early dropped requests to a standardized append-only syslog (`wp-content/uploads/webcare-security-scanner/waf-logs/fail2ban.log`), enabling instant kernel/network-level blocking via Linux Fail2ban jails and CrowdSec parsers.
 - **Automatic Environment Detection & Safe Installer:** Detects server environment (PHP-FPM `.user.ini` vs Apache/LiteSpeed `.htaccess`) and safely injects/uninstalls `auto_prepend_file` directives with delimited marker comments.
 - **Preload Micro-WAF Host Prepend Chaining:** Automatically detects pre-existing `auto_prepend_file` scripts (e.g. Wordfence or hosting runtime scripts) and chains execution so third-party tools are not clobbered or disabled.
 - **Fail-Safe Architecture:** Features emergency query bypass tokens (`wcp_waf_bypass`) and `WCP_DISABLE_MICRO_WAF` constant support to prevent lockout scenarios.
@@ -608,7 +608,7 @@ Modern WordPress plugins are built using dozens of underlying code libraries (ca
 As hackers begin using automated AI bots to probe websites, they look for hidden weaknesses or try to trick AI chat features into revealing private passwords. We protect your site with clever "Decoy Traps": invisible links and fake web addresses that real human visitors never see. If an automated hacker bot tries to explore these fake doors, the trap snaps shut: the bot is immediately blocked and banned before it can touch any of your real content.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Autonomous AI Pentest Bot & Decoy Canary Trap (`GhostRouteTrap.php`):** Injects invisible canary link tags into `wp_footer` and `login_footer` and provisions phantom REST honeypot routes (`/wcp-internal/v1/telemetry-debug`, `/wcp-core/v1/system-env`, `/wcp-admin/v1/database-dump`). Autonomous scrapers and aggressive vulnerability scanners accessing canaries are instantly intercepted with 403 Forbidden, tarpitted with artificial latency, blocked at client IP, and synchronized with Cloudflare Edge IP Lists.
+- **Autonomous AI Pentest Bot & Decoy Canary Trap (`GhostRouteTrap.php`):** Injects invisible canary link tags into `wp_footer` and `login_footer` and provisions phantom REST honeypot routes (`/webcare-internal/v1/telemetry-debug`, `/webcare-core/v1/system-env`, `/webcare-admin/v1/database-dump`). Autonomous scrapers and aggressive vulnerability scanners accessing canaries are instantly intercepted with 403 Forbidden, tarpitted with artificial latency, blocked at client IP, and synchronized with Cloudflare Edge IP Lists.
 - **Search Engine & Uptime Monitor Crawler Immunity:** Hardened with reverse-DNS crawler verification (`BotReconDefense::is_genuine_search_engine()`) so legitimate search engine bots (Googlebot, Bingbot, etc.) are never banned or pushed to Cloudflare Edge. Emitted `X-Robots-Tag: noindex, nofollow, noarchive` and virtual `robots.txt` disallow directives on canary routes.
 - **WordPress 7.0+ AI Client & Prompt-Injection Guard (`PromptInjectionGuard.php`):** Proactively inspects user comments and incoming prompt vectors destined for LLM tools against prompt override attacks, DAN jailbreak patterns, secret extraction attempts (`.env`, `DB_PASSWORD`), and invisible Unicode tag character smuggling (`\x{E0000}`–`\x{E007F}`). Comments with detected prompt injections default to WordPress moderation hold (`comment_approved = 0`) instead of breaking user experience.
 
@@ -670,7 +670,7 @@ Have you ever cleaned malware from a WordPress site, only for the exact same hac
 Official plugins from WordPress.org can easily be checked against official copies. But what about custom-built themes, private client plugins, or paid premium extensions that aren't on WordPress.org? The "Time-Machine" Baseline Engine lets you take a snapshot of your custom code when you know it is clean. If someone later tampers with your theme or injects malicious code, you can view the exact differences side-by-side and restore your clean files with one click.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Bespoke Asset Baseline Archives (`LocalSnapshotManager.php`):** Captures compressed, read-only baseline snapshots (`.gz`) of custom client themes, bespoke plugins, and premium extensions stored in hardened directory `wp-content/uploads/wcp-security-scanner/snapshots/` protected by `.htaccess` and `index.php`.
+- **Bespoke Asset Baseline Archives (`LocalSnapshotManager.php`):** Captures compressed, read-only baseline snapshots (`.gz`) of custom client themes, bespoke plugins, and premium extensions stored in hardened directory `wp-content/uploads/webcare-security-scanner/snapshots/` protected by `.htaccess` and `index.php`.
 - **Visual Myers Diff Inspection:** Calculates side-by-side file comparisons with diff metrics (lines added/removed/modified) and content previews against verified snapshots to detect tampering, supply-chain adulteration, or unauthorized edits.
 - **1-Click Atomic Restoration:** Supports 1-click atomic restoration of modified or injected files back to clean baseline state using native WordPress filesystem abstractions with fallback handling.
 
@@ -736,7 +736,7 @@ With dozens of powerful security features, you want navigation to be effortless.
 Many WordPress security plugins crash or slow down websites because they try to load lists of 50,000 files into your server's memory all at once. Our Zero-Allocation Streaming Queue stores the scanning list directly on disk in a private, protected session file. The scanner moves through the file in tiny, lightning-fast batches, using less than 2 megabytes of RAM regardless of how huge your website is.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Ephemeral Stream Queue Storage (`ScanQueueManager.php`):** Eliminates massive PHP array memory allocations and MySQL `wp_options` transient bloat by streaming discovered files directly into private line-delimited session files (`wp-content/uploads/wcp-security-scanner/scan-sessions/{scan_id}/queue.txt`) protected by `.htaccess` and `index.php`.
+- **Ephemeral Stream Queue Storage (`ScanQueueManager.php`):** Eliminates massive PHP array memory allocations and MySQL `wp_options` transient bloat by streaming discovered files directly into private line-delimited session files (`wp-content/uploads/webcare-security-scanner/scan-sessions/{scan_id}/queue.txt`) protected by `.htaccess` and `index.php`.
 - **Instant Microsecond Batch Seeking:** Replaces expensive `unserialize()` and `array_splice()` operations with O(1) atomic `fseek()` cursor offsets and byte tracking, reducing batch retrieval latency from seconds to <5ms on 50,000+ file sites.
 - **Constant-Memory Recursive Directory Traversal:** Utilizes `RecursiveIteratorIterator` to pipe file paths directly to the disk stream writer callback without accumulating memory, maintaining flat ~2MB RAM consumption regardless of website size.
 - **Automated Ephemeral Cleanup:** Automatic lifecycle cleanup for completed or aborted scans and stale sessions older than 2 hours.
@@ -788,7 +788,7 @@ Many WordPress hacks happen when an otherwise legitimate plugin you already use 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Upgrader Pipeline Interception (`UpdateGatekeeperEngine.php`):** Hooks into WordPress native `upgrader_source_selection` and `upgrader_pre_install` filters to quarantine extracted update archives before filesystem replacement.
 - **Shift-Left Heuristic Static Analysis:** Recursively inspects unpacked files against AST-level heuristics (`eval`, variable function execution, hex obfuscation, base64 payloads, socket connects, unauthorized administrative user creation).
-- **Automated Pre-Update Snapshots & Instant Rollback:** Creates an isolated, timestamped snapshot of the existing plugin directory in the WCP Vault prior to applying any update. If an update exhibits post-installation anomalies, a single click restores the verified snapshot.
+- **Automated Pre-Update Snapshots & Instant Rollback:** Creates an isolated, timestamped snapshot of the existing plugin directory in the WebCare Vault prior to applying any update. If an update exhibits post-installation anomalies, a single click restores the verified snapshot.
 - **Multi-Attribute Threat Scoring:** Computes a composite risk score (0-100) per update. Updates exceeding the critical risk threshold (Score >= 70) are rejected with a detailed `WP_Error` and recorded in security audit logs.
 
 ---
@@ -799,7 +799,7 @@ Many WordPress hacks happen when an otherwise legitimate plugin you already use 
 Under high-volume bot attacks or brute-force scans, writing thousands of incident logs into your WordPress database can quickly slow down or crash your server. WebCare Pro Security includes a Zero-SQL Filesystem Logging Engine that writes blocked attacks into lightweight, daily compressed log files on your server. This gives you detailed forensic logs with zero database load.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **High-Performance Filesystem Appending (`WafFileLogger.php`):** Blocked HTTP requests and WAF telemetry are streamed directly to partitioned daily JSON Lines logs (`wp-content/uploads/wcp-scanner-quarantine/waf-logs/waf-YYYY-MM-DD.json.gz` or `.log`) using atomic append operations (`LOCK_EX`).
+- **High-Performance Filesystem Appending (`WafFileLogger.php`):** Blocked HTTP requests and WAF telemetry are streamed directly to partitioned daily JSON Lines logs (`wp-content/uploads/webcare-scanner-quarantine/waf-logs/waf-YYYY-MM-DD.json.gz` or `.log`) using atomic append operations (`LOCK_EX`).
 - **Zero Database Load Under Attack:** Deflects thousands of malicious probes, SQL injection fuzzers, and botnet scrapers without issuing single `INSERT` or `UPDATE` queries to MySQL/MariaDB.
 - **Fail2ban & CrowdSec Native Ingestion:** Generates standardized syslog-compatible records directly ingestible by host-level intrusion prevention engines (`fail2ban`, `crowdsec`, `auditd`).
 - **Automated Retention & Microsecond Retrieval:** Automatically purges logs beyond the administrator's configured retention window (default 30 days) and streams forensic views directly into the WAF Incident Logs UI.
@@ -814,8 +814,8 @@ Stay informed about critical security events in real time without being spammed.
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Granular 59-Event Security Catalog (`NotificationDispatcher.php`):** Dispatches structured alerts across 10 security categories: Malware Findings, File Integrity (FIM), WAF Incidents, Supply-Chain & SBOM, Authentication & Sessions, WebAuthn Passkeys, System Forensics, Secrets Vault, and Emergency Containment.
 - **Multi-Channel Dispatch Matrix:** Independent toggles per event for WordPress Core Email (`wp_mail`), Slack Incoming Webhooks, Discord Webhook Embeds, ClickUp Automation API, Asana Task API, and Generic DevSecOps JSON Webhooks (Zapier, Make, n8n).
-- **Cryptographic Webhook Secret Isolation:** All webhook URLs and channel API keys are encrypted at rest with AES-256-GCM authenticated encryption in the WCP Vault.
-- **Interactive UI with Instant Search & Test Triggers:** Dedicated full-page notification console (`?page=wcp-scanner-notifications`) featuring category filtering, live channel status indicators, and 1-click test dispatches.
+- **Cryptographic Webhook Secret Isolation:** All webhook URLs and channel API keys are encrypted at rest with AES-256-GCM authenticated encryption in the WebCare Vault.
+- **Interactive UI with Instant Search & Test Triggers:** Dedicated full-page notification console (`?page=webcare-scanner-notifications`) featuring category filtering, live channel status indicators, and 1-click test dispatches.
 
 ---
 
@@ -838,7 +838,7 @@ Scanning tens of thousands of files on a busy WordPress website can often cause 
 Think of this as the unbreakable flight data recorder (black box) for your security settings. Every time an administrator changes a firewall rule, saves a setting, or an automated task runs, it is sealed with high-grade cryptography into an unbroken digital chain. If anyone—even an attacker with temporary database access—tries to alter or delete past log entries, the system immediately sounds the alarm. In the dashboard, you see clear Before vs. After diff tables and plain-English summaries so you always know who changed what, when, and from which IP address.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
-- **Unbroken SHA-256 Hash Chain (`WcpActivityLogger.php`):** Links every administrative event and security reconfiguration into an immutable cryptographic chain where $H_n = \text{SHA256}(H_{n-1} + \text{CanonicalJSON}(n))$ anchored to an authoritative site-specific genesis hash.
+- **Unbroken SHA-256 Hash Chain (`WebCareActivityLogger.php`):** Links every administrative event and security reconfiguration into an immutable cryptographic chain where $H_n = \text{SHA256}(H_{n-1} + \text{CanonicalJSON}(n))$ anchored to an authoritative site-specific genesis hash.
 - **Pure AES-256-GCM Envelope Encryption with AAD Binding:** All activity entries are encrypted at rest in daily partitioned `.json.php` files. Critical envelope headers (`seq`, `h`, `event_id`, `k_ver`) are bound as Additional Authenticated Data (AAD), completely preventing ciphertext transplantation or replay tampering.
 - **Write-Ahead Transaction Logging (WAL) & Resilient Crash Recovery:** Implements a multi-phase locked transaction pipeline (`.journal.json.php`). Pending transactions and chain-state commits are verified before clearing journal files. Corrupted or interrupted journals are automatically quarantined into forensic review files (`.journal.malformed.<time>`) rather than deleted.
 - **7-Day Immutability Window & Checkpoint Ledger (`ActivityRetention.php`):** Log partitions are strictly locked for a minimum of 7 days. Expired archives are pruned only after computing and syncing an immutable cryptographic checkpoint in `.checkpoints.json.php`, preserving complete historical continuity across pruned archives.
@@ -868,7 +868,7 @@ Managing blocked and trusted IP addresses is no longer done through messy, error
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Structured Interactive IP Tables (`FirewallPage.tsx`):** Phased out legacy multi-line textareas in favor of structured tables with real-time format validation for IPv4, IPv6, and CIDR subnets.
-- **Blocked IPs Table:** Displays IP/Subnet with 1-click clipboard copy, violation reason & rule attribution, incident tracking badge (`WCP-XXXXXXXX`), ban duration countdown, and 1-click `Unblock` action.
+- **Blocked IPs Table:** Displays IP/Subnet with 1-click clipboard copy, violation reason & rule attribution, incident tracking badge (`WEBCARE-XXXXXXXX`), ban duration countdown, and 1-click `Unblock` action.
 - **Whitelisted IPs Table:** Displays trusted IP/Subnet with usage descriptions, administrative creator metadata, trust badge, and 1-click `Remove` action.
 - **Cryptographic Audit Attribution:** All manual IP additions, removals, and unbans require verified administrator privileges (`manage_options`) and are automatically recorded in the Activity Log stream with actor identity and forensic justification.
 
@@ -881,7 +881,7 @@ When someone or something gets locked out of your website, you need to know why.
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **Deep Forensic Attribution (`FirewallEngine.php`):** Clearly distinguishes between automated WAF rule bans (e.g. Forbidden Honeypot Username Trap, SQL Injection Shield, Rate Limiter) and manual administrative blocks (`Custom block by {admin_user}: {reason}`).
-- **Authoritative Incident Tracking (`WCP-XXXXXXXX`):** Every active lockout card displays its cryptographic Incident ID with 1-click clipboard copy and precise ban timestamps (`blocked_at`, `ban_ago`, `duration`, `expires_at`, `time_remaining`).
+- **Authoritative Incident Tracking (`WEBCARE-XXXXXXXX`):** Every active lockout card displays its cryptographic Incident ID with 1-click clipboard copy and precise ban timestamps (`blocked_at`, `ban_ago`, `duration`, `expires_at`, `time_remaining`).
 - **Expandable Recent Attack History Drawer:** Interactive accordion on each locked IP reveals its last 1–3 intercepted incidents (incident ID, timestamp, WAF category, attack description, request URI, HTTP method, and captured payload snippet).
 - **In-Modal Manual Block Creator & Live Filtering:** Expandable administrative block form directly inside the modal with customizable ban durations (Permanent, 1 Hour, 6 Hours, 24 Hours, 7 Days, 30 Days, 1 Year) and instant live search across IPs, Incident IDs, and violation reasons.
 
@@ -894,7 +894,7 @@ Getting started with enterprise website security shouldn't require reading hundr
 
 ### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **In-Console Welcome Wizard (`WelcomeModal.tsx`):** Modern setup modal guiding administrators through on-premise storage verifications, zero-telemetry architecture, and recommended baseline hardening toggles.
-- **Direct Educational Hyperlinks:** Features prominent links to the comprehensive feature breakdown on [webcarespro.com](https://webcarespro.com/blog/post/wcp-wordpress-security-scanner) and direct 1-on-1 contact channels with senior engineer Mir Alamin.
+- **Direct Educational Hyperlinks:** Features prominent links to the comprehensive feature breakdown on [webcarespro.com](https://webcarespro.com/blog/post/webcare-wordpress-security-scanner) and direct 1-on-1 contact channels with senior engineer Mir Alamin.
 
 ---
 
@@ -910,7 +910,7 @@ When you need to analyze attacks or keep records for compliance, downloading raw
 - **Domain-Stamped Filename Convention:** Standardized automated filename creation across formats (JSON, CSV):
   `{log_type}-logs-YYYY-MM-DD-HHmmss-{sanitized_domain}-{random_entropy}.{ext}`
 - **High-Capacity Server Paging (`ScannerRoutes.php`):** Implemented `is_export=1` query param allowing forensic exports to bypass standard 50-row pagination and stream complete historical partitions without browser memory exhaustion.
-- **Daily Partition Date Targeting (`WafFileLogger.php`, `WcpActivityLogger.php`):** Enables direct extraction of discrete daily JSONL log files (e.g. `waf-incidents-2026-11-03.jsonl`) for targeted single-day incident investigations.
+- **Daily Partition Date Targeting (`WafFileLogger.php`, `WebCareActivityLogger.php`):** Enables direct extraction of discrete daily JSONL log files (e.g. `waf-incidents-2026-11-03.jsonl`) for targeted single-day incident investigations.
 - **Spreadsheet Security & UTF-8 BOM:** Automatically injects UTF-8 Byte Order Mark (BOM) for seamless Microsoft Excel rendering and prepends apostrophes to formula symbols (`=`, `+`, `-`, `@`) to neutralize CSV injection vulnerabilities (CWE-1236).
 
 ---
@@ -1097,7 +1097,7 @@ Connecting your website to Cloudflare's free edge network stops malicious bots a
 
 ### 🛠️ Deep Technical Details & Architecture (For Developers & Engineers)
 - **1-Click Pre-Configured Token Generator (CloudflareEdgeTab.tsx):** Provides a direct deep-link to Cloudflare's API Token creation screen with pre-filled parameter permissions (Zone:Read, Zone WAF:Edit, Firewall Services:Edit, Analytics:Read, and Cache Purge), eliminating permission misconfiguration and 403 API rejections.
-- **Automated Zone ID Resolution (ScannerRoutes.php):** Implements an automated discovery endpoint (/wcp-scanner/v1/cloudflare/detect-zone) that queries https://api.cloudflare.com/client/v4/zones using the provided bearer token, matches the current WordPress domain name against available Cloudflare zones, and automatically populates the Zone ID field in real time.
+- **Automated Zone ID Resolution (ScannerRoutes.php):** Implements an automated discovery endpoint (/webcare-scanner/v1/cloudflare/detect-zone) that queries https://api.cloudflare.com/client/v4/zones using the provided bearer token, matches the current WordPress domain name against available Cloudflare zones, and automatically populates the Zone ID field in real time.
 - **Live Proxy Telemetry Verification:** Continuously inspects inbound HTTP headers (HTTP_CF_RAY, HTTP_CF_CONNECTING_IP) to provide real-time status pills indicating whether edge proxying is active and protecting the origin server, or running in local on-premise fallback mode.
 
 ---

@@ -45,7 +45,7 @@ class PluginIntegrity {
             if (
                 $plugin_dir_name === $scanner_slug ||
                 $plugin_dir_name === 'webcare-pro-security' ||
-                strpos($plugin_file, 'wcp-') === 0
+                strpos($plugin_file, 'webcare-') === 0
             ) {
                 continue;
             }

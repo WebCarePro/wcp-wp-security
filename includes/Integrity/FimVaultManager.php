@@ -19,11 +19,11 @@ if (!defined('ABSPATH')) {
  * - HMAC-SHA256 authenticated tamper-detection for all manifest shards
  * - Gzip compression (.json.gz) maintaining low disk (< 1.5MB per 50k files) & memory footprint
  * - Scope sharding: Core, Plugins, Themes, Root Config, and Uploads Code
- * - Fail-closed security with instant tamper alarms if any shard is altered outside WCP
+ * - Fail-closed security with instant tamper alarms if any shard is altered outside WebCare
  */
 class FimVaultManager {
 
-    const VAULT_FOLDER = 'wcp-security-scanner/fim-vault';
+    const VAULT_FOLDER = 'webcare-pro-security/fim-vault';
     const MANIFEST_EXT = '.manifest.gz';
     const META_FILE    = 'fim_meta.json';
     const OPTION_STATUS = 'webcareproscan_fim_vault_status';
@@ -65,7 +65,7 @@ class FimVaultManager {
     private static function lockdown_vault_directory(string $dir) {
         $htaccess = rtrim($dir, '/\\') . '/.htaccess';
         if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "# WCP Security Vault - Direct Access Prohibited\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n");
+            @file_put_contents($htaccess, "# WebCare Pro Security Vault - Direct Access Prohibited\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n");
         }
 
         $index = rtrim($dir, '/\\') . '/index.php';
@@ -176,7 +176,7 @@ class FimVaultManager {
                 'exists'   => true,
                 'valid'    => false,
                 'tampered' => true,
-                'error'    => "Cryptographic attestation mismatch! Shard [{$scope}] has been altered or forged outside WCP Vault.",
+                'error'    => "Cryptographic attestation mismatch! Shard [{$scope}] has been altered or forged outside WebCare Vault.",
                 'data'     => [],
                 'count'    => 0,
             ];

@@ -11,7 +11,7 @@ class FindingsRepository {
     private const MAX_ROWS_PER_QUERY = 80;
 
     /**
-     * Bulk-insert file audit records into wcp_scan_files.
+     * Bulk-insert file audit records into webcare_scan_files.
      *
      * @param int   $scan_id
      * @param array $rows Array of items: ['file_path' => string, 'file_size' => int, 'status' => 'clean'|'threat']
@@ -46,13 +46,13 @@ class FindingsRepository {
 
             if ($res === false && !empty($wpdb->last_error)) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                error_log(sprintf('[WCP Security] Error bulk-inserting files into %s: %s', $table, $wpdb->last_error));
+                error_log(sprintf('[WebCare Pro Security] Error bulk-inserting files into %s: %s', $table, $wpdb->last_error));
             }
         }
     }
 
     /**
-     * Bulk-insert threat findings into wcp_scan_issues.
+     * Bulk-insert threat findings into webcare_scan_issues.
      *
      * @param int   $scan_id
      * @param array $rows Array of finding arrays or objects
@@ -107,7 +107,7 @@ class FindingsRepository {
 
             if ($res === false && !empty($wpdb->last_error)) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                error_log(sprintf('[WCP Security] Error bulk-inserting issues into %s: %s', $table, $wpdb->last_error));
+                error_log(sprintf('[WebCare Pro Security] Error bulk-inserting issues into %s: %s', $table, $wpdb->last_error));
             }
         }
     }
@@ -129,7 +129,7 @@ class FindingsRepository {
         global $wpdb;
 
         // Unique session token to avoid any conceivable collision with scanned source text
-        $token = '##WCP_SQL_NULL_' . md5(__FILE__) . '##';
+        $token = '##WEBCARE_SQL_NULL_' . md5(__FILE__) . '##';
         $safe_values = [];
 
         foreach ($values as $v) {

@@ -149,7 +149,7 @@ class CrashGuard {
         // Record in server error log for sysadmin visibility
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
         error_log(sprintf(
-            '[WCP CrashGuard] Intercepted %s in %s:%d - %s. Safe Mode engaged to protect host website. Endpoint: %s %s',
+            '[WebCare CrashGuard] Intercepted %s in %s:%d - %s. Safe Mode engaged to protect host website. Endpoint: %s %s',
             $incident['type'],
             $incident['file'],
             $incident['line'],
@@ -223,7 +223,7 @@ class CrashGuard {
                 deactivate_plugins(WEBCAREPROSCAN_FILE, true);
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log(sprintf(
-                    '[WCP CrashGuard] %d consecutive fatal crashes detected within 5 minutes. WebCare Pro Security automatically self-deactivated to preserve host stability.',
+                    '[WebCare CrashGuard] %d consecutive fatal crashes detected within 5 minutes. WebCare Pro Security automatically self-deactivated to preserve host stability.',
                     count($history)
                 ));
             }
@@ -538,10 +538,10 @@ class CrashGuard {
                         <?php endif; ?>
 
                         <div style="margin-top: 12px; display: flex; align-items: center; justify-content: flex-end;">
-                            <button type="button" class="button button-small" onclick="var btn=this;navigator.clipboard.writeText(document.getElementById('wcp-crashguard-json-dossier').textContent).then(function(){var orig=btn.innerHTML;btn.innerHTML='✓ <?php echo esc_js(__('Copied to Clipboard!', 'webcare-pro-security')); ?>';btn.style.color='#059669';setTimeout(function(){btn.innerHTML=orig;btn.style.color='';},3000);});">
+                            <button type="button" class="button button-small" onclick="var btn=this;navigator.clipboard.writeText(document.getElementById('webcare-crashguard-json-dossier').textContent).then(function(){var orig=btn.innerHTML;btn.innerHTML='✓ <?php echo esc_js(__('Copied to Clipboard!', 'webcare-pro-security')); ?>';btn.style.color='#059669';setTimeout(function(){btn.innerHTML=orig;btn.style.color='';},3000);});">
                                 📋 <?php esc_html_e('Copy Full Forensic JSON Dossier', 'webcare-pro-security'); ?>
                             </button>
-                            <script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+                            <script type="application/json" id="webcare-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
                         </div>
                     </details>
 
@@ -579,7 +579,7 @@ class CrashGuard {
         delete_option(self::OPTION_LAST_INCIDENT);
         delete_option(self::OPTION_CRASH_HISTORY);
 
-        wp_safe_redirect(admin_url('admin.php?page=wcp-security-scanner&webcareproscan_msg=circuit_reset'));
+        wp_safe_redirect(admin_url('admin.php?page=webcare-pro-security&webcareproscan_msg=circuit_reset'));
         exit;
     }
 

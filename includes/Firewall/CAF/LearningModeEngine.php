@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
  *
  * Provides intelligent traffic observation, passive learning mode recording,
  * and 1-click false-positive rule softening synthesis:
- * - Passive Telemetry Collector: Records potential WAF blocks in `wcp_caf_learning_observations` during learning mode.
+ * - Passive Telemetry Collector: Records potential WAF blocks in `webcare_caf_learning_observations` during learning mode.
  * - 1-Click Exemption Synthesizer: Translates a blocked incident finding into a surgical, parameter-level safe-pass rule
  *   bound to specific routes and user capabilities, resolving false positives without lowering global firewall shields.
  *
@@ -23,8 +23,8 @@ if (!defined('ABSPATH')) {
  */
 class LearningModeEngine {
 
-    public const OPTION_OBSERVATIONS = 'wcp_caf_learning_observations';
-    public const OPTION_SYNTHESIZED  = 'wcp_caf_synthesized_exemptions';
+    public const OPTION_OBSERVATIONS = 'webcare_caf_learning_observations';
+    public const OPTION_SYNTHESIZED  = 'webcare_caf_synthesized_exemptions';
     public const MAX_OBSERVATIONS    = 250;
 
     /**
@@ -80,7 +80,7 @@ class LearningModeEngine {
     /**
      * Synthesize a targeted safe-pass exemption for a blocked finding/incident ID.
      *
-     * @param string $finding_id Incident reference ID (e.g. WCP-XXXX or OBS-XXXX)
+     * @param string $finding_id Incident reference ID (e.g. WEBCARE-XXXX or OBS-XXXX)
      * @return array Result containing created exemption rule definition
      */
     public static function synthesize_exemption(string $finding_id): array {

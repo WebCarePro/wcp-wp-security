@@ -109,7 +109,7 @@ class ThreatIntelNetwork {
             $response = wp_remote_get($feed['url'], [
                 'timeout'    => 7,
                 'sslverify'  => true,
-                'user-agent' => 'WCP-Security-ThreatIntel/1.25.0',
+                'user-agent' => 'WEBCARE-Security-ThreatIntel/1.25.0',
             ]);
 
             $feed_count = 0;

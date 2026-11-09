@@ -28,7 +28,7 @@ class Plugin {
             \WebCareProScanner\Database\Migration::install();
         }
 
-        // Ensure root uploads/wcp-security-scanner storage directory has an index.php directory silence guard
+        // Ensure root uploads/webcare-pro-security storage directory has an index.php directory silence guard
         self::ensure_uploads_storage_protected();
 
         AdminMenu::register();
@@ -42,8 +42,8 @@ class Plugin {
             \WebCareProScanner\WordPress\UserRemediationManager::init();
         }
 
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::init();
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::init();
         }
 
         $audit_logger = new \WebCareProScanner\System\AuditLogger();
@@ -133,8 +133,8 @@ class Plugin {
         if (class_exists('\\WebCareProScanner\\Auth\\WebAuthnManager')) {
             \WebCareProScanner\Auth\WebAuthnManager::init();
         }
-        if (class_exists('\\WebCareProScanner\\Identity\\WcpJitMuGuardian')) {
-            \WebCareProScanner\Identity\WcpJitMuGuardian::ensure_installed();
+        if (class_exists('\\WebCareProScanner\\Identity\\WebCareJitMuGuardian')) {
+            \WebCareProScanner\Identity\WebCareJitMuGuardian::ensure_installed();
         }
 
         // Context-Adaptive Firewall (CAF) Lifecycle Observers & Edge Cron
@@ -151,11 +151,11 @@ class Plugin {
     }
 
     /**
-     * Ensure root uploads/wcp-security-scanner storage directory has an index.php directory silence guard.
+     * Ensure root uploads/webcare-pro-security storage directory has an index.php directory silence guard.
      */
     public static function ensure_uploads_storage_protected(): void {
         $upload_dir = wp_upload_dir();
-        $dir = $upload_dir['basedir'] . '/wcp-security-scanner';
+        $dir = $upload_dir['basedir'] . '/webcare-pro-security';
         if (!file_exists($dir)) {
             wp_mkdir_p($dir);
         }

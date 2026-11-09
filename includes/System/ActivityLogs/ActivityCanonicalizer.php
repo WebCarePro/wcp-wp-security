@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Strict canonicalizer for WCP Activity & Audit Log payloads.
+ * Strict canonicalizer for WebCare Activity & Audit Log payloads.
  *
  * Enforces:
  * 1. Prohibition of floating-point values (throws \InvalidArgumentException).

@@ -15,7 +15,7 @@ namespace WebCareProScanner\Firewall;
 use WebCareProScanner\Security\SecretVault;
 use WebCareProScanner\Filesystem\PathValidator;
 use WebCareProScanner\Notifications\NotificationDispatcher;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -25,10 +25,10 @@ final class HtaccessVaultManager {
 
     public const OPTION_DB_MIRROR     = 'webcareproscan_htaccess_vault_snapshots';
     public const OPTION_READONLY_LOCK = 'webcareproscan_htaccess_readonly_lock';
-    public const VAULT_SUBDIR         = 'wcp-security-scanner/.vault';
+    public const VAULT_SUBDIR         = 'webcare-pro-security/.vault';
     public const EMERGENCY_FILE_NAME  = '.htaccess.emergency-clean';
     public const MAX_SNAPSHOTS        = 5;
-    public const HEADER_GUARD         = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+    public const HEADER_GUARD         = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
 
     /**
      * Get the absolute path to the hardened vault directory.
@@ -72,7 +72,7 @@ final class HtaccessVaultManager {
         // 1. Lock with root .htaccess (Apache / LiteSpeed deny rules)
         $htaccess = $vault_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            $rules  = "# Block all public web access to WCP security vault\n";
+            $rules  = "# Block all public web access to WebCare Pro Security vault\n";
             $rules .= "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n";
             $rules .= "<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n";
             $rules .= "<FilesMatch \".*\">\n";
@@ -88,7 +88,7 @@ final class HtaccessVaultManager {
         $index = $vault_dir . '/index.php';
         if (!file_exists($index)) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
             self::safe_chmod($index, 0644);
         }
     }
@@ -212,8 +212,8 @@ final class HtaccessVaultManager {
         $db_raw = (string) wp_json_encode($db_snapshots);
         update_option(self::OPTION_DB_MIRROR, SecretVault::encrypt($db_raw), false);
 
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            WcpActivityLogger::log(
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            WebCareActivityLogger::log(
                 'htaccess_vault_snapshot_saved',
                 'firewall',
                 'info',
@@ -413,8 +413,8 @@ final class HtaccessVaultManager {
         $restored_hash = hash('sha256', $clean_content);
 
         // 8. Log activity
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            WcpActivityLogger::log(
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            WebCareActivityLogger::log(
                 'htaccess_restored_from_vault',
                 'firewall',
                 'info',
@@ -570,7 +570,7 @@ final class HtaccessVaultManager {
      */
     public static function register_cli(): void {
         if (defined('WP_CLI') && WP_CLI && class_exists('\\WP_CLI')) {
-            \WP_CLI::add_command('wcp htaccess', HtaccessCliCommand::class);
+            \WP_CLI::add_command('webcare htaccess', HtaccessCliCommand::class);
         }
     }
 }
@@ -585,7 +585,7 @@ class HtaccessCliCommand {
      *
      * ## EXAMPLES
      *
-     *     wp wcp htaccess status
+     *     wp webcare htaccess status
      *
      * @param array $args Positional arguments.
      * @param array $assoc_args Associative arguments.
@@ -601,7 +601,7 @@ class HtaccessCliCommand {
         $analysis = HtaccessShield::analyze_htaccess_content($content);
 
         \WP_CLI::line('--------------------------------------------------');
-        \WP_CLI::line('WCP .htaccess Armor Status & Semantic Classification');
+        \WP_CLI::line('WebCare .htaccess Armor Status & Semantic Classification');
         \WP_CLI::line('--------------------------------------------------');
         \WP_CLI::line('Threat Score: ' . $analysis['score'] . '/100');
         \WP_CLI::line('Severity:     ' . strtoupper($analysis['severity']));
@@ -632,7 +632,7 @@ class HtaccessCliCommand {
      *
      * ## EXAMPLES
      *
-     *     wp wcp htaccess vault
+     *     wp webcare htaccess vault
      *
      * @param array $args Positional arguments.
      * @param array $assoc_args Associative arguments.
@@ -669,8 +669,8 @@ class HtaccessCliCommand {
      *
      * ## EXAMPLES
      *
-     *     wp wcp htaccess restore
-     *     wp wcp htaccess restore --version=2
+     *     wp webcare htaccess restore
+     *     wp webcare htaccess restore --version=2
      *
      * @param array $args Positional arguments.
      * @param array $assoc_args Associative arguments.

@@ -30,7 +30,7 @@ if (!defined('ABSPATH')) {
 class VirtualPatchSynthesizer {
 
     const OPTION_SYNTHESIZED_PATCHES = 'webcareproscan_synthesized_virtual_patches';
-    const CF_TAG                     = '[WCP Synthesized Patch]';
+    const CF_TAG                     = '[WebCare Synthesized Patch]';
 
     /**
      * Get All Synthesized Patches
@@ -240,8 +240,8 @@ class VirtualPatchSynthesizer {
                 "sort=name; waitfor delay '0:0:5'",
             ],
             'rce' => [
-                'action=render&cmd=' . 'ev' . 'al(' . 'base64_' . 'decode(' . "'" . base64_encode('print("wcp_test");') . "'))",
-                'callback=pass' . 'thru(' . "'" . 'echo ' . 'wcp_test' . "')",
+                'action=render&cmd=' . 'ev' . 'al(' . 'base64_' . 'decode(' . "'" . base64_encode('print("webcare_test");') . "'))",
+                'callback=pass' . 'thru(' . "'" . 'echo ' . 'webcare_test' . "')",
                 'input=${@' . 'ass' . 'ert($_POST[' . "'code'])",
             ],
             'file_upload' => [

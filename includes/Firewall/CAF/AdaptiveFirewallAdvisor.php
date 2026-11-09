@@ -23,9 +23,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class AdaptiveFirewallAdvisor {
 
-	public const OPTION_STACK_SNAPSHOT = 'wcp_caf_stack_snapshot';
-	public const OPTION_ACTIVE_PROFILE  = 'wcp_caf_active_profile';
-	public const OPTION_DORMANT_LOCK    = 'wcp_caf_lock_dormant_surface';
+	public const OPTION_STACK_SNAPSHOT = 'webcare_caf_stack_snapshot';
+	public const OPTION_ACTIVE_PROFILE  = 'webcare_caf_active_profile';
+	public const OPTION_DORMANT_LOCK    = 'webcare_caf_lock_dormant_surface';
 
 	public const PROFILE_ECOMMERCE_HARDENED = 'ecommerce_hardened';
 	public const PROFILE_CORPORATE_BROCHURE = 'corporate_brochure';
@@ -128,7 +128,7 @@ final class AdaptiveFirewallAdvisor {
 		$matrix   = $this->get_recommendations_matrix( $snapshot );
 
 		$killswitch_file = defined( 'WP_CONTENT_DIR' ) ? ( WP_CONTENT_DIR . '/uploads/webcare-pro-security/.killswitch' ) : '';
-		$is_killed = ( defined( 'WCP_CAF_DISABLE_PRELOAD' ) && WCP_CAF_DISABLE_PRELOAD ) || ( $killswitch_file && file_exists( $killswitch_file ) );
+		$is_killed = ( defined( 'WEBCARE_CAF_DISABLE_PRELOAD' ) && WEBCARE_CAF_DISABLE_PRELOAD ) || ( $killswitch_file && file_exists( $killswitch_file ) );
 
 		return [
 			'success'              => true,
@@ -517,7 +517,7 @@ final class AdaptiveFirewallAdvisor {
 	private static function get_ecommerce_default_bypass_rules(): array {
 		return [
 			[
-				'id'               => 'wcp_auto_woo_rest',
+				'id'               => 'webcare_auto_woo_rest',
 				'name'             => 'WooCommerce REST API (Auto)',
 				'enabled'          => true,
 				'user_agents'      => [],
@@ -531,7 +531,7 @@ final class AdaptiveFirewallAdvisor {
 				'description'      => 'Auto-added by E-Commerce Hardened CAF profile. Allows WooCommerce REST API v2/v3 and analytics endpoints to function without WAF interference.',
 			],
 			[
-				'id'               => 'wcp_auto_stripe_webhook',
+				'id'               => 'webcare_auto_stripe_webhook',
 				'name'             => 'Stripe Webhook (Auto)',
 				'enabled'          => true,
 				'user_agents'      => [ 'Stripe/1.0 (+https://stripe.com/docs/webhooks)' ],
@@ -559,7 +559,7 @@ final class AdaptiveFirewallAdvisor {
 				'description'      => 'Auto-added by E-Commerce Hardened CAF profile. Permits Stripe payment webhooks via official IPs and Stripe-Signature header verification.',
 			],
 			[
-				'id'               => 'wcp_auto_paypal_ipn',
+				'id'               => 'webcare_auto_paypal_ipn',
 				'name'             => 'PayPal IPN & Webhooks (Auto)',
 				'enabled'          => true,
 				'user_agents'      => [ 'PayPal/IPN*', 'Java/*' ],

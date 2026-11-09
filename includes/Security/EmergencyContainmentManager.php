@@ -459,14 +459,14 @@ class EmergencyContainmentManager {
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 20px;">🚨</span>
                     <div>
-                        <strong style="color: #b91c1c; font-size: 14px;">WCP EMERGENCY CONTAINMENT IS ACTIVE</strong>
+                        <strong style="color: #b91c1c; font-size: 14px;">WebCare EMERGENCY CONTAINMENT IS ACTIVE</strong>
                         <div style="color: #7f1d1d; font-size: 12px; margin-top: 2px;">
                             Blast radius frozen by <strong><?php echo esc_html($activated_by); ?></strong>. Reason: <em><?php echo esc_html($reason); ?></em>. Filesystem editing, plugin installs, and public write operations are locked.
                         </div>
                     </div>
                 </div>
                 <div>
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=wcp-security-scanner#/firewall')); ?>" class="button button-primary" style="background: #dc2626; border-color: #b91c1c;">
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=webcare-pro-security#/firewall')); ?>" class="button button-primary" style="background: #dc2626; border-color: #b91c1c;">
                         <?php esc_html_e('Open Security Console & Remediate', 'webcare-pro-security'); ?>
                     </a>
                 </div>

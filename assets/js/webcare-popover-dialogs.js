@@ -10,8 +10,8 @@
 (function() {
     'use strict';
 
-    if (window.__WCP_POPOVER_INSTALLED__) return;
-    window.__WCP_POPOVER_INSTALLED__ = true;
+    if (window.__WEBCARE_POPOVER_INSTALLED__) return;
+    window.__WEBCARE_POPOVER_INSTALLED__ = true;
 
     // Track the most recently clicked / active element so popovers can anchor to it
     var lastTriggerEl = null;
@@ -29,9 +29,9 @@
 
     // Create container for styles & popovers
     var styleEl = document.createElement('style');
-    styleEl.id = 'wcp-popover-styles';
+    styleEl.id = 'webcare-popover-styles';
     styleEl.textContent = `
-        .wcp-popover-overlay {
+        .webcare-popover-overlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -46,16 +46,16 @@
             align-items: center;
             justify-content: center;
         }
-        .wcp-popover-overlay.wcp-visible {
+        .webcare-popover-overlay.webcare-visible {
             opacity: 1;
         }
-        .wcp-popover-card {
+        .webcare-popover-card {
             position: absolute;
             width: 90vw;
             max-width: 440px;
-            background: var(--wcp-bg-panel, #ffffff);
-            color: var(--wcp-text-primary, #0f172a);
-            border: 1px solid var(--wcp-border, #e2e8f0);
+            background: var(--webcare-bg-panel, #ffffff);
+            color: var(--webcare-text-primary, #0f172a);
+            border: 1px solid var(--webcare-border, #e2e8f0);
             border-radius: 14px;
             box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -66,25 +66,25 @@
             transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
             z-index: 10000000;
         }
-        .wcp-theme-dark .wcp-popover-card,
-        [data-theme="dark"] .wcp-popover-card,
-        body.wcp-theme-dark .wcp-popover-card {
+        .webcare-theme-dark .webcare-popover-card,
+        [data-theme="dark"] .webcare-popover-card,
+        body.webcare-theme-dark .webcare-popover-card {
             background: #0f172a !important;
             color: #f8fafc !important;
             border-color: rgba(255, 255, 255, 0.12) !important;
             box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
         }
-        .wcp-popover-card.wcp-visible {
+        .webcare-popover-card.webcare-visible {
             transform: scale(1) translateY(0);
             opacity: 1;
         }
-        .wcp-popover-header {
+        .webcare-popover-header {
             display: flex;
             align-items: flex-start;
             gap: 12px;
             margin-bottom: 12px;
         }
-        .wcp-popover-icon-box {
+        .webcare-popover-icon-box {
             width: 36px;
             height: 36px;
             border-radius: 10px;
@@ -94,49 +94,49 @@
             flex-shrink: 0;
             font-size: 18px;
         }
-        .wcp-popover-icon-box.info {
+        .webcare-popover-icon-box.info {
             background: rgba(79, 70, 229, 0.1);
             color: #4f46e5;
         }
-        .wcp-popover-icon-box.warning {
+        .webcare-popover-icon-box.warning {
             background: rgba(245, 158, 11, 0.12);
             color: #d97706;
         }
-        .wcp-popover-icon-box.danger {
+        .webcare-popover-icon-box.danger {
             background: rgba(239, 68, 68, 0.12);
             color: #dc2626;
         }
-        .wcp-popover-icon-box.success {
+        .webcare-popover-icon-box.success {
             background: rgba(16, 185, 129, 0.12);
             color: #059669;
         }
-        .wcp-popover-title {
+        .webcare-popover-title {
             margin: 0;
             font-size: 15px;
             font-weight: 700;
             line-height: 1.3;
             color: inherit;
         }
-        .wcp-popover-body {
+        .webcare-popover-body {
             font-size: 13px;
             line-height: 1.5;
-            color: var(--wcp-text-secondary, #475569);
+            color: var(--webcare-text-secondary, #475569);
             white-space: pre-wrap;
             word-break: break-word;
             margin-bottom: 18px;
         }
-        .wcp-theme-dark .wcp-popover-body,
-        [data-theme="dark"] .wcp-popover-body,
-        body.wcp-theme-dark .wcp-popover-body {
+        .webcare-theme-dark .webcare-popover-body,
+        [data-theme="dark"] .webcare-popover-body,
+        body.webcare-theme-dark .webcare-popover-body {
             color: #cbd5e1 !important;
         }
-        .wcp-popover-actions {
+        .webcare-popover-actions {
             display: flex;
             align-items: center;
             justify-content: flex-end;
             gap: 8px;
         }
-        .wcp-popover-btn {
+        .webcare-popover-btn {
             border-radius: 8px;
             padding: 8px 16px;
             font-size: 12.5px;
@@ -150,39 +150,39 @@
             justify-content: center;
             min-height: 34px;
         }
-        .wcp-popover-btn-cancel {
-            background: var(--wcp-bg-elevated, #f1f5f9);
-            color: var(--wcp-text-primary, #334155);
-            border-color: var(--wcp-border-strong, #cbd5e1);
+        .webcare-popover-btn-cancel {
+            background: var(--webcare-bg-elevated, #f1f5f9);
+            color: var(--webcare-text-primary, #334155);
+            border-color: var(--webcare-border-strong, #cbd5e1);
         }
-        .wcp-popover-btn-cancel:hover {
+        .webcare-popover-btn-cancel:hover {
             background: #e2e8f0;
         }
-        .wcp-theme-dark .wcp-popover-btn-cancel,
-        [data-theme="dark"] .wcp-popover-btn-cancel,
-        body.wcp-theme-dark .wcp-popover-btn-cancel {
+        .webcare-theme-dark .webcare-popover-btn-cancel,
+        [data-theme="dark"] .webcare-popover-btn-cancel,
+        body.webcare-theme-dark .webcare-popover-btn-cancel {
             background: #1e293b !important;
             color: #e2e8f0 !important;
             border-color: rgba(255, 255, 255, 0.15) !important;
         }
-        .wcp-popover-btn-confirm {
+        .webcare-popover-btn-confirm {
             background: #dc2626;
             color: #ffffff;
             border-color: #b91c1c;
             box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
         }
-        .wcp-popover-btn-confirm:hover {
+        .webcare-popover-btn-confirm:hover {
             background: #b91c1c;
         }
-        .wcp-popover-btn-confirm.is-primary {
+        .webcare-popover-btn-confirm.is-primary {
             background: #4f46e5;
             border-color: #4338ca;
             box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
         }
-        .wcp-popover-btn-confirm.is-primary:hover {
+        .webcare-popover-btn-confirm.is-primary:hover {
             background: #4338ca;
         }
-        .wcp-popover-arrow {
+        .webcare-popover-arrow {
             position: absolute;
             width: 10px;
             height: 10px;
@@ -191,19 +191,19 @@
             transform: rotate(45deg);
             display: none;
         }
-        .wcp-popover-card[data-arrow="bottom"] .wcp-popover-arrow {
+        .webcare-popover-card[data-arrow="bottom"] .webcare-popover-arrow {
             display: block;
             bottom: -6px;
             border-left: none;
             border-top: none;
         }
-        .wcp-popover-card[data-arrow="top"] .wcp-popover-arrow {
+        .webcare-popover-card[data-arrow="top"] .webcare-popover-arrow {
             display: block;
             top: -6px;
             border-right: none;
             border-bottom: none;
         }
-        @keyframes wcpModalIn {
+        @keyframes webcareModalIn {
             from {
                 opacity: 0;
                 transform: scale(0.95) translateY(-4px);
@@ -213,7 +213,7 @@
                 transform: scale(1) translateY(0);
             }
         }
-        .wcp-inline-callout {
+        .webcare-inline-callout {
             border-radius: 8px;
             padding: 8px 14px;
             font-size: 12px;
@@ -223,37 +223,37 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            animation: wcpModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: webcareModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .wcp-inline-callout.wcp-callout-error {
+        .webcare-inline-callout.webcare-callout-error {
             background: #fef2f2;
             color: #991b1b;
             border: 1px solid #fca5a5;
         }
-        .wcp-theme-dark .wcp-inline-callout.wcp-callout-error,
-        [data-theme="dark"] .wcp-inline-callout.wcp-callout-error {
+        .webcare-theme-dark .webcare-inline-callout.webcare-callout-error,
+        [data-theme="dark"] .webcare-inline-callout.webcare-callout-error {
             background: rgba(239, 68, 68, 0.16) !important;
             color: #f87171 !important;
             border-color: rgba(239, 68, 68, 0.35) !important;
         }
-        .wcp-inline-callout.wcp-callout-success {
+        .webcare-inline-callout.webcare-callout-success {
             background: #ecfdf5;
             color: #065f46;
             border: 1px solid #a7f3d0;
         }
-        .wcp-theme-dark .wcp-inline-callout.wcp-callout-success,
-        [data-theme="dark"] .wcp-inline-callout.wcp-callout-success {
+        .webcare-theme-dark .webcare-inline-callout.webcare-callout-success,
+        [data-theme="dark"] .webcare-inline-callout.webcare-callout-success {
             background: rgba(16, 185, 129, 0.16) !important;
             color: #34d399 !important;
             border-color: rgba(16, 185, 129, 0.35) !important;
         }
-        .wcp-inline-callout.wcp-callout-info {
+        .webcare-inline-callout.webcare-callout-info {
             background: #eff6ff;
             color: #1e40af;
             border: 1px solid #bfdbfe;
         }
-        .wcp-theme-dark .wcp-inline-callout.wcp-callout-info,
-        [data-theme="dark"] .wcp-inline-callout.wcp-callout-info {
+        .webcare-theme-dark .webcare-inline-callout.webcare-callout-info,
+        [data-theme="dark"] .webcare-inline-callout.webcare-callout-info {
             background: rgba(99, 102, 241, 0.16) !important;
             color: #818cf8 !important;
             border-color: rgba(99, 102, 241, 0.35) !important;
@@ -317,7 +317,7 @@
 
         // Adjust arrow position
         card.setAttribute('data-arrow', arrowPos);
-        var arrow = card.querySelector('.wcp-popover-arrow');
+        var arrow = card.querySelector('.webcare-popover-arrow');
         if (arrow) {
             var arrowLeft = (rect.left + rect.width / 2) - targetLeft - 5;
             if (arrowLeft < 15) arrowLeft = 15;
@@ -338,27 +338,27 @@
 
         // Overlay
         var overlay = document.createElement('div');
-        overlay.className = 'wcp-popover-overlay';
+        overlay.className = 'webcare-popover-overlay';
 
         // Card
         var card = document.createElement('div');
-        card.className = 'wcp-popover-card';
+        card.className = 'webcare-popover-card';
         card.setAttribute('role', 'dialog');
         card.setAttribute('aria-modal', 'true');
 
         var arrow = document.createElement('div');
-        arrow.className = 'wcp-popover-arrow';
+        arrow.className = 'webcare-popover-arrow';
         card.appendChild(arrow);
 
         var header = document.createElement('div');
-        header.className = 'wcp-popover-header';
+        header.className = 'webcare-popover-header';
 
         var iconBox = document.createElement('div');
-        iconBox.className = 'wcp-popover-icon-box ' + variant;
+        iconBox.className = 'webcare-popover-icon-box ' + variant;
         iconBox.textContent = (variant === 'danger' || variant === 'warning') ? '\u26A0\uFE0F' : (variant === 'success' ? '\u2714' : '\u2139\uFE0F');
 
         var titleEl = document.createElement('h4');
-        titleEl.className = 'wcp-popover-title';
+        titleEl.className = 'webcare-popover-title';
         titleEl.textContent = title;
 
         header.appendChild(iconBox);
@@ -366,12 +366,12 @@
         card.appendChild(header);
 
         var body = document.createElement('div');
-        body.className = 'wcp-popover-body';
+        body.className = 'webcare-popover-body';
         body.textContent = message;
         card.appendChild(body);
 
         var actions = document.createElement('div');
-        actions.className = 'wcp-popover-actions';
+        actions.className = 'webcare-popover-actions';
 
         var keyHandler = null;
 
@@ -380,8 +380,8 @@
                 window.removeEventListener('keydown', keyHandler);
                 keyHandler = null;
             }
-            overlay.classList.remove('wcp-visible');
-            card.classList.remove('wcp-visible');
+            overlay.classList.remove('webcare-visible');
+            card.classList.remove('webcare-visible');
             setTimeout(function() {
                 if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
                 if (options.onResolve) options.onResolve(result);
@@ -391,7 +391,7 @@
         if (isConfirm) {
             var cancelBtn = document.createElement('button');
             cancelBtn.type = 'button';
-            cancelBtn.className = 'wcp-popover-btn wcp-popover-btn-cancel';
+            cancelBtn.className = 'webcare-popover-btn webcare-popover-btn-cancel';
             cancelBtn.textContent = options.cancelLabel || 'Cancel';
             cancelBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -401,7 +401,7 @@
 
             var confirmBtn = document.createElement('button');
             confirmBtn.type = 'button';
-            confirmBtn.className = 'wcp-popover-btn wcp-popover-btn-confirm' + (variant === 'info' || variant === 'success' ? ' is-primary' : '');
+            confirmBtn.className = 'webcare-popover-btn webcare-popover-btn-confirm' + (variant === 'info' || variant === 'success' ? ' is-primary' : '');
             confirmBtn.textContent = options.confirmLabel || 'Proceed';
             confirmBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -411,7 +411,7 @@
         } else {
             var okBtn = document.createElement('button');
             okBtn.type = 'button';
-            okBtn.className = 'wcp-popover-btn wcp-popover-btn-confirm is-primary';
+            okBtn.className = 'webcare-popover-btn webcare-popover-btn-confirm is-primary';
             okBtn.textContent = options.okLabel || 'OK';
             okBtn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -429,12 +429,12 @@
 
         // Animate in
         requestAnimationFrame(function() {
-            overlay.classList.add('wcp-visible');
-            card.classList.add('wcp-visible');
+            overlay.classList.add('webcare-visible');
+            card.classList.add('webcare-visible');
             if (isConfirm) {
-                card.querySelector('.wcp-popover-btn-confirm').focus();
+                card.querySelector('.webcare-popover-btn-confirm').focus();
             } else {
-                card.querySelector('.wcp-popover-btn').focus();
+                card.querySelector('.webcare-popover-btn').focus();
             }
         });
 
@@ -457,7 +457,7 @@
     /**
      * Expose Global Public Helper
      */
-    window.wcpConfirmPopover = function(options) {
+    window.webcareConfirmPopover = function(options) {
         return new Promise(function(resolve) {
             showModalDialog(Object.assign({}, options, {
                 type: 'confirm',
@@ -466,7 +466,7 @@
         });
     };
 
-    window.wcpAlertPopover = function(options) {
+    window.webcareAlertPopover = function(options) {
         return new Promise(function(resolve) {
             var opts = (typeof options === 'string') ? { message: options } : options;
             showModalDialog(Object.assign({}, opts, {
@@ -477,16 +477,16 @@
     };
 
     // Inline floating tooltip / callout near input/button without modal backdrop
-    window.wcpShowInlineCallout = function(anchorEl, message, type) {
+    window.webcareShowInlineCallout = function(anchorEl, message, type) {
         if (!anchorEl) return;
         type = type || 'error';
 
         // Remove any existing inline callout
-        var existing = document.querySelector('.wcp-inline-callout');
+        var existing = document.querySelector('.webcare-inline-callout');
         if (existing) existing.remove();
 
         var callout = document.createElement('div');
-        callout.className = 'wcp-inline-callout wcp-callout-' + (type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info'));
+        callout.className = 'webcare-inline-callout webcare-callout-' + (type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info'));
         callout.style.position = 'absolute';
 
         var icon = (type === 'error') ? '\u26A0\uFE0F ' : (type === 'success' ? '\u2714 ' : '\u2139\uFE0F ');
@@ -529,12 +529,12 @@
     };
 
     /**
-     * Intercept window.alert on WCP Admin pages so that no native alert dialog ever pops up
+     * Intercept window.alert on WebCare Admin pages so that no native alert dialog ever pops up
      */
     var nativeAlert = window.alert;
     window.alert = function(msg) {
         // If we have an active trigger element, anchor near it
-        window.wcpAlertPopover({
+        window.webcareAlertPopover({
             title: 'WebCare Pro Security',
             message: String(msg || ''),
             variant: (String(msg).toLowerCase().includes('fail') || String(msg).toLowerCase().includes('error')) ? 'danger' : 'info',
@@ -545,6 +545,6 @@
     /**
      * Store native confirm for fallback if needed
      */
-    window.__wcpNativeConfirm = window.confirm;
-    window.__wcpNativeAlert = nativeAlert;
+    window.__webcareNativeConfirm = window.confirm;
+    window.__webcareNativeAlert = nativeAlert;
 })();

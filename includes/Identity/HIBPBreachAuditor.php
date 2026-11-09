@@ -44,7 +44,7 @@ class HIBPBreachAuditor {
             $url = 'https://api.pwnedpasswords.com/range/' . $prefix;
             $response = wp_remote_get($url, [
                 'timeout'    => 3,
-                'user-agent' => 'WCP-Security-Scanner/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.25.0'),
+                'user-agent' => 'WEBCARE-Security-Scanner/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.25.0'),
                 'headers'    => [
                     'Add-Padding' => 'true', // Mitigates response size side-channel leakage
                 ],

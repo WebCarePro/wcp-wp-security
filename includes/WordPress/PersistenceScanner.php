@@ -209,7 +209,7 @@ class PersistenceScanner {
                 'file_path'   => $res['file_path'],
                 'description' => sprintf(
                     /* translators: 1: original action, 2: timeline */
-                    __('Self-Healing Malware Loop Detected! File was previously neutralized via WCP (%1$s), but was resurrected/re-injected %2$s.', 'webcare-pro-security'),
+                    __('Self-Healing Malware Loop Detected! File was previously neutralized via WebCare (%1$s), but was resurrected/re-injected %2$s.', 'webcare-pro-security'),
                     $res['original_action'],
                     $res['timeline_human']
                 ),
@@ -321,15 +321,15 @@ class PersistenceScanner {
                 ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($auto_prepend)
                 : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => '', 'risk_level' => 'high'];
 
-            $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
-            $is_trusted = $is_wcp || !empty($verification['is_trusted']);
+            $is_webcare = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
+            $is_trusted = $is_webcare || !empty($verification['is_trusted']);
             $exists = file_exists($auto_prepend);
 
             $findings[] = [
                 'type'        => 'ini_auto_prepend',
                 'directive'   => 'auto_prepend_file',
                 'target_file' => $auto_prepend,
-                'is_wcp'      => $is_wcp,
+                'is_webcare'      => $is_webcare,
                 'is_trusted'  => $is_trusted,
                 'provider'    => $verification['provider'] ?? '',
                 'file_exists' => $exists,
@@ -357,7 +357,7 @@ class PersistenceScanner {
                 'type'        => 'ini_auto_append',
                 'directive'   => 'auto_append_file',
                 'target_file' => $auto_append,
-                'is_wcp'      => false,
+                'is_webcare'      => false,
                 'file_exists' => $exists,
                 'severity'    => 'critical',
                 'description' => sprintf(
@@ -377,20 +377,20 @@ class PersistenceScanner {
                     $directive = $m[1];
                     $target = trim($m[2]);
                     $norm = wp_normalize_path($target);
-                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
+                    $is_webcare = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
 
                     $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
                         ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
                         : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => ''];
 
-                    $is_trusted = ($directive === 'auto_prepend_file') && ($is_wcp || !empty($verification['is_trusted']));
+                    $is_trusted = ($directive === 'auto_prepend_file') && ($is_webcare || !empty($verification['is_trusted']));
 
                     if (!$is_trusted) {
                         $findings[] = [
                             'type'        => 'user_ini_preloader',
                             'directive'   => '.user.ini:' . $directive,
                             'target_file' => $target,
-                            'is_wcp'      => false,
+                            'is_webcare'      => false,
                             'file_exists' => file_exists($target),
                             'severity'    => 'critical',
                             'description' => sprintf(
@@ -414,20 +414,20 @@ class PersistenceScanner {
                     $directive = $m[1];
                     $target = trim($m[2]);
                     $norm = wp_normalize_path($target);
-                    $is_wcp = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
+                    $is_webcare = str_contains($norm, 'micro-waf-compiled.php') || str_contains($norm, 'webcare-pro-security');
 
                     $verification = class_exists('\\WebCareProScanner\\SupplyChain\\SbomSentinelEngine')
                         ? \WebCareProScanner\SupplyChain\SbomSentinelEngine::verify_prepend_target($target)
                         : ['is_recognized' => false, 'is_trusted' => false, 'provider' => '', 'label' => ''];
 
-                    $is_trusted = ($directive === 'auto_prepend_file') && ($is_wcp || !empty($verification['is_trusted']));
+                    $is_trusted = ($directive === 'auto_prepend_file') && ($is_webcare || !empty($verification['is_trusted']));
 
                     if (!$is_trusted) {
                         $findings[] = [
                             'type'        => 'htaccess_preloader',
                             'directive'   => '.htaccess:php_value ' . $directive,
                             'target_file' => $target,
-                            'is_wcp'      => false,
+                            'is_webcare'      => false,
                             'file_exists' => file_exists($target),
                             'severity'    => 'critical',
                             'description' => sprintf(
@@ -669,8 +669,8 @@ class PersistenceScanner {
                 continue;
             }
 
-            // Skip WCP's own internal analysis, FIM diffs, and security caches
-            if (strpos($name, 'wcp_') !== false || strpos($name, 'webcareproscan_') !== false) {
+            // Skip WebCare's own internal analysis, FIM diffs, and security caches
+            if (strpos($name, 'webcare_') !== false || strpos($name, 'webcareproscan_') !== false) {
                 continue;
             }
 
@@ -1078,7 +1078,7 @@ class PersistenceScanner {
                 }
 
                 // Delete or rename file
-                $quarantined_name = $file . '.wcp-quarantined-' . time();
+                $quarantined_name = $file . '.webcare-quarantined-' . time();
                 global $wp_filesystem;
                 $moved = false;
                 if ($wp_filesystem) {

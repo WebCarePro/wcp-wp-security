@@ -87,7 +87,7 @@ class ActivityHumanizer {
             case 'gatekeeper_update_audited':
                 $plugin = $details['plugin_slug'] ?? 'Plugin';
                 $title       = sprintf('Safe Plugin Update: %s', self::slug_to_title($plugin));
-                $description = sprintf('WCP Gatekeeper verified the update for "%1$s". Cryptographic code inspection confirmed zero malicious payloads or backdoor modifications.', self::slug_to_title($plugin));
+                $description = sprintf('WebCare Gatekeeper verified the update for "%1$s". Cryptographic code inspection confirmed zero malicious payloads or backdoor modifications.', self::slug_to_title($plugin));
                 $badge       = 'clean';
                 $badge_label = 'Extension Security';
                 break;

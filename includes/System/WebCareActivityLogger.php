@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
  * 4. Dual human-vs-system attribution with automatic "System" initiator detection for scheduled tasks.
  * 5. Re-entrancy guards and automatic tamper detection alerts.
  */
-class WcpActivityLogger {
+class WebCareActivityLogger {
 
     /**
      * Recursion / Re-entrancy guard to prevent infinite logging loops.

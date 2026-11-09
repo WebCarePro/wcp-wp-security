@@ -8,20 +8,20 @@ if (!defined('ABSPATH')) {
 class SecretVault {
     // Primary modern AEAD cipher with 128-bit authenticated integrity tags
     const CIPHER_GCM = 'aes-256-gcm';
-    const PREFIX_GCM = 'wcp_gcm:';
+    const PREFIX_GCM = 'webcare_gcm:';
 
     /**
      * Derive a cryptographically uniform 256-bit (32-byte) key.
      * Priority:
-     * 1. Isolated server environment variable 'WCP_VAULT_KEY' (outside webroot)
-     * 2. Dedicated wp-config.php constant 'WCP_VAULT_KEY' (decoupled from WP auth salts)
+     * 1. Isolated server environment variable 'WEBCARE_VAULT_KEY' (outside webroot)
+     * 2. Dedicated wp-config.php constant 'WEBCARE_VAULT_KEY' (decoupled from WP auth salts)
      * 3. WordPress core secret salts (AUTH_KEY, SECURE_AUTH_KEY, AUTH_SALT)
      *
      * Fails closed: Never falls back to hardcoded strings.
      */
     public static function get_key(): string {
         // 1. Check for dedicated server environment variable (php-fpm, systemd, docker secret)
-        $env_key = getenv('WCP_VAULT_KEY');
+        $env_key = getenv('WEBCARE_VAULT_KEY');
         if (!empty($env_key)) {
             // If provided as a 64-character hexadecimal key (32 bytes), decode directly
             if (is_string($env_key) && strlen($env_key) === 64 && ctype_xdigit($env_key)) {
@@ -31,8 +31,8 @@ class SecretVault {
         }
 
         // 2. Check for dedicated wp-config.php constant
-        if (defined('WCP_VAULT_KEY') && !empty(WCP_VAULT_KEY)) {
-            $const_key = (string) WCP_VAULT_KEY;
+        if (defined('WEBCARE_VAULT_KEY') && !empty(WEBCARE_VAULT_KEY)) {
+            $const_key = (string) WEBCARE_VAULT_KEY;
             if (strlen($const_key) === 64 && ctype_xdigit($const_key)) {
                 return (string) hex2bin($const_key);
             }
@@ -74,7 +74,7 @@ class SecretVault {
             if (empty($db_salt)) {
                 $db_salt = function_exists('wp_generate_password')
                     ? wp_generate_password(64, true, true)
-                    : (function_exists('random_bytes') ? bin2hex(random_bytes(32)) : hash('sha256', uniqid('wcp_', true)));
+                    : (function_exists('random_bytes') ? bin2hex(random_bytes(32)) : hash('sha256', uniqid('webcare_', true)));
                 if (function_exists('add_option')) {
                     add_option('webcareproscan_vault_salt', $db_salt, '', 'no');
                 }
@@ -103,11 +103,11 @@ class SecretVault {
         }
 
         if (!function_exists('openssl_encrypt')) {
-            throw new \RuntimeException('WCP SecretVault Error: OpenSSL extension is missing or disabled on this server. Plaintext storage is refused.');
+            throw new \RuntimeException('WebCare SecretVault Error: OpenSSL extension is missing or disabled on this server. Plaintext storage is refused.');
         }
 
         if (!in_array(self::CIPHER_GCM, openssl_get_cipher_methods(), true)) {
-            throw new \RuntimeException('WCP SecretVault Error: AES-256-GCM cipher is unavailable in server OpenSSL installation.');
+            throw new \RuntimeException('WebCare SecretVault Error: AES-256-GCM cipher is unavailable in server OpenSSL installation.');
         }
 
         $key = self::get_key();
@@ -117,7 +117,7 @@ class SecretVault {
 
         $encrypted = openssl_encrypt($plain, self::CIPHER_GCM, $key, OPENSSL_RAW_DATA, $iv, $tag, '', 16);
         if ($encrypted === false || strlen($tag) !== 16) {
-            throw new \RuntimeException('WCP SecretVault Error: Encryption failed to generate authenticated ciphertext.');
+            throw new \RuntimeException('WebCare SecretVault Error: Encryption failed to generate authenticated ciphertext.');
         }
 
         // Format: Prefix + base64( 12-byte IV . 16-byte Tag . Ciphertext )
@@ -291,7 +291,7 @@ class SecretVault {
         }
 
         if ($decrypted === false) {
-            throw new \RuntimeException('WCP SecretVault Error: Key rotation failed; unable to decrypt record with old key.');
+            throw new \RuntimeException('WebCare SecretVault Error: Key rotation failed; unable to decrypt record with old key.');
         }
 
         // Encrypt with new key
@@ -299,7 +299,7 @@ class SecretVault {
         $tag = '';
         $new_cipher = openssl_encrypt($decrypted, self::CIPHER_GCM, $new_binary_key, OPENSSL_RAW_DATA, $iv, $tag, '', 16);
         if ($new_cipher === false || strlen($tag) !== 16) {
-            throw new \RuntimeException('WCP SecretVault Error: Key rotation failed; unable to encrypt record with new key.');
+            throw new \RuntimeException('WebCare SecretVault Error: Key rotation failed; unable to encrypt record with new key.');
         }
 
         return self::PREFIX_GCM . base64_encode($iv . $tag . $new_cipher);

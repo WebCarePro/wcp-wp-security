@@ -68,7 +68,7 @@ class UserRemediationManager {
 
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
         }
     }
 
@@ -322,9 +322,9 @@ class UserRemediationManager {
                 $base . '/webcare-pro-security/.backups/remediation',
                 $base . '/webcare-pro-security/.backups',
                 $base . '/webcare-pro-security/transactions',
-                $base . '/wcp-security-scanner',
-                $base . '/wcp-scanner-quarantine/transactions',
-                $base . '/wcp-scanner-quarantine',
+                $base . '/webcare-pro-security',
+                $base . '/webcare-pro-quarantine/transactions',
+                $base . '/webcare-pro-quarantine',
             ];
             foreach ($candidate_dirs as $cdir) {
                 if (file_exists($cdir . '/' . basename($backup_file))) {
@@ -462,9 +462,9 @@ class UserRemediationManager {
             $base . '/webcare-pro-security/.backups/remediation',
             $base . '/webcare-pro-security/.backups',
             $base . '/webcare-pro-security/transactions',
-            $base . '/wcp-security-scanner',
-            $base . '/wcp-scanner-quarantine/transactions',
-            $base . '/wcp-scanner-quarantine',
+            $base . '/webcare-pro-security',
+            $base . '/webcare-pro-quarantine/transactions',
+            $base . '/webcare-pro-quarantine',
         ]);
 
         $backups = [];

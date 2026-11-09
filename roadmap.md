@@ -119,14 +119,14 @@ if (!empty($allowed_methods) && !in_array('*', $allowed_methods, true) && !in_ar
 ### 1.5 Fix Stored XSS via `<script>` Breakout in `CrashGuard` (`includes/System/CrashGuard.php`)
 
 * **Target**: `CrashGuard::render_admin_notice()` (line 497)
-* **Root Cause**: `$incident` contains attacker-controlled request URIs, `$_GET`/`$_POST` values, and source code lines (`code_snippet`), and is echoed inside `<script type="application/json" id="wcp-crashguard-json-dossier">` with `JSON_UNESCAPED_SLASHES`. Any payload containing `</script><script>...` breaks out of the `<script>` tag and executes arbitrary JavaScript in `wp-admin`.
+* **Root Cause**: `$incident` contains attacker-controlled request URIs, `$_GET`/`$_POST` values, and source code lines (`code_snippet`), and is echoed inside `<script type="application/json" id="webcare-crashguard-json-dossier">` with `JSON_UNESCAPED_SLASHES`. Any payload containing `</script><script>...` breaks out of the `<script>` tag and executes arbitrary JavaScript in `wp-admin`.
 * **Before (line 497)**:
 ```php
-<script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES); ?></script>
+<script type="application/json" id="webcare-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES); ?></script>
 ```
 * **After**:
 ```php
-<script type="application/json" id="wcp-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+<script type="application/json" id="webcare-crashguard-json-dossier"><?php echo wp_json_encode($incident, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
 ```
 
 ### 1.6 Fix Single-Fault Global WAF Kill-Switch in `CrashGuard` (`includes/System/CrashGuard.php`)
@@ -137,36 +137,36 @@ if (!empty($allowed_methods) && !in_array('*', $allowed_methods, true) && !in_ar
   1. Require at least `3` fatal crashes within a `60`-second sliding window before engaging Safe Mode, AND auto-expire Safe Mode after 15 minutes (`wcpscan_circuit_breaker_safe_mode_until`) rather than permanently disabling security.
   2. Even when Safe Mode is engaged for non-critical modules (like AI Service or Scanner), keep `FirewallEngine`, `TwoFactorAuth`, and `LoginHardening` active unless the crash trace explicitly originated inside that specific file.
 
-### 1.7 Fix JIT Ephemeral Admin & Support Tech Sandbox Escape (`includes/Auth/WcpJitMuGuardian.php` & `includes/Plugin.php`)
+### 1.7 Fix JIT Ephemeral Admin & Support Tech Sandbox Escape (`includes/Auth/WebCareJitMuGuardian.php` & `includes/Plugin.php`)
 
-* **Target**: `WcpJitMuGuardian::intercept_unauthorized_rest_actions()` (lines 257–306) and `Plugin::deactivate()` (lines 603–634)
+* **Target**: `WebCareJitMuGuardian::intercept_unauthorized_rest_actions()` (lines 257–306) and `Plugin::deactivate()` (lines 603–634)
 * **Root Cause**:
-  1. A restricted JIT Admin or Temporary Support Technician (`wcp_temp_tech`) is not blocked from calling `/wcp-scanner/v1/identity/jit-elevate` (re-elevating themselves for 7 days), `/wcp-scanner/v1/auth/admin-2fa/disable` (disabling the primary owner's 2FA), `/wcp-scanner/v1/backup/create` & `/backup/download` (downloading full database dumps), `/wcp-scanner/v1/database/` (modifying `wp_users`), or `/wcp-scanner/v1/file/view` (reading `wp-config.php`).
-  2. `wp-content/mu-plugins/wcp-jit-guardian.php` is never deleted in `Plugin::deactivate()` or default `uninstall.php`.
-* **After (`WcpJitMuGuardian::intercept_unauthorized_rest_actions()`, lines 267–298)**:
+  1. A restricted JIT Admin or Temporary Support Technician (`wcp_temp_tech`) is not blocked from calling `/webcare-scanner/v1/identity/jit-elevate` (re-elevating themselves for 7 days), `/webcare-scanner/v1/auth/admin-2fa/disable` (disabling the primary owner's 2FA), `/webcare-scanner/v1/backup/create` & `/backup/download` (downloading full database dumps), `/webcare-scanner/v1/database/` (modifying `wp_users`), or `/webcare-scanner/v1/file/view` (reading `wp-config.php`).
+  2. `wp-content/mu-plugins/webcare-jit-guardian.php` is never deleted in `Plugin::deactivate()` or default `uninstall.php`.
+* **After (`WebCareJitMuGuardian::intercept_unauthorized_rest_actions()`, lines 267–298)**:
 ```php
 $blocked_scanner_routes = [
-    '/wcp-scanner/v1/quarantine/delete',
-    '/wcp-scanner/v1/file/delete',
-    '/wcp-scanner/v1/file/view',
-    '/wcp-scanner/v1/file/fix-permissions',
-    '/wcp-scanner/v1/remediation/execute',
-    '/wcp-scanner/v1/remediation/auto-clean',
-    '/wcp-scanner/v1/users/remediate',
-    '/wcp-scanner/v1/settings',
-    '/wcp-scanner/v1/firewall/reset',
-    '/wcp-scanner/v1/identity/jit-elevate',
-    '/wcp-scanner/v1/identity/jit-revoke',
-    '/wcp-scanner/v1/identity/temp-link',
-    '/wcp-scanner/v1/auth/admin-2fa',
-    '/wcp-scanner/v1/backup',
-    '/wcp-scanner/v1/database',
-    '/wcp-scanner/v1/encryption',
+    '/webcare-scanner/v1/quarantine/delete',
+    '/webcare-scanner/v1/file/delete',
+    '/webcare-scanner/v1/file/view',
+    '/webcare-scanner/v1/file/fix-permissions',
+    '/webcare-scanner/v1/remediation/execute',
+    '/webcare-scanner/v1/remediation/auto-clean',
+    '/webcare-scanner/v1/users/remediate',
+    '/webcare-scanner/v1/settings',
+    '/webcare-scanner/v1/firewall/reset',
+    '/webcare-scanner/v1/identity/jit-elevate',
+    '/webcare-scanner/v1/identity/jit-revoke',
+    '/webcare-scanner/v1/identity/temp-link',
+    '/webcare-scanner/v1/auth/admin-2fa',
+    '/webcare-scanner/v1/backup',
+    '/webcare-scanner/v1/database',
+    '/webcare-scanner/v1/encryption',
 ];
 ```
 * **Also add cleanup in `Plugin::deactivate()` and `uninstall.php`**:
 ```php
-$mu_guardian = defined('WPMU_plugin_dir') ? WPMU_PLUGIN_DIR . '/wcp-jit-guardian.php' : WP_CONTENT_DIR . '/mu-plugins/wcp-jit-guardian.php';
+$mu_guardian = defined('WPMU_plugin_dir') ? WPMU_PLUGIN_DIR . '/webcare-jit-guardian.php' : WP_CONTENT_DIR . '/mu-plugins/webcare-jit-guardian.php';
 if (file_exists($mu_guardian)) {
     @unlink($mu_guardian);
 }
@@ -232,18 +232,18 @@ if (preg_match_all('/base64_decode\s*\(\s*[\'"]([a-zA-Z0-9+\/=\s]{20,})[\'"]\s*\
   1. Bare `Order Allow,Deny` / `Deny from all` outside `<IfModule !mod_authz_core.c>` causes an immediate **HTTP 500 Internal Server Error** on Apache 2.4 servers where `mod_access_compat` is disabled.
   2. `<LimitExcept GET POST HEAD>` (Apache) and `if ($request_method !~ ^(GET|POST|HEAD)$) { return 405; }` (Nginx) block `PUT`, `PATCH`, `DELETE`, and `OPTIONS`, breaking the WordPress REST API, Gutenberg editor, and WooCommerce REST integrations.
   3. `<FilesMatch "\.(sql|bak|tar|gz|zip|ini|sh)$">` blocks all legitimate `.zip` downloads across the entire website.
-  4. `verify_rule_enforcement()` treats `404 Not Found` on non-existent probe URLs (`readme.html`, `/wp-content/uploads/wcp-test-probe.php`) as `"Enforced (Protected)"`, reporting false verification success on Nginx.
+  4. `verify_rule_enforcement()` treats `404 Not Found` on non-existent probe URLs (`readme.html`, `/wp-content/uploads/webcare-test-probe.php`) as `"Enforced (Protected)"`, reporting false verification success on Nginx.
 * **Fixes**:
   * Wrap all legacy `Order Allow,Deny` / `Deny from all` blocks in `<IfModule !mod_authz_core.c> ... </IfModule>` alongside `<IfModule mod_authz_core.c> Require all denied </IfModule>` in both `ServerSecurityEngine.php` and `TransactionalRemediation.php`.
   * Change `<LimitExcept GET POST HEAD>` to `<LimitExcept GET POST HEAD OPTIONS PUT PATCH DELETE>` (and `^(GET|POST|HEAD|OPTIONS|PUT|PATCH|DELETE)$` in Nginx).
   * Remove `zip` from the root `FilesMatch` rule (`\.(sql|bak|tar|gz|ini|sh|env)$`).
-  * In `verify_rule_enforcement()`, only mark a rule `"enforced"` when the HTTP status is `403` (or create and remove a temporary probe file inside `uploads/wcp-security-scanner/` to test PHP execution blocking accurately).
+  * In `verify_rule_enforcement()`, only mark a rule `"enforced"` when the HTTP status is `403` (or create and remove a temporary probe file inside `uploads/webcare-security-scanner/` to test PHP execution blocking accurately).
 
 ### 1.11 Fix Unregistered Cron Interval in `CloudflareIpListSynchronizer` (`includes/Firewall/CAF/CloudflareIpListSynchronizer.php`)
 
 * **Target**: `CloudflareIpListSynchronizer::register_cron()` (line 406)
 * **Root Cause**: Uses `'wcp_every_five_minutes'`, which is never registered in WordPress's `cron_schedules` filter (`Scheduler.php` registers `'wcp_15min'`). As a result, `wp_schedule_event()` fails and Cloudflare IP sync never runs.
-* **Fix**: Register `'wcp_every_five_minutes'` (`['interval' => 300, 'display' => 'Every 5 Minutes (WCP Security)']`) in `Scheduler::add_cron_intervals()` or change line 406 to `'wcp_15min'`.
+* **Fix**: Register `'wcp_every_five_minutes'` (`['interval' => 300, 'display' => 'Every 5 Minutes (WebCare Pro Security)']`) in `Scheduler::add_cron_intervals()` or change line 406 to `'wcp_15min'`.
 
 ### 1.12 Remove Raw JSX Comments from PHP HTML Output (`includes/Admin/AdminMenu.php`)
 
@@ -339,7 +339,7 @@ if ($path === $allowed_clean || ($trimmed !== '' && ($path === $trimmed || strpo
 | **Rule #4: XSS** (`FirewallEngine.php`, lines 1750–1756) | 1) `/javascript\s*:\s*[a-z0-9_]+/i` is bypassed by `javascript://%0aalert(1)` or `javascript:/*x*/alert(1)`.<br>2) Event handler regex only checks 8 events. | 1) Strip ASCII control chars (`[\x00-\x20]+`) before matching `/(?:javascript\|vbscript\|data\s*:\s*text\/html)\s*:/i`.<br>2) Expand event handler regex to `/\bon(?:error\|load\|mouseover\|mouseenter\|mouseleave\|click\|dblclick\|auxclick\|contextmenu\|focus\|blur\|pointerenter\|pointerover\|pointerdown\|toggle\|beforetoggle\|animationstart\|animationend\|animationiteration\|transitionend\|begin\|pageshow\|pagehide\|input\|invalid\|submit\|reset\|wheel\|drag\|drop\|copy\|cut\|paste)\s*=\s*[^\s>]+/i`. |
 | **Rule #8: Malicious File Upload** (`FirewallEngine::inspect_uploaded_file()`, lines 5080–5375) | 1) `$prohibited_exts` misses `htaccess`, `ini`, `pht`, `pgif`, `inc`, `shtml`.<br>2) SVG XSS misses `<animate` and `<set`.<br>3) Polyglot check only reads the first 8,192 bytes, missing PHP code at the end of images >8 KB. | 1) Add `'htaccess', 'ini', 'pht', 'pgif', 'inc', 'shtml'` to `$prohibited_exts` and block filenames matching `/^\.(?:htaccess\|htpasswd\|user\.ini)$/i`.<br>2) Add `<animate` and `<set` to SVG inspection.<br>3) Read both first 8,192 bytes and last 8,192 bytes (`$size > 8192 ? @file_get_contents($tmp_name, false, null, $size - 8192, 8192) : ''`). |
 | **Rule #32: Host Header Injection** (`FirewallEngine::validate_host_headers()`, line 6258) | Only checks the first item in comma-separated `X-Forwarded-Host` (`explode(',', $fwd_raw)[0]`). | Loop over every comma-separated host in `HTTP_X_FORWARDED_HOST` and reject any segment that fails validation or contains `@`. |
-| **Rule #37: Guest REST Mutation Guard** (`FirewallEngine::inspect_guest_rest_dispatch()`, lines 6799–6950) | Never blocks even when `waf_guest_rest_policy === 'block'` (always returns `$result`), and includes `/wcp-scanner/` in `$safe_prefixes`. | Remove `/wcp-scanner/` from `$safe_prefixes` (only allow `/wcp-scanner/v1/auth/webauthn/assertion/`), and when `$policy === 'block'`, call `self::log_incident($rule_triggered, 'blocked')` and `return new \WP_Error('wcp_waf_rest_blocked', 'Unauthorized guest REST mutation blocked by WCP Firewall.', ['status' => 403]);`. |
+| **Rule #37: Guest REST Mutation Guard** (`FirewallEngine::inspect_guest_rest_dispatch()`, lines 6799–6950) | Never blocks even when `waf_guest_rest_policy === 'block'` (always returns `$result`), and includes `/webcare-scanner/` in `$safe_prefixes`. | Remove `/webcare-scanner/` from `$safe_prefixes` (only allow `/webcare-scanner/v1/auth/webauthn/assertion/`), and when `$policy === 'block'`, call `self::log_incident($rule_triggered, 'blocked')` and `return new \WP_Error('wcp_waf_rest_blocked', 'Unauthorized guest REST mutation blocked by WebCare Firewall.', ['status' => 403]);`. |
 | **IP Unban Substring Bug** (`FirewallEngine::remove_blocked_ip()`, line 3972) | `strpos($line, $ip) !== false` causes unblocking `192.168.1.1` to also delete `192.168.1.100` and `192.168.1.1/24`. | Extract the IP token before any `#` or whitespace (`$entry_ip = trim(preg_split('/[\s#]+/', $line)[0] ?? '');`) and compare `$entry_ip === $ip`. |
 
 ### 2.6 Fix Bot Spoofing Auto-Unban & HTTP/2 Client Blocking (`includes/Firewall/BotReconDefense.php`)
@@ -380,7 +380,7 @@ if ($path === $allowed_clean || ($trimmed !== '' && ($path === $trimmed || strpo
 
 * **Target**: `DatabaseBackup::get_backup_dir()` (line 41) and `DatabaseBackup::process_step()` (line 599)
 * **Root Cause**:
-  1. Line 41 sets `@chmod($dir, 0775)` (world/group-writable on shared hosts) and stores unencrypted `.sql.gz` database dumps inside `wp-content/uploads/wcp-security-scanner/.db-backups/`. On Nginx servers (which ignore `.htaccess`), anyone who discovers or guesses the filename or accesses directory listings can download the database.
+  1. Line 41 sets `@chmod($dir, 0775)` (world/group-writable on shared hosts) and stores unencrypted `.sql.gz` database dumps inside `wp-content/uploads/webcare-security-scanner/.db-backups/`. On Nginx servers (which ignore `.htaccess`), anyone who discovers or guesses the filename or accesses directory listings can download the database.
   2. Line 599 checks `if ($rows_count < $batch_limit || $state['current_row_offset'] >= $table_meta['total_rows'])`. Because `$table_meta['total_rows']` was snapshotted when the backup started, if rows are inserted into a busy table (`wp_options`, `wp_postmeta`, `wp_wc_orders`) while the backup is running, `$state['current_row_offset'] >= $table_meta['total_rows']` becomes `true` while more rows still exist—silently truncating the end of the table!
 * **Required Fix**:
   1. Change `@chmod($dir, 0775)` to `@chmod($dir, 0750)`, add `web.config`, and append a 32-character cryptographic random suffix (`bin2hex(random_bytes(16))`) to every backup filename or encrypt the archive with `SecretVault`.
@@ -416,7 +416,7 @@ if ($path === $allowed_clean || ($trimmed !== '' && ($path === $trimmed || strpo
 * **Problem**: Updating `wp_options` or database-backed transients on every blocked request or rate-limit hit causes severe MySQL row-lock contention on `wp_options` during a DDoS or brute-force attack.
 * **Solution**:
   1. Ensure `wp_options` keys that change frequently (`wcpscan_waf_learning_Queue`, `wcp_caf_threat_scores`, `wcpscan_security_posture_history`) are saved with `$autoload = 'no'` (`false`).
-  2. Route IP block lookups and rate-limit counters through `wp_cache_get()` / `wp_cache_set()` (when an external object cache like Redis/Memcached is present) or an atomic file-backed cache inside `wp-content/wcp-waf-rules/` before falling back to the custom `wp_wcp_firewall_blocks` table.
+  2. Route IP block lookups and rate-limit counters through `wp_cache_get()` / `wp_cache_set()` (when an external object cache like Redis/Memcached is present) or an atomic file-backed cache inside `wp-content/webcare-waf-rules/` before falling back to the custom `wp_webcareproscan_firewall_blocks` table.
 
 ### 4.2 Convert Low-Confidence WAF Signatures from Instant-Block to Cumulative Threat Scoring
 
@@ -621,8 +621,8 @@ if ($vault_size > 20971520) {
 }
 ```
 
-### 5.5 Always Remove `wcp-jit-guardian.php` MU-Plugin on Uninstall (`uninstall.php`)
+### 5.5 Always Remove `webcare-jit-guardian.php` MU-Plugin on Uninstall (`uninstall.php`)
 
 * **Target**: `uninstall.php` (lines 94 and 195–200)
-* **Why**: Currently, `wp_delete_file($wcpscan_mu_file)` is inside `if ($wcpscan_delete_data)` (lines 195–200). If a user uninstalls the plugin with the default "Retain Data" option, `wcp-jit-guardian.php` is left behind in `wp-content/mu-plugins/`.
+* **Why**: Currently, `wp_delete_file($wcpscan_mu_file)` is inside `if ($wcpscan_delete_data)` (lines 195–200). If a user uninstalls the plugin with the default "Retain Data" option, `webcare-jit-guardian.php` is left behind in `wp-content/mu-plugins/`.
 * **Fix**: Move lines 195–200 above `if ($wcpscan_delete_data)` (immediately after `ServerSecurityEngine::remove_rules()` at line 93) so the MU-plugin is always removed upon uninstallation.

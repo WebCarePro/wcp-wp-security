@@ -40,8 +40,8 @@ class PulseHealthCheck {
                 'redirection' => 3,
                 'sslverify'   => false,
                 'headers'     => [
-                    'X-WCP-Pulse-Check' => '1',
-                    'User-Agent'        => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WCP-PulseCheck/2.3.0 (+https://webcarepro.com)',
+                    'X-WebCare-Pulse-Check' => '1',
+                    'User-Agent'        => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WEBCARE-PulseCheck/2.3.0 (+https://webcarepro.com)',
                 ],
             ]);
             $duration = round(microtime(true) - $start, 3);

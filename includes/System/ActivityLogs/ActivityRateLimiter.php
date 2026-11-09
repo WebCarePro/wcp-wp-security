@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Zero-SQL Cross-Worker Flood Rate Limiter for WCP Activity & Audit Logging.
+ * Zero-SQL Cross-Worker Flood Rate Limiter for WebCare Activity & Audit Logging.
  *
  * Implements:
  * 1. In-request in-memory deduplication (suppresses duplicate identical actions within one PHP run).

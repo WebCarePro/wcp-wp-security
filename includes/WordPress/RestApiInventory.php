@@ -45,7 +45,7 @@ class RestApiInventory {
         $defaults = [
             'block_user_enumeration' => true,
             'require_auth_global'    => false,
-            'whitelisted_namespaces' => ['wcp-scanner/v1'],
+            'whitelisted_namespaces' => ['webcare-pro-security/v1'],
         ];
         $saved = get_option(self::OPTION_SETTINGS, []);
         return is_array($saved) ? array_merge($defaults, $saved) : $defaults;
@@ -152,7 +152,7 @@ class RestApiInventory {
 
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $settings = self::get_settings();
-        $whitelist = $settings['whitelisted_namespaces'] ?? ['wcp-scanner/v1'];
+        $whitelist = $settings['whitelisted_namespaces'] ?? ['webcare-pro-security/v1'];
 
         foreach ($whitelist as $allowed_ns) {
             if (!empty($allowed_ns) && str_contains($raw_uri, '/' . trim($allowed_ns, '/') . '/')) {
@@ -194,7 +194,7 @@ class RestApiInventory {
                     'namespace'    => $namespace,
                     'total_routes' => 0,
                     'is_core'      => str_starts_with($namespace, 'wp/'),
-                    'is_wcp'       => str_starts_with($namespace, 'wcp-'),
+                    'is_webcare'       => str_starts_with($namespace, 'webcare-'),
                 ];
             }
             $namespaces[$namespace]['total_routes']++;

@@ -19,17 +19,17 @@ class DirectoryWalker {
         'wfcache',
         'updraft',
         'webcare-pro-security',
-        'wcp-scanner-quarantine',
-        'wcp-vault',
-        'wcp-waf',
-        'wcp-quarantine',
+        'webcare-pro-quarantine',
+        'webcare-vault',
+        'webcare-waf',
+        'webcare-quarantine',
         '.vault',
         '.backups',
         '.logs',
         'object-cache-pro',
         'wp-content/cache',
         'wp-content/upgrade',
-        'wp-content/uploads/wcp-security-scanner',
+        'wp-content/uploads/webcare-pro-security',
     ];
 
     /** Safe media/document extensions we skip early during deep code inspection */

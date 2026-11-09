@@ -180,7 +180,7 @@ class ScanInterruptionForensics {
             /* translators: 1: scan ID, 2: scanned files count, 3: total files count, 4: percentage completed */
             'summary'               => sprintf(__('Scan #%1$d stopped prematurely after processing %2$s of %3$s files (%4$s%% completed).', 'webcare-pro-security'), $scan_id, number_format($scanned), number_format($total), $total > 0 ? round(($scanned / $total) * 100, 1) : 0),
             'technical_details'     => __('The scanner worker stopped receiving heartbeats. This commonly occurs if the browser window was closed, the WP-Cron execution thread was killed by the host web server, or a reverse proxy timed out the HTTP worker request.', 'webcare-pro-security'),
-            'remediation'           => __('Keep the scan tab active during manual audits, or run the scan via WP-CLI ("wp wcp scan start") for unlimited background execution.', 'webcare-pro-security'),
+            'remediation'           => __('Keep the scan tab active during manual audits, or run the scan via WP-CLI ("wp webcare scan start") for unlimited background execution.', 'webcare-pro-security'),
             'last_active_file'      => $last_file,
             'elapsed_seconds'       => $dur,
             'scanned_files'         => $scanned,
@@ -215,7 +215,7 @@ class ScanInterruptionForensics {
                     'summary'           => sprintf(__('The scanner worker batch exceeded the PHP time limit of %ds while inspecting files.', 'webcare-pro-security'), $ctx['max_exec_time']),
                     /* translators: 1: elapsed execution time in seconds, 2: last file path */
                     'technical_details' => sprintf(__('Process execution was halted by the server after %1$.2fs. The last active file inspected was: "%2$s".', 'webcare-pro-security'), $ctx['elapsed_sec'], $ctx['last_file'] ?: 'unknown'),
-                    'remediation'       => __('Increase "max_execution_time = 300" in your php.ini or wp-config.php ("set_time_limit(300)"), or reduce batch size in WCP Scanner Settings.', 'webcare-pro-security'),
+                    'remediation'       => __('Increase "max_execution_time = 300" in your php.ini or wp-config.php ("set_time_limit(300)"), or reduce batch size in WebCare Pro Settings.', 'webcare-pro-security'),
                 ];
 
             case self::REASON_MEMORY_EXHAUSTION:

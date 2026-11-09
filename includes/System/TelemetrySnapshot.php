@@ -70,7 +70,7 @@ class TelemetrySnapshot {
         if ($powered_by_cf) {
             $cf_mode_desc = 'Cloudflare Edge Proxy Active';
             if ($is_cf_configured) {
-                $cf_mode_desc .= ' & Synchronized with WCP Firewall';
+                $cf_mode_desc .= ' & Synchronized with WebCare Firewall';
             }
         }
 

@@ -2,7 +2,7 @@
 namespace WebCareProScanner\Integrity;
 
 use WebCareProScanner\Notifications\NotificationDispatcher;
-use WebCareProScanner\System\WcpActivityLogger;
+use WebCareProScanner\System\WebCareActivityLogger;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -342,8 +342,8 @@ class ObjectCacheIntegritySentinel {
                     $report['auto_healed']          = true;
                     $report['auto_heal_timestamp']  = time();
 
-                    if (class_exists(WcpActivityLogger::class)) {
-                        WcpActivityLogger::log(
+                    if (class_exists(WebCareActivityLogger::class)) {
+                        WebCareActivityLogger::log(
                             'object_cache_auto_healed',
                             'integrity',
                             'warning',
@@ -399,8 +399,8 @@ class ObjectCacheIntegritySentinel {
         $critical_count = count($report['critical_issues']);
         $first_threat   = $report['critical_issues'][0]['forensics'] ?? 'In-memory option tampering detected.';
 
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'object_cache_poisoning_detected',
                 'integrity',
                 'critical',
@@ -465,8 +465,8 @@ class ObjectCacheIntegritySentinel {
         // 5. Re-run differential audit to verify recovery
         $post_audit = self::audit_ram_vs_disk();
 
-        if (class_exists(WcpActivityLogger::class)) {
-            WcpActivityLogger::log(
+        if (class_exists(WebCareActivityLogger::class)) {
+            WebCareActivityLogger::log(
                 'object_cache_resynchronized',
                 'integrity',
                 'notice',

@@ -189,7 +189,7 @@ class CoreIntegrity {
                     $item_name_lower = strtolower($item_name);
 
                     // Skip scanner self-quarantine / internal storage
-                    if (preg_match('#/(wcp-security-scanner|wcp-scanner-quarantine|wcp-vault|wcp-waf|wcp-quarantine|node_modules|\.git|\.svn)/#i', '/' . $item_name . '/')) {
+                    if (preg_match('#/(webcare-pro-security|webcare-pro-quarantine|webcare-vault|webcare-waf|webcare-quarantine|node_modules|\.git|\.svn)/#i', '/' . $item_name . '/')) {
                         continue;
                     }
 

@@ -59,9 +59,9 @@ class LoginHistoryManager {
      * Enqueue client-side display telemetry script using official WordPress script APIs
      */
     public static function enqueue_login_screen_detector() {
-        wp_register_script('wcpscan-login-detector', false, [], (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.19.0'), true);
-        wp_enqueue_script('wcpscan-login-detector');
-        wp_add_inline_script('wcpscan-login-detector', '(function(){try{var s=document.getElementById("webcareproscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("webcareproscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();');
+        wp_register_script('webcare-login-detector', false, [], (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.19.0'), true);
+        wp_enqueue_script('webcare-login-detector');
+        wp_add_inline_script('webcare-login-detector', '(function(){try{var s=document.getElementById("webcareproscan_screen_res");if(s&&window.screen){s.value=window.screen.width+"x"+window.screen.height+"@"+(window.devicePixelRatio||1);}var t=document.getElementById("webcareproscan_client_tz");if(t&&window.Intl){t.value=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}}catch(e){}})();');
     }
 
     /**

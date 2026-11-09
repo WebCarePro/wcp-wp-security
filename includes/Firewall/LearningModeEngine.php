@@ -69,8 +69,8 @@ class LearningModeEngine {
 
         // Audit Trail: Log behavioral learning settings change
         $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'behavioral_learning_updated',
                 'firewall',
                 [

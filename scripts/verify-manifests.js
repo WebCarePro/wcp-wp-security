@@ -12,13 +12,13 @@ const compatibility = {};
 // 1. Check webcare-pro-security.php
 const mainPhpPath = fs.existsSync(path.join(ROOT_DIR, 'webcare-pro-security.php'))
   ? path.join(ROOT_DIR, 'webcare-pro-security.php')
-  : path.join(ROOT_DIR, 'wcp-wp-scanner.php');
+  : path.join(ROOT_DIR, 'webcare-wp-scanner.php');
 const mainPhpFilename = path.basename(mainPhpPath);
 
 if (fs.existsSync(mainPhpPath)) {
   const content = fs.readFileSync(mainPhpPath, 'utf8');
   const headerVerMatch = content.match(/\*\s*Version:\s*([0-9]+\.[0-9]+\.[0-9]+)/i);
-  const constVerMatch = content.match(/define\(\s*['"](?:WEBCAREPROSCAN_VERSION|WCPSCAN_VERSION)['"]\s*,\s*['"]([0-9]+\.[0-9]+\.[0-9]+)['"]\s*\)/i);
+  const constVerMatch = content.match(/define\(\s*['"](?:WEBCAREPROSCAN_VERSION|WEBCAREPROSCAN_VERSION)['"]\s*,\s*['"]([0-9]+\.[0-9]+\.[0-9]+)['"]\s*\)/i);
   const reqWpMatch = content.match(/\*\s*Requires at least:\s*([0-9]+\.[0-9]+)/i);
   const reqPhpMatch = content.match(/\*\s*Requires PHP:\s*([0-9]+\.[0-9]+)/i);
 
@@ -125,7 +125,7 @@ for (const [source, val] of Object.entries(compatibility)) {
 
 // Verify WP compatibility consistency
 const wpFloors = [
-  compatibility['wcp-wp-scanner.php (Requires at least)'],
+  compatibility['webcare-wp-scanner.php (Requires at least)'],
   compatibility['readme.txt (Requires at least)'],
   compatibility['version.json (requires_wp)'],
 ].filter(Boolean);
@@ -135,7 +135,7 @@ if (new Set(wpFloors).size > 1) {
 
 // Verify PHP compatibility consistency
 const phpFloors = [
-  compatibility['wcp-wp-scanner.php (Requires PHP)'],
+  compatibility['webcare-wp-scanner.php (Requires PHP)'],
   compatibility['readme.txt (Requires PHP)'],
   compatibility['version.json (requires_php)'],
 ].filter(Boolean);

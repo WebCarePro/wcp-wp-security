@@ -123,7 +123,7 @@ class FileIntegrityMonitor {
                         $file_path = wp_normalize_path($item->getPathname());
 
                         // Exclude common noise directories
-                        if (preg_match('#/(node_modules|\.git|cache|wcp-security-scanner|updraft|backups|wfcache)/#i', $file_path)) {
+                        if (preg_match('#/(node_modules|\.git|cache|webcare-pro-security|updraft|backups|wfcache)/#i', $file_path)) {
                             continue;
                         }
 
@@ -654,7 +654,7 @@ class FileIntegrityMonitor {
             'web.config',
         ];
         if (in_array($filename, $blocked_exact, true) || 
-            preg_match('/(?:^|\/)(?:wcp-vault|quarantine|backups|\.git|\.well-known)\//i', $rel_path) ||
+            preg_match('/(?:^|\/)(?:webcare-vault|quarantine|backups|\.git|\.well-known)\//i', $rel_path) ||
             preg_match('/(?:secret|credential|password|id_rsa|id_ed25519|\.pem|\.key)$/i', $filename)
         ) {
             return [

@@ -31,7 +31,7 @@ class CorrelationEngine {
         foreach ($grouped as $target => $target_findings) {
             $norm_target = str_replace('\\', '/', rtrim($target, '/'));
             if (
-                strpos($norm_target, '/plugins/wcp-security-scanner') !== false
+                strpos($norm_target, '/plugins/webcare-pro-security') !== false
             ) {
                 continue; // Always drop findings on scanner's own code
             }
@@ -201,7 +201,7 @@ class CorrelationEngine {
                     'subsystem'    => 'ghost_route_trap',
                     'event_type'   => 'HONEYPOT_TRIGGER',
                     'severity'     => 'critical',
-                    'target'       => $trap['route'] ?? '/wcp-internal/v1/telemetry-debug',
+                    'target'       => $trap['route'] ?? '/webcare-internal/v1/telemetry-debug',
                     'client_ip'    => $trap['ip'] ?? '0.0.0.0',
                     'detail'       => sprintf(
                         /* translators: 1: IP Address, 2: Honeypot Route */
@@ -392,7 +392,7 @@ class CorrelationEngine {
                 'type'        => 'containment',
                 'priority'    => 'P0_IMMEDIATE',
                 'description' => __('Freeze filesystem write channels, purge non-admin sessions, and isolate origin blast radius.', 'webcare-pro-security'),
-                'endpoint'    => '/wcp-scanner/v1/containment/toggle',
+                'endpoint'    => '/webcare-pro-security/v1/containment/toggle',
                 'method'      => 'POST',
                 'payload'     => ['action' => 'activate', 'reason' => 'Correlated Multi-Engine Threat Outbreak'],
             ];
@@ -402,7 +402,7 @@ class CorrelationEngine {
                 'type'        => 'eradication',
                 'priority'    => 'P1_HIGH',
                 'description' => __('Quarantine all correlated dropper files, delete rogue options, and flush malicious crons in one atomic transaction.', 'webcare-pro-security'),
-                'endpoint'    => '/wcp-scanner/v1/attack-chain/eradicate',
+                'endpoint'    => '/webcare-pro-security/v1/attack-chain/eradicate',
                 'method'      => 'POST',
             ];
         } elseif (!empty($facts)) {
@@ -412,7 +412,7 @@ class CorrelationEngine {
                 'type'        => 'hardening',
                 'priority'    => 'P2_RECOMMENDED',
                 'description' => __('Sync discovered adversarial probe IPs to Cloudflare Edge IP Lists and review server security headers.', 'webcare-pro-security'),
-                'endpoint'    => '/wcp-scanner/v1/cloudflare/sync',
+                'endpoint'    => '/webcare-pro-security/v1/cloudflare/sync',
                 'method'      => 'POST',
             ];
         } else {
@@ -422,7 +422,7 @@ class CorrelationEngine {
                 'type'        => 'maintenance',
                 'priority'    => 'P3_ROUTINE',
                 'description' => __('Capture a fresh compressed baseline archive of active bespoke plugins and themes for future integrity tracking.', 'webcare-pro-security'),
-                'endpoint'    => '/wcp-scanner/v1/snapshots/create',
+                'endpoint'    => '/webcare-pro-security/v1/snapshots/create',
                 'method'      => 'POST',
             ];
         }

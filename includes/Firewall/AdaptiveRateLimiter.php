@@ -118,8 +118,8 @@ class AdaptiveRateLimiter {
         update_option(self::OPTION_SETTINGS, $updated);
 
         $diff = SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'rate_limiter_settings_updated',
                 'firewall',
                 [
@@ -333,7 +333,7 @@ class AdaptiveRateLimiter {
 
             status_header(403);
             header('Content-Type: text/plain; charset=utf-8');
-            echo 'Access Forbidden: Velocity limit severely violated. IP quarantined by WCP Adaptive Rate Limiter.';
+            echo 'Access Forbidden: Velocity limit severely violated. IP quarantined by WebCare Adaptive Rate Limiter.';
             exit;
         }
 
@@ -362,9 +362,9 @@ class AdaptiveRateLimiter {
 
         status_header(429);
         header('Retry-After: ' . $retry_after);
-        header('X-WCP-Rate-Limit-Bucket: ' . rawurlencode($bucket));
-        header('X-WCP-Rate-Limit-Limit: ' . (int) $limit);
-        header('X-WCP-Rate-Limit-Current: ' . (int) $count);
+        header('X-WebCare-Rate-Limit-Bucket: ' . rawurlencode($bucket));
+        header('X-WebCare-Rate-Limit-Limit: ' . (int) $limit);
+        header('X-WebCare-Rate-Limit-Current: ' . (int) $count);
 
         // Special handling for E-Commerce / Checkout: Return structured JSON to prevent UI corruption
         $is_wc_or_json = wp_is_json_request() ||

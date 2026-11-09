@@ -70,8 +70,8 @@ class SessionForensicsEngine {
 
         // Audit Trail: Log Session Sentinel policy change
         $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'session_forensics_settings_updated',
                 'settings',
                 [
@@ -141,7 +141,7 @@ class SessionForensicsEngine {
                         if (!empty($settings['auto_revoke_impossible_travel'])) {
                             // Immediately terminate the suspicious new session
                             wp_destroy_current_session();
-                            wp_safe_redirect(wp_login_url() . '?wcp_sec_err=impossible_travel');
+                            wp_safe_redirect(wp_login_url() . '?webcare_sec_err=impossible_travel');
                             exit;
                         }
                     }
@@ -223,7 +223,7 @@ class SessionForensicsEngine {
                 empty($user_agent) ||
                 $user_agent === 'Unknown' ||
                 strpos($user_agent, 'WordPress/') === 0 ||
-                strpos($user_agent, 'WCP-') === 0
+                strpos($user_agent, 'WEBCARE-') === 0
             );
 
             if (!$is_background) {

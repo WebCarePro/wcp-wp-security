@@ -121,7 +121,7 @@ class FormSpamProtectionEngine {
             $salt = wp_generate_password(24, false);
             update_option(self::HONEYPOT_SESSION_SALT, $salt, false);
         }
-        return 'wcp_hp_' . substr(hash_hmac('sha256', gmdate('Ymd') . '|' . $salt, 'wcp_form_salt'), 0, 8);
+        return 'webcare_hp_' . substr(hash_hmac('sha256', gmdate('Ymd') . '|' . $salt, 'webcare_form_salt'), 0, 8);
     }
 
     /**
@@ -157,9 +157,9 @@ class FormSpamProtectionEngine {
 
         // Inline script to avoid an extra render-blocking HTTP request
         $js = self::get_inline_armor_script($config);
-        wp_register_script('wcp-form-armor', false, [], WEBCAREPROSCAN_VERSION, true);
-        wp_enqueue_script('wcp-form-armor');
-        wp_add_inline_script('wcp-form-armor', $js);
+        wp_register_script('webcare-form-armor', false, [], WEBCAREPROSCAN_VERSION, true);
+        wp_enqueue_script('webcare-form-armor');
+        wp_add_inline_script('webcare-form-armor', $js);
     }
 
     /**
@@ -172,8 +172,8 @@ class FormSpamProtectionEngine {
         $json = wp_json_encode($config);
         $lines = [
             '(function(){',
-            '  if (window.__wcpFormArmorActive) return;',
-            '  window.__wcpFormArmorActive = true;',
+            '  if (window.__webcareFormArmorActive) return;',
+            '  window.__webcareFormArmorActive = true;',
             '  var cfg = ' . $json . ';',
             '  var startTime = Date.now();',
             '  var entropy = 0;',
@@ -183,8 +183,8 @@ class FormSpamProtectionEngine {
             '  window.addEventListener("keydown", countEntropy, {passive: true});',
             '  window.addEventListener("scroll", countEntropy, {passive: true});',
             '  function injectArmor(form) {',
-            '    if (form.getAttribute("data-wcp-armored")) return;',
-            '    form.setAttribute("data-wcp-armored", "1");',
+            '    if (form.getAttribute("data-webcare-armored")) return;',
+            '    form.setAttribute("data-webcare-armored", "1");',
             '    var hpWrap = document.createElement("div");',
             '    hpWrap.style.cssText = "position:absolute!important;left:-9999px!important;top:-9999px!important;opacity:0!important;height:0!important;width:0!important;overflow:hidden!important;pointer-events:none!important;";',
             '    hpWrap.setAttribute("aria-hidden", "true");',
@@ -199,12 +199,12 @@ class FormSpamProtectionEngine {
             '    form.appendChild(hpWrap);',
             '    var tokenInput = document.createElement("input");',
             '    tokenInput.type = "hidden";',
-            '    tokenInput.name = "wcp_time_gate";',
+            '    tokenInput.name = "webcare_time_gate";',
             '    tokenInput.value = cfg.token;',
             '    form.appendChild(tokenInput);',
             '    var entropyInput = document.createElement("input");',
             '    entropyInput.type = "hidden";',
-            '    entropyInput.name = "wcp_human_telemetry";',
+            '    entropyInput.name = "webcare_human_telemetry";',
             '    form.appendChild(entropyInput);',
             '    form.addEventListener("submit", function() {',
             '      var isWebDriver = navigator.webdriver === true || !!window.callPhantom || !!window._phantom || !!window.__nightmare;',
@@ -306,26 +306,26 @@ class FormSpamProtectionEngine {
                         ], 'blocked');
                     }
 
-                    return new \WP_Error('wcp_spam_honeypot', __('Spam submission rejected. Automated bot decoy triggered.', 'webcare-pro-security'));
+                    return new \WP_Error('webcare_spam_honeypot', __('Spam submission rejected. Automated bot decoy triggered.', 'webcare-pro-security'));
                 }
             }
         }
 
         // Tier 2: Headless Browser & Automated Tool Fingerprinting
-        if (!empty($settings['form_block_headless_browsers']) && isset($request_data['wcp_human_telemetry'])) {
-            $raw_telemetry = sanitize_text_field(wp_unslash($request_data['wcp_human_telemetry']));
+        if (!empty($settings['form_block_headless_browsers']) && isset($request_data['webcare_human_telemetry'])) {
+            $raw_telemetry = sanitize_text_field(wp_unslash($request_data['webcare_human_telemetry']));
             if ($raw_telemetry !== '') {
                 $decoded = json_decode(base64_decode($raw_telemetry), true);
                 if (is_array($decoded)) {
                     // Check explicit navigator.webdriver driver flag
                     if (!empty($decoded['webdriver'])) {
                         self::record_spam_drop('headless_webdriver_detected', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_webdriver', __('Automated browser software detected. Submission denied.', 'webcare-pro-security'));
+                        return new \WP_Error('webcare_spam_webdriver', __('Automated browser software detected. Submission denied.', 'webcare-pro-security'));
                     }
                     // Check zero-entropy bot submissions (clicked submit without any mouse or touch interaction)
                     if (isset($decoded['entropy']) && (int) $decoded['entropy'] === 0 && isset($decoded['delta']) && (int) $decoded['delta'] < 2) {
                         self::record_spam_drop('zero_entropy_automation', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_zero_entropy', __('Automated form interaction detected.', 'webcare-pro-security'));
+                        return new \WP_Error('webcare_spam_zero_entropy', __('Automated form interaction detected.', 'webcare-pro-security'));
                     }
                 }
             }
@@ -333,13 +333,13 @@ class FormSpamProtectionEngine {
 
         // Tier 3: Cryptographic Speed-Gate & Timing Verification
         if (!empty($settings['form_speed_gate_enabled'])) {
-            if (!isset($request_data['wcp_time_gate'])) {
+            if (!isset($request_data['webcare_time_gate'])) {
                 if ($form_source === 'Comment' || $form_source === 'Registration') {
                     self::record_spam_drop('missing_time_gate', $form_source, $client_ip);
-                    return new \WP_Error('wcp_spam_missing_gate', __('Security token missing from form submission. Please refresh and try again.', 'webcare-pro-security'));
+                    return new \WP_Error('webcare_spam_missing_gate', __('Security token missing from form submission. Please refresh and try again.', 'webcare-pro-security'));
                 }
             } else {
-                $raw_token = sanitize_text_field(wp_unslash($request_data['wcp_time_gate']));
+                $raw_token = sanitize_text_field(wp_unslash($request_data['webcare_time_gate']));
                 $decrypted = false;
 
                 if (class_exists('\\WebCareProScanner\\Security\\SecretVault')) {
@@ -358,13 +358,13 @@ class FormSpamProtectionEngine {
                     // Submitted faster than human threshold (< min_seconds)
                     if ($elapsed < $min_seconds) {
                         self::record_spam_drop('speed_gate_too_fast', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_speed_gate', __('Submission was completed too quickly for a human visitor. Please take a moment and try again.', 'webcare-pro-security'));
+                        return new \WP_Error('webcare_spam_speed_gate', __('Submission was completed too quickly for a human visitor. Please take a moment and try again.', 'webcare-pro-security'));
                     }
 
                     // Stale token (> 48 hours / 172800s to respect full-page caching)
                     if ($elapsed > 172800) {
                         self::record_spam_drop('stale_replay_token', $form_source, $client_ip);
-                        return new \WP_Error('wcp_spam_stale_token', __('Form session has expired. Please refresh the page and resubmit.', 'webcare-pro-security'));
+                        return new \WP_Error('webcare_spam_stale_token', __('Form session has expired. Please refresh the page and resubmit.', 'webcare-pro-security'));
                     }
                 }
             }
@@ -379,7 +379,7 @@ class FormSpamProtectionEngine {
             $current_count = (int) get_transient($transient_key);
             if ($current_count >= $max_submits) {
                 self::record_spam_drop('ip_flood_exceeded', $form_source, $client_ip);
-                return new \WP_Error('wcp_spam_flood_limited', __('Too many submissions from your connection. Please wait several minutes before trying again.', 'webcare-pro-security'));
+                return new \WP_Error('webcare_spam_flood_limited', __('Too many submissions from your connection. Please wait several minutes before trying again.', 'webcare-pro-security'));
             }
 
             // Increment flood counter
@@ -395,14 +395,14 @@ class FormSpamProtectionEngine {
             $max_urls = max(1, $settings['form_max_urls_allowed']);
             if ($url_count > $max_urls) {
                 self::record_spam_drop('excessive_links_detected', $form_source, $client_ip);
-                return new \WP_Error('wcp_spam_excessive_links', __('Your message contains too many links. Please remove excessive URLs before sending.', 'webcare-pro-security'));
+                return new \WP_Error('webcare_spam_excessive_links', __('Your message contains too many links. Please remove excessive URLs before sending.', 'webcare-pro-security'));
             }
 
             // Check spam dictionary patterns
             foreach (self::SPAM_PATTERNS as $pattern) {
                 if (preg_match($pattern, $content_text)) {
                     self::record_spam_drop('spam_keyword_matched', $form_source, $client_ip);
-                    return new \WP_Error('wcp_spam_keyword', __('Submission contained disallowed promotional or prohibited keywords.', 'webcare-pro-security'));
+                    return new \WP_Error('webcare_spam_keyword', __('Submission contained disallowed promotional or prohibited keywords.', 'webcare-pro-security'));
                 }
             }
         }
@@ -519,7 +519,7 @@ class FormSpamProtectionEngine {
         $check = self::evaluate_submission($data, 'Formidable Forms');
 
         if (is_wp_error($check)) {
-            $errors['wcp_form_spam'] = $check->get_error_message();
+            $errors['webcare_form_spam'] = $check->get_error_message();
         }
         return $errors;
     }
@@ -536,7 +536,7 @@ class FormSpamProtectionEngine {
         $check = self::evaluate_submission($data, 'Ninja Forms');
 
         if (is_wp_error($check)) {
-            $form_data['errors']['form']['wcp_spam'] = $check->get_error_message();
+            $form_data['errors']['form']['webcare_spam'] = $check->get_error_message();
         }
         return $form_data;
     }
@@ -577,7 +577,7 @@ class FormSpamProtectionEngine {
         $check = self::evaluate_submission($data, 'WooCommerce Registration');
 
         if (is_wp_error($check)) {
-            $errors->add('wcp_spam_reg', $check->get_error_message());
+            $errors->add('webcare_spam_reg', $check->get_error_message());
         }
         return $errors;
     }

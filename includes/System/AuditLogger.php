@@ -36,7 +36,7 @@ class AuditLogger {
 
         $index = $this->log_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
         }
     }
 
@@ -73,17 +73,17 @@ class AuditLogger {
 
         // Prepend PHP exit guard on file creation so direct web requests immediately terminate
         if (!file_exists($this->log_file)) {
-            @file_put_contents($this->log_file, "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); ?>\n", LOCK_EX);
+            @file_put_contents($this->log_file, "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); ?>\n", LOCK_EX);
         }
 
         @file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
 
         // Enterprise Activity Log Bridge: Forward into cryptographic hash-chained activity log ledger
-        self::bridge_to_wcp_activity_logger($event_type, $message);
+        self::bridge_to_webcare_activity_logger($event_type, $message);
     }
 
     /**
-     * Bridge legacy and subsystem audit events into WcpActivityLogger.
+     * Bridge legacy and subsystem audit events into WebCareActivityLogger.
      * Note: Pure WAF packet drops, runtime rate limits, and bot traps are EXCLUDED
      * to keep Plugin Activity & Audit Logs strictly focused on plugin configuration
      * and intentional administrator actions.
@@ -91,8 +91,8 @@ class AuditLogger {
      * @param string $event_type
      * @param mixed  $message
      */
-    public static function bridge_to_wcp_activity_logger($event_type, $message): void {
-        if (!class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
+    public static function bridge_to_webcare_activity_logger($event_type, $message): void {
+        if (!class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
             return;
         }
 
@@ -140,11 +140,11 @@ class AuditLogger {
             ];
         }
 
-        \WebCareProScanner\System\WcpActivityLogger::log($clean_action, $category, $severity, $details);
+        \WebCareProScanner\System\WebCareActivityLogger::log($clean_action, $category, $severity, $details);
     }
 
     /**
-     * Map audit event action name to valid WcpActivityLogger category.
+     * Map audit event action name to valid WebCareActivityLogger category.
      *
      * @param string $action
      * @return string
@@ -174,7 +174,7 @@ class AuditLogger {
     }
 
     /**
-     * Map audit event action name to valid WcpActivityLogger severity level.
+     * Map audit event action name to valid WebCareActivityLogger severity level.
      *
      * @param string $action
      * @return string
@@ -209,7 +209,7 @@ class AuditLogger {
 
     public function log_failed_login($username) {
         // Failed logins are security/firewall traffic events handled by WAF & Identity Sentinel
-        // Write only to raw emergency audit.log if needed, but DO NOT bridge to WcpActivityLogger
+        // Write only to raw emergency audit.log if needed, but DO NOT bridge to WebCareActivityLogger
         $timestamp = gmdate('Y-m-d H:i:s');
         $raw_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
             ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
@@ -220,7 +220,7 @@ class AuditLogger {
         $log_entry = sprintf("[%s] [IP: %s] [User: %s] [AUTH_FAILED] Failed login attempt for username: '%s'." . PHP_EOL, $timestamp, $ip_address, $clean_username ?: 'Guest', $clean_username);
 
         if (!file_exists($this->log_file)) {
-            @file_put_contents($this->log_file, "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); ?>\n", LOCK_EX);
+            @file_put_contents($this->log_file, "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); ?>\n", LOCK_EX);
         }
         @file_put_contents($this->log_file, $log_entry, FILE_APPEND | LOCK_EX);
     }

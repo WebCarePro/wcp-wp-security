@@ -163,8 +163,8 @@ class ThreatScoreTracker {
         if ($score >= self::THRESHOLD_HARD_BAN) {
             status_header(403);
             header('Content-Type: text/plain; charset=utf-8');
-            header('X-WCP-Threat-Score: ' . $score);
-            echo 'Access Denied: Severe behavioral threat score accumulated. Connection terminated by WCP Context-Adaptive Firewall.';
+            header('X-WebCare-Threat-Score: ' . $score);
+            echo 'Access Denied: Severe behavioral threat score accumulated. Connection terminated by WebCare Context-Adaptive Firewall.';
             exit;
         }
 
@@ -221,7 +221,7 @@ class ThreatScoreTracker {
      * Mark IP in the PoW enforcement registry.
      */
     private static function mark_for_pow_challenge(string $ip): void {
-        $pow_ips = get_option('wcp_pow_enforced_ips', []);
+        $pow_ips = get_option('webcare_pow_enforced_ips', []);
         if (!is_array($pow_ips)) {
             $pow_ips = [];
         }
@@ -232,7 +232,7 @@ class ThreatScoreTracker {
                 'marked_at'  => time(),
                 'expires_at' => time() + 3600, // 1 hour PoW requirement
             ];
-            update_option('wcp_pow_enforced_ips', $pow_ips, false);
+            update_option('webcare_pow_enforced_ips', $pow_ips, false);
         }
     }
 
@@ -289,7 +289,7 @@ class ThreatScoreTracker {
      */
     public static function get_telemetry(): array {
         $high_risk = get_option(self::OPTION_HIGH_RISK_IPS, []);
-        $pow_ips   = get_option('wcp_pow_enforced_ips', []);
+        $pow_ips   = get_option('webcare_pow_enforced_ips', []);
 
         $active_high_risk = [];
         $now = time();

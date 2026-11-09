@@ -123,7 +123,7 @@ register_deactivation_hook(__FILE__, function () {
         } catch (\Throwable $e) {
             // Silently swallow or log to error_log to ensure plugin deactivation is NEVER blocked
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log('WCP Scanner deactivation notice failed: ' . $e->getMessage());
+            error_log('WebCare Pro deactivation notice failed: ' . $e->getMessage());
         }
     }
 
@@ -188,7 +188,7 @@ register_deactivation_hook(__FILE__, function () {
     }
 
     // Clean up MU Guardian if deployed
-    $mu_guardian = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR . '/wcp-jit-guardian.php' : (defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR . '/mu-plugins/wcp-jit-guardian.php' : '');
+    $mu_guardian = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR . '/webcare-jit-guardian.php' : (defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR . '/mu-plugins/webcare-jit-guardian.php' : '');
     if (!empty($mu_guardian) && file_exists($mu_guardian)) {
         wp_delete_file($mu_guardian);
     }

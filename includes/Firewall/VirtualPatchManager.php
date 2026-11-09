@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 class VirtualPatchManager {
 
     const OPTION_PATCHES = 'webcareproscan_virtual_patches';
-    const CF_TAG = '[WCP Virtual Patch]';
+    const CF_TAG = '[WebCare Virtual Patch]';
 
     /**
      * Get Curated Catalog of Pre-Built Virtual Patches for Common & High-Impact WordPress CVEs.
@@ -98,7 +98,7 @@ class VirtualPatchManager {
                     'headers'     => ['X-WCPay-Platform-Checkout-User'],
                     'regex'       => '/[0-9]+/i',
                 ],
-                'cf_expression' => 'any(http.request.headers["x-wcpay-platform-checkout-user"][*] != "")',
+                'cf_expression' => 'any(http.request.headers["X-WCPay-Platform-Checkout-User"][*] != "")',
             ],
             'VPATCH-FILE-UPLOAD' => [
                 'patch_id'     => 'VPATCH-FILE-UPLOAD',
@@ -172,7 +172,7 @@ class VirtualPatchManager {
                 'component'     => $custom_config['component'] ?? 'custom',
                 'title'         => $custom_config['title'],
                 'severity'      => $custom_config['severity'] ?? 'high',
-                'description'   => $custom_config['description'] ?? 'Custom Virtual Patch shield deployed via WCP.',
+                'description'   => $custom_config['description'] ?? 'Custom Virtual Patch shield deployed via WebCare.',
                 'php_rule'      => $custom_config['php_rule'] ?? ['target_uris' => ['/'], 'regex' => '/\.\.\//i'],
                 'cf_expression' => $custom_config['cf_expression'] ?? '',
             ];
@@ -214,8 +214,8 @@ class VirtualPatchManager {
         update_option(self::OPTION_PATCHES, $active, false);
 
         // Record Audit Log with Rich Details
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice('virtual_patch_applied', 'firewall', [
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice('virtual_patch_applied', 'firewall', [
                 'patch_id'   => $patch_id,
                 'title'      => $patch['title'] ?? $patch_id,
                 'cve_id'     => $patch['cve_id'] ?? $patch_id,
@@ -289,8 +289,8 @@ class VirtualPatchManager {
         unset($active[$patch_id]);
         update_option(self::OPTION_PATCHES, $active, false);
 
-        if (class_exists('\\WebCareProScanner\\System\\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice('virtual_patch_deactivated', 'firewall', [
+        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice('virtual_patch_deactivated', 'firewall', [
                 'patch_id'   => $patch_id,
                 'title'      => $patch['title'] ?? $patch_id,
                 'cve_id'     => $patch['cve_id'] ?? $patch_id,

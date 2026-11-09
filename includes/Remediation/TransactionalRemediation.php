@@ -559,7 +559,7 @@ class TransactionalRemediation {
         }
 
         // 1. Snapshot current corrupted state for emergency rollback
-        $corrupted_backup = sys_get_temp_dir() . '/wcp_rollback_' . md5($absolute_path) . '.tmp';
+        $corrupted_backup = sys_get_temp_dir() . '/webcare_rollback_' . md5($absolute_path) . '.tmp';
         @copy($absolute_path, $corrupted_backup);
 
         // 2. Attempt surgical restoration from vault baseline

@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Universal Sensitive Data Redactor for WCP Activity & Audit Logging.
+ * Universal Sensitive Data Redactor for WebCare Activity & Audit Logging.
  *
  * Traverses nested structures, diffs, exceptions, and configuration values,
  * applying key-blacklist masks and regex pattern detection to redact:
@@ -179,7 +179,7 @@ class ActivityRedactor {
             return '[REDACTED_EMPTY]';
         }
         $str = is_scalar($value) ? (string) $value : serialize($value);
-        $hash = substr(hash('sha256', 'WCP_REDACT_' . $str), 0, 6);
+        $hash = substr(hash('sha256', 'WEBCARE_REDACT_' . $str), 0, 6);
         return '[REDACTED_SECRET::' . $hash . ']';
     }
 

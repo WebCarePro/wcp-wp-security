@@ -371,7 +371,7 @@ class MCPAgentService {
             ],
             [
                 'name'        => 'webcareproscan_quarantine_supply_chain_anchor',
-                'description' => 'Quarantine an unauthorized, rogue, or modified drop-in or must-use plugin to the WCP Vault.',
+                'description' => 'Quarantine an unauthorized, rogue, or modified drop-in or must-use plugin to the WebCare Vault.',
                 'category'    => 'mutating',
                 'isMutating'  => true,
                 'policy'      => self::get_tool_policy('webcareproscan_quarantine_supply_chain_anchor'),
@@ -947,15 +947,15 @@ class MCPAgentService {
      * @param float  $start_time
      * @return array
      */
-    public static function stage_action_for_approval(string $tool, array $args = [], string $client_ip = '127.0.0.1', string $user_agent = 'WCP Agent Service', float $start_time = 0.0): array {
+    public static function stage_action_for_approval(string $tool, array $args = [], string $client_ip = '127.0.0.1', string $user_agent = 'WebCare Agent Service', float $start_time = 0.0): array {
         if ($start_time <= 0.0) {
             $start_time = microtime(true);
         }
-        $staged_id = 'stg_' . substr(md5(uniqid('wcp_stg_', true)), 0, 12);
+        $staged_id = 'stg_' . substr(md5(uniqid('webcare_stg_', true)), 0, 12);
 
         // Generate Out-of-Band Cryptographic Confirmation Token signed with site auth salt
-        $salt = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_mcp_default_salt';
-        $confirmation_token = 'wcp_mcp_' . hash_hmac('sha256', $staged_id . '|' . $tool . '|' . time(), $salt);
+        $salt = defined('AUTH_KEY') ? AUTH_KEY : 'webcare_mcp_default_salt';
+        $confirmation_token = 'webcare_mcp_' . hash_hmac('sha256', $staged_id . '|' . $tool . '|' . time(), $salt);
 
         $staged_entry = [
             'id'                 => $staged_id,
@@ -1003,7 +1003,7 @@ class MCPAgentService {
                     'type' => 'text',
                     'text' => sprintf(
                         /* translators: 1: tool name, 2: staged action ID */
-                        __('Action Staged in Confirmation Gate: Tool "%1$s" modifies site security state and requires human approval. Staged Action ID: %2$s. An administrator must approve this action in WCP Security Console before execution.', 'webcare-pro-security'),
+                        __('Action Staged in Confirmation Gate: Tool "%1$s" modifies site security state and requires human approval. Staged Action ID: %2$s. An administrator must approve this action in WebCare Pro Security Console before execution.', 'webcare-pro-security'),
                         sanitize_text_field($tool),
                         $staged_id
                     ),
@@ -1012,7 +1012,7 @@ class MCPAgentService {
             'result' => [
                 'staged_id'          => $staged_id,
                 'status'             => 'pending_approval',
-                'description'        => 'Awaiting administrator confirmation in WCP Console by an authenticated administrator session.',
+                'description'        => 'Awaiting administrator confirmation in WebCare Console by an authenticated administrator session.',
             ],
         ];
     }

@@ -372,7 +372,7 @@ class BotReconDefense {
         return $output . $ai_rules;
     }
 
-    private const POW_COOKIE_NAME = 'wcp_pow_clearance';
+    private const POW_COOKIE_NAME = 'webcare_pow_clearance';
     private const POW_DIFFICULTY  = 4; // 4 hex zeros = 16 leading zero bits (~65,536 hashes max)
     private const CLEARANCE_TTL   = 3600;
 
@@ -389,11 +389,11 @@ class BotReconDefense {
         }
 
         // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        if (isset($_POST['wcp_pow_challenge'], $_POST['wcp_pow_nonce'])) {
+        if (isset($_POST['webcare_pow_challenge'], $_POST['webcare_pow_nonce'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $challenge = sanitize_text_field(wp_unslash($_POST['wcp_pow_challenge']));
+            $challenge = sanitize_text_field(wp_unslash($_POST['webcare_pow_challenge']));
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $nonce     = sanitize_text_field(wp_unslash($_POST['wcp_pow_nonce']));
+            $nonce     = sanitize_text_field(wp_unslash($_POST['webcare_pow_nonce']));
 
             if (self::verify_pow_solution($challenge, $nonce, $client_ip, $ua)) {
                 self::issue_clearance_cookie($client_ip, $ua);
@@ -556,7 +556,7 @@ class BotReconDefense {
 
     public static function generate_challenge(string $ip, string $ua): string {
         $window = (string) floor(time() / 300); // Valid for 5-minute window
-        $salt   = defined('NONCE_KEY') ? NONCE_KEY : 'wcp_pow_salt';
+        $salt   = defined('NONCE_KEY') ? NONCE_KEY : 'webcare_pow_salt';
         $mac    = hash_hmac('sha256', $ip . '|' . $ua . '|' . $window, $salt);
         return $window . '.' . substr($mac, 0, 32);
     }
@@ -573,7 +573,7 @@ class BotReconDefense {
 
     public static function issue_clearance_cookie(string $ip, string $ua): void {
         $expires = time() + self::CLEARANCE_TTL;
-        $salt    = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_pow_auth_salt';
+        $salt    = defined('AUTH_KEY') ? AUTH_KEY : 'webcare_pow_auth_salt';
         $sig     = hash_hmac('sha256', $ip . '|' . $ua . '|' . $expires, $salt);
         $value   = $expires . '.' . $sig;
 
@@ -602,7 +602,7 @@ class BotReconDefense {
             return false;
         }
 
-        $salt         = defined('AUTH_KEY') ? AUTH_KEY : 'wcp_pow_auth_salt';
+        $salt         = defined('AUTH_KEY') ? AUTH_KEY : 'webcare_pow_auth_salt';
         $expected_sig = hash_hmac('sha256', $ip . '|' . $ua . '|' . $expires, $salt);
         return hash_equals($expected_sig, $parts[1]);
     }
@@ -625,17 +625,17 @@ class BotReconDefense {
             <div style="text-align:center;max-width:420px;padding:32px;background:#1e293b;border-radius:12px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
                 <div style="font-size:36px;margin-bottom:12px;">🛡️</div>
                 <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:600;"><?php esc_html_e('Browser Integrity Verification', 'webcare-pro-security'); ?></h2>
-                <p id="wcp-status" style="color:#94a3b8;font-size:14px;margin:0 0 20px 0;line-height:1.5;"><?php esc_html_e('Verifying browser cryptographic environment to prevent automated scraping...', 'webcare-pro-security'); ?></p>
+                <p id="webcare-status" style="color:#94a3b8;font-size:14px;margin:0 0 20px 0;line-height:1.5;"><?php esc_html_e('Verifying browser cryptographic environment to prevent automated scraping...', 'webcare-pro-security'); ?></p>
                 <div style="height:4px;width:100%;background:#334155;border-radius:2px;overflow:hidden;position:relative;">
-                    <div style="height:100%;width:50%;background:#4f46e5;border-radius:2px;animation:wcpPulse 1.2s infinite ease-in-out;"></div>
+                    <div style="height:100%;width:50%;background:#4f46e5;border-radius:2px;animation:webcarePulse 1.2s infinite ease-in-out;"></div>
                 </div>
-                <form id="wcp-pow-form" method="POST" action="">
-                    <input type="hidden" name="wcp_pow_challenge" value="<?php echo esc_attr($challenge); ?>">
-                    <input type="hidden" name="wcp_pow_nonce" id="wcp-pow-nonce" value="">
+                <form id="webcare-pow-form" method="POST" action="">
+                    <input type="hidden" name="webcare_pow_challenge" value="<?php echo esc_attr($challenge); ?>">
+                    <input type="hidden" name="webcare_pow_nonce" id="webcare-pow-nonce" value="">
                 </form>
             </div>
             <style>
-                @keyframes wcpPulse {
+                @keyframes webcarePulse {
                     0% { transform: translateX(-100%); }
                     100% { transform: translateX(250%); }
                 }
@@ -650,8 +650,8 @@ class BotReconDefense {
                     const buf = await crypto.subtle.digest('SHA-256', enc.encode(challenge + ':' + nonce));
                     const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
                     if (hex.startsWith(target)) {
-                        document.getElementById('wcp-pow-nonce').value = String(nonce);
-                        document.getElementById('wcp-pow-form').submit();
+                        document.getElementById('webcare-pow-nonce').value = String(nonce);
+                        document.getElementById('webcare-pow-form').submit();
                         return;
                     }
                     nonce++;

@@ -232,8 +232,8 @@ class OutboundEgressFirewall {
 
         // Audit Trail: Log Outbound Egress policy changes
         $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $final);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'egress_firewall_settings_updated',
                 'firewall',
                 [
@@ -388,9 +388,9 @@ class OutboundEgressFirewall {
 
             if ($is_enforced) {
                 return new \WP_Error(
-                    'wcp_egress_blocked',
+                    'webcare_egress_blocked',
                     /* translators: %s: Security reason description */
-                    sprintf(__('Outbound network connection blocked by WCP Egress Firewall. Reason: %s', 'webcare-pro-security'), esc_html($reason)),
+                    sprintf(__('Outbound network connection blocked by WebCare Egress Firewall. Reason: %s', 'webcare-pro-security'), esc_html($reason)),
                     ['status' => 403]
                 );
             }
@@ -430,7 +430,7 @@ class OutboundEgressFirewall {
 
         // 2. Check against WebCare Pro Security's configured notification webhooks in SettingsManager
         if (class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
-            $wcp_settings = \WebCareProScanner\System\SettingsManager::get_settings();
+            $webcare_settings = \WebCareProScanner\System\SettingsManager::get_settings();
             $configured_keys = [
                 'discord_webhook_url',
                 'slack_webhook_url',
@@ -440,7 +440,7 @@ class OutboundEgressFirewall {
             ];
 
             foreach ($configured_keys as $key) {
-                $configured = strtolower(trim((string) ($wcp_settings[$key] ?? '')));
+                $configured = strtolower(trim((string) ($webcare_settings[$key] ?? '')));
                 if (!empty($configured)) {
                     // Exact match or prefix match
                     if ($clean_target_url === $configured || str_starts_with($clean_target_url, $configured) || str_starts_with($configured, $clean_target_url)) {
@@ -480,7 +480,7 @@ class OutboundEgressFirewall {
         }
 
         // 4. Extensibility filter: allow other plugins to register approved webhook destinations
-        $approved_webhooks = apply_filters('wcp_approved_outbound_webhooks', []);
+        $approved_webhooks = apply_filters('webcare_approved_outbound_webhooks', []);
         if (is_array($approved_webhooks)) {
             foreach ($approved_webhooks as $approved_url) {
                 $clean_approved = strtolower(trim((string) $approved_url));
@@ -783,7 +783,7 @@ class OutboundEgressFirewall {
         if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
             WafFileLogger::log_incident([
                 'category'    => 'egress_firewall_intercept',
-                'rule_id'     => 'wcp_egress_' . $threat,
+                'rule_id'     => 'webcare_egress_' . $threat,
                 'description' => sprintf('Outbound request by %s (%s) intercepted: %s', $caller['name'], $caller['file'], $reason),
                 'payload'     => $url,
             ], ($action === 'blocked') ? 'blocked' : 'detected');

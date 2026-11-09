@@ -157,8 +157,8 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
   if (loading && !data) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '24px', justifyContent: 'center' }}>
-        <Loader2 size={18} className="wcp-spin" />
-        <span style={{ fontSize: '13px', color: 'var(--wcp-text-muted, #64748b)' }}>Loading Behavioral Intelligence Engine...</span>
+        <Loader2 size={18} className="webcare-spin" />
+        <span style={{ fontSize: '13px', color: 'var(--webcare-text-muted, #64748b)' }}>Loading Behavioral Intelligence Engine...</span>
       </div>
     );
   }
@@ -195,26 +195,26 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
       )}
 
       {/* 4 Action-Type Velocity Buckets Grid */}
-      <div className="wcp-firewall-section-group" style={{ padding: '20px' }}>
+      <div className="webcare-firewall-section-group" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Zap size={18} color="#4f46e5" />
-              <h4 className="wcp-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
+              <h4 className="webcare-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
                 Multi-Bucket Stateful Velocity Monitor (CAF Phase 3)
               </h4>
-              <span className="wcp-badge-pill wcp-badge-clean">
+              <span className="webcare-badge-pill webcare-badge-clean">
                 Sliding-Window Non-Locking
               </span>
             </div>
-            <p className="wcp-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
+            <p className="webcare-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
               Independent token budgets tailored for authentication, e-commerce checkout, search queries, and standard REST requests.
             </p>
           </div>
 
           <button
             type="button"
-            className="wcp-btn wcp-firewall-rule-card"
+            className="webcare-btn webcare-firewall-rule-card"
             onClick={fetchStatus}
             disabled={loading}
             style={{
@@ -225,80 +225,80 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
               gap: '6px'
             }}
           >
-            {loading ? <Loader2 size={13} className="wcp-spin" /> : <RefreshCw size={13} />}
+            {loading ? <Loader2 size={13} className="webcare-spin" /> : <RefreshCw size={13} />}
             Refresh Velocity
           </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
           {/* Auth Bucket */}
-          <div className="wcp-firewall-inset-box" style={{ padding: '14px' }}>
+          <div className="webcare-firewall-inset-box" style={{ padding: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#ea580c' }}>
                 <Key size={14} /> Authentication
               </span>
-              <span className="wcp-badge-pill" style={{ fontSize: '11px' }}>
+              <span className="webcare-badge-pill" style={{ fontSize: '11px' }}>
                 {settings?.limit_auth || 5} req / {settings?.window_auth ? `${settings.window_auth}s` : '5m'}
               </span>
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)' }}>
-              {buckets.auth} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--wcp-text-muted, #64748b)' }}>throttles today</span>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--webcare-text-primary, #0f172a)' }}>
+              {buckets.auth} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--webcare-text-muted, #64748b)' }}>throttles today</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--webcare-text-muted, #64748b)', marginTop: '4px' }}>
               Protects wp-login.php, xmlrpc.php, and jwt-auth
             </div>
           </div>
 
           {/* Checkout Bucket */}
-          <div className="wcp-firewall-inset-box" style={{ padding: '14px' }}>
+          <div className="webcare-firewall-inset-box" style={{ padding: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}>
                 <ShoppingBag size={14} /> E-Commerce Checkout
               </span>
-              <span className="wcp-badge-pill" style={{ fontSize: '11px' }}>
+              <span className="webcare-badge-pill" style={{ fontSize: '11px' }}>
                 {settings?.limit_checkout || 8} req / min
               </span>
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)' }}>
-              {buckets.checkout} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--wcp-text-muted, #64748b)' }}>throttles today</span>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--webcare-text-primary, #0f172a)' }}>
+              {buckets.checkout} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--webcare-text-muted, #64748b)' }}>throttles today</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--webcare-text-muted, #64748b)', marginTop: '4px' }}>
               Structured JSON errors to protect active carts
             </div>
           </div>
 
           {/* Search Bucket */}
-          <div className="wcp-firewall-inset-box" style={{ padding: '14px' }}>
+          <div className="webcare-firewall-inset-box" style={{ padding: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8' }}>
                 <Search size={14} /> Search Queries
               </span>
-              <span className="wcp-badge-pill" style={{ fontSize: '11px' }}>
+              <span className="webcare-badge-pill" style={{ fontSize: '11px' }}>
                 {settings?.limit_search || 25} req / min
               </span>
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)' }}>
-              {buckets.search} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--wcp-text-muted, #64748b)' }}>throttles today</span>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--webcare-text-primary, #0f172a)' }}>
+              {buckets.search} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--webcare-text-muted, #64748b)' }}>throttles today</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--webcare-text-muted, #64748b)', marginTop: '4px' }}>
               Terminates database exhaustion DoS loops
             </div>
           </div>
 
           {/* API Bucket */}
-          <div className="wcp-firewall-inset-box" style={{ padding: '14px' }}>
+          <div className="webcare-firewall-inset-box" style={{ padding: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#818cf8' }}>
                 <Globe size={14} /> REST API Endpoints
               </span>
-              <span className="wcp-badge-pill" style={{ fontSize: '11px' }}>
+              <span className="webcare-badge-pill" style={{ fontSize: '11px' }}>
                 {settings?.limit_api || 60} req / min
               </span>
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--wcp-text-primary, #0f172a)' }}>
-              {buckets.api} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--wcp-text-muted, #64748b)' }}>throttles today</span>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--webcare-text-primary, #0f172a)' }}>
+              {buckets.api} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--webcare-text-muted, #64748b)' }}>throttles today</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--webcare-text-muted, #64748b)', marginTop: '4px' }}>
               Burst allowance for unauthenticated endpoints
             </div>
           </div>
@@ -306,19 +306,19 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
       </div>
 
       {/* Stateless WebCrypto PoW & HTTP/2 Sentinel Card */}
-      <div className="wcp-firewall-section-group" style={{ padding: '20px' }}>
+      <div className="webcare-firewall-section-group" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Cpu size={18} color="#10b981" />
-              <h4 className="wcp-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
+              <h4 className="webcare-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
                 Stateless WebCrypto Proof-of-Work (PoW) &amp; HTTP/2 Fingerprint Sentinel
               </h4>
-              <span className="wcp-badge-pill wcp-badge-info">
+              <span className="webcare-badge-pill webcare-badge-info">
                 Zero External JS CDN
               </span>
             </div>
-            <p className="wcp-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
+            <p className="webcare-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
               Halts headless Python, Go, and LLM scrapers via native in-browser <code>crypto.subtle.digest</code> SHA-256 challenges (~70ms) and terminates HTTP/2 pseudo-header sequencing anomalies.
             </p>
           </div>
@@ -328,7 +328,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
           <input
             type="text"
-            className="wcp-input"
+            className="webcare-input"
             placeholder="Enter suspicious IP to challenge (e.g. 198.51.100.22)..."
             value={powIpInput}
             onChange={(e) => setPowIpInput(e.target.value)}
@@ -336,7 +336,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
           />
           <button
             type="button"
-            className="wcp-btn"
+            className="webcare-btn"
             disabled={!powIpInput.trim() || togglingPow}
             onClick={() => handleTogglePow(powIpInput.trim(), true)}
             style={{
@@ -353,7 +353,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
               cursor: (!powIpInput.trim() || togglingPow) ? 'not-allowed' : 'pointer'
             }}
           >
-            {togglingPow ? <Loader2 size={13} className="wcp-spin" /> : <Lock size={13} />}
+            {togglingPow ? <Loader2 size={13} className="webcare-spin" /> : <Lock size={13} />}
             Enforce WebCrypto PoW
           </button>
         </div>
@@ -361,7 +361,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
         {/* Active Enforced IPs */}
         {data?.pow_enforced_ips && data.pow_enforced_ips.length > 0 && (
           <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--wcp-text-primary, #0f172a)' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--webcare-text-primary, #0f172a)' }}>
               Manually Challenged IPs ({data.pow_enforced_ips.length}):
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -396,19 +396,19 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
       </div>
 
       {/* 1-Click Exemption Synthesis & Learning Mode Observations Card */}
-      <div className="wcp-firewall-section-group" style={{ padding: '20px' }}>
+      <div className="webcare-firewall-section-group" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <ShieldCheck size={18} color="#10b981" />
-              <h4 className="wcp-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
+              <h4 className="webcare-firewall-section-title" style={{ margin: 0, fontSize: '16px' }}>
                 1-Click False-Positive Exemption Synthesizer (CAF Feedback Loop)
               </h4>
-              <span className="wcp-badge-pill wcp-badge-clean">
+              <span className="webcare-badge-pill webcare-badge-clean">
                 {data?.exemption_count || 0} Active Safe-Passes
               </span>
             </div>
-            <p className="wcp-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
+            <p className="webcare-firewall-section-desc" style={{ marginTop: '4px', marginBottom: 0 }}>
               Surgically softens firewall rules for verified plugins and administrative sessions without lowering global perimeter protection.
             </p>
           </div>
@@ -417,7 +417,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
         {/* Learning Mode Observations List */}
         {data?.learning_observations && data.learning_observations.length > 0 ? (
           <div style={{ overflowX: 'auto', marginTop: '12px' }}>
-            <table className="wcp-waf-table" style={{ width: '100%', fontSize: '12px' }}>
+            <table className="webcare-waf-table" style={{ width: '100%', fontSize: '12px' }}>
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', padding: '8px 12px' }}>Observed Target &amp; Route</th>
@@ -430,31 +430,31 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
                 {data.learning_observations.map((obs, idx) => (
                   <tr key={idx}>
                     <td style={{ padding: '8px 12px' }}>
-                      <strong style={{ color: 'var(--wcp-text-primary, #0f172a)' }}>{obs.clean_route}</strong>
-                      <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)' }}>
+                      <strong style={{ color: 'var(--webcare-text-primary, #0f172a)' }}>{obs.clean_route}</strong>
+                      <div style={{ fontSize: '11px', color: 'var(--webcare-text-muted, #64748b)' }}>
                         Method: {obs.method} • IP: <code>{obs.ip}</code>
                       </div>
                     </td>
                     <td style={{ padding: '8px 12px' }}>
-                      <span className="wcp-badge-pill wcp-badge-warning">{obs.rule_id}</span>
-                      <div style={{ fontSize: '11px', color: 'var(--wcp-text-muted, #64748b)', marginTop: '2px' }}>
+                      <span className="webcare-badge-pill webcare-badge-warning">{obs.rule_id}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--webcare-text-muted, #64748b)', marginTop: '2px' }}>
                         {obs.rule_name}
                       </div>
                     </td>
                     <td style={{ textAlign: 'center', padding: '8px 12px' }}>
-                      <span className={obs.is_logged_in ? 'wcp-badge-pill wcp-badge-clean' : 'wcp-badge-pill'}>
+                      <span className={obs.is_logged_in ? 'webcare-badge-pill webcare-badge-clean' : 'webcare-badge-pill'}>
                         {obs.is_logged_in ? 'Logged In' : 'Guest'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center', padding: '8px 12px' }}>
                       {obs.status === 'synthesized' ? (
-                        <span className="wcp-badge-pill wcp-badge-clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="webcare-badge-pill webcare-badge-clean" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <CheckCircle2 size={12} /> Synthesized
                         </span>
                       ) : (
                         <button
                           type="button"
-                          className="wcp-btn"
+                          className="webcare-btn"
                           disabled={synthesizingId === obs.id}
                           onClick={() => handleSynthesizeExemption(obs.id)}
                           style={{
@@ -470,7 +470,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
                             gap: '4px'
                           }}
                         >
-                          {synthesizingId === obs.id ? <Loader2 size={11} className="wcp-spin" /> : <ShieldCheck size={11} />}
+                          {synthesizingId === obs.id ? <Loader2 size={11} className="webcare-spin" /> : <ShieldCheck size={11} />}
                           1-Click Soften
                         </button>
                       )}
@@ -481,7 +481,7 @@ export const CafBehavioralCockpit: React.FC<CafBehavioralCockpitProps> = ({ apiR
             </table>
           </div>
         ) : (
-          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--wcp-text-muted, #64748b)', fontSize: '13px' }}>
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--webcare-text-muted, #64748b)', fontSize: '13px' }}>
             No recent false-positive learning observations recorded. When anomalous traffic occurs or you click &quot;Soften Rule&quot; from a blocked incident log, surgical exemptions appear here.
           </div>
         )}

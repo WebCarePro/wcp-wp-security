@@ -6,10 +6,10 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * WcpJitMuGuardian
+ * WebCareJitMuGuardian
  *
  * Installs and maintains an infallible Must-Use (MU) plugin watchdog:
- * `wp-content/mu-plugins/wcp-jit-guardian.php`.
+ * `wp-content/mu-plugins/webcare-jit-guardian.php`.
  *
  * Architecture & Zero-Trust Purpose:
  * Must-Use plugins execute on EVERY request before standard plugins load and
@@ -34,9 +34,9 @@ if (!defined('ABSPATH')) {
  * @package WebCareProScanner\Identity
  * @author  Mir Alamin (WebCare Pro)
  */
-class WcpJitMuGuardian {
+class WebCareJitMuGuardian {
 
-    const MU_FILENAME          = 'wcp-jit-guardian.php';
+    const MU_FILENAME          = 'webcare-jit-guardian.php';
     const OPTION_ELEVATIONS    = 'webcareproscan_ephemeral_admins';
     const OPTION_HISTORY       = 'webcareproscan_ephemeral_admin_history';
     const OPTION_SUPPORT_USERS = 'webcareproscan_support_active_users';
@@ -47,8 +47,8 @@ class WcpJitMuGuardian {
      * @return bool
      */
     public static function ensure_installed(): bool {
-        // Emergency bypass constant: define('WCP_DISABLE_JIT', true);
-        if (defined('WCP_DISABLE_JIT') && WCP_DISABLE_JIT) {
+        // Emergency bypass constant: define('WEBCARE_DISABLE_JIT', true);
+        if (defined('WEBCARE_DISABLE_JIT') && WEBCARE_DISABLE_JIT) {
             return false;
         }
 
@@ -226,7 +226,7 @@ class WcpJitMuGuardian {
         return <<<'PHP'
 <?php
 /**
- * Plugin Name: WCP Security - Zero-Trust & JIT Guardian (Must-Use)
+ * Plugin Name: WebCare Pro Security - Zero-Trust & JIT Guardian (Must-Use)
  * Description: Zero-Trust Must-Use watchdog ensuring Just-In-Time (JIT) elevations and Temporary Support sessions cannot escape expiration, deactivate security defenses, or tamper with WordPress plugins.
  * Version: 1.28.0
  * Author: Mir Alamin (WebCare Pro)
@@ -239,18 +239,18 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Class WcpJitMuGuardianRuntime
+ * Class WebCareJitMuGuardianRuntime
  * Runtime watchdog executing at earliest muplugins_loaded phase.
  */
-class WcpJitMuGuardianRuntime {
+class WebCareJitMuGuardianRuntime {
 
     const OPTION_ELEVATIONS    = 'webcareproscan_ephemeral_admins';
     const OPTION_HISTORY       = 'webcareproscan_ephemeral_admin_history';
     const OPTION_SUPPORT_USERS = 'webcareproscan_support_active_users';
 
     public static function init() {
-        // Emergency bypass constant: define('WCP_DISABLE_JIT', true); in wp-config.php completely disables runtime restrictions
-        if (defined('WCP_DISABLE_JIT') && WCP_DISABLE_JIT) {
+        // Emergency bypass constant: define('WEBCARE_DISABLE_JIT', true); in wp-config.php completely disables runtime restrictions
+        if (defined('WEBCARE_DISABLE_JIT') && WEBCARE_DISABLE_JIT) {
             return;
         }
 
@@ -330,24 +330,24 @@ class WcpJitMuGuardianRuntime {
         // 1. Inviolable Security Boundaries for JIT Admins and Support Technicians:
         // Prohibit privilege re-elevation, 2FA tampering, database exports, config viewing, and backups
         $inviolable_blocked_routes = [
-            '/wcp-scanner/v1/identity/temporary-access',
-            '/wcp-scanner/v1/identity/jit-elevate',
-            '/wcp-scanner/v1/identity/jit-revoke',
-            '/wcp-scanner/v1/identity/temp-link',
-            '/wcp-scanner/v1/auth/admin-2fa',
-            '/wcp-scanner/v1/backup',
-            '/wcp-scanner/v1/database',
-            '/wcp-scanner/v1/encryption',
-            '/wcp-scanner/v1/file/view',
-            '/wcp-scanner/v1/file/delete',
-            '/wcp-scanner/v1/file/fix-permissions',
-            '/wcp-scanner/v1/quarantine/delete',
-            '/wcp-scanner/v1/remediation/execute',
-            '/wcp-scanner/v1/remediation/auto-clean',
-            '/wcp-scanner/v1/users/remediate',
-            '/wcp-scanner/v1/firewall/reset',
-            '/wcp-scanner/v1/settings/reset',
-            '/wcp-scanner/v1/settings/import',
+            '/webcare-pro-security/v1/identity/temporary-access',
+            '/webcare-pro-security/v1/identity/jit-elevate',
+            '/webcare-pro-security/v1/identity/jit-revoke',
+            '/webcare-pro-security/v1/identity/temp-link',
+            '/webcare-pro-security/v1/auth/admin-2fa',
+            '/webcare-pro-security/v1/backup',
+            '/webcare-pro-security/v1/database',
+            '/webcare-pro-security/v1/encryption',
+            '/webcare-pro-security/v1/file/view',
+            '/webcare-pro-security/v1/file/delete',
+            '/webcare-pro-security/v1/file/fix-permissions',
+            '/webcare-pro-security/v1/quarantine/delete',
+            '/webcare-pro-security/v1/remediation/execute',
+            '/webcare-pro-security/v1/remediation/auto-clean',
+            '/webcare-pro-security/v1/users/remediate',
+            '/webcare-pro-security/v1/firewall/reset',
+            '/webcare-pro-security/v1/settings/reset',
+            '/webcare-pro-security/v1/settings/import',
         ];
 
         foreach ($inviolable_blocked_routes as $blocked_route) {
@@ -362,14 +362,14 @@ class WcpJitMuGuardianRuntime {
 
         // 3. Prohibit modifying settings or whitelist if block_settings_modification
         if (!empty($cfg['block_settings_modification'])) {
-            if (strpos($route, '/wcp-scanner/v1/settings') !== false && $method === 'POST') {
+            if (strpos($route, '/webcare-pro-security/v1/settings') !== false && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
                     esc_html__('Temporary Support Technicians are operating in read-only diagnostic mode and cannot modify security settings.', 'webcare-pro-security'),
                     ['status' => 403]
                 );
             }
-            if (strpos($route, '/wcp-scanner/v1/whitelist') !== false && $method === 'POST') {
+            if (strpos($route, '/webcare-pro-security/v1/whitelist') !== false && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
                     esc_html__('Temporary Support Technicians are prohibited from modifying false-positive whitelist rules.', 'webcare-pro-security'),
@@ -380,7 +380,7 @@ class WcpJitMuGuardianRuntime {
 
         // 4. Prohibit database row remediation / deletion / cleansing
         if (!empty($cfg['block_database_and_options'])) {
-            if (strpos($route, '/wcp-scanner/v1/database') !== false && $method === 'POST') {
+            if (strpos($route, '/webcare-pro-security/v1/database') !== false && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
                     esc_html__('Temporary Support Technicians are prohibited from deleting or cleansing database records.', 'webcare-pro-security'),
@@ -391,7 +391,7 @@ class WcpJitMuGuardianRuntime {
 
         // 5. Prohibit file remediation and user repair
         if (!empty($cfg['block_remediation_actions'])) {
-            if ((strpos($route, '/wcp-scanner/v1/remediation') !== false || strpos($route, '/wcp-scanner/v1/user/remediate') !== false) && $method === 'POST') {
+            if ((strpos($route, '/webcare-pro-security/v1/remediation') !== false || strpos($route, '/webcare-pro-security/v1/user/remediate') !== false) && $method === 'POST') {
                 return new \WP_Error(
                     'rest_forbidden',
                     esc_html__('Remediation file deletion and user repairs are restricted during temporary support sessions.', 'webcare-pro-security'),
@@ -401,7 +401,7 @@ class WcpJitMuGuardianRuntime {
         }
 
         // 6. Prohibit updater operations
-        if (strpos($route, '/wcp-scanner/v1/updater') !== false && $method === 'POST') {
+        if (strpos($route, '/webcare-pro-security/v1/updater') !== false && $method === 'POST') {
             return new \WP_Error(
                 'rest_forbidden',
                 esc_html__('Plugin updates and rollbacks are restricted to permanent administrators.', 'webcare-pro-security'),
@@ -435,7 +435,7 @@ class WcpJitMuGuardianRuntime {
     }
 
     /**
-     * Intercept direct HTTP deactivation and deletion attempts targeting WCP or locked plugins
+     * Intercept direct HTTP deactivation and deletion attempts targeting WebCare or locked plugins
      */
     public static function intercept_unauthorized_plugin_actions() {
         $user_id = get_current_user_id();
@@ -468,22 +468,22 @@ class WcpJitMuGuardianRuntime {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $checked = isset($_REQUEST['checked']) && is_array($_REQUEST['checked']) ? array_map('sanitize_text_field', wp_unslash($_REQUEST['checked'])) : [];
 
-        $is_targeting_wcp = false;
+        $is_targeting_webcare = false;
         if ($plugin && strpos($plugin, 'webcare-pro-security') !== false) {
-            $is_targeting_wcp = true;
+            $is_targeting_webcare = true;
         }
 
         if (!empty($checked)) {
             foreach ($checked as $p) {
                 if (strpos($p, 'webcare-pro-security') !== false) {
-                    $is_targeting_wcp = true;
+                    $is_targeting_webcare = true;
                     break;
                 }
             }
         }
 
         // Rule 1 (Inviolable): Block deactivating or deleting WebCare Pro Security
-        if ($is_targeting_wcp && in_array($target_action, ['deactivate', 'delete-selected', 'deactivate-selected', 'delete'], true)) {
+        if ($is_targeting_webcare && in_array($target_action, ['deactivate', 'delete-selected', 'deactivate-selected', 'delete'], true)) {
             wp_die(
                 '<h1>' . esc_html__('Security Access Denied (Anti-Tamper Shield)', 'webcare-pro-security') . '</h1>' .
                 '<p>' . esc_html__('Temporary Support Technicians and Ephemeral Administrators are strictly prohibited from deactivating, modifying, or deleting WebCare Pro Security.', 'webcare-pro-security') . '</p>' .
@@ -924,22 +924,22 @@ class WcpJitMuGuardianRuntime {
             return $actions;
         }
 
-        $is_wcp = (strpos($plugin_file, 'webcare-pro-security') !== false);
+        $is_webcare = (strpos($plugin_file, 'webcare-pro-security') !== false);
 
         // Anti-Tamper: Remove Deactivate and Delete for WebCare Pro Security
-        if ($is_wcp) {
+        if ($is_webcare) {
             unset($actions['deactivate'], $actions['delete']);
-            $actions['wcp_anti_tamper'] = '<span style="color:#059669;font-weight:600;font-size:12px;">🛡️ Anti-Tamper Protected</span>';
+            $actions['webcare_anti_tamper'] = '<span style="color:#059669;font-weight:600;font-size:12px;">🛡️ Anti-Tamper Protected</span>';
         }
 
         // Support User specific link filtering
         if ($is_support) {
             $cfg = $support_users[$user_id];
-            if (!empty($cfg['block_plugin_deactivation']) && !$is_wcp) {
+            if (!empty($cfg['block_plugin_deactivation']) && !$is_webcare) {
                 unset($actions['deactivate']);
-                $actions['wcp_locked'] = '<span style="color:#64748b;font-size:11px;">🔒 Locked</span>';
+                $actions['webcare_locked'] = '<span style="color:#64748b;font-size:11px;">🔒 Locked</span>';
             }
-            if (!empty($cfg['block_plugin_deletion']) && !$is_wcp) {
+            if (!empty($cfg['block_plugin_deletion']) && !$is_webcare) {
                 unset($actions['delete']);
             }
         }
@@ -966,7 +966,7 @@ class WcpJitMuGuardianRuntime {
         $remaining_str = $remaining > 0 ? human_time_diff(time(), $cfg['expires_at']) : 'expired';
 
         echo '<div class="notice notice-info" style="border-left: 4px solid #0284c7; background: #f0f9ff; color: #0369a1; padding: 12px 16px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">';
-        echo '<div><strong>🛡️ WCP Security Sandboxed Session:</strong> ' . esc_html__('Authenticated via Temporary Support Access', 'webcare-pro-security') . ' (<em>' . esc_html($cfg['label'] ?? 'Technician') . '</em>). ' . esc_html__('Session valid for', 'webcare-pro-security') . ' <strong>' . esc_html($remaining_str) . '</strong>. ' . esc_html__('Zero-Trust MU Guardian is actively enforcing anti-tamper plugin locks and security boundaries.', 'webcare-pro-security') . '</div>';
+        echo '<div><strong>🛡️ WebCare Pro Security Sandboxed Session:</strong> ' . esc_html__('Authenticated via Temporary Support Access', 'webcare-pro-security') . ' (<em>' . esc_html($cfg['label'] ?? 'Technician') . '</em>). ' . esc_html__('Session valid for', 'webcare-pro-security') . ' <strong>' . esc_html($remaining_str) . '</strong>. ' . esc_html__('Zero-Trust MU Guardian is actively enforcing anti-tamper plugin locks and security boundaries.', 'webcare-pro-security') . '</div>';
         echo '<span style="background: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">' . esc_html__('MU Protected', 'webcare-pro-security') . '</span>';
         echo '</div>';
     }
@@ -1109,7 +1109,7 @@ class WcpJitMuGuardianRuntime {
     }
 }
 
-WcpJitMuGuardianRuntime::init();
+WebCareJitMuGuardianRuntime::init();
 PHP;
     }
 }

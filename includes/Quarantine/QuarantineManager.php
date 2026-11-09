@@ -38,7 +38,7 @@ class QuarantineManager {
         // Lock with index.php
         $index = $this->quarantine_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
         }
     }
 
@@ -136,7 +136,7 @@ class QuarantineManager {
         // Generate quarantined file destination with .quarantine.php extension
         $safe_filename = bin2hex(random_bytes(16)) . '_' . time() . '.quarantine.php';
         $dest_path = $this->quarantine_dir . '/' . $safe_filename;
-        $guard_header = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+        $guard_header = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
 
         // For large files (>20MB), stream directly with guard header to prevent PHP memory exhaustion (OOM)
         if ($file_size > 20971520) {
@@ -255,7 +255,7 @@ class QuarantineManager {
             \WebCareProScanner\Notifications\NotificationDispatcher::trigger('scan_auto_quarantine', [
                 'severity' => 'high',
                 /* translators: 1: original file basename */
-                'message'  => sprintf(__('Malicious file "%1$s" was neutralized and quarantined into the encrypted WCP Vault.', 'webcare-pro-security'), basename($real_path)),
+                'message'  => sprintf(__('Malicious file "%1$s" was neutralized and quarantined into the encrypted WebCare Vault.', 'webcare-pro-security'), basename($real_path)),
                 'details'  => [
                     'File Path'      => $real_path,
                     'SHA-256'        => $sha256,
@@ -361,7 +361,7 @@ class QuarantineManager {
                 fseek($src_fp, 0, SEEK_SET);
             }
 
-            $temp_dest = $dest_path . '.wcp_rst_' . bin2hex(random_bytes(6));
+            $temp_dest = $dest_path . '.webcare_rst_' . bin2hex(random_bytes(6));
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
             $dst_fp = @fopen($temp_dest, 'wb');
             if (!$dst_fp) {

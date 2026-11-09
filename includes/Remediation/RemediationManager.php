@@ -33,7 +33,7 @@ class RemediationManager {
 
         $index = $this->backup_dir . '/index.php';
         if (!file_exists($index)) {
-            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WCP Security: Direct access forbidden.');\n");
+            @file_put_contents($index, "<?php\nhttp_response_code(403);\nexit('WebCare Pro Security: Direct access forbidden.');\n");
         }
     }
 
@@ -617,7 +617,7 @@ class RemediationManager {
 
     /**
      * Delete an unrecognized/rogue file or confirmed malware finding.
-     * Takes an atomic safety snapshot in WCP Vault before unlinking to allow recovery.
+     * Takes an atomic safety snapshot in WebCare Vault before unlinking to allow recovery.
      *
      * @param string $file_path
      * @param int|null $issue_id
@@ -653,7 +653,7 @@ class RemediationManager {
             )];
         }
 
-        // Take safety backup snapshot in WCP Vault
+        // Take safety backup snapshot in WebCare Vault
         $backup_res = $this->create_file_backup($real_path, 'delete_rogue_file');
         $backup_id = !empty($backup_res['backup_id']) ? $backup_res['backup_id'] : null;
 
@@ -678,7 +678,7 @@ class RemediationManager {
             'success'   => true,
             'message'   => sprintf(
                 /* translators: %s: file basename */
-                __('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WCP Vault.', 'webcare-pro-security'),
+                __('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WebCare Vault.', 'webcare-pro-security'),
                 basename($real_path)
             ),
             'backup_id' => $backup_id,
@@ -690,7 +690,7 @@ class RemediationManager {
      * Intelligently and safely disable WP_DEBUG and related error-reporting directives in wp-config.php.
      *
      * This hardening action:
-     * 1. Safely creates an encrypted, permission-locked snapshot in the WCP Vault prior to modification.
+     * 1. Safely creates an encrypted, permission-locked snapshot in the WebCare Vault prior to modification.
      * 2. Sets WP_DEBUG to false.
      * 3. Sets WP_DEBUG_LOG to false.
      * 4. Sets WP_DEBUG_DISPLAY to false.
@@ -764,7 +764,7 @@ class RemediationManager {
             ];
         }
 
-        // Create safety backup in WCP Vault before modifying
+        // Create safety backup in WebCare Vault before modifying
         $backup_result = $this->create_file_backup($real_path, 'disable_wp_debug');
         if (empty($backup_result['success'])) {
             return [
@@ -822,9 +822,9 @@ class RemediationManager {
             // Do not re-comment our own hardening block if already applied
             $is_already_hardened = (
                 strpos($line, 'Hardened by WebCare Pro Security') !== false ||
-                strpos($line, 'Hardened by WCP Security Scanner') !== false ||
+                strpos($line, 'Hardened by WebCare Pro Security & Firewall') !== false ||
                 strpos($line, 'Disabled by WebCare Pro Security') !== false ||
-                strpos($line, 'Disabled by WCP Security Scanner') !== false
+                strpos($line, 'Disabled by WebCare Pro Security & Firewall') !== false
             );
 
             if ($is_debug_directive && !$is_already_hardened) {
@@ -855,7 +855,7 @@ class RemediationManager {
         // Check if an existing hardening block exists to replace, otherwise insert cleanly before the stop-editing marker
         if (strpos($modified, 'Safe Production Debugging Lockdown') !== false) {
             $modified = preg_replace(
-                '/\/\/\s*\[Hardened by (?:WebCare Pro Security|WCP Security Scanner) - Safe Production Debugging Lockdown\][\s\S]*?(?:@ini_set\s*\(\s*[\'\"]display_errors[\'\"]\s*,\s*[\'\"]0[\'\"]\s*\)\s*;|define\s*\(\s*[\'\"]WP_DEBUG_DISPLAY[\'\"]\s*,\s*false\s*\)\s*;)/i',
+                '/\/\/\s*\[Hardened by (?:WebCare Pro Security|WebCare Pro Security & Firewall) - Safe Production Debugging Lockdown\][\s\S]*?(?:@ini_set\s*\(\s*[\'\"]display_errors[\'\"]\s*,\s*[\'\"]0[\'\"]\s*\)\s*;|define\s*\(\s*[\'\"]WP_DEBUG_DISPLAY[\'\"]\s*,\s*false\s*\)\s*;)/i',
                 $hardened_block,
                 $modified
             );
@@ -920,7 +920,7 @@ class RemediationManager {
 
         return [
             'success'   => true,
-            'message'   => __('WordPress debugging has been securely disabled in wp-config.php (WP_DEBUG, WP_DEBUG_LOG, and WP_DEBUG_DISPLAY set to false; display_errors silenced). Encrypted backup retained in WCP Vault.', 'webcare-pro-security'),
+            'message'   => __('WordPress debugging has been securely disabled in wp-config.php (WP_DEBUG, WP_DEBUG_LOG, and WP_DEBUG_DISPLAY set to false; display_errors silenced). Encrypted backup retained in WebCare Vault.', 'webcare-pro-security'),
             'backup_id' => $backup_result['backup_id'],
             'file_path' => $real_path,
         ];
@@ -946,7 +946,7 @@ class RemediationManager {
             return ['success' => false];
         }
 
-        $guard = "<?php http_response_code(403); exit('WCP Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+        $guard = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
         $encrypted = \WebCareProScanner\Security\SecretVault::encrypt($content);
 
         if (@file_put_contents($dest_path, $guard . $encrypted, LOCK_EX) === false) {

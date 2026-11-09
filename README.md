@@ -12,10 +12,10 @@
   <a href="https://wordpress.org/"><img src="https://img.shields.io/badge/WordPress-7.0%2B-blue.svg?logo=wordpress" alt="WordPress Version"/></a>
   <a href="https://www.php.net/"><img src="https://img.shields.io/badge/PHP-8.3%2B-777BB4.svg?logo=php" alt="PHP Version"/></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB.svg?logo=react" alt="React 18"/></a>
-  <a href="https://github.com/WebCarePro/wcp-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
+  <a href="https://github.com/WebCarePro/webcare-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
   <a href="https://www.upwork.com/freelancers/~0162afa9a578170c67"><img src="https://img.shields.io/badge/Upwork-Top%20Rated%20Plus%20★%20100%25%20JSS-14A800.svg?logo=upwork" alt="Upwork Top Rated Plus"/></a>
-  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Release-v2.9.0-orange.svg" alt="Release Version"/></a>
-  <a href="https://github.com/WebCarePro/wcp-wp-security"><img src="https://img.shields.io/badge/Status-Public%20Beta%20%7C%20Active%20Dev-blue?style=flat&logo=git" alt="Status"/></a>
+  <a href="https://github.com/WebCarePro/webcare-wp-security"><img src="https://img.shields.io/badge/Release-v2.9.0-orange.svg" alt="Release Version"/></a>
+  <a href="https://github.com/WebCarePro/webcare-wp-security"><img src="https://img.shields.io/badge/Status-Public%20Beta%20%7C%20Active%20Dev-blue?style=flat&logo=git" alt="Status"/></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy%20%26%20Disclosure-blue.svg?logo=securityscorecard" alt="Security Policy"/></a>
   <a href="#22-model-context-protocol-mcp-agentic-surface-ai-secops-automation"><img src="https://img.shields.io/badge/Agentic-Model%20Context%20Protocol%20(MCP)-purple.svg?logo=anthropic" alt="MCP Ready"/></a>
   <a href="#-featured-spotlight-cryptographic-secret-vault--database-encryption-at-rest"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20AEAD%20Vault-blueviolet.svg?logo=securityscorecard&logoColor=white" alt="Cryptographic Secret Vault"/></a>
@@ -59,7 +59,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ## 🌟 Comprehensive Feature Catalog (74 Specialized Security Engines & Subsystems)
 
-> 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/wcp-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
+> 💡 **For Complete In-Depth Documentation & Plain-English Guides:** Read the comprehensive [features.md](file:///c:/Users/My-PC-03/Documents/test/webcare-wp-scanner/features.md) catalog for dual-level breakdowns (plain-English for site owners + deep engineering architecture for developers).
 
 ### 1. Next-Gen Cyber Command Center & Threat Dashboard
 - **High-Precision SVG Security Health Meter**: Circular dynamic vector meter displaying site security score (0–100%) with reactive color accents (emerald `#10b981`, sky blue `#38bdf8`, amber `#f59e0b`, rose `#ef4444`) and live letter grades (`A+`, `A`, `B`, `C`, `D`, `F`).
@@ -95,7 +95,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Real-Time State Synchronization**: As soon as an issue is cured, the findings table updates to display an `Issue Solved & Restored` status badge and transitions mitigation actions automatically.
 
 ### 6. Secure Quarantine Vault & Isolation Architecture
-- **Safe Cryptographic Isolation**: Safely isolates infected or unknown files into a protected, `.htaccess`-guarded directory outside executable paths. Preserves original file permissions, timestamps, and SHA-256 cryptographic hashes in `wp_wcp_quarantine`.
+- **Safe Cryptographic Isolation**: Safely isolates infected or unknown files into a protected, `.htaccess`-guarded directory outside executable paths. Preserves original file permissions, timestamps, and SHA-256 cryptographic hashes in `wp_webcareproscan_quarantine`.
 - **Intelligent Quarantine Eligibility Safeguards**: Enforces strict boundaries to prevent quarantining critical configuration files (`wp-config.php`, `.htaccess`, `index.php`) and modified official components, ensuring isolation is strictly reserved for rogue and unknown alien files.
 - **Quarantine Vault Hub**: Responsive table with horizontal overflow support, 1-click instant file restoration, and permanent vault deletion.
 
@@ -123,7 +123,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Smart Cloudflare & Coexistence**: Decodes visitor Real-IP from `HTTP_CF_CONNECTING_IP` with Cloudflare proxy range validation. Auto-negotiates with Wordfence, Sucuri, and Solid Security into Complementary Virtual Patching mode without hook conflicts.
 
 ### 11. Dedicated WAF Incident Logs, Threat Intelligence & Attack Forensics
-- **Full-Page Forensic Analytics Hub (`admin.php?page=wcp-scanner-waf-logs`)**: Deep-linked directly from Firewall header actions and navigation bar.
+- **Full-Page Forensic Analytics Hub (`admin.php?page=webcare-scanner-waf-logs`)**: Deep-linked directly from Firewall header actions and navigation bar.
 - **Real-Time KPI Threat Metrics**: 4 live KPI cards displaying Total Incursions Blocked, 24h Attack Surge, Distinct Attack IPs, and Simulation/Learning Mode hits.
 - **Threat Vector & Offender Analytics Grid**: Top Attack Vectors breakdown with proportional percentage bars and Frequent Offending Hostile IP Directory with hit counts, last seen timestamps, and 1-click Filter/Block actions.
 - **Multi-Field Forensic Search & Export**: Real-time search across IP addresses, target URIs, malicious payload signatures, and User-Agents, with CSV, JSON, and printable report downloads.
@@ -167,7 +167,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Fast $O(1)$ Indexed Credential Map**: Eliminates expensive full-table `usermeta` scans using dedicated timing-safe (`hash_equals`) indexed lookups (`wcpscan_webauthn_index`).
 
 ### 19. Dedicated Notification Center & Granular 32+ Event Alert Matrix
-- **Dedicated Administrative Notification Hub (`admin.php?page=wcp-scanner-notifications`)**: Full-page notification operations hub accessible via direct deep-link.
+- **Dedicated Administrative Notification Hub (`admin.php?page=webcare-scanner-notifications`)**: Full-page notification operations hub accessible via direct deep-link.
 - **32+ Granular Security Events Across 8 Categories**: Core Scans & Threats, Plugin Self-Defense, Cloudflare & WAF Defense, Authentication & Access Security, File Integrity Monitoring, Vulnerabilities & CVE Feeds, Database Backups & Vault, and DevSecOps & AI Forensics.
 - **Independent Dual-Channel Matrix**: Independent toggle switches for Email (`wp_mail`) and DevSecOps Webhooks (Slack, Discord, ClickUp, Asana, Generic JSON) per event.
 
@@ -198,8 +198,8 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Fail-Closed Key Derivation**: Derives keys securely from WordPress salts or isolated `WCP_VAULT_KEY` server constants; strictly fails closed with `\RuntimeException` rather than falling back to weak static seeds or database names.
 - **Two-Phase Commit Key Rotation Orchestrator (`VaultRotator`)**: Zero-downtime state machine with dual-key background decrypt fallback, resilient 600-second lock leases, and atomic snapshot rollbacks.
 
-### 26. Unified WCP Vault Console (4 Consolidated Isolation & Recovery Facilities)
-- **Centralized Security Vault Page (`wcp-vault`)**: Consolidates File Quarantine, Database Snapshots, Pre-Cure Safety Rollbacks, and Secret Vault metrics into one unified screen.
+### 26. Unified WebCare Vault Console (4 Consolidated Isolation & Recovery Facilities)
+- **Centralized Security Vault Page (`webcare-vault`)**: Consolidates File Quarantine, Database Snapshots, Pre-Cure Safety Rollbacks, and Secret Vault metrics into one unified screen.
 
 ### 27. On-Demand Database Backup Vault (`.sql.gz`)
 - **1-Click Compressed Database Vault**: Creates instant on-demand database dumps with automatic `.sql.gz` Gzip compression, size metadata indexing, and secure browser downloads.
@@ -278,14 +278,14 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 - **Guarded Plugin Initialization & Fail-Closed Resilience**: Top-level bootstrap `try/catch` shield, scoped early shutdown fatal error interception (`CrashGuard.php`), 3-strike sliding-window loop protection, standalone Micro-WAF try/catch shield (`MicroWafCompiler.php`), and 1-click self-healing Safe Mode recovery preventing WSOD downtime.
 
 ### 50. Pre-Install Supply-Chain Gatekeeper & Update Risk Advisor
-- **Shift-Left Upgrader Archive Static Analysis**: Intercepts extracted plugin and theme update archives before filesystem replacement (`UpdateGatekeeperEngine.php`), performs AST heuristic security audits, generates pre-update WCP Vault rollback snapshots, and blocks hostile supply-chain updates.
+- **Shift-Left Upgrader Archive Static Analysis**: Intercepts extracted plugin and theme update archives before filesystem replacement (`UpdateGatekeeperEngine.php`), performs AST heuristic security audits, generates pre-update WebCare Vault rollback snapshots, and blocks hostile supply-chain updates.
 
 ### 51. Zero-SQL Partitioned WAF Incident Filesystem Engine
 - **High-Throughput Filesystem Incident Telemetry**: Streams blocked attack telemetry and Layer 7 incidents directly to partitioned daily JSON Lines logs (`WafFileLogger.php`) with atomic appending (`LOCK_EX`), eliminating MySQL database overhead under high-volume botnet attacks with Fail2ban and CrowdSec native ingestion.
 - **Supply-Chain Gatekeeper Intercept Integration**: Automatically records intercepted hostile plugin updates and installations into the centralized WAF incident stream (`WAF-SUPPLY-CHAIN-GATEKEEPER`).
 
 ### 52. Enterprise Granular Notification Center & DevSecOps Webhooks
-- **59-Event Security Alert Matrix & Webhook Integrations**: Full-page interactive notification center (`?page=wcp-scanner-notifications`) with granular event toggles across 10 security categories and independent channels for Email, Slack, Discord, ClickUp, Asana, and custom DevSecOps webhooks with AES-256-GCM encrypted secrets.
+- **59-Event Security Alert Matrix & Webhook Integrations**: Full-page interactive notification center (`?page=webcare-scanner-notifications`) with granular event toggles across 10 security categories and independent channels for Email, Slack, Discord, ClickUp, Asana, and custom DevSecOps webhooks with AES-256-GCM encrypted secrets.
 
 ### 53. Turbo Scan Engine Optimization, In-Memory Caching & Bulk Ingestion
 - **320+ Files/Sec Audit Throughput**: In-memory WordPress.org checksum caching with negative transient caches (`ChecksumProvider.php`), automatic test suite and vendor sample directory exclusions (`Engine.php`), and multi-row batched atomic SQL staging (`ScannerRoutes.php`) delivering lightning-fast, zero-overhead malware scans.
@@ -306,13 +306,13 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ### 56. Interactive Forensic Tables for Blocked & Whitelisted IPs
 - **Structured Interactive IP Tables**: Replaced legacy multi-line textareas in WAF settings with high-contrast, searchable tables featuring format validation for IPv4, IPv6, and CIDR subnets.
-- **Blocked IPs Table**: Displays IP/Subnet with 1-click clipboard copy, violation rule attribution, cryptographic incident tracking badge (`WCP-XXXXXXXX`), ban duration countdowns, and 1-click unblock.
+- **Blocked IPs Table**: Displays IP/Subnet with 1-click clipboard copy, violation rule attribution, cryptographic incident tracking badge (`WEBCARE-XXXXXXXX`), ban duration countdowns, and 1-click unblock.
 - **Whitelisted IPs Table**: Displays trusted IP/Subnet with usage descriptions, administrative creator details, trust badges, and 1-click removal.
 - **Cryptographic Audit Attribution**: Every IP block or whitelist modification is recorded in the Activity Log stream with administrator identity and justification.
 
 ### 57. Active Lockouts & Central Blocklist Forensic Hub
 - **Deep Forensic Attribution**: Distinguishes automated WAF rule bans (e.g. Honeypot traps, SQLi shields) from manual administrator blocks (`Custom block by {admin}: {reason}`).
-- **Authoritative Incident Tracking**: Displays cryptographic Incident IDs (`WCP-XXXXXXXX`) with 1-click copy buttons and ban timing countdown grids (Permanent, 24 Hours, 7 Days, or relative elapsed time).
+- **Authoritative Incident Tracking**: Displays cryptographic Incident IDs (`WEBCARE-XXXXXXXX`) with 1-click copy buttons and ban timing countdown grids (Permanent, 24 Hours, 7 Days, or relative elapsed time).
 - **Expandable Recent Attack History Accordion**: Each locked IP card expands to reveal its last 1–3 captured attacks (incident ID, timestamp, WAF category, attack description, request URI, HTTP method, and malicious payload sample).
 - **In-Modal Manual Block Creator & Live Filter**: Allows immediate IP blocking with customizable ban durations and instant filtering across IPs, Incident IDs, and violation reasons.
 
@@ -413,7 +413,7 @@ Security plugins solve overlapping problems through different architectures. Thi
 > **Honest Architectural Positioning**: WebCare Pro Security & Firewall is not designed to replace globally distributed Anycast DDoS scrubbing networks (like Cloudflare Enterprise) or 24/7 human research SOCs. It is purpose-built for SysAdmins, developers, and store operators who demand deep on-server control, strict zero-telemetry privacy, and non-destructive surgical remediation.
 >
 > 📖 **Read the comprehensive, balanced ecosystem comparison and technical breakdown:**  
-> [https://webcarespro.com/blog/post/wcp-wordpress-security-scanner](https://webcarespro.com/blog/post/wcp-wordpress-security-scanner)
+> [https://webcarespro.com/blog/post/webcare-wordpress-security-scanner](https://webcarespro.com/blog/post/webcare-wordpress-security-scanner)
 
 ---
 
@@ -452,8 +452,8 @@ Security plugins solve overlapping problems through different architectures. Thi
 ### Building from Source:
 ```bash
 # Clone the repository
-git clone https://github.com/WebCarePro/wcp-wp-security.git
-cd wcp-wp-security
+git clone https://github.com/WebCarePro/webcare-wp-security.git
+cd webcare-wp-security
 
 # Install dependencies
 npm install
@@ -542,7 +542,7 @@ Have questions, need an emergency malware cleanup, or want to hire a certified S
 - 👥 **Microsoft Teams:** [Connect on MS Teams](https://teams.live.com/l/invite/FEAI60zv48mwbIKhA?v=g1)
 - 📧 **Direct Email:** [hello@webcarespro.com](mailto:hello@webcarespro.com)
 - 🐙 **GitHub Organization:** [https://github.com/WebCarePro](https://github.com/WebCarePro)
-- 📦 **Repository:** [https://github.com/WebCarePro/wcp-wp-security](https://github.com/WebCarePro/wcp-wp-security)
+- 📦 **Repository:** [https://github.com/WebCarePro/webcare-wp-security](https://github.com/WebCarePro/webcare-wp-security)
 
 ---
 

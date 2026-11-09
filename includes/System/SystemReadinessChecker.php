@@ -221,9 +221,9 @@ class SystemReadinessChecker {
             'status'      => $vault_check['ok'] ? 'pass' : 'fail',
             'is_critical' => true,
             'current'     => $vault_check['ok'] ? __('Writable & Verified', 'webcare-pro-security') : $vault_check['message'],
-            'required'    => __('Writable uploads/wcp-security-scanner directory', 'webcare-pro-security'),
+            'required'    => __('Writable uploads/webcare-pro-security directory', 'webcare-pro-security'),
             'recommended' => __('Directory permissions 0755 or 0775 owned by web server', 'webcare-pro-security'),
-            'description' => __('Secure local storage under wp-content/uploads/wcp-security-scanner for quarantine, backups, and diff caches.', 'webcare-pro-security'),
+            'description' => __('Secure local storage under wp-content/uploads/webcare-pro-security for quarantine, backups, and diff caches.', 'webcare-pro-security'),
             'remedy'      => __('Ensure wp-content/uploads is writable by your web server user (e.g., www-data, chown -R www-data:www-data).', 'webcare-pro-security'),
         ];
 
@@ -343,7 +343,7 @@ class SystemReadinessChecker {
             ];
         }
 
-        $vault_dir = $base . '/wcp-security-scanner';
+        $vault_dir = $base . '/webcare-pro-security';
         if (!is_dir($vault_dir)) {
             if (!wp_mkdir_p($vault_dir)) {
                 return [
@@ -355,8 +355,8 @@ class SystemReadinessChecker {
         }
 
         // Test canary write
-        $canary_file = $vault_dir . '/.wcp_canary_' . wp_generate_password(8, false) . '.tmp';
-        $written = @file_put_contents($canary_file, 'wcp_canary_test');
+        $canary_file = $vault_dir . '/.webcare_canary_' . wp_generate_password(8, false) . '.tmp';
+        $written = @file_put_contents($canary_file, 'webcare_canary_test');
         if ($written === false) {
             return [
                 'ok'      => false,

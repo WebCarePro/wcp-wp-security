@@ -18,10 +18,10 @@ if (!defined('ABSPATH')) {
 class ServerSecurityEngine {
 
     const OPTION_KEY = 'webcareproscan_server_security_options';
-    const WAF_FOLDER = 'wcp-security-scanner/waf';
-    const NGINX_FILENAME = 'nginx-wcp-security.conf';
-    const APACHE_FILENAME = 'apache-wcp-security.conf';
-    const CADDY_FILENAME = 'caddy-wcp-security.conf';
+    const WAF_FOLDER = 'webcare-pro-security/waf';
+    const NGINX_FILENAME = 'nginX-WebCare-security.conf';
+    const APACHE_FILENAME = 'apache-webcare-security.conf';
+    const CADDY_FILENAME = 'caddy-webcare-security.conf';
 
     /**
      * Default security matrix options
@@ -30,7 +30,7 @@ class ServerSecurityEngine {
         return [
             // Core Perimeter Security (Checkboxes)
             'block_uploads_php'       => true,
-            'protect_wcp_data_dir'    => true,
+            'protect_webcare_data_dir'    => true,
             'block_sensitive_files'   => true,
             'block_xmlrpc'            => true,
             'block_author_scans'      => true,
@@ -157,9 +157,9 @@ class ServerSecurityEngine {
             $burst = max(1, (int) $opts['login_burst_limit']);
             $c .= "# --- 1. Login Brute Force Throttling Zone ---\n";
             $c .= "# Tip: Ensure 'limit_req_zone' is defined in your nginx.conf http {} block if needed:\n";
-            $c .= "# limit_req_zone \$binary_remote_addr zone=wcp_wp_login:10m rate={$login_rate}r/m;\n\n";
+            $c .= "# limit_req_zone \$binary_remote_addr zone=webcare_wp_login:10m rate={$login_rate}r/m;\n\n";
             $c .= "location = /wp-login.php {\n";
-            $c .= "    limit_req zone=wcp_wp_login burst={$burst} nodelay;\n";
+            $c .= "    limit_req zone=webcare_wp_login burst={$burst} nodelay;\n";
             $c .= "    include fastcgi_params;\n";
             $c .= "    fastcgi_pass php-fpm;\n";
             $c .= "}\n\n";
@@ -169,8 +169,8 @@ class ServerSecurityEngine {
         if (!empty($opts['rate_limit_global'])) {
             $global_rate = max(5, (int) $opts['global_rate_limit']);
             $c .= "# --- 2. Global IP Request Throttling ---\n";
-            $c .= "# limit_req_zone \$binary_remote_addr zone=wcp_global:10m rate={$global_rate}r/s;\n";
-            $c .= "limit_req zone=wcp_global burst=50 nodelay;\n\n";
+            $c .= "# limit_req_zone \$binary_remote_addr zone=webcare_global:10m rate={$global_rate}r/s;\n";
+            $c .= "limit_req zone=webcare_global burst=50 nodelay;\n\n";
         }
 
         // Client Max Body Size
@@ -197,7 +197,7 @@ class ServerSecurityEngine {
         }
 
         // Protect WebCare Pro Security Vault, Logs & Database Backups
-        if (!empty($opts['protect_wcp_data_dir'])) {
+        if (!empty($opts['protect_webcare_data_dir'])) {
             $c .= "# --- 5b. Shield WebCare Pro Security Data Directory (Logs, Vault, DB Backups) ---\n";
             $c .= "location ^~ /wp-content/uploads/webcare-pro-security/ {\n";
             $c .= "    deny all;\n";
@@ -380,7 +380,7 @@ class ServerSecurityEngine {
         }
 
         // Protect WebCare Pro Security Vault, Logs & Database Backups
-        if (!empty($opts['protect_wcp_data_dir'])) {
+        if (!empty($opts['protect_webcare_data_dir'])) {
             $c .= "    # Protect WebCare Pro Security Vault, Logs & Database Backups\n";
             $c .= "    RewriteRule ^wp-content/uploads/webcare-pro-security/ - [F,L,NC]\n\n";
         }
@@ -534,7 +534,7 @@ class ServerSecurityEngine {
         $rules = self::generate_apache_config($saved_opts);
         $htaccess_path = ABSPATH . '.htaccess';
 
-        $marker = 'WCP_SECURITY_SCANNER_SERVER_RULES';
+        $marker = 'WEBCARE_SECURITY_SERVER_RULES';
         $marker_start = "# BEGIN {$marker}";
         $marker_end = "# END {$marker}";
 
@@ -599,38 +599,38 @@ class ServerSecurityEngine {
         $c .= "# Import into your Caddyfile: import " . self::get_file_info()['caddy_path'] . "\n";
         $c .= "# =========================================================================\n\n";
 
-        $c .= "(wcp_security_rules) {\n";
+        $c .= "(webcare_security_rules) {\n";
 
         if (!empty($opts['block_uploads_php'])) {
             $c .= "    # Deny direct PHP execution in media uploads directory\n";
-            $c .= "    @wcp_uploads_php path /wp-content/uploads/*.php /wp-content/uploads/*.phtml\n";
-            $c .= "    respond @wcp_uploads_php 403\n\n";
+            $c .= "    @webcare_uploads_php path /wp-content/uploads/*.php /wp-content/uploads/*.phtml\n";
+            $c .= "    respond @webcare_uploads_php 403\n\n";
         }
 
-        if (!empty($opts['protect_wcp_data_dir'])) {
+        if (!empty($opts['protect_webcare_data_dir'])) {
             $c .= "    # Shield WebCare Pro Security Vault, Logs & Database Backups\n";
-            $c .= "    @wcp_data_vault path /wp-content/uploads/webcare-pro-security/*\n";
-            $c .= "    respond @wcp_data_vault 403\n\n";
+            $c .= "    @webcare_data_vault path /wp-content/uploads/webcare-pro-security/*\n";
+            $c .= "    respond @webcare_data_vault 403\n\n";
         }
 
         if (!empty($opts['block_sensitive_files'])) {
             $c .= "    # Block access to hidden dotfiles, git repositories, and env files\n";
-            $c .= "    @wcp_sensitive_files path /.git* /.env* /.user.ini /wp-config.php*\n";
-            $c .= "    respond @wcp_sensitive_files 403\n\n";
+            $c .= "    @webcare_sensitive_files path /.git* /.env* /.user.ini /wp-config.php*\n";
+            $c .= "    respond @webcare_sensitive_files 403\n\n";
         }
 
         if (!empty($opts['block_xmlrpc'])) {
             $c .= "    # Disable XML-RPC endpoint to prevent brute-force amplification\n";
-            $c .= "    @wcp_xmlrpc path /xmlrpc.php\n";
-            $c .= "    respond @wcp_xmlrpc 403\n\n";
+            $c .= "    @webcare_xmlrpc path /xmlrpc.php\n";
+            $c .= "    respond @webcare_xmlrpc 403\n\n";
         }
 
         if (!empty($opts['block_author_scans'])) {
             $c .= "    # Block author enumeration query strings\n";
-            $c .= "    @wcp_author {\n";
+            $c .= "    @webcare_author {\n";
             $c .= "        query author=*\n";
             $c .= "    }\n";
-            $c .= "    respond @wcp_author 403\n\n";
+            $c .= "    respond @webcare_author 403\n\n";
         }
 
         // HTTP Security Headers
@@ -669,16 +669,16 @@ class ServerSecurityEngine {
             'timeout'     => 8,
             'redirection' => 0,
             'sslverify'   => false,
-            'user-agent'  => 'WCP-Server-Verifier/1.0',
+            'user-agent'  => 'WEBCARE-Server-Verifier/1.0',
         ];
 
         // Probe 1: Uploads Executable Probe with real temporary probe file
         $upload_dir = wp_upload_dir();
-        $test_probe_file = !empty($upload_dir['basedir']) ? untrailingslashit($upload_dir['basedir']) . '/wcp_server_enforcement_test.php' : '';
+        $test_probe_file = !empty($upload_dir['basedir']) ? untrailingslashit($upload_dir['basedir']) . '/webcare_server_enforcement_test.php' : '';
         if (!empty($test_probe_file)) {
             @file_put_contents($test_probe_file, "<?php echo 'PROBE_FAILED_UNBLOCKED';");
         }
-        $uploads_probe_url = home_url('/wp-content/uploads/wcp_server_enforcement_test.php');
+        $uploads_probe_url = home_url('/wp-content/uploads/webcare_server_enforcement_test.php');
         $uploads_res = wp_remote_get($uploads_probe_url, $args);
         $uploads_code = !is_wp_error($uploads_res) ? (int) wp_remote_retrieve_response_code($uploads_res) : 0;
         $uploads_body = !is_wp_error($uploads_res) ? wp_remote_retrieve_body($uploads_res) : '';
@@ -693,13 +693,13 @@ class ServerSecurityEngine {
         $env_code = !is_wp_error($env_res) ? (int) wp_remote_retrieve_response_code($env_res) : 0;
         $env_blocked = ($env_code === 403 || $env_code === 401 || $env_code === 404);
 
-        // Probe 3: WCP Plugin Data & Vault Directory Probe (waf-logs/activity-logs)
-        $wcp_vault_url = home_url('/wp-content/uploads/webcare-pro-security/waf-logs/');
-        $wcp_vault_res = wp_remote_get($wcp_vault_url, $args);
-        $wcp_vault_code = !is_wp_error($wcp_vault_res) ? (int) wp_remote_retrieve_response_code($wcp_vault_res) : 0;
-        $wcp_vault_blocked = ($wcp_vault_code === 403 || $wcp_vault_code === 401);
+        // Probe 3: WebCare Plugin Data & Vault Directory Probe (waf-logs/activity-logs)
+        $webcare_vault_url = home_url('/wp-content/uploads/webcare-pro-security/waf-logs/');
+        $webcare_vault_res = wp_remote_get($webcare_vault_url, $args);
+        $webcare_vault_code = !is_wp_error($webcare_vault_res) ? (int) wp_remote_retrieve_response_code($webcare_vault_res) : 0;
+        $webcare_vault_blocked = ($webcare_vault_code === 403 || $webcare_vault_code === 401);
 
-        $is_enforced = ($uploads_blocked && $env_blocked && $wcp_vault_blocked);
+        $is_enforced = ($uploads_blocked && $env_blocked && $webcare_vault_blocked);
         $overall_status = $is_enforced ? 'protected' : 'partial';
 
         return [
@@ -721,11 +721,11 @@ class ServerSecurityEngine {
                     'status_code' => $env_code,
                     'enforced'    => $env_blocked,
                 ],
-                'wcp_data_vault' => [
-                    'label'       => __('WCP Plugin Data & Vault', 'webcare-pro-security'),
-                    'url'         => $wcp_vault_url,
-                    'status_code' => $wcp_vault_code,
-                    'enforced'    => $wcp_vault_blocked,
+                'webcare_data_vault' => [
+                    'label'       => __('WebCare Plugin Data & Vault', 'webcare-pro-security'),
+                    'url'         => $webcare_vault_url,
+                    'status_code' => $webcare_vault_code,
+                    'enforced'    => $webcare_vault_blocked,
                 ],
             ],
             'message'            => $is_enforced
@@ -746,7 +746,7 @@ class ServerSecurityEngine {
         }
 
         $current = (string) @file_get_contents($htaccess_path);
-        $marker = 'WCP_SECURITY_SCANNER_SERVER_RULES';
+        $marker = 'WEBCARE_SECURITY_SERVER_RULES';
         $pattern = '/# BEGIN ' . preg_quote($marker, '/') . '.*?# END ' . preg_quote($marker, '/') . '\s*/s';
 
         if (preg_match($pattern, $current)) {
@@ -756,6 +756,6 @@ class ServerSecurityEngine {
             return ['success' => true, 'message' => 'Server security rules removed from .htaccess.'];
         }
 
-        return ['success' => true, 'message' => 'No WCP rules found in .htaccess.'];
+        return ['success' => true, 'message' => 'No WebCare Rules found in .htaccess.'];
     }
 }

@@ -21,7 +21,7 @@ class UpdateGatekeeperEngine {
     const OPTION_LOGS      = 'webcareproscan_gatekeeper_logs';
     const OPTION_SNAPSHOTS = 'webcareproscan_gatekeeper_snapshots';
     const OPTION_SETTINGS  = 'webcareproscan_gatekeeper_settings';
-    const LOCK_OPTION_KEY  = 'wcp_atomic_upgrade_lock';
+    const LOCK_OPTION_KEY  = 'webcare_atomic_upgrade_lock';
     const LOCK_TTL         = 180;
 
     /**
@@ -135,8 +135,8 @@ class UpdateGatekeeperEngine {
 
         // Audit Trail: Log Update Gatekeeper settings change
         $diff = \WebCareProScanner\System\SettingsManager::compute_settings_diff($current, $updated);
-        if (!empty($diff) && class_exists('\WebCareProScanner\System\WcpActivityLogger')) {
-            \WebCareProScanner\System\WcpActivityLogger::notice(
+        if (!empty($diff) && class_exists('\WebCareProScanner\System\WebCareActivityLogger')) {
+            \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'gatekeeper_settings_updated',
                 'settings',
                 [
@@ -193,7 +193,7 @@ class UpdateGatekeeperEngine {
                     // 1. Block Zip-Slip / Path Traversal & Null Bytes
                     if (str_contains($item_path, "\0") || str_contains($item_path, '..')) {
                         self::release_upgrade_lock();
-                        return new \WP_Error('wcp_upgrade_zip_slip', __('Blocked package containing path traversal sequences or null bytes.', 'webcare-pro-security'));
+                        return new \WP_Error('webcare_upgrade_zip_slip', __('Blocked package containing path traversal sequences or null bytes.', 'webcare-pro-security'));
                     }
 
                     // 2. Block External Symlinks inside packages
@@ -204,7 +204,7 @@ class UpdateGatekeeperEngine {
                         if (false === $real_target || !str_starts_with($real_target, $real_source)) {
                             self::release_upgrade_lock();
                             return new \WP_Error(
-                                'wcp_upgrade_malicious_symlink',
+                                'webcare_upgrade_malicious_symlink',
                                 sprintf(
                                     /* translators: %s: symlink name */
                                     __('Blocked package containing external symlink: %s', 'webcare-pro-security'),
@@ -220,7 +220,7 @@ class UpdateGatekeeperEngine {
                         if (preg_match('/(?:eval\s*\(\s*(?:base64_decode|gzinflate|str_rot13|\$_POST|\$_REQUEST|\$_GET)|FilesMan|WSO\s+[0-9.]+)/i', $head)) {
                             self::release_upgrade_lock();
                             return new \WP_Error(
-                                'wcp_upgrade_backdoor_detected',
+                                'webcare_upgrade_backdoor_detected',
                                 sprintf(
                                     /* translators: %s: file name */
                                     __('Blocked package containing backdoor signature in %s.', 'webcare-pro-security'),
@@ -281,7 +281,7 @@ class UpdateGatekeeperEngine {
 
                 AuditLogger::log(
                     'gatekeeper_update_blocked',
-                    sprintf('WCP Gatekeeper BLOCKED supply-chain update for "%s" (Risk Score: %d/100).', $folder_name, $analysis['score'])
+                    sprintf('WebCare Gatekeeper BLOCKED supply-chain update for "%s" (Risk Score: %d/100).', $folder_name, $analysis['score'])
                 );
 
                 NotificationDispatcher::trigger('supply_chain_gatekeeper_blocked', [
@@ -313,10 +313,10 @@ class UpdateGatekeeperEngine {
                 }
 
                 return new \WP_Error(
-                    'wcp_gatekeeper_update_blocked',
+                    'webcare_gatekeeper_update_blocked',
                     sprintf(
                         /* translators: 1: plugin folder name, 2: block reason */
-                        __('WCP Update Gatekeeper Security Intercept: The incoming update for "%1$s" was BLOCKED because critical supply-chain risks were detected: %2$s. Your production files were protected.', 'webcare-pro-security'),
+                        __('WebCare Update Gatekeeper Security Intercept: The incoming update for "%1$s" was BLOCKED because critical supply-chain risks were detected: %2$s. Your production files were protected.', 'webcare-pro-security'),
                         esc_html($folder_name),
                         esc_html($reason)
                     )
@@ -327,7 +327,7 @@ class UpdateGatekeeperEngine {
             self::record_log($log_entry);
             AuditLogger::log(
                 'gatekeeper_update_audited',
-                sprintf('WCP Gatekeeper audited update for "%s" (+%d files, %d modified, Risk: %s).', $folder_name, count($delta['added']), count($delta['modified']), strtoupper($analysis['level']))
+                sprintf('WebCare Gatekeeper audited update for "%s" (+%d files, %d modified, Risk: %s).', $folder_name, count($delta['added']), count($delta['modified']), strtoupper($analysis['level']))
             );
 
         } else {
@@ -357,7 +357,7 @@ class UpdateGatekeeperEngine {
 
                 AuditLogger::log(
                     'gatekeeper_install_blocked',
-                    sprintf('WCP Gatekeeper BLOCKED fresh install of "%s" (Risk Score: %d/100).', $folder_name, $analysis['score'])
+                    sprintf('WebCare Gatekeeper BLOCKED fresh install of "%s" (Risk Score: %d/100).', $folder_name, $analysis['score'])
                 );
 
                 $reason = !empty($analysis['findings'][0]['title'])
@@ -389,10 +389,10 @@ class UpdateGatekeeperEngine {
                 ]);
 
                 return new \WP_Error(
-                    'wcp_gatekeeper_install_blocked',
+                    'webcare_gatekeeper_install_blocked',
                     sprintf(
                         /* translators: %s: plugin folder name */
-                        __('WCP Update Gatekeeper Security Intercept: Installation of "%s" was BLOCKED due to critical security risk patterns detected in package.', 'webcare-pro-security'),
+                        __('WebCare Update Gatekeeper Security Intercept: Installation of "%s" was BLOCKED due to critical security risk patterns detected in package.', 'webcare-pro-security'),
                         esc_html($folder_name)
                     )
                 );
@@ -572,7 +572,7 @@ class UpdateGatekeeperEngine {
 
         AuditLogger::log(
             'gatekeeper_rollback_executed',
-            sprintf('WCP Gatekeeper successfully rolled back plugin "%s" to pre-update snapshot "%s".', $slug, $snapshot_id)
+            sprintf('WebCare Gatekeeper successfully rolled back plugin "%s" to pre-update snapshot "%s".', $slug, $snapshot_id)
         );
 
         NotificationDispatcher::trigger('supply_chain_gatekeeper_rollback', [

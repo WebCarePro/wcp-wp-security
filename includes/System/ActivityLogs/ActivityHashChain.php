@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Hash Chain & Cryptographic Verification Engine for WCP Activity & Audit Logging.
+ * Hash Chain & Cryptographic Verification Engine for WebCare Activity & Audit Logging.
  *
  * Enforces:
  * 1. Single stable installation Genesis Hash (never resets on date or segment rollover).
@@ -40,7 +40,7 @@ class ActivityHashChain {
             update_option('webcareproscan_install_hash', $install_seed, false);
         }
 
-        $genesis = hash('sha256', 'WCP_ACTIVITY_GENESIS::' . $install_seed);
+        $genesis = hash('sha256', 'WEBCARE_ACTIVITY_GENESIS::' . $install_seed);
         update_option('webcareproscan_activity_genesis_hash', $genesis, false);
         return $genesis;
     }

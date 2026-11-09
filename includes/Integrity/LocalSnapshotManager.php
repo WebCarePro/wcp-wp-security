@@ -36,7 +36,7 @@ class LocalSnapshotManager {
         if (!is_dir($dir)) {
             wp_mkdir_p($dir);
             // Block all public HTTP access to snapshot storage
-            @file_put_contents($dir . '/.htaccess', "# WCP Security: Deny public access\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n");
+            @file_put_contents($dir . '/.htaccess', "# WebCare Pro Security: Deny public access\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n");
             @file_put_contents($dir . '/index.php', "<?php\nhttp_response_code(403);\nexit('Direct access forbidden.');\n");
         }
 
@@ -98,7 +98,7 @@ class LocalSnapshotManager {
                 $filter = new \RecursiveCallbackFilterIterator($dir_iter, function ($current) {
                     if ($current->isDir()) {
                         $name = $current->getFilename();
-                        if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', '.wcp-quarantine'], true)) {
+                        if (in_array($name, ['.git', '.svn', 'node_modules', 'cache', '.webcare-quarantine'], true)) {
                             return false;
                         }
                     }

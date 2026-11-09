@@ -607,7 +607,7 @@ class WebAuthnManager {
 
         return [
             'success'      => true,
-            'redirect_url' => admin_url('admin.php?page=wcp-security-scanner'),
+            'redirect_url' => admin_url('admin.php?page=webcare-pro-security'),
             'username'     => $user->user_login,
             'message'      => __('Biometric authentication verified. Redirecting to Security Console...', 'webcare-pro-security'),
         ];
@@ -878,7 +878,7 @@ class WebAuthnManager {
     public static function render_login_passkey_prompt(): void {
         ?>
         <div style="margin: 14px 0 10px; text-align: center;">
-            <button type="button" id="wcp-passkey-login-btn" class="button button-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; padding: 6px 12px; height: auto; min-height: 38px; cursor: pointer; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: all 0.2s ease;">
+            <button type="button" id="webcare-passkey-login-btn" class="button button-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; padding: 6px 12px; height: auto; min-height: 38px; cursor: pointer; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: all 0.2s ease;">
                 <span style="font-size: 16px;">🔑</span> <?php esc_html_e('Sign in with Passkey / Biometrics', 'webcare-pro-security'); ?>
             </button>
         </div>
@@ -889,8 +889,8 @@ class WebAuthnManager {
      * Render passkey authentication scripts on login page.
      */
     public static function render_login_passkey_scripts(): void {
-        $options_url = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-options'));
-        $verify_url  = esc_url_raw(rest_url('wcp-scanner/v1/auth/webauthn/login-verify'));
+        $options_url = esc_url_raw(rest_url('webcare-pro-security/v1/auth/webauthn/login-options'));
+        $verify_url  = esc_url_raw(rest_url('webcare-pro-security/v1/auth/webauthn/login-verify'));
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading public standard login redirect_to parameter on wp-login.php
         $requested_redirect = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : '';
         $validated_redirect = !empty($requested_redirect) ? wp_validate_redirect($requested_redirect, admin_url()) : admin_url();
@@ -898,18 +898,18 @@ class WebAuthnManager {
         ?>
         <script>
         (function() {
-            var btn = document.getElementById('wcp-passkey-login-btn');
+            var btn = document.getElementById('webcare-passkey-login-btn');
             if (!btn) return;
 
             var isSupported = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.get);
 
             function showNotice(msg, isSuccess) {
                 var loginForm = document.getElementById('loginform') || document.getElementById('login');
-                var existing = document.getElementById('wcp-passkey-notice');
+                var existing = document.getElementById('webcare-passkey-notice');
                 if (existing) existing.remove();
 
                 var notice = document.createElement('div');
-                notice.id = 'wcp-passkey-notice';
+                notice.id = 'webcare-passkey-notice';
                 notice.className = isSuccess ? 'notice notice-success' : 'notice notice-error';
                 notice.style.cssText = 'padding: 10px 14px; margin-bottom: 16px; border-left: 4px solid ' + (isSuccess ? '#46b450' : '#dc3232') + '; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 13px; line-height: 1.4;';
                 notice.innerHTML = '<p style="margin: 0;">' + msg + '</p>';

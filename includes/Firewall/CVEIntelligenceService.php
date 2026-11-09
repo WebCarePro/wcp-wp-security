@@ -69,7 +69,7 @@ class CVEIntelligenceService {
                 'vector_type'        => self::detect_vector_type($cat_item['title'] . ' ' . $cat_item['description']),
                 'published_at'       => $curated_meta['published_at'] ?? 'Verified Advisory',
                 'updated_at'         => $curated_meta['updated_at'] ?? 'Current Release',
-                'researcher'         => $curated_meta['researcher'] ?? 'WCP Security Research',
+                'researcher'         => $curated_meta['researcher'] ?? 'WebCare Pro Security Research',
                 'weakness'           => $curated_meta['weakness'] ?? 'Critical Vulnerability',
                 'references'         => $curated_meta['references'] ?? [],
                 'software'           => $curated_meta['software'] ?? [
@@ -109,7 +109,7 @@ class CVEIntelligenceService {
         $url = 'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=' . rawurlencode($cve_id);
         $response = wp_remote_get($url, [
             'timeout'    => 12,
-            'user-agent' => 'WCP-Security-Scanner/1.26.0 (WordPress Security Engine)',
+            'user-agent' => 'WEBCARE-Security-Scanner/1.26.0 (WordPress Security Engine)',
             'headers'    => [
                 'Accept' => 'application/json',
             ],
@@ -825,7 +825,7 @@ class CVEIntelligenceService {
         $url = 'https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&request[slug]=' . rawurlencode($slug);
         $resp = wp_remote_get($url, [
             'timeout'    => 6,
-            'user-agent' => 'WCP-Security-Scanner/1.26.0 (WordPress Security Engine)',
+            'user-agent' => 'WEBCARE-Security-Scanner/1.26.0 (WordPress Security Engine)',
         ]);
 
         if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) {

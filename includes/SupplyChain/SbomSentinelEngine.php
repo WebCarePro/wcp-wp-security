@@ -234,7 +234,7 @@ class SbomSentinelEngine {
 
     /**
      * Verify whether an auto_prepend_file target is an authentic, recognized security tool
-     * (e.g. Wordfence WAF, WCP Micro-WAF, NinjaFirewall) or matches the calibrated baseline.
+     * (e.g. Wordfence WAF, WebCare Micro-WAF, NinjaFirewall) or matches the calibrated baseline.
      *
      * @param string $target_path Absolute or relative path to preloaded file
      * @return array Verification payload
@@ -286,8 +286,8 @@ class SbomSentinelEngine {
             }
         }
 
-        // 2. WCP Micro-WAF Preload
-        if ($basename === 'micro-waf-compiled.php' || str_contains($norm, 'webcare-pro-security') || str_contains($norm, 'wcp-micro-waf.php')) {
+        // 2. WebCare Micro-WAF Preload
+        if ($basename === 'micro-waf-compiled.php' || str_contains($norm, 'webcare-pro-security') || str_contains($norm, 'webcare-micro-waf.php')) {
             return [
                 'is_recognized' => true,
                 'is_trusted'    => true,
@@ -721,7 +721,7 @@ class SbomSentinelEngine {
     }
 
     /**
-     * Quarantine a rogue drop-in or must-use plugin to the WCP Vault.
+     * Quarantine a rogue drop-in or must-use plugin to the WebCare Vault.
      *
      * @param string $item_id (e.g. "dropin:db.php" or "custom_dropin:shell.php")
      * @return array
@@ -761,7 +761,7 @@ class SbomSentinelEngine {
         if ($result['success']) {
             AuditLogger::log(
                 'sbom_anchor_quarantined',
-                sprintf('Quarantined runtime anchor "%s" (%s) to WCP Vault.', basename($path), $target['rel_path'])
+                sprintf('Quarantined runtime anchor "%s" (%s) to WebCare Vault.', basename($path), $target['rel_path'])
             );
         }
 

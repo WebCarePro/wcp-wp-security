@@ -222,7 +222,7 @@ class ReinfectionWatchdog {
                 if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
                     WafFileLogger::log_incident([
                         'category'    => 'malware_reinfection_loop',
-                        'rule_id'     => 'wcp_watchdog_resurrection',
+                        'rule_id'     => 'webcare_watchdog_resurrection',
                         'description' => sprintf('Malware resurrection loop detected on monitored path: %s. %s', $watch['rel_path'], $trigger_reason),
                         'payload'     => $watch['rel_path'],
                     ], 'blocked');

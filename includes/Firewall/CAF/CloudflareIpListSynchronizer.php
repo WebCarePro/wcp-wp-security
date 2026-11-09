@@ -16,19 +16,19 @@ if (!defined('ABSPATH')) {
  * Implements dual-engine bulk ban synchronization:
  * 1. Scope auto-discovery: Detects whether API token has Account Custom List or Zone Access Rules permissions.
  * 2. Subnet Aggregation: Consolidates >= 4 IPs in same /24 (IPv4) or /64 (IPv6) banned within 15 min into 1 CIDR.
- * 3. Asynchronous queue: Flushes queued bans via non-blocking WP-Cron hook (`wcp_cloudflare_ip_sync_cron`).
+ * 3. Asynchronous queue: Flushes queued bans via non-blocking WP-Cron hook (`webcare_cloudflare_ip_sync_cron`).
  *
  * Author: Mir Alamin (WebCare Pro)
  * Senior Linux SysAdmin & WordPress Security Engineer
  */
 class CloudflareIpListSynchronizer {
 
-    public const OPTION_BAN_QUEUE        = 'wcp_cf_pending_ban_queue';
-    public const OPTION_TOKEN_SCOPE      = 'wcp_cf_token_scope';
-    public const OPTION_ACCOUNT_LIST_ID  = 'wcp_cf_account_list_id';
-    public const OPTION_ACTIVE_EDGE_BANS = 'wcp_cf_active_edge_bans';
-    public const LIST_NAME               = 'wcp_threat_blocklist';
-    public const CRON_HOOK               = 'wcp_cloudflare_ip_sync_cron';
+    public const OPTION_BAN_QUEUE        = 'webcare_cf_pending_ban_queue';
+    public const OPTION_TOKEN_SCOPE      = 'webcare_cf_token_scope';
+    public const OPTION_ACCOUNT_LIST_ID  = 'webcare_cf_account_list_id';
+    public const OPTION_ACTIVE_EDGE_BANS = 'webcare_cf_active_edge_bans';
+    public const LIST_NAME               = 'webcare_threat_blocklist';
+    public const CRON_HOOK               = 'webcare_cloudflare_ip_sync_cron';
 
     /**
      * In-memory queue of bans to push to Cloudflare at PHP shutdown (post-response).
@@ -46,7 +46,7 @@ class CloudflareIpListSynchronizer {
 
     /**
      * Test whether the configured Cloudflare API token has Account List permissions or Zone Access Rule permissions.
-     * Caches the result in `wcp_cf_token_scope` for 6 hours.
+     * Caches the result in `webcare_cf_token_scope` for 6 hours.
      *
      * @param bool $force_refresh
      * @return string 'account' | 'zone' | 'none'
@@ -100,7 +100,7 @@ class CloudflareIpListSynchronizer {
      * @param string $reason Reason description
      * @param int $ttl Time to live in seconds (default 86400)
      */
-    public static function queue_ip_ban(string $ip, string $reason = 'WCP WAF Threat', int $ttl = 86400): void {
+    public static function queue_ip_ban(string $ip, string $reason = 'WebCare WAF Threat', int $ttl = 86400): void {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return;
@@ -124,7 +124,7 @@ class CloudflareIpListSynchronizer {
         ];
 
         // Burst limiter: Check how many instant bans were pushed in the current 10-second window
-        $burst_key = 'wcp_cf_instant_burst';
+        $burst_key = 'webcare_cf_instant_burst';
         $burst_count = function_exists('apcu_fetch') && ini_get('apc.enabled')
             ? (int) apcu_fetch($burst_key)
             : (int) get_transient($burst_key);
@@ -200,11 +200,11 @@ class CloudflareIpListSynchronizer {
      * Trigger immediate non-blocking loopback request to flush bans without waiting for cron visitor.
      */
     public static function trigger_background_queue_flush(): void {
-        $last_spawn = (int) get_transient('wcp_cf_queue_spawn_debounce');
+        $last_spawn = (int) get_transient('webcare_cf_queue_spawn_debounce');
         if (time() - $last_spawn < 60) {
             return; // Debounce to at most once per 60 seconds
         }
-        set_transient('wcp_cf_queue_spawn_debounce', time(), 60);
+        set_transient('webcare_cf_queue_spawn_debounce', time(), 60);
 
         $ajax_url = admin_url('admin-ajax.php');
         wp_remote_post($ajax_url, [
@@ -213,8 +213,8 @@ class CloudflareIpListSynchronizer {
             // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Standard WordPress core filter for local loopback requests
             'sslverify' => apply_filters('https_local_ssl_verify', false),
             'body'      => [
-                'action' => 'wcp_flush_cf_ban_queue',
-                'nonce'  => wp_create_nonce('wcp_cf_queue_flush_nonce'),
+                'action' => 'webcare_flush_cf_ban_queue',
+                'nonce'  => wp_create_nonce('webcare_cf_queue_flush_nonce'),
             ],
         ]);
     }
@@ -250,7 +250,7 @@ class CloudflareIpListSynchronizer {
                         $singles[] = [
                             'target' => $ip,
                             'type'   => 'ip',
-                            'notes'  => $entry['reason'] ?? 'WCP Local Ban',
+                            'notes'  => $entry['reason'] ?? 'WebCare Local Ban',
                         ];
                     }
                     continue;
@@ -266,7 +266,7 @@ class CloudflareIpListSynchronizer {
                         $singles[] = [
                             'target' => $ip,
                             'type'   => 'ip',
-                            'notes'  => $entry['reason'] ?? 'WCP Local Ban',
+                            'notes'  => $entry['reason'] ?? 'WebCare Local Ban',
                         ];
                     }
                     continue;
@@ -276,7 +276,7 @@ class CloudflareIpListSynchronizer {
             $singles[] = [
                 'target' => $ip,
                 'type'   => 'ip',
-                'notes'  => $entry['reason'] ?? 'WCP Local Ban',
+                'notes'  => $entry['reason'] ?? 'WebCare Local Ban',
             ];
         }
 
@@ -288,14 +288,14 @@ class CloudflareIpListSynchronizer {
                 $results[] = [
                     'target' => "{$prefix}.0/24",
                     'type'   => 'ip_range',
-                    'notes'  => sprintf('WCP Aggregated /24 (%d IPs in 15m)', count($cluster)),
+                    'notes'  => sprintf('WebCare Aggregated /24 (%d IPs in 15m)', count($cluster)),
                 ];
             } else {
                 foreach ($cluster as $c) {
                     $results[] = [
                         'target' => $c['ip'],
                         'type'   => 'ip',
-                        'notes'  => $c['reason'] ?? 'WCP Local Ban',
+                        'notes'  => $c['reason'] ?? 'WebCare Local Ban',
                     ];
                 }
             }
@@ -307,14 +307,14 @@ class CloudflareIpListSynchronizer {
                 $results[] = [
                     'target' => "{$prefix}::/64",
                     'type'   => 'ip_range',
-                    'notes'  => sprintf('WCP Aggregated /64 (%d IPs in 15m)', count($cluster)),
+                    'notes'  => sprintf('WebCare Aggregated /64 (%d IPs in 15m)', count($cluster)),
                 ];
             } else {
                 foreach ($cluster as $c) {
                     $results[] = [
                         'target' => $c['ip'],
                         'type'   => 'ip',
-                        'notes'  => $c['reason'] ?? 'WCP Local Ban',
+                        'notes'  => $c['reason'] ?? 'WebCare Local Ban',
                     ];
                 }
             }
@@ -386,7 +386,7 @@ class CloudflareIpListSynchronizer {
         foreach ($targets as $t) {
             $items[] = [
                 'ip'      => $t['target'],
-                'comment' => substr((string) ($t['notes'] ?? 'WCP Threat Block'), 0, 100),
+                'comment' => substr((string) ($t['notes'] ?? 'WebCare Threat Block'), 0, 100),
             ];
         }
 
@@ -445,7 +445,7 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
-     * Ensure WCP threat blocklist exists in Cloudflare Account.
+     * Ensure WebCare Threat blocklist exists in Cloudflare Account.
      */
     private function ensure_account_list(string $account_id): string {
         $stored = (string) get_option(self::OPTION_ACCOUNT_LIST_ID, '');
@@ -512,7 +512,7 @@ class CloudflareIpListSynchronizer {
                     'target' => $t['type'] === 'ip_range' ? 'ip_range' : 'ip',
                     'value'  => $t['target'],
                 ],
-                'notes'         => substr((string) ($t['notes'] ?? 'WCP Local Ban'), 0, 100),
+                'notes'         => substr((string) ($t['notes'] ?? 'WebCare Local Ban'), 0, 100),
             ];
 
             $res = CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);
@@ -694,11 +694,11 @@ class CloudflareIpListSynchronizer {
         });
 
         // Loopback AJAX handler for high-velocity queue flushing
-        add_action('wp_ajax_nopriv_wcp_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
-        add_action('wp_ajax_wcp_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
+        add_action('wp_ajax_nopriv_webcare_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
+        add_action('wp_ajax_webcare_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
 
         if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + 300, 'wcp_every_five_minutes', self::CRON_HOOK);
+            wp_schedule_event(time() + 300, 'webcare_every_five_minutes', self::CRON_HOOK);
         }
     }
 
@@ -706,7 +706,7 @@ class CloudflareIpListSynchronizer {
      * Handle non-blocking loopback queue flush request.
      */
     public static function handle_loopback_flush(): void {
-        check_ajax_referer('wcp_cf_queue_flush_nonce', 'nonce');
+        check_ajax_referer('webcare_cf_queue_flush_nonce', 'nonce');
         $sync = new self();
         $sync->process_sync_queue();
         wp_send_json_success(['flushed' => true]);
