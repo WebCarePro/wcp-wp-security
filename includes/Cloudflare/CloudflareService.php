@@ -494,38 +494,65 @@ class CloudflareService {
      * @return array
      */
     public static function get_rule_definitions(): array {
+        $optimizer   = new \WebCareProScanner\Firewall\CAF\CloudflareSlotOptimizer();
+        $advisor     = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+        $snapshot    = $advisor->get_stack_snapshot();
+        $origin_surv = (bool) get_transient('webcare_cf_origin_survival_mode');
+        if (!$origin_surv && class_exists('\\WebCareProScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker')) {
+            $breaker     = new \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker();
+            $origin_surv = $breaker->is_survival_mode_active();
+        }
+
+        $has_ip_list = !empty(get_option('webcareproscan_cf_ip_list_id', ''));
+        if (!$has_ip_list && class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+            $sync        = new \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer();
+            $has_ip_list = ($sync->detect_api_scope() === 'account');
+        }
+
+        $scoped_patches = class_exists('\\WebCareProScanner\\Firewall\\VirtualPatchManager')
+            ? \WebCareProScanner\Firewall\VirtualPatchManager::get_active_patches()
+            : [];
+
         return [
             'compound_perimeter' => [
                 'id'          => 'webcareproscan_compound_perimeter',
+                'ref'         => 'webcare_cf_slot_1_perimeter',
                 'title'       => 'Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
+                'name'        => 'Rule 1: Perimeter, Sensitive Files & XML-RPC Block',
                 'badge'       => 'Edge Shield',
                 'description' => __('Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.', 'webcare-pro-security'),
                 'action'      => 'block',
-                'expression'  => '(http.request.uri.path contains "xmlrpc.php") or ((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"}) or (http.request.uri.path contains "wp-config.php" or http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".user.ini" or http.request.uri.path contains "debug.log" or http.request.uri.path contains "composer.json" or http.request.uri.path contains "package.json") or (http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "zip" "ini"}) or (http.request.method in {"TRACE" "TRACK" "DEBUG"})',
+                'expression'  => $optimizer->compile_rule1_perimeter_expression($has_ip_list),
             ],
             'compound_stackguard' => [
                 'id'          => 'webcareproscan_compound_stackguard',
+                'ref'         => 'webcare_cf_slot_2_stackguard',
                 'title'       => 'Rule 2: StackGuard Inactive Plugin Lockdown & Virtual Patches',
+                'name'        => 'Rule 2: Dynamic CAF StackGuard & Virtual Patching',
                 'badge'       => 'StackGuard',
                 'description' => __('Automatically locks down all inactive/dormant plugin paths to neutralize zero-day scans, and deploys high-priority stack-scoped CVE virtual patches tailored to your active plugins.', 'webcare-pro-security'),
                 'action'      => 'block',
-                'expression'  => '((http.request.uri contains "../" or http.request.uri contains "..%2f") and http.request.uri.path contains "wp-content/plugins")',
+                'expression'  => $optimizer->compile_rule2_stackguard_expression($snapshot, $scoped_patches),
             ],
             'compound_login_bot' => [
                 'id'          => 'webcareproscan_compound_login_bot',
+                'ref'         => 'webcare_cf_slot_3_bot_challenge',
                 'title'       => 'Rule 3: Adaptive Bot, Brute-Force & Under-Attack Velocity Shield',
+                'name'        => 'Rule 3: Login, REST Enumeration & Scanner Bot Challenge',
                 'badge'       => 'Turnstile Challenge',
                 'description' => __('Challenges automated bot crawlers targeting wp-login.php, WooCommerce my-account, and comment spam with Managed Challenge (Turnstile). Automatically escalates during active brute-force floods.', 'webcare-pro-security'),
                 'action'      => 'managed_challenge',
-                'expression'  => '((http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/my-account"}) and (cf.client.bot or cf.threat_score gt 15 or not http.request.version in {"HTTP/2" "HTTP/3"})) or ((http.request.uri.path eq "/wp-comments-post.php") and http.request.method eq "POST" and (http.referer eq "" or http.request.version eq "HTTP/1.0" or cf.client.bot)) or ' . self::decode_cf_sig('28687474702e757365725f6167656e7420636f6e7461696e73202273716c6d617022206f7220687474702e757365725f6167656e7420636f6e7461696e73202277707363616e22206f7220687474702e757365725f6167656e7420636f6e7461696e7320226e75636c656922206f7220687474702e757365725f6167656e7420636f6e7461696e7320226e696b746f22206f7220687474702e757265725f6167656e7420636f6e7461696e7320226d61737363616e22206f7220687474702e757365725f6167656e7420636f6e7461696e732022707974686f6e2d72657175657374732229'),
+                'expression'  => $optimizer->compile_rule3_bot_challenge_expression($origin_surv),
             ],
             'compound_sqli_lfi' => [
                 'id'          => 'webcareproscan_compound_sqli_lfi',
+                'ref'         => 'webcare_cf_slot_4_sqli_lfi',
                 'title'       => 'Rule 4: Deep SQLi, LFI & Reconnaissance Armor',
+                'name'        => 'Rule 4: High-Confidence SQLi, LFI & XSS Edge Shield',
                 'badge'       => 'Exploit Armor',
                 'description' => __('Terminates UNION SELECT attacks, information_schema probing, blind SQLi time delays (sleep/benchmark), directory traversal, LFI, and user enumeration before touching WordPress PHP or MySQL.', 'webcare-pro-security'),
                 'action'      => 'block',
-                'expression'  => self::decode_cf_sig('28286c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022756e696f6e2220616e64206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202273656c6563742229206f7220286c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022696e666f726d6174696f6e5f736368656d612229206f7220286c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022736c6565702822206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202262656e63686d61726b2822206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202277616974666f722064656c61792229206f7220286c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022636f6e636174282220616e64206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202230782229206f7220286c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e7320226578747261637476616c75652822206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022757064617465786d6c282229206f7220286c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202220616e6420313d3022206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202220616e6420313d3122206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022206f7220313d3122206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202227206f7220313d3122206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022276f7220313d3122206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e73202267726f75705f636f6e63617422206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022696e746f206f757466696c6522206f72206c6f77657228687474702e726571756573742e7572692e71756572792920636f6e7461696e732022696e746f2064756d7066696c65222929206f72202828687474702e726571756573742e75726920636f6e7461696e7320222e2e2f22206f7220687474702e726571756573742e75726920636f6e7461696e7320222e2e25326622206f7220687474702e726571756573742e7572692e717565727920636f6e7461696e7320226574632f70617373776422206f7220687474702e726571756573742e7572692e717565727920636f6e7461696e7320226261736536345f6465636f646522206f7220687474702e726571756573742e7572692e717565727920636f6e7461696e7320226576616c2822206f7220687474702e726571756573742e75726920636f6e7461696e732022253030222929206f72202828687474702e726571756573742e7572692e717565727920636f6e7461696e732022617574686f723d22206f722028687474702e726571756573742e7572692e7061746820636f6e7461696e73202277702d6a736f6e2f77702f76322f75736572732220616e64206e6f7420687474702e726571756573742e7572692e7061746820636f6e7461696e73202275736572732f6d652220616e64206e6f7420687474702e726571756573742e7572692e717565727920636f6e7461696e732022636f6e746578743d656469742220616e64206e6f7420687474702e636f6f6b696520636f6e7461696e732022776f726470726573735f6c6f676765645f696e22292929'),
+                'expression'  => $optimizer->compile_rule4_sqli_lfi_expression(),
             ],
         ];
     }
