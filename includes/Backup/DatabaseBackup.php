@@ -1111,11 +1111,8 @@ class DatabaseBackup {
      */
     public function list_backups(): array {
         $backups = [];
-        $uploads = wp_upload_dir();
-        $base = untrailingslashit($uploads['basedir']);
         $dirs = [
             $this->backup_dir,
-            $base . '/webcare-pro-security/backups',
         ];
 
         $seen = [];
@@ -1130,9 +1127,16 @@ class DatabaseBackup {
             }
 
             foreach ($files as $file) {
-                if ($file === '.' || $file === '..' || $file === '.htaccess' || $file === 'index.php' || strpos($file, '.state_') === 0) {
+                // Ignore special directory references, hidden files, and vault security lockdown files
+                if ($file === '.' || $file === '..' || strpos($file, '.') === 0 || in_array(strtolower($file), ['.htaccess', 'web.config', 'index.php', 'robots.txt'], true)) {
                     continue;
                 }
+
+                // Strict validation: must be a database backup archive (.sql, .sql.gz, .gz, .zip)
+                if (!preg_match('/\.(sql|sql\.gz|gz|zip)$/i', $file)) {
+                    continue;
+                }
+
                 if (isset($seen[$file])) {
                     continue;
                 }
@@ -1182,16 +1186,20 @@ class DatabaseBackup {
      */
     public function get_backup_path(string $filename): ?string {
         $basename = basename($filename);
+
+        // Security check: Never serve or touch hidden files, directory traversal, or vault security files (.htaccess, web.config, index.php)
+        if (strpos($basename, '.') === 0 || in_array(strtolower($basename), ['.htaccess', 'web.config', 'index.php', 'robots.txt'], true)) {
+            return null;
+        }
+
+        // Must match allowed database archive extensions
+        if (!preg_match('/\.(sql|sql\.gz|gz|zip)$/i', $basename)) {
+            return null;
+        }
+
         $path = $this->backup_dir . '/' . $basename;
         if (file_exists($path) && is_file($path)) {
             return $path;
-        }
-
-        // Check legacy backups directory
-        $uploads = wp_upload_dir();
-        $legacy_path = untrailingslashit($uploads['basedir']) . '/webcare-pro-security/backups/' . $basename;
-        if (file_exists($legacy_path) && is_file($legacy_path)) {
-            return $legacy_path;
         }
 
         return null;
