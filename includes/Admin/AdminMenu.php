@@ -14,6 +14,8 @@ class AdminMenu {
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
         add_action('admin_init', [__CLASS__, 'handle_wizard_activation_redirect']);
+        add_action('init', [__CLASS__, 'handle_legacy_slug_redirects']);
+        add_action('admin_page_access_denied', [__CLASS__, 'handle_legacy_slug_redirects']);
         add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
         add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
         add_action('wp_ajax_webcareproscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
@@ -806,6 +808,69 @@ class AdminMenu {
                 wp_safe_redirect(admin_url('admin.php?page=webcare-pro-wizard'));
                 exit;
             }
+        }
+    }
+
+    /**
+     * Seamlessly redirect legacy or shorthand administrative page slugs to their modern WebCare Pro equivalents.
+     * Prevents "Sorry, you are not allowed to access this page" errors when clicking shorthand links or legacy bookmarks.
+     */
+    public static function handle_legacy_slug_redirects() {
+        if (!is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe low-level GET navigation router before capability check.
+        if (empty($_GET['page']) || !is_string($_GET['page'])) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $page = sanitize_key(wp_unslash($_GET['page']));
+
+        $shorthand_map = [
+            'firewall'        => 'webcare-pro-firewall',
+            'waf'             => 'webcare-pro-waf-logs',
+            'waf-logs'        => 'webcare-pro-waf-logs',
+            'waf_logs'        => 'webcare-pro-waf-logs',
+            'scan'            => 'webcare-pro-scan',
+            'scanner'         => 'webcare-pro-scan',
+            'fim'             => 'webcare-pro-fim',
+            'auth'            => 'webcare-pro-auth',
+            'vault'           => 'webcare-pro-vault',
+            'quarantine'      => 'webcare-pro-vault',
+            'forensics'       => 'webcare-pro-forensics',
+            'settings'        => 'webcare-pro-settings',
+            'vpatch'          => 'webcare-pro-vpatch',
+            'tools'           => 'webcare-pro-tools',
+            'logs'            => 'webcare-pro-logs',
+            'backup'          => 'webcare-pro-backup',
+            'wizard'          => 'webcare-pro-wizard',
+            'notifications'   => 'webcare-pro-notifications',
+            'activity-logs'   => 'webcare-pro-activity-logs',
+            'activity_logs'   => 'webcare-pro-activity-logs',
+            'about'           => 'webcare-pro-about',
+            'security'        => 'webcare-pro-security',
+            'dashboard'       => 'webcare-pro-security',
+        ];
+
+        $target = null;
+        if (isset($shorthand_map[$page])) {
+            $target = $shorthand_map[$page];
+        } elseif (strpos($page, 'wcp-scanner-') === 0) {
+            $target = str_replace('wcp-scanner-', 'webcare-pro-', $page);
+        } elseif (strpos($page, 'wcp-') === 0) {
+            $target = str_replace('wcp-', 'webcare-pro-', $page);
+        } elseif (strpos($page, 'wcpscan_') === 0) {
+            $target = str_replace('wcpscan_', 'webcare-pro-', $page);
+        }
+
+        if ($target !== null) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $query_args = array_map('sanitize_text_field', wp_unslash($_GET));
+            $query_args['page'] = $target;
+            wp_safe_redirect(add_query_arg($query_args, admin_url('admin.php')));
+            exit;
         }
     }
 
