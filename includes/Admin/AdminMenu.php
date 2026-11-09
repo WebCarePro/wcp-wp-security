@@ -14,8 +14,6 @@ class AdminMenu {
         add_action('admin_notices', [__CLASS__, 'render_user_recovery_notice']);
         add_action('admin_init', [__CLASS__, 'handle_user_recovery_action']);
         add_action('admin_init', [__CLASS__, 'handle_wizard_activation_redirect']);
-        add_action('init', [__CLASS__, 'handle_legacy_slug_redirects']);
-        add_action('admin_page_access_denied', [__CLASS__, 'handle_legacy_slug_redirects']);
         add_action('admin_header', [__CLASS__, 'ensure_admin_screen_title'], 0);
         add_action('admin_footer', [__CLASS__, 'render_plugins_uninstall_modal']);
         add_action('wp_ajax_webcareproscan_set_uninstall_purge', [__CLASS__, 'ajax_set_uninstall_purge']);
@@ -357,7 +355,6 @@ class AdminMenu {
     public static function enqueue_assets($hook) {
         $valid_hooks = [
             'toplevel_page_webcare-pro-security',
-            'toplevel_page_webcare-pro-security',
             'webcare-pro-security_page_webcare-pro-scan',
             'webcare-pro-security_page_webcare-pro-vault',
             'webcare-pro-security_page_webcare-pro-tools',
@@ -377,50 +374,13 @@ class AdminMenu {
             'webcare-pro-security_page_webcare-pro-activity-logs',
             'webcare-pro-security_page_webcare-pro-settings',
             'webcare-pro-security_page_webcare-pro-about',
-            'webcare-pro-security_page_webcare-pro-scan',
-            'webcare-pro-security_page_webcare-pro-vault',
-            'webcare-pro-security_page_webcare-pro-tools',
-            'webcare-pro-security_page_webcare-pro-logs',
-            'webcare-pro-security_page_webcare-pro-forensics',
-            'webcare-pro-security_page_webcare-pro-quarantine',
-            'webcare-pro-security_page_webcare-pro-backup',
-            'webcare-pro-security_page_webcare-pro-server',
-            'webcare-pro-security_page_webcare-pro-vulnerabilities',
-            'webcare-pro-security_page_webcare-pro-firewall',
-            'webcare-pro-security_page_webcare-pro-caf',
-            'webcare-pro-security_page_webcare-pro-vpatch',
-            'webcare-pro-security_page_webcare-pro-waf-logs',
-            'webcare-pro-security_page_webcare-pro-fim',
-            'webcare-pro-security_page_webcare-pro-auth',
-            'webcare-pro-security_page_webcare-pro-notifications',
-            'webcare-pro-security_page_webcare-pro-activity-logs',
-            'webcare-pro-security_page_webcare-pro-settings',
-            'webcare-pro-security_page_webcare-pro-about',
-            'security-scanner_page_webcare-pro-scan',
-            'security-scanner_page_webcare-pro-vault',
-            'security-scanner_page_webcare-pro-tools',
-            'security-scanner_page_webcare-pro-logs',
-            'security-scanner_page_webcare-pro-forensics',
-            'security-scanner_page_webcare-pro-quarantine',
-            'security-scanner_page_webcare-pro-backup',
-            'security-scanner_page_webcare-pro-server',
-            'security-scanner_page_webcare-pro-vulnerabilities',
-            'security-scanner_page_webcare-pro-firewall',
-            'security-scanner_page_webcare-pro-caf',
-            'security-scanner_page_webcare-pro-vpatch',
-            'security-scanner_page_webcare-pro-waf-logs',
-            'security-scanner_page_webcare-pro-fim',
-            'security-scanner_page_webcare-pro-auth',
-            'security-scanner_page_webcare-pro-notifications',
-            'security-scanner_page_webcare-pro-activity-logs',
-            'security-scanner_page_webcare-pro-settings',
-            'security-scanner_page_webcare-pro-about',
+            'webcare-pro-security_page_webcare-pro-wizard',
         ];
 
         // Also check query param fallback
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        $is_webcare_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'webcare-') !== false || $current_page === 'webcare-pro-security';
+        $is_webcare_page = in_array($hook, $valid_hooks, true) || strpos($current_page, 'webcare-pro-') === 0;
 
         if (!$is_webcare_page) {
             return;
@@ -808,69 +768,6 @@ class AdminMenu {
                 wp_safe_redirect(admin_url('admin.php?page=webcare-pro-wizard'));
                 exit;
             }
-        }
-    }
-
-    /**
-     * Seamlessly redirect legacy or shorthand administrative page slugs to their modern WebCare Pro equivalents.
-     * Prevents "Sorry, you are not allowed to access this page" errors when clicking shorthand links or legacy bookmarks.
-     */
-    public static function handle_legacy_slug_redirects() {
-        if (!is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
-            return;
-        }
-
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Safe low-level GET navigation router before capability check.
-        if (empty($_GET['page']) || !is_string($_GET['page'])) {
-            return;
-        }
-
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $page = sanitize_key(wp_unslash($_GET['page']));
-
-        $shorthand_map = [
-            'firewall'        => 'webcare-pro-firewall',
-            'waf'             => 'webcare-pro-waf-logs',
-            'waf-logs'        => 'webcare-pro-waf-logs',
-            'waf_logs'        => 'webcare-pro-waf-logs',
-            'scan'            => 'webcare-pro-scan',
-            'scanner'         => 'webcare-pro-scan',
-            'fim'             => 'webcare-pro-fim',
-            'auth'            => 'webcare-pro-auth',
-            'vault'           => 'webcare-pro-vault',
-            'quarantine'      => 'webcare-pro-vault',
-            'forensics'       => 'webcare-pro-forensics',
-            'settings'        => 'webcare-pro-settings',
-            'vpatch'          => 'webcare-pro-vpatch',
-            'tools'           => 'webcare-pro-tools',
-            'logs'            => 'webcare-pro-logs',
-            'backup'          => 'webcare-pro-backup',
-            'wizard'          => 'webcare-pro-wizard',
-            'notifications'   => 'webcare-pro-notifications',
-            'activity-logs'   => 'webcare-pro-activity-logs',
-            'activity_logs'   => 'webcare-pro-activity-logs',
-            'about'           => 'webcare-pro-about',
-            'security'        => 'webcare-pro-security',
-            'dashboard'       => 'webcare-pro-security',
-        ];
-
-        $target = null;
-        if (isset($shorthand_map[$page])) {
-            $target = $shorthand_map[$page];
-        } elseif (strpos($page, 'wcp-scanner-') === 0) {
-            $target = str_replace('wcp-scanner-', 'webcare-pro-', $page);
-        } elseif (strpos($page, 'wcp-') === 0) {
-            $target = str_replace('wcp-', 'webcare-pro-', $page);
-        } elseif (strpos($page, 'wcpscan_') === 0) {
-            $target = str_replace('wcpscan_', 'webcare-pro-', $page);
-        }
-
-        if ($target !== null) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $query_args = array_map('sanitize_text_field', wp_unslash($_GET));
-            $query_args['page'] = $target;
-            wp_safe_redirect(add_query_arg($query_args, admin_url('admin.php')));
-            exit;
         }
     }
 
