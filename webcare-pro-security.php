@@ -78,11 +78,6 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// Load plugin text domain
-add_action('init', function () {
-    load_plugin_textdomain('webcare-pro-security', false, dirname(plugin_basename(__FILE__)) . '/languages');
-});
-
 // Composer Autoloader (if present)
 if (file_exists(WEBCAREPROSCAN_PATH . 'vendor/autoload.php')) {
     require_once WEBCAREPROSCAN_PATH . 'vendor/autoload.php';

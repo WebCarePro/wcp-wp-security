@@ -1,6 +1,6 @@
 {
   "version": "2.9.0",
-  "generated_at": "2026-11-09T04:18:02.247Z",
+  "generated_at": "2026-11-09T04:22:12.598Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -816,8 +816,8 @@
       "size": 10615
     },
     "webcare-pro-security.php": {
-      "sha256": "d9468598059bdf6d6e0871b91257e96ce7103465727d4314a4637b2c80fd296c",
-      "size": 8764
+      "sha256": "1c79ead0e2f550072ec436ffc2e0f7833e189d2535d33a383a149c0f9734646b",
+      "size": 8589
     }
   }
 }
