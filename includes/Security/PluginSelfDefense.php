@@ -436,7 +436,7 @@ class PluginSelfDefense {
         }
 
         $raw_host = 'raw.' . 'githubusercontent' . '.com';
-        $remote_url = "https://{$raw_host}/WebCarePro/wcp-wp-security/main/includes/System/plugin-manifest.json";
+        $remote_url = "https://{$raw_host}/WebCarePro/webcare-pro-security/main/includes/System/plugin-manifest.json";
         $res = wp_remote_get($remote_url, [
             'timeout'    => 12,
             'user-agent' => 'WEBCARE-Self-Defense/' . (defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '1.0'),
@@ -561,7 +561,7 @@ class PluginSelfDefense {
 
         $expected_hash = is_array($expected_meta) ? ($expected_meta['sha256'] ?? '') : (string)$expected_meta;
         $raw_host = 'raw.' . 'githubusercontent' . '.com';
-        $github_raw_url = "https://{$raw_host}/WebCarePro/wcp-wp-security/main/" . $clean_path;
+        $github_raw_url = "https://{$raw_host}/WebCarePro/webcare-pro-security/main/" . $clean_path;
 
         $response = wp_remote_get($github_raw_url, [
             'timeout'    => 15,

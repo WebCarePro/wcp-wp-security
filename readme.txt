@@ -206,7 +206,7 @@ This plugin can optionally connect to the following external third-party service
 This plugin is open-source under GPLv2 or later. Non-minified React and JavaScript source files are included directly in the `src/` directory.
 
 The public source repository is hosted on GitHub:
-https://github.com/webcarepro/wcp-wp-security
+https://github.com/webcarepro/webcare-pro-security
 
 To compile the React admin application from source:
 1. Ensure Node.js 18+ and npm are installed.

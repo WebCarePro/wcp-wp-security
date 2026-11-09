@@ -1,6 +1,6 @@
 {
   "version": "2.9.0",
-  "generated_at": "2026-11-09T04:06:45.277Z",
+  "generated_at": "2026-11-09T04:18:02.247Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -80,12 +80,12 @@
       "size": 914
     },
     "build/index.asset.php": {
-      "sha256": "64cd18731186b274c0f95189293705083afef319c8a29673eb8db3d7ae27641e",
+      "sha256": "b0ffdf6fca17963833434ed41f23a7dfd05956bfe0865a466a5ad894a6e52a99",
       "size": 163
     },
     "build/index.js": {
-      "sha256": "db7444d6e8db0d114553267ca36613cf9429d1871af58b6e9c21806ac6c693ff",
-      "size": 2520489
+      "sha256": "857faa82e0567061d523509be69230c1662775b3efd63aeb0c699408e3db11d9",
+      "size": 2520491
     },
     "build/notifications.asset.php": {
       "sha256": "0361bcf8fb8fd5f8dcd72307073bfd36782e5c3e60fe421e03820a0d0cb8c9fc",
@@ -96,20 +96,20 @@
       "size": 116360
     },
     "build/scan.asset.php": {
-      "sha256": "b8070311e8c75c789102bbec786ab0d7a711040e901e2c214511709d6e734ccb",
+      "sha256": "4c09b7d3a4002bd4962b66057eb16c1b43c1bcea9d0dbf9ce2643825ea622477",
       "size": 163
     },
     "build/scan.js": {
-      "sha256": "139fab1b40a888b01d484860c46535210136300e1d25725035990492b77a4344",
-      "size": 2519866
+      "sha256": "941e72319d8277bac07b1368eb7ce009a85b298fb2ecbef755e4dccd49cdef6d",
+      "size": 2519868
     },
     "build/settings.asset.php": {
-      "sha256": "67baf6a94c8f531a073ec71ea2bbe74daff370ac1ba09471021602ea9b5fe6bb",
+      "sha256": "582af9f7554a2cc8f79ac69143d74ff43fe49c28b3b7096b4f3c7d8160e060ec",
       "size": 163
     },
     "build/settings.js": {
-      "sha256": "f66a45118ef5d03f86824568cf313def21ad5e0477b12d65172f2353c34b25db",
-      "size": 352568
+      "sha256": "17e6dc01f92643cf18f0a350717cd0c557f05d967a8053370390f3c6181eb2b5",
+      "size": 352570
     },
     "build/vault.asset.php": {
       "sha256": "7b48ad2bfc295ca5a639d0d133664165d96c26422aae57e07d60457693b3ce27",
@@ -128,12 +128,12 @@
       "size": 217806
     },
     "build/wizard.asset.php": {
-      "sha256": "33d04d24faff4bd53da674dd5912dd1bacfc74529b538a3ad0212a16ea8eb922",
+      "sha256": "1f20040e9465d279dbb259055f07df28405a4b0af06dc0262d99c9a0cf658ea3",
       "size": 163
     },
     "build/wizard.js": {
-      "sha256": "1c27a632f078c64eb98724ae371f00b3d0fe499c6670298a91d4c0db8e880bf4",
-      "size": 99660
+      "sha256": "3140911562b6fc1250f98e686c1045ad7b3a26611f673e7c60c2d1194e1c384d",
+      "size": 99661
     },
     "composer.json": {
       "sha256": "c8da82c3bdaa6143faa9a2afb4bf49271716218c26dd822743de68066b642f46",
@@ -644,8 +644,8 @@
       "size": 20821
     },
     "includes/Security/PluginSelfDefense.php": {
-      "sha256": "e40957a2aeba7eb6285192b617099a6dedc781631c5b418337a8dcaf214c2664",
-      "size": 26561
+      "sha256": "723d73fa9bd90bc40d5b5bce9fd80a93810b6a52c40b2e6dd3d83c585ea617ad",
+      "size": 26571
     },
     "includes/Security/PromptInjectionGuard.php": {
       "sha256": "ab6eaa93efd633cb0c41028e0e878db5fa8adfdffc169485121c66a058bd27bc",
@@ -804,12 +804,12 @@
       "size": 437
     },
     "README.md": {
-      "sha256": "a98fc47c0300a3264444c70e3c98534641fb2651d6daa978c67d22175e0de291",
-      "size": 63486
+      "sha256": "d07d9d227a505e5f319359fa257ed465d9e4b86baa9ab5706870c1068651047e",
+      "size": 63493
     },
     "readme.txt": {
-      "sha256": "e1cf71ec508945a7e6340cb7ef701016628a71443f24226e105afee01a7849f4",
-      "size": 29951
+      "sha256": "936e2332e026c7a73f1b428752ba8c602818ed3c1c6ea510f417a378f9cfc626",
+      "size": 29956
     },
     "uninstall.php": {
       "sha256": "4f8d67470aee35d4a60bb0db304ed5e1407ea913eb27586bf7f75764204e2ec0",

@@ -12,10 +12,10 @@
   <a href="https://wordpress.org/"><img src="https://img.shields.io/badge/WordPress-7.0%2B-blue.svg?logo=wordpress" alt="WordPress Version"/></a>
   <a href="https://www.php.net/"><img src="https://img.shields.io/badge/PHP-8.3%2B-777BB4.svg?logo=php" alt="PHP Version"/></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB.svg?logo=react" alt="React 18"/></a>
-  <a href="https://github.com/WebCarePro/webcare-wp-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
+  <a href="https://github.com/WebCarePro/webcare-pro-security/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv2%2B-green.svg" alt="License"/></a>
   <a href="https://www.upwork.com/freelancers/~0162afa9a578170c67"><img src="https://img.shields.io/badge/Upwork-Top%20Rated%20Plus%20★%20100%25%20JSS-14A800.svg?logo=upwork" alt="Upwork Top Rated Plus"/></a>
-  <a href="https://github.com/WebCarePro/webcare-wp-security"><img src="https://img.shields.io/badge/Release-v2.9.0-orange.svg" alt="Release Version"/></a>
-  <a href="https://github.com/WebCarePro/webcare-wp-security"><img src="https://img.shields.io/badge/Status-Public%20Beta%20%7C%20Active%20Dev-blue?style=flat&logo=git" alt="Status"/></a>
+  <a href="https://github.com/WebCarePro/webcare-pro-security"><img src="https://img.shields.io/badge/Release-v2.9.0-orange.svg" alt="Release Version"/></a>
+  <a href="https://github.com/WebCarePro/webcare-pro-security"><img src="https://img.shields.io/badge/Status-Public%20Beta%20%7C%20Active%20Dev-blue?style=flat&logo=git" alt="Status"/></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy%20%26%20Disclosure-blue.svg?logo=securityscorecard" alt="Security Policy"/></a>
   <a href="#22-model-context-protocol-mcp-agentic-surface-ai-secops-automation"><img src="https://img.shields.io/badge/Agentic-Model%20Context%20Protocol%20(MCP)-purple.svg?logo=anthropic" alt="MCP Ready"/></a>
   <a href="#-featured-spotlight-cryptographic-secret-vault--database-encryption-at-rest"><img src="https://img.shields.io/badge/Security-AES--256--GCM%20AEAD%20Vault-blueviolet.svg?logo=securityscorecard&logoColor=white" alt="Cryptographic Secret Vault"/></a>
@@ -452,8 +452,8 @@ Security plugins solve overlapping problems through different architectures. Thi
 ### Building from Source:
 ```bash
 # Clone the repository
-git clone https://github.com/WebCarePro/webcare-wp-security.git
-cd webcare-wp-security
+git clone https://github.com/WebCarePro/webcare-pro-security.git
+cd webcare-pro-security
 
 # Install dependencies
 npm install
@@ -542,7 +542,7 @@ Have questions, need an emergency malware cleanup, or want to hire a certified S
 - 👥 **Microsoft Teams:** [Connect on MS Teams](https://teams.live.com/l/invite/FEAI60zv48mwbIKhA?v=g1)
 - 📧 **Direct Email:** [hello@webcarespro.com](mailto:hello@webcarespro.com)
 - 🐙 **GitHub Organization:** [https://github.com/WebCarePro](https://github.com/WebCarePro)
-- 📦 **Repository:** [https://github.com/WebCarePro/webcare-wp-security](https://github.com/WebCarePro/webcare-wp-security)
+- 📦 **Repository:** [https://github.com/WebCarePro/webcare-pro-security](https://github.com/WebCarePro/webcare-pro-security)
 
 ---
 
