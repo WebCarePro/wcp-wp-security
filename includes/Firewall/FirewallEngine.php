@@ -2346,7 +2346,9 @@ class FirewallEngine {
             || class_exists('BuddyBoss_Platform') || defined('BP_PLATFORM_VERSION') // BuddyBoss Platform
             || class_exists('Youzify') || defined('YOUZIFY_VERSION'); // Youzify
 
-        return $has_ecommerce || $has_membership || $has_profiles || defined('WEBCARE_COMMERCE_OVERRIDE');
+        $has_archetype_commerce = in_array(get_option('webcareproscan_site_archetype'), ['ecommerce', 'membership'], true);
+
+        return $has_ecommerce || $has_membership || $has_profiles || $has_archetype_commerce || defined('WEBCARE_COMMERCE_OVERRIDE');
     }
 
     /**

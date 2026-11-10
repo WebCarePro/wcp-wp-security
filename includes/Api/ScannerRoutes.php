@@ -1955,7 +1955,10 @@ class ScannerRoutes {
 
         // Detect archetype
         $archetype = 'business';
-        if (class_exists('WooCommerce')) {
+        $saved_archetype = get_option('webcareproscan_site_archetype');
+        if (!empty($saved_archetype) && in_array($saved_archetype, ['ecommerce', 'membership', 'business', 'blog'], true)) {
+            $archetype = $saved_archetype;
+        } elseif (class_exists('WooCommerce')) {
             $archetype = 'ecommerce';
         } elseif (class_exists('MemberPress') || class_exists('LearnDash_Settings_Section') || class_exists('LifterLMS')) {
             $archetype = 'membership';
@@ -2050,13 +2053,77 @@ class ScannerRoutes {
             $archetype = sanitize_key($params['archetype'] ?? 'business');
             update_option('webcareproscan_site_archetype', $archetype);
 
-            // 3. Firewall Toggles
+            // 3. Firewall Toggles & Archetype Smart Rules
             $waf_settings = get_option('webcareproscan_waf_settings', []);
+            $firewall_payload = [];
+
             if (isset($params['firewall_settings']) && is_array($params['firewall_settings'])) {
-                foreach ($params['firewall_settings'] as $k => $v) {
-                    $waf_settings[sanitize_key($k)] = (bool) $v;
+                $fs = $params['firewall_settings'];
+                foreach ($fs as $k => $v) {
+                    $clean_k = sanitize_key($k);
+                    $waf_settings[$clean_k] = (bool) $v;
                 }
                 update_option('webcareproscan_waf_settings', $waf_settings);
+
+                // Map high-level wizard switches to exact SettingsManager keys
+                if (isset($fs['waf_block_uploads_exec'])) {
+                    $firewall_payload['waf_block_malicious_uploads'] = (bool) $fs['waf_block_uploads_exec'];
+                    $firewall_payload['waf_block_uploads_php_exec']  = (bool) $fs['waf_block_uploads_exec'];
+                }
+                if (isset($fs['waf_enable_brute_force_shield'])) {
+                    $firewall_payload['login_hardening_enabled'] = (bool) $fs['waf_enable_brute_force_shield'];
+                    $firewall_payload['waf_login_rate_limit']    = (bool) $fs['waf_enable_brute_force_shield'];
+                    $firewall_payload['waf_disable_xmlrpc']      = (bool) $fs['waf_enable_brute_force_shield'];
+                }
+                if (isset($fs['waf_enable_virtual_patching'])) {
+                    $firewall_payload['waf_block_sqli']          = (bool) $fs['waf_enable_virtual_patching'];
+                    $firewall_payload['waf_block_xss']           = (bool) $fs['waf_enable_virtual_patching'];
+                    $firewall_payload['waf_block_traversal']     = (bool) $fs['waf_enable_virtual_patching'];
+                    $firewall_payload['waf_block_php_injection'] = (bool) $fs['waf_enable_virtual_patching'];
+                }
+                if (isset($fs['waf_block_bad_bots'])) {
+                    $firewall_payload['waf_block_fake_bots']    = (bool) $fs['waf_block_bad_bots'];
+                    $firewall_payload['waf_block_404_scanners'] = (bool) $fs['waf_block_bad_bots'];
+                }
+
+                // Passthrough any explicit settings keys passed
+                foreach ($fs as $k => $v) {
+                    $clean_k = sanitize_key($k);
+                    if (str_starts_with($clean_k, 'waf_') || str_starts_with($clean_k, 'form_') || str_starts_with($clean_k, 'login_')) {
+                        $firewall_payload[$clean_k] = (bool) $v;
+                    }
+                }
+            }
+
+            // Apply Archetype-specific Smart Rules & CAF Protection Profile
+            if ($archetype === 'ecommerce') {
+                $firewall_payload['waf_ecommerce_safe_mode']         = true;
+                $firewall_payload['waf_woo_carding_protection']      = true;
+                $firewall_payload['waf_woo_coupon_protection']       = true;
+                $firewall_payload['waf_woo_registration_protection'] = true;
+                $firewall_payload['waf_woo_cart_flood_protection']   = true;
+                $firewall_payload['waf_woo_scraping_protection']     = true;
+
+                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+                    $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+                    $advisor->apply_profile(\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::PROFILE_ECOMMERCE_HARDENED);
+                }
+            } elseif ($archetype === 'membership') {
+                $firewall_payload['waf_ecommerce_safe_mode'] = true;
+
+                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+                    $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+                    $advisor->apply_profile(\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::PROFILE_ECOMMERCE_HARDENED);
+                }
+            } elseif ($archetype === 'business' || $archetype === 'blog') {
+                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+                    $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+                    $advisor->apply_profile(\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::PROFILE_BALANCED);
+                }
+            }
+
+            if (!empty($firewall_payload) && class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
+                \WebCareProScanner\System\SettingsManager::save_settings($firewall_payload);
             }
 
             // 4. Cloudflare Integration (if provided)
