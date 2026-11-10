@@ -1,3 +1,10 @@
+v:2.11.0 - 2026-11-11
+- Cloudflare Edge Rule 1 & Jetpack Smart Rules Integration:
+  * Removed /xmlrpc.php from Cloudflare Rule 1 Perimeter Block: Stripped /xmlrpc.php from the Anycast Edge Wirefilter expression in CloudflareSlotOptimizer.php, ensuring Cloudflare passes XML-RPC traffic to the origin server instead of unconditionally dropping it at the edge.
+  * Uninterrupted Jetpack Synchronization: Enabled full operation of the origin Local WAF's Automattic Jetpack Smart Pass (is_verified_jetpack_request()), permitting authentic synchronization requests from official Automattic CIDR subnets (192.0.64.0/18, 198.181.116.0/22, etc.) and valid HMAC tokens while XML-RPC blocking is active.
+  * Full Origin XML-RPC DDoS & Brute-Force Protection: Retained instant 403 blocking (WAF-XMLRPC-DISABLED) and ThreatScore tracking on origin for unauthorized XML-RPC probes, brute-force password guessing, and pingback amplification, automatically queuing offending IPs for Cloudflare Edge IP Access Rule bans.
+  * Synchronized Edge Rule Descriptions: Updated Rule 1 metadata and descriptions across CloudflareService.php and React dashboard views (FirewallPage.tsx) to reflect the refined edge perimeter scope.
+
 v:2.10.0 - 2026-11-10
 - 2026 Advanced Smart Rules (Rules #48–#54) & Edge Armor Implementation:
   * Smart Rule #48 (?rest_route= Query Smuggling & HTTP Method Override Guard): Normalized ?rest_route= query parameter extraction across MicroWafCompiler and FirewallEngine so attackers cannot bypass /wp-json/ rules via query routing, blocked unauthenticated HTTP method overrides (_method=DELETE, X-HTTP-Method-Override: PUT) across the local WAF, and added lower(http.request.uri.query) contains "wp/v2/users" user enumeration coverage to Cloudflare Rule 4.

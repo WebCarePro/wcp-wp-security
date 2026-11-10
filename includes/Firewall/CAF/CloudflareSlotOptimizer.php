@@ -342,7 +342,7 @@ class CloudflareSlotOptimizer {
             $clauses[] = '(ip.src in $' . CloudflareIpListSynchronizer::LIST_NAME . ')';
         }
 
-        $clauses[] = '(http.request.uri.path in {"/xmlrpc.php" "/wp-config.php" "/.env" "/.git/config" "/wp-content/debug.log"})';
+        $clauses[] = '(http.request.uri.path in {"/wp-config.php" "/.env" "/.git/config" "/wp-content/debug.log"})';
         $clauses[] = '((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})';
         $clauses[] = '(http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "ini"})';
         $clauses[] = '(http.request.method in {"TRACE" "TRACK" "DEBUG"})';

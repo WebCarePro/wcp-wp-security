@@ -417,7 +417,7 @@ export const FirewallPage = ({
       id: 'webcareproscan_compound_perimeter',
       title: 'Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
       badge: 'Edge Shield',
-      description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.',
+      description: 'Drops uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods in 1 single unified rule.',
       action: 'block',
       expression: ''
     },
@@ -769,7 +769,7 @@ export const FirewallPage = ({
       id: 'webcare_compound_perimeter',
       title: 'Rule 1: Zero-Day Perimeter, Malicious Sinks & Threat List',
       badge: 'Edge Shield',
-      description: 'Drops /xmlrpc.php abuse, uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
+      description: 'Drops uploads directory PHP webshell execution, sensitive file probes (.env, .git, .sql, .bak, debug.log, wp-config.php), and hostile HTTP methods (TRACE/TRACK) in 1 single Free rule.',
       action: 'block',
       action_label: 'Block',
       expression: ''
