@@ -67,6 +67,9 @@ final class AdaptiveFirewallAdvisor {
 				if ( preg_match( '/(?:elementor|divi-builder|bricks|beaver-builder|bb-plugin|js_composer)/i', $active_str ) ) {
 					$eco[] = 'page_builder';
 				}
+				if ( preg_match( '/(?:post-smtp|postman|wp-mail-smtp|fluent-smtp|easy-wp-smtp|smtp-mailer|suremails|wp-offload-ses|mailgun|sendgrid|sparkpost|mailin|brevo|postmark|zoho-mail)/i', $active_str ) ) {
+					$eco[] = 'email_smtp';
+				}
 				self::$runtime_ecosystems = $eco;
 			}
 		}
@@ -225,6 +228,8 @@ final class AdaptiveFirewallAdvisor {
 					$detected_ecosystems[] = 'lms_membership';
 				} elseif ( 'fluent-crm' === $slug ) {
 					$detected_ecosystems[] = 'fluent-crm';
+				} elseif ( in_array( $slug, [ 'post-smtp', 'wp-mail-smtp', 'wp-mail-smtp-pro', 'fluent-smtp', 'easy-wp-smtp', 'smtp-mailer', 'suremails', 'wp-offload-ses', 'mailgun', 'sendgrid-email-delivery-simplified', 'sparkpost', 'mailin', 'brevo-mail', 'postmark-approved-wordpress-plugin', 'zoho-mail' ], true ) || str_contains( $file, 'postman-smtp' ) || str_contains( $slug, 'smtp' ) ) {
+					$detected_ecosystems[] = 'email_smtp';
 				}
 			} else {
 				$inactive_plugins[ $slug ] = $item;

@@ -1,6 +1,6 @@
 {
   "version": "2.10.0",
-  "generated_at": "2026-11-09T18:42:26.094Z",
+  "generated_at": "2026-11-10T06:23:45.005Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -332,8 +332,8 @@
       "size": 27875
     },
     "includes/Firewall/CAF/AdaptiveFirewallAdvisor.php": {
-      "sha256": "15bd0532fc8408f6891274e402a45bc8fda08f2ad37b878c4ce75d893ff02499",
-      "size": 24155
+      "sha256": "6048bf87ddd7559105af729bf025ceae16cec53389ef0f9cc7cbeca7cafb2769",
+      "size": 24818
     },
     "includes/Firewall/CAF/CloudflareIpListSynchronizer.php": {
       "sha256": "266d040fdcdb9f4698ee909eab22abe38731231c6bbdb0d171157ef1389e407f",
@@ -344,8 +344,8 @@
       "size": 24261
     },
     "includes/Firewall/CAF/ConflictAvoidanceEngine.php": {
-      "sha256": "de1f98689ba7aa423444720cdeed6a6278e89637ea7be0f858523c29194749cd",
-      "size": 4040
+      "sha256": "552a2b9d16d8621331c14a7e2985f7c6dc2b8e30e8f957df6026f779e154fcf8",
+      "size": 4976
     },
     "includes/Firewall/CAF/LearningModeEngine.php": {
       "sha256": "2b63d96e99b432f0f14a892a54723c9bdb9d86cee83585b7f55793b6eb8dc1a4",
@@ -412,8 +412,8 @@
       "size": 45978
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
-      "sha256": "6cf875a62a4d3c7af8f8eb330e5c53b95ed809c9b723210e33437554c2c034d2",
-      "size": 37155
+      "sha256": "bcb3b33e8492a07cff98504cb69659fcd217880a67de80a2e5920b42343d1dc4",
+      "size": 47740
     },
     "includes/Firewall/RedirectCanaryEngine.php": {
       "sha256": "56274c67e9dfe6725a2e6952590e5df70f2db524e657efcb8201b762048e1e5c",

@@ -110,6 +110,20 @@ final class ConflictAvoidanceEngine {
 			];
 		}
 
+		// 6. Transactional Email & SMTP Senders (Post SMTP, WP Mail SMTP, FluentSMTP, Easy WP SMTP, SureMails)
+		if ( in_array( 'email_smtp', $snapshot->detected_ecosystems, true ) || ! empty( array_intersect( $active_slugs, [ 'post-smtp', 'wp-mail-smtp', 'wp-mail-smtp-pro', 'fluent-smtp', 'easy-wp-smtp', 'smtp-mailer', 'suremails' ] ) ) ) {
+			$exemptions['rest_exempt_namespaces'][] = 'post-smtp/v1';
+			$exemptions['rest_exempt_namespaces'][] = 'wp-mail-smtp/v1';
+			$exemptions['rest_exempt_namespaces'][] = 'fluent-smtp/v1';
+
+			$exemptions['scoped_rules'][] = [
+				'context'     => 'email_smtp',
+				'route'       => 'action=post_smtp_test,action=post_smtp_send_test_email,action=wp_mail_smtp_test,action=fluent_smtp_test_email',
+				'capability'  => 'manage_options',
+				'description' => 'Exempt authenticated transactional email tests, diagnostic transcripts, and OAuth authorization callbacks from WAF rate limits.',
+			];
+		}
+
 		return $exemptions;
 	}
 }

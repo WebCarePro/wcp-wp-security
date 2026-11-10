@@ -55,18 +55,85 @@ class OutboundEgressFirewall {
         'api.cloudflare.com',
         'secure.gravatar.com',
         'api.github.com',
-        // Popular Transactional Mailers & DevSecOps
+        // Google Services & Gmail API (OAuth & SMTP)
+        'googleapis.com',
+        'www.googleapis.com',
+        'accounts.google.com',
+        'gmail.googleapis.com',
+        'oauth2.googleapis.com',
+        'smtp.gmail.com',
+        // Microsoft 365, Office 365 & Outlook Services
+        'microsoft.com',
+        'graph.microsoft.com',
+        'login.microsoftonline.com',
+        'outlook.office.com',
+        'outlook.office365.com',
+        'smtp.office365.com',
+        // Amazon Web Services (SES & Cloud APIs)
+        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Outbound mailer destination allowlist, not offloaded scripts.
+        'amazonaws.com',
+        // Transactional Mailers & SMTP Relays (Post SMTP, WP Mail SMTP, FluentSMTP)
+        'sendgrid.com',
         'api.sendgrid.com',
+        'sendgrid.net',
+        'smtp.sendgrid.net',
+        'mailgun.net',
         'api.mailgun.net',
+        'mailgun.org',
+        'smtp.mailgun.org',
+        'postmarkapp.com',
         'api.postmarkapp.com',
+        'smtp.postmarkapp.com',
+        'brevo.com',
         'api.brevo.com',
+        'smtp-relay.brevo.com',
+        'sendinblue.com',
+        'mailersend.com',
+        'api.mailersend.com',
+        'mailtrap.io',
+        'api.mailtrap.io',
+        'send.api.mailtrap.io',
+        'live.smtp.mailtrap.io',
+        'resend.com',
+        'api.resend.com',
+        'smtp.resend.com',
+        'mandrillapp.com',
+        'smtp.com',
+        'api.smtp.com',
+        'mailjet.com',
+        'api.mailjet.com',
+        'in-v3.mailjet.com',
+        'sendpulse.com',
+        'api.sendpulse.com',
+        'smtp-pulse.com',
+        'sparkpost.com',
+        'api.sparkpost.com',
+        'sparkpostmail.com',
+        'smtp.sparkpostmail.com',
+        'elasticemail.com',
+        'api.elasticemail.com',
+        'smtp.elasticemail.com',
+        'smtp2go.com',
+        'api.smtp2go.com',
+        'mail.smtp2go.com',
+        'emailit.com',
+        'api.emailit.com',
+        'maileroo.com',
+        'api.maileroo.com',
+        'smtp.maileroo.com',
+        'sweego.com',
+        'api.sweego.com',
+        'zoho.com',
+        'zoho.eu',
+        'smtp.zoho.com',
+        'accounts.zoho.com',
+        'fastmail.com',
+        'smtp.fastmail.com',
+        // DevSecOps Webhooks & Notifications
         'hooks.slack.com',
         'slack.com',
         'api.clickup.com',
         'app.asana.com',
-        // Google Services
-        'googleapis.com',
-        'accounts.google.com',
     ];
 
     /**
@@ -139,14 +206,31 @@ class OutboundEgressFirewall {
             return;
         }
 
-        // Restrict allowed protocols and redirection protocols strictly to HTTP and HTTPS
-        if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
-            @curl_setopt($handle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        // Restrict allowed protocols and redirection protocols strictly to HTTP and HTTPS (and SMTP/SMTPS for verified mailers)
+        $is_mailer = self::is_active_mailer_component(self::extract_calling_component());
+        $allowed_protocols = 0;
+        if (defined('CURLPROTO_HTTP')) {
+            $allowed_protocols |= CURLPROTO_HTTP;
         }
-        if (defined('CURLOPT_REDIR_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+        if (defined('CURLPROTO_HTTPS')) {
+            $allowed_protocols |= CURLPROTO_HTTPS;
+        }
+        if ($is_mailer) {
+            if (defined('CURLPROTO_SMTP')) {
+                $allowed_protocols |= CURLPROTO_SMTP;
+            }
+            if (defined('CURLPROTO_SMTPS')) {
+                $allowed_protocols |= CURLPROTO_SMTPS;
+            }
+        }
+
+        if (defined('CURLOPT_PROTOCOLS') && $allowed_protocols > 0) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
-            @curl_setopt($handle, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+            @curl_setopt($handle, CURLOPT_PROTOCOLS, $allowed_protocols);
+        }
+        if (defined('CURLOPT_REDIR_PROTOCOLS') && $allowed_protocols > 0) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt
+            @curl_setopt($handle, CURLOPT_REDIR_PROTOCOLS, $allowed_protocols);
         }
 
         // Redirect-Hop SSRF Defense: Limit internal cURL follow-redirect hops to 3 to prevent infinite redirect loops
@@ -274,6 +358,13 @@ class OutboundEgressFirewall {
 
         // 1. Identify calling plugin or theme via backtrace
         $caller = self::extract_calling_component();
+        $is_mailer = self::is_active_mailer_component($caller);
+
+        // Smart Mailer Fast-Path:
+        // If caller is an active transactional mailer or wp_mail(), and target host is approved (including same-domain mail servers and dynamic relays), grant safe-pass immediately.
+        if ($is_mailer && self::is_host_approved($host, $settings)) {
+            return false;
+        }
 
         $threat = null;
         $reason = '';
@@ -290,6 +381,13 @@ class OutboundEgressFirewall {
 
             // Standard allowed outbound web ports
             $allowed_web_ports = [80, 443, 8080, 8443];
+
+            // Transactional mail ports (SMTP, SMTPS, Submission, Alternate)
+            $standard_mail_ports = [25, 465, 587, 2525];
+            if ($is_mailer || self::is_same_domain_mail_host($host) || self::is_host_approved($host, $settings)) {
+                $allowed_web_ports = array_merge($allowed_web_ports, $standard_mail_ports);
+            }
+
             if ($site_port > 0 && !in_array($site_port, $allowed_web_ports, true)) {
                 $allowed_web_ports[] = $site_port;
             }
@@ -307,8 +405,11 @@ class OutboundEgressFirewall {
                 }
             }
 
-            // High-risk internal ports that should never be probed even on same host (e.g., Redis, Memcached, MySQL, Postgres, MongoDB, Elastic, SMTP)
-            $restricted_internal_ports = [3306, 5432, 6379, 11211, 27017, 9200, 25, 22, 23, 21];
+            // High-risk internal ports that should never be probed even on same host (e.g., Redis, Memcached, MySQL, Postgres, MongoDB, Elastic)
+            $restricted_internal_ports = [3306, 5432, 6379, 11211, 27017, 9200, 22, 23, 21];
+            if (!$is_mailer && !self::is_same_domain_mail_host($host) && !self::is_host_approved($host, $settings)) {
+                $restricted_internal_ports[] = 25;
+            }
 
             $is_same_host = ($host === $site_host) || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
             $is_wp_cron_or_loopback = (strpos($request_path, 'wp-cron.php') !== false) || (strpos($request_path, 'wp-admin') !== false) || (strpos($request_path, 'wp-json') !== false);
@@ -738,19 +839,200 @@ class OutboundEgressFirewall {
     }
 
     /**
-     * Check if a host is in the approved hosts allowlist.
+     * Check if caller or backtrace indicates an active email sending plugin or wp_mail dispatch.
      *
-     * @param string $host
-     * @param array  $settings
+     * @param array $caller
      * @return bool
      */
-    private static function is_host_approved(string $host, array $settings): bool {
-        $approved = array_merge(self::DEFAULT_APPROVED_HOSTS, $settings['allowed_hosts'] ?? []);
-        foreach ($approved as $pattern) {
-            if ($host === $pattern || str_ends_with($host, '.' . $pattern)) {
+    public static function is_active_mailer_component(array $caller): bool {
+        $mailer_slugs = [
+            'post-smtp',
+            'wp-mail-smtp',
+            'wp-mail-smtp-pro',
+            'fluent-smtp',
+            'easy-wp-smtp',
+            'smtp-mailer',
+            'suremails',
+            'wp-offload-ses',
+            'mailgun',
+            'sendgrid-email-delivery-simplified',
+            'sparkpost',
+            'mailin',
+            'brevo-mail',
+            'postmark-approved-wordpress-plugin',
+            'zoho-mail',
+        ];
+
+        $caller_slug = strtolower($caller['slug'] ?? '');
+        if (in_array($caller_slug, $mailer_slugs, true)) {
+            return true;
+        }
+
+        // Check if wp_mail or PHPMailer is active in the backtrace
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Backtrace inspection needed to verify legitimate wp_mail / PHPMailer transactional email dispatch.
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 15);
+        foreach ($trace as $frame) {
+            $func = strtolower($frame['function'] ?? '');
+            $cls  = strtolower($frame['class'] ?? '');
+            if ($func === 'wp_mail' || str_contains($cls, 'phpmailer') || str_contains($func, 'postman') || str_contains($cls, 'postman')) {
                 return true;
             }
         }
+
+        return false;
+    }
+
+    /**
+     * Check if a destination host belongs to the site's own primary apex domain (e.g. mail.example.com or smtp.example.com for example.com).
+     *
+     * @param string $host Destination host to check
+     * @param string $site_host_override Optional site host to check against (defaults to home_url/site_url)
+     * @return bool
+     */
+    public static function is_same_domain_mail_host(string $host, string $site_host_override = ''): bool {
+        if (empty($host)) {
+            return false;
+        }
+        $clean_host = strtolower(trim($host));
+        $site_host  = strtolower(trim($site_host_override));
+        if (empty($site_host)) {
+            $site_host = strtolower(wp_parse_url(home_url(), PHP_URL_HOST) ?? '');
+            if (empty($site_host)) {
+                $site_host = strtolower(wp_parse_url(site_url(), PHP_URL_HOST) ?? '');
+            }
+        }
+        if (empty($site_host)) {
+            return false;
+        }
+        if ($site_host_override === '' && in_array($site_host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return false;
+        }
+
+        // Exact match with site host
+        if ($clean_host === $site_host) {
+            return true;
+        }
+
+        // Strip leading www. to extract apex/root domain
+        $root_domain = preg_replace('/^www\./i', '', $site_host);
+
+        // Check if destination is the root domain or any subdomain (e.g. mail.example.com, smtp.example.com, mx.example.com)
+        if ($clean_host === $root_domain || str_ends_with($clean_host, '.' . $root_domain)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Dynamically extract configured SMTP / API mailer hostnames from active WordPress mailer plugin options.
+     *
+     * @param bool $force Force fresh reload bypassing static cache
+     * @return array<string>
+     */
+    public static function get_dynamic_mailer_hosts(bool $force = false): array {
+        static $cached_hosts = null;
+        if ($cached_hosts !== null && !$force) {
+            return $cached_hosts;
+        }
+
+        $hosts = [];
+
+        // 1. Post SMTP (post-smtp)
+        $postman = get_option('postman_options', []);
+        if (is_array($postman)) {
+            if (!empty($postman['hostname'])) {
+                $h = strtolower(trim((string) $postman['hostname']));
+                if ($h !== '') {
+                    $hosts[] = $h;
+                }
+            }
+            if (!empty($postman['custom_smtp_server'])) {
+                $h = strtolower(trim((string) $postman['custom_smtp_server']));
+                if ($h !== '') {
+                    $hosts[] = $h;
+                }
+            }
+            if (!empty($postman['auth_domain'])) {
+                $h = strtolower(trim((string) $postman['auth_domain']));
+                if ($h !== '') {
+                    $hosts[] = $h;
+                }
+            }
+        }
+
+        // 2. WP Mail SMTP (wp-mail-smtp)
+        $wp_mail_smtp = get_option('wp_mail_smtp', []);
+        if (is_array($wp_mail_smtp) && !empty($wp_mail_smtp['smtp']['host'])) {
+            $hosts[] = strtolower(trim((string) $wp_mail_smtp['smtp']['host']));
+        }
+
+        // 3. FluentSMTP (fluent-smtp)
+        $fluentmail = get_option('fluentmail_settings', []);
+        if (is_array($fluentmail) && !empty($fluentmail['connections']) && is_array($fluentmail['connections'])) {
+            foreach ($fluentmail['connections'] as $conn) {
+                $cfg_host = $conn['config']['host'] ?? '';
+                if (!empty($cfg_host)) {
+                    $hosts[] = strtolower(trim((string) $cfg_host));
+                }
+            }
+        }
+
+        // 4. Easy WP SMTP (easy-wp-smtp)
+        $swpsmtp = get_option('swpsmtp_options', []);
+        if (is_array($swpsmtp) && !empty($swpsmtp['smtp_settings']['host'])) {
+            $hosts[] = strtolower(trim((string) $swpsmtp['smtp_settings']['host']));
+        }
+
+        // 5. SMTP Mailer (smtp-mailer)
+        $smtp_mailer = get_option('smtp_mailer_options', []);
+        if (is_array($smtp_mailer) && !empty($smtp_mailer['smtp_host'])) {
+            $hosts[] = strtolower(trim((string) $smtp_mailer['smtp_host']));
+        }
+
+        // 6. SureMails (suremails)
+        $suremails = get_option('suremails_settings', []);
+        if (is_array($suremails) && !empty($suremails['smtp_host'])) {
+            $hosts[] = strtolower(trim((string) $suremails['smtp_host']));
+        }
+
+        $cached_hosts = array_values(array_unique(array_filter($hosts)));
+        return $cached_hosts;
+    }
+
+    /**
+     * Check if a host is in the approved hosts allowlist (including same-domain mail servers and dynamic mailer relays).
+     *
+     * @param string $host Destination host to check
+     * @param array  $settings Egress firewall settings
+     * @param string $site_host_override Optional site host to check against (defaults to home_url/site_url)
+     * @return bool
+     */
+    public static function is_host_approved(string $host, array $settings = [], string $site_host_override = ''): bool {
+        $clean_host = strtolower(trim($host));
+        if ($clean_host === '') {
+            return false;
+        }
+
+        // 1. Same-domain custom mail server (e.g. mail.example.com, smtp.example.com for example.com)
+        if (self::is_same_domain_mail_host($clean_host, $site_host_override)) {
+            return true;
+        }
+
+        // 2. Dynamic SMTP relay hostnames extracted from active mailer options
+        $dynamic_mailers = self::get_dynamic_mailer_hosts();
+        if (in_array($clean_host, $dynamic_mailers, true)) {
+            return true;
+        }
+
+        // 3. Approved cloud providers, APIs, CDNs, and transactional mailers
+        $approved = array_merge(self::DEFAULT_APPROVED_HOSTS, $settings['allowed_hosts'] ?? []);
+        foreach ($approved as $pattern) {
+            if ($clean_host === $pattern || str_ends_with($clean_host, '.' . $pattern)) {
+                return true;
+            }
+        }
+
         return false;
     }
 
