@@ -735,7 +735,15 @@ class MicroWafCompiler {
 
         $inactive_plugin_slugs = $snapshot ? array_keys($snapshot->inactive_plugins) : [];
         $inactive_theme_slugs  = $snapshot ? array_keys($snapshot->inactive_themes) : [];
-        $active_rest_namespaces= $snapshot && !empty($snapshot->rest_namespaces) ? array_values(array_unique($snapshot->rest_namespaces)) : ['wp/v2', 'oembed/1.0'];
+        $exempt_ns             = !empty($conflict_exemptions['rest_exempt_namespaces']) && is_array($conflict_exemptions['rest_exempt_namespaces'])
+            ? $conflict_exemptions['rest_exempt_namespaces']
+            : [];
+        $base_ns               = $snapshot && !empty($snapshot->rest_namespaces) ? $snapshot->rest_namespaces : ['wp/v2', 'oembed/1.0'];
+        $active_rest_namespaces= array_values(array_unique(array_merge(
+            $base_ns,
+            $exempt_ns,
+            ['webcare-pro-security/v1', 'wp/v2', 'oembed/1.0']
+        )));
         $snapshot_hash         = $snapshot ? $snapshot->snapshot_hash : '';
 
         // Extract registered nopriv AJAX actions from $wp_filter if available
@@ -772,6 +780,9 @@ class MicroWafCompiler {
                 'woocommerce_get_variation',
                 'woocommerce_get_customer_location',
             ]);
+        }
+        if (!empty($conflict_exemptions['woocommerce_ajax_actions']) && is_array($conflict_exemptions['woocommerce_ajax_actions'])) {
+            $default_guest_ajax = array_merge($default_guest_ajax, $conflict_exemptions['woocommerce_ajax_actions']);
         }
         $allowed_nopriv_actions = array_values(array_unique(array_merge($allowed_nopriv_actions, $default_guest_ajax)));
 

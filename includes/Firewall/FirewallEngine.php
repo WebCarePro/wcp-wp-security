@@ -1974,8 +1974,9 @@ class FirewallEngine {
 
                         // If host is specified and is not in our authorized site hosts
                         if (!empty($parsed_host) && !in_array($parsed_host, $allowed_hosts, true)) {
-                            // E-Commerce & Membership Intelligence: Exempt legitimate payment processor redirects
-                            // and social OAuth return destinations (PayPal, Stripe, Mollie, Klarna, Square, Google, Apple).
+                            // E-Commerce, Membership & Transactional Mailer Intelligence:
+                            // Exempt legitimate payment processor redirects and social/mailer OAuth return destinations
+                            // (PayPal, Stripe, Mollie, Klarna, Square, Google, Microsoft 365, Zoho, Apple).
                             $trusted_redirect_domains = [
                                 'paypal.com',
                                 'stripe.com',
@@ -1987,6 +1988,10 @@ class FirewallEngine {
                                 '2checkout.com',
                                 'authorize.net',
                                 'accounts.google.com',
+                                'login.microsoftonline.com',
+                                'accounts.zoho.com',
+                                'accounts.zoho.eu',
+                                'login.zoho.com',
                                 'facebook.com',
                                 'appleid.apple.com',
                             ];

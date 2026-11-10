@@ -239,7 +239,15 @@ class OutboundEgressFirewall {
             if (!empty($host) && isset(self::$resolved_safe_pins[$host])) {
                 $pin_data = self::$resolved_safe_pins[$host];
                 $safe_ip  = $pin_data['ip'] ?? '';
-                $port     = (int) ($parsed_url['port'] ?? (($parsed_url['scheme'] ?? 'https') === 'http' ? 80 : 443));
+                $scheme   = strtolower($parsed_url['scheme'] ?? 'https');
+                $default_port = match ($scheme) {
+                    'http'         => 80,
+                    'smtps', 'ssl' => 465,
+                    'smtp'         => 25,
+                    'tls'          => 587,
+                    default        => 443,
+                };
+                $port     = (int) ($parsed_url['port'] ?? $default_port);
                 if (!empty($safe_ip) && $port > 0) {
                     // Strip ::ffff: IPv4-mapped IPv6 prefix if present
                     if (str_starts_with($safe_ip, '::ffff:')) {
@@ -919,8 +927,10 @@ class OutboundEgressFirewall {
             return false;
         }
 
-        // Strip leading www. to extract apex/root domain
-        $root_domain = preg_replace('/^www\./i', '', $site_host);
+        // Resolve apex root domain (supporting subdomains such as shop.example.com and multi-part TLDs like company.co.uk)
+        $root_domain = class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
+            ? \WebCareProScanner\Cloudflare\CloudflareService::extract_root_domain($site_host)
+            : preg_replace('/^www\./i', '', $site_host);
 
         // 1. Exact match with site apex domain or full site host
         if ($clean_host === $root_domain || $clean_host === $site_host) {
