@@ -31,10 +31,33 @@ class BotReconDefense {
     private const SEARCH_BOTS = [
         'googlebot'   => ['googlebot.com', 'google.com'],
         'bingbot'     => ['search.msn.com', 'bing.com'],
+        'applebot'    => ['applebot.apple.com', 'apple.com'],
         'slurp'       => ['crawl.yahoo.net', 'yahoo.com'],
         'duckduckbot' => ['duckduckgo.com'],
         'yandex'      => ['yandex.ru', 'yandex.net', 'yandex.com'],
         'baiduspider' => ['baidu.com', 'baidu.jp'],
+    ];
+
+    /**
+     * Map of recognized SEO audit crawlers and their authorized FCrDNS domain suffixes.
+     */
+    private const SEO_BOTS = [
+        'ahrefsbot'    => ['ahrefs.com', 'ahrefs.net'],
+        'semrushbot'   => ['semrush.com'],
+        'siteauditbot' => ['semrush.com'],
+        'dotbot'       => ['moz.com', 'seomoz.org'],
+        'rogerbot'     => ['moz.com', 'seomoz.org'],
+        'mj12bot'      => ['majestic12.co.uk'],
+        'seokicks'     => ['seokicks.de'],
+    ];
+
+    /**
+     * Map of recognized desktop audit spiders.
+     * These spiders typically run from auditor workstation/office IPs without fixed PTR records.
+     */
+    private const DESKTOP_SPIDERS = [
+        'screaming frog' => 'Screaming Frog SEO Spider',
+        'sitebulb'       => 'Sitebulb SEO Spider',
     ];
 
     /**
@@ -119,9 +142,38 @@ class BotReconDefense {
             return null;
         }
 
-        $ua_lower = strtolower($user_agent);
+        $ua_lower        = strtolower($user_agent);
+        $claimed_search  = self::detect_claimed_search_bot($ua_lower);
+        $claimed_seo     = self::detect_claimed_seo_bot($ua_lower);
+        $claimed_desktop = self::detect_claimed_desktop_spider($ua_lower);
 
-        // 1. Check AI Scrapers Shield
+        $bot_label = null;
+        if ($claimed_search !== null) {
+            $bot_label = ucfirst($claimed_search);
+        } elseif ($claimed_seo !== null) {
+            $bot_label = ucfirst($claimed_seo);
+        } elseif ($claimed_desktop !== null) {
+            $bot_label = $claimed_desktop;
+        }
+
+        // 1. Strict Read-Only Crawl Jail:
+        // Genuine search engines, SEO suites, and desktop spiders ONLY crawl public URLs with GET/HEAD/OPTIONS.
+        // If any crawler attempts a state-mutating method (POST/PUT/DELETE) or touches auth/cart/admin endpoints,
+        // it is an adversarial spoof or crawler exploit attempt - immediately block it.
+        if ($bot_label !== null && !self::is_read_only_public_crawl()) {
+            $req_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
+            $req_uri    = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+
+            return [
+                'id'          => 'BOT-CRAWLER-MUTATION-BLOCKED',
+                'name'        => 'Crawler Restricted to Read-Only Public URLs (' . $bot_label . ')',
+                'category'    => 'Bot Recon Defense',
+                'match_type'  => 'Crawler State-Mutation / Auth Violation',
+                'match_value' => sprintf('Bot "%s" attempted non-crawl request (%s %s)', $bot_label, $req_method, substr($req_uri, 0, 100)),
+            ];
+        }
+
+        // 2. Check AI Scrapers Shield
         if (!empty($settings['waf_block_ai_scrapers'])) {
             $ai_bot_matched = self::match_ai_scraper($ua_lower);
             if ($ai_bot_matched) {
@@ -135,21 +187,33 @@ class BotReconDefense {
             }
         }
 
-        // 2. Check Fake Search Engine Crawler
+        // 3. Check Fake Search Engine & Cloud SEO Crawler Spoofing
         if (!empty($settings['waf_block_fake_bots'])) {
-            $bot_key = self::detect_claimed_search_bot($ua_lower);
-            if ($bot_key !== null) {
-                $is_genuine = self::verify_search_bot_reverse_dns($client_ip, $bot_key);
+            if ($claimed_search !== null) {
+                $is_genuine = self::verify_search_bot_reverse_dns($client_ip, $claimed_search);
                 if (!$is_genuine) {
                     return [
                         'id'          => 'BOT-FAKE-CRAWLER-SPOOF',
-                        'name'        => 'Fake Search Engine Crawler Spoofing Detected (' . ucfirst($bot_key) . ')',
+                        'name'        => 'Fake Search Engine Crawler Spoofing Detected (' . ucfirst($claimed_search) . ')',
+                        'category'    => 'Bot Recon Defense',
+                        'match_type'  => 'Reverse DNS Verification Failure',
+                        'match_value' => 'IP: ' . $client_ip . ' claiming UA: ' . substr($user_agent, 0, 100),
+                    ];
+                }
+            } elseif ($claimed_seo !== null) {
+                $is_genuine = self::verify_search_bot_reverse_dns($client_ip, $claimed_seo);
+                if (!$is_genuine) {
+                    return [
+                        'id'          => 'BOT-FAKE-CRAWLER-SPOOF',
+                        'name'        => 'Fake SEO Crawler Spoofing Detected (' . ucfirst($claimed_seo) . ')',
                         'category'    => 'Bot Recon Defense',
                         'match_type'  => 'Reverse DNS Verification Failure',
                         'match_value' => 'IP: ' . $client_ip . ' claiming UA: ' . substr($user_agent, 0, 100),
                     ];
                 }
             }
+            // Desktop spiders (Screaming Frog, Sitebulb) run from local user IPs, so they don't have fixed PTR records;
+            // they are soft-allowed on read-only public crawl requests.
         }
 
         return null;
@@ -172,11 +236,99 @@ class BotReconDefense {
      */
     public static function detect_claimed_search_bot(string $ua_lower): ?string {
         foreach (self::SEARCH_BOTS as $bot_key => $domains) {
-            if (strpos($ua_lower, $bot_key) !== false) {
+            if (str_contains($ua_lower, $bot_key)) {
                 return $bot_key;
             }
         }
         return null;
+    }
+
+    /**
+     * Detect if User Agent claims to be a recognized SEO crawler.
+     */
+    public static function detect_claimed_seo_bot(string $ua_lower): ?string {
+        foreach (self::SEO_BOTS as $bot_key => $domains) {
+            if (str_contains($ua_lower, $bot_key)) {
+                return $bot_key;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Detect if User Agent claims to be a recognized desktop SEO spider.
+     */
+    public static function detect_claimed_desktop_spider(string $ua_lower): ?string {
+        foreach (self::DESKTOP_SPIDERS as $token => $label) {
+            if (str_contains($ua_lower, $token)) {
+                return $label;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Verify that the current request is strictly a read-only public URL crawl.
+     * Search engines and SEO analyzers must NEVER sign up, log in, submit forms,
+     * add items to cart, execute checkouts, or send state-mutating HTTP methods.
+     *
+     * @param string|null $request_uri Optional URI to evaluate (defaults to $_SERVER['REQUEST_URI'])
+     * @param string|null $method Optional HTTP method to evaluate (defaults to $_SERVER['REQUEST_METHOD'])
+     * @return bool True if strictly read-only public URL crawl, false otherwise.
+     */
+    public static function is_read_only_public_crawl(?string $request_uri = null, ?string $method = null): bool {
+        $req_method = strtoupper($method ?? (isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET'));
+        if (!in_array($req_method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+            return false;
+        }
+
+        $raw_uri = $request_uri ?? (isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/');
+        $uri     = strtolower($raw_uri);
+        $path    = (string) (wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
+        $query   = (string) (wp_parse_url($uri, PHP_URL_QUERY) ?: (isset($_SERVER['QUERY_STRING']) ? strtolower(sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']))) : ''));
+
+        // Normalize URL encoded characters
+        $path  = rawurldecode($path);
+        $query = rawurldecode($query);
+
+        $normalized_path = '/' . ltrim($path, '/');
+        $trimmed_path    = rtrim($normalized_path, '/');
+
+        // Interactive, authentication, account creation, admin, and checkout paths are forbidden for crawlers
+        $forbidden_exact_or_prefix = [
+            '/wp-admin',
+            '/my-account',
+            '/checkout',
+            '/cart',
+        ];
+        foreach ($forbidden_exact_or_prefix as $f_prefix) {
+            if ($trimmed_path === $f_prefix || str_starts_with($normalized_path, $f_prefix . '/')) {
+                return false;
+            }
+        }
+
+        // Script-specific filenames
+        $forbidden_scripts = [
+            'wp-login.php',
+            'wp-register.php',
+            'wp-signup.php',
+            'wp-activate.php',
+            'xmlrpc.php',
+            'wp-comments-post.php',
+            'wp-trackback.php',
+        ];
+        foreach ($forbidden_scripts as $script) {
+            if ($trimmed_path === '/' . $script || str_ends_with($trimmed_path, '/' . $script)) {
+                return false;
+            }
+        }
+
+        // Forbidden transactional, account, or cart query parameters on GET requests
+        if ($query !== '' && preg_match('/(?:^|&)(?:action=(?:register|lostpassword|retrievepassword|resetpass|rp|login|logout)|wc-ajax=|add-to-cart=|remove_item=)/i', $query)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -196,9 +348,9 @@ class BotReconDefense {
             return ($cached === 'genuine');
         }
 
-        $allowed_domains = self::SEARCH_BOTS[$bot_key] ?? [];
+        $allowed_domains = self::SEARCH_BOTS[$bot_key] ?? self::SEO_BOTS[$bot_key] ?? [];
         if (empty($allowed_domains)) {
-            return true;
+            return false;
         }
 
         $is_genuine = false;
@@ -267,18 +419,23 @@ class BotReconDefense {
      * @return bool True if genuine search engine, false otherwise.
      */
     public static function is_genuine_search_engine(string $ip, string $user_agent): bool {
-        if (empty($user_agent)) {
+        if (empty($user_agent) || !self::is_read_only_public_crawl()) {
             return false;
         }
 
         $ua_lower = strtolower($user_agent);
         $bot_key  = self::detect_claimed_search_bot($ua_lower);
 
-        if ($bot_key === null) {
-            return false;
+        if ($bot_key !== null) {
+            return self::verify_search_bot_reverse_dns($ip, $bot_key);
         }
 
-        return self::verify_search_bot_reverse_dns($ip, $bot_key);
+        $seo_key = self::detect_claimed_seo_bot($ua_lower);
+        if ($seo_key !== null) {
+            return self::verify_search_bot_reverse_dns($ip, $seo_key);
+        }
+
+        return false;
     }
 
     /**
@@ -287,8 +444,9 @@ class BotReconDefense {
      *
      * Validates:
      * 1. Setting 'waf_allow_uptime_monitors' is active.
-     * 2. User-Agent matches recognized monitoring service signature.
-     * 3. Forward & reverse DNS confirmation against official domain suffix (cached for 24 hours).
+     * 2. Request is strictly a read-only public crawl (GET/HEAD/OPTIONS).
+     * 3. User-Agent matches recognized monitoring service signature.
+     * 4. Forward & reverse DNS confirmation against official domain suffix (cached for 24 hours).
      *
      * @param string $ip
      * @param string $user_agent
@@ -296,7 +454,7 @@ class BotReconDefense {
      * @return bool
      */
     public static function is_genuine_uptime_monitor(string $ip, string $user_agent, array $settings): bool {
-        if (empty($settings['waf_allow_uptime_monitors']) || empty($user_agent)) {
+        if (empty($settings['waf_allow_uptime_monitors']) || empty($user_agent) || !self::is_read_only_public_crawl()) {
             return false;
         }
 

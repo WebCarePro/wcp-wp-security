@@ -346,6 +346,8 @@ class CloudflareSlotOptimizer {
         $clauses[] = '((http.request.uri.path contains "wp-content/uploads" or http.request.uri.path contains "wp-content/upgrade") and http.request.uri.path.extension in {"php" "phtml" "phar" "sh" "bash" "py" "pl" "exe" "cgi"})';
         $clauses[] = '(http.request.uri.path.extension in {"sql" "bak" "tar" "gz" "ini"})';
         $clauses[] = '(http.request.method in {"TRACE" "TRACK" "DEBUG"})';
+        // Strict Read-Only Crawl Jail: Search engines and SEO crawlers are strictly forbidden from non-GET/HEAD methods and auth/mutation endpoints
+        $clauses[] = '((cf.client.bot or lower(http.user_agent) contains "googlebot" or lower(http.user_agent) contains "bingbot" or lower(http.user_agent) contains "ahrefsbot" or lower(http.user_agent) contains "semrushbot" or lower(http.user_agent) contains "dotbot" or lower(http.user_agent) contains "rogerbot" or lower(http.user_agent) contains "mj12bot") and ((not http.request.method in {"GET" "HEAD" "OPTIONS"}) or http.request.uri.path in {"/wp-login.php" "/wp-register.php" "/wp-signup.php" "/wp-comments-post.php"} or http.request.uri.query contains "action=register" or http.request.uri.query contains "add-to-cart="))';
 
         return implode(' or ', $clauses);
     }
@@ -438,7 +440,7 @@ class CloudflareSlotOptimizer {
         // Origin Survival Mode dynamic escalation (Carding swarm / brute-force surge / CPU stress)
         if ($origin_survival_active) {
             $clauses[] = '(http.request.uri.path in ' . $login_paths . ')';
-            $clauses[] = '(http.request.uri.query contains "s=" and not http.cookie contains "wordpress_logged_in_")';
+            $clauses[] = '(http.request.uri.query contains "s=" and not http.cookie contains "wordpress_logged_in_" and not cf.client.bot)';
             if ($has_woo) {
                 $clauses[] = '((http.request.uri.path contains "/checkout" or http.request.uri.path contains "/cart") and cf.threat_score gt 5)';
             }
