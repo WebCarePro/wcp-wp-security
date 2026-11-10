@@ -965,10 +965,16 @@ class SettingsManager {
             ? $current['cloudflare_zone_id']
             : \WebCareProScanner\Security\SecretVault::encrypt($zone_id_val);
 
-        if (!empty($clean['cloudflare_enabled']) && empty($current['cloudflare_enabled']) && !isset($input['cloudflare_auto_sync_bans'])) {
-            $clean['cloudflare_auto_sync_bans'] = true;
+        if (!empty($clean['cloudflare_enabled'])) {
+            if (isset($input['cloudflare_auto_sync_bans'])) {
+                $clean['cloudflare_auto_sync_bans'] = !empty($input['cloudflare_auto_sync_bans']);
+            } elseif (isset($merged['cloudflare_auto_sync_bans'])) {
+                $clean['cloudflare_auto_sync_bans'] = !empty($merged['cloudflare_auto_sync_bans']);
+            } else {
+                $clean['cloudflare_auto_sync_bans'] = true;
+            }
         } else {
-            $clean['cloudflare_auto_sync_bans'] = !empty($merged['cloudflare_auto_sync_bans']);
+            $clean['cloudflare_auto_sync_bans'] = false;
         }
 
         // 13. False-Positive Tuning & Confidence Thresholds

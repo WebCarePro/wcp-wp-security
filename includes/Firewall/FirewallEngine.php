@@ -1260,6 +1260,119 @@ class FirewallEngine {
                             }
         }
 
+        // Smart Rule #48: HTTP Method Override & REST Route Smuggling Guard
+        // Blocks unauthenticated guests attempting to smuggle PUT/DELETE/PATCH mutations via _method or X-HTTP-Method-Override
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Pre-flight method inspection
+        $override_method = isset($_REQUEST['_method']) ? $_REQUEST['_method'] : (isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) ? $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] : (isset($_SERVER['HTTP_X_METHOD_OVERRIDE']) ? $_SERVER['HTTP_X_METHOD_OVERRIDE'] : ''));
+        if (!empty($override_method)) {
+            $override_clean = strtoupper(is_string($override_method) ? sanitize_text_field(wp_unslash($override_method)) : 'ARRAY');
+            if (in_array($override_clean, ['PUT', 'DELETE', 'PATCH', 'TRACE', 'CONNECT', 'ARRAY'], true)) {
+                $is_logged_in = (function_exists('is_user_logged_in') && is_user_logged_in()) || self::is_authenticated_administrator() || self::is_authenticated_editor_or_builder();
+                if (!$is_logged_in) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-REST-METHOD-SMUGGLE',
+                        'name'        => 'HTTP Method Override Smuggling Guard (Rule #48)',
+                        'category'    => 'Execution Armor',
+                        'description' => sprintf(
+                            /* translators: %s: Smuggled HTTP method name */
+                            esc_html__('Unauthenticated client attempted to smuggle privileged HTTP method (%s) via override parameter/header.', 'webcare-pro-security'),
+                            esc_html($override_clean)
+                        ),
+                        'match_type'  => 'Method Override Smuggling',
+                        'match_value' => $override_clean,
+                        'payload'     => "Override: {$override_clean} URI: {$request_uri}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                }
+            }
+        }
+
+        // Smart Rule #49: Authentication & Password-Reset Array Type-Confusion Trap
+        // Defends against PHP 8+ TypeError crashes and loose comparison bypasses in custom login/reset handlers
+        $sensitive_auth_keys = ['log', 'pwd', 'user_login', 'user_email', 'rp_key', 'key', 'pass1', 'pass2', 'username', 'password'];
+        $has_auth_type_confusion = false;
+        $confusion_key = '';
+        foreach ($sensitive_auth_keys as $s_key) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Pre-flight auth array type-confusion audit
+            if ((isset($_GET[$s_key]) && is_array($_GET[$s_key])) || (isset($_POST[$s_key]) && is_array($_POST[$s_key]))) {
+                $has_auth_type_confusion = true;
+                $confusion_key = $s_key;
+                break;
+            }
+        }
+        if ($has_auth_type_confusion) {
+            $rule_triggered = [
+                'id'          => 'WAF-AUTH-TYPE-CONFUSION',
+                'name'        => 'Authentication Array Type-Confusion Trap (Rule #49)',
+                'category'    => 'Brute Force & Auth Armor',
+                'description' => sprintf(
+                    /* translators: %s: Parameter name subjected to type confusion */
+                    esc_html__('Non-scalar array submitted for authentication credential (%s) to induce type-confusion or error state.', 'webcare-pro-security'),
+                    esc_html($confusion_key)
+                ),
+                'match_type'  => 'Type Confusion Exploit',
+                'match_value' => $confusion_key . '[]',
+                'payload'     => "Parameter: {$confusion_key}[] URI: {$request_uri} IP: {$client_ip}",
+            ];
+            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+        }
+
+        // Smart Rule #52: Forged Payment Gateway Webhook Signature Spoofing Trap
+        // If an external client presents Stripe-Signature or PayPal transmission headers on a POST webhook endpoint
+        // from an untrusted public IP that does NOT match official gateway CIDRs, block and ban the spoofing IP.
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        $has_stripe_sig = !empty($_SERVER['HTTP_STRIPE_SIGNATURE']);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        $has_paypal_sig = !empty($_SERVER['HTTP_PAYPAL_TRANSMISSION_SIG']);
+
+        if (($has_stripe_sig || $has_paypal_sig) && !self::is_server_origin_or_loopback($client_ip) && !self::is_authenticated_administrator()) {
+            $is_genuine_webhook_origin = false;
+            if ($has_stripe_sig) {
+                $stripe_cidrs = [
+                    '3.18.12.63/32', '3.130.192.231/32', '13.235.14.237/32', '13.235.122.149/32',
+                    '18.211.135.69/32', '35.154.171.200/32', '52.15.183.38/32', '54.187.174.169/32',
+                    '54.187.205.235/32', '54.187.216.72/32', '54.241.31.99/32', '54.241.31.102/32',
+                    '54.241.34.107/32',
+                ];
+                foreach ($stripe_cidrs as $stripe_cidr) {
+                    if (self::ip_in_range($client_ip, $stripe_cidr)) {
+                        $is_genuine_webhook_origin = true;
+                        break;
+                    }
+                }
+            }
+            if (!$is_genuine_webhook_origin && $has_paypal_sig) {
+                $paypal_cidrs = [
+                    '173.0.80.0/20', '66.211.168.0/22', '64.4.240.0/21', '64.4.248.0/22',
+                    '185.177.189.0/24', '3.253.0.0/16', '52.212.0.0/15',
+                ];
+                foreach ($paypal_cidrs as $paypal_cidr) {
+                    if (self::ip_in_range($client_ip, $paypal_cidr)) {
+                        $is_genuine_webhook_origin = true;
+                        break;
+                    }
+                }
+            }
+            if (!$is_genuine_webhook_origin) {
+                $sig_type = $has_stripe_sig ? 'Stripe-Signature' : 'PayPal-Transmission-Sig';
+                $rule_triggered = [
+                    'id'          => 'WAF-FORGED-WEBHOOK-TRAP',
+                    'name'        => 'Forged Payment Gateway Webhook Trap (Rule #52)',
+                    'category'    => 'Execution Armor',
+                    'description' => sprintf(
+                        /* translators: 1: Header name, 2: Spoofed IP address */
+                        esc_html__('Forged %1$s webhook header presented by unauthorized non-gateway IP (%2$s).', 'webcare-pro-security'),
+                        esc_html($sig_type),
+                        esc_html($client_ip)
+                    ),
+                    'match_type'  => 'Webhook Origin Spoofing',
+                    'match_value' => $client_ip,
+                    'payload'     => "Header: {$sig_type} URI: {$request_uri} Spoofed IP: {$client_ip}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+            }
+        }
+
         // Block IPs who send POST requests with blank User-Agent and Referer
         if (!empty($settings['waf_block_empty_post_ua_referer'])) {
             $is_post = (isset($_SERVER['REQUEST_METHOD']) && strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) === 'POST');
@@ -1283,12 +1396,12 @@ class FirewallEngine {
                         ];
 
                         self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                                            }
+                    }
                 }
             }
         }
 
-        // Rule 18: Instant Sensitive File & Backup Probes Shield
+        // Rule 18 / Smart Rule #53: Sensitive Log, .env.* & Byte-Range Exfiltration Instant Ban
         if (!empty($settings['waf_block_sensitive_file_probes'])) {
             // Multi-pass URL decode to catch obfuscated probes (e.g. /%2eenv, /%252eenv, /%2egit)
             $decoded_check_path = $request_uri;
@@ -1302,6 +1415,7 @@ class FirewallEngine {
             $clean_path = strtolower(wp_parse_url($decoded_check_path, PHP_URL_PATH) ?: $decoded_check_path);
             $clean_path = str_replace('\\', '/', $clean_path);
             $sensitive_patterns = [
+                '/(?:\/|^)(?:\.env(?:\.[a-z0-9_-]+)?|\.git\/(?:config|HEAD|index|logs(?:\/.*)?)|wp-config\.(?:php\.)?(?:bak|old|save|swp|txt|orig|dist|~)|debug\.log|php_errorlog|error_log|wp-content\/uploads\/wc-logs(?:\/.*)?|auth\.json|docker-compose\.ya?ml|id_rsa(?:\.pub)?)(?:$|\?)/i',
                 '/\.(env|git|svn|htaccess|user\.ini)(\/|$)/i',
                 '/\.(sql|sql\.gz|tar\.gz|bak)$/i',
                 '/(backup|dump|db_backup|wp-config\.php[~_\.bak])/i',
@@ -1309,14 +1423,19 @@ class FirewallEngine {
             ];
             foreach ($sensitive_patterns as $spat) {
                 if (preg_match($spat, $clean_path)) {
+                    $range_hdr = isset($_SERVER['HTTP_RANGE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_RANGE'])) : '';
                     $rule_triggered = [
                         'id'          => 'WAF-SENSITIVE-FILE-PROBE',
-                        'name'        => 'Sensitive File & Backup Probe Block',
+                        'name'        => 'Sensitive Log & Configuration File Exfiltration Probe (Rule #53)',
                         'category'    => 'File Reconnaissance',
-                        'description' => 'Unauthorized probe targeting sensitive system configuration, git repository, or database backup file.',
+                        'description' => sprintf(
+                            /* translators: %s: Probed sensitive file path */
+                            esc_html__('Unauthorized probe targeting sensitive system configuration, log file, or database backup (%s).', 'webcare-pro-security'),
+                            esc_html($clean_path)
+                        ),
                         'match_type'  => 'Path Reconnaissance',
                         'match_value' => $clean_path,
-                        'payload'     => "Path: {$clean_path} IP: {$client_ip}",
+                        'payload'     => "Path: {$clean_path}" . ($range_hdr !== '' ? " Range: {$range_hdr}" : '') . " IP: {$client_ip}",
                     ];
 
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
@@ -1890,6 +2009,21 @@ class FirewallEngine {
             }
         }
 
+        // 3.6 Smart Rule #50: Unauthenticated Shortcode & Callable Render Gadget Trap
+        $is_logged_in_user = (function_exists('is_user_logged_in') && is_user_logged_in()) || self::is_authenticated_administrator() || self::is_authenticated_editor_or_builder();
+        if (!$is_logged_in_user) {
+            $gadget_regex = '/(?:\baction\s*=\s*(?:parse-media-shortcode|wp_ajax_parse_media_shortcode)\b|"(?:callback|render_callback|function|handler|callable)"\s*:\s*(?:"(?:system|exec|passthru|shell_exec|proc_open|popen|pcntl_exec|assert|eval|call_user_func|call_user_func_array|create_function|include|include_once|require|require_once|wp_insert_user|update_option)"|\[\s*"[^"]+"\s*,\s*"(?:exec|system|run|evaluate|update_option|delete_user|set_role)"\s*\])|\[(?:php|insert_php|exec|raw_php|eval)\b[^\]]*\])/i';
+            if (preg_match($gadget_regex, $uri) || preg_match($gadget_regex, $combined_payload) || preg_match($gadget_regex, $decoded_combined)) {
+                return [
+                    'id'          => 'WAF-AJAX-SHORTCODE-GADGET',
+                    'name'        => 'Unauthenticated Shortcode & Callable Gadget Trap (Rule #50)',
+                    'category'    => 'PHP Code Injection',
+                    'description' => esc_html__('Unauthenticated shortcode execution or PHP callable gadget chain intercepted.', 'webcare-pro-security'),
+                    'payload'     => substr($decoded_combined, 0, 200),
+                ];
+            }
+        }
+
         // 4. Cross-Site Scripting (XSS)
         if (!empty($settings['waf_block_xss'])) {
             $xss_payload_stripped = preg_replace('/[\x00-\x20]+/', '', $combined_payload);
@@ -1947,6 +2081,18 @@ class FirewallEngine {
                     ];
                 }
             }
+        }
+
+        // 6.5 Smart Rule #51: WordPress 7.0+ Interactivity API & Block Bindings Poisoning Shield
+        $wp7_block_poison_regex = '/(?:data-wp-(?:init|watch|run|bind|text|class|style|on(?:--[a-z0-9_-]+)?)\s*=\s*[\'"][^\'"]*(?:__proto__|constructor|prototype|eval\s*\(|Function\s*\(|javascript:|data:text\/html)|"bindings"\s*:\s*\{[^}]*"(?:key|meta_key|field)"\s*:\s*"(?:_application_passwords|wp_capabilities|wp_user_level|session_tokens|_wc_stripe|_paypal|_user_activation_key))/i';
+        if (preg_match($wp7_block_poison_regex, $combined_payload) || preg_match($wp7_block_poison_regex, $decoded_combined)) {
+            return [
+                'id'          => 'WAF-WP7-INTERACTIVITY-POISON',
+                'name'        => 'WP 7.0+ Interactivity API & Block Bindings Shield (Rule #51)',
+                'category'    => 'Execution Armor',
+                'description' => esc_html__('Malicious WordPress Interactivity API prototype pollution or protected Block Binding meta exfiltration attempt detected.', 'webcare-pro-security'),
+                'payload'     => substr($decoded_combined, 0, 200),
+            ];
         }
 
         // Rule 21: Open Redirect Phishing Guard
@@ -2340,7 +2486,19 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_commerce_active(): bool {
-        // E-Commerce Suites
+        // 1. Configured Archetype Profile from Setup Wizard or Site Advisor
+        $archetype = get_option('webcareproscan_site_archetype', '');
+        if (in_array($archetype, ['ecommerce', 'membership'], true)) {
+            return true;
+        }
+
+        // 2. Explicit E-Commerce Safe Mode Setting
+        $settings = get_option('webcareproscan_settings', []);
+        if (!empty($settings['waf_ecommerce_safe_mode'])) {
+            return true;
+        }
+
+        // 3. E-Commerce Suites
         $has_ecommerce = class_exists('WooCommerce')
             || class_exists('Easy_Digital_Downloads')
             || class_exists('\\SureCart\\SureCart') || defined('SURECART_PLUGIN_FILE') // SureCart
@@ -5447,7 +5605,19 @@ class FirewallEngine {
                 strpos($raw_filename, '/') !== false ||
                 strpos($raw_filename, '\\') !== false
             ) {
+                $client_ip = self::get_client_ip();
+                if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                    self::add_blocked_ip(
+                        $client_ip,
+                        sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Path traversal in upload: %s', $raw_filename),
+                        86400,
+                        'WAF-POLYGLOT-UPLOAD-TRAP',
+                        'Zip-Slip Traversal Trap',
+                        'Malicious File Upload'
+                    );
+                }
                 self::log_incident([
+                    'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
                     'category'    => 'Malicious File Upload',
                     'description' => sprintf('Upload with Zip-Slip path traversal or null-byte characters "%s" was blocked by firewall.', esc_html($raw_filename)),
                     'payload'     => "Filename: {$raw_filename}",
@@ -5467,7 +5637,19 @@ class FirewallEngine {
         ];
 
         if (in_array($ext, $prohibited_exts, true) || preg_match('/^\.(?:htaccess|htpasswd|user\.ini)$/i', $filename)) {
+            $client_ip = self::get_client_ip();
+            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                self::add_blocked_ip(
+                    $client_ip,
+                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Executable upload attempt: %s', $filename),
+                    86400,
+                    'WAF-POLYGLOT-UPLOAD-TRAP',
+                    'Executable Upload Trap',
+                    'Malicious File Upload'
+                );
+            }
             self::log_incident([
+                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
                 'category'    => 'Malicious File Upload',
                 'description' => sprintf('Upload of executable or restricted file "%s" was blocked by firewall.', esc_html($filename)),
                 'payload'     => "Filename: {$filename} Extension: .{$ext}",
@@ -5479,7 +5661,19 @@ class FirewallEngine {
 
         // 2. Double extension check (e.g. image.php.jpg, doc.php.png)
         if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|cgi|pl|py|exe)\.([a-z0-9]+)$/i', $filename, $m)) {
+            $client_ip = self::get_client_ip();
+            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                self::add_blocked_ip(
+                    $client_ip,
+                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Disguised double-extension upload attempt: %s', $filename),
+                    86400,
+                    'WAF-POLYGLOT-UPLOAD-TRAP',
+                    'Double-Extension Trap',
+                    'Malicious File Upload'
+                );
+            }
             self::log_incident([
+                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
                 'category'    => 'Malicious File Upload',
                 'description' => sprintf('Upload with disguised double-extension "%s" was blocked by firewall.', esc_html($filename)),
                 'payload'     => "Filename: {$filename} Hidden extension: .{$m[1]}",
@@ -5494,43 +5688,80 @@ class FirewallEngine {
             $header = @file_get_contents($tmp_path, false, null, 0, 16);
             if ($header !== false) {
                 if (strlen($header) >= 2) {
+                    $binary_exploit_detected = false;
+                    $binary_exploit_msg = '';
+
                     // Windows PE (MZ)
                     if (substr($header, 0, 2) === 'MZ') {
-                        $file['error'] = __('Security Firewall: Spoofed Windows executable binary detected in upload.', 'webcare-pro-security');
-                        return $file;
+                        $binary_exploit_detected = true;
+                        $binary_exploit_msg = __('Security Firewall: Spoofed Windows executable binary detected in upload.', 'webcare-pro-security');
                     }
                     // Linux ELF (\x7fELF)
-                    if (substr($header, 0, 4) === "\x7fELF") {
-                        $file['error'] = __('Security Firewall: Spoofed Linux ELF executable binary detected in upload.', 'webcare-pro-security');
-                        return $file;
+                    elseif (substr($header, 0, 4) === "\x7fELF") {
+                        $binary_exploit_detected = true;
+                        $binary_exploit_msg = __('Security Firewall: Spoofed Linux ELF executable binary detected in upload.', 'webcare-pro-security');
                     }
                     // macOS Mach-O
-                    $macho_sigs = ["\xca\xfe\xba\xbe", "\xcf\xfa\xed\xfe", "\xce\xfa\xed\xfe"];
-                    if (in_array(substr($header, 0, 4), $macho_sigs, true)) {
-                        $file['error'] = __('Security Firewall: Spoofed Mach-O executable binary detected in upload.', 'webcare-pro-security');
-                        return $file;
+                    elseif (in_array(substr($header, 0, 4), ["\xca\xfe\xba\xbe", "\xcf\xfa\xed\xfe", "\xce\xfa\xed\xfe"], true)) {
+                        $binary_exploit_detected = true;
+                        $binary_exploit_msg = __('Security Firewall: Spoofed Mach-O executable binary detected in upload.', 'webcare-pro-security');
                     }
                     // Unix Shebang in image/media
-                    if (substr($header, 0, 2) === '#!' && preg_match('/^#!\s*\/(bin|usr)/i', $header)) {
-                        $file['error'] = __('Security Firewall: Spoofed shell script detected in upload.', 'webcare-pro-security');
+                    elseif (substr($header, 0, 2) === '#!' && preg_match('/^#!\s*\/(bin|usr)/i', $header)) {
+                        $binary_exploit_detected = true;
+                        $binary_exploit_msg = __('Security Firewall: Spoofed shell script detected in upload.', 'webcare-pro-security');
+                    }
+
+                    if ($binary_exploit_detected) {
+                        $client_ip = self::get_client_ip();
+                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                            self::add_blocked_ip(
+                                $client_ip,
+                                sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Spoofed binary upload attempt: %s', $filename),
+                                86400,
+                                'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'Binary Magic Byte Trap',
+                                'Malicious File Upload'
+                            );
+                        }
+                        self::log_incident([
+                            'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                            'category'    => 'Malicious File Upload',
+                            'description' => sprintf('Upload with spoofed binary executable header "%s" was blocked by firewall.', esc_html($filename)),
+                            'payload'     => "Filename: {$filename}",
+                        ], 'blocked');
+
+                        $file['error'] = $binary_exploit_msg;
                         return $file;
                     }
                 }
             }
 
-            // 4. SVG XSS & Active JavaScript Audit
+            // 4. SVG XSS & Active JavaScript Audit (Rule #54: includes transparent .svgz decompression)
             if ($ext === 'svg' || $ext === 'svgz') {
                 $content = @file_get_contents($tmp_path, false, null, 0, 1048576); // Inspect up to 1MB
                 if (!empty($content)) {
                     if (substr($content, 0, 2) === "\x1f\x8b" && function_exists('gzdecode')) {
                         $decompressed = @gzdecode($content);
-                        if ($decompressed !== false) {
+                        if ($decompressed !== false && is_string($decompressed) && $decompressed !== '') {
                             $content = $decompressed;
                         }
                     }
 
                     if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object|animate|set)\b)/i', $content, $m)) {
+                        $client_ip = self::get_client_ip();
+                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                            self::add_blocked_ip(
+                                $client_ip,
+                                sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] SVG/SVGZ XSS payload in upload: %s', $filename),
+                                86400,
+                                'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'SVG/SVGZ Script Armor (Rule #54)',
+                                'Malicious File Upload'
+                            );
+                        }
                         self::log_incident([
+                            'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
                             'category'    => 'Malicious File Upload',
                             'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
                             'payload'     => "Filename: {$filename} Match: {$m[0]}",
@@ -5551,6 +5782,24 @@ class FirewallEngine {
                 $check_sample = $head . ' ' . $tail;
                 $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
                 if (!empty($check_sample) && (preg_match($php_pattern, $check_sample) || stripos($check_sample, '__HALT_COMPILER()') !== false)) {
+                    $client_ip = self::get_client_ip();
+                    if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                        self::add_blocked_ip(
+                            $client_ip,
+                            sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] PHP/Phar polyglot in media: %s', $filename),
+                            86400,
+                            'WAF-POLYGLOT-UPLOAD-TRAP',
+                            'Polyglot Media Upload Armor (Rule #54)',
+                            'Malicious File Upload'
+                        );
+                    }
+                    self::log_incident([
+                        'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                        'category'    => 'Malicious File Upload',
+                        'description' => sprintf('Disguised PHP polyglot webshell or Phar deserialization header in media file "%s" was blocked.', esc_html($filename)),
+                        'payload'     => "Filename: {$filename}",
+                    ], 'blocked');
+
                     $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'webcare-pro-security');
                     return $file;
                 }
@@ -6521,7 +6770,15 @@ class FirewallEngine {
             || str_contains($rule_id_str, 'RCE')
             || str_contains($rule_id_str, 'NULL-BYTE')
             || str_contains($rule_id_str, 'SSRF')
-            || str_contains($rule_id_str, 'OBJECT-STREAM');
+            || str_contains($rule_id_str, 'OBJECT-STREAM')
+            || str_contains($rule_id_str, 'SENSITIVE')
+            || str_contains($rule_id_str, 'LOG-EXFIL')
+            || str_contains($rule_id_str, 'POLYGLOT')
+            || str_contains($rule_id_str, 'SHORTCODE-GADGET')
+            || str_contains($rule_id_str, 'INTERACTIVITY-POISON')
+            || str_contains($rule_id_str, 'FORGED-WEBHOOK')
+            || str_contains($rule_id_str, 'AUTH-TYPE-CONFUSION')
+            || str_contains($rule_id_str, 'REST-METHOD-SMUGGLE');
 
         if ($is_instant_ban_exploit) {
             $ban_reason = sprintf('[%s] %s', $rule_id_str ?: $rule_cat, $rule['description'] ?? 'Critical WAF exploit intercepted');

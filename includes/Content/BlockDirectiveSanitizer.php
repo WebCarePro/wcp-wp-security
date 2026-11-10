@@ -56,7 +56,13 @@ class BlockDirectiveSanitizer {
         '/^_stripe_/i',
         '/^_billing_/i',
         '/^api_key/i',
-        '/^access_token/i'
+        '/^access_token/i',
+        '/^_application_passwords/i',
+        '/^wp_capabilities$/i',
+        '/^wp_user_level$/i',
+        '/^_wc_stripe/i',
+        '/^_paypal/i',
+        '/^_user_activation_key/i'
     ];
 
     /**

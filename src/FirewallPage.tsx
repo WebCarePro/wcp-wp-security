@@ -3195,8 +3195,8 @@ export const FirewallPage = ({
                       </div>
                     )}
 
-                    {/* Nested WooCommerce Security Modules Hub (Revealed when WooCommerce / Store is active) */}
-                    {status?.commerce_telemetry?.is_active && (
+                    {/* Nested WooCommerce Security Modules Hub (Revealed when WooCommerce / Store is active or E-Commerce Safe Mode is enabled) */}
+                    {Boolean(status?.commerce_telemetry?.is_active || wafSettings.waf_ecommerce_safe_mode) && (
                       <div style={{
                         marginTop: '6px',
                         padding: '12px 14px',

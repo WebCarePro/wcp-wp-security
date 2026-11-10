@@ -414,11 +414,16 @@ class MicroWafCompiler {
         $out .= "                        }\n";
         $out .= "                    }\n\n";
 
-        $out .= "                    // 2. Unregistered / Uninstalled REST API namespace probe drop\n";
+        $out .= "                    // 2. Unregistered / Uninstalled REST API namespace probe drop (supports /wp-json/ and ?rest_route=)\n";
+        $out .= "                    \$rest_path = '';\n";
         $out .= "                    if (strpos(\$uri, '/wp-json/') !== false) {\n";
-        $out .= "                        \$active_namespaces = !empty(\$caf_rules['active_rest_namespaces']) && is_array(\$caf_rules['active_rest_namespaces']) ? \$caf_rules['active_rest_namespaces'] : [];\n";
         $out .= "                        \$rest_path = substr(\$uri, strpos(\$uri, '/wp-json/') + 9);\n";
-        $out .= "                        \$rest_path_clean = strtok(\$rest_path, '?');\n";
+        $out .= "                    } elseif (!empty(\$_REQUEST['rest_route']) && is_string(\$_REQUEST['rest_route'])) {\n";
+        $out .= "                        \$rest_path = (string) \$_REQUEST['rest_route'];\n";
+        $out .= "                    }\n";
+        $out .= "                    if (\$rest_path !== '') {\n";
+        $out .= "                        \$active_namespaces = !empty(\$caf_rules['active_rest_namespaces']) && is_array(\$caf_rules['active_rest_namespaces']) ? \$caf_rules['active_rest_namespaces'] : [];\n";
+        $out .= "                        \$rest_path_clean = strtok(rawurldecode(\$rest_path), '?');\n";
         $out .= "                        \$rest_route = trim((string) \$rest_path_clean, '/');\n";
         $out .= "                        if (\$rest_route !== '' && !empty(\$active_namespaces)) {\n";
         $out .= "                            \$namespace_matched = false;\n";
