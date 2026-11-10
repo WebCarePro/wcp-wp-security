@@ -4,6 +4,9 @@ v:2.11.0 - 2026-11-11
   * Uninterrupted Jetpack Synchronization: Enabled full operation of the origin Local WAF's Automattic Jetpack Smart Pass (is_verified_jetpack_request()), permitting authentic synchronization requests from official Automattic CIDR subnets (192.0.64.0/18, 198.181.116.0/22, etc.) and valid HMAC tokens while XML-RPC blocking is active.
   * Full Origin XML-RPC DDoS & Brute-Force Protection: Retained instant 403 blocking (WAF-XMLRPC-DISABLED) and ThreatScore tracking on origin for unauthorized XML-RPC probes, brute-force password guessing, and pingback amplification, automatically queuing offending IPs for Cloudflare Edge IP Access Rule bans.
   * Synchronized Edge Rule Descriptions: Updated Rule 1 metadata and descriptions across CloudflareService.php and React dashboard views (FirewallPage.tsx) to reflect the refined edge perimeter scope.
+- WAF Smart Rules Precision & Incident Telemetry Polish (Argon Audit):
+  * Scoped Rule #49 Auth Array Type-Confusion Trap: Gated Smart Rule #49 to non-admin/non-editor sessions and restricted the generic 'key' parameter check strictly to password-reset endpoints (wp-login.php, action=rp, action=resetpass, /my-account, lost-password), eliminating false positives from translation, custom field, or builder forms passing key[] arrays.
+  * Deduplicated Upload Incident Logging & Bans: Refactored inspect_uploaded_file() with a dedicated $log_and_ban flag, allowing pre-flight $_FILES inspection to delegate logging and banning directly to handle_rule_violation(), guaranteeing exactly one clean incident entry and one IP ban per blocked malicious upload.
 
 v:2.10.0 - 2026-11-10
 - 2026 Advanced Smart Rules (Rules #48–#54) & Edge Armor Implementation:

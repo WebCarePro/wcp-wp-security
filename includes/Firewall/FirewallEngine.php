@@ -1289,32 +1289,44 @@ class FirewallEngine {
 
         // Smart Rule #49: Authentication & Password-Reset Array Type-Confusion Trap
         // Defends against PHP 8+ TypeError crashes and loose comparison bypasses in custom login/reset handlers
-        $sensitive_auth_keys = ['log', 'pwd', 'user_login', 'user_email', 'rp_key', 'key', 'pass1', 'pass2', 'username', 'password'];
-        $has_auth_type_confusion = false;
-        $confusion_key = '';
-        foreach ($sensitive_auth_keys as $s_key) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Pre-flight auth array type-confusion audit
-            if ((isset($_GET[$s_key]) && is_array($_GET[$s_key])) || (isset($_POST[$s_key]) && is_array($_POST[$s_key]))) {
-                $has_auth_type_confusion = true;
-                $confusion_key = $s_key;
-                break;
+        if (!self::is_authenticated_administrator() && !self::is_authenticated_editor_or_builder()) {
+            $sensitive_auth_keys = ['log', 'pwd', 'user_login', 'user_email', 'rp_key', 'key', 'pass1', 'pass2', 'username', 'password'];
+            $has_auth_type_confusion = false;
+            $confusion_key = '';
+            $is_reset_endpoint = str_contains($request_uri, 'wp-login.php') ||
+                str_contains($request_uri, 'action=rp') ||
+                str_contains($request_uri, 'action=resetpass') ||
+                str_contains($request_uri, 'lost-password') ||
+                str_contains($request_uri, 'my-account');
+
+            foreach ($sensitive_auth_keys as $s_key) {
+                // 'key' is only an authentication credential on password reset endpoints; ignore generic key[] on unrelated forms
+                if ($s_key === 'key' && !$is_reset_endpoint) {
+                    continue;
+                }
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Pre-flight auth array type-confusion audit
+                if ((isset($_GET[$s_key]) && is_array($_GET[$s_key])) || (isset($_POST[$s_key]) && is_array($_POST[$s_key]))) {
+                    $has_auth_type_confusion = true;
+                    $confusion_key = $s_key;
+                    break;
+                }
             }
-        }
-        if ($has_auth_type_confusion) {
-            $rule_triggered = [
-                'id'          => 'WAF-AUTH-TYPE-CONFUSION',
-                'name'        => 'Authentication Array Type-Confusion Trap (Rule #49)',
-                'category'    => 'Brute Force & Auth Armor',
-                'description' => sprintf(
-                    /* translators: %s: Parameter name subjected to type confusion */
-                    esc_html__('Non-scalar array submitted for authentication credential (%s) to induce type-confusion or error state.', 'webcare-pro-security'),
-                    esc_html($confusion_key)
-                ),
-                'match_type'  => 'Type Confusion Exploit',
-                'match_value' => $confusion_key . '[]',
-                'payload'     => "Parameter: {$confusion_key}[] URI: {$request_uri} IP: {$client_ip}",
-            ];
-            self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+            if ($has_auth_type_confusion) {
+                $rule_triggered = [
+                    'id'          => 'WAF-AUTH-TYPE-CONFUSION',
+                    'name'        => 'Authentication Array Type-Confusion Trap (Rule #49)',
+                    'category'    => 'Brute Force & Auth Armor',
+                    'description' => sprintf(
+                        /* translators: %s: Parameter name subjected to type confusion */
+                        esc_html__('Non-scalar array submitted for authentication credential (%s) to induce type-confusion or error state.', 'webcare-pro-security'),
+                        esc_html($confusion_key)
+                    ),
+                    'match_type'  => 'Type Confusion Exploit',
+                    'match_value' => $confusion_key . '[]',
+                    'payload'     => "Parameter: {$confusion_key}[] URI: {$request_uri} IP: {$client_ip}",
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+            }
         }
 
         // Smart Rule #52: Forged Payment Gateway Webhook Signature Spoofing Trap
@@ -1468,12 +1480,13 @@ class FirewallEngine {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight upload inspection across all incoming POSTs
             $all_uploaded_files = self::flatten_uploaded_files($_FILES);
             foreach ($all_uploaded_files as $uploaded_item) {
-                $upload_check = self::inspect_uploaded_file($uploaded_item);
+                // Pre-flight inspection: pass log_and_ban = false to let handle_rule_violation() perform the single authoritative log, ban, and 403 block
+                $upload_check = self::inspect_uploaded_file($uploaded_item, false);
                 if (!empty($upload_check['error'])) {
                     $rule_triggered = [
-                        'id'          => 'WAF-MALICIOUS-UPLOAD-BLOCKED',
-                        'name'        => 'Malicious File Upload Shield (Rule 8)',
-                        'category'    => 'Malicious File Upload',
+                        'id'          => !empty($upload_check['rule_id']) ? $upload_check['rule_id'] : 'WAF-POLYGLOT-UPLOAD-TRAP',
+                        'name'        => !empty($upload_check['rule_name']) ? $upload_check['rule_name'] : 'Malicious File Upload Shield (Rule 8)',
+                        'category'    => !empty($upload_check['category']) ? $upload_check['category'] : 'Malicious File Upload',
                         'description' => (string) $upload_check['error'],
                         'match_type'  => 'Malicious File Upload',
                         'match_value' => (string) ($uploaded_item['name'] ?? ''),
@@ -5565,7 +5578,7 @@ class FirewallEngine {
     /**
      * Intercept and audit uploaded files in real-time (Rule 8)
      */
-    public static function inspect_uploaded_file(array $file): array {
+    public static function inspect_uploaded_file(array $file, bool $log_and_ban = true): array {
         $settings = SettingsManager::get_settings();
         if (empty($settings['waf_enabled']) || empty($settings['waf_block_malicious_uploads'])) {
             return $file;
@@ -5579,9 +5592,12 @@ class FirewallEngine {
         if (is_array($file['name'])) {
             $flattened = self::flatten_uploaded_files([$file]);
             foreach ($flattened as $single_file) {
-                $sub_res = self::inspect_uploaded_file($single_file);
+                $sub_res = self::inspect_uploaded_file($single_file, $log_and_ban);
                 if (!empty($sub_res['error'])) {
                     $file['error'] = $sub_res['error'];
+                    $file['rule_id'] = $sub_res['rule_id'] ?? 'WAF-POLYGLOT-UPLOAD-TRAP';
+                    $file['rule_name'] = $sub_res['rule_name'] ?? 'Malicious File Upload Shield (Rule 8)';
+                    $file['category'] = $sub_res['category'] ?? 'Malicious File Upload';
                     return $file;
                 }
             }
@@ -5606,24 +5622,29 @@ class FirewallEngine {
                 strpos($raw_filename, '\\') !== false
             ) {
                 $client_ip = self::get_client_ip();
-                if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                    self::add_blocked_ip(
-                        $client_ip,
-                        sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Path traversal in upload: %s', $raw_filename),
-                        86400,
-                        'WAF-POLYGLOT-UPLOAD-TRAP',
-                        'Zip-Slip Traversal Trap',
-                        'Malicious File Upload'
-                    );
+                if ($log_and_ban) {
+                    if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                        self::add_blocked_ip(
+                            $client_ip,
+                            sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Path traversal in upload: %s', $raw_filename),
+                            86400,
+                            'WAF-POLYGLOT-UPLOAD-TRAP',
+                            'Zip-Slip Traversal Trap',
+                            'Malicious File Upload'
+                        );
+                    }
+                    self::log_incident([
+                        'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                        'category'    => 'Malicious File Upload',
+                        'description' => sprintf('Upload with Zip-Slip path traversal or null-byte characters "%s" was blocked by firewall.', esc_html($raw_filename)),
+                        'payload'     => "Filename: {$raw_filename}",
+                    ], 'blocked');
                 }
-                self::log_incident([
-                    'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                    'category'    => 'Malicious File Upload',
-                    'description' => sprintf('Upload with Zip-Slip path traversal or null-byte characters "%s" was blocked by firewall.', esc_html($raw_filename)),
-                    'payload'     => "Filename: {$raw_filename}",
-                ], 'blocked');
 
-                $file['error'] = __('Security Firewall: Path traversal or invalid characters detected in uploaded filename.', 'webcare-pro-security');
+                $file['error']     = __('Security Firewall: Path traversal or invalid characters detected in uploaded filename.', 'webcare-pro-security');
+                $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+                $file['rule_name'] = 'Zip-Slip Traversal Trap (Rule #47)';
+                $file['category']  = 'Malicious File Upload';
                 return $file;
             }
         }
@@ -5638,48 +5659,58 @@ class FirewallEngine {
 
         if (in_array($ext, $prohibited_exts, true) || preg_match('/^\.(?:htaccess|htpasswd|user\.ini)$/i', $filename)) {
             $client_ip = self::get_client_ip();
-            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                self::add_blocked_ip(
-                    $client_ip,
-                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Executable upload attempt: %s', $filename),
-                    86400,
-                    'WAF-POLYGLOT-UPLOAD-TRAP',
-                    'Executable Upload Trap',
-                    'Malicious File Upload'
-                );
+            if ($log_and_ban) {
+                if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                    self::add_blocked_ip(
+                        $client_ip,
+                        sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Executable upload attempt: %s', $filename),
+                        86400,
+                        'WAF-POLYGLOT-UPLOAD-TRAP',
+                        'Executable Upload Trap',
+                        'Malicious File Upload'
+                    );
+                }
+                self::log_incident([
+                    'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                    'category'    => 'Malicious File Upload',
+                    'description' => sprintf('Upload of executable or restricted file "%s" was blocked by firewall.', esc_html($filename)),
+                    'payload'     => "Filename: {$filename} Extension: .{$ext}",
+                ], 'blocked');
             }
-            self::log_incident([
-                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                'category'    => 'Malicious File Upload',
-                'description' => sprintf('Upload of executable or restricted file "%s" was blocked by firewall.', esc_html($filename)),
-                'payload'     => "Filename: {$filename} Extension: .{$ext}",
-            ], 'blocked');
 
-            $file['error'] = __('Security Firewall: Uploading executable scripts or restricted server configurations is strictly prohibited.', 'webcare-pro-security');
+            $file['error']     = __('Security Firewall: Uploading executable scripts or restricted server configurations is strictly prohibited.', 'webcare-pro-security');
+            $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+            $file['rule_name'] = 'Executable Upload Trap';
+            $file['category']  = 'Malicious File Upload';
             return $file;
         }
 
         // 2. Double extension check (e.g. image.php.jpg, doc.php.png)
         if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|cgi|pl|py|exe)\.([a-z0-9]+)$/i', $filename, $m)) {
             $client_ip = self::get_client_ip();
-            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                self::add_blocked_ip(
-                    $client_ip,
-                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Disguised double-extension upload attempt: %s', $filename),
-                    86400,
-                    'WAF-POLYGLOT-UPLOAD-TRAP',
-                    'Double-Extension Trap',
-                    'Malicious File Upload'
-                );
+            if ($log_and_ban) {
+                if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                    self::add_blocked_ip(
+                        $client_ip,
+                        sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Disguised double-extension upload attempt: %s', $filename),
+                        86400,
+                        'WAF-POLYGLOT-UPLOAD-TRAP',
+                        'Double-Extension Trap',
+                        'Malicious File Upload'
+                    );
+                }
+                self::log_incident([
+                    'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                    'category'    => 'Malicious File Upload',
+                    'description' => sprintf('Upload with disguised double-extension "%s" was blocked by firewall.', esc_html($filename)),
+                    'payload'     => "Filename: {$filename} Hidden extension: .{$m[1]}",
+                ], 'blocked');
             }
-            self::log_incident([
-                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                'category'    => 'Malicious File Upload',
-                'description' => sprintf('Upload with disguised double-extension "%s" was blocked by firewall.', esc_html($filename)),
-                'payload'     => "Filename: {$filename} Hidden extension: .{$m[1]}",
-            ], 'blocked');
 
-            $file['error'] = __('Security Firewall: Disguised double-extension file upload detected and blocked.', 'webcare-pro-security');
+            $file['error']     = __('Security Firewall: Disguised double-extension file upload detected and blocked.', 'webcare-pro-security');
+            $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+            $file['rule_name'] = 'Double-Extension Trap';
+            $file['category']  = 'Malicious File Upload';
             return $file;
         }
 
@@ -5714,24 +5745,29 @@ class FirewallEngine {
 
                     if ($binary_exploit_detected) {
                         $client_ip = self::get_client_ip();
-                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                            self::add_blocked_ip(
-                                $client_ip,
-                                sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Spoofed binary upload attempt: %s', $filename),
-                                86400,
-                                'WAF-POLYGLOT-UPLOAD-TRAP',
-                                'Binary Magic Byte Trap',
-                                'Malicious File Upload'
-                            );
+                        if ($log_and_ban) {
+                            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                                self::add_blocked_ip(
+                                    $client_ip,
+                                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] Spoofed binary upload attempt: %s', $filename),
+                                    86400,
+                                    'WAF-POLYGLOT-UPLOAD-TRAP',
+                                    'Binary Magic Byte Trap',
+                                    'Malicious File Upload'
+                                );
+                            }
+                            self::log_incident([
+                                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'category'    => 'Malicious File Upload',
+                                'description' => sprintf('Upload with spoofed binary executable header "%s" was blocked by firewall.', esc_html($filename)),
+                                'payload'     => "Filename: {$filename}",
+                            ], 'blocked');
                         }
-                        self::log_incident([
-                            'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                            'category'    => 'Malicious File Upload',
-                            'description' => sprintf('Upload with spoofed binary executable header "%s" was blocked by firewall.', esc_html($filename)),
-                            'payload'     => "Filename: {$filename}",
-                        ], 'blocked');
 
-                        $file['error'] = $binary_exploit_msg;
+                        $file['error']     = $binary_exploit_msg;
+                        $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+                        $file['rule_name'] = 'Binary Magic Byte Trap';
+                        $file['category']  = 'Malicious File Upload';
                         return $file;
                     }
                 }
@@ -5750,24 +5786,29 @@ class FirewallEngine {
 
                     if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object|animate|set)\b)/i', $content, $m)) {
                         $client_ip = self::get_client_ip();
-                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                            self::add_blocked_ip(
-                                $client_ip,
-                                sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] SVG/SVGZ XSS payload in upload: %s', $filename),
-                                86400,
-                                'WAF-POLYGLOT-UPLOAD-TRAP',
-                                'SVG/SVGZ Script Armor (Rule #54)',
-                                'Malicious File Upload'
-                            );
+                        if ($log_and_ban) {
+                            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                                self::add_blocked_ip(
+                                    $client_ip,
+                                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] SVG/SVGZ XSS payload in upload: %s', $filename),
+                                    86400,
+                                    'WAF-POLYGLOT-UPLOAD-TRAP',
+                                    'SVG/SVGZ Script Armor (Rule #54)',
+                                    'Malicious File Upload'
+                                );
+                            }
+                            self::log_incident([
+                                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'category'    => 'Malicious File Upload',
+                                'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
+                                'payload'     => "Filename: {$filename} Match: {$m[0]}",
+                            ], 'blocked');
                         }
-                        self::log_incident([
-                            'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                            'category'    => 'Malicious File Upload',
-                            'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
-                            'payload'     => "Filename: {$filename} Match: {$m[0]}",
-                        ], 'blocked');
 
-                        $file['error'] = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'webcare-pro-security');
+                        $file['error']     = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'webcare-pro-security');
+                        $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+                        $file['rule_name'] = 'SVG/SVGZ Script Armor (Rule #54)';
+                        $file['category']  = 'Malicious File Upload';
                         return $file;
                     }
                 }
@@ -5783,24 +5824,29 @@ class FirewallEngine {
                 $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
                 if (!empty($check_sample) && (preg_match($php_pattern, $check_sample) || stripos($check_sample, '__HALT_COMPILER()') !== false)) {
                     $client_ip = self::get_client_ip();
-                    if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                        self::add_blocked_ip(
-                            $client_ip,
-                            sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] PHP/Phar polyglot in media: %s', $filename),
-                            86400,
-                            'WAF-POLYGLOT-UPLOAD-TRAP',
-                            'Polyglot Media Upload Armor (Rule #54)',
-                            'Malicious File Upload'
-                        );
+                    if ($log_and_ban) {
+                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                            self::add_blocked_ip(
+                                $client_ip,
+                                sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] PHP/Phar polyglot in media: %s', $filename),
+                                86400,
+                                'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'Polyglot Media Upload Armor (Rule #54)',
+                                'Malicious File Upload'
+                            );
+                        }
+                        self::log_incident([
+                            'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                            'category'    => 'Malicious File Upload',
+                            'description' => sprintf('Disguised PHP polyglot webshell or Phar deserialization header in media file "%s" was blocked.', esc_html($filename)),
+                            'payload'     => "Filename: {$filename}",
+                        ], 'blocked');
                     }
-                    self::log_incident([
-                        'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                        'category'    => 'Malicious File Upload',
-                        'description' => sprintf('Disguised PHP polyglot webshell or Phar deserialization header in media file "%s" was blocked.', esc_html($filename)),
-                        'payload'     => "Filename: {$filename}",
-                    ], 'blocked');
 
-                    $file['error'] = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'webcare-pro-security');
+                    $file['error']     = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside media file.', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+                    $file['rule_name'] = 'Polyglot Media Upload Armor (Rule #54)';
+                    $file['category']  = 'Malicious File Upload';
                     return $file;
                 }
             }
@@ -5856,13 +5902,19 @@ class FirewallEngine {
                 }
 
                 if ($is_pma_file) {
-                    self::log_incident([
-                        'category'    => 'Prohibited Script Upload',
-                        'description' => sprintf('Upload of phpMyAdmin / Adminer / DBManager database management script or plugin archive "%s" was blocked by policy.', esc_html($filename)),
-                        'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
-                    ], 'blocked');
+                    if ($log_and_ban) {
+                        self::log_incident([
+                            'id'          => 'WAF-DISALLOW-PHPMYADMIN-PLUGIN',
+                            'category'    => 'Prohibited Script Upload',
+                            'description' => sprintf('Upload of phpMyAdmin / Adminer / DBManager database management script or plugin archive "%s" was blocked by policy.', esc_html($filename)),
+                            'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
+                        ], 'blocked');
+                    }
 
-                    $file['error'] = __('Security Firewall: Uploading phpMyAdmin or standalone database management scripts is strictly disallowed.', 'webcare-pro-security');
+                    $file['error']     = __('Security Firewall: Uploading phpMyAdmin or standalone database management scripts is strictly disallowed.', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-DISALLOW-PHPMYADMIN-PLUGIN';
+                    $file['rule_name'] = 'Prohibited Database Manager Script Upload';
+                    $file['category']  = 'Prohibited Script Upload';
                     return $file;
                 }
             }
@@ -5958,13 +6010,19 @@ class FirewallEngine {
                 }
 
                 if ($is_fm_file) {
-                    self::log_incident([
-                        'category'    => 'Prohibited Script Upload',
-                        'description' => sprintf('Upload of standalone File Manager / Web Shell script or plugin archive "%s" was blocked by policy.', esc_html($filename)),
-                        'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
-                    ], 'blocked');
+                    if ($log_and_ban) {
+                        self::log_incident([
+                            'id'          => 'WAF-DISALLOW-FILEMANAGER-PLUGIN',
+                            'category'    => 'Prohibited Script Upload',
+                            'description' => sprintf('Upload of standalone File Manager / Web Shell script or plugin archive "%s" was blocked by policy.', esc_html($filename)),
+                            'payload'     => "Filename: {$filename} Temp: {$tmp_path}",
+                        ], 'blocked');
+                    }
 
-                    $file['error'] = __('Security Firewall: Uploading standalone File Manager or explorer scripts is strictly disallowed.', 'webcare-pro-security');
+                    $file['error']     = __('Security Firewall: Uploading standalone File Manager or explorer scripts is strictly disallowed.', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-DISALLOW-FILEMANAGER-PLUGIN';
+                    $file['rule_name'] = 'Prohibited File Manager Script Upload';
+                    $file['category']  = 'Prohibited Script Upload';
                     return $file;
                 }
             }
