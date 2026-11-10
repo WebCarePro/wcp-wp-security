@@ -234,7 +234,7 @@ class SettingsManager {
             'cloudflare_enabled'                 => false,
             'cloudflare_api_token'               => '',
             'cloudflare_zone_id'                 => '',
-            'cloudflare_auto_sync_bans'          => false,
+            'cloudflare_auto_sync_bans'          => true,
 
             // 13. False-Positive Tuning & Confidence Thresholds
             'confidence_threshold_filesystem'    => 50,
@@ -965,7 +965,11 @@ class SettingsManager {
             ? $current['cloudflare_zone_id']
             : \WebCareProScanner\Security\SecretVault::encrypt($zone_id_val);
 
-        $clean['cloudflare_auto_sync_bans'] = !empty($merged['cloudflare_auto_sync_bans']);
+        if (!empty($clean['cloudflare_enabled']) && empty($current['cloudflare_enabled']) && !isset($input['cloudflare_auto_sync_bans'])) {
+            $clean['cloudflare_auto_sync_bans'] = true;
+        } else {
+            $clean['cloudflare_auto_sync_bans'] = !empty($merged['cloudflare_auto_sync_bans']);
+        }
 
         // 13. False-Positive Tuning & Confidence Thresholds
         $clean['confidence_threshold_filesystem'] = max(1, min(100, intval($merged['confidence_threshold_filesystem'] ?? 50)));

@@ -451,7 +451,7 @@ export const FirewallPage = ({
   const [cfZoneId, setCfZoneId] = useState<string>('');
   const [showToken, setShowToken] = useState<boolean>(false);
   const [showZone, setShowZone] = useState<boolean>(false);
-  const [cfAutoSyncBans, setCfAutoSyncBans] = useState<boolean>(false);
+  const [cfAutoSyncBans, setCfAutoSyncBans] = useState<boolean>(true);
   const [cfVerifying, setCfVerifying] = useState<boolean>(false);
   const [cfVerifyResult, setCfVerifyResult] = useState<{ success: boolean; message?: string; zone_name?: string; plan?: string } | null>(null);
   const [cfDeploying, setCfDeploying] = useState<boolean>(false);
@@ -1785,7 +1785,9 @@ export const FirewallPage = ({
           if (rinfo.path) setRateLimitPath(rinfo.path);
           if (rinfo.bypass_ips !== undefined) setRateLimitBypassIps(rinfo.bypass_ips || '');
         }
-        setCfAutoSyncBans(!!res.status.auto_sync_bans);
+        if (res.status.configured) {
+          setCfAutoSyncBans(!!res.status.auto_sync_bans);
+        }
 
         if (res.status.configured && !cfZoneId) {
           // Keep cfZoneId empty when already configured; placeholder indicates masked vault status
@@ -1847,10 +1849,10 @@ export const FirewallPage = ({
             cloudflare_enabled: true,
             cloudflare_api_token: cfToken.trim() || undefined,
             cloudflare_zone_id: resolvedZoneId,
-            cloudflare_auto_sync_bans: cfAutoSyncBans,
+            cloudflare_auto_sync_bans: cfAutoSyncBans ?? true,
           }
         });
-        loadCloudflareData();
+        await loadCloudflareData();
       }
     } catch (err: any) {
       setCfVerifyResult({
@@ -2094,6 +2096,7 @@ export const FirewallPage = ({
         method: 'POST',
         data: { cloudflare_auto_sync_bans: next }
       });
+      await loadCloudflareData();
     } catch (err) {
       console.error(err);
     }
