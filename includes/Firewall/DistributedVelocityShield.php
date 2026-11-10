@@ -163,9 +163,17 @@ class DistributedVelocityShield {
      * @return array Live velocity status
      */
     public static function record_checkout_failure(string $ip = '', string $reason = ''): array {
+        static $recorded_in_request = [];
+
         if (empty($ip)) {
             $ip = self::get_client_ip();
         }
+
+        $dedup_key = $ip . '|' . $reason;
+        if (isset($recorded_in_request[$dedup_key])) {
+            return self::get_live_velocity();
+        }
+        $recorded_in_request[$dedup_key] = true;
 
         if (self::is_exempt_ip($ip)) {
             return self::get_live_velocity();
@@ -290,7 +298,23 @@ class DistributedVelocityShield {
      * @return void
      */
     public static function on_order_payment_failed($order_id): void {
-        self::record_checkout_failure(self::get_client_ip(), sprintf('Order #%d payment failed', (int) $order_id));
+        $customer_ip = '';
+        if (function_exists('wc_get_order')) {
+            $order = wc_get_order($order_id);
+            if ($order && method_exists($order, 'get_customer_ip_address')) {
+                $customer_ip = (string) $order->get_customer_ip_address();
+            }
+        }
+
+        // If triggered inside an async payment webhook, strictly attribute to customer IP; ignore if customer IP not found
+        $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $is_webhook = !empty($_SERVER['HTTP_STRIPE_SIGNATURE']) || !empty($_SERVER['HTTP_PAYPAL_TRANSMISSION_SIG']) || str_contains($req_uri, 'wc-api');
+        if ($is_webhook && empty($customer_ip)) {
+            return; // Never count gateway webhook server IP toward customer checkout failures
+        }
+
+        $target_ip = !empty($customer_ip) ? $customer_ip : self::get_client_ip();
+        self::record_checkout_failure($target_ip, sprintf('Order #%d payment failed', (int) $order_id));
     }
 
     /**

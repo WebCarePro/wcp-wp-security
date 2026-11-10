@@ -294,16 +294,22 @@ class BotReconDefense {
         $normalized_path = '/' . ltrim($path, '/');
         $trimmed_path    = rtrim($normalized_path, '/');
 
-        // Interactive, authentication, account creation, admin, and checkout paths are forbidden for crawlers
-        $forbidden_exact_or_prefix = [
-            '/wp-admin',
-            '/my-account',
-            '/checkout',
-            '/cart',
-        ];
-        foreach ($forbidden_exact_or_prefix as $f_prefix) {
-            if ($trimmed_path === $f_prefix || str_starts_with($normalized_path, $f_prefix . '/')) {
-                return false;
+        // Interactive, authentication, account creation, and admin paths are forbidden for crawlers
+        if ($trimmed_path === '/wp-admin' || str_starts_with($normalized_path, '/wp-admin/')) {
+            return false;
+        }
+
+        // Store pages (/cart, /checkout, /my-account) are permitted for verified search crawlers only when:
+        // A) Request method is GET or HEAD (read-only)
+        // B) Request has no query string ($query === '')
+        // This allows SEO suites (Ahrefs, Semrush, Screaming Frog) to verify 'noindex' and canonical headers
+        // while strictly preventing automated cart manipulation, coupon enumeration, or parameter fuzzing.
+        $store_paths = ['/my-account', '/checkout', '/cart'];
+        foreach ($store_paths as $s_path) {
+            if ($trimmed_path === $s_path || str_starts_with($normalized_path, $s_path . '/')) {
+                if ($query !== '') {
+                    return false; // Any query params on cart/checkout are forbidden for crawlers
+                }
             }
         }
 
@@ -539,7 +545,7 @@ class BotReconDefense {
      * Invoked when high-velocity reconnaissance or scraping anomaly is detected.
      */
     public static function verify_or_challenge_client(): void {
-        $client_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '0.0.0.0';
+        $client_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') ? FirewallEngine::get_client_ip() : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '0.0.0.0');
         $ua        = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
 
         if (self::has_valid_clearance_cookie($client_ip, $ua)) {

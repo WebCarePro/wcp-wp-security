@@ -385,7 +385,7 @@ class VirtualPatchManager {
 
             // CAF 2.0: Skip virtual patches for components/plugins not currently installed or active
             $target_slug = strtolower((string) ($patch['target'] ?? ($patch['component'] ?? '')));
-            if (!empty($target_slug) && !in_array($target_slug, ['core', 'wordpress-core', 'generic', 'server', 'php'], true)) {
+            if (!empty($target_slug) && !in_array($target_slug, ['core', 'wordpress-core', 'generic', 'server', 'php', 'all-plugins', 'custom'], true)) {
                 if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor') &&
                     !\WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::is_plugin_slug_active($target_slug)) {
                     continue;

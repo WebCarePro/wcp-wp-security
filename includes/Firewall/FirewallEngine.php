@@ -1304,20 +1304,14 @@ class FirewallEngine {
         // Smart Rule #49: Authentication & Password-Reset Array Type-Confusion Trap
         // Defends against PHP 8+ TypeError crashes and loose comparison bypasses in custom login/reset handlers
         if (!self::is_authenticated_administrator() && !self::is_authenticated_editor_or_builder()) {
-            $sensitive_auth_keys = ['log', 'pwd', 'user_login', 'user_email', 'rp_key', 'key', 'pass1', 'pass2', 'username', 'password'];
+            $is_auth_endpoint = (strpos($request_uri, 'wp-login.php') !== false || strpos($request_uri, '/my-account') !== false || str_contains($request_uri, 'wc-ajax') || strpos($request_uri, 'lost-password') !== false || strpos($request_uri, 'action=rp') !== false || strpos($request_uri, 'action=resetpass') !== false);
+            $sensitive_auth_keys = $is_auth_endpoint
+                ? ['log', 'pwd', 'user_login', 'user_email', 'rp_key', 'key', 'pass1', 'pass2', 'username', 'password']
+                : ['log', 'pwd', 'user_login', 'rp_key', 'pass1', 'pass2'];
             $has_auth_type_confusion = false;
             $confusion_key = '';
-            $is_reset_endpoint = str_contains($request_uri, 'wp-login.php') ||
-                str_contains($request_uri, 'action=rp') ||
-                str_contains($request_uri, 'action=resetpass') ||
-                str_contains($request_uri, 'lost-password') ||
-                str_contains($request_uri, 'my-account');
 
             foreach ($sensitive_auth_keys as $s_key) {
-                // 'key' is only an authentication credential on password reset endpoints; ignore generic key[] on unrelated forms
-                if ($s_key === 'key' && !$is_reset_endpoint) {
-                    continue;
-                }
                 // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Pre-flight auth array type-confusion audit
                 if ((isset($_GET[$s_key]) && is_array($_GET[$s_key])) || (isset($_POST[$s_key]) && is_array($_POST[$s_key]))) {
                     $has_auth_type_confusion = true;
@@ -1881,6 +1875,14 @@ class FirewallEngine {
         if (!empty($_POST) && is_array($_POST)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
+            // Mask scalar password fields from generic regex false-positives unless containing explicit SQLi or null-byte exploits
+            foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_field) {
+                if (isset($post_data[$pw_field]) && is_string($post_data[$pw_field]) && strlen($post_data[$pw_field]) <= 128) {
+                    if (!preg_match('/(?:union\s+select|sleep\s*\(|benchmark\s*\(|\x00)/i', $post_data[$pw_field])) {
+                        unset($post_data[$pw_field]);
+                    }
+                }
+            }
             $params_to_check[] = rawurldecode(http_build_query($post_data));
         }
 
@@ -2054,15 +2056,25 @@ class FirewallEngine {
         // 4. Cross-Site Scripting (XSS)
         if (!empty($settings['waf_block_xss'])) {
             $xss_payload_stripped = preg_replace('/[\x00-\x20]+/', '', $combined_payload);
+            if (preg_match('/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/is', $xss_payload_stripped)) {
+                return [
+                    'id'          => 'WAF-XSS-PAYLOAD',
+                    'name'        => 'Cross-Site Scripting (XSS) Shield',
+                    'category'    => 'Cross-Site Scripting (XSS)',
+                    'description' => 'Obfuscated javascript: or data:text/html URI payload detected.',
+                    'payload'     => substr($combined_payload, 0, 200),
+                ];
+            }
+
             $xss_patterns = [
                 '/<script\b[^>]*>/is',
                 '/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/is',
                 '/<iframe\b[^>]*>/is',
                 '/<svg\b[^>]*\bon\w+\s*=/is',
-                '/\bon(?:error|load|mouseover|mouseenter|mouseleave|click|dblclick|auxclick|contextmenu|focus|blur|pointerenter|pointerover|pointerdown|toggle|beforetoggle|animationstart|animationend|animationiteration|transitionend|begin|pageshow|pagehide|input|invalid|submit|reset|wheel|drag|drop|copy|cut|paste)\s*=\s*[^\s>]+/is',
+                '/(?:<[^>]+?\s|\b)on(?:error|load|mouseover|mouseenter|mouseleave|click|dblclick|auxclick|contextmenu|focus|blur|pointerenter|pointerover|pointerdown|toggle|beforetoggle|animationstart|animationend|animationiteration|transitionend|begin|pageshow|pagehide|input|invalid|submit|reset|wheel|drag|drop|copy|cut|paste)\s*=\s*(?:[\'"`][^\'"`]*?(?:\(|javascript:|alert|confirm|prompt|eval|fetch|document\.|window\.|location)|[^\s>&\'"`]+?\()/is',
             ];
             foreach ($xss_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined) || preg_match($pattern, $xss_payload_stripped)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
                         'id'          => 'WAF-XSS-PAYLOAD',
                         'name'        => 'Cross-Site Scripting (XSS) Shield',
@@ -7545,11 +7557,6 @@ class FirewallEngine {
             $method = $override_method;
         }
 
-        // Only inspect mutating methods
-        if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-            return $result;
-        }
-
         // Authenticated users and verified administrators are completely permitted
         $is_logged_in = (function_exists('is_user_logged_in') && is_user_logged_in())
             || self::is_authenticated_administrator()
@@ -7559,7 +7566,41 @@ class FirewallEngine {
             return $result;
         }
 
+        // Server Origin & Host Loopback Immunity:
+        // Internal loopback requests originating from the server itself are trusted internal operations.
+        $client_ip = self::get_client_ip();
+        if (self::is_server_origin_or_loopback($client_ip)) {
+            return $result;
+        }
+
         $route = strtolower($request->get_route());
+
+        // 1. Check Store API Catalog Scraping (Rule #42) on ALL methods (including GET /wc/store/v1/products)
+        if (preg_match('#^/wc/store(?:/v\d+)?/products#i', $route)) {
+            $scrape_lock_error = self::check_and_track_catalog_scraping('Store API Products Endpoint');
+            if ($scrape_lock_error) {
+                return $scrape_lock_error;
+            }
+        }
+
+        // Only inspect mutating methods beyond this point
+        if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            return $result;
+        }
+
+        // 2. Enforce Rule #38 (Carding Lockout) & Rule #39 (Coupon Lockout) on Store API BEFORE safe_prefixes
+        if (preg_match('#^/wc/store(?:/v\d+)?/checkout#i', $route)) {
+            $block_error = self::check_woo_carding_lockout();
+            if ($block_error) {
+                return $block_error;
+            }
+        }
+        if (preg_match('#^/wc/store(?:/v\d+)?/cart/(?:coupons|apply-coupon)#i', $route)) {
+            $coupon_lock_error = self::check_woo_coupon_lockout();
+            if ($coupon_lock_error) {
+                return $coupon_lock_error;
+            }
+        }
 
         // Special handling for REST batch requests (/wp/v2/batch or /batch/v1):
         // Walk nested requests[] inside the batch payload to ensure unauthorized guest mutations aren't smuggled
@@ -7569,6 +7610,21 @@ class FirewallEngine {
                 foreach ($body_params['requests'] as $sub_req) {
                     $sub_method = strtoupper($sub_req['method'] ?? 'GET');
                     $sub_path   = strtolower($sub_req['path'] ?? '');
+
+                    // Inspect sub-requests targeting WooCommerce Block Checkout or Coupons
+                    if (preg_match('#^/wc/store(?:/v\d+)?/checkout#i', $sub_path) && in_array($sub_method, ['POST', 'PUT', 'PATCH'], true)) {
+                        $block_error = self::check_woo_carding_lockout();
+                        if ($block_error) {
+                            return $block_error;
+                        }
+                    }
+                    if (preg_match('#^/wc/store(?:/v\d+)?/cart/(?:coupons|apply-coupon)#i', $sub_path) && in_array($sub_method, ['POST', 'PUT', 'PATCH'], true)) {
+                        $coupon_lock_error = self::check_woo_coupon_lockout();
+                        if ($coupon_lock_error) {
+                            return $coupon_lock_error;
+                        }
+                    }
+
                     if (in_array($sub_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
                         $is_sub_safe = false;
                         $safe_sub_prefixes = [
@@ -7583,7 +7639,6 @@ class FirewallEngine {
                             }
                         }
                         if (!$is_sub_safe) {
-                            $client_ip = self::get_client_ip();
                             $rule_triggered = [
                                 'id'          => 'WAF-GUEST-REST-BATCH-MUTATION',
                                 'name'        => 'Unauthenticated REST Batch Mutation Probe (Rule #37)',
@@ -7632,40 +7687,6 @@ class FirewallEngine {
             if (strpos($route, $prefix) === 0 || strpos($route, $prefix) !== false) {
                 return $result;
             }
-        }
-
-        // Server Origin & Host Loopback Immunity:
-        // Internal loopback requests originating from the server itself are trusted internal operations.
-        $client_ip = self::get_client_ip();
-        if (self::is_server_origin_or_loopback($client_ip)) {
-            return $result;
-        }
-
-        // Check if the target REST route itself is a designated public store or commerce endpoint
-        $is_store_route = preg_match('#^/wc/store(?:/v\d+)?/#i', $route) || preg_match('#^/(?:surecart|fluentcart|edd)/#i', $route);
-        if ($is_store_route) {
-            // Rule #38 Check for Store API checkout route
-            if (preg_match('#^/wc/store(?:/v\d+)?/checkout#i', $route) && strtoupper($method) === 'POST') {
-                $block_error = self::check_woo_carding_lockout();
-                if ($block_error) {
-                    return $block_error;
-                }
-            }
-            // Rule #39 Check for Store API coupon application route
-            if (preg_match('#^/wc/store(?:/v\d+)?/cart/coupons#i', $route) && (strtoupper($method) === 'POST' || strtoupper($method) === 'PUT')) {
-                $coupon_lock_error = self::check_woo_coupon_lockout();
-                if ($coupon_lock_error) {
-                    return $coupon_lock_error;
-                }
-            }
-            // Rule #42 Check for Store API products scraping
-            if (preg_match('#^/wc/store(?:/v\d+)?/products#i', $route)) {
-                $scrape_lock_error = self::check_and_track_catalog_scraping('Store API Products Endpoint');
-                if ($scrape_lock_error) {
-                    return $scrape_lock_error;
-                }
-            }
-            return $result;
         }
 
         // Flag unregistered guest REST write mutation
@@ -7799,22 +7820,37 @@ class FirewallEngine {
      * @return void
      */
     public static function handle_woo_payment_failure($order_id): void {
-        self::record_failed_checkout_attempt('Order status transitioned to failed');
+        $customer_ip = '';
+        if (function_exists('wc_get_order')) {
+            $order = wc_get_order($order_id);
+            if ($order && method_exists($order, 'get_customer_ip_address')) {
+                $customer_ip = (string) $order->get_customer_ip_address();
+            }
+        }
+        self::record_failed_checkout_attempt('Order status transitioned to failed', $customer_ip);
     }
 
     /**
      * Rule #38: Record a failed checkout attempt and trigger lockout if threshold is exceeded.
      *
      * @param string $reason
+     * @param string $override_ip Explicit shopper IP address (e.g. from async payment webhook order context)
      * @return void
      */
-    public static function record_failed_checkout_attempt(string $reason = ''): void {
+    public static function record_failed_checkout_attempt(string $reason = '', string $override_ip = ''): void {
         $settings = SettingsManager::get_settings();
         if (empty($settings['waf_woo_carding_protection'])) {
             return;
         }
 
-        $client_ip = self::get_client_ip();
+        // If triggered by an async payment webhook (Stripe, PayPal, Mollie, 3DS), strictly use the order's customer IP
+        $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $is_webhook = !empty($_SERVER['HTTP_STRIPE_SIGNATURE']) || !empty($_SERVER['HTTP_PAYPAL_TRANSMISSION_SIG']) || str_contains($req_uri, 'wc-api');
+        if ($is_webhook && empty($override_ip)) {
+            return; // Never lock out a payment gateway webhook server IP
+        }
+
+        $client_ip = !empty($override_ip) ? trim($override_ip) : self::get_client_ip();
         if (empty($client_ip)) {
             return;
         }
@@ -7822,11 +7858,6 @@ class FirewallEngine {
         // Whitelist check
         if (self::is_ip_whitelisted($client_ip)) {
             return;
-        }
-
-        // Record global cross-IP checkout failure for distributed carding defense
-        if (class_exists('\\WebCareProScanner\\Firewall\\DistributedVelocityShield')) {
-            \WebCareProScanner\Firewall\DistributedVelocityShield::record_checkout_failure($client_ip, $reason);
         }
 
         $max_attempts = (int) ($settings['waf_woo_checkout_max_attempts'] ?? 3);
@@ -7989,7 +8020,7 @@ class FirewallEngine {
      */
     public static function handle_woo_store_api_coupon_response($response, $handler, $request) {
         $route = $request->get_route();
-        if (!preg_match('#^/wc/store(?:/v\d+)?/cart/coupons#i', $route)) {
+        if (!preg_match('#^/wc/store(?:/v\d+)?/cart/(?:coupons|apply-coupon)#i', $route)) {
             return $response;
         }
 
