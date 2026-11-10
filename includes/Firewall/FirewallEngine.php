@@ -6792,15 +6792,21 @@ class FirewallEngine {
                 $incident_id
             );
         } elseif (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-            $event_type = 'probe_404';
-            if (str_contains($rule_id_str, 'HONEY') || str_contains($rule_id_str, 'SENSITIVE') || str_contains($rule_id_str, 'ENV') || str_contains($rule_id_str, 'GIT')) {
-                $event_type = 'honeypot';
-            } elseif (str_contains($rule_id_str, 'DORMANT') || str_contains($rule_id_str, 'CAF')) {
-                $event_type = 'dormant_surface';
-            } elseif (str_contains($rule_id_str, 'AUTH') || str_contains($rule_id_str, 'LOGIN') || str_contains($rule_id_str, 'XMLRPC')) {
-                $event_type = 'auth_fail';
+            // Skip ThreatScoreTracker accumulation when genuine crawlers follow on-page links (?add-to-cart= or /wp-login.php) with GET/HEAD
+            $req_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
+            if ($rule_id_str === 'BOT-CRAWLER-MUTATION-BLOCKED' && in_array($req_method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+                // Return 403 block on the specific link without accumulating toward a 24h IP ban for genuine crawlers
+            } else {
+                $event_type = 'probe_404';
+                if (str_contains($rule_id_str, 'HONEY') || str_contains($rule_id_str, 'SENSITIVE') || str_contains($rule_id_str, 'ENV') || str_contains($rule_id_str, 'GIT')) {
+                    $event_type = 'honeypot';
+                } elseif (str_contains($rule_id_str, 'DORMANT') || str_contains($rule_id_str, 'CAF')) {
+                    $event_type = 'dormant_surface';
+                } elseif (str_contains($rule_id_str, 'AUTH') || str_contains($rule_id_str, 'LOGIN') || str_contains($rule_id_str, 'XMLRPC')) {
+                    $event_type = 'auth_fail';
+                }
+                \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_type);
             }
-            \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, $event_type);
         }
 
         // Surge detection: Check if blocked count in the last 60 seconds exceeds surge threshold (e.g. 15 blocks/min)
