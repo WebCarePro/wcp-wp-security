@@ -56,22 +56,15 @@ class OutboundEgressFirewall {
         'secure.gravatar.com',
         'api.github.com',
         // Google Services & Gmail API (OAuth & SMTP)
-        'googleapis.com',
-        'www.googleapis.com',
-        'accounts.google.com',
         'gmail.googleapis.com',
         'oauth2.googleapis.com',
         'smtp.gmail.com',
         // Microsoft 365, Office 365 & Outlook Services
-        'microsoft.com',
         'graph.microsoft.com',
         'login.microsoftonline.com',
         'outlook.office.com',
         'outlook.office365.com',
         'smtp.office365.com',
-        // Amazon Web Services (SES & Cloud APIs)
-        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Outbound mailer destination allowlist, not offloaded scripts.
-        'amazonaws.com',
         // Transactional Mailers & SMTP Relays (Post SMTP, WP Mail SMTP, FluentSMTP)
         'sendgrid.com',
         'api.sendgrid.com',
@@ -360,17 +353,11 @@ class OutboundEgressFirewall {
         $caller = self::extract_calling_component();
         $is_mailer = self::is_active_mailer_component($caller);
 
-        // Smart Mailer Fast-Path:
-        // If caller is an active transactional mailer or wp_mail(), and target host is approved (including same-domain mail servers and dynamic relays), grant safe-pass immediately.
-        if ($is_mailer && self::is_host_approved($host, $settings)) {
-            return false;
-        }
-
         $threat = null;
         $reason = '';
 
-        // 2. SSRF, Binary IP Normalization & Cloud Metadata Check
-        // Resolves hostnames and checks decimal/hex/IPv6 encodings, link-local, loopback, and cloud metadata.
+        // 2. SSRF, Binary IP Normalization, Loopback & Cloud Metadata Check (HARD DENY PRECEDENCE)
+        // Resolves hostnames and checks decimal/hex/IPv6 encodings, link-local, loopback, private subnets, and cloud metadata.
         // Pin validated safe IP to prevent TOCTOU DNS rebinding in curl.
         if (!empty($settings['block_ssrf_metadata'])) {
             $site_home_url = home_url();
@@ -383,8 +370,15 @@ class OutboundEgressFirewall {
             $allowed_web_ports = [80, 443, 8080, 8443];
 
             // Transactional mail ports (SMTP, SMTPS, Submission, Alternate)
-            $standard_mail_ports = [25, 465, 587, 2525];
-            if ($is_mailer || self::is_same_domain_mail_host($host) || self::is_host_approved($host, $settings)) {
+            $standard_mail_ports = [465, 587, 2525];
+            $is_host_approved = self::is_host_approved($host, $settings, '', $is_mailer);
+
+            // Port 25 Hardening: Port 25 is ONLY permitted if caller is a verified mailer AND destination is an approved mail relay
+            if ($is_mailer && $is_host_approved) {
+                $standard_mail_ports[] = 25;
+            }
+
+            if ($is_mailer || $is_host_approved) {
                 $allowed_web_ports = array_merge($allowed_web_ports, $standard_mail_ports);
             }
 
@@ -407,7 +401,8 @@ class OutboundEgressFirewall {
 
             // High-risk internal ports that should never be probed even on same host (e.g., Redis, Memcached, MySQL, Postgres, MongoDB, Elastic)
             $restricted_internal_ports = [3306, 5432, 6379, 11211, 27017, 9200, 22, 23, 21];
-            if (!$is_mailer && !self::is_same_domain_mail_host($host) && !self::is_host_approved($host, $settings)) {
+            // Restrict port 25 unless caller is a verified mailer contacting an approved mail relay
+            if (!($is_mailer && $is_host_approved)) {
                 $restricted_internal_ports[] = 25;
             }
 
@@ -419,20 +414,35 @@ class OutboundEgressFirewall {
             if ($is_same_host && ($port === null || !in_array($port, $restricted_internal_ports, true)) && ($is_wp_cron_or_loopback || in_array($port, $allowed_web_ports, true))) {
                 // Legitimate internal self-request to site itself; do not treat as external SSRF
             } else {
-                $ssrf_eval = self::evaluate_ssrf_destination($host);
-                if ($ssrf_eval['threat']) {
-                    $threat = $ssrf_eval['threat'];
-                    $reason = $ssrf_eval['reason'];
-                } elseif ($port !== null && in_array($port, $restricted_internal_ports, true) && $is_same_host) {
+                // 1. Restricted Port Defense: Port 25, DB, and cache service ports blocked unconditionally
+                if ($port !== null && in_array($port, $restricted_internal_ports, true)) {
                     $threat = 'internal_port_probe';
-                    $reason = sprintf('Outbound request targeting restricted internal port (%1$d) on local site host (%2$s).', $port, $host);
-                } elseif (!empty($ssrf_eval['safe_ip'])) {
-                    // Record safe pinned IP for CURLOPT_RESOLVE in constrain_curl_transport()
-                    self::$resolved_safe_pins[$host] = [
-                        'ip'        => $ssrf_eval['safe_ip'],
-                        'timestamp' => time(),
-                    ];
+                    $reason = sprintf('Outbound request targeting restricted internal/mail port (%1$d) on %2$s.', $port, $host);
+                } else {
+                    // 2. Hard SSRF Evaluation: Must run BEFORE any allowlist or mailer fast-path!
+                    // An allowlisted host resolving to 127.0.0.1, 169.254.169.254, or RFC1918 will be caught and denied here.
+                    $ssrf_eval = self::evaluate_ssrf_destination($host);
+                    if (!empty($ssrf_eval['threat'])) {
+                        $threat = $ssrf_eval['threat'];
+                        $reason = $ssrf_eval['reason'];
+                    } elseif (!empty($ssrf_eval['safe_ip'])) {
+                        // Record safe pinned IP for CURLOPT_RESOLVE in constrain_curl_transport()
+                        self::$resolved_safe_pins[$host] = [
+                            'ip'        => $ssrf_eval['safe_ip'],
+                            'timestamp' => time(),
+                        ];
+                    }
                 }
+            }
+        }
+
+        // 3. Post-SSRF Verified Mailer & Approved Host Fast-Path:
+        // Now that the destination host is verified safe from SSRF/metadata/loopback/private IP,
+        // grant safe-pass if caller is an active mailer component and host is in the approved registry.
+        if (!$threat) {
+            $is_host_approved = self::is_host_approved($host, $settings, '', $is_mailer);
+            if ($is_mailer && $is_host_approved) {
+                return false;
             }
         }
 
@@ -480,8 +490,8 @@ class OutboundEgressFirewall {
         }
 
         if ($threat) {
-            // Cloud metadata, localhost SSRF, and unresolvable raw-IP/hex vectors are hard-blocked unconditionally even in monitor mode
-            $is_hard_block = ($threat === 'ssrf_metadata' || $threat === 'ssrf_loopback' || ($threat === 'unresolvable_host' && preg_match('/^[0-9a-fA-FxX.]+$/', $host)));
+            // Cloud metadata, localhost SSRF, private network SSRF, restricted port probes, and unresolvable raw-IP/hex vectors are hard-blocked unconditionally even in monitor mode
+            $is_hard_block = ($threat === 'ssrf_metadata' || $threat === 'ssrf_loopback' || $threat === 'ssrf_private_network' || $threat === 'internal_port_probe' || ($threat === 'unresolvable_host' && preg_match('/^[0-9a-fA-FxX.]+$/', $host)));
             // Raw-IP egress defaults to monitor mode unless global mode is enforce
             $is_enforced = $is_hard_block || ($settings['mode'] === 'enforce' && $threat !== 'raw_ip_egress') || $is_containment;
 
@@ -884,6 +894,7 @@ class OutboundEgressFirewall {
 
     /**
      * Check if a destination host belongs to the site's own primary apex domain (e.g. mail.example.com or smtp.example.com for example.com).
+     * Strictly bounded to apex domain and legitimate mail service prefixes (mail., smtp., mx., webmail., imap., pop.).
      *
      * @param string $host Destination host to check
      * @param string $site_host_override Optional site host to check against (defaults to home_url/site_url)
@@ -908,16 +919,17 @@ class OutboundEgressFirewall {
             return false;
         }
 
-        // Exact match with site host
-        if ($clean_host === $site_host) {
-            return true;
-        }
-
         // Strip leading www. to extract apex/root domain
         $root_domain = preg_replace('/^www\./i', '', $site_host);
 
-        // Check if destination is the root domain or any subdomain (e.g. mail.example.com, smtp.example.com, mx.example.com)
-        if ($clean_host === $root_domain || str_ends_with($clean_host, '.' . $root_domain)) {
+        // 1. Exact match with site apex domain or full site host
+        if ($clean_host === $root_domain || $clean_host === $site_host) {
+            return true;
+        }
+
+        // 2. Strict mail-specific subdomain prefixes only (mail., smtp., mx., webmail., imap., pop.)
+        // Defeats arbitrary subdomain bypasses (e.g. evil.example.com or dev.example.com)
+        if (preg_match('/^(?:mail|smtp|mx|webmail|imap|pop)\.' . preg_quote($root_domain, '/') . '$/i', $clean_host)) {
             return true;
         }
 
@@ -1003,18 +1015,19 @@ class OutboundEgressFirewall {
     /**
      * Check if a host is in the approved hosts allowlist (including same-domain mail servers and dynamic mailer relays).
      *
-     * @param string $host Destination host to check
-     * @param array  $settings Egress firewall settings
-     * @param string $site_host_override Optional site host to check against (defaults to home_url/site_url)
+     * @param string    $host Destination host to check
+     * @param array     $settings Egress firewall settings
+     * @param string    $site_host_override Optional site host to check against (defaults to home_url/site_url)
+     * @param bool|null $is_mailer Optional flag indicating whether caller is an active mailer component
      * @return bool
      */
-    public static function is_host_approved(string $host, array $settings = [], string $site_host_override = ''): bool {
+    public static function is_host_approved(string $host, array $settings = [], string $site_host_override = '', ?bool $is_mailer = null): bool {
         $clean_host = strtolower(trim($host));
         if ($clean_host === '') {
             return false;
         }
 
-        // 1. Same-domain custom mail server (e.g. mail.example.com, smtp.example.com for example.com)
+        // 1. Same-domain custom mail server (restricted to apex domain and mail/smtp/mx/webmail/imap/pop prefixes)
         if (self::is_same_domain_mail_host($clean_host, $site_host_override)) {
             return true;
         }
@@ -1025,7 +1038,22 @@ class OutboundEgressFirewall {
             return true;
         }
 
-        // 3. Approved cloud providers, APIs, CDNs, and transactional mailers
+        // 3. Explicit AWS SES (Simple Email Service) SMTP and REST API endpoints (e.g. email-smtp.us-east-1.amazonaws.com, email.us-west-2.amazonaws.com)
+        // Strictly bounds AWS allowlist to SES, preventing unmonitored S3, EC2, or Lambda API egress
+        if (preg_match('/^(?:email|email-smtp)\.[a-z0-9-]+\.amazonaws\.com$/i', $clean_host)) {
+            return true;
+        }
+
+        // 4. Google OAuth / API parent endpoints (accounts.google.com, www.googleapis.com)
+        // Only allowed when email_smtp ecosystem is active or caller is a verified mailer component
+        if ($clean_host === 'accounts.google.com' || $clean_host === 'www.googleapis.com') {
+            $has_email_eco = class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor') && \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('email_smtp');
+            if ($is_mailer === true || $has_email_eco) {
+                return true;
+            }
+        }
+
+        // 5. Approved cloud providers, APIs, CDNs, and transactional mailers
         $approved = array_merge(self::DEFAULT_APPROVED_HOSTS, $settings['allowed_hosts'] ?? []);
         foreach ($approved as $pattern) {
             if ($clean_host === $pattern || str_ends_with($clean_host, '.' . $pattern)) {
