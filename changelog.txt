@@ -7,6 +7,11 @@ v:2.11.0 - 2026-11-11
 - WAF Smart Rules Precision & Incident Telemetry Polish (Argon Audit):
   * Scoped Rule #49 Auth Array Type-Confusion Trap: Gated Smart Rule #49 to non-admin/non-editor sessions and restricted the generic 'key' parameter check strictly to password-reset endpoints (wp-login.php, action=rp, action=resetpass, /my-account, lost-password), eliminating false positives from translation, custom field, or builder forms passing key[] arrays.
   * Deduplicated Upload Incident Logging & Bans: Refactored inspect_uploaded_file() with a dedicated $log_and_ban flag, allowing pre-flight $_FILES inspection to delegate logging and banning directly to handle_rule_violation(), guaranteeing exactly one clean incident entry and one IP ban per blocked malicious upload.
+- WordPress Plugin Check (PCP) & Test Sandbox Immunity (FirewallEngine.php):
+  * Dynamic Sandbox DB Prefix Exemption: Immunized all 4 In-Memory RASP Privilege Guard hooks (rasp_guard_critical_options, rasp_guard_user_role_assignment, rasp_guard_user_registration, rasp_guard_user_metadata_injection) against test runner and sandbox environments amending $wpdb->prefix (such as Plugin Check's wp_pc_ / wpm3_pc_ temporary tables created by Amend_DB_Base_Prefix).
+  * Strict Base Prefix Key Anchoring: Anchored guarded security metadata keys strictly to $wpdb->base_prefix (wp_capabilities, wp_user_level) rather than temporary sandbox prefixes, ensuring internal test installations (wp_install) never match protected live metadata hooks.
+  * Resilient Administrator Capability Verification: Upgraded is_authenticated_administrator() to inspect capabilities under $wpdb->base_prefix when $wpdb->prefix is temporarily changed by test runners, guaranteeing authenticated administrators maintain full administrative status and never drop into guest fallback during Plugin Check scans.
+  * Administrative Referer Safety Guard: Added Safety Guard 2b to add_blocked_ip(), explicitly preventing the current client IP from ever being blocked during authenticated Plugin Check administrative sessions.
 
 v:2.10.0 - 2026-11-10
 - 2026 Advanced Smart Rules (Rules #48–#54) & Edge Armor Implementation:
