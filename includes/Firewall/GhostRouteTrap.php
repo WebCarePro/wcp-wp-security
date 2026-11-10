@@ -228,26 +228,18 @@ class GhostRouteTrap {
             sprintf('Autonomous bot trap triggered by IP %s on canary surface "%s". Action: %s.', $ip, $target_surface, strtoupper($event['action_taken']))
         );
 
-        // 3. Block client IP if enabled
+        // 3. Block client IP if enabled and queue Cloudflare Edge ban with full forensic note
         if (!empty($settings['block_client_ip']) && class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+            $trap_incident_id = 'WEBCARE-' . strtoupper(substr(md5($ip . microtime(true) . $target_surface), 0, 8));
             FirewallEngine::add_blocked_ip(
                 $ip,
                 sprintf('Decoy canary trap probed: %s', $target_surface),
                 24 * HOUR_IN_SECONDS,
-                null,
-                'GHOST-CANARY-TRAP',
+                'WAF-GHOST-CANARY-TRAP',
                 'Ghost Route Canary Trap',
-                'Canary Bot Trap'
+                'Canary Bot Trap',
+                $trap_incident_id
             );
-        }
-
-        // 4. Sync to Cloudflare Edge IP Lists if configured
-        if (!empty($settings['sync_cloudflare_edge']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
-            try {
-                CloudflareService::block_ip($ip, 'WebCare Decoy Ghost Trap Probed');
-            } catch (\Throwable $e) {
-                // Ignore Cloudflare API network failure during high-speed mitigation
-            }
         }
 
         // 5. Artificial delay if tarpit duration is configured

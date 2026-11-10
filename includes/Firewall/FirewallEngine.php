@@ -1340,7 +1340,30 @@ class FirewallEngine {
                 ];
 
                 self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                            }
+            }
+        }
+
+        // Rule 8: Multi-Dimensional $_FILES Payload Pre-Flight Inspection
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight upload inspection across all incoming POSTs
+        if (!empty($_FILES) && !empty($settings['waf_block_malicious_uploads'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight upload inspection across all incoming POSTs
+            $all_uploaded_files = self::flatten_uploaded_files($_FILES);
+            foreach ($all_uploaded_files as $uploaded_item) {
+                $upload_check = self::inspect_uploaded_file($uploaded_item);
+                if (!empty($upload_check['error'])) {
+                    $rule_triggered = [
+                        'id'          => 'WAF-MALICIOUS-UPLOAD-BLOCKED',
+                        'name'        => 'Malicious File Upload Shield (Rule 8)',
+                        'category'    => 'Malicious File Upload',
+                        'description' => (string) $upload_check['error'],
+                        'match_type'  => 'Malicious File Upload',
+                        'match_value' => (string) ($uploaded_item['name'] ?? ''),
+                        'payload'     => 'Uploaded: ' . substr((string) ($uploaded_item['name'] ?? ''), 0, 100) . ' IP: ' . $client_ip,
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                    break;
+                }
+            }
         }
 
         // Specialized Rule: Disallow phpMyAdmin & Database Manager Plugin Installations (AJAX/REST/Query inspection)
@@ -1795,6 +1818,8 @@ class FirewallEngine {
             foreach ($traversal_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
+                        'id'          => 'WAF-LFI-TRAVERSAL',
+                        'name'        => 'Directory Traversal & LFI Shield',
                         'category'    => 'Path Traversal',
                         'description' => 'Local/Remote file inclusion directory traversal probe detected.',
                         'payload'     => substr($combined_payload, 0, 200),
@@ -1819,6 +1844,8 @@ class FirewallEngine {
             foreach ($sqli_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
+                        'id'          => 'WAF-SQLI-INJECTION',
+                        'name'        => 'SQL Injection Signature Shield',
                         'category'    => 'SQL Injection',
                         'description' => 'Malicious SQL syntax exploitation pattern detected.',
                         'payload'     => substr($combined_payload, 0, 200),
@@ -1839,6 +1866,8 @@ class FirewallEngine {
             foreach ($php_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
                     return [
+                        'id'          => 'WAF-RCE-PHP-INJECTION',
+                        'name'        => 'PHP Code & Command Execution Shield',
                         'category'    => 'PHP Code Injection',
                         'description' => 'Direct PHP script tag or dangerous execution function payload detected.',
                         'payload'     => substr($combined_payload, 0, 200),
@@ -1874,6 +1903,8 @@ class FirewallEngine {
             foreach ($xss_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined) || preg_match($pattern, $xss_payload_stripped)) {
                     return [
+                        'id'          => 'WAF-XSS-PAYLOAD',
+                        'name'        => 'Cross-Site Scripting (XSS) Shield',
                         'category'    => 'Cross-Site Scripting (XSS)',
                         'description' => 'Hostile JavaScript injection or payload tag detected.',
                         'payload'     => substr($combined_payload, 0, 200),
@@ -1886,6 +1917,8 @@ class FirewallEngine {
         if (!empty($settings['waf_block_null_byte_attacks'])) {
             if (strpos($uri, '%00') !== false || strpos($combined_payload, "\0") !== false || strpos($combined_payload, '%00') !== false) {
                 return [
+                    'id'          => 'WAF-NULL-BYTE-POISON',
+                    'name'        => 'Null Byte String Termination Shield',
                     'category'    => 'Null Byte Poison',
                     'description' => 'Null byte string termination attack (%00) detected in URI or request payload.',
                     'payload'     => substr($combined_payload, 0, 200),
@@ -2005,6 +2038,8 @@ class FirewallEngine {
 
                             if (!$is_trusted_redirect) {
                                 return [
+                                    'id'          => 'WAF-OPEN-REDIRECT',
+                                    'name'        => 'Open Redirect Phishing Guard',
                                     'category'    => 'Protocol Defense',
                                     'description' => sprintf('Unsanitized open redirect targeting unauthorized external destination: %s', substr($parsed_host, 0, 60)),
                                     'payload'     => substr($val, 0, 200),
@@ -2027,6 +2062,8 @@ class FirewallEngine {
             foreach ($ssrf_patterns as $pattern) {
                 if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
                     return [
+                        'id'          => 'WAF-SSRF-METADATA',
+                        'name'        => 'Cloud Metadata & SSRF Shield',
                         'category'    => 'SSRF Defense',
                         'description' => 'Cloud instance metadata service (IMDS) SSRF exploitation probe intercepted.',
                         'payload'     => substr($combined_payload, 0, 200),
@@ -3140,27 +3177,6 @@ class FirewallEngine {
             }
         }
 
-        // Auto-sync banned IP to Cloudflare Edge Access Rules if enabled
-        if ($action === 'blocked') {
-            $settings = SettingsManager::get_settings();
-            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
-                // SAFETY SHIELD: Never auto-ban authenticated admins or whitelisted IPs
-                $is_admin = self::is_authenticated_administrator();
-                $is_whitelisted = self::is_ip_whitelisted($ip, $settings['waf_whitelisted_ips'] ?? '');
-
-                if (!$is_admin && !$is_whitelisted) {
-                    // Only sync high-threat categories (SQLi, PHP Injection, Traversal) to avoid polluting access rules
-                    $critical_categories = ['SQL Injection', 'PHP Injection', 'Path Traversal', 'Threat Intelligence'];
-                    if (in_array($rule['category'] ?? '', $critical_categories, true)) {
-                        \WebCareProScanner\Cloudflare\CloudflareService::block_ip(
-                            $ip,
-                            "WebCare WAF Auto-Ban: {$rule['category']} probe [{$incident_id}]"
-                        );
-                    }
-                }
-            }
-        }
-
         return $incident_id;
     }
 
@@ -3461,6 +3477,8 @@ class FirewallEngine {
             'commerce_telemetry' => [
                 'is_active' => self::is_commerce_active(),
                 'detected_names' => array_values(array_filter([
+                    // Archetype Profile
+                    in_array(get_option('webcareproscan_site_archetype'), ['ecommerce', 'membership'], true) ? 'Configured ' . ucfirst((string) get_option('webcareproscan_site_archetype')) . ' Archetype' : null,
                     // E-Commerce
                     class_exists('WooCommerce') ? 'WooCommerce' : null,
                     class_exists('Easy_Digital_Downloads') ? 'Easy Digital Downloads' : null,
@@ -4025,6 +4043,56 @@ class FirewallEngine {
     }
 
     /**
+     * Build a structured forensic note for Cloudflare IP Access Rules & Account Lists.
+     *
+     * Format: [WebCare-WAF] [WEBCARE-8F3A19C2] Rule:WAF-SQLI-INJECTION | Hit:POST /wp-admin/admin-ajax.php | Ev:... | TTL:24h
+     *
+     * @param string      $reason
+     * @param string|null $rule_id
+     * @param string|null $rule_category
+     * @param string|null $incident_id
+     * @param int         $duration_seconds
+     * @param string|null $admin_user
+     * @return string
+     */
+    public static function build_forensic_cf_note(
+        string $reason,
+        ?string $rule_id = null,
+        ?string $rule_category = null,
+        ?string $incident_id = null,
+        int $duration_seconds = 86400,
+        ?string $admin_user = null
+    ): string {
+        $method    = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'REQ';
+        $raw_uri   = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
+        $clean_uri = substr((string) preg_replace('/[\r\n\t\x00-\x1f]+/', '', $raw_uri), 0, 55);
+        $ttl_label = $duration_seconds > 0 ? round($duration_seconds / 3600, 1) . 'h' : 'PERM';
+
+        $parts = ['[WebCare-WAF]'];
+        if (!empty($incident_id)) {
+            $parts[] = '[' . preg_replace('/[^A-Za-z0-9_-]/', '', $incident_id) . ']';
+        }
+        if (!empty($rule_id)) {
+            $parts[] = 'Rule:' . preg_replace('/[^A-Za-z0-9_-]/', '', $rule_id);
+        } elseif (!empty($rule_category)) {
+            $parts[] = 'Cat:' . substr(sanitize_text_field($rule_category), 0, 28);
+        }
+        if (!empty($admin_user)) {
+            $parts[] = 'By:' . sanitize_user($admin_user, true);
+        } else {
+            $parts[] = "Hit:{$method} {$clean_uri}";
+        }
+
+        $clean_reason = trim((string) preg_replace('/^\[[^\]]+\]\s*/', '', $reason));
+        if ($clean_reason !== '') {
+            $parts[] = 'Ev:' . substr($clean_reason, 0, 75);
+        }
+        $parts[] = 'TTL:' . $ttl_label;
+
+        return substr(implode(' | ', $parts), 0, 240);
+    }
+
+    /**
      * Add IP to custom blocklist with rich metadata
      *
      * @param string $ip IP address or CIDR subnet
@@ -4105,8 +4173,19 @@ class FirewallEngine {
 
         // Context-Adaptive Firewall (CAF Phase 2): Queue IP ban for Cloudflare Edge synchronization
         if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
-            $cf_sync = new \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer();
-            $cf_sync->queue_ip_ban($ip, $reason, $duration_seconds > 0 ? $duration_seconds : 86400);
+            $forensic_note = self::build_forensic_cf_note(
+                !empty($reason) ? $reason : 'Blocked by security firewall policy',
+                $rule_id,
+                $rule_category,
+                $incident_id,
+                $duration_seconds,
+                $admin_user
+            );
+            \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer::queue_ip_ban(
+                $ip,
+                $forensic_note,
+                $duration_seconds > 0 ? $duration_seconds : 86400
+            );
         }
 
         return true;
@@ -5257,7 +5336,74 @@ class FirewallEngine {
             ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
     }
-    
+
+    /**
+     * Recursively normalize arbitrary multi-dimensional $_FILES structures into a flat list
+     * of ['name' => string, 'tmp_name' => string, 'type' => string, 'error' => int, 'size' => int].
+     *
+     * Guarded with depth cap (<= 4) and max count (<= 50) to prevent pathological DOS arrays.
+     *
+     * @param array $files_array
+     * @param int   $max_depth
+     * @param int   $max_files
+     * @return array<int, array<string, mixed>>
+     */
+    public static function flatten_uploaded_files(array $files_array, int $max_depth = 4, int $max_files = 50): array {
+        $normalized = [];
+
+        $walk = static function ($names, $tmp_names, $types, $errors, $sizes, int $depth) use (&$walk, &$normalized, $max_depth, $max_files): void {
+            if (count($normalized) >= $max_files || $depth > $max_depth) {
+                return;
+            }
+
+            if (is_array($names)) {
+                foreach ($names as $k => $sub_name) {
+                    if (count($normalized) >= $max_files) {
+                        break;
+                    }
+                    $walk(
+                        $sub_name,
+                        is_array($tmp_names) ? ($tmp_names[$k] ?? '') : '',
+                        is_array($types) ? ($types[$k] ?? '') : '',
+                        is_array($errors) ? ($errors[$k] ?? 0) : 0,
+                        is_array($sizes) ? ($sizes[$k] ?? 0) : 0,
+                        $depth + 1
+                    );
+                }
+                return;
+            }
+
+            if (is_string($names) && $names !== '') {
+                $normalized[] = [
+                    'name'     => $names,
+                    'tmp_name' => is_string($tmp_names) ? $tmp_names : '',
+                    'type'     => is_string($types) ? $types : '',
+                    'error'    => (int) $errors,
+                    'size'     => (int) $sizes,
+                ];
+            }
+        };
+
+        foreach ($files_array as $file_info) {
+            if (count($normalized) >= $max_files) {
+                break;
+            }
+            if (!is_array($file_info) || !isset($file_info['name'])) {
+                continue;
+            }
+            $walk(
+                $file_info['name'],
+                $file_info['tmp_name'] ?? '',
+                $file_info['type'] ?? '',
+                $file_info['error'] ?? 0,
+                $file_info['size'] ?? 0,
+                1
+            );
+        }
+
+        return $normalized;
+    }
+
     /**
      * Intercept and audit uploaded files in real-time (Rule 8)
      */
@@ -5267,7 +5413,24 @@ class FirewallEngine {
             return $file;
         }
 
-        if (empty($file['name']) || empty($file['tmp_name'])) {
+        if (empty($file['name'])) {
+            return $file;
+        }
+
+        // Handle multi-dimensional or multi-file uploads (e.g. $_FILES['form_fields']['name']['avatar'])
+        if (is_array($file['name'])) {
+            $flattened = self::flatten_uploaded_files([$file]);
+            foreach ($flattened as $single_file) {
+                $sub_res = self::inspect_uploaded_file($single_file);
+                if (!empty($sub_res['error'])) {
+                    $file['error'] = $sub_res['error'];
+                    return $file;
+                }
+            }
+            return $file;
+        }
+
+        if (empty($file['tmp_name'])) {
             return $file;
         }
 
@@ -6348,12 +6511,16 @@ class FirewallEngine {
             'Malicious File Upload',
             'Virtual Patch',
             'AI & Agent Defense',
+            'Null Byte Poison',
+            'SSRF Defense',
         ];
 
         $is_instant_ban_exploit = in_array($rule_cat, $critical_ban_categories, true)
             || str_contains($rule_id_str, 'VPATCH')
             || str_contains($rule_id_str, 'SQLI')
             || str_contains($rule_id_str, 'RCE')
+            || str_contains($rule_id_str, 'NULL-BYTE')
+            || str_contains($rule_id_str, 'SSRF')
             || str_contains($rule_id_str, 'OBJECT-STREAM');
 
         if ($is_instant_ban_exploit) {
@@ -8019,6 +8186,8 @@ class FirewallEngine {
         }
 
         $client_ip = self::get_client_ip();
+        $incident_id = 'WEBCARE-' . strtoupper(substr(md5($client_ip . $option . microtime(true)), 0, 8));
+        $reason = sprintf('Unauthenticated RASP tamper attempt on core option "%s"', $option);
 
         self::log_incident([
             'id'          => 'WAF-RASP-OPTION-TAMPER',
@@ -8033,7 +8202,19 @@ class FirewallEngine {
             'match_type'  => 'Unauthorized Option Mutation',
             'match_value' => $option,
             'payload'     => "Option: {$option} Attempted Value: " . substr(wp_json_encode($value), 0, 100),
-        ], 'blocked');
+        ], 'blocked', $incident_id);
+
+        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+            self::add_blocked_ip(
+                $client_ip,
+                $reason,
+                86400,
+                'WAF-RASP-OPTION-TAMPER',
+                'Runtime Option Tamper Trap',
+                'Runtime RASP Hook Defense',
+                $incident_id
+            );
+        }
 
         // Hard Inviolable Revert: return the old value immediately
         return $old_value;
@@ -8077,6 +8258,8 @@ class FirewallEngine {
             }
 
             $client_ip = self::get_client_ip();
+            $incident_id = 'WEBCARE-' . strtoupper(substr(md5($client_ip . $role . $user_id . microtime(true)), 0, 8));
+            $reason = sprintf('Unauthorized role escalation to "%s" on user #%d', $role, $user_id);
 
             self::log_incident([
                 'id'          => 'WAF-RASP-ROLE-ESCALATION',
@@ -8092,7 +8275,19 @@ class FirewallEngine {
                 'match_type'  => 'Privilege Escalation Intercept',
                 'match_value' => $role,
                 'payload'     => "User ID: {$user_id} Target Role: {$role} Caller: Guest / Non-Admin",
-            ], 'blocked');
+            ], 'blocked', $incident_id);
+
+            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                self::add_blocked_ip(
+                    $client_ip,
+                    $reason,
+                    86400,
+                    'WAF-RASP-ROLE-ESCALATION',
+                    'Runtime Role Escalation Trap',
+                    'Runtime RASP Hook Defense',
+                    $incident_id
+                );
+            }
 
             wp_die(
                 esc_html__('Security Violation: Unauthorized role escalation intercepted by WebCare Runtime RASP.', 'webcare-pro-security'),
@@ -8133,6 +8328,9 @@ class FirewallEngine {
             $user->set_role('subscriber');
 
             $client_ip = self::get_client_ip();
+            $incident_id = 'WEBCARE-' . strtoupper(substr(md5($client_ip . $user->user_login . $user_id . microtime(true)), 0, 8));
+            $reason = sprintf('Unauthenticated registration of elevated account "%s" (#%d)', $user->user_login, $user_id);
+
             self::log_incident([
                 'id'          => 'WAF-RASP-ADMIN-REG-BLOCKED',
                 'name'        => 'Runtime Privilege Escalation Guard (Rule #44)',
@@ -8146,7 +8344,19 @@ class FirewallEngine {
                 'match_type'  => 'Guest Admin Registration',
                 'match_value' => (string) $user_id,
                 'payload'     => "User: {$user->user_login} ID: {$user_id}",
-            ], 'blocked');
+            ], 'blocked', $incident_id);
+
+            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                self::add_blocked_ip(
+                    $client_ip,
+                    $reason,
+                    86400,
+                    'WAF-RASP-ADMIN-REG-BLOCKED',
+                    'Unauthorized Admin Registration Trap',
+                    'Runtime RASP Hook Defense',
+                    $incident_id
+                );
+            }
         }
     }
 
@@ -8344,6 +8554,8 @@ class FirewallEngine {
         }
 
         $client_ip = self::get_client_ip();
+        $incident_id = 'WEBCARE-' . strtoupper(substr(md5($client_ip . $meta_key . $object_id . microtime(true)), 0, 8));
+        $reason = sprintf('Unauthenticated usermeta injection on "%s" for user #%d', $meta_key, $object_id);
 
         self::log_incident([
             'id'          => 'WAF-RASP-META-INJECTION',
@@ -8359,7 +8571,19 @@ class FirewallEngine {
             'match_type'  => 'Unauthorized Usermeta Mutation',
             'match_value' => $meta_key,
             'payload'     => "User: {$object_id} Meta: {$meta_key}",
-        ], 'blocked');
+        ], 'blocked', $incident_id);
+
+        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+            self::add_blocked_ip(
+                $client_ip,
+                $reason,
+                86400,
+                'WAF-RASP-META-INJECTION',
+                'Runtime Usermeta Privilege Trap',
+                'Runtime RASP Hook Defense',
+                $incident_id
+            );
+        }
 
         // Returning false tells WordPress update_metadata/add_metadata to immediately abort without writing to DB
         return false;

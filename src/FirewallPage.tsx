@@ -1842,6 +1842,7 @@ export const FirewallPage = ({
           setCfZoneId(resolvedZoneId);
         }
         // Save to WordPress settings
+        setCfAutoSyncBans(true);
         await apiRequest({
           path: '/settings',
           method: 'POST',
@@ -1849,7 +1850,7 @@ export const FirewallPage = ({
             cloudflare_enabled: true,
             cloudflare_api_token: cfToken.trim() || undefined,
             cloudflare_zone_id: resolvedZoneId,
-            cloudflare_auto_sync_bans: cfAutoSyncBans ?? true,
+            cloudflare_auto_sync_bans: true,
           }
         });
         await loadCloudflareData();

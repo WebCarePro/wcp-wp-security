@@ -1422,13 +1422,17 @@ class CloudflareService {
             }
         }
 
+        $clean_note = str_starts_with($reason, self::WEBCARE_RULE_TAG)
+            ? substr($reason, 0, 240)
+            : self::WEBCARE_RULE_TAG . ' ' . substr($reason, 0, 225);
+
         $payload = [
             'mode'          => 'block',
             'configuration' => [
                 'target' => $target,
                 'value'  => $target_value,
             ],
-            'notes'         => self::WEBCARE_RULE_TAG . ' ' . substr($reason, 0, 70),
+            'notes'         => $clean_note,
         ];
 
         $res = self::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);

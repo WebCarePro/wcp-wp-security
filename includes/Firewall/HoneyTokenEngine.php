@@ -407,14 +407,15 @@ class HoneyTokenEngine {
             if (FirewallEngine::is_server_origin_or_loopback($ip)) {
                 return;
             }
+            $honey_incident_id = 'WEBCARE-' . strtoupper(substr(md5($ip . microtime(true)), 0, 8));
             FirewallEngine::add_blocked_ip(
                 $ip,
-                'Honeytoken trap triggered',
+                'Honeytoken decoy credential or hidden field trap triggered',
                 $duration_hours * 3600,
-                null,
-                'HONEYTOKEN-TRAP',
+                'WAF-HONEYTOKEN-TRAP',
                 'Honeytoken Trap',
-                'Bot Trap'
+                'Bot Trap',
+                $honey_incident_id
             );
         } else {
             $waf_settings = SettingsManager::get_settings();

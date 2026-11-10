@@ -118,7 +118,7 @@ class CloudflareIpListSynchronizer {
 
         $entry = [
             'ip'         => $ip,
-            'reason'     => substr(sanitize_text_field($reason), 0, 100),
+            'reason'     => substr(sanitize_text_field($reason), 0, 240),
             'banned_at'  => time(),
             'expires_at' => $ttl > 0 ? (time() + $ttl) : 0,
         ];
@@ -386,7 +386,7 @@ class CloudflareIpListSynchronizer {
         foreach ($targets as $t) {
             $items[] = [
                 'ip'      => $t['target'],
-                'comment' => substr((string) ($t['notes'] ?? 'WebCare Threat Block'), 0, 100),
+                'comment' => substr((string) ($t['notes'] ?? '[WebCare-WAF] Threat Block'), 0, 240),
             ];
         }
 
@@ -506,13 +506,17 @@ class CloudflareIpListSynchronizer {
 
         $synced = 0;
         foreach ($targets as $t) {
+            $raw_note = (string) ($t['notes'] ?? 'WebCare Local Ban');
+            if (!str_starts_with($raw_note, '[WebCare-WAF]')) {
+                $raw_note = '[WebCare-WAF] ' . $raw_note;
+            }
             $payload = [
                 'mode'          => 'block',
                 'configuration' => [
                     'target' => $t['type'] === 'ip_range' ? 'ip_range' : 'ip',
                     'value'  => $t['target'],
                 ],
-                'notes'         => substr((string) ($t['notes'] ?? 'WebCare Local Ban'), 0, 100),
+                'notes'         => substr($raw_note, 0, 240),
             ];
 
             $res = CloudflareService::request("zones/{$zone_id}/firewall/access_rules/rules", 'POST', $payload);

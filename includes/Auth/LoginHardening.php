@@ -260,11 +260,17 @@ class LoginHardening {
                 ]);
             }
 
-            // Sync brute force attacker to Cloudflare Edge IP Access Rules if enabled
-            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')) {
-                \WebCareProScanner\Cloudflare\CloudflareService::block_ip(
+            // Sync brute-force attacker to local blocklist & Cloudflare Edge with automatic TTL expiration
+            if (!empty($settings['cloudflare_auto_sync_bans']) && class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
+                $incident_id = 'WEBCARE-' . strtoupper(substr(md5($ip . microtime(true)), 0, 8));
+                \WebCareProScanner\Firewall\FirewallEngine::add_blocked_ip(
                     $ip,
-                    "WebCare Brute Force: {$attempts} failed logins for {$username}"
+                    sprintf('Brute Force Lockout: %d failed logins targeting "%s"', (int) $attempts, sanitize_user((string) $username, true)),
+                    max(300, ((int) $lockout_duration) * 60),
+                    'WAF-AUTH-BRUTE-FORCE',
+                    'Login Brute-Force Lockout',
+                    'Identity Defense',
+                    $incident_id
                 );
 
                 if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {
