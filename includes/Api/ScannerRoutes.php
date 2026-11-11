@@ -2828,20 +2828,72 @@ class ScannerRoutes {
 
         $vault_summary = class_exists($vault_mgr) ? $vault_mgr::get_vault_summary() : null;
         $rules         = class_exists($synth) ? $synth::get_active_rules() : [];
-        $inventory     = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_INVENTORY) ?: []) : [];
+        $raw_inv       = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_INVENTORY) ?: []) : [];
+
+        // If vault inventory shard is not yet written, discover live components as immediate baseline
+        if (empty($raw_inv) && class_exists($analyzer) && method_exists($analyzer, 'discover_all_components')) {
+            $raw_inv = $analyzer::discover_all_components();
+        }
+
         $endpoint_map  = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_ENDPOINTS) ?: []) : [];
         $findings      = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_FINDINGS) ?: []) : [];
         $scan_progress = class_exists($analyzer) ? $analyzer::get_scan_progress() : null;
+
+        // Build quick lookup maps for enrichment
+        $endpoint_counts = [];
+        if (is_array($endpoint_map)) {
+            foreach ($endpoint_map as $ep) {
+                $comp_name = $ep['component'] ?? '';
+                if ($comp_name !== '') {
+                    $endpoint_counts[$comp_name] = ($endpoint_counts[$comp_name] ?? 0) + 1;
+                }
+            }
+        }
+
+        $finding_counts = [];
+        if (is_array($findings)) {
+            foreach ($findings as $fd) {
+                $comp_name = $fd['component'] ?? '';
+                if ($comp_name !== '') {
+                    $finding_counts[$comp_name] = ($finding_counts[$comp_name] ?? 0) + 1;
+                }
+            }
+        }
+
+        $rule_counts = [];
+        if (is_array($rules)) {
+            foreach ($rules as $rl) {
+                $comp_name = $rl['target_component'] ?? '';
+                if ($comp_name !== '') {
+                    $rule_counts[$comp_name] = ($rule_counts[$comp_name] ?? 0) + 1;
+                }
+            }
+        }
+
+        // Convert associative array to indexed list with behavioral metrics
+        $inventory = [];
+        if (is_array($raw_inv)) {
+            foreach ($raw_inv as $comp) {
+                if (!is_array($comp)) {
+                    continue;
+                }
+                $name = $comp['name'] ?? ($comp['slug'] ?? '');
+                $comp['endpoints_count'] = $endpoint_counts[$name] ?? 0;
+                $comp['findings_count']  = $finding_counts[$name] ?? 0;
+                $comp['rules_count']     = $rule_counts[$name] ?? 0;
+                $inventory[]             = $comp;
+            }
+        }
 
         $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
 
         return new \WP_REST_Response([
             'success'        => true,
             'vault_summary'  => $vault_summary,
-            'rules'          => $rules,
+            'rules'          => is_array($rules) ? array_values($rules) : [],
             'inventory'      => $inventory,
-            'endpoint_map'   => $endpoint_map,
-            'findings'       => $findings,
+            'endpoint_map'   => is_array($endpoint_map) ? array_values($endpoint_map) : [],
+            'findings'       => is_array($findings) ? array_values($findings) : [],
             'scan_progress'  => $scan_progress,
             'preload_active' => $preload_active,
         ], 200);
