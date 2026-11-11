@@ -1379,13 +1379,13 @@ class FirewallEngine {
         if (($has_stripe_sig || $has_paypal_sig) && !self::is_server_origin_or_loopback($client_ip) && !self::is_authenticated_administrator()) {
             $is_genuine_webhook_origin = false;
             if ($has_stripe_sig) {
-                $stripe_cidrs = [
+                $stripe_cidrs = apply_filters('webcareproscan_stripe_webhook_cidrs', [
                     '3.18.12.63/32', '3.130.192.231/32', '13.235.14.237/32', '13.235.122.149/32',
                     '18.211.135.69/32', '35.154.171.200/32', '52.15.183.38/32', '54.187.174.169/32',
                     '54.187.205.235/32', '54.187.216.72/32', '54.241.31.99/32', '54.241.31.102/32',
                     '54.241.34.107/32',
-                ];
-                foreach ($stripe_cidrs as $stripe_cidr) {
+                ]);
+                foreach ((array) $stripe_cidrs as $stripe_cidr) {
                     if (self::ip_in_range($client_ip, $stripe_cidr)) {
                         $is_genuine_webhook_origin = true;
                         break;
@@ -1393,11 +1393,11 @@ class FirewallEngine {
                 }
             }
             if (!$is_genuine_webhook_origin && $has_paypal_sig) {
-                $paypal_cidrs = [
+                $paypal_cidrs = apply_filters('webcareproscan_paypal_webhook_cidrs', [
                     '173.0.80.0/20', '66.211.168.0/22', '64.4.240.0/21', '64.4.248.0/22',
                     '185.177.189.0/24', '3.253.0.0/16', '52.212.0.0/15',
-                ];
-                foreach ($paypal_cidrs as $paypal_cidr) {
+                ]);
+                foreach ((array) $paypal_cidrs as $paypal_cidr) {
                     if (self::ip_in_range($client_ip, $paypal_cidr)) {
                         $is_genuine_webhook_origin = true;
                         break;
@@ -4371,10 +4371,8 @@ class FirewallEngine {
             return false;
         }
 
-        // Safety Guard 2b: Never ban an IP during an authenticated Plugin Check (PCP) administrative run
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-        $req_referer = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
-        if ($ip === $current_client_ip && str_contains($req_referer, 'plugin-check')) {
+        // Safety Guard 2b: Never ban an IP during a verified server-side Plugin Check / WP-CLI sandbox run
+        if ($ip === $current_client_ip && self::is_trusted_plugin_check_or_cli_runtime()) {
             return false;
         }
 
@@ -4399,16 +4397,17 @@ class FirewallEngine {
             SettingsManager::$suppress_firewall_ruleset_log = false;
         }
 
-        // Persist structured metadata
+        // Persist structured metadata (enforce non-zero 24h default TTL on rule auto-bans)
         $now = time();
         $source = !empty($admin_user) ? 'manual_admin' : (!empty($rule_id) ? 'rule_auto_ban' : 'custom_blocklist');
-        $expires_at = $duration_seconds > 0 ? ($now + $duration_seconds) : 0;
+        $effective_duration = ($source === 'rule_auto_ban' && $duration_seconds <= 0) ? 86400 : $duration_seconds;
+        $expires_at = $effective_duration > 0 ? ($now + $effective_duration) : 0;
 
         self::set_ip_block_meta($ip, [
             'ip'               => $ip,
             'source'           => $source,
             'reason'           => !empty($reason) ? $reason : 'Blocked by security firewall policy',
-            'duration_seconds' => $duration_seconds,
+            'duration_seconds' => $effective_duration,
             'blocked_at'       => $now,
             'expires_at'       => $expires_at,
             'rule_id'          => $rule_id,
@@ -4425,13 +4424,13 @@ class FirewallEngine {
                 $rule_id,
                 $rule_category,
                 $incident_id,
-                $duration_seconds,
+                $effective_duration,
                 $admin_user
             );
             \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer::queue_ip_ban(
                 $ip,
                 $forensic_note,
-                $duration_seconds > 0 ? $duration_seconds : 86400
+                $effective_duration > 0 ? $effective_duration : 86400
             );
         }
 
@@ -7493,9 +7492,12 @@ class FirewallEngine {
                 'ppc_approve_order',
                 'wc_stripe_create_order',
                 'wc_stripe_get_cart_details',
-                // Official WordPress Plugin Check (PCP) Tool Test Runner
-                'plugin_check_run_checks',
             ], true);
+        }
+
+        // Only permit Plugin Check admin runner AJAX when executed by an authenticated admin or trusted runtime
+        if ($action === 'plugin_check_run_checks' && (self::is_authenticated_administrator() || self::is_trusted_plugin_check_or_cli_runtime())) {
+            return;
         }
 
         if (isset($tier1_actions[$action])) {
@@ -7527,11 +7529,6 @@ class FirewallEngine {
         }
 
         $referer_raw = isset($_SERVER['HTTP_REFERER']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']))) : '';
-        // Official WordPress Plugin Check (PCP) runner from wp-admin/tools.php
-        if (!empty($referer_raw) && strpos($referer_raw, 'page=plugin-check') !== false) {
-            return;
-        }
-
         if (self::has_active_shopper_session() || (!empty($referer_raw) && (strpos($referer_raw, '/checkout') !== false || strpos($referer_raw, '/cart') !== false))) {
             if (str_starts_with($action_lower, 'wc_') || str_starts_with($action_lower, 'woocommerce_') || strpos($action_lower, 'tax') !== false || strpos($action_lower, 'vat') !== false || strpos($action_lower, 'shipping') !== false) {
                 return; // Auto-pass benign cart/checkout companion plugin actions
@@ -8573,6 +8570,78 @@ class FirewallEngine {
      * @param mixed  $old_value Old option value
      * @return mixed Original or reverted value
      */
+    /**
+     * Canonicalize REST API route from either /wp-json/<route> path or ?rest_route=<route> query parameter.
+     */
+    public static function canonicalize_rest_route(string $request_uri = '', ?string $query_rest_route = null): string {
+        $route = '';
+        if ($query_rest_route !== null && $query_rest_route !== '') {
+            $route = '/' . ltrim(rawurldecode($query_rest_route), '/');
+        } else {
+            $parsed_q = wp_parse_url($request_uri, PHP_URL_QUERY);
+            if (is_string($parsed_q) && $parsed_q !== '') {
+                parse_str($parsed_q, $qp);
+                if (!empty($qp['rest_route']) && is_string($qp['rest_route'])) {
+                    $route = '/' . ltrim(rawurldecode($qp['rest_route']), '/');
+                }
+            }
+            if ($route === '') {
+                $path = strtolower((string) (wp_parse_url($request_uri, PHP_URL_PATH) ?: ''));
+                $pos  = strpos($path, '/wp-json');
+                if ($pos !== false) {
+                    $route = '/' . ltrim(substr($path, $pos + 8), '/');
+                }
+            }
+        }
+        $normalized = strtolower(rtrim($route, '/'));
+        return $normalized !== '' ? $normalized : '/';
+    }
+
+    /**
+     * Verify whether execution is running inside a trusted server-side sandbox
+     * (WP-CLI, cron, WordPress installer, or Plugin Check test harness via server-amended DB prefix / stack).
+     * Never trusts attacker-controlled HTTP_REFERER or raw unauthenticated $_REQUEST['action'].
+     */
+    private static function is_trusted_plugin_check_or_cli_runtime(): bool {
+        if (defined('WP_CLI') && WP_CLI) {
+            return true;
+        }
+        if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+            return true;
+        }
+        if (defined('WEBCAREPROSCAN_PCP_TEST_HARNESS') && WEBCAREPROSCAN_PCP_TEST_HARNESS) {
+            return true;
+        }
+
+        global $wpdb;
+        if (isset($wpdb->prefix, $wpdb->base_prefix) && $wpdb->prefix !== $wpdb->base_prefix && str_contains($wpdb->prefix, '_pc_')) {
+            return true;
+        }
+
+        if (function_exists('debug_backtrace')) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Server-side execution stack verification for installer / PCP harness.
+            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 14);
+            foreach ($trace as $frame) {
+                $fn  = $frame['function'] ?? '';
+                $cls = $frame['class'] ?? '';
+                if (
+                    $fn === 'wp_install' ||
+                    $fn === 'wp_install_defaults' ||
+                    str_contains($cls, 'Plugin_Check') ||
+                    str_contains($cls, 'Runtime_Environment') ||
+                    str_contains($cls, 'Amend_DB_Base_Prefix')
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Rule #44: In-Memory RASP Hook Firewall - Prevent guest or unprivileged option tampering.
+     */
     public static function rasp_guard_critical_options($value, $option, $old_value) {
         $settings = SettingsManager::get_settings();
         if (empty($settings['waf_enabled']) || empty($settings['waf_runtime_rasp_privilege_guard'])) {
@@ -8593,46 +8662,8 @@ class FirewallEngine {
             return $value;
         }
 
-        // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
-        $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
-        if (str_contains($req_referer, 'plugin-check')) {
-            return $value;
-        }
-        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
-        if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
-            return $value;
-        }
-        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-
-        global $wpdb;
-        if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
-            return $value;
-        }
-
-        // Exclude Plugin Check and WordPress installer execution
-        if (function_exists('debug_backtrace')) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection for test harnesses
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
-            foreach ($trace as $frame) {
-                $fn  = $frame['function'] ?? '';
-                $cls = $frame['class'] ?? '';
-                if (
-                    $fn === 'wp_install' ||
-                    str_contains($cls, 'Plugin_Check') ||
-                    str_contains($cls, 'Runtime_Environment') ||
-                    str_contains($cls, 'Amend_DB_Base_Prefix')
-                ) {
-                    return $value;
-                }
-            }
-        }
-
-        // Allow WP-CLI, background crons, and verified administrators
-        if (defined('WP_CLI') && WP_CLI) {
-            return $value;
-        }
-        if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+        // Only allow trusted server-side runtimes (WP-CLI, cron, installer, PCP sandbox prefix/stack) or verified admins
+        if (self::is_trusted_plugin_check_or_cli_runtime()) {
             return $value;
         }
         if (self::is_authenticated_administrator()) {
@@ -8691,44 +8722,8 @@ class FirewallEngine {
             return;
         }
 
-        // Allow WP-CLI and automated core upgrades
-        if (defined('WP_CLI') && WP_CLI) {
+        if (self::is_trusted_plugin_check_or_cli_runtime()) {
             return;
-        }
-
-        // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
-        $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
-        if (str_contains($req_referer, 'plugin-check')) {
-            return;
-        }
-        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
-        if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
-            return;
-        }
-        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-
-        global $wpdb;
-        if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
-            return;
-        }
-
-        // Exclude Plugin Check and WordPress installer execution
-        if (function_exists('debug_backtrace')) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection for test harnesses
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
-            foreach ($trace as $frame) {
-                $fn  = $frame['function'] ?? '';
-                $cls = $frame['class'] ?? '';
-                if (
-                    $fn === 'wp_install' ||
-                    str_contains($cls, 'Plugin_Check') ||
-                    str_contains($cls, 'Runtime_Environment') ||
-                    str_contains($cls, 'Amend_DB_Base_Prefix')
-                ) {
-                    return;
-                }
-            }
         }
 
         // If assigning elevated role (administrator or editor)
@@ -8801,44 +8796,8 @@ class FirewallEngine {
             return;
         }
 
-        if (defined('WP_CLI') && WP_CLI) {
+        if (self::is_trusted_plugin_check_or_cli_runtime()) {
             return;
-        }
-
-        // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
-        $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
-        if (str_contains($req_referer, 'plugin-check')) {
-            return;
-        }
-        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
-        if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
-            return;
-        }
-        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-
-        global $wpdb;
-        if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
-            return;
-        }
-
-        // Exclude Plugin Check and WordPress installer execution
-        if (function_exists('debug_backtrace')) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection for test harnesses
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
-            foreach ($trace as $frame) {
-                $fn  = $frame['function'] ?? '';
-                $cls = $frame['class'] ?? '';
-                if (
-                    $fn === 'wp_install' ||
-                    $fn === 'wp_install_defaults' ||
-                    str_contains($cls, 'Plugin_Check') ||
-                    str_contains($cls, 'Runtime_Environment') ||
-                    str_contains($cls, 'Amend_DB_Base_Prefix')
-                ) {
-                    return;
-                }
-            }
         }
 
         // Allow verified administrators
@@ -8912,23 +8871,6 @@ class FirewallEngine {
             return $check;
         }
 
-        // Fast-path: Skip Plugin Check sandbox metadata keys immediately
-        if (str_contains($meta_key, '_pc_capabilities') || str_contains($meta_key, '_pc_user_level')) {
-            return $check;
-        }
-
-        // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
-        $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
-        if (str_contains($req_referer, 'plugin-check')) {
-            return $check;
-        }
-        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
-        if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
-            return $check;
-        }
-        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-
         // Fast-path: Only inspect targeted sensitive security metadata keys
         $guarded_keys = [
             '_application_passwords',
@@ -8943,32 +8885,8 @@ class FirewallEngine {
             return $check;
         }
 
-        // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
-            return $check;
-        }
-
-        // Exclude Plugin Check and WordPress installer execution
-        if (function_exists('debug_backtrace')) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection for test harnesses
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 12);
-            foreach ($trace as $frame) {
-                $fn  = $frame['function'] ?? '';
-                $cls = $frame['class'] ?? '';
-                if (
-                    $fn === 'wp_install' ||
-                    $fn === 'wp_install_defaults' ||
-                    str_contains($cls, 'Plugin_Check') ||
-                    str_contains($cls, 'Runtime_Environment') ||
-                    str_contains($cls, 'Amend_DB_Base_Prefix')
-                ) {
-                    return $check;
-                }
-            }
-        }
-
-        // 1. Always allow WP-CLI terminal commands (essential for automation and deployment)
-        if (defined('WP_CLI') && WP_CLI) {
+        // Skip only verified server-side runtimes (WP-CLI, cron, installer, PCP sandbox prefix/stack)
+        if (self::is_trusted_plugin_check_or_cli_runtime()) {
             return $check;
         }
 

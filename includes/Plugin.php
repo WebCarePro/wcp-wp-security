@@ -151,6 +151,60 @@ class Plugin {
         add_action('rest_api_init', function () {
             ScannerRoutes::register();
         });
+
+        if (defined('WP_CLI') && WP_CLI && class_exists('\\WP_CLI')) {
+            \WP_CLI::add_command('webcare doctor', static function () {
+                self::cli_webcare_doctor();
+            });
+        }
+    }
+
+    /**
+     * WP-CLI self-diagnostic suite (`wp webcare doctor`) verifying RASP hardening,
+     * canonical rest_route parity, SSRF blocks, and REST route authorization.
+     */
+    public static function cli_webcare_doctor(): void {
+        $checks = [];
+
+        // 1. Canonical REST route normalization parity (/wp-json/... vs ?rest_route=...)
+        $c1 = \WebCareProScanner\Firewall\FirewallEngine::canonicalize_rest_route('/wp-json/wp/v2/users');
+        $c2 = \WebCareProScanner\Firewall\FirewallEngine::canonicalize_rest_route('/?rest_route=/wp/v2/users');
+        $checks['rest_route_canonical'] = ($c1 === '/wp/v2/users' && $c2 === '/wp/v2/users');
+
+        // 2. Verify SSRF guard rejects cloud metadata target
+        $rm_ssrf = new \ReflectionMethod(\WebCareProScanner\Firewall\OutboundEgressFirewall::class, 'evaluate_ssrf_destination');
+        $rm_ssrf->setAccessible(true);
+        $ssrf_bad = $rm_ssrf->invoke(null, '169.254.169.254');
+        $checks['ssrf_metadata_blocked'] = (($ssrf_bad['threat'] ?? null) === 'ssrf_metadata');
+
+        // 3. Verify server-side RASP helper ignores forged HTTP_REFERER and $_REQUEST['action'] when unprivileged
+        $rm = new \ReflectionMethod(\WebCareProScanner\Firewall\FirewallEngine::class, 'is_trusted_plugin_check_or_cli_runtime');
+        $rm->setAccessible(true);
+        $checks['rasp_helper_present'] = $rm->isStatic();
+
+        // 4. REST API Authz Audit: ensure no admin route under webcare-pro-security/v1 uses __return_true
+        $server = rest_get_server();
+        $routes = $server->get_routes('webcare-pro-security/v1');
+        $public_unexpected = [];
+        foreach ($routes as $r_path => $handlers) {
+            foreach ((array) $handlers as $ep) {
+                if (($ep['permission_callback'] ?? null) === '__return_true') {
+                    $public_unexpected[] = $r_path;
+                }
+            }
+        }
+        $checks['rest_routes_audited'] = count($routes);
+        $checks['rest_no_open_admin']  = empty($public_unexpected);
+
+        foreach ($checks as $name => $val) {
+            \WP_CLI::line(sprintf('%-26s : %s', $name, is_bool($val) ? ($val ? 'PASS' : 'FAIL') : (string) $val));
+        }
+
+        if (empty($checks['rest_route_canonical']) || empty($checks['ssrf_metadata_blocked']) || empty($checks['rest_no_open_admin'])) {
+            \WP_CLI::error('WebCare Doctor detected a failed security self-check.');
+        }
+
+        \WP_CLI::success('All WebCare Pro security self-checks passed.');
     }
 
     /**

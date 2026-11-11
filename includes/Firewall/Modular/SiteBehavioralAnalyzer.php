@@ -545,14 +545,19 @@ class SiteBehavioralAnalyzer {
 
         $counters['rest_routes_found']++;
 
-        // Inspect adjacent tokens for '__return_true' permission callback
-        $full_route = ($raw_namespace && $raw_route)
-            ? '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/')
-            : '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/');
-        $is_permissive   = self::has_token_string_within($tokens, $pos, 120, '__return_true');
-        $has_post_method = self::has_token_string_within($tokens, $pos, 120, 'POST') ||
-                           self::has_token_string_within($tokens, $pos, 120, 'CREATABLE') ||
-                           self::has_token_string_within($tokens, $pos, 120, 'EDITABLE');
+        // Inspect strictly inside THIS register_rest_route(...) invocation up to its closing parenthesis
+        $full_route = '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/');
+        $call_end   = self::find_call_end_pos($tokens, $pos, 180);
+        $window_len = max(1, $call_end - $pos + 1);
+        $is_permissive   = self::has_token_string_within($tokens, $pos, $window_len, '__return_true');
+        $has_post_method = self::has_token_string_within($tokens, $pos, $window_len, 'POST') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'PUT') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'PATCH') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'DELETE') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'CREATABLE') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'EDITABLE') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'DELETABLE') ||
+                           self::has_token_string_within($tokens, $pos, $window_len, 'ALLMETHODS');
 
         $endpoint_map[] = [
             'type'          => 'rest_route',
@@ -987,6 +992,30 @@ class SiteBehavioralAnalyzer {
         }
 
         return null;
+    }
+
+    /**
+     * Find the closing parenthesis token index of a function invocation starting at $pos.
+     */
+    private static function find_call_end_pos(array $tokens, int $pos, int $max_lookahead = 180): int {
+        $count       = count($tokens);
+        $limit       = min($pos + $max_lookahead, $count);
+        $paren_depth = 0;
+        $started     = false;
+
+        for ($i = $pos; $i < $limit; $i++) {
+            if ($tokens[$i] === '(') {
+                $paren_depth++;
+                $started = true;
+            } elseif ($tokens[$i] === ')') {
+                $paren_depth--;
+                if ($started && $paren_depth <= 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return $limit - 1;
     }
 
     /**
