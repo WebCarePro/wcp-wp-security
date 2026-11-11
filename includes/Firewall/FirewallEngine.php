@@ -8563,15 +8563,16 @@ class FirewallEngine {
         }
 
         // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
         $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
         if (str_contains($req_referer, 'plugin-check')) {
             return $value;
         }
-        $req_action = isset($_REQUEST['action']) ? (string) wp_unslash($_REQUEST['action']) : '';
+        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
         if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
             return $value;
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
 
         global $wpdb;
         if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
@@ -8665,15 +8666,16 @@ class FirewallEngine {
         }
 
         // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
         $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
         if (str_contains($req_referer, 'plugin-check')) {
             return;
         }
-        $req_action = isset($_REQUEST['action']) ? (string) wp_unslash($_REQUEST['action']) : '';
+        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
         if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
             return;
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
 
         global $wpdb;
         if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
@@ -8773,15 +8775,16 @@ class FirewallEngine {
         }
 
         // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
         $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
         if (str_contains($req_referer, 'plugin-check')) {
             return;
         }
-        $req_action = isset($_REQUEST['action']) ? (string) wp_unslash($_REQUEST['action']) : '';
+        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
         if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
             return;
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
 
         global $wpdb;
         if (isset($wpdb->prefix) && str_contains($wpdb->prefix, '_pc_')) {
@@ -8884,15 +8887,16 @@ class FirewallEngine {
         }
 
         // Sandbox Exemption: Never intercept Plugin Check (PCP) test harness, sandboxes, or temporary tables
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- RASP sandbox inspection for Plugin Check test harness
         $req_referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
         if (str_contains($req_referer, 'plugin-check')) {
             return $check;
         }
-        $req_action = isset($_REQUEST['action']) ? (string) wp_unslash($_REQUEST['action']) : '';
+        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
         if (str_starts_with($req_action, 'plugin_check') || str_starts_with($req_action, 'pc_')) {
             return $check;
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
 
         // Fast-path: Only inspect targeted sensitive security metadata keys
         $guarded_keys = [
