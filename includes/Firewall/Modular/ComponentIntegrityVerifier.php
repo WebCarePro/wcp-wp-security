@@ -110,13 +110,13 @@ class ComponentIntegrityVerifier {
         'mainwp-child'         => ['vendor' => 'MainWP', 'domains' => ['mainwp.com']],
         'worker'               => ['vendor' => 'ManageWP (GoDaddy)', 'domains' => ['managewp.com']],
         'yith-'                => ['vendor' => 'YITH Commercial Addons', 'domains' => ['yithemes.com']],
-        'plugin-check'         => ['vendor' => 'WordPress.org Plugin Review Team', 'domains' => ['wordpress.org/plugins/plugin-check']],
-        'hello-dolly'          => ['vendor' => 'WordPress.org Core (Matt Mullenweg)', 'domains' => ['wordpress.org/plugins/hello-dolly']],
-        'hello'                => ['vendor' => 'WordPress.org Core (Matt Mullenweg)', 'domains' => ['wordpress.org/plugins/hello-dolly']],
+        'plugin-check'         => ['vendor' => 'WordPress.org Plugin Review Team', 'domains' => []],
+        'hello-dolly'          => ['vendor' => 'WordPress.org Core (Matt Mullenweg)', 'domains' => []],
+        'hello'                => ['vendor' => 'WordPress.org Core (Matt Mullenweg)', 'domains' => []],
         'wordfence'            => ['vendor' => 'Defiant (Wordfence)', 'domains' => ['wordfence.com']],
         'better-wp-security'   => ['vendor' => 'StellarWP (Solid Security)', 'domains' => ['solidwp.com']],
         'ithemes-security'     => ['vendor' => 'StellarWP (Solid Security)', 'domains' => ['solidwp.com']],
-        'cloudflare'           => ['vendor' => 'Cloudflare', 'domains' => ['cloudflare.com']],
+        'cloudflare'           => ['vendor' => 'Cloudflare', 'domains' => []],
         'formidable'           => ['vendor' => 'Strategy11 (Formidable)', 'domains' => ['formidableforms.com']],
         'ninja-forms'          => ['vendor' => 'Saturday Drive (Ninja Forms)', 'domains' => ['ninjaforms.com']],
         'contact-form-7'       => ['vendor' => 'Rock Lobster (Takayuki Miyoshi)', 'domains' => ['contactform7.com']],
@@ -124,7 +124,7 @@ class ComponentIntegrityVerifier {
         'really-simple-ssl'    => ['vendor' => 'Really Simple Plugins', 'domains' => ['really-simple-ssl.com']],
         'mailchimp-for-wp'     => ['vendor' => 'ibericode (MC4WP)', 'domains' => ['mc4wp.com']],
         'redirection'          => ['vendor' => 'John Godley (Redirection)', 'domains' => ['redirection.me']],
-        'webcare-pro-security' => ['vendor' => 'WebCare Pro (Mir Alamin)', 'domains' => ['github.com/WebCarePro']],
+        'webcare-pro-security' => ['vendor' => 'WebCare Pro (Mir Alamin)', 'domains' => []],
     ];
 
     /**

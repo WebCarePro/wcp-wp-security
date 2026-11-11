@@ -2756,8 +2756,8 @@ class ScannerRoutes {
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
             $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
             $arch_label = ucfirst($archetype ?? 'business');
-            /* translators: 1: Site archetype profile label, 2: Client IP address, 3: Notification email */
             $event_desc = sprintf(
+                /* translators: 1: Site archetype profile label, 2: Client IP address, 3: Notification email */
                 __('Completed initial security onboarding setup with %1$s profile: enabled core firewall shields, whitelisted administrator IP (%2$s), and configured security alerts for %3$s.', 'webcare-pro-security'),
                 $arch_label,
                 $client_ip,
@@ -3118,15 +3118,15 @@ class ScannerRoutes {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $firewall_logs_table));
         if ($table_exists === $firewall_logs_table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
-                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                    "SELECT id, incident_id, ip_address, request_uri, request_method, http_status_code, http_referer, rule_category, rule_description, payload_sample, user_agent, action_taken, created_at
-                     FROM `{$firewall_logs_table}`
+                    'SELECT id, incident_id, ip_address, request_uri, request_method, http_status_code, http_referer, rule_category, rule_description, payload_sample, user_agent, action_taken, created_at
+                     FROM %i
                      WHERE rule_category = %s OR rule_description LIKE %s OR request_uri LIKE %s OR request_uri LIKE %s
                      ORDER BY id DESC
-                     LIMIT 100",
+                     LIMIT 100',
+                    $firewall_logs_table,
                     'Modular Behavioral WAF',
                     '%MOD-%',
                     '%admin-ajax.php%',

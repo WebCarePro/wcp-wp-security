@@ -485,12 +485,13 @@ class MicroWafCompiler {
         $out .= "        }\n\n";
 
         // 5. Modular Intelligence Firewall Pre-Boot Lockdown
-        $modular_rules_export = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
-            ? var_export(\WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_compiled_preload_rules(), true)
-            : "['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => []]";
+        $mod_compiled = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
+            ? \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_compiled_preload_rules()
+            : ['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => []];
+        $modular_json_escaped = addcslashes((string) wp_json_encode($mod_compiled), "\\'");
 
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
-        $out .= "        \$mod_rules = " . $modular_rules_export . ";\n";
+        $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
         $out .= "        if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
         $out .= "            \$clean_script_uri = strtolower(ltrim(strtok(\$uri, '?'), '/\\\\'));\n";
         $out .= "            foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";

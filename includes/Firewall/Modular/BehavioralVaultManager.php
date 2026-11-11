@@ -147,9 +147,23 @@ class BehavioralVaultManager {
                 return false;
             }
 
-            if (!@rename($tmp_path, $path)) {
-                @unlink($tmp_path);
-                return false;
+            global $wp_filesystem;
+            if (empty($wp_filesystem) && file_exists(ABSPATH . 'wp-admin/includes/file.php')) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+
+            $moved = false;
+            if ($wp_filesystem instanceof \WP_Filesystem_Base && ($wp_filesystem->method ?? '') === 'direct') {
+                $moved = (bool) $wp_filesystem->move($tmp_path, $path, true);
+            }
+
+            if (!$moved) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic local shard swap fallback when WP_Filesystem direct transport is unavailable (e.g. REST/CLI/FTP default hosts).
+                if (!@rename($tmp_path, $path)) {
+                    wp_delete_file($tmp_path);
+                    return false;
+                }
             }
 
             // Update shard metadata entry
@@ -370,7 +384,7 @@ class BehavioralVaultManager {
 
             return [
                 'vault_dir'          => $dir,
-                'vault_accessible'   => is_dir($dir) && is_writable($dir),
+                'vault_accessible'   => is_dir($dir) && wp_is_writable($dir),
                 'shards'             => $shard_details,
                 'all_shards_intact'  => $all_intact,
                 'total_bytes'        => $total_bytes,
@@ -400,14 +414,14 @@ class BehavioralVaultManager {
             if (is_array($files)) {
                 foreach ($files as $f) {
                     if (is_file($f)) {
-                        @unlink($f);
+                        wp_delete_file($f);
                     }
                 }
             }
 
             $meta_path = rtrim($dir, '/\\') . '/' . self::META_FILE;
             if (file_exists($meta_path)) {
-                @unlink($meta_path);
+                wp_delete_file($meta_path);
             }
 
             delete_option(self::OPTION_STATE);

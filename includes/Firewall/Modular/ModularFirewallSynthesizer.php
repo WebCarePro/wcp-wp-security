@@ -586,7 +586,7 @@ class ModularFirewallSynthesizer {
             return null;
         }
 
-        $uri    = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
+        $uri    = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
         $ip     = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
             ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
@@ -629,9 +629,11 @@ class ModularFirewallSynthesizer {
             // Check Category: ajax_shield (Targeted guest AJAX action)
             if ($cat === 'ajax_shield' && !empty($r['target_value'])) {
                 if (str_contains($uri, 'admin-ajax.php')) {
-                    $action = sanitize_key($_REQUEST['action'] ?? '');
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Runtime WAF inspection of incoming unauthenticated AJAX traffic prior to handler dispatch.
+                    $action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
                     if ($action === strtolower($r['target_value'])) {
                         // Check unexpected file upload
+                        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection blocking multipart $_FILES uploads on guest AJAX endpoints.
                         if (!empty($r['block_uploads']) && !empty($_FILES)) {
                             return [
                                 'blocked'  => ($mode === 'enforce'),
