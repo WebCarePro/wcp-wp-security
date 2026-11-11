@@ -516,6 +516,48 @@ class BotReconDefense {
     }
 
     /**
+     * Check whether an incoming request belongs to a recognized synthetic performance audit tool
+     * (WebPageTest, Chrome Lighthouse, Google PageSpeed, GTmetrix, SpeedCurve, Pingdom TMS).
+     *
+     * Validates that the request is strictly a read-only public crawl (GET/HEAD/OPTIONS).
+     *
+     * @param string $user_agent
+     * @return bool
+     */
+    public static function is_synthetic_performance_tool(string $user_agent): bool {
+        if (empty($user_agent) || !self::is_read_only_public_crawl()) {
+            return false;
+        }
+
+        // WebPageTest test agent token (e.g. PTST/261109.195727) or explicit WebPageTest
+        if (str_contains($user_agent, 'PTST/') || stripos($user_agent, 'WebPageTest') !== false) {
+            return true;
+        }
+
+        // Chrome Lighthouse / Google PageSpeed Insights
+        if (stripos($user_agent, 'Chrome-Lighthouse') !== false || stripos($user_agent, 'Google-PageSpeed') !== false || stripos($user_agent, 'PageSpeed') !== false) {
+            return true;
+        }
+
+        // GTmetrix synthetic testing runner
+        if (stripos($user_agent, 'GTmetrix') !== false) {
+            return true;
+        }
+
+        // SpeedCurve synthetic runner
+        if (stripos($user_agent, 'SpeedCurve') !== false) {
+            return true;
+        }
+
+        // Pingdom TMS (Transaction Monitoring System)
+        if (stripos($user_agent, 'PingdomTMS') !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Append AI Scraper blocking rules to virtual robots.txt
      */
     public static function filter_dynamic_robots_txt(string $output, bool $public): string {

@@ -6,7 +6,7 @@
   "requires_php": "8.3",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/webcare-pro-security/main/webcare-pro-security.zip",
   "manifest_url": "https://raw.githubusercontent.com/WebCarePro/webcare-pro-security/main/includes/System/plugin-manifest.json",
-  "released_at": "2026-11-10",
+  "released_at": "2026-11-11",
   "author": "Mir Alamin (WebCare Pro)",
   "author_homepage": "https://profiles.wordpress.org/webcarepro/",
   "homepage": "https://github.com/WebCarePro/webcare-pro-security",

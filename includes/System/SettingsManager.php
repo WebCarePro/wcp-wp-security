@@ -138,7 +138,7 @@ class SettingsManager {
             'waf_woo_checkout_max_attempts'     => 3,     // Max failed checkout attempts before lockout
             'waf_woo_carding_lockout_duration'  => 30,    // Lockout duration in minutes
             'waf_woo_coupon_protection'         => true,  // WooCommerce Coupon Enumeration & Brute-Force Shield (Rule #39)
-            'waf_woo_coupon_max_failures'       => 5,     // Max failed coupon attempts before lockout
+            'waf_woo_coupon_max_failures'       => 8,     // Max failed coupon attempts before lockout (tuned for real shoppers)
             'waf_woo_coupon_lockout_duration'   => 15,    // Lockout duration in minutes (15 mins)
             'waf_woo_registration_protection'   => true,  // WooCommerce Customer Registration & Bot Shield (Rule #40)
             'waf_woo_reg_max_per_ip'            => 3,     // Max customer registrations per IP per window
@@ -723,7 +723,7 @@ class SettingsManager {
         $clean['waf_woo_checkout_max_attempts']    = max(2, min(20, (int) ($merged['waf_woo_checkout_max_attempts'] ?? 3)));
         $clean['waf_woo_carding_lockout_duration'] = max(5, min(1440, (int) ($merged['waf_woo_carding_lockout_duration'] ?? 30)));
         $clean['waf_woo_coupon_protection']        = !empty($merged['waf_woo_coupon_protection']);
-        $clean['waf_woo_coupon_max_failures']      = max(2, min(30, (int) ($merged['waf_woo_coupon_max_failures'] ?? 5)));
+        $clean['waf_woo_coupon_max_failures']      = max(2, min(30, (int) ($merged['waf_woo_coupon_max_failures'] ?? 8)));
         $clean['waf_woo_coupon_lockout_duration']  = max(5, min(1440, (int) ($merged['waf_woo_coupon_lockout_duration'] ?? 15)));
         $clean['waf_woo_registration_protection']  = !empty($merged['waf_woo_registration_protection']);
         $clean['waf_woo_reg_max_per_ip']           = max(1, min(20, (int) ($merged['waf_woo_reg_max_per_ip'] ?? 3)));
