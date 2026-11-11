@@ -2082,6 +2082,8 @@ class ScannerRoutes {
             'root_domain'           => $root_domain,
             'detected_archetype'    => $archetype,
             'wizard_completed'      => (bool) get_option('webcareproscan_wizard_completed', false),
+            'wizard_current_step'   => (int) get_option('webcareproscan_wizard_current_step', 1),
+            'wizard_mode'           => (string) get_option('webcareproscan_wizard_mode', 'developer'),
             'support_code'          => $support_code,
             'waf_settings'          => $waf_settings,
             'server_info'           => $server_info,
@@ -2427,6 +2429,9 @@ class ScannerRoutes {
                 if (!empty($adv['deepseek_api_key'])) {
                     $advanced_payload['deepseek_api_key'] = sanitize_text_field($adv['deepseek_api_key']);
                 }
+                if (!empty($adv['openrouter_api_key'])) {
+                    $advanced_payload['openrouter_api_key'] = sanitize_text_field($adv['openrouter_api_key']);
+                }
                 if (!empty($adv['openai_model'])) {
                     $advanced_payload['openai_model'] = sanitize_text_field($adv['openai_model']);
                 }
@@ -2435,6 +2440,12 @@ class ScannerRoutes {
                 }
                 if (!empty($adv['claude_model'])) {
                     $advanced_payload['claude_model'] = sanitize_text_field($adv['claude_model']);
+                }
+                if (!empty($adv['deepseek_model'])) {
+                    $advanced_payload['deepseek_model'] = sanitize_text_field($adv['deepseek_model']);
+                }
+                if (!empty($adv['openrouter_model'])) {
+                    $advanced_payload['openrouter_model'] = sanitize_text_field($adv['openrouter_model']);
                 }
 
                 // Trusted proxy IPs
@@ -2495,16 +2506,24 @@ class ScannerRoutes {
                 \WebCareProScanner\Firewall\MicroWafCompiler::compile();
             }
 
-            // 9. Mark Wizard as Completed
-            update_option('webcareproscan_wizard_completed', true);
+            // 9. Save Step Progress & Completion Status
+            if (!empty($params['current_step'])) {
+                update_option('webcareproscan_wizard_current_step', max(1, min(14, intval($params['current_step']))));
+            }
+            if (!empty($params['wizard_mode'])) {
+                update_option('webcareproscan_wizard_mode', sanitize_key($params['wizard_mode']));
+            }
+            if (empty($params['is_intermediate_step'])) {
+                update_option('webcareproscan_wizard_completed', true);
+            }
         } finally {
             if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
                 \WebCareProScanner\System\WebCareActivityLogger::$suppress_option_watcher = false;
             }
         }
 
-        // Consolidated single master activity event for initial security onboarding
-        if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+        // Consolidated single master activity event for initial security onboarding (only upon full completion)
+        if (empty($params['is_intermediate_step']) && class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
             $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
             $arch_label = ucfirst($archetype ?? 'business');
