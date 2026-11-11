@@ -16,6 +16,7 @@ module.exports = {
     'notifications': path.resolve(__dirname, 'src/entries/notifications.tsx'),
     'activity-logs': path.resolve(__dirname, 'src/entries/activity-logs.tsx'),
     'wizard': path.resolve(__dirname, 'src/entries/wizard.tsx'),
+    'modular-waf': path.resolve(__dirname, 'src/entries/modular-waf.tsx'),
   },
   output: {
     ...defaultConfig.output,

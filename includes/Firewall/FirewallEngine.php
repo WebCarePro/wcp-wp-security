@@ -936,6 +936,27 @@ class FirewallEngine {
             }
         }
 
+        // Modular Intelligence Firewall Runtime Enforcement
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            $modular_violation = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::evaluate_runtime_modular_rules();
+            if ($modular_violation !== null) {
+                $rule_triggered = [
+                    'id'          => $modular_violation['rule_id'],
+                    'name'        => 'Modular Intelligence Firewall Rule',
+                    'category'    => 'Modular Behavioral WAF',
+                    'description' => $modular_violation['reason'],
+                    'match_type'  => $modular_violation['category'],
+                    'match_value' => $modular_violation['rule_id'],
+                    'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                ];
+                if ($modular_violation['blocked']) {
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                } else {
+                    self::log_incident($rule_triggered, 'detected');
+                }
+            }
+        }
+
         // Emergency Containment Mode Enforcement
         if (class_exists('\\WebCareProScanner\\Security\\EmergencyContainmentManager') && \WebCareProScanner\Security\EmergencyContainmentManager::is_active()) {
             if (!self::is_authenticated_administrator()) {

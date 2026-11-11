@@ -238,6 +238,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Sub-Page: Modular Intelligence Firewall Studio
+        add_submenu_page(
+            null,
+            __('Modular Intelligence Firewall', 'webcare-pro-security'),
+            __('Modular WAF Studio', 'webcare-pro-security'),
+            'manage_options',
+            'webcare-pro-modular-waf',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Sub-Page: Database Backup Vault
         add_submenu_page(
             null,
@@ -375,6 +385,7 @@ class AdminMenu {
             'webcare-pro-security_page_webcare-pro-settings',
             'webcare-pro-security_page_webcare-pro-about',
             'webcare-pro-security_page_webcare-pro-wizard',
+            'webcare-pro-security_page_webcare-pro-modular-waf',
         ];
 
         // Also check query param fallback
@@ -415,6 +426,7 @@ class AdminMenu {
         elseif ($tab_param === 'settings' || $current_page === 'webcare-pro-settings') $active_tab = 'settings';
         elseif ($tab_param === 'about' || $current_page === 'webcare-pro-about') $active_tab = 'about';
         elseif ($tab_param === 'wizard' || $current_page === 'webcare-pro-wizard') $active_tab = 'wizard';
+        elseif ($tab_param === 'modular_waf' || $current_page === 'webcare-pro-modular-waf') $active_tab = 'modular_waf';
         elseif ($current_page === 'webcare-pro-scan' || $tab_param === 'scan') $active_tab = 'scan';
 
         $global_css_file = WEBCAREPROSCAN_PATH . 'build/global.css';
@@ -455,6 +467,8 @@ class AdminMenu {
             $page_bundle = 'activity-logs';
         } elseif ($active_tab === 'wizard' && file_exists(WEBCAREPROSCAN_PATH . 'build/wizard.js')) {
             $page_bundle = 'wizard';
+        } elseif ($active_tab === 'modular_waf' && file_exists(WEBCAREPROSCAN_PATH . 'build/modular-waf.js')) {
+            $page_bundle = 'modular-waf';
         }
 
         $js_rel = "build/{$page_bundle}.js";

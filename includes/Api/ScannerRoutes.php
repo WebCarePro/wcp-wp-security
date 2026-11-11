@@ -1938,6 +1938,52 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'save_wizard_settings'],
             'permission_callback' => $permission,
         ]);
+
+        // =========================================================================
+        // BEHAVIORAL MODULAR FIREWALL & INTEL VAULT ROUTES
+        // =========================================================================
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/scan/start', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'start_modular_scan'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/scan/batch', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'process_modular_scan_batch'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_modular_waf_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/toggle', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_modular_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/bulk-apply', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'bulk_apply_modular_rules'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/custom', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'save_custom_modular_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/code-preview', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_modular_code_preview'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     /**
@@ -2069,6 +2115,180 @@ class ScannerRoutes {
             $safe_settings['mcp_token']
         );
 
+        // PHP Extension & Server Requirement Gate
+        $php_ver = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+        $extensions_checklist = [
+            [
+                'id'       => 'json',
+                'name'     => 'JSON Serialization',
+                'tier'     => 'critical',
+                'loaded'   => extension_loaded('json'),
+                'purpose'  => __('REST API & Vault manifest serialization', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-json",
+                'pkg_rpm'  => 'php-json',
+            ],
+            [
+                'id'       => 'mbstring',
+                'name'     => 'Multibyte String (mbstring)',
+                'tier'     => 'critical',
+                'loaded'   => extension_loaded('mbstring'),
+                'purpose'  => __('Multi-byte UTF-8 evasion normalization in WAF', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-mbstring",
+                'pkg_rpm'  => 'php-mbstring',
+            ],
+            [
+                'id'       => 'openssl',
+                'name'     => 'OpenSSL Cryptography',
+                'tier'     => 'critical',
+                'loaded'   => extension_loaded('openssl'),
+                'purpose'  => __('Cryptographic HMAC ledger signatures & TLS inspection', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-openssl",
+                'pkg_rpm'  => 'php-openssl',
+            ],
+            [
+                'id'       => 'curl',
+                'name'     => 'Client URL Library (cURL)',
+                'tier'     => 'critical',
+                'loaded'   => extension_loaded('curl'),
+                'purpose'  => __('Cloudflare API sync, webhook dispatch & CVE signature updates', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-curl",
+                'pkg_rpm'  => 'php-curl',
+            ],
+            [
+                'id'       => 'tokenizer',
+                'name'     => 'PHP Tokenizer & AST',
+                'tier'     => 'critical',
+                'loaded'   => extension_loaded('tokenizer') || function_exists('token_get_all'),
+                'purpose'  => __('Required for PHP AST behavioral code analysis', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-tokenizer",
+                'pkg_rpm'  => 'php-tokenizer',
+            ],
+            [
+                'id'       => 'sodium',
+                'name'     => 'Libsodium (AEAD)',
+                'tier'     => 'recommended',
+                'loaded'   => extension_loaded('sodium'),
+                'purpose'  => __('Hardware-accelerated AEAD encryption for Secret Vault', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-sodium",
+                'pkg_rpm'  => 'php-sodium',
+            ],
+            [
+                'id'       => 'zip',
+                'name'     => 'ZipArchive Engine',
+                'tier'     => 'recommended',
+                'loaded'   => extension_loaded('zip'),
+                'purpose'  => __('Safe quarantine packaging & core repair backups', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-zip",
+                'pkg_rpm'  => 'php-zip',
+            ],
+            [
+                'id'       => 'zlib',
+                'name'     => 'Zlib Compression',
+                'tier'     => 'recommended',
+                'loaded'   => extension_loaded('zlib'),
+                'purpose'  => __('Compressed .intel.gz and .manifest.gz vault shards', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-zlib",
+                'pkg_rpm'  => 'php-zlib',
+            ],
+            [
+                'id'       => 'intl',
+                'name'     => 'Internationalization (intl)',
+                'tier'     => 'recommended',
+                'loaded'   => extension_loaded('intl'),
+                'purpose'  => __('IDN Punycode homograph phishing detection', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-intl",
+                'pkg_rpm'  => 'php-intl',
+            ],
+            [
+                'id'       => 'image',
+                'name'     => 'Image Processing (GD / Imagick)',
+                'tier'     => 'recommended',
+                'loaded'   => extension_loaded('gd') || extension_loaded('imagick'),
+                'purpose'  => __('Polyglot image upload payload inspection', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-gd",
+                'pkg_rpm'  => 'php-gd',
+            ],
+            [
+                'id'       => 'opcache',
+                'name'     => 'Zend OPcache',
+                'tier'     => 'runtime',
+                'loaded'   => extension_loaded('Zend OPcache'),
+                'purpose'  => __('High-performance bytecode caching for 0ms Pre-Boot WAF', 'webcare-pro-security'),
+                'pkg_deb'  => "php{$php_ver}-opcache",
+                'pkg_rpm'  => 'php-opcache',
+            ],
+        ];
+
+        $missing_deb = [];
+        $missing_rpm = [];
+        $missing_critical = [];
+        $missing_recommended = [];
+
+        foreach ($extensions_checklist as $ext) {
+            if (!$ext['loaded']) {
+                if ($ext['tier'] === 'critical') {
+                    $missing_critical[] = $ext['name'];
+                } elseif ($ext['tier'] === 'recommended') {
+                    $missing_recommended[] = $ext['name'];
+                }
+                if (!empty($ext['pkg_deb'])) {
+                    $missing_deb[] = $ext['pkg_deb'];
+                }
+                if (!empty($ext['pkg_rpm'])) {
+                    $missing_rpm[] = $ext['pkg_rpm'];
+                }
+            }
+        }
+
+        $apt_cmd = !empty($missing_deb)
+            ? "sudo apt update && sudo apt install -y " . implode(' ', array_unique($missing_deb)) . " && sudo systemctl restart php{$php_ver}-fpm"
+            : "sudo apt update && sudo apt install -y php{$php_ver}-mbstring php{$php_ver}-curl php{$php_ver}-zip && sudo systemctl restart php{$php_ver}-fpm";
+
+        $dnf_cmd = !empty($missing_rpm)
+            ? "sudo dnf install -y " . implode(' ', array_unique($missing_rpm)) . " && sudo systemctl restart php-fpm"
+            : "sudo dnf install -y php-mbstring php-curl php-zip && sudo systemctl restart php-fpm";
+
+        $memory_limit_str = (string) ini_get('memory_limit');
+        $memory_limit_bytes = wp_convert_hr_to_bytes($memory_limit_str);
+        $is_memory_sufficient = ($memory_limit_str === '-1' || $memory_limit_bytes === -1 || $memory_limit_bytes >= 134217728); // >= 128MB or unlimited
+
+        $upload_dir_info = wp_upload_dir();
+        $upload_dir_writable = !empty($upload_dir_info['basedir']) && wp_is_writable($upload_dir_info['basedir']);
+
+        $php_extension_gate = [
+            'php_version'          => PHP_VERSION,
+            'extensions'           => $extensions_checklist,
+            'all_critical_met'     => empty($missing_critical),
+            'missing_critical'     => $missing_critical,
+            'missing_recommended'  => $missing_recommended,
+            'memory_limit'         => $memory_limit_str,
+            'is_memory_sufficient' => $is_memory_sufficient,
+            'max_execution_time'   => (int) ini_get('max_execution_time'),
+            'upload_dir_writable'  => $upload_dir_writable,
+            'commands'             => [
+                'apt'    => $apt_cmd,
+                'dnf'    => $dnf_cmd,
+                'cpanel' => __('cPanel → Software → Select PHP Version → Extensions', 'webcare-pro-security'),
+                'plesk'  => __('Plesk → Tools & Settings → PHP Settings → Select Version → Extensions', 'webcare-pro-security'),
+            ],
+        ];
+
+        // Behavioral Vault & Modular Rules Summary
+        $modular_vault_summary = class_exists('\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager')
+            ? \WebCareProScanner\Firewall\Modular\BehavioralVaultManager::get_vault_summary()
+            : null;
+
+        $modular_rules = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
+            ? \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_active_rules()
+            : [];
+
+        $modular_rules_summary = [
+            'total'    => count($modular_rules),
+            'enforced' => count(array_filter($modular_rules, fn($r) => ($r['current_mode'] ?? '') === 'enforce')),
+            'monitor'  => count(array_filter($modular_rules, fn($r) => ($r['current_mode'] ?? '') === 'monitor')),
+            'off'      => count(array_filter($modular_rules, fn($r) => ($r['current_mode'] ?? '') === 'off')),
+        ];
+
         return new \WP_REST_Response([
             'success'               => true,
             'client_ip'             => $client_ip,
@@ -2097,6 +2317,9 @@ class ScannerRoutes {
             'stack_snapshot'        => $stack_snapshot,
             'capability_profile'    => $capability_profile,
             'notification_settings' => $notification_settings,
+            'php_extension_gate'    => $php_extension_gate,
+            'modular_vault_summary' => $modular_vault_summary,
+            'modular_rules_summary' => $modular_rules_summary,
             'settings'              => $safe_settings,
         ], 200);
     }
@@ -2551,6 +2774,173 @@ class ScannerRoutes {
             'success' => true,
             'message' => __('WebCare Protection Quickstart successfully configured.', 'webcare-pro-security'),
         ], 200);
+    }
+
+    /**
+     * Initialize a new behavioral intelligence scan session.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function start_modular_scan(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Behavioral analyzer engine unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $result = \WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::start_scan($params);
+        return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Process a chunked batch of files in the active behavioral scan session.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function process_modular_scan_batch(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Behavioral analyzer engine unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $batch_size = max(10, min(100, intval($params['batch_size'] ?? 50)));
+        $result = \WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::process_batch($batch_size);
+        return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Retrieve behavioral intelligence vault summary, component dossiers, and synthesized modular rules.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function get_modular_waf_status(\WP_REST_Request $request) {
+        $vault_mgr = '\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager';
+        $synth     = '\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer';
+        $analyzer  = '\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer';
+
+        $vault_summary = class_exists($vault_mgr) ? $vault_mgr::get_vault_summary() : null;
+        $rules         = class_exists($synth) ? $synth::get_active_rules() : [];
+        $inventory     = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_INVENTORY) ?: []) : [];
+        $endpoint_map  = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_ENDPOINTS) ?: []) : [];
+        $findings      = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_FINDINGS) ?: []) : [];
+        $scan_progress = class_exists($analyzer) ? $analyzer::get_scan_progress() : null;
+
+        $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
+
+        return new \WP_REST_Response([
+            'success'        => true,
+            'vault_summary'  => $vault_summary,
+            'rules'          => $rules,
+            'inventory'      => $inventory,
+            'endpoint_map'   => $endpoint_map,
+            'findings'       => $findings,
+            'scan_progress'  => $scan_progress,
+            'preload_active' => $preload_active,
+        ], 200);
+    }
+
+    /**
+     * Toggle a modular firewall rule mode (enforce, monitor, off) or update parameters.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function toggle_modular_rule(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Modular firewall synthesizer unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        $params  = $request->get_json_params() ?: [];
+        $rule_id = isset($params['rule_id']) ? sanitize_text_field(wp_unslash($params['rule_id'])) : '';
+        $mode    = isset($params['mode']) ? sanitize_key($params['mode']) : 'enforce';
+
+        if (empty($rule_id)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Rule ID is required.', 'webcare-pro-security'),
+            ], 400);
+        }
+
+        $result = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::toggle_rule($rule_id, $mode, $params);
+        return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Bulk activate/enforce all recommended modular firewall rules.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function bulk_apply_modular_rules(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Modular firewall synthesizer unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        $result = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::bulk_apply_recommendations();
+        return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Create or save a developer-defined custom modular rule.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function save_custom_modular_rule(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Modular firewall synthesizer unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $result = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::create_custom_rule($params);
+        return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Read a safe 15-line preview snippet of the code that triggered a modular rule.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function get_modular_code_preview(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('Modular firewall synthesizer unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $file = isset($_GET['file']) ? sanitize_text_field(wp_unslash($_GET['file'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $line = isset($_GET['line']) ? max(1, intval($_GET['line'])) : 1;
+
+        if (empty($file)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('File parameter is required.', 'webcare-pro-security'),
+            ], 400);
+        }
+
+        $result = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_code_preview($file, $line);
+        return new \WP_REST_Response($result, 200);
     }
 
     public static function start_scan(\WP_REST_Request $request) {

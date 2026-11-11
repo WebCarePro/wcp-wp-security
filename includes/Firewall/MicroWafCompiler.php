@@ -484,6 +484,31 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "        }\n\n";
 
+        // 5. Modular Intelligence Firewall Pre-Boot Lockdown
+        $modular_rules_export = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
+            ? var_export(\WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_compiled_preload_rules(), true)
+            : "['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => []]";
+
+        $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
+        $out .= "        \$mod_rules = " . $modular_rules_export . ";\n";
+        $out .= "        if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
+        $out .= "            \$clean_script_uri = strtolower(ltrim(strtok(\$uri, '?'), '/\\\\'));\n";
+        $out .= "            foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
+        $out .= "                if (str_ends_with(\$clean_script_uri, \$b_script)) {\n";
+        $out .= "                    webcare_micro_waf_block(\$ip, 'MOD-ABSPATH-LOCKED', 'Direct HTTP execution of standalone script prohibited by Modular WAF', \$fail2ban_log);\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        if (!empty(\$mod_rules['ajax_actions_enforced']) && strpos(\$uri, 'admin-ajax.php') !== false) {\n";
+        $out .= "            \$ajax_act = isset(\$_REQUEST['action']) ? strtolower(trim((string) \$_REQUEST['action'])) : '';\n";
+        $out .= "            if (!empty(\$ajax_act) && isset(\$mod_rules['ajax_actions_enforced'][\$ajax_act])) {\n";
+        $out .= "                \$mod_spec = \$mod_rules['ajax_actions_enforced'][\$ajax_act];\n";
+        $out .= "                if (!empty(\$mod_spec['block_uploads']) && !empty(\$_FILES)) {\n";
+        $out .= "                    webcare_micro_waf_block(\$ip, \$mod_spec['rule_id'], 'File uploads prohibited on guest AJAX action (' . htmlspecialchars(\$ajax_act, ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n\n";
+
         $out .= "        foreach (\$signatures as \$rule_id => \$sig) {\n";
         $out .= "            if (preg_match(\$sig['pattern'], \$target_text)) {\n";
         $out .= "                webcare_micro_waf_block(\$ip, \$rule_id, \$sig['desc'], \$fail2ban_log);\n";
