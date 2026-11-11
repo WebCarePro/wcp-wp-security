@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       WebCare Pro Security & Firewall
  * Description:       Advanced security & malware scanner with core file integrity checks, heuristic threat analysis, and modern React dashboard.
- * Version:           2.11.0
+ * Version:           2.12.0
  * Requires at least: 7.0
  * Requires PHP:      8.3
  * Author:            Mir Alamin
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('WEBCAREPROSCAN_VERSION', '2.11.0');
+define('WEBCAREPROSCAN_VERSION', '2.12.0');
 define('WEBCAREPROSCAN_FILE', __FILE__);
 define('WEBCAREPROSCAN_PATH', plugin_dir_path(__FILE__));
 define('WEBCAREPROSCAN_URL', plugin_dir_url(__FILE__));

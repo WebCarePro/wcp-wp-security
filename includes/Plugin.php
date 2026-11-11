@@ -182,6 +182,69 @@ class Plugin {
         $rm->setAccessible(true);
         $checks['rasp_helper_present'] = $rm->isStatic();
 
+        // 3b. Verify PCP DB sandbox detection ignores spoofed HTTP_REFERER/action and detects real *_pc_ prefix mutation
+        $orig_prefix = \WebCareProScanner\Firewall\FirewallEngine::get_original_table_prefix();
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Saving and restoring original superglobal values in CLI self-test harness.
+        $saved_ref = $_SERVER['HTTP_REFERER'] ?? null;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.MissingUnslash, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Saving and restoring original superglobal values in CLI self-test harness.
+        $saved_act = $_REQUEST['action'] ?? null;
+        $_SERVER['HTTP_REFERER'] = 'https://example.org/wp-admin/tools.php?page=plugin-check';
+        $_REQUEST['action']      = 'plugin_check_run_checks';
+        $spoof_rejected          = !\WebCareProScanner\Firewall\FirewallEngine::is_plugin_check_db_sandbox();
+        $sandbox_detected        = false;
+        global $wpdb;
+        $prev_prefix = $wpdb->set_prefix($orig_prefix . 'pc_');
+        try {
+            if (!defined('WEBCAREPROSCAN_PCP_TEST_HARNESS')) {
+                define('WEBCAREPROSCAN_PCP_TEST_HARNESS', true);
+            }
+            $sandbox_detected = \WebCareProScanner\Firewall\FirewallEngine::is_plugin_check_db_sandbox();
+        } finally {
+            $wpdb->set_prefix($prev_prefix);
+            if ($saved_ref === null) {
+                unset($_SERVER['HTTP_REFERER']);
+            } else {
+                $_SERVER['HTTP_REFERER'] = $saved_ref;
+            }
+            if ($saved_act === null) {
+                unset($_REQUEST['action']);
+            } else {
+                $_REQUEST['action'] = $saved_act;
+            }
+        }
+        $checks['pcp_sandbox_guard'] = ($orig_prefix === ($GLOBALS['table_prefix'] ?? 'wp_') && $spoof_rejected && $sandbox_detected);
+
+        // 3c. Verify original-table cookie validator rejects invalid cookies and validates authentic admin cookies
+        $rm_cookie = new \ReflectionMethod(\WebCareProScanner\Firewall\FirewallEngine::class, 'validate_cookie_against_original_tables');
+        $rm_cookie->setAccessible(true);
+        $forged_res = $rm_cookie->invoke(null, 'attacker|9999999999|tok|deadbeef', 'logged_in', $orig_prefix);
+        $cookie_ok  = (empty($forged_res['user_id']) && empty($forged_res['is_admin']));
+        $admins     = get_users(['role' => 'administrator', 'number' => 1]);
+        if ($cookie_ok && !empty($admins[0]) && function_exists('wp_generate_auth_cookie')) {
+            $admin_id   = (int) $admins[0]->ID;
+            $exp        = time() + 300;
+            $tmp_token  = wp_generate_password(43, false, false);
+            $verifier   = hash('sha256', $tmp_token);
+            $sessions   = get_user_meta($admin_id, 'session_tokens', true);
+            $sessions   = is_array($sessions) ? $sessions : [];
+            $sessions[$verifier] = ['expiration' => $exp, 'ip' => '127.0.0.1', 'ua' => 'WebCareDoctor', 'login' => time()];
+            update_user_meta($admin_id, 'session_tokens', $sessions);
+            try {
+                $signed_cookie = wp_generate_auth_cookie($admin_id, $exp, 'logged_in', $tmp_token);
+                $prev_p2       = $wpdb->set_prefix($orig_prefix . 'pc_');
+                try {
+                    $valid_res = $rm_cookie->invoke(null, $signed_cookie, 'logged_in', $orig_prefix);
+                    $cookie_ok = ((int) ($valid_res['user_id'] ?? 0) === $admin_id && !empty($valid_res['is_admin']));
+                } finally {
+                    $wpdb->set_prefix($prev_p2);
+                }
+            } finally {
+                unset($sessions[$verifier]);
+                update_user_meta($admin_id, 'session_tokens', $sessions);
+            }
+        }
+        $checks['pcp_orig_cookie_auth'] = $cookie_ok;
+
         // 4. REST API Authz Audit: ensure no admin route under webcare-pro-security/v1 uses __return_true
         $server = rest_get_server();
         $routes = $server->get_routes('webcare-pro-security/v1');
@@ -200,7 +263,13 @@ class Plugin {
             \WP_CLI::line(sprintf('%-26s : %s', $name, is_bool($val) ? ($val ? 'PASS' : 'FAIL') : (string) $val));
         }
 
-        if (empty($checks['rest_route_canonical']) || empty($checks['ssrf_metadata_blocked']) || empty($checks['rest_no_open_admin'])) {
+        if (
+            empty($checks['rest_route_canonical']) ||
+            empty($checks['ssrf_metadata_blocked']) ||
+            empty($checks['pcp_sandbox_guard']) ||
+            empty($checks['pcp_orig_cookie_auth']) ||
+            empty($checks['rest_no_open_admin'])
+        ) {
             \WP_CLI::error('WebCare Doctor detected a failed security self-check.');
         }
 

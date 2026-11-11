@@ -4,7 +4,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 2.11.0
+Stable tag: 2.12.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -215,6 +215,9 @@ To compile the React admin application from source:
 4. Run `npm run package` to compile and package the release zip.
 
 == Changelog ==
+
+= 2.12.0 =
+* Plugin Check (PCP) Sandbox Authentication & RASP Hardening: Added original-table auth cookie verification (`get_original_table_prefix()`, `is_plugin_check_db_sandbox()`, `validate_cookie_against_original_tables()`), fixed `AUTH_COOKIE` scheme lookup, increased RASP stack inspection depth to 40 frames, and skipped seeding HoneyToken canary users/options inside temporary `*_pc_` compliance test sandboxes while keeping unauthenticated referer/action spoofing strictly blocked.
 
 = 2.11.0 =
 * Production WAF Telemetry Learnings & False-Positive Hardening: Immunized standard RFC 8615 well-known endpoints (/.well-known/related-website-set.json, assetlinks.json, apple-app-site-association, acme-challenge, security.txt) from 404 attack counters, eliminating false-positive lockouts on modern mobile browsers.

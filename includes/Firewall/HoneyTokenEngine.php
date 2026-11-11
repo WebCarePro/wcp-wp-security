@@ -631,6 +631,10 @@ class HoneyTokenEngine {
      * Seed dormant Ghost Admin Canary user in wp_users if not present.
      */
     public static function ensure_canary_admin_seeded(): void {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine', false) && FirewallEngine::is_plugin_check_db_sandbox()) {
+            return;
+        }
+
         $settings = self::get_settings();
         if (empty($settings['enabled']) || empty($settings['enable_canary_admin'])) {
             return;
@@ -755,6 +759,10 @@ class HoneyTokenEngine {
      * Seed decoy honey options in wp_options.
      */
     public static function ensure_honey_options_seeded(): void {
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine', false) && FirewallEngine::is_plugin_check_db_sandbox()) {
+            return;
+        }
+
         $settings = self::get_settings();
         if (empty($settings['enabled']) || empty($settings['enable_honey_options'])) {
             return;

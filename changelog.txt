@@ -1,4 +1,14 @@
-﻿v:2.11.0 - 2026-11-11
+﻿v:2.12.0 - 2026-11-12
+- Plugin Check (PCP) Sandbox Auth & RASP Hardening:
+  * Fixed false-positive self-IP ban and WAF-RASP-META-INJECTION / WAF-GUEST-AJAX-PROBE blocks triggered when an authenticated administrator runs WordPress Plugin Check (PCP) runtime checks under *_pc_ amended database tables:
+    - Added FirewallEngine::get_original_table_prefix() and FirewallEngine::is_plugin_check_db_sandbox() verifying immutable $GLOBALS['table_prefix'] against $wpdb->base_prefix alongside active PCP PHP runtime classes/drop-in constants (never trusting HTTP headers or unauthenticated query strings).
+    - Added FirewallEngine::validate_cookie_against_original_tables() to cryptographically verify WordPress auth cookies, active session_tokens verifiers, and admin capabilities directly against production users/usermeta tables when PCP temporarily switches $wpdb->users to *_pc_users, preventing premature $current_user = 0 cache poisoning.
+    - Fixed AUTH_COOKIE scheme lookup and wordpress_* cookie fallback detection inside FirewallEngine::is_authenticated_administrator().
+    - Updated FirewallEngine::is_trusted_plugin_check_or_cli_runtime() and rasp_guard_user_metadata_injection() to increase stack trace verification depth (40 frames), protect real production capability keys even inside *_pc_ sandboxes, and honor HoneyTokenEngine::$internal_audit_bypass.
+    - Updated HoneyTokenEngine::ensure_canary_admin_seeded() and ensure_honey_options_seeded() to skip seeding decoy accounts/options inside ephemeral Plugin Check *_pc_ sandboxes.
+    - Expanded `wp webcare doctor` in Plugin.php with self-checks for pcp_sandbox_guard and pcp_orig_cookie_auth.
+
+v:2.11.0 - 2026-11-11
 - Enterprise Setup Studio (SOC Command Glass Architecture):
   * Dual-Persona Execution: Added Express Mode (6 Steps) for rapid 60-second onboarding and Developer Full-Control Mode (14 Granular Steps) with collapsible DeveloperDeepDive parameter drawers exposing 100% of SettingsManager keys.
   * Split-Pane Studio Layout: Engineered responsive 1280px layout with a 280px sticky left navigation rail, 4-phase accordion grouping, and interactive free-jump stepper (onClick jump to any step).

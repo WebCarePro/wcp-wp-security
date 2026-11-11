@@ -406,8 +406,8 @@ class FirewallEngine {
 
         $verified_user_id = 0;
 
-        // Layer 1: Check standard WordPress authenticated session if available
-        if (function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('get_current_user_id')) {
+        // Layer 1: Check standard WordPress authenticated session if available (skip during PCP _pc_ DB sandboxing so $current_user isn't cached as 0 against *_pc_users)
+        if (!self::is_plugin_check_db_sandbox() && function_exists('is_user_logged_in') && is_user_logged_in() && function_exists('get_current_user_id')) {
             $verified_user_id = (int) get_current_user_id();
         }
 
@@ -419,20 +419,33 @@ class FirewallEngine {
         }
 
         if ($verified_user_id <= 0 && function_exists('wp_validate_auth_cookie')) {
-            $auth_cookie = '';
+            $auth_cookie    = '';
             $cookie_schemes = ['logged_in', 'secure_auth', 'auth'];
+            $is_pcp_sandbox = self::is_plugin_check_db_sandbox();
+            $orig_prefix    = $is_pcp_sandbox ? self::get_original_table_prefix() : '';
 
             foreach ($cookie_schemes as $scheme) {
-                $cookie_name = ($scheme === 'logged_in')
-                    ? (defined('LOGGED_IN_COOKIE') ? LOGGED_IN_COOKIE : 'wordpress_logged_in_' . COOKIEHASH)
-                    : (defined('SECURE_AUTH_COOKIE') ? SECURE_AUTH_COOKIE : 'wordpress_sec_' . COOKIEHASH);
+                if ($scheme === 'logged_in') {
+                    $cookie_name = defined('LOGGED_IN_COOKIE') ? LOGGED_IN_COOKIE : 'wordpress_logged_in_' . COOKIEHASH;
+                } elseif ($scheme === 'secure_auth') {
+                    $cookie_name = defined('SECURE_AUTH_COOKIE') ? SECURE_AUTH_COOKIE : 'wordpress_sec_' . COOKIEHASH;
+                } else {
+                    $cookie_name = defined('AUTH_COOKIE') ? AUTH_COOKIE : 'wordpress_' . COOKIEHASH;
+                }
 
                 if (!empty($_COOKIE[$cookie_name])) {
                     $auth_cookie = sanitize_text_field(wp_unslash($_COOKIE[$cookie_name]));
-                    $uid = (int) wp_validate_auth_cookie($auth_cookie, $scheme);
-                    if ($uid > 0) {
-                        $verified_user_id = $uid;
-                        break;
+                    if (!$is_pcp_sandbox) {
+                        $uid = (int) wp_validate_auth_cookie($auth_cookie, $scheme);
+                        if ($uid > 0) {
+                            $verified_user_id = $uid;
+                            break;
+                        }
+                    } else {
+                        $orig_auth = self::validate_cookie_against_original_tables($auth_cookie, $scheme, $orig_prefix);
+                        if (!empty($orig_auth['user_id']) && !empty($orig_auth['is_admin'])) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -440,12 +453,30 @@ class FirewallEngine {
             // Fallback for default cookie names if constants aren't defined yet
             if ($verified_user_id <= 0) {
                 foreach ($_COOKIE as $c_name => $c_val) {
-                    if (strpos($c_name, 'wordpress_logged_in_') === 0 || strpos($c_name, 'wordpress_sec_') === 0) {
-                        $uid = (int) wp_validate_auth_cookie(sanitize_text_field(wp_unslash($c_val)), 'logged_in')
-                            ?: (int) wp_validate_auth_cookie(sanitize_text_field(wp_unslash($c_val)), 'secure_auth');
+                    $scheme_guess = '';
+                    if (strpos($c_name, 'wordpress_logged_in_') === 0) {
+                        $scheme_guess = 'logged_in';
+                    } elseif (strpos($c_name, 'wordpress_sec_') === 0) {
+                        $scheme_guess = 'secure_auth';
+                    } elseif (strpos($c_name, 'wordpress_') === 0 && $c_name !== 'wordpress_test_cookie') {
+                        $scheme_guess = 'auth';
+                    }
+
+                    if ($scheme_guess === '') {
+                        continue;
+                    }
+
+                    $cookie_val = sanitize_text_field(wp_unslash($c_val));
+                    if (!$is_pcp_sandbox) {
+                        $uid = (int) wp_validate_auth_cookie($cookie_val, $scheme_guess);
                         if ($uid > 0) {
                             $verified_user_id = $uid;
                             break;
+                        }
+                    } else {
+                        $orig_auth = self::validate_cookie_against_original_tables($cookie_val, $scheme_guess, $orig_prefix);
+                        if (!empty($orig_auth['user_id']) && !empty($orig_auth['is_admin'])) {
+                            return true;
                         }
                     }
                 }
@@ -474,10 +505,10 @@ class FirewallEngine {
             $has_admin_role = in_array('administrator', (array) $user->roles, true);
 
             // Resilient check: If $wpdb->prefix was temporarily amended (e.g. Plugin Check 'wp_pc_'),
-            // look up the user's authentic capabilities under the true base prefix $wpdb->base_prefix
+            // look up the user's authentic capabilities under the true base prefix $orig_prefix
             if (!$has_admin_cap && !$has_admin_role) {
                 global $wpdb;
-                $base_prefix = isset($wpdb->base_prefix) ? $wpdb->base_prefix : (isset($wpdb->prefix) ? $wpdb->prefix : 'wp_');
+                $base_prefix = self::get_original_table_prefix();
                 if (isset($wpdb->prefix) && $wpdb->prefix !== $base_prefix) {
                     $base_caps = get_user_meta($verified_user_id, $base_prefix . 'capabilities', true);
                     if (is_array($base_caps) && (!empty($base_caps['administrator']) || !empty($base_caps['manage_options']))) {
@@ -8598,8 +8629,173 @@ class FirewallEngine {
     }
 
     /**
+     * Resolve the original immutable table prefix defined in wp-config.php before runtime sandboxing.
+     *
+     * @return string
+     */
+    public static function get_original_table_prefix(): string {
+        if (isset($GLOBALS['table_prefix']) && is_string($GLOBALS['table_prefix']) && preg_match('/^[a-zA-Z0-9_]+$/', $GLOBALS['table_prefix'])) {
+            return $GLOBALS['table_prefix'];
+        }
+        global $wpdb;
+        if (isset($wpdb->base_prefix) && is_string($wpdb->base_prefix) && $wpdb->base_prefix !== '') {
+            return $wpdb->base_prefix;
+        }
+        return isset($wpdb->prefix) && is_string($wpdb->prefix) && $wpdb->prefix !== '' ? $wpdb->prefix : 'wp_';
+    }
+
+    /**
+     * Detect whether Plugin Check (PCP) runtime DB sandboxing (*_pc_ prefix) is active in-process.
+     *
+     * Validates server-side $wpdb state alongside loaded Plugin Check classes/constants rather than client headers.
+     *
+     * @return bool
+     */
+    public static function is_plugin_check_db_sandbox(): bool {
+        global $wpdb;
+        $orig_prefix = isset($GLOBALS['table_prefix']) && is_string($GLOBALS['table_prefix']) ? $GLOBALS['table_prefix'] : '';
+        if ($orig_prefix === '' || !isset($wpdb->base_prefix) || !is_string($wpdb->base_prefix)) {
+            return false;
+        }
+        if ($wpdb->base_prefix === $orig_prefix) {
+            return false;
+        }
+        if (!str_starts_with($wpdb->base_prefix, $orig_prefix) || !str_ends_with($wpdb->base_prefix, '_pc_')) {
+            return false;
+        }
+
+        return defined('WP_PLUGIN_CHECK_OBJECT_CACHE_DROPIN_VERSION')
+            || defined('WP_PLUGIN_CHECK_PLUGIN_DIR_PATH')
+            || (defined('WEBCAREPROSCAN_PCP_TEST_HARNESS') && WEBCAREPROSCAN_PCP_TEST_HARNESS)
+            || class_exists('WordPress\\Plugin_Check\\Traits\\Amend_DB_Base_Prefix', false)
+            || class_exists('WordPress\\Plugin_Check\\Checker\\Runtime_Environment_Setup', false);
+    }
+
+    /**
+     * Validate a WordPress auth cookie directly against the real site users/usermeta tables when DB tables are sandboxed.
+     *
+     * Prevents premature wp_get_current_user() cache poisoning or lookup failures when $wpdb->users points to *_pc_users.
+     *
+     * @param string $cookie      Raw auth cookie value.
+     * @param string $scheme      Cookie scheme ('logged_in', 'secure_auth', 'auth').
+     * @param string $orig_prefix Original production table prefix from $GLOBALS['table_prefix'].
+     * @return array{user_id:int,is_admin:bool}
+     */
+    private static function validate_cookie_against_original_tables(string $cookie, string $scheme, string $orig_prefix): array {
+        $empty = ['user_id' => 0, 'is_admin' => false];
+
+        if ($cookie === '' || !function_exists('wp_parse_auth_cookie') || !function_exists('wp_hash')) {
+            return $empty;
+        }
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $orig_prefix)) {
+            return $empty;
+        }
+
+        $cookie_elements = wp_parse_auth_cookie($cookie, $scheme);
+        if (!$cookie_elements || empty($cookie_elements['username']) || empty($cookie_elements['hmac']) || empty($cookie_elements['token']) || empty($cookie_elements['expiration'])) {
+            return $empty;
+        }
+
+        $parsed_scheme = (string) ($cookie_elements['scheme'] ?? $scheme);
+        $username      = (string) $cookie_elements['username'];
+        $hmac          = (string) $cookie_elements['hmac'];
+        $token         = (string) $cookie_elements['token'];
+        $expiration    = (string) $cookie_elements['expiration'];
+
+        $expired = (int) $expiration;
+        $req_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) : '';
+        if ((function_exists('wp_doing_ajax') && wp_doing_ajax()) || $req_method === 'POST') {
+            $expired += HOUR_IN_SECONDS;
+        }
+        if ($expired < time()) {
+            return $empty;
+        }
+
+        global $wpdb;
+        if (!isset($wpdb) || !is_object($wpdb)) {
+            return $empty;
+        }
+
+        $users_table    = defined('CUSTOM_USER_TABLE') ? CUSTOM_USER_TABLE : ($orig_prefix . 'users');
+        $usermeta_table = defined('CUSTOM_USER_META_TABLE') ? CUSTOM_USER_META_TABLE : ($orig_prefix . 'usermeta');
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $users_table) || !preg_match('/^[a-zA-Z0-9_]+$/', $usermeta_table)) {
+            return $empty;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Pre-boot validation against original users table during DB prefix sandboxing.
+        $user_row = $wpdb->get_row(
+            $wpdb->prepare('SELECT ID, user_login, user_pass FROM %i WHERE user_login = %s LIMIT 1', $users_table, $username)
+        );
+        if (!$user_row || empty($user_row->user_pass)) {
+            return $empty;
+        }
+
+        $user_pass = (string) $user_row->user_pass;
+        if (str_starts_with($user_pass, '$P$') || str_starts_with($user_pass, '$2y$')) {
+            $pass_frag = substr($user_pass, 8, 4);
+        } else {
+            $pass_frag = substr($user_pass, -4);
+        }
+
+        $key  = wp_hash($username . '|' . $pass_frag . '|' . $expiration . '|' . $token, $parsed_scheme);
+        $hash = hash_hmac('sha256', $username . '|' . $expiration . '|' . $token, $key);
+        if (!hash_equals($hash, $hmac)) {
+            return $empty;
+        }
+
+        $blog_id   = !empty($wpdb->blogid) ? (int) $wpdb->blogid : 1;
+        $cap_key_1 = $orig_prefix . 'capabilities';
+        $cap_key_2 = ($blog_id > 1) ? ($orig_prefix . $blog_id . '_capabilities') : $cap_key_1;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads verified session tokens and capabilities from original usermeta table during DB prefix sandboxing.
+        $meta_rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT meta_key, meta_value FROM %i WHERE user_id = %d AND meta_key IN ('session_tokens', %s, %s)",
+                $usermeta_table,
+                (int) $user_row->ID,
+                $cap_key_1,
+                $cap_key_2
+            )
+        );
+        if (!is_array($meta_rows)) {
+            return $empty;
+        }
+
+        $meta_map = [];
+        foreach ($meta_rows as $meta_row) {
+            if (isset($meta_row->meta_key)) {
+                $meta_map[$meta_row->meta_key] = $meta_row->meta_value;
+            }
+        }
+
+        $sessions = isset($meta_map['session_tokens']) ? maybe_unserialize($meta_map['session_tokens']) : [];
+        $verifier = hash('sha256', $token);
+        if (!is_array($sessions) || !isset($sessions[$verifier]) || !is_array($sessions[$verifier])) {
+            return $empty;
+        }
+        $session_exp = (int) ($sessions[$verifier]['expiration'] ?? 0);
+        if ($session_exp > 0 && $session_exp < time()) {
+            return $empty;
+        }
+
+        $caps = [];
+        if (isset($meta_map[$cap_key_2])) {
+            $caps = maybe_unserialize($meta_map[$cap_key_2]);
+        }
+        if (!is_array($caps) && isset($meta_map[$cap_key_1])) {
+            $caps = maybe_unserialize($meta_map[$cap_key_1]);
+        }
+        $is_admin = is_array($caps) && (!empty($caps['administrator']) || !empty($caps['manage_options']));
+
+        return [
+            'user_id'  => (int) $user_row->ID,
+            'is_admin' => $is_admin,
+        ];
+    }
+
+    /**
      * Verify whether execution is running inside a trusted server-side sandbox
-     * (WP-CLI, cron, WordPress installer, or Plugin Check test harness via server-amended DB prefix / stack).
+     * (WP-CLI, cron, WordPress installer, internal canary bypass, or Plugin Check test harness).
      * Never trusts attacker-controlled HTTP_REFERER or raw unauthenticated $_REQUEST['action'].
      */
     private static function is_trusted_plugin_check_or_cli_runtime(): bool {
@@ -8612,15 +8808,13 @@ class FirewallEngine {
         if (defined('WEBCAREPROSCAN_PCP_TEST_HARNESS') && WEBCAREPROSCAN_PCP_TEST_HARNESS) {
             return true;
         }
-
-        global $wpdb;
-        if (isset($wpdb->prefix, $wpdb->base_prefix) && $wpdb->prefix !== $wpdb->base_prefix && str_contains($wpdb->prefix, '_pc_')) {
+        if (class_exists('\\WebCareProScanner\\Firewall\\HoneyTokenEngine', false) && HoneyTokenEngine::$internal_audit_bypass) {
             return true;
         }
 
         if (function_exists('debug_backtrace')) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Server-side execution stack verification for installer / PCP harness.
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 14);
+            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 40);
             foreach ($trace as $frame) {
                 $fn  = $frame['function'] ?? '';
                 $cls = $frame['class'] ?? '';
@@ -8629,11 +8823,16 @@ class FirewallEngine {
                     $fn === 'wp_install_defaults' ||
                     str_contains($cls, 'Plugin_Check') ||
                     str_contains($cls, 'Runtime_Environment') ||
-                    str_contains($cls, 'Amend_DB_Base_Prefix')
+                    str_contains($cls, 'Amend_DB_Base_Prefix') ||
+                    str_contains($cls, 'Abstract_Check_Runner')
                 ) {
                     return true;
                 }
             }
+        }
+
+        if (self::is_plugin_check_db_sandbox() && self::is_authenticated_administrator()) {
+            return true;
         }
 
         return false;
@@ -8872,21 +9071,28 @@ class FirewallEngine {
         }
 
         // Fast-path: Only inspect targeted sensitive security metadata keys
+        $orig_prefix   = self::get_original_table_prefix();
+        global $wpdb;
+        $active_prefix = isset($wpdb->base_prefix) ? $wpdb->base_prefix : (isset($wpdb->prefix) ? $wpdb->prefix : 'wp_');
+        $prefix        = $orig_prefix;
+
         $guarded_keys = [
             '_application_passwords',
+            $orig_prefix . 'capabilities',
+            $orig_prefix . 'user_level',
         ];
-        global $wpdb;
-        // Strictly use root base_prefix for authentic WordPress installation security keys, never test sandboxes
-        $prefix = isset($wpdb->base_prefix) ? $wpdb->base_prefix : (isset($wpdb->prefix) ? $wpdb->prefix : 'wp_');
-        $guarded_keys[] = $prefix . 'capabilities';
-        $guarded_keys[] = $prefix . 'user_level';
+        if ($active_prefix !== $orig_prefix) {
+            $guarded_keys[] = $active_prefix . 'capabilities';
+            $guarded_keys[] = $active_prefix . 'user_level';
+        }
 
         if (!in_array($meta_key, $guarded_keys, true)) {
             return $check;
         }
 
-        // Skip only verified server-side runtimes (WP-CLI, cron, installer, PCP sandbox prefix/stack)
-        if (self::is_trusted_plugin_check_or_cli_runtime()) {
+        // Skip only verified server-side runtimes (WP-CLI, cron, installer, internal canary, PCP sandbox/stack)
+        // or verified administrators (including direct original-table cookie verification under _pc_ sandboxing).
+        if (self::is_trusted_plugin_check_or_cli_runtime() || self::is_authenticated_administrator()) {
             return $check;
         }
 
@@ -8980,7 +9186,7 @@ class FirewallEngine {
             // Also inspect stack trace: if originated from core WP_User::set_role / wp_insert_user / register_new_user
             if (!$is_safe_registration_mutation && function_exists('debug_backtrace')) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Context inspection required to distinguish legitimate WordPress core registration from raw unauthenticated SQL/HTTP privilege injections.
-                $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 15);
+                $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 40);
                 foreach ($trace as $frame) {
                     $fn = $frame['function'] ?? '';
                     $cls = $frame['class'] ?? '';
