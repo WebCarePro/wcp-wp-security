@@ -52,7 +52,8 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
-  Edit2
+  Edit2,
+  Radar
 } from 'lucide-react';
 import { VirtualPatchCard } from './components/VirtualPatchCard';
 import { CustomerLockoutCard } from './components/CustomerLockoutCard';
@@ -2837,6 +2838,28 @@ export const FirewallPage = ({
               >
                 <ShieldAlert size={15} color="#ea580c" />
                 <span>Virtual Patching &amp; 0-Day Shield</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setIsMoreMenuOpen(false); window.location.href = 'admin.php?page=webcare-pro-modular-waf'; }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  background: 'transparent',
+                  color: 'inherit',
+                  fontWeight: 500,
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px'
+                }}
+              >
+                <Radar size={15} color="#7c3aed" />
+                <span>Modular WAF Studio</span>
               </button>
             </div>
           )}

@@ -114,6 +114,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // 4. Submenu: Modular WAF
+        add_submenu_page(
+            'webcare-pro-security',
+            __('Modular Intelligence Firewall', 'webcare-pro-security'),
+            __('Modular WAF', 'webcare-pro-security'),
+            'manage_options',
+            'webcare-pro-modular-waf',
+            [__CLASS__, 'render_app_container']
+        );
+
         // 4. Submenu: Identity & Access
         add_submenu_page(
             'webcare-pro-security',
@@ -235,16 +245,6 @@ class AdminMenu {
             __('Protection Wizard', 'webcare-pro-security'),
             'manage_options',
             'webcare-pro-wizard',
-            [__CLASS__, 'render_app_container']
-        );
-
-        // Sub-Page: Modular Intelligence Firewall Studio
-        add_submenu_page(
-            null,
-            __('Modular Intelligence Firewall', 'webcare-pro-security'),
-            __('Modular WAF Studio', 'webcare-pro-security'),
-            'manage_options',
-            'webcare-pro-modular-waf',
             [__CLASS__, 'render_app_container']
         );
 

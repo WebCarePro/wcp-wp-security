@@ -1984,6 +1984,12 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'get_modular_code_preview'],
             'permission_callback' => $permission,
         ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/export', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'export_modular_waf_bundle'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     /**
@@ -2863,8 +2869,8 @@ class ScannerRoutes {
         $rule_counts = [];
         if (is_array($rules)) {
             foreach ($rules as $rl) {
-                $comp_name = $rl['target_component'] ?? '';
-                if ($comp_name !== '') {
+                $comp_name = $rl['origin_component'] ?? ($rl['target_component'] ?? '');
+                if ($comp_name !== '' && ($rl['current_mode'] ?? 'off') !== 'off') {
                     $rule_counts[$comp_name] = ($rule_counts[$comp_name] ?? 0) + 1;
                 }
             }
@@ -2993,6 +2999,185 @@ class ScannerRoutes {
 
         $result = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_code_preview($file, $line);
         return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Export complete Modular Intelligence Firewall forensic bundle as JSON.
+     *
+     * Provides complete visibility into synthesized rules, component inventory,
+     * behavioral endpoint maps, AST taint findings, recent modular triggers,
+     * and scan telemetry so false positives can be rapidly investigated.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function export_modular_waf_bundle(\WP_REST_Request $request) {
+        global $wpdb;
+
+        $vault_mgr = '\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager';
+        $synth     = '\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer';
+        $analyzer  = '\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer';
+
+        $vault_summary = class_exists($vault_mgr) ? $vault_mgr::get_vault_summary() : null;
+        $rules         = class_exists($synth) ? $synth::get_active_rules() : [];
+        $raw_inv       = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_INVENTORY) ?: []) : [];
+
+        if (empty($raw_inv) && class_exists($analyzer) && method_exists($analyzer, 'discover_all_components')) {
+            $raw_inv = $analyzer::discover_all_components();
+        }
+
+        $endpoint_map  = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_ENDPOINTS) ?: []) : [];
+        $findings      = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_FINDINGS) ?: []) : [];
+        $scan_progress = class_exists($analyzer) ? $analyzer::get_scan_progress() : null;
+
+        $rules_list = is_array($rules) ? array_values($rules) : [];
+
+        $endpoint_counts = [];
+        if (is_array($endpoint_map)) {
+            foreach ($endpoint_map as $ep) {
+                $comp_name = $ep['component'] ?? '';
+                if ($comp_name !== '') {
+                    $endpoint_counts[$comp_name] = ($endpoint_counts[$comp_name] ?? 0) + 1;
+                }
+            }
+        }
+
+        $finding_counts = [];
+        if (is_array($findings)) {
+            foreach ($findings as $fd) {
+                $comp_name = $fd['component'] ?? '';
+                if ($comp_name !== '') {
+                    $finding_counts[$comp_name] = ($finding_counts[$comp_name] ?? 0) + 1;
+                }
+            }
+        }
+
+        $rule_counts    = [];
+        $enforced_count = 0;
+        $monitor_count  = 0;
+        $off_count      = 0;
+        $custom_count   = 0;
+        $by_category    = [];
+
+        foreach ($rules_list as $rl) {
+            $mode = $rl['current_mode'] ?? 'off';
+            if ($mode === 'enforce') {
+                $enforced_count++;
+            } elseif ($mode === 'monitor') {
+                $monitor_count++;
+            } else {
+                $off_count++;
+            }
+            if (!empty($rl['is_custom'])) {
+                $custom_count++;
+            }
+            $cat = $rl['category'] ?? 'unknown';
+            $by_category[$cat] = ($by_category[$cat] ?? 0) + 1;
+
+            $comp_name = $rl['origin_component'] ?? ($rl['target_component'] ?? '');
+            if ($comp_name !== '' && $mode !== 'off') {
+                $rule_counts[$comp_name] = ($rule_counts[$comp_name] ?? 0) + 1;
+            }
+        }
+
+        $inventory = [];
+        if (is_array($raw_inv)) {
+            foreach ($raw_inv as $comp) {
+                if (!is_array($comp)) {
+                    continue;
+                }
+                $name = $comp['name'] ?? ($comp['slug'] ?? '');
+                $comp['endpoints_count'] = $endpoint_counts[$name] ?? 0;
+                $comp['findings_count']  = $finding_counts[$name] ?? 0;
+                $comp['rules_count']     = $rule_counts[$name] ?? 0;
+                $inventory[]             = $comp;
+            }
+        }
+
+        $recent_modular_hits = [];
+        $firewall_logs_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $firewall_logs_table));
+        if ($table_exists === $firewall_logs_table) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $recent_rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    "SELECT id, incident_id, request_uri, request_method, http_status_code, rule_category, rule_description, action_taken, created_at
+                     FROM `{$firewall_logs_table}`
+                     WHERE rule_category = %s OR rule_description LIKE %s
+                     ORDER BY id DESC
+                     LIMIT 100",
+                    'Modular Behavioral WAF',
+                    '%MOD-%'
+                ),
+                ARRAY_A
+            );
+            if (is_array($recent_rows)) {
+                $recent_modular_hits = $recent_rows;
+            }
+        }
+
+        $active_theme   = wp_get_theme();
+        $site_host      = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'localhost';
+        $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
+
+        $payload = [
+            'success'              => true,
+            'webcare_export_type'  => 'modular_waf_forensic_dossier',
+            'format_version'       => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0',
+            'exported_at'          => gmdate('c'),
+            'exported_timestamp'   => time(),
+            'author'               => 'Mir Alamin (WebCare Pro)',
+            'environment'          => [
+                'site_url'           => get_site_url(),
+                'home_url'           => get_home_url(),
+                'wordpress_version'  => $GLOBALS['wp_version'] ?? 'Unknown',
+                'php_version'        => PHP_VERSION,
+                'server_software'    => isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown',
+                'webcare_version'    => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0',
+                'preload_waf_active' => $preload_active,
+                'site_archetype'     => get_option('webcareproscan_site_archetype', 'business'),
+                'active_theme'       => [
+                    'name'       => $active_theme ? $active_theme->get('Name') : '',
+                    'version'    => $active_theme ? $active_theme->get('Version') : '',
+                    'template'   => $active_theme ? $active_theme->get_template() : '',
+                    'stylesheet' => $active_theme ? $active_theme->get_stylesheet() : '',
+                ],
+            ],
+            'summary'              => [
+                'total_rules'          => count($rules_list),
+                'enforced_rules'       => $enforced_count,
+                'monitored_rules'      => $monitor_count,
+                'disabled_rules'       => $off_count,
+                'custom_rules'         => $custom_count,
+                'rules_by_category'    => $by_category,
+                'components_profiled'  => count($inventory),
+                'endpoints_mapped'     => is_array($endpoint_map) ? count($endpoint_map) : 0,
+                'ast_findings_count'   => is_array($findings) ? count($findings) : 0,
+                'recent_modular_hits'  => count($recent_modular_hits),
+                'vault_sealed'         => !empty($vault_summary),
+            ],
+            'rules'                 => $rules_list,
+            'component_inventory'   => $inventory,
+            'endpoint_behavior_map' => is_array($endpoint_map) ? array_values($endpoint_map) : [],
+            'ast_taint_findings'    => is_array($findings) ? array_values($findings) : [],
+            'recent_modular_hits'   => $recent_modular_hits,
+            'vault_summary'         => $vault_summary,
+            'scan_progress'         => $scan_progress,
+        ];
+
+        $is_download = !empty($request->get_param('download'));
+        if ($is_download) {
+            $filename = 'webcare-modular-waf-' . sanitize_file_name($site_host) . '-' . gmdate('Y-m-d') . '.json';
+            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('X-Content-Type-Options: nosniff');
+            echo wp_json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        return new \WP_REST_Response($payload, 200);
     }
 
     public static function start_scan(\WP_REST_Request $request) {
