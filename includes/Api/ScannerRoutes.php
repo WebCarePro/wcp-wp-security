@@ -1709,6 +1709,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/defense/attack-surface/export', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'export_attack_surface_bundle'],
+            'permission_callback' => $permission,
+        ]);
+
         // Phase 5: 72-Hour Reinfection Watchdog Endpoints
         register_rest_route(self::NAMESPACE, '/reinfection-watchdog/status', [
             'methods'             => 'GET',
@@ -12837,6 +12843,284 @@ class ScannerRoutes {
             'message' => __('Attack surface defense settings updated.', 'webcare-pro-security'),
             'data'    => \WebCareProScanner\WordPress\RestApiInventory::get_inventory(),
         ]);
+    }
+
+    /**
+     * Export complete REST API & wp_ajax_nopriv attack surface inventory, PHP Reflection handler provenance,
+     * deduplicated cryptographic file hash index, active shields, and correlated WAF incident logs as JSON.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response|void
+     */
+    public static function export_attack_surface_bundle(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\WordPress\\RestApiInventory')) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => __('REST API & AJAX Attack Surface inventory engine is unavailable.', 'webcare-pro-security'),
+            ], 500);
+        }
+
+        $inventory = \WebCareProScanner\WordPress\RestApiInventory::get_inventory(true);
+        $routes    = is_array($inventory['routes'] ?? null) ? $inventory['routes'] : [];
+        $ajax_list = is_array($inventory['ajax_nopriv'] ?? null) ? $inventory['ajax_nopriv'] : [];
+
+        // 1. Build deduplicated cryptographic file hash index across REST & AJAX handler files
+        $handler_file_index = [];
+        $index_handler_file = static function (array $handler, string $kind) use (&$handler_file_index) {
+            $rel = isset($handler['file']) ? (string) $handler['file'] : '';
+            if ($rel === '') {
+                return;
+            }
+            if (!isset($handler_file_index[$rel])) {
+                $handler_file_index[$rel] = [
+                    'file'            => $rel,
+                    'owner_component' => $handler['owner_component'] ?? 'Unknown',
+                    'owner_type'      => $handler['owner_type'] ?? 'unknown',
+                    'origin_type'     => $handler['origin_type'] ?? 'custom_unmanaged',
+                    'vendor_name'     => $handler['vendor_name'] ?? null,
+                    'is_official'     => !empty($handler['is_official']),
+                    'is_known_vendor' => !empty($handler['is_known_vendor']),
+                    'checksum_status' => $handler['checksum_status'] ?? 'not_available',
+                    'file_sha256'     => $handler['file_sha256'] ?? null,
+                    'file_md5'        => $handler['file_md5'] ?? null,
+                    'rest_routes_cnt' => 0,
+                    'ajax_hooks_cnt'  => 0,
+                ];
+                if (!empty($handler['known_vendor_lib'])) {
+                    $handler_file_index[$rel]['known_vendor_lib'] = $handler['known_vendor_lib'];
+                }
+            }
+            if ($kind === 'rest') {
+                $handler_file_index[$rel]['rest_routes_cnt']++;
+            } else {
+                $handler_file_index[$rel]['ajax_hooks_cnt']++;
+            }
+        };
+
+        foreach ($routes as $r) {
+            if (!empty($r['handler']) && is_array($r['handler'])) {
+                $index_handler_file($r['handler'], 'rest');
+            }
+        }
+        foreach ($ajax_list as $ax) {
+            if (!empty($ax['handler']) && is_array($ax['handler'])) {
+                $index_handler_file($ax['handler'], 'ajax');
+            }
+        }
+
+        // 2. Collect WAF logs & cross-reference hits against registered REST routes and nopriv AJAX actions
+        $log_ctx          = self::build_modular_log_analysis_context();
+        $all_log_records  = is_array($log_ctx['recent_log_records'] ?? null) ? $log_ctx['recent_log_records'] : [];
+        $surface_logs     = [];
+        $hits_by_route    = [];
+        $hits_by_ajax_act = [];
+
+        foreach ($all_log_records as $rec) {
+            $uri     = (string) ($rec['request_uri'] ?? '');
+            $payload = (string) ($rec['payload_sample'] ?? '');
+            $rid     = (string) ($rec['rule_id'] ?? '');
+            $is_rest = str_contains($uri, '/wp-json/') || str_contains($uri, 'rest_route=');
+            $is_ajax = str_contains($uri, 'admin-ajax.php');
+            $is_mod  = str_starts_with($rid, 'MOD-REST-') || str_starts_with($rid, 'MOD-AJAX-');
+
+            if (!$is_rest && !$is_ajax && !$is_mod) {
+                continue;
+            }
+
+            $surface_logs[] = $rec;
+
+            if ($is_rest) {
+                $matched_route = '';
+                $parsed_q = wp_parse_url($uri, PHP_URL_QUERY);
+                $q_params = [];
+                if (is_string($parsed_q) && $parsed_q !== '') {
+                    parse_str($parsed_q, $q_params);
+                }
+                if (!empty($q_params['rest_route']) && is_string($q_params['rest_route'])) {
+                    $matched_route = '/' . ltrim($q_params['rest_route'], '/');
+                } else {
+                    $parsed_path = (string) (wp_parse_url($uri, PHP_URL_PATH) ?: '');
+                    $pos         = strpos($parsed_path, '/wp-json');
+                    if ($pos !== false) {
+                        $matched_route = '/' . ltrim(substr($parsed_path, $pos + strlen('/wp-json')), '/');
+                    }
+                }
+                if ($matched_route !== '') {
+                    $rkey = strtolower(rtrim($matched_route, '/') ?: '/');
+                    if (!isset($hits_by_route[$rkey])) {
+                        $hits_by_route[$rkey] = [
+                            'route_sample'  => $matched_route,
+                            'hits'          => 0,
+                            'actions_taken' => [],
+                            'rule_ids'      => [],
+                            'last_seen'     => $rec['created_at'] ?? '',
+                        ];
+                    }
+                    $hits_by_route[$rkey]['hits']++;
+                    if (!empty($rec['action_taken']) && !in_array($rec['action_taken'], $hits_by_route[$rkey]['actions_taken'], true)) {
+                        $hits_by_route[$rkey]['actions_taken'][] = $rec['action_taken'];
+                    }
+                    if ($rid !== '' && !in_array($rid, $hits_by_route[$rkey]['rule_ids'], true)) {
+                        $hits_by_route[$rkey]['rule_ids'][] = $rid;
+                    }
+                }
+            }
+
+            if ($is_ajax) {
+                $ajax_act = '';
+                $parsed_q = wp_parse_url($uri, PHP_URL_QUERY);
+                $q_params = [];
+                if (is_string($parsed_q) && $parsed_q !== '') {
+                    parse_str($parsed_q, $q_params);
+                }
+                if (!empty($q_params['action']) && is_string($q_params['action'])) {
+                    $ajax_act = sanitize_key($q_params['action']);
+                } elseif (preg_match('/(?:^|[&\s,;=\'"(])action\s*[:=]\s*[\'"]?([a-zA-Z0-9_-]+)/', $payload, $m)) {
+                    $ajax_act = sanitize_key($m[1]);
+                }
+                if ($ajax_act !== '') {
+                    $akey = strtolower($ajax_act);
+                    if (!isset($hits_by_ajax_act[$akey])) {
+                        $hits_by_ajax_act[$akey] = [
+                            'action'        => $ajax_act,
+                            'hits'          => 0,
+                            'actions_taken' => [],
+                            'rule_ids'      => [],
+                            'last_seen'     => $rec['created_at'] ?? '',
+                        ];
+                    }
+                    $hits_by_ajax_act[$akey]['hits']++;
+                    if (!empty($rec['action_taken']) && !in_array($rec['action_taken'], $hits_by_ajax_act[$akey]['actions_taken'], true)) {
+                        $hits_by_ajax_act[$akey]['actions_taken'][] = $rec['action_taken'];
+                    }
+                    if ($rid !== '' && !in_array($rid, $hits_by_ajax_act[$akey]['rule_ids'], true)) {
+                        $hits_by_ajax_act[$akey]['rule_ids'][] = $rid;
+                    }
+                }
+            }
+        }
+
+        // Annotate route & AJAX items with matching log telemetry counts
+        foreach ($routes as &$rt) {
+            $rkey = strtolower(rtrim((string) ($rt['route'] ?? ''), '/') ?: '/');
+            if (isset($hits_by_route[$rkey])) {
+                $rt['recent_waf_hits'] = $hits_by_route[$rkey];
+            }
+        }
+        unset($rt);
+
+        foreach ($ajax_list as &$ax) {
+            $akey = strtolower((string) ($ax['action'] ?? ''));
+            if ($akey !== '' && isset($hits_by_ajax_act[$akey])) {
+                $ax['recent_waf_hits'] = $hits_by_ajax_act[$akey];
+            }
+        }
+        unset($ax);
+
+        // 3. Gather active Modular WAF rules protecting REST / AJAX surfaces
+        $active_surface_rules = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            $all_rules = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_active_rules();
+            foreach ($all_rules as $rule) {
+                $cat = $rule['category'] ?? '';
+                if ($cat === 'rest_guard' || $cat === 'ajax_shield' || str_contains((string) ($rule['target_uri'] ?? ''), 'wp-json') || str_contains((string) ($rule['target_uri'] ?? ''), 'admin-ajax.php')) {
+                    $active_surface_rules[] = $rule;
+                }
+            }
+        }
+
+        // 4. Environment & breakdown statistics
+        $origin_breakdown = [];
+        $flag_stats = [
+            'public_routes'               => (int) ($inventory['public_routes_count'] ?? 0),
+            'unauth_write_routes'         => (int) ($inventory['unauth_post_routes'] ?? 0),
+            'mixed_auth_protected_routes' => (int) ($inventory['mixed_auth_protected_routes'] ?? 0),
+            'locked_routes'               => 0,
+            'shielded_routes'             => 0,
+            'shielded_ajax_nopriv'        => 0,
+        ];
+        foreach ($routes as $rt) {
+            if (!empty($rt['is_locked'])) {
+                $flag_stats['locked_routes']++;
+            }
+            if (!empty($rt['shielded_by'])) {
+                $flag_stats['shielded_routes']++;
+            }
+            $orig = $rt['handler']['origin_type'] ?? 'unknown';
+            $origin_breakdown[$orig] = ($origin_breakdown[$orig] ?? 0) + 1;
+        }
+        foreach ($ajax_list as $ax) {
+            if (!empty($ax['shielded_by'])) {
+                $flag_stats['shielded_ajax_nopriv']++;
+            }
+        }
+
+        $active_theme   = wp_get_theme();
+        $site_host      = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'localhost';
+        $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
+
+        $payload = [
+            'success'               => true,
+            'webcare_export_type'   => 'attack_surface_forensic_bundle',
+            'format_version'        => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0',
+            'exported_at'           => gmdate('c'),
+            'exported_timestamp'    => time(),
+            'author'                => 'Mir Alamin (WebCare Pro)',
+            'environment'           => [
+                'site_url'           => get_site_url(),
+                'home_url'           => get_home_url(),
+                'wordpress_version'  => $GLOBALS['wp_version'] ?? 'Unknown',
+                'php_version'        => PHP_VERSION,
+                'server_software'    => isset($_SERVER['SERVER_SOFTWARE']) ? sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE'])) : 'Unknown',
+                'webcare_version'    => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0',
+                'preload_waf_active' => $preload_active,
+                'active_theme'       => [
+                    'name'       => $active_theme ? $active_theme->get('Name') : '',
+                    'version'    => $active_theme ? $active_theme->get('Version') : '',
+                    'template'   => $active_theme ? $active_theme->get_template() : '',
+                    'stylesheet' => $active_theme ? $active_theme->get_stylesheet() : '',
+                ],
+            ],
+            'summary'               => array_merge([
+                'total_routes'               => count($routes),
+                'total_namespaces'           => (int) ($inventory['total_namespaces'] ?? 0),
+                'total_nopriv_ajax'          => count($ajax_list),
+                'unique_handler_files_hashed'=> count($handler_file_index),
+                'active_surface_rules_count' => count($active_surface_rules),
+                'surface_waf_events_count'   => count($surface_logs),
+                'total_modular_events_30d'   => (int) ($log_ctx['total_events_analyzed'] ?? 0),
+                'routes_by_origin_type'      => $origin_breakdown,
+            ], $flag_stats),
+            'settings'              => $inventory['settings'] ?? [],
+            'namespaces'            => $inventory['namespaces'] ?? [],
+            'routes'                => $routes,
+            'ajax_nopriv'           => $ajax_list,
+            'active_surface_rules'  => $active_surface_rules,
+            'handler_file_hash_index'=> array_values($handler_file_index),
+            'log_analysis_context'  => [
+                'surface_events_matched'   => count($surface_logs),
+                'hits_by_rest_route'       => $hits_by_route,
+                'hits_by_ajax_action'      => $hits_by_ajax_act,
+                'hits_by_rule'             => $log_ctx['hits_by_rule'] ?? [],
+                'hits_by_action'           => $log_ctx['hits_by_action'] ?? [],
+                'top_target_uris'          => $log_ctx['top_target_uris'] ?? [],
+                'top_user_agents'          => $log_ctx['top_user_agents'] ?? [],
+                'preboot_fail2ban_lines'   => $log_ctx['preboot_fail2ban_lines'] ?? [],
+                'recent_surface_waf_logs'  => array_slice($surface_logs, 0, 200),
+            ],
+        ];
+
+        $is_download = !empty($request->get_param('download'));
+        if ($is_download) {
+            $filename = 'webcare-attack-surface-' . sanitize_file_name($site_host) . '-' . gmdate('Y-m-d') . '.json';
+            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('X-Content-Type-Options: nosniff');
+            echo wp_json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        return new \WP_REST_Response($payload, 200);
     }
 
     // ==========================================
