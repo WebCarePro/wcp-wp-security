@@ -210,6 +210,24 @@ class MicroWafCompiler {
             HtaccessVaultManager::snapshot_current_if_clean('micro_waf_init');
         }
 
+        $trusted_proxies = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine') && method_exists('\\WebCareProScanner\\Firewall\\FirewallEngine', 'get_configured_trusted_proxies')) {
+            foreach (FirewallEngine::get_configured_trusted_proxies() as $proxy_entry) {
+                $proxy_entry = trim((string) $proxy_entry);
+                if ($proxy_entry === '') {
+                    continue;
+                }
+                if (filter_var($proxy_entry, FILTER_VALIDATE_IP)) {
+                    $trusted_proxies[] = $proxy_entry;
+                } elseif (str_contains($proxy_entry, '/')) {
+                    list($p_sub, $p_mask) = explode('/', $proxy_entry, 2);
+                    if (filter_var($p_sub, FILTER_VALIDATE_IP) && ctype_digit((string) $p_mask)) {
+                        $trusted_proxies[] = $proxy_entry;
+                    }
+                }
+            }
+        }
+
         $code = self::generate_standalone_code(
             $blocked_ips,
             $compiled_signatures,
@@ -218,7 +236,8 @@ class MicroWafCompiler {
             $chained_file,
             $htaccess_path,
             $emergency_vault,
-            $htaccess_mtime
+            $htaccess_mtime,
+            array_values(array_unique($trusted_proxies))
         );
 
         // Write compiled file atomically
@@ -275,12 +294,15 @@ class MicroWafCompiler {
         string $chained_file = '',
         string $htaccess_path = '',
         string $emergency_vault = '',
-        int $expected_htaccess_mtime = 0
+        int $expected_htaccess_mtime = 0,
+        array $trusted_proxies = []
     ): string {
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $ips_export = var_export($blocked_ips, true);
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $sigs_export = var_export($signatures, true);
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static trusted proxy CIDRs for OPcache.
+        $proxies_export = var_export($trusted_proxies, true);
         $fail2ban_escaped = addslashes($fail2ban_log);
         $bypass_escaped = addslashes($bypass_token);
         $htaccess_escaped = addslashes($htaccess_path);
@@ -313,6 +335,7 @@ class MicroWafCompiler {
         $out .= "    (function() {\n";
         $out .= "        \$fail2ban_log = '{$fail2ban_escaped}';\n";
         $out .= "        \$blocked_ips = " . $ips_export . ";\n";
+        $out .= "        \$trusted_proxies = " . $proxies_export . ";\n";
         $out .= "        \$signatures  = " . $sigs_export . ";\n\n";
 
         // Preload Anti-Deadlock .htaccess Watchdog
@@ -341,41 +364,69 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "        }\n\n";
 
-        $out .= "        // 1. Resolve real client IP\n";
-        $out .= "        \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
-        $out .= "        \$cf_cidrs = ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'];\n";
-        $out .= "        \$is_cf_ip = false;\n";
-        $out .= "        if (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
-        $out .= "            \$r_long = ip2long(\$ip);\n";
-        $out .= "            foreach (\$cf_cidrs as \$c_cidr) {\n";
-        $out .= "                list(\$net, \$m) = explode('/', \$c_cidr);\n";
-        $out .= "                \$mask_l = ~((1 << (32 - (int) \$m)) - 1);\n";
-        $out .= "                if ((\$r_long & \$mask_l) === (ip2long(\$net) & \$mask_l)) { \$is_cf_ip = true; break; }\n";
+        $out .= "        // 1. Resolve real client IP (Cloudflare Edge + custom trusted proxy CIDRs)\n";
+        $out .= "        \$webcare_match_ip_list = static function (string \$target_ip, array \$rules): bool {\n";
+        $out .= "            if (\$target_ip === '' || empty(\$rules) || !filter_var(\$target_ip, FILTER_VALIDATE_IP)) {\n";
+        $out .= "                return false;\n";
         $out .= "            }\n";
-        $out .= "        } elseif (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {\n";
-        $out .= "            if (str_starts_with(\$ip, '2400:cb00:') || str_starts_with(\$ip, '2606:4700:') || str_starts_with(\$ip, '2803:f800:') || str_starts_with(\$ip, '2405:b500:') || str_starts_with(\$ip, '2405:8100:') || str_starts_with(\$ip, '2a06:98c0:')) { \$is_cf_ip = true; }\n";
-        $out .= "        }\n";
+        $out .= "            \$ip_bin = @inet_pton(\$target_ip);\n";
+        $out .= "            foreach (\$rules as \$rule) {\n";
+        $out .= "                if (\$target_ip === \$rule) {\n";
+        $out .= "                    return true;\n";
+        $out .= "                }\n";
+        $out .= "                if (strpos(\$rule, '/') === false || \$ip_bin === false) {\n";
+        $out .= "                    continue;\n";
+        $out .= "                }\n";
+        $out .= "                list(\$subnet, \$mask_raw) = explode('/', \$rule, 2);\n";
+        $out .= "                \$sub_bin = @inet_pton(\$subnet);\n";
+        $out .= "                if (\$sub_bin === false || strlen(\$ip_bin) !== strlen(\$sub_bin) || !ctype_digit((string) \$mask_raw)) {\n";
+        $out .= "                    continue;\n";
+        $out .= "                }\n";
+        $out .= "                \$bits = (int) \$mask_raw;\n";
+        $out .= "                \$max_bits = strlen(\$ip_bin) * 8;\n";
+        $out .= "                if (\$bits < 0 || \$bits > \$max_bits) {\n";
+        $out .= "                    continue;\n";
+        $out .= "                }\n";
+        $out .= "                \$full_bytes = intdiv(\$bits, 8);\n";
+        $out .= "                \$rem_bits   = \$bits % 8;\n";
+        $out .= "                \$matched    = (\$full_bytes === 0 || substr(\$ip_bin, 0, \$full_bytes) === substr(\$sub_bin, 0, \$full_bytes));\n";
+        $out .= "                if (\$matched && \$rem_bits > 0) {\n";
+        $out .= "                    \$mask_byte = (0xff << (8 - \$rem_bits)) & 0xff;\n";
+        $out .= "                    \$matched   = ((ord(\$ip_bin[\$full_bytes]) & \$mask_byte) === (ord(\$sub_bin[\$full_bytes]) & \$mask_byte));\n";
+        $out .= "                }\n";
+        $out .= "                if (\$matched) {\n";
+        $out .= "                    return true;\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "            return false;\n";
+        $out .= "        };\n";
+        $out .= "        \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
+        $out .= "        \$cf_cidrs = ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22','2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32','2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32'];\n";
+        $out .= "        \$is_cf_ip = \$webcare_match_ip_list(\$ip, \$cf_cidrs);\n";
+        $out .= "        \$is_custom_proxy = !\$is_cf_ip && \$webcare_match_ip_list(\$ip, \$trusted_proxies);\n";
         $out .= "        if (\$is_cf_ip && isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
         $out .= "            \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
-        $out .= "        }\n\n";
-
-        $out .= "        // 2. Fast IP & CIDR match\n";
-        $out .= "        \$ip_blocked = false;\n";
-        $out .= "        foreach (\$blocked_ips as \$rule_ip) {\n";
-        $out .= "            if (\$ip === \$rule_ip) { \$ip_blocked = true; break; }\n";
-        $out .= "            if (str_contains(\$rule_ip, '/')) {\n";
-        $out .= "                list(\$subnet, \$mask) = explode('/', \$rule_ip, 2);\n";
-        $out .= "                if (filter_var(\$ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var(\$subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
-        $out .= "                    \$ip_long = ip2long(\$ip);\n";
-        $out .= "                    \$sub_long = ip2long(\$subnet);\n";
-        $out .= "                    \$mask_long = ~((1 << (32 - (int) \$mask)) - 1);\n";
-        $out .= "                    if ((\$ip_long & \$mask_long) === (\$sub_long & \$mask_long)) {\n";
-        $out .= "                        \$ip_blocked = true;\n";
+        $out .= "        } elseif (\$is_custom_proxy) {\n";
+        $out .= "            \$resolved_proxy_client = '';\n";
+        $out .= "            if (!empty(\$_SERVER['HTTP_X_FORWARDED_FOR'])) {\n";
+        $out .= "                \$xff_parts = array_reverse(array_map('trim', explode(',', (string) \$_SERVER['HTTP_X_FORWARDED_FOR'])));\n";
+        $out .= "                foreach (\$xff_parts as \$cand) {\n";
+        $out .= "                    if (filter_var(\$cand, FILTER_VALIDATE_IP) && !\$webcare_match_ip_list(\$cand, \$cf_cidrs) && !\$webcare_match_ip_list(\$cand, \$trusted_proxies)) {\n";
+        $out .= "                        \$resolved_proxy_client = \$cand;\n";
         $out .= "                        break;\n";
         $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
+        $out .= "            if (\$resolved_proxy_client !== '') {\n";
+        $out .= "                \$ip = \$resolved_proxy_client;\n";
+        $out .= "            } elseif (isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
+        $out .= "                \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
+        $out .= "            }\n";
         $out .= "        }\n\n";
+
+        $out .= "        // 2. Fast IP & CIDR match (never block verified proxy CIDRs)\n";
+        $out .= "        \$ip_is_trusted_proxy = \$webcare_match_ip_list(\$ip, \$cf_cidrs) || \$webcare_match_ip_list(\$ip, \$trusted_proxies);\n";
+        $out .= "        \$ip_blocked = !\$ip_is_trusted_proxy && \$webcare_match_ip_list(\$ip, \$blocked_ips);\n\n";
 
         $out .= "        if (\$ip_blocked) {\n";
         $out .= "            webcare_micro_waf_block(\$ip, 'IP-BLOCKLIST', 'Connecting IP is present in WebCare Blacklist / Threat Intel', \$fail2ban_log);\n";

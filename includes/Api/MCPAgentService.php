@@ -715,19 +715,9 @@ class MCPAgentService {
     public static function execute_tool(string $tool, array $args = [], bool $bypass_gate = false): array {
         $start_time = microtime(true);
 
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-        $raw_cf_ip  = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? (string) wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']) : '';
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-        $raw_xf_ip  = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? (string) wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']) : '';
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-        $raw_rem_ip = isset($_SERVER['REMOTE_ADDR']) ? (string) wp_unslash($_SERVER['REMOTE_ADDR']) : '127.0.0.1';
-        $client_ip  = $raw_cf_ip !== '' ? $raw_cf_ip : ($raw_xf_ip !== '' ? $raw_xf_ip : $raw_rem_ip);
-
-        if (strpos($client_ip, ',') !== false) {
-            $parts = explode(',', $client_ip);
-            $client_ip = trim($parts[0]);
-        }
-        $client_ip  = sanitize_text_field($client_ip);
+        $client_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $raw_ua     = isset($_SERVER['HTTP_USER_AGENT']) ? (string) wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
         $user_agent = $raw_ua !== '' ? sanitize_text_field(substr($raw_ua, 0, 120)) : 'Unknown AI Agent';

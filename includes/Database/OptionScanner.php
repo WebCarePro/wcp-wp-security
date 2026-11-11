@@ -197,7 +197,7 @@ class OptionScanner {
             $html_analyzer = new \WebCareProScanner\Content\HTMLAnalyzer();
 
             foreach ($script_options as $s_opt) {
-                $raw_val = maybe_unserialize($s_opt->option_value);
+                $raw_val = SerializedDataScanner::safe_unserialize($s_opt->option_value);
                 $opt_text = stripslashes(is_array($raw_val) || is_object($raw_val) ? wp_json_encode($raw_val, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $raw_val);
 
                 if (empty($opt_text) || strlen($opt_text) < 15) {

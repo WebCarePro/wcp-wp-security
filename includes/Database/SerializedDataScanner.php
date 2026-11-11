@@ -87,6 +87,20 @@ class SerializedDataScanner {
     }
 
     /**
+     * Safely unserialize a database string without instantiating arbitrary PHP object classes.
+     *
+     * @param mixed $data Candidate serialized value.
+     * @return mixed Unserialized scalars/arrays (objects become __PHP_Incomplete_Class safely) or original value.
+     */
+    public static function safe_unserialize($data) {
+        if (self::is_serialized($data)) {
+            // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Safely disallows class instantiation via allowed_classes => false during security scans.
+            return @unserialize(trim((string) $data), ['allowed_classes' => false]);
+        }
+        return $data;
+    }
+
+    /**
      * Check if a string appears to be serialized PHP data.
      *
      * @param mixed $data

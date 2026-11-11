@@ -1382,18 +1382,36 @@ class ModularFirewallSynthesizer {
         $resolved_path = null;
         foreach ($candidate_paths as $cand) {
             $cand_norm = wp_normalize_path($cand);
-            if (file_exists($cand_norm) && is_file($cand_norm)) {
-                if (str_starts_with($cand_norm, $wp_content_norm) || str_starts_with($cand_norm, $abspath_norm)) {
-                    if (basename($cand_norm) === 'wp-config.php') {
-                        return [
-                            'success' => false,
-                            'message' => __('Access to wp-config.php is strictly restricted.', 'webcare-pro-security'),
-                        ];
-                    }
-                    $resolved_path = $cand_norm;
-                    break;
-                }
+            if (!file_exists($cand_norm) || !is_file($cand_norm)) {
+                continue;
             }
+            $real = realpath($cand_norm);
+            if ($real === false) {
+                continue;
+            }
+            $real_norm = wp_normalize_path($real);
+            $in_root   = class_exists('\\WebCareProScanner\\Filesystem\\PathValidator')
+                ? (\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_norm, WP_CONTENT_DIR, true)
+                    || \WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_norm, ABSPATH, true))
+                : (str_starts_with($real_norm, rtrim($wp_content_norm, '/') . '/') || str_starts_with($real_norm, rtrim($abspath_norm, '/') . '/'));
+
+            if (!$in_root) {
+                continue;
+            }
+
+            $real_base = strtolower(basename($real_norm));
+            if (
+                in_array($real_base, ['wp-config.php', 'wp-config-sample.php', '.htaccess', '.htpasswd', '.user.ini', '.env'], true)
+                || str_starts_with($real_base, '.env.')
+            ) {
+                return [
+                    'success' => false,
+                    'message' => __('Access to sensitive configuration files is strictly restricted.', 'webcare-pro-security'),
+                ];
+            }
+
+            $resolved_path = $real_norm;
+            break;
         }
 
         if (!$resolved_path || !is_readable($resolved_path)) {

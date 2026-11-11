@@ -1,6 +1,7 @@
 <?php
 namespace WebCareProScanner\Integrity;
 
+use WebCareProScanner\Database\SerializedDataScanner;
 use WebCareProScanner\Notifications\NotificationDispatcher;
 use WebCareProScanner\System\WebCareActivityLogger;
 
@@ -503,7 +504,7 @@ class ObjectCacheIntegritySentinel {
      */
     private static function normalize_value($val) {
         if (is_string($val)) {
-            $val = maybe_unserialize($val);
+            $val = SerializedDataScanner::safe_unserialize($val);
         }
         if (is_object($val) || is_array($val)) {
             $decoded = json_decode((string) wp_json_encode($val), true);

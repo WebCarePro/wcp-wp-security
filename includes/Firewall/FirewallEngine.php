@@ -351,14 +351,20 @@ class FirewallEngine {
             }
         }
 
-        // 3. From WordPress option
-        $opt = function_exists('get_option') ? get_option('webcareproscan_trusted_proxies', '') : '';
-        if (!empty($opt) && is_string($opt)) {
-            $parts = preg_split('/[\s,;]+/', $opt);
-            foreach ($parts as $p) {
-                $p = trim($p);
-                if ($p !== '') {
-                    $proxies[] = $p;
+        // 3. From WordPress option and SettingsManager proxy keys
+        $opt_sources = [
+            function_exists('get_option') ? get_option('webcareproscan_trusted_proxies', '') : '',
+            class_exists('\\WebCareProScanner\\System\\SettingsManager') ? SettingsManager::get('trusted_proxy_ips', '') : '',
+            class_exists('\\WebCareProScanner\\System\\SettingsManager') ? SettingsManager::get('waf_trusted_proxy_cidrs', '') : '',
+        ];
+        foreach ($opt_sources as $opt) {
+            if (!empty($opt) && is_string($opt)) {
+                $parts = preg_split('/[\s,;]+/', $opt);
+                foreach ($parts as $p) {
+                    $p = trim($p);
+                    if ($p !== '') {
+                        $proxies[] = $p;
+                    }
                 }
             }
         }
@@ -7559,8 +7565,15 @@ class FirewallEngine {
             return;
         }
 
-        $referer_raw = isset($_SERVER['HTTP_REFERER']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']))) : '';
-        if (self::has_active_shopper_session() || (!empty($referer_raw) && (strpos($referer_raw, '/checkout') !== false || strpos($referer_raw, '/cart') !== false))) {
+        $referer_raw      = isset($_SERVER['HTTP_REFERER']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']))) : '';
+        $referer_host     = $referer_raw !== '' ? strtolower((string) wp_parse_url($referer_raw, PHP_URL_HOST)) : '';
+        $home_host        = strtolower((string) wp_parse_url(home_url(), PHP_URL_HOST));
+        $same_origin_cart = $referer_raw !== ''
+            && $referer_host !== ''
+            && $home_host !== ''
+            && $referer_host === $home_host
+            && (strpos($referer_raw, '/checkout') !== false || strpos($referer_raw, '/cart') !== false);
+        if (self::has_active_shopper_session() || $same_origin_cart) {
             if (str_starts_with($action_lower, 'wc_') || str_starts_with($action_lower, 'woocommerce_') || strpos($action_lower, 'tax') !== false || strpos($action_lower, 'vat') !== false || strpos($action_lower, 'shipping') !== false) {
                 return; // Auto-pass benign cart/checkout companion plugin actions
             }
@@ -8813,20 +8826,20 @@ class FirewallEngine {
         }
 
         if (function_exists('debug_backtrace')) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Server-side execution stack verification for installer / PCP harness.
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 40);
-            foreach ($trace as $frame) {
-                $fn  = $frame['function'] ?? '';
-                $cls = $frame['class'] ?? '';
-                if (
-                    $fn === 'wp_install' ||
-                    $fn === 'wp_install_defaults' ||
-                    str_contains($cls, 'Plugin_Check') ||
-                    str_contains($cls, 'Runtime_Environment') ||
-                    str_contains($cls, 'Amend_DB_Base_Prefix') ||
-                    str_contains($cls, 'Abstract_Check_Runner')
-                ) {
-                    return true;
+            $is_installing = (defined('WP_INSTALLING') && WP_INSTALLING) || (function_exists('is_blog_installed') && !is_blog_installed());
+            $is_auth_admin = self::is_authenticated_administrator();
+            if ($is_installing || $is_auth_admin) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Server-side execution stack verification for installer / authenticated PCP harness.
+                $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 40);
+                foreach ($trace as $frame) {
+                    $fn  = $frame['function'] ?? '';
+                    $cls = ltrim((string) ($frame['class'] ?? ''), '\\');
+                    if ($is_installing && ($fn === 'wp_install' || $fn === 'wp_install_defaults')) {
+                        return true;
+                    }
+                    if ($is_auth_admin && $cls !== '' && str_starts_with($cls, 'WordPress\\Plugin_Check\\')) {
+                        return true;
+                    }
                 }
             }
         }

@@ -109,7 +109,7 @@ class RogueAdminAnomalyDetector {
         );
 
         foreach ($admin_meta as $row) {
-            $caps = @maybe_unserialize($row->meta_value);
+            $caps = SerializedDataScanner::safe_unserialize($row->meta_value);
             if (!is_array($caps)) {
                 $findings[] = new Finding([
                     'engine'      => 'database-micro-anomaly',
@@ -196,7 +196,7 @@ class RogueAdminAnomalyDetector {
                     continue;
                 }
 
-                $passwords = @maybe_unserialize($row->meta_value);
+                $passwords = SerializedDataScanner::safe_unserialize($row->meta_value);
                 if (!is_array($passwords)) {
                     $findings[] = new Finding([
                         'engine'      => 'database-micro-anomaly',
