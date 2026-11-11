@@ -777,6 +777,16 @@ class FirewallEngine {
         $raw_req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $client_ip = self::get_client_ip();
 
+        // Rescue Assistant Integration: Bypass permanently trusted actions or downgrade to learning during 15m Test Pause
+        if (class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            if (\WebCareProScanner\Firewall\RescueAssistantManager::is_incoming_request_trusted($raw_req_uri)) {
+                return;
+            }
+            if (\WebCareProScanner\Firewall\RescueAssistantManager::is_strict_paused()) {
+                $settings['waf_mode'] = 'learning';
+            }
+        }
+
         // Tiered Context-Aware IP Whitelist Check (Replaces legacy unconditional early return)
         $whitelist_ctx = self::check_ip_whitelist_context($client_ip, $settings);
         if ($whitelist_ctx['is_whitelisted'] && $whitelist_ctx['full_bypass']) {

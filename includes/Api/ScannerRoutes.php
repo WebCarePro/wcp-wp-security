@@ -1996,6 +1996,56 @@ class ScannerRoutes {
             'callback'            => [__CLASS__, 'export_modular_waf_bundle'],
             'permission_callback' => $permission,
         ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/autopilot', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_modular_autopilot'],
+            'permission_callback' => $permission,
+        ]);
+
+        // Rescue Assistant, 15m Test Mode & Daily Security Story
+        register_rest_route(self::NAMESPACE, '/rescue/status', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_rescue_status'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/rescue/trust-action', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rescue_trust_action'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/rescue/pause-15m', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rescue_pause_15m'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/rescue/resume', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rescue_resume'],
+            'permission_callback' => $permission,
+        ]);
+
+        // 1-Click Virtual Shield & Safe Plugin Update with Auto-Backup
+        register_rest_route(self::NAMESPACE, '/vulnerabilities/virtual-shield', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'activate_vulnerability_virtual_shield'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/vulnerabilities/safe-update', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'execute_safe_plugin_update'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/vulnerabilities/safe-rollback', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'execute_safe_plugin_rollback'],
+            'permission_callback' => $permission,
+        ]);
     }
 
     /**
@@ -3215,18 +3265,83 @@ class ScannerRoutes {
     public static function get_modular_waf_status(\WP_REST_Request $request) {
         $ctx            = self::build_modular_dossier_context(false);
         $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
+        $autopilot      = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
+            && \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::is_autopilot_enabled();
 
         return new \WP_REST_Response([
-            'success'        => true,
-            'vault_summary'  => $ctx['vault_summary'],
-            'rules'          => $ctx['rules'],
-            'inventory'      => $ctx['inventory'],
-            'trust_summary'  => $ctx['trust_summary'],
-            'endpoint_map'   => $ctx['endpoint_map'],
-            'findings'       => $ctx['findings'],
-            'scan_progress'  => $ctx['scan_progress'],
-            'preload_active' => $preload_active,
+            'success'           => true,
+            'vault_summary'     => $ctx['vault_summary'],
+            'rules'             => $ctx['rules'],
+            'inventory'         => $ctx['inventory'],
+            'trust_summary'     => $ctx['trust_summary'],
+            'endpoint_map'      => $ctx['endpoint_map'],
+            'findings'          => $ctx['findings'],
+            'scan_progress'     => $ctx['scan_progress'],
+            'preload_active'    => $preload_active,
+            'autopilot_enabled' => $autopilot,
         ], 200);
+    }
+
+    /**
+     * Toggle Smart 48-Hour Auto-Pilot for Modular Firewall rules.
+     */
+    public static function toggle_modular_autopilot(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Modular firewall synthesizer unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params  = $request->get_json_params() ?: [];
+        $enabled = !empty($params['enabled']);
+        $res     = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::set_autopilot_enabled($enabled);
+        return new \WP_REST_Response($res, 200);
+    }
+
+    /**
+     * Retrieve Rescue Assistant recent block diagnostics, 15m pause state, trusted actions, and Daily Security Story.
+     */
+    public static function get_rescue_status(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Rescue Assistant unavailable.', 'webcare-pro-security')], 500);
+        }
+        $minutes = max(5, min(60, intval($request->get_param('minutes') ?: 15)));
+        return new \WP_REST_Response([
+            'success'         => true,
+            'pause_status'    => \WebCareProScanner\Firewall\RescueAssistantManager::get_pause_status(),
+            'recent_blocks'   => \WebCareProScanner\Firewall\RescueAssistantManager::analyze_recent_blocks($minutes),
+            'trusted_actions' => \WebCareProScanner\Firewall\RescueAssistantManager::get_trusted_actions(),
+            'daily_story'     => \WebCareProScanner\Firewall\RescueAssistantManager::get_daily_security_story(),
+        ], 200);
+    }
+
+    /**
+     * Trust and permanently allow a blocked request or plugin action via Rescue Assistant.
+     */
+    public static function rescue_trust_action(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Rescue Assistant unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params = $request->get_json_params() ?: [];
+        $res    = \WebCareProScanner\Firewall\RescueAssistantManager::trust_and_allow_action($params);
+        return new \WP_REST_Response($res, !empty($res['success']) ? 200 : 400);
+    }
+
+    /**
+     * Pause strict WAF enforcement for 15 minutes (Monitor-Only Test Mode with auto re-arm).
+     */
+    public static function rescue_pause_15m(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Rescue Assistant unavailable.', 'webcare-pro-security')], 500);
+        }
+        return new \WP_REST_Response(\WebCareProScanner\Firewall\RescueAssistantManager::pause_strict_firewall_15m(), 200);
+    }
+
+    /**
+     * Resume strict WAF enforcement immediately.
+     */
+    public static function rescue_resume(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Rescue Assistant unavailable.', 'webcare-pro-security')], 500);
+        }
+        return new \WP_REST_Response(\WebCareProScanner\Firewall\RescueAssistantManager::resume_strict_firewall(), 200);
     }
 
     /**
@@ -5129,10 +5244,65 @@ class ScannerRoutes {
 
     public static function get_vulnerabilities_report(\WP_REST_Request $request) {
         $report = UpdateScanner::get_detailed_report();
+
+        $shielded_slugs = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            foreach (\WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_active_rules() as $mr) {
+                if (($mr['category'] ?? '') === 'cve_patch' && ($mr['current_mode'] ?? '') === 'enforce' && !empty($mr['component_slug'])) {
+                    $shielded_slugs[$mr['component_slug']] = $mr['id'];
+                }
+            }
+        }
+        $safe_backups = get_option(\WebCareProScanner\Firewall\RescueAssistantManager::OPTION_SAFE_UPDATES, []);
+
         return rest_ensure_response([
-            'success' => true,
-            'report'  => $report,
+            'success'             => true,
+            'report'              => $report,
+            'virtual_shields'     => $shielded_slugs,
+            'safe_update_backups' => is_array($safe_backups) ? $safe_backups : [],
         ]);
+    }
+
+    /**
+     * Activate 1-click Virtual Shield (MOD-CVE-*) for an outdated or vulnerable component without updating.
+     */
+    public static function activate_vulnerability_virtual_shield(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Virtual shield synthesizer unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params = $request->get_json_params() ?: [];
+        $slug   = sanitize_key($params['slug'] ?? '');
+        $type   = sanitize_key($params['type'] ?? 'plugin');
+        $res    = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::activate_cve_shield($slug, $type);
+        return new \WP_REST_Response($res, !empty($res['success']) ? 200 : 400);
+    }
+
+    /**
+     * Safely back up a plugin to Gatekeeper storage and run WordPress Plugin_Upgrader.
+     */
+    public static function execute_safe_plugin_update(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Safe update manager unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params      = $request->get_json_params() ?: [];
+        $plugin_file = sanitize_text_field(wp_unslash($params['plugin_file'] ?? ''));
+        $slug        = sanitize_key($params['slug'] ?? '');
+        $name        = sanitize_text_field(wp_unslash($params['name'] ?? ''));
+        $res         = \WebCareProScanner\Firewall\RescueAssistantManager::safe_update_plugin($plugin_file, $slug, $name);
+        return new \WP_REST_Response($res, !empty($res['success']) ? 200 : 400);
+    }
+
+    /**
+     * Roll back a safely updated plugin to its Gatekeeper pre-update backup snapshot.
+     */
+    public static function execute_safe_plugin_rollback(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Safe update manager unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params      = $request->get_json_params() ?: [];
+        $snapshot_id = sanitize_text_field(wp_unslash($params['snapshot_id'] ?? ''));
+        $res         = \WebCareProScanner\Firewall\RescueAssistantManager::rollback_safe_update($snapshot_id);
+        return new \WP_REST_Response($res, !empty($res['success']) ? 200 : 400);
     }
 
     public static function get_backup_preflight(\WP_REST_Request $request) {
@@ -8623,6 +8793,37 @@ class ScannerRoutes {
             }
         }
 
+        // 4. Fallback: Search SQL firewall_logs table by incident_id or IP
+        if (!$data) {
+            global $wpdb;
+            $fw_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $fw_table)) === $fw_table) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $sql_row = $wpdb->get_row(
+                    $wpdb->prepare(
+                        'SELECT incident_id, ip_address, rule_category, rule_description, request_uri, created_at FROM %i WHERE incident_id = %s OR ip_address = %s ORDER BY id DESC LIMIT 1',
+                        $fw_table,
+                        $clean_code,
+                        $query
+                    ),
+                    ARRAY_A
+                );
+                if (is_array($sql_row) && !empty($sql_row['ip_address'])) {
+                    $data = [
+                        'ref_code'       => $clean_code,
+                        'incident_id'    => $sql_row['incident_id'],
+                        'client_ip'      => $sql_row['ip_address'],
+                        'rule_category'  => $sql_row['rule_category'] ?? 'Security Shield',
+                        'description'    => $sql_row['rule_description'] ?? '',
+                        'request_uri'    => $sql_row['request_uri'] ?? '/',
+                        'timestamp'      => strtotime((string) ($sql_row['created_at'] ?? 'now')),
+                        'formatted_time' => $sql_row['created_at'] ?? gmdate('Y-m-d H:i:s'),
+                    ];
+                }
+            }
+        }
+
         if (!$data) {
             return rest_ensure_response([
                 'found'   => false,
@@ -8671,6 +8872,25 @@ class ScannerRoutes {
             $t = get_transient('webcareproscan_lockout_' . $clean_code);
             if (!empty($t['client_ip'])) {
                 $ip = $t['client_ip'];
+            } elseif (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
+                $fq = \WebCareProScanner\Firewall\WafFileLogger::query_logs(['search' => $clean_code, 'action' => 'blocked'], 1);
+                if (!empty($fq['logs'][0]['ip_address'])) {
+                    $ip = (string) $fq['logs'][0]['ip_address'];
+                }
+            }
+            if (empty($ip)) {
+                global $wpdb;
+                $fw_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $fw_table)) === $fw_table) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $ip_hit = $wpdb->get_var(
+                        $wpdb->prepare('SELECT ip_address FROM %i WHERE incident_id = %s ORDER BY id DESC LIMIT 1', $fw_table, $clean_code)
+                    );
+                    if (is_string($ip_hit) && $ip_hit !== '') {
+                        $ip = $ip_hit;
+                    }
+                }
             }
         }
 

@@ -43,6 +43,17 @@ class SiteBehavioralAnalyzer {
 
         $session_id = 'scan_' . time() . '_' . wp_generate_password(6, false, false);
 
+        $initial_cve_count      = 0;
+        $initial_outdated_count = 0;
+        foreach ($components as $comp_item) {
+            if (!empty($comp_item['cve_count'])) {
+                $initial_cve_count += (int) $comp_item['cve_count'];
+            }
+            if (!empty($comp_item['update_available'])) {
+                $initial_outdated_count++;
+            }
+        }
+
         $initial_state = [
             'session_id'         => $session_id,
             'status'             => 'running',
@@ -63,7 +74,8 @@ class SiteBehavioralAnalyzer {
                 'missing_abspath_files'  => 0,
                 'tampered_files_found'   => 0,
                 'taint_sinks_found'      => 0,
-                'cve_vulnerabilities'    => 0,
+                'cve_vulnerabilities'    => $initial_cve_count,
+                'outdated_components'    => $initial_outdated_count,
                 'abandoned_components'   => 0,
                 'rules_synthesized'      => 0,
             ],
@@ -469,21 +481,26 @@ class SiteBehavioralAnalyzer {
             $counters['ajax_hooks_found']++;
             $is_guest = str_starts_with($arg1, 'wp_ajax_nopriv_') || str_starts_with($arg1, 'admin_post_nopriv_');
             $action_slug = str_replace(['wp_ajax_nopriv_', 'wp_ajax_', 'admin_post_nopriv_'], '', $arg1);
+            $cb_name     = $arg2 ?: self::extract_callback_name($tokens, $pos);
 
-            // Check if file contains nonce verification or capability check
-            $has_nonce = self::file_has_nonce_verification($tokens);
-            $has_cap   = self::file_has_capability_check($tokens);
+            // Inspect strictly inside the callback / closure scope rather than across the entire file
+            $scope     = self::inspect_callback_scope($tokens, $cb_name, $pos);
+            $has_nonce = $scope['has_nonce'];
+            $has_cap   = $scope['has_cap'];
+            $has_sink  = $scope['has_dangerous_sink'];
 
             $endpoint_info = [
-                'hook'           => $arg1,
-                'action'         => $action_slug,
-                'callback'       => $arg2 ?: 'closure/variable',
-                'component'      => $component_name,
-                'file'           => $rel_path,
-                'line'           => $line,
-                'is_guest'       => $is_guest,
-                'has_nonce'      => $has_nonce,
-                'has_capability' => $has_cap,
+                'hook'               => $arg1,
+                'action'             => $action_slug,
+                'callback'           => $cb_name ?: 'closure/variable',
+                'component'          => $component_name,
+                'file'               => $rel_path,
+                'line'               => $line,
+                'is_guest'           => $is_guest,
+                'has_nonce'          => $has_nonce,
+                'has_capability'     => $has_cap,
+                'has_dangerous_sink' => $has_sink,
+                'scope_found'        => $scope['scope_found'],
             ];
 
             $endpoint_map[] = $endpoint_info;
@@ -491,21 +508,24 @@ class SiteBehavioralAnalyzer {
             // Flag unprotected guest AJAX hooks
             if ($is_guest && !$has_nonce && !$has_cap) {
                 $counters['unprotected_ajax_hooks']++;
+                $is_verified_read_only = !$has_sink && !empty($file_info['is_official_wporg']);
                 $findings[] = [
-                    'type'        => 'unprotected_guest_ajax',
-                    'component'   => $component_name,
-                    'file'        => $rel_path,
-                    'line'        => $line,
-                    'action'      => $action_slug,
-                    'hook'        => $arg1,
-                    'callback'    => $arg2,
-                    'evidence'    => sprintf(
+                    'type'               => 'unprotected_guest_ajax',
+                    'component'          => $component_name,
+                    'file'               => $rel_path,
+                    'line'               => $line,
+                    'action'             => $action_slug,
+                    'hook'               => $arg1,
+                    'callback'           => $cb_name ?: 'closure/variable',
+                    'has_dangerous_sink' => $has_sink,
+                    'scope_found'        => $scope['scope_found'],
+                    'evidence'           => sprintf(
                         /* translators: %1$s: action slug, %2$s: callback */
                         __('Unprotected guest AJAX hook "%1$s" (callback: %2$s) lacks nonce verification or capability authorization.', 'webcare-pro-security'),
                         $action_slug,
-                        $arg2 ?: 'inline closure'
+                        $cb_name ?: 'inline closure'
                     ),
-                    'severity'    => 'critical',
+                    'severity'           => $is_verified_read_only ? 'medium' : ($has_sink ? 'critical' : 'high'),
                 ];
             }
         }
@@ -692,6 +712,219 @@ class SiteBehavioralAnalyzer {
     }
 
     /**
+     * Extract callback string or array method name (arg #2) from an add_action(...) call.
+     */
+    private static function extract_callback_name(array $tokens, int $pos): ?string {
+        $count       = count($tokens);
+        $current_arg = 1;
+        $paren_depth = 0;
+        $strings     = [];
+
+        for ($i = $pos; $i < min($pos + 80, $count); $i++) {
+            $t = $tokens[$i];
+            if ($t === '(') {
+                $paren_depth++;
+                continue;
+            }
+            if ($t === ')') {
+                $paren_depth--;
+                if ($paren_depth <= 0) {
+                    break;
+                }
+                continue;
+            }
+            if ($t === ',' && $paren_depth === 1) {
+                $current_arg++;
+                if ($current_arg > 2) {
+                    break;
+                }
+                continue;
+            }
+            if ($current_arg === 2 && is_array($t) && $t[0] === T_CONSTANT_ENCAPSED_STRING) {
+                $strings[] = trim($t[1], "'\"");
+            }
+        }
+
+        if (empty($strings)) {
+            return null;
+        }
+        $last = end($strings);
+        if (is_string($last) && str_contains($last, '::')) {
+            $parts = explode('::', $last);
+            $last  = end($parts);
+        }
+        return is_string($last) && $last !== '' ? $last : null;
+    }
+
+    /**
+     * Inspect nonces, capabilities, and dangerous mutation sinks strictly inside the target callback scope
+     * (either an inline Closure at add_action() or the named function/method body in the same file).
+     */
+    private static function inspect_callback_scope(array $tokens, ?string $callback_name, int $hook_pos): array {
+        $result = [
+            'has_nonce'          => false,
+            'has_cap'            => false,
+            'has_dangerous_sink' => true, // Conservative default when callback implementation lives outside this file
+            'scope_found'        => false,
+        ];
+
+        $count       = count($tokens);
+        $body_tokens = [];
+
+        // 1. Check for inline closure / arrow function in argument #2 of add_action(...)
+        $paren_depth = 0;
+        $current_arg = 1;
+        for ($i = $hook_pos; $i < min($hook_pos + 120, $count); $i++) {
+            $t = $tokens[$i];
+            if ($t === '(') {
+                $paren_depth++;
+                continue;
+            }
+            if ($t === ')') {
+                $paren_depth--;
+                if ($paren_depth <= 0) {
+                    break;
+                }
+                continue;
+            }
+            if ($t === ',' && $paren_depth === 1) {
+                $current_arg++;
+                if ($current_arg > 2) {
+                    break;
+                }
+                continue;
+            }
+            if ($current_arg === 2 && is_array($t) && $t[0] === T_FUNCTION) {
+                $body_tokens = self::extract_braced_function_body($tokens, $i);
+                break;
+            }
+            if ($current_arg === 2 && defined('T_FN') && is_array($t) && $t[0] === T_FN) {
+                for ($j = $i; $j < min($i + 150, $count); $j++) {
+                    if ($tokens[$j] === ',' || $tokens[$j] === ')' || $tokens[$j] === ';') {
+                        break;
+                    }
+                    $body_tokens[] = $tokens[$j];
+                }
+                break;
+            }
+        }
+
+        // 2. Otherwise search for named function / method definition inside this file
+        if (empty($body_tokens) && !empty($callback_name)) {
+            $target_fn = strtolower($callback_name);
+            if (str_contains($target_fn, '::')) {
+                $parts     = explode('::', $target_fn);
+                $target_fn = end($parts);
+            }
+            for ($i = 0; $i < $count; $i++) {
+                $t = $tokens[$i];
+                if (!is_array($t) || $t[0] !== T_FUNCTION) {
+                    continue;
+                }
+                // Find the identifier token immediately following 'function'
+                for ($j = $i + 1; $j < min($i + 6, $count); $j++) {
+                    if (is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+                        continue;
+                    }
+                    if ($tokens[$j] === '&') {
+                        continue;
+                    }
+                    if (is_array($tokens[$j]) && $tokens[$j][0] === T_STRING && strtolower($tokens[$j][1]) === $target_fn) {
+                        $body_tokens = self::extract_braced_function_body($tokens, $i);
+                    }
+                    break;
+                }
+                if (!empty($body_tokens)) {
+                    break;
+                }
+            }
+        }
+
+        if (empty($body_tokens)) {
+            return $result;
+        }
+
+        $result['scope_found']        = true;
+        $result['has_nonce']          = self::file_has_nonce_verification($body_tokens);
+        $result['has_cap']            = self::file_has_capability_check($body_tokens);
+        $result['has_dangerous_sink'] = self::scope_has_dangerous_sink($body_tokens);
+
+        return $result;
+    }
+
+    /**
+     * Extract tokens enclosed in the { ... } body of a function/closure starting near $fn_pos.
+     */
+    private static function extract_braced_function_body(array $tokens, int $fn_pos): array {
+        $count      = count($tokens);
+        $brace_depth = 0;
+        $started    = false;
+        $body       = [];
+
+        for ($i = $fn_pos; $i < min($fn_pos + 3000, $count); $i++) {
+            $t = $tokens[$i];
+            if ($t === '{' || (is_array($t) && in_array($t[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true))) {
+                $brace_depth++;
+                $started = true;
+                $body[]  = $t;
+                continue;
+            }
+            if (!$started && $t === ';') {
+                // Abstract or interface method declaration without body
+                return [];
+            }
+            if ($started) {
+                $body[] = $t;
+                if ($t === '}') {
+                    $brace_depth--;
+                    if ($brace_depth <= 0) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $body;
+    }
+
+    /**
+     * Detect mutating database, filesystem, option, user, mail, or OS execution sinks within callback tokens.
+     */
+    private static function scope_has_dangerous_sink(array $tokens): bool {
+        $dangerous_functions = [
+            'update_option', 'add_option', 'delete_option', 'update_site_option', 'add_site_option',
+            'update_user_meta', 'add_user_meta', 'delete_user_meta', 'update_post_meta', 'wp_insert_post',
+            'wp_update_post', 'wp_delete_post', 'wp_insert_user', 'wp_update_user', 'wp_create_user',
+            'wp_delete_user', 'wp_set_auth_cookie', 'wp_set_current_user', 'wp_set_password',
+            'move_uploaded_file', 'file_put_contents', 'fwrite', 'fputs', 'unlink', 'wp_delete_file',
+            'rmdir', 'wp_handle_upload', 'media_handle_upload', 'wp_mail', 'mail',
+            'exec', 'shell_exec', 'system', 'passthru', 'proc_open', 'popen', 'eval',
+            'curl_exec', 'wp_remote_post', 'wp_remote_request', 'unserialize', 'maybe_unserialize',
+        ];
+        $wpdb_mutators = ['query', 'insert', 'update', 'delete', 'replace'];
+        $count         = count($tokens);
+
+        for ($i = 0; $i < $count; $i++) {
+            $t = $tokens[$i];
+            if (!is_array($t)) {
+                continue;
+            }
+            if ($t[0] === T_EVAL || ($t[0] === T_STRING && in_array(strtolower($t[1]), $dangerous_functions, true))) {
+                return true;
+            }
+            if ($t[0] === T_VARIABLE && $t[1] === '$wpdb') {
+                for ($j = $i + 1; $j < min($i + 6, $count); $j++) {
+                    if (is_array($tokens[$j]) && $tokens[$j][0] === T_STRING && in_array(strtolower($tokens[$j][1]), $wpdb_mutators, true)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Check if file contains standard nonce verification functions.
      */
     private static function file_has_nonce_verification(array $tokens): bool {
@@ -815,6 +1048,7 @@ class SiteBehavioralAnalyzer {
 
         $all_plugins    = function_exists('get_plugins') ? get_plugins() : [];
         $active_plugins = get_option('active_plugins', []);
+        $update_plugins = get_site_transient('update_plugins');
 
         foreach ($all_plugins as $plugin_file => $data) {
             $slug = dirname($plugin_file);
@@ -822,50 +1056,91 @@ class SiteBehavioralAnalyzer {
                 $slug = basename($plugin_file, '.php');
             }
 
-            $is_active = in_array($plugin_file, $active_plugins, true);
+            $is_active        = in_array($plugin_file, $active_plugins, true);
+            $cur_version      = $data['Version'] ?? '0.0.0';
+            $update_available = !empty($update_plugins->response[$plugin_file]);
+            $latest_version   = $update_available ? ($update_plugins->response[$plugin_file]->new_version ?? null) : null;
+            $cves             = class_exists('\\WebCareProScanner\\WordPress\\UpdateScanner')
+                ? \WebCareProScanner\WordPress\UpdateScanner::get_plugin_cves($slug, $cur_version, $data['Name'] ?? $slug)
+                : [];
+
             $comp = [
-                'type'      => 'plugin',
-                'slug'      => $slug,
-                'file'      => $plugin_file,
-                'name'      => $data['Name'] ?? $slug,
-                'version'   => $data['Version'] ?? '0.0.0',
-                'author'    => $data['Author'] ?? '',
-                'is_active' => $is_active,
-                'path'      => WP_PLUGIN_DIR . '/' . $slug,
+                'type'             => 'plugin',
+                'slug'             => $slug,
+                'file'             => $plugin_file,
+                'name'             => $data['Name'] ?? $slug,
+                'version'          => $cur_version,
+                'author'           => $data['Author'] ?? '',
+                'is_active'        => $is_active,
+                'path'             => WP_PLUGIN_DIR . '/' . $slug,
+                'update_available' => $update_available,
+                'latest_version'   => $latest_version,
+                'cves'             => $cves,
+                'cve_count'        => count($cves),
+                'has_cve'          => !empty($cves),
             ];
             $components['plugin:' . $slug] = array_merge($comp, ComponentIntegrityVerifier::verify_component($comp, $deep_verify));
         }
 
         // 2. Active Theme & Child Theme
+        $update_themes = get_site_transient('update_themes');
         $theme = wp_get_theme();
         if ($theme->exists()) {
+            $t_slug    = $theme->get_stylesheet();
+            $t_ver     = $theme->get('Version') ?: '1.0.0';
+            $t_name    = $theme->get('Name') ?: $t_slug;
+            $t_upd     = !empty($update_themes->response[$t_slug]);
+            $t_latest  = $t_upd ? ($update_themes->response[$t_slug]['new_version'] ?? null) : null;
+            $t_cves    = class_exists('\\WebCareProScanner\\WordPress\\UpdateScanner')
+                ? \WebCareProScanner\WordPress\UpdateScanner::get_theme_cves($t_slug, $t_ver, $t_name)
+                : [];
+
             $comp = [
-                'type'      => 'theme',
-                'slug'      => $theme->get_stylesheet(),
-                'name'      => $theme->get('Name') ?: $theme->get_stylesheet(),
-                'version'   => $theme->get('Version') ?: '1.0.0',
-                'author'    => $theme->get('Author') ?: '',
-                'is_active' => true,
-                'is_child'  => is_child_theme(),
-                'path'      => $theme->get_stylesheet_directory(),
+                'type'             => 'theme',
+                'slug'             => $t_slug,
+                'name'             => $t_name,
+                'version'          => $t_ver,
+                'author'           => $theme->get('Author') ?: '',
+                'is_active'        => true,
+                'is_child'         => is_child_theme(),
+                'path'             => $theme->get_stylesheet_directory(),
+                'update_available' => $t_upd,
+                'latest_version'   => $t_latest,
+                'cves'             => $t_cves,
+                'cve_count'        => count($t_cves),
+                'has_cve'          => !empty($t_cves),
             ];
-            $components['theme:' . $theme->get_stylesheet()] = array_merge($comp, ComponentIntegrityVerifier::verify_component($comp, $deep_verify));
+            $components['theme:' . $t_slug] = array_merge($comp, ComponentIntegrityVerifier::verify_component($comp, $deep_verify));
 
             // Parent theme if child active
             if (is_child_theme()) {
                 $parent = $theme->parent();
                 if ($parent && $parent->exists()) {
+                    $p_slug   = $parent->get_template();
+                    $p_ver    = $parent->get('Version') ?: '1.0.0';
+                    $p_name   = $parent->get('Name') ?: $p_slug;
+                    $p_upd    = !empty($update_themes->response[$p_slug]);
+                    $p_latest = $p_upd ? ($update_themes->response[$p_slug]['new_version'] ?? null) : null;
+                    $p_cves   = class_exists('\\WebCareProScanner\\WordPress\\UpdateScanner')
+                        ? \WebCareProScanner\WordPress\UpdateScanner::get_theme_cves($p_slug, $p_ver, $p_name)
+                        : [];
+
                     $pcomp = [
-                        'type'      => 'theme',
-                        'slug'      => $parent->get_template(),
-                        'name'      => $parent->get('Name') ?: $parent->get_template(),
-                        'version'   => $parent->get('Version') ?: '1.0.0',
-                        'author'    => $parent->get('Author') ?: '',
-                        'is_active' => true,
-                        'is_child'  => false,
-                        'path'      => $parent->get_template_directory(),
+                        'type'             => 'theme',
+                        'slug'             => $p_slug,
+                        'name'             => $p_name,
+                        'version'          => $p_ver,
+                        'author'           => $parent->get('Author') ?: '',
+                        'is_active'        => true,
+                        'is_child'         => false,
+                        'path'             => $parent->get_template_directory(),
+                        'update_available' => $p_upd,
+                        'latest_version'   => $p_latest,
+                        'cves'             => $p_cves,
+                        'cve_count'        => count($p_cves),
+                        'has_cve'          => !empty($p_cves),
                     ];
-                    $components['theme:' . $parent->get_template()] = array_merge($pcomp, ComponentIntegrityVerifier::verify_component($pcomp, $deep_verify));
+                    $components['theme:' . $p_slug] = array_merge($pcomp, ComponentIntegrityVerifier::verify_component($pcomp, $deep_verify));
                 }
             }
         }

@@ -56,6 +56,9 @@ class Plugin {
         if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             \WebCareProScanner\Firewall\FirewallEngine::init();
         }
+        if (class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')) {
+            \WebCareProScanner\Firewall\RescueAssistantManager::init();
+        }
         if (class_exists('\\WebCareProScanner\\Firewall\\HtaccessShield')) {
             \WebCareProScanner\Firewall\HtaccessShield::init();
         }

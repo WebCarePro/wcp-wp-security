@@ -28,7 +28,134 @@ if (!defined('ABSPATH')) {
 
 class ModularFirewallSynthesizer {
 
-    const OPTION_RULES = 'webcareproscan_modular_waf_rules';
+    const OPTION_RULES         = 'webcareproscan_modular_waf_rules';
+    const OPTION_AUTOPILOT     = 'webcareproscan_modular_autopilot';
+    const OPTION_AUTOPILOT_OBS = 'webcareproscan_modular_autopilot_obs';
+
+    /**
+     * Check whether Smart 48-Hour Auto-Pilot is enabled.
+     */
+    public static function is_autopilot_enabled(): bool {
+        return (bool) get_option(self::OPTION_AUTOPILOT, false);
+    }
+
+    /**
+     * Toggle Smart 48-Hour Auto-Pilot across synthesized modular rules.
+     */
+    public static function set_autopilot_enabled(bool $enabled): array {
+        update_option(self::OPTION_AUTOPILOT, $enabled, false);
+        $rules   = self::get_active_rules();
+        $updated = 0;
+        $now     = time();
+
+        foreach ($rules as &$r) {
+            $cat = $r['category'] ?? '';
+            if ($enabled) {
+                if (in_array($cat, ['tamper_guard', 'abspath_lock'], true)) {
+                    if (($r['current_mode'] ?? 'off') !== 'enforce') {
+                        $r['current_mode'] = 'enforce';
+                        $r['updated_at']   = $now;
+                        $updated++;
+                    }
+                } elseif (in_array($cat, ['ajax_shield', 'rest_guard'], true)) {
+                    if (($r['current_mode'] ?? 'off') !== 'off') {
+                        $r['current_mode']        = 'smart_learning';
+                        $r['learning_started_at'] = $r['learning_started_at'] ?? $now;
+                        $r['updated_at']          = $now;
+                        $updated++;
+                    }
+                }
+            } else {
+                if (($r['current_mode'] ?? '') === 'smart_learning') {
+                    $r['current_mode'] = $r['recommended_mode'] ?? 'enforce';
+                    $r['updated_at']   = $now;
+                    $updated++;
+                }
+            }
+        }
+        unset($r);
+
+        if ($updated > 0) {
+            self::save_rules($rules);
+        }
+
+        return [
+            'success'           => true,
+            'autopilot_enabled' => $enabled,
+            'updated_rules'     => $updated,
+            'rules'             => $rules,
+            'message'           => $enabled
+                ? __('Smart 48-Hour Auto-Pilot activated: high-risk file locks enforced immediately, while active plugin AJAX/REST endpoints learn normal traffic safely for 48 hours.', 'webcare-pro-security')
+                : __('Smart 48-Hour Auto-Pilot paused: rules switched back to explicit recommended enforcement states.', 'webcare-pro-security'),
+        ];
+    }
+
+    /**
+     * Record a clean benign hit against a smart_learning rule (at most once per request, capped option writes).
+     */
+    private static function record_autopilot_benign_hit(string $rule_id): void {
+        static $recorded_this_req = [];
+        if (isset($recorded_this_req[$rule_id])) {
+            return;
+        }
+        $recorded_this_req[$rule_id] = true;
+
+        $obs = get_option(self::OPTION_AUTOPILOT_OBS, []);
+        if (!is_array($obs)) {
+            $obs = [];
+        }
+        $entry = $obs[$rule_id] ?? ['first_seen' => time(), 'benign_hits' => 0, 'last_seen' => 0];
+        // Throttle option writes for high-traffic rules to once every 60 seconds
+        if ((time() - (int) ($entry['last_seen'] ?? 0)) < 60 && (int) ($entry['benign_hits'] ?? 0) > 0) {
+            return;
+        }
+        $entry['benign_hits'] = (int) ($entry['benign_hits'] ?? 0) + 1;
+        $entry['last_seen']   = time();
+        $obs[$rule_id]        = $entry;
+        update_option(self::OPTION_AUTOPILOT_OBS, $obs, false);
+    }
+
+    /**
+     * Evaluate whether dormant smart_learning rules (48h+ elapsed with 0 legitimate traffic) should promote to enforce.
+     */
+    public static function evaluate_autopilot_promotions(): int {
+        if (!self::is_autopilot_enabled()) {
+            return 0;
+        }
+        $rules    = self::get_active_rules();
+        $obs      = get_option(self::OPTION_AUTOPILOT_OBS, []);
+        $promoted = 0;
+        $now      = time();
+
+        foreach ($rules as &$r) {
+            if (($r['current_mode'] ?? '') !== 'smart_learning') {
+                continue;
+            }
+            $started = (int) ($r['learning_started_at'] ?? ($r['synthesized_at'] ?? $now));
+            if (($now - $started) < 48 * HOUR_IN_SECONDS) {
+                continue;
+            }
+            $hits = (int) ($obs[$r['id']]['benign_hits'] ?? 0);
+            if ($hits === 0) {
+                $r['current_mode'] = 'enforce';
+                $r['updated_at']   = $now;
+                $r['autopilot_note'] = __('Auto-promoted to Enforce after 48h with zero legitimate visitor traffic.', 'webcare-pro-security');
+                $promoted++;
+            } else {
+                $r['autopilot_note'] = sprintf(
+                    /* translators: %d: observed clean hits */
+                    __('Kept open under SQLi/XSS payload filtering (%d legitimate requests verified cleanly over 48h).', 'webcare-pro-security'),
+                    $hits
+                );
+            }
+        }
+        unset($r);
+
+        if ($promoted > 0) {
+            self::save_rules($rules);
+        }
+        return $promoted;
+    }
 
     /**
      * Synthesize modular rules from raw inventory, endpoint maps, and findings.
@@ -43,6 +170,7 @@ class ModularFirewallSynthesizer {
         $existing       = self::get_active_rules();
         $existing_by_id = [];
         $custom_rules   = [];
+        $autopilot_on   = self::is_autopilot_enabled();
 
         foreach ($existing as $r) {
             if (!empty($r['id'])) {
@@ -113,36 +241,46 @@ class ModularFirewallSynthesizer {
                 }
 
                 $rule_id = 'MOD-AJAX-' . strtoupper(substr(md5($action), 0, 8));
-                $prev = $existing_by_id[$rule_id] ?? null;
+                $prev    = $existing_by_id[$rule_id] ?? null;
+
+                $is_authentic_wporg = !empty($f['is_official_wporg'])
+                    && in_array($f['checksum_status'] ?? '', ['authentic', 'self_verified'], true);
+                $has_sink = array_key_exists('has_dangerous_sink', $f) ? !empty($f['has_dangerous_sink']) : true;
+
+                // Read-only or checksum-verified official WP.org callbacks recommend monitor instead of aggressive block
+                $rec_mode = ($is_authentic_wporg || !$has_sink) ? 'monitor' : 'enforce';
+                $sev      = (!$has_sink && $is_authentic_wporg) ? 'medium' : ($has_sink ? 'critical' : 'high');
+                $cur_mode = $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : $rec_mode);
 
                 $rules[] = self::enrich_synthesized_rule([
-                    'id'               => $rule_id,
-                    'category'         => 'ajax_shield',
-                    'title'            => sprintf(
+                    'id'                  => $rule_id,
+                    'category'            => 'ajax_shield',
+                    'title'               => sprintf(
                         /* translators: %s: AJAX action name */
                         __('Unprotected Guest AJAX Shield: action="%s"', 'webcare-pro-security'),
                         $action
                     ),
-                    'description'      => sprintf(
+                    'description'         => sprintf(
                         /* translators: %s: AJAX action name */
                         __('Enforces strict SQLi, XSS, and payload sanitization on guest AJAX action "%s" and caps request velocity to prevent brute-force attacks.', 'webcare-pro-security'),
                         $action
                     ),
-                    'origin_component' => $f['component'] ?? 'Custom',
-                    'file'             => $f['file'] ?? '',
-                    'line'             => $f['line'] ?? 1,
-                    'evidence'         => $f['evidence'] ?? '',
-                    'severity'         => 'critical',
-                    'recommended_mode' => 'enforce',
-                    'current_mode'     => $prev ? $prev['current_mode'] : 'enforce',
-                    'target_uri'       => 'admin-ajax.php',
-                    'target_param'     => 'action',
-                    'target_value'     => $action,
-                    'http_methods'     => ['POST', 'GET'],
-                    'rate_limit'       => 15, // max req per minute
-                    'block_uploads'    => true,
-                    'sync_cloudflare'  => true,
-                    'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
+                    'origin_component'    => $f['component'] ?? 'Custom',
+                    'file'                => $f['file'] ?? '',
+                    'line'                => $f['line'] ?? 1,
+                    'evidence'            => $f['evidence'] ?? '',
+                    'severity'            => $sev,
+                    'recommended_mode'    => $rec_mode,
+                    'current_mode'        => $cur_mode,
+                    'target_uri'          => 'admin-ajax.php',
+                    'target_param'        => 'action',
+                    'target_value'        => $action,
+                    'http_methods'        => ['POST', 'GET'],
+                    'rate_limit'          => 15, // max req per minute
+                    'block_uploads'       => $has_sink,
+                    'sync_cloudflare'     => true,
+                    'learning_started_at' => $prev['learning_started_at'] ?? time(),
+                    'synthesized_at'      => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
                 ], $f, $component_map);
             }
         }
@@ -175,17 +313,18 @@ class ModularFirewallSynthesizer {
                     'file'             => $f['file'] ?? '',
                     'line'             => $f['line'] ?? 1,
                     'evidence'         => $f['evidence'] ?? '',
-                    'severity'         => 'high',
-                    'recommended_mode' => 'enforce',
-                    'current_mode'     => $prev ? $prev['current_mode'] : 'enforce',
-                    'target_uri'       => $route,
-                    'target_param'     => '',
-                    'target_value'     => '',
-                    'http_methods'     => ['POST', 'PUT', 'DELETE'],
-                    'rate_limit'       => 30,
-                    'block_uploads'    => false,
-                    'sync_cloudflare'  => true,
-                    'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
+                    'severity'            => 'high',
+                    'recommended_mode'    => 'enforce',
+                    'current_mode'        => $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : 'enforce'),
+                    'target_uri'          => $route,
+                    'target_param'        => '',
+                    'target_value'        => '',
+                    'http_methods'        => ['POST', 'PUT', 'DELETE'],
+                    'rate_limit'          => 30,
+                    'block_uploads'       => false,
+                    'sync_cloudflare'     => true,
+                    'learning_started_at' => $prev['learning_started_at'] ?? time(),
+                    'synthesized_at'      => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
                 ], $f, $component_map);
             }
         }
@@ -309,6 +448,92 @@ class ModularFirewallSynthesizer {
                     'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
                 ], $f, $component_map);
             }
+        }
+
+        // 6. Synthesize MOD-CVE-* Virtual Shield Rules for Outdated / Vulnerable Components
+        foreach ($inventory as $comp) {
+            if (!is_array($comp)) {
+                continue;
+            }
+            $has_cve = !empty($comp['has_cve']);
+            $has_upd = !empty($comp['update_available']);
+            if (!$has_cve && !$has_upd) {
+                continue;
+            }
+
+            $c_slug  = sanitize_key($comp['slug'] ?? ($comp['name'] ?? 'component'));
+            $c_type  = sanitize_key($comp['type'] ?? 'plugin');
+            $c_name  = (string) ($comp['name'] ?? $c_slug);
+            $c_ver   = (string) ($comp['version'] ?? '0.0.0');
+            $l_ver   = (string) ($comp['latest_version'] ?? '');
+            $cves    = is_array($comp['cves'] ?? null) ? $comp['cves'] : [];
+            $cve_ids = array_values(array_filter(array_map(static fn($c) => $c['cve_id'] ?? '', $cves)));
+            $rule_id = 'MOD-CVE-' . strtoupper(substr(md5($c_type . ':' . $c_slug), 0, 8));
+            $prev    = $existing_by_id[$rule_id] ?? null;
+
+            $rec_mode = $has_cve ? 'enforce' : 'monitor';
+            $sev      = $has_cve ? 'critical' : 'medium';
+
+            $rules[] = self::enrich_synthesized_rule([
+                'id'                => $rule_id,
+                'category'          => 'cve_patch',
+                'title'             => $has_cve
+                    ? sprintf(
+                        /* translators: %1$s: component name, %2$s: CVE ID list */
+                        __('Virtual CVE Shield: %1$s (%2$s)', 'webcare-pro-security'),
+                        $c_name,
+                        implode(', ', array_slice($cve_ids, 0, 3)) ?: 'Known CVE'
+                    )
+                    : sprintf(
+                        /* translators: %1$s: component name, %2$s: version */
+                        __('Outdated Component Shield: %1$s (v%2$s)', 'webcare-pro-security'),
+                        $c_name,
+                        $c_ver
+                    ),
+                'description'       => $has_cve
+                    ? sprintf(
+                        /* translators: %1$s: component name, %2$s: installed version, %3$s: CVE count */
+                        __('Shields "%1$s" v%2$s against SQLi, XSS, path traversal, PHP object injection, and dangerous uploads for %3$d documented CVE advisory(s) until safely updated.', 'webcare-pro-security'),
+                        $c_name,
+                        $c_ver,
+                        count($cves)
+                    )
+                    : sprintf(
+                        /* translators: %1$s: component name, %2$s: installed version, %3$s: latest version */
+                        __('Applies protective payload & upload inspection for outdated extension "%1$s" (v%2$s → v%3$s available).', 'webcare-pro-security'),
+                        $c_name,
+                        $c_ver,
+                        $l_ver !== '' ? $l_ver : 'Latest'
+                    ),
+                'origin_component'  => $c_name,
+                'component_slug'    => $c_slug,
+                'component_type'    => $c_type,
+                'installed_version' => $c_ver,
+                'latest_version'    => $l_ver,
+                'cve_ids'           => $cve_ids,
+                'file'              => ($c_type === 'plugin' ? 'plugins/' : 'themes/') . $c_slug,
+                'line'              => 1,
+                'evidence'          => !empty($cve_ids)
+                    ? implode(', ', $cve_ids)
+                    : sprintf('Pending update available: v%s -> v%s', $c_ver, $l_ver ?: 'latest'),
+                'severity'          => $sev,
+                'recommended_mode'  => $rec_mode,
+                'current_mode'      => $prev ? $prev['current_mode'] : $rec_mode,
+                'target_uri'        => $c_slug,
+                'target_param'      => '',
+                'target_value'      => $c_slug,
+                'http_methods'      => ['GET', 'POST', 'PUT', 'DELETE'],
+                'rate_limit'        => 30,
+                'block_uploads'     => true,
+                'sync_cloudflare'   => $has_cve,
+                'synthesized_at'    => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
+            ], [
+                'origin_type'       => $comp['origin_type'] ?? 'custom_unmanaged',
+                'is_official_wporg' => !empty($comp['is_official_wporg']),
+                'is_known_vendor'   => !empty($comp['is_known_vendor']),
+                'vendor_name'       => $comp['vendor_name'] ?? null,
+                'checksum_status'   => $comp['checksum_status'] ?? 'not_available',
+            ], $component_map);
         }
 
         // Re-append developer-created custom rules so behavioral re-scans never remove custom rules
@@ -448,7 +673,7 @@ class ModularFirewallSynthesizer {
      * @return array Updated rule status
      */
     public static function toggle_rule(string $rule_id, string $mode, array $params = []): array {
-        $valid_modes = ['enforce', 'monitor', 'off'];
+        $valid_modes = ['enforce', 'smart_learning', 'monitor', 'off'];
         if (!in_array($mode, $valid_modes, true)) {
             $mode = 'monitor';
         }
@@ -460,6 +685,9 @@ class ModularFirewallSynthesizer {
         foreach ($rules as &$r) {
             if (($r['id'] ?? '') === $rule_id) {
                 $r['current_mode'] = $mode;
+                if ($mode === 'smart_learning' && empty($r['learning_started_at'])) {
+                    $r['learning_started_at'] = time();
+                }
                 if (isset($params['rate_limit'])) {
                     $r['rate_limit'] = max(0, intval($params['rate_limit']));
                 }
@@ -580,6 +808,125 @@ class ModularFirewallSynthesizer {
      *
      * @return array|null Returns violation array if blocked, null if safe.
      */
+    /**
+     * Activate a 1-click MOD-CVE-* virtual shield for a specific outdated/vulnerable component without waiting for an update.
+     */
+    public static function activate_cve_shield(string $slug, string $type = 'plugin'): array {
+        $clean_slug = sanitize_key($slug);
+        if (empty($clean_slug)) {
+            return ['success' => false, 'message' => __('Component slug is required.', 'webcare-pro-security')];
+        }
+
+        $rules        = self::get_active_rules();
+        $matched_rule = null;
+
+        foreach ($rules as &$r) {
+            $r_slug = sanitize_key($r['component_slug'] ?? '');
+            if (($r['category'] ?? '') === 'cve_patch' && $r_slug === $clean_slug) {
+                $r['current_mode'] = 'enforce';
+                $r['updated_at']   = time();
+                $matched_rule      = $r;
+                break;
+            }
+        }
+        unset($r);
+
+        if (!$matched_rule) {
+            $comps = SiteBehavioralAnalyzer::discover_all_components(false);
+            $comp  = null;
+            foreach ($comps as $c) {
+                if (sanitize_key($c['slug'] ?? '') === $clean_slug) {
+                    $comp = $c;
+                    break;
+                }
+            }
+            $c_name = $comp['name'] ?? ucwords(str_replace('-', ' ', $clean_slug));
+            $c_ver  = $comp['version'] ?? '0.0.0';
+            $l_ver  = $comp['latest_version'] ?? '';
+            $cves   = is_array($comp['cves'] ?? null) ? $comp['cves'] : [];
+            $cve_ids = array_values(array_filter(array_map(static fn($c) => $c['cve_id'] ?? '', $cves)));
+            $rule_id = 'MOD-CVE-' . strtoupper(substr(md5($type . ':' . $clean_slug), 0, 8));
+
+            $matched_rule = self::enrich_synthesized_rule([
+                'id'                => $rule_id,
+                'category'          => 'cve_patch',
+                'title'             => sprintf(
+                    /* translators: %s: component name */
+                    __('1-Click Virtual Shield: %s', 'webcare-pro-security'),
+                    $c_name
+                ),
+                'description'       => sprintf(
+                    /* translators: %1$s: component name, %2$s: version */
+                    __('Shields "%1$s" (v%2$s) against SQLi, XSS, LFI path traversal, object injection, and executable uploads until you apply a Safe Update.', 'webcare-pro-security'),
+                    $c_name,
+                    $c_ver
+                ),
+                'origin_component'  => $c_name,
+                'component_slug'    => $clean_slug,
+                'component_type'    => $type,
+                'installed_version' => $c_ver,
+                'latest_version'    => $l_ver,
+                'cve_ids'           => $cve_ids,
+                'file'              => ($type === 'plugin' ? 'plugins/' : 'themes/') . $clean_slug,
+                'line'              => 1,
+                'evidence'          => !empty($cve_ids) ? implode(', ', $cve_ids) : __('Activated manually via 1-Click Virtual Shield', 'webcare-pro-security'),
+                'severity'          => !empty($cve_ids) ? 'critical' : 'high',
+                'recommended_mode'  => 'enforce',
+                'current_mode'      => 'enforce',
+                'target_uri'        => $clean_slug,
+                'target_param'      => '',
+                'target_value'      => $clean_slug,
+                'http_methods'      => ['GET', 'POST', 'PUT', 'DELETE'],
+                'rate_limit'        => 30,
+                'block_uploads'     => true,
+                'sync_cloudflare'   => true,
+                'synthesized_at'    => time(),
+            ], [
+                'origin_type'       => $comp['origin_type'] ?? 'custom_unmanaged',
+                'is_official_wporg' => !empty($comp['is_official_wporg']),
+                'is_known_vendor'   => !empty($comp['is_known_vendor']),
+                'vendor_name'       => $comp['vendor_name'] ?? null,
+                'checksum_status'   => $comp['checksum_status'] ?? 'not_available',
+            ]);
+            $rules[] = $matched_rule;
+        }
+
+        self::save_rules($rules);
+
+        // Also activate matching curated VirtualPatchManager rules if available for any known CVE on this component
+        $vpatch_activated = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\VirtualPatchManager') && !empty($matched_rule['cve_ids'])) {
+            $catalog = \WebCareProScanner\Firewall\VirtualPatchManager::get_patch_catalog();
+            foreach ($matched_rule['cve_ids'] as $cid) {
+                if (isset($catalog[$cid])) {
+                    \WebCareProScanner\Firewall\VirtualPatchManager::apply_patch($cid);
+                    $vpatch_activated[] = $cid;
+                }
+            }
+        }
+
+        return [
+            'success'          => true,
+            'rule'             => $matched_rule,
+            'rule_id'          => $matched_rule['id'],
+            'vpatch_activated' => $vpatch_activated,
+            'message'          => sprintf(
+                /* translators: %1$s: component name, %2$s: modular rule ID */
+                __('Virtual Shield activated for "%1$s" (%2$s). Vulnerable endpoints and attack vectors are now blocked.', 'webcare-pro-security'),
+                $matched_rule['origin_component'] ?? $clean_slug,
+                $matched_rule['id']
+            ),
+        ];
+    }
+
+    /**
+     * Evaluate incoming request against active Modular Rules at WordPress Runtime.
+     * Covers all 6 synthesized categories plus custom rules & MOD-CVE virtual shields,
+     * honors Rescue Mode 15-minute pauses and permanent trusted-action exemptions,
+     * and enforces per-rule velocity limits & logged-in/admin safety guards.
+     *
+     * @return array|null Returns violation array if blocked/monitored, null if safe.
+     */
     public static function evaluate_runtime_modular_rules(): ?array {
         $rules = self::get_active_rules();
         if (empty($rules)) {
@@ -592,12 +939,27 @@ class ModularFirewallSynthesizer {
             ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : '127.0.0.1';
 
-        // Whitelist Check: never evaluate authenticated admins or whitelisted IPs
+        // 1. Whitelist & Admin Safety Check
         if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
             if (\WebCareProScanner\Firewall\FirewallEngine::is_ip_whitelisted($ip)) {
                 return null;
             }
         }
+        $is_logged_in = function_exists('is_user_logged_in') && is_user_logged_in();
+        $is_admin     = $is_logged_in && function_exists('current_user_can') && current_user_can('manage_options');
+        if ($is_admin) {
+            return null;
+        }
+
+        $is_rescue_paused = class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')
+            && \WebCareProScanner\Firewall\RescueAssistantManager::is_strict_paused();
+
+        $clean_uri = strtolower((string) strtok($uri, '?'));
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of raw AJAX action token
+        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST query route smuggling
+        $rest_query = isset($_GET['rest_route']) ? strtolower(sanitize_text_field(wp_unslash($_GET['rest_route']))) : '';
+        $payload_rx = '/(?:\bunion\s+all\s+select\b|\bselect\b.{1,40}\bfrom\b.{1,40}\bwp_users\b|sleep\s*\(\s*\d+\s*\)|benchmark\s*\(|<script\b|javascript:|wp_capabilities|administrator)/i';
 
         foreach ($rules as $r) {
             $mode = $r['current_mode'] ?? 'off';
@@ -607,14 +969,24 @@ class ModularFirewallSynthesizer {
 
             $cat = $r['category'] ?? '';
 
-            // Check Category: abspath_lock / tamper_guard (Direct HTTP request to naked or modified PHP script)
-            if (in_array($cat, ['abspath_lock', 'tamper_guard'], true) && !empty($r['target_uri'])) {
-                $target_suffix = strtolower(ltrim($r['target_uri'], '/\\'));
-                $clean_uri     = strtolower(strtok($uri, '?'));
+            // Skip any rule/target explicitly whitelisted via Rescue Assistant ("Trust & Allow Permanently")
+            if (
+                class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')
+                && \WebCareProScanner\Firewall\RescueAssistantManager::is_rule_or_request_trusted($r['id'] ?? '', $clean_uri, $req_action, $rest_query)
+            ) {
+                continue;
+            }
 
-                if (str_ends_with($clean_uri, $target_suffix)) {
+            $should_block = ($mode === 'enforce') && !$is_rescue_paused;
+            $is_smart     = ($mode === 'smart_learning');
+            $methods      = is_array($r['http_methods'] ?? null) ? array_map('strtoupper', $r['http_methods']) : [];
+
+            // Category 1: abspath_lock / tamper_guard (Direct HTTP request to standalone or checksum-modified PHP script)
+            if (in_array($cat, ['abspath_lock', 'tamper_guard'], true) && !empty($r['target_uri'])) {
+                $target_suffix = strtolower(ltrim((string) $r['target_uri'], '/\\'));
+                if ($target_suffix !== '' && str_ends_with($clean_uri, $target_suffix)) {
                     return [
-                        'blocked'  => ($mode === 'enforce'),
+                        'blocked'  => $should_block,
                         'rule_id'  => $r['id'],
                         'category' => $cat,
                         'reason'   => ($cat === 'tamper_guard')
@@ -626,20 +998,151 @@ class ModularFirewallSynthesizer {
                 }
             }
 
-            // Check Category: ajax_shield (Targeted guest AJAX action)
-            if ($cat === 'ajax_shield' && !empty($r['target_value'])) {
-                if (str_contains($uri, 'admin-ajax.php')) {
-                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Runtime WAF inspection of incoming unauthenticated AJAX traffic prior to handler dispatch.
-                    $action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
-                    if ($action === strtolower($r['target_value'])) {
-                        // Check unexpected file upload
-                        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection blocking multipart $_FILES uploads on guest AJAX endpoints.
-                        if (!empty($r['block_uploads']) && !empty($_FILES)) {
+            // Category 2: ajax_shield (Targeted guest AJAX action — exempt logged-in users)
+            if ($cat === 'ajax_shield' && !$is_logged_in && !empty($r['target_value'])) {
+                if (str_contains($clean_uri, 'admin-ajax.php') && $req_action !== '' && $req_action === strtolower((string) $r['target_value'])) {
+                    // A. Block unauthorized multipart file uploads on guest AJAX
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection blocking multipart uploads on unprotected guest AJAX actions
+                    if (!empty($r['block_uploads']) && !empty($_FILES)) {
+                        return [
+                            'blocked'  => ($should_block || ($is_smart && !$is_rescue_paused)),
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('File upload prohibited on guest AJAX action "%s" by Modular WAF Rule [%s].', $req_action, $r['id']),
+                            'severity' => 'critical',
+                            'mode'     => $mode,
+                        ];
+                    }
+
+                    // B. Inspect parameters for SQLi / XSS / Privilege Escalation payloads on unprotected guest AJAX
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of incoming AJAX payload signatures
+                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
+                    if (preg_match($payload_rx, $raw_payload)) {
+                        return [
+                            'blocked'  => ($should_block || ($is_smart && !$is_rescue_paused)),
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('Malicious SQLi/XSS/PrivEsc payload intercepted on unprotected guest AJAX action "%s" [%s].', $req_action, $r['id']),
+                            'severity' => 'critical',
+                            'mode'     => $mode,
+                        ];
+                    }
+
+                    // C. Enforce per-IP velocity rate limit if configured
+                    $limit = intval($r['rate_limit'] ?? 0);
+                    if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
+                        return [
+                            'blocked'  => ($should_block || ($is_smart && !$is_rescue_paused)),
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('Rate limit (%d req/min) exceeded on guest AJAX action "%s" [%s].', $limit, $req_action, $r['id']),
+                            'severity' => 'high',
+                            'mode'     => $mode,
+                        ];
+                    }
+
+                    if ($is_smart) {
+                        self::record_autopilot_benign_hit($r['id']);
+                    }
+                }
+            }
+
+            // Category 3: rest_guard (Permissive REST route guard — exempt logged-in users)
+            if ($cat === 'rest_guard' && !$is_logged_in && !empty($r['target_uri'])) {
+                $target_route = strtolower(rtrim((string) $r['target_uri'], '/'));
+                if (($target_route !== '' && str_contains($clean_uri, '/wp-json' . $target_route)) || ($rest_query !== '' && str_starts_with($rest_query, $target_route))) {
+                    if (empty($methods) || in_array($method, $methods, true)) {
+                        if ($is_smart) {
+                            // In 48h Smart Learning mode, permit clean requests while enforcing SQLi/XSS & rate limits
+                            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST payload
+                            $raw_payload = wp_json_encode($_REQUEST) ?: '';
+                            if (preg_match($payload_rx, $raw_payload)) {
+                                return [
+                                    'blocked'  => !$is_rescue_paused,
+                                    'rule_id'  => $r['id'],
+                                    'category' => $cat,
+                                    'reason'   => sprintf('Malicious payload intercepted on REST route "%s" [%s].', $target_route, $r['id']),
+                                    'severity' => 'critical',
+                                    'mode'     => $mode,
+                                ];
+                            }
+                            $limit = intval($r['rate_limit'] ?? 0);
+                            if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
+                                return [
+                                    'blocked'  => !$is_rescue_paused,
+                                    'rule_id'  => $r['id'],
+                                    'category' => $cat,
+                                    'reason'   => sprintf('Rate limit (%d req/min) exceeded on REST route "%s" [%s].', $limit, $target_route, $r['id']),
+                                    'severity' => 'high',
+                                    'mode'     => $mode,
+                                ];
+                            }
+                            self::record_autopilot_benign_hit($r['id']);
+                        } else {
                             return [
-                                'blocked'  => ($mode === 'enforce'),
+                                'blocked'  => $should_block,
                                 'rule_id'  => $r['id'],
                                 'category' => $cat,
-                                'reason'   => sprintf('File upload prohibited on guest AJAX action "%s" by Modular WAF Rule [%s].', $action, $r['id']),
+                                'reason'   => sprintf('Unauthenticated %s mutation on permissive REST route "%s" blocked by Modular WAF Rule [%s].', $method, $target_route, $r['id']),
+                                'severity' => $r['severity'] ?? 'high',
+                                'mode'     => $mode,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // Category 4: upload_guard (Inspect multipart $_FILES for executable extensions / PHP tags)
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection auditing uploaded file metadata & headers
+            if ($cat === 'upload_guard' && !empty($_FILES)) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection of incoming $_FILES payload
+                foreach ($_FILES as $file_item) {
+                    $names   = is_array($file_item['name'] ?? null) ? $file_item['name'] : [($file_item['name'] ?? '')];
+                    $tmp_arr = is_array($file_item['tmp_name'] ?? null) ? $file_item['tmp_name'] : [($file_item['tmp_name'] ?? '')];
+                    foreach ($names as $idx => $fname) {
+                        $fname_l = strtolower((string) $fname);
+                        if (preg_match('/\.(?:php\d*|phtml|phar|pgif|htaccess|user\.ini|sh|pl|py|cgi|asp|aspx)\b/i', $fname_l)) {
+                            return [
+                                'blocked'  => $should_block,
+                                'rule_id'  => $r['id'],
+                                'category' => $cat,
+                                'reason'   => sprintf('Dangerous executable upload filename "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
+                                'severity' => 'critical',
+                                'mode'     => $mode,
+                            ];
+                        }
+                        $tmp_f = (string) ($tmp_arr[$idx] ?? '');
+                        if ($tmp_f !== '' && is_uploaded_file($tmp_f)) {
+                            $head = (string) @file_get_contents($tmp_f, false, null, 0, 4096);
+                            if (preg_match('/<\?(?:php|=)|__HALT_COMPILER\s*\(\s*\)/i', $head)) {
+                                return [
+                                    'blocked'  => $should_block,
+                                    'rule_id'  => $r['id'],
+                                    'category' => $cat,
+                                    'reason'   => sprintf('Embedded PHP/PHAR payload inside uploaded file "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
+                                    'severity' => 'critical',
+                                    'mode'     => $mode,
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Category 5: egress_lock (SSRF parameter inspection for internal/metadata targets)
+            if ($cat === 'egress_lock' && !empty($r['target_param'])) {
+                $param_keys = array_filter(array_map('trim', explode(',', strtolower((string) $r['target_param']))));
+                foreach ($param_keys as $pk) {
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch SSRF inspection on untrusted URL query/body parameters
+                    if (isset($_REQUEST[$pk]) && is_string($_REQUEST[$pk])) {
+                        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch SSRF inspection on untrusted URL query/body parameters
+                        $val = strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$pk]))));
+                        if (preg_match('#^(?:file|gopher|dict|ftp|ldap|tftp)://|(?:\b169\.254\.169\.254\b|\b127\.\d+\.\d+\.\d+\b|\blocalhost\b|\b0\.0\.0\.0\b|\[::1\]|\bmetadata\.google\.internal\b)#i', $val)) {
+                            return [
+                                'blocked'  => $should_block,
+                                'rule_id'  => $r['id'],
+                                'category' => $cat,
+                                'reason'   => sprintf('SSRF target in parameter "%s" blocked by Modular Egress Lock [%s].', $pk, $r['id']),
                                 'severity' => 'critical',
                                 'mode'     => $mode,
                             ];
@@ -647,9 +1150,129 @@ class ModularFirewallSynthesizer {
                     }
                 }
             }
+
+            // Category 6: Custom developer-defined modular rule (MOD-CUSTOM-*)
+            if (!empty($r['is_custom']) || $cat === 'custom') {
+                $uri_match    = empty($r['target_uri']) || str_contains($clean_uri, strtolower((string) $r['target_uri']));
+                $method_match = empty($methods) || in_array($method, $methods, true);
+                $param_match  = true;
+                if (!empty($r['target_param'])) {
+                    $tp = sanitize_key($r['target_param']);
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch custom Modular WAF rule inspection
+                    $pv = isset($_REQUEST[$tp]) && is_string($_REQUEST[$tp]) ? strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$tp])))) : '';
+                    $param_match = !empty($r['target_value'])
+                        ? ($pv === strtolower(trim((string) $r['target_value'])))
+                        : ($pv !== '');
+                }
+                if ($uri_match && $method_match && $param_match) {
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-dispatch upload inspection for custom modular rule
+                    if (!empty($r['block_uploads']) && !empty($_FILES)) {
+                        return [
+                            'blocked'  => $should_block,
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('File upload blocked on protected custom endpoint [%s].', $r['id']),
+                            'severity' => $r['severity'] ?? 'high',
+                            'mode'     => $mode,
+                        ];
+                    }
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch payload inspection for custom modular rule
+                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
+                    if (preg_match($payload_rx, $raw_payload)) {
+                        return [
+                            'blocked'  => $should_block,
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('Suspicious payload blocked by custom Modular WAF Rule [%s].', $r['id']),
+                            'severity' => $r['severity'] ?? 'high',
+                            'mode'     => $mode,
+                        ];
+                    }
+                    $limit = intval($r['rate_limit'] ?? 0);
+                    if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
+                        return [
+                            'blocked'  => $should_block,
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('Rate limit (%d req/min) exceeded on custom protected endpoint [%s].', $limit, $r['id']),
+                            'severity' => $r['severity'] ?? 'high',
+                            'mode'     => $mode,
+                        ];
+                    }
+                }
+            }
+
+            // Category 7: cve_patch (MOD-CVE-* Virtual Shield targeting outdated / vulnerable component slugs)
+            if ($cat === 'cve_patch' && !$is_logged_in) {
+                $slug_lc   = strtolower(str_replace('-', '_', (string) ($r['component_slug'] ?? ($r['target_uri'] ?? ''))));
+                $slug_dash = strtolower((string) ($r['component_slug'] ?? ($r['target_uri'] ?? '')));
+                $hits_comp = ($slug_dash !== '' && (str_contains($clean_uri, $slug_dash) || ($rest_query !== '' && str_contains($rest_query, $slug_dash))))
+                    || ($slug_lc !== '' && $req_action !== '' && str_contains($req_action, $slug_lc));
+
+                if ($hits_comp) {
+                    // Check upload of executable PHP scripts + common CVE exploit payloads (LFI, SQLi, PHP Object Injection)
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-dispatch virtual CVE shield auditing incoming file uploads
+                    if (!empty($_FILES)) {
+                        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-dispatch virtual CVE shield auditing uploaded filename extensions
+                        foreach ($_FILES as $file_item) {
+                            $names = is_array($file_item['name'] ?? null) ? $file_item['name'] : [($file_item['name'] ?? '')];
+                            foreach ($names as $fname) {
+                                if (preg_match('/\.(?:php\d*|phtml|phar|sh|pl|py|cgi)\b/i', (string) $fname)) {
+                                    return [
+                                        'blocked'  => $should_block,
+                                        'rule_id'  => $r['id'],
+                                        'category' => $cat,
+                                        'reason'   => sprintf('Exploit upload targeting component "%s" blocked by Virtual CVE Shield [%s].', $slug_dash, $r['id']),
+                                        'severity' => 'critical',
+                                        'mode'     => $mode,
+                                    ];
+                                }
+                            }
+                        }
+                    }
+
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch virtual CVE shield inspecting SQLi/LFI/Object-Injection vectors
+                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
+                    if (preg_match('/(?:\.\.\/|\.\.\\\\|%2e%2e|O:\d+:"[a-zA-Z0-9_\\\\]+"\s*:|\bunion\s+all\s+select\b|sleep\s*\(\s*\d+\s*\)|<script\b|wp_capabilities)/i', $raw_payload)) {
+                        return [
+                            'blocked'  => $should_block,
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('Vulnerability exploit vector targeting outdated/vulnerable component "%s" blocked by Virtual CVE Shield [%s].', $slug_dash, $r['id']),
+                            'severity' => 'critical',
+                            'mode'     => $mode,
+                        ];
+                    }
+
+                    $limit = intval($r['rate_limit'] ?? 0);
+                    if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
+                        return [
+                            'blocked'  => $should_block,
+                            'rule_id'  => $r['id'],
+                            'category' => $cat,
+                            'reason'   => sprintf('Excessive automated probing (%d req/min) on vulnerable component "%s" throttled by [%s].', $limit, $slug_dash, $r['id']),
+                            'severity' => 'high',
+                            'mode'     => $mode,
+                        ];
+                    }
+                }
+            }
         }
 
         return null;
+    }
+
+    /**
+     * Lightweight 60-second sliding counter for Modular WAF rule rate limits.
+     */
+    private static function is_modular_rate_limited(string $rule_id, string $ip, int $limit_per_min): bool {
+        $key   = 'wcp_mod_rl_' . substr(md5($rule_id . '|' . $ip), 0, 16);
+        $count = (int) get_transient($key);
+        if ($count >= $limit_per_min) {
+            return true;
+        }
+        set_transient($key, $count + 1, 60);
+        return false;
     }
 
     /**
@@ -670,6 +1293,8 @@ class ModularFirewallSynthesizer {
         $category = isset($data['category']) ? sanitize_key($data['category']) : 'custom';
         $rule_id  = 'MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false));
 
+        $raw_mode = isset($data['current_mode']) ? sanitize_key($data['current_mode']) : 'enforce';
+
         $rule = [
             'id'               => $rule_id,
             'category'         => $category,
@@ -681,7 +1306,7 @@ class ModularFirewallSynthesizer {
             'evidence'         => __('Developer-defined custom modular protection rule.', 'webcare-pro-security'),
             'severity'         => isset($data['severity']) ? sanitize_key($data['severity']) : 'high',
             'recommended_mode' => 'enforce',
-            'current_mode'     => in_array($data['current_mode'] ?? 'enforce', ['enforce', 'monitor', 'off'], true) ? $data['current_mode'] : 'enforce',
+            'current_mode'     => in_array($raw_mode, ['enforce', 'smart_learning', 'monitor', 'off'], true) ? $raw_mode : 'enforce',
             'target_uri'       => isset($data['target_uri']) ? sanitize_text_field(wp_unslash($data['target_uri'])) : '',
             'target_param'     => isset($data['target_param']) ? sanitize_key($data['target_param']) : '',
             'target_value'     => isset($data['target_value']) ? sanitize_text_field(wp_unslash($data['target_value'])) : '',
