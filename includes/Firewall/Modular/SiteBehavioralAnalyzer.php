@@ -72,13 +72,19 @@ class SiteBehavioralAnalyzer {
             'session_id'         => $session_id,
             'status'             => 'running',
             'started_at'         => time(),
+            'started_at_micro'   => microtime(true),
             'updated_at'         => time(),
             'current_phase'      => 1, // 1: Census, 2: Hooks/AST, 3: REST, 4: Taint/Sinks, 5: Direct-Access, 6: Synthesis
             'total_components'   => count($components),
+            'visited_components' => [],
             'total_files'        => count($file_queue),
             'processed_files'    => 0,
             'current_index'      => 0,
             'current_component'  => '',
+            'current_file'       => '',
+            'last_batch_files'   => 0,
+            'last_batch_ms'      => 0,
+            'last_batch_rate'    => 0.0,
             'counters'           => [
                 'files_tokenized'        => 0,
                 'ajax_hooks_found'       => 0,
@@ -113,20 +119,14 @@ class SiteBehavioralAnalyzer {
         $meta['total_files'] = count($file_queue);
         BehavioralVaultManager::write_meta($meta);
 
-        return [
-            'success'            => true,
-            'session_id'         => $session_id,
-            'status'             => 'running',
-            'total_components'   => count($components),
-            'total_files'        => count($file_queue),
-            'current_phase'      => 1,
-            'message'            => sprintf(
-                /* translators: %1$d: components count, %2$d: files count */
-                __('Behavioral scan session initialized: %1$d components and %2$d PHP files queued.', 'webcare-pro-security'),
-                count($components),
-                count($file_queue)
-            ),
-        ];
+        $progress = self::format_progress_response($initial_state);
+        $progress['message'] = sprintf(
+            /* translators: %1$d: components count, %2$d: files count */
+            __('Behavioral scan session initialized: %1$d components and %2$d PHP files queued.', 'webcare-pro-security'),
+            count($components),
+            count($file_queue)
+        );
+        return $progress;
     }
 
     /**
@@ -158,6 +158,7 @@ class SiteBehavioralAnalyzer {
         $endpoint_map = $state['endpoint_map'] ?? [];
         $findings = $state['findings'] ?? [];
         $counters = $state['counters'] ?? [];
+        $visited_components = is_array($state['visited_components'] ?? null) ? $state['visited_components'] : [];
 
         while ($current_index < $total_files && $processed_in_this_batch < $batch_size) {
             // Check time envelope
@@ -173,18 +174,30 @@ class SiteBehavioralAnalyzer {
                 continue;
             }
 
-            $state['current_component'] = $file_info['component'] ?? '';
+            $comp_name = (string) ($file_info['component'] ?? '');
+            $comp_key  = (string) ($file_info['slug'] ?? $comp_name);
+            if ($comp_key !== '') {
+                $visited_components[$comp_key] = true;
+            }
+
+            $state['current_component'] = $comp_name;
+            $state['current_file']      = (string) ($file_info['rel_path'] ?? basename((string) $file_info['path']));
 
             // Analyze individual PHP file
             self::analyze_php_file($file_info, $endpoint_map, $findings, $counters);
         }
 
-        $state['current_index']   = $current_index;
-        $state['processed_files'] = $current_index;
-        $state['endpoint_map']    = $endpoint_map;
-        $state['findings']        = $findings;
-        $state['counters']        = $counters;
-        $state['updated_at']      = time();
+        $batch_elapsed_sec          = max(0.001, microtime(true) - $start_time);
+        $state['current_index']      = $current_index;
+        $state['processed_files']    = $current_index;
+        $state['visited_components'] = $visited_components;
+        $state['last_batch_files']   = $processed_in_this_batch;
+        $state['last_batch_ms']      = (int) round($batch_elapsed_sec * 1000);
+        $state['last_batch_rate']    = round($processed_in_this_batch / $batch_elapsed_sec, 1);
+        $state['endpoint_map']       = $endpoint_map;
+        $state['findings']           = $findings;
+        $state['counters']           = $counters;
+        $state['updated_at']         = time();
 
         // Calculate phase based on progress percentage
         $pct = $total_files > 0 ? round(($current_index / $total_files) * 100, 1) : 100;
@@ -202,9 +215,14 @@ class SiteBehavioralAnalyzer {
 
         // Check if queue completed
         if ($current_index >= $total_files) {
-            $state['status'] = 'completed';
-            $state['completed_at'] = time();
-            $state['current_phase'] = 6;
+            $now_micro                    = microtime(true);
+            $started_micro                = floatval($state['started_at_micro'] ?? ($state['started_at'] ?? $now_micro));
+            $total_duration               = max(0.1, round($now_micro - $started_micro, 1));
+            $state['status']              = 'completed';
+            $state['completed_at']        = time();
+            $state['completed_at_micro']  = $now_micro;
+            $state['current_phase']       = 6;
+            $state['current_file']        = '';
 
             // Commit Shards to Vault
             BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_ENDPOINTS, $endpoint_map);
@@ -223,6 +241,8 @@ class SiteBehavioralAnalyzer {
             $meta['scan_status'] = 'completed';
             $meta['total_rules'] = count($synthesized);
             $meta['counters'] = $state['counters'];
+            $meta['last_duration_seconds'] = $total_duration;
+            $meta['last_files_per_sec']    = $total_files > 0 ? round($total_files / $total_duration, 1) : 0.0;
             BehavioralVaultManager::write_meta($meta);
 
             // Log activity event
@@ -258,17 +278,53 @@ class SiteBehavioralAnalyzer {
     public static function get_scan_progress(): array {
         $state = get_option(self::OPTION_STATE, null);
         if (!$state || !is_array($state)) {
-            $summary = BehavioralVaultManager::get_vault_summary();
+            $summary    = BehavioralVaultManager::get_vault_summary();
+            $has_scan   = !empty($summary['last_scan']);
+            $meta_files = intval($summary['total_files'] ?? 0);
+            $meta_comps = intval($summary['total_components'] ?? 0);
             return [
-                'success'           => true,
-                'status'            => !empty($summary['last_scan']) ? 'idle_with_results' : 'not_started',
-                'progress_pct'      => !empty($summary['last_scan']) ? 100 : 0,
-                'vault_summary'     => $summary,
-                'counters'          => $summary['counters'] ?? [],
+                'success'                     => true,
+                'status'                      => $has_scan ? 'idle_with_results' : 'not_started',
+                'progress_pct'                => $has_scan ? 100 : 0,
+                'current_phase'               => $has_scan ? 6 : 1,
+                'phase_label'                 => $has_scan ? __('Modular Firewall Rule Synthesis & Simulation', 'webcare-pro-security') : __('Extension & Version Census', 'webcare-pro-security'),
+                'phase_labels'                => self::get_phase_labels(),
+                'total_files'                 => $meta_files,
+                'processed_files'             => $has_scan ? $meta_files : 0,
+                'remaining_files'             => 0,
+                'total_components'            => $meta_comps,
+                'components_scanned'          => $has_scan ? $meta_comps : 0,
+                'current_component'           => '',
+                'current_file'                => '',
+                'files_per_sec'               => floatval($summary['last_files_per_sec'] ?? 0),
+                'batch_files_per_sec'         => 0.0,
+                'last_batch_files'            => 0,
+                'last_batch_ms'               => 0,
+                'elapsed_seconds'             => floatval($summary['last_duration_seconds'] ?? 0),
+                'estimated_remaining_seconds' => $has_scan ? 0 : null,
+                'is_completed'                => $has_scan,
+                'vault_summary'               => $summary,
+                'counters'                    => $summary['counters'] ?? [],
             ];
         }
 
         return self::format_progress_response($state);
+    }
+
+    /**
+     * Standardized 6-stage behavioral scan phase labels.
+     *
+     * @return array<int, string>
+     */
+    private static function get_phase_labels(): array {
+        return [
+            1 => __('Extension & Version Census', 'webcare-pro-security'),
+            2 => __('Hook Registrations & functions.php AST', 'webcare-pro-security'),
+            3 => __('REST API & Public Route Attack-Surface', 'webcare-pro-security'),
+            4 => __('Source-to-Sink Taint & Vulnerability Hunter', 'webcare-pro-security'),
+            5 => __('Direct-Access Script & Missing ABSPATH Discovery', 'webcare-pro-security'),
+            6 => __('Modular Firewall Rule Synthesis & Simulation', 'webcare-pro-security'),
+        ];
     }
 
     /**
@@ -278,32 +334,67 @@ class SiteBehavioralAnalyzer {
      * @return array
      */
     private static function format_progress_response(array $state): array {
-        $total = max(1, intval($state['total_files'] ?? 0));
-        $processed = intval($state['processed_files'] ?? 0);
-        $pct = min(100, round(($processed / $total) * 100, 1));
+        $raw_total       = max(0, intval($state['total_files'] ?? 0));
+        $processed       = min($raw_total, max(0, intval($state['processed_files'] ?? 0)));
+        $remaining_files = max(0, $raw_total - $processed);
+        $status          = (string) ($state['status'] ?? 'idle');
+        $is_completed    = ($status === 'completed');
 
-        $phase_labels = [
-            1 => __('Extension & Version Census', 'webcare-pro-security'),
-            2 => __('Hook Registrations & functions.php AST', 'webcare-pro-security'),
-            3 => __('REST API & Public Route Attack-Surface', 'webcare-pro-security'),
-            4 => __('Source-to-Sink Taint & Vulnerability Hunter', 'webcare-pro-security'),
-            5 => __('Direct-Access Script & Missing ABSPATH Discovery', 'webcare-pro-security'),
-            6 => __('Modular Firewall Rule Synthesis & Simulation', 'webcare-pro-security'),
-        ];
+        $pct = $raw_total > 0
+            ? min(100, round(($processed / $raw_total) * 100, 1))
+            : ($is_completed ? 100 : 0);
+
+        $started_micro = floatval($state['started_at_micro'] ?? ($state['started_at'] ?? time()));
+        $end_micro     = $is_completed
+            ? floatval($state['completed_at_micro'] ?? ($state['completed_at'] ?? microtime(true)))
+            : microtime(true);
+        $elapsed_sec   = max(0.0, round($end_micro - $started_micro, 1));
+
+        $last_batch_rate = floatval($state['last_batch_rate'] ?? 0.0);
+        $files_per_sec   = ($processed > 0 && $elapsed_sec >= 0.2)
+            ? round($processed / $elapsed_sec, 1)
+            : $last_batch_rate;
+
+        $eta_seconds = null;
+        if ($is_completed) {
+            $eta_seconds = 0;
+        } elseif ($processed >= 5 && $files_per_sec > 0) {
+            $eta_seconds = (int) ceil($remaining_files / $files_per_sec);
+        }
+
+        $total_components   = max(0, intval($state['total_components'] ?? count((array) ($state['inventory'] ?? []))));
+        $components_scanned = $is_completed
+            ? $total_components
+            : count((array) ($state['visited_components'] ?? []));
+
+        $phase_labels  = self::get_phase_labels();
+        $current_phase = max(1, min(6, intval($state['current_phase'] ?? 1)));
 
         return [
-            'success'            => true,
-            'session_id'         => $state['session_id'] ?? '',
-            'status'             => $state['status'] ?? 'idle',
-            'progress_pct'       => $pct,
-            'current_phase'      => $state['current_phase'] ?? 1,
-            'phase_label'        => $phase_labels[$state['current_phase'] ?? 1] ?? '',
-            'total_files'        => $total,
-            'processed_files'    => $processed,
-            'current_component'  => $state['current_component'] ?? '',
-            'counters'           => $state['counters'] ?? [],
-            'elapsed_seconds'    => time() - ($state['started_at'] ?? time()),
-            'is_completed'       => ($state['status'] ?? '') === 'completed',
+            'success'                     => true,
+            'session_id'                  => $state['session_id'] ?? '',
+            'status'                      => $status,
+            'progress_pct'                => $pct,
+            'current_phase'               => $current_phase,
+            'phase_label'                 => $phase_labels[$current_phase] ?? '',
+            'phase_labels'                => $phase_labels,
+            'total_files'                 => $raw_total,
+            'processed_files'             => $processed,
+            'remaining_files'             => $remaining_files,
+            'total_components'            => $total_components,
+            'components_scanned'          => $components_scanned,
+            'current_component'           => (string) ($state['current_component'] ?? ''),
+            'current_file'                => (string) ($state['current_file'] ?? ''),
+            'files_per_sec'               => $files_per_sec,
+            'batch_files_per_sec'         => $last_batch_rate,
+            'last_batch_files'            => intval($state['last_batch_files'] ?? 0),
+            'last_batch_ms'               => intval($state['last_batch_ms'] ?? 0),
+            'started_at'                  => intval($state['started_at'] ?? 0),
+            'completed_at'                => $is_completed ? intval($state['completed_at'] ?? 0) : null,
+            'elapsed_seconds'             => $elapsed_sec,
+            'estimated_remaining_seconds' => $eta_seconds,
+            'counters'                    => $state['counters'] ?? [],
+            'is_completed'                => $is_completed,
         ];
     }
 
