@@ -1,6 +1,6 @@
 {
   "version": "2.12.0",
-  "generated_at": "2026-11-11T19:33:46.328Z",
+  "generated_at": "2026-11-11T19:41:28.170Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -424,16 +424,16 @@
       "size": 14891
     },
     "includes/Firewall/Modular/ComponentIntegrityVerifier.php": {
-      "sha256": "7dcaec1871e2e07d3996a73478b892f1f12b32333b714d3962126431442ccd15",
-      "size": 49618
+      "sha256": "88f6d0e8b2e3cbd41a917210eac814bcdd503722e33661e7b2c8f3953ca3c631",
+      "size": 51311
     },
     "includes/Firewall/Modular/ModularFirewallSynthesizer.php": {
       "sha256": "2028bb2847287b4f9277428d608f8df48e2322c31ac13f157381e5ff4cf6be1b",
       "size": 74025
     },
     "includes/Firewall/Modular/SiteBehavioralAnalyzer.php": {
-      "sha256": "f2836a96cd4522a1abe7f5f04050da49c3d6fa7e2a63fe238bfc32da407dd520",
-      "size": 81804
+      "sha256": "d6549490a9d383a9f491f773c08a171177a0c2397fd8683f8f7cf48d1c08fddb",
+      "size": 85304
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "3e382f6069e09007ee63b17ab56645ac10d336a67cd8167b90e63dbd057e4003",
@@ -836,8 +836,8 @@
       "size": 26630
     },
     "readme.txt": {
-      "sha256": "0a82ee2a8ee9fd3916c2e6929613fffaeadcc95a258694025f9f33bd1ace076d",
-      "size": 36426
+      "sha256": "44f687e0813ab10b814b3249b68b28f044647001ffcd766b21a306d5d5e7999a",
+      "size": 36675
     },
     "uninstall.php": {
       "sha256": "4f8d67470aee35d4a60bb0db304ed5e1407ea913eb27586bf7f75764204e2ec0",

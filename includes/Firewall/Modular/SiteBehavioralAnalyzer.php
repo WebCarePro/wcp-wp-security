@@ -695,7 +695,9 @@ class SiteBehavioralAnalyzer {
 
         $counters['rest_routes_found']++;
 
-        $full_route      = '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/');
+        $clean_ns        = trim($namespace, '/');
+        $clean_route     = ltrim($route, '/');
+        $full_route      = '/' . ($clean_ns !== '' ? $clean_ns . '/' : '') . $clean_route;
         $call_end        = self::find_call_end_pos($tokens, $pos, 240);
         $blocks          = self::extract_rest_endpoint_blocks($tokens, $pos, $call_end);
         $is_permissive      = false;
@@ -788,8 +790,8 @@ class SiteBehavioralAnalyzer {
             return;
         }
 
-        // Must be ->query or ->get_results or ->get_row
-        if ($tokens[$pos + 1][0] !== T_OBJECT_OPERATOR) {
+        // Must be ->query, ->get_results, ->get_row, ->get_col, or ->get_var
+        if (!is_array($tokens[$pos + 1]) || $tokens[$pos + 1][0] !== T_OBJECT_OPERATOR) {
             return;
         }
 
@@ -807,13 +809,132 @@ class SiteBehavioralAnalyzer {
         $component = $file_info['component'] ?? 'Custom';
         $rel_path  = $file_info['rel_path'] ?? '';
 
-        // Skip calls that invoke $wpdb->prepare(...) inside their argument window
-        if (self::has_token_string_within($tokens, $pos + 2, 35, 'prepare')) {
+        // Locate argument #1 boundaries strictly within the method invocation (never cross semicolons)
+        $open_pos = -1;
+        for ($k = $pos + 3; $k < min($pos + 8, $count); $k++) {
+            if (is_array($tokens[$k]) && $tokens[$k][0] === T_WHITESPACE) {
+                continue;
+            }
+            if ($tokens[$k] === '(') {
+                $open_pos = $k;
+            }
+            break;
+        }
+        if ($open_pos < 0) {
             return;
         }
 
-        // Check if adjacent arguments contain string concatenation (.) without prepare()
-        if (self::has_string_concat_within($tokens, $pos + 2, 25)) {
+        $paren_depth           = 1;
+        $bracket_depth         = 0;
+        $has_prepare           = false;
+        $has_concat            = false;
+        $has_interpolated_var  = false;
+        $has_direct_superglobal = false;
+        $has_unsafe_var        = false;
+        $in_double_quote       = false;
+        $safe_cast_depth       = 0;
+        $sanitizers            = ['absint', 'intval', 'floatval', 'esc_sql'];
+        $sanitizer_depths      = [];
+
+        for ($i = $open_pos + 1; $i < min($open_pos + 150, $count); $i++) {
+            $t = $tokens[$i];
+
+            if ($t === '"') {
+                $in_double_quote = !$in_double_quote;
+                continue;
+            }
+            if ($t === '(') {
+                $paren_depth++;
+                continue;
+            }
+            if ($t === ')') {
+                $paren_depth--;
+                while (!empty($sanitizer_depths) && end($sanitizer_depths) > $paren_depth) {
+                    array_pop($sanitizer_depths);
+                }
+                if ($paren_depth <= 0) {
+                    break;
+                }
+                continue;
+            }
+            if ($t === '[') {
+                $bracket_depth++;
+                continue;
+            }
+            if ($t === ']') {
+                $bracket_depth = max(0, $bracket_depth - 1);
+                continue;
+            }
+            if ($t === ',' && $paren_depth === 1 && $bracket_depth === 0) {
+                // Reached end of SQL argument #1
+                break;
+            }
+            if ($t === '.' && $paren_depth === 1 && $bracket_depth === 0) {
+                $has_concat      = true;
+                $safe_cast_depth = 0;
+                continue;
+            }
+            if (!is_array($t)) {
+                continue;
+            }
+            if (in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            if ($t[0] === T_STRING) {
+                $fn = strtolower($t[1]);
+                if ($fn === 'prepare') {
+                    $has_prepare = true;
+                    break;
+                }
+                if (in_array($fn, $sanitizers, true)) {
+                    $sanitizer_depths[] = $paren_depth + 1;
+                    continue;
+                }
+            }
+
+            if ($t[0] === T_INT_CAST || $t[0] === T_DOUBLE_CAST) {
+                $safe_cast_depth = $paren_depth;
+                continue;
+            }
+
+            if ($t[0] === T_VARIABLE) {
+                $var_name = $t[1];
+                if ($in_double_quote) {
+                    $has_interpolated_var = true;
+                }
+
+                // Always safe: $wpdb->prefix, $wpdb->base_prefix, $wpdb->posts, $wpdb->options, etc.
+                if (
+                    $var_name === '$wpdb'
+                    && $i + 2 < $count
+                    && is_array($tokens[$i + 1])
+                    && $tokens[$i + 1][0] === T_OBJECT_OPERATOR
+                ) {
+                    $i += 2;
+                    continue;
+                }
+
+                // Ignore variables wrapped in absint()/intval()/esc_sql() or numeric casts
+                if (!empty($sanitizer_depths) || ($safe_cast_depth > 0 && $paren_depth >= $safe_cast_depth)) {
+                    $safe_cast_depth = 0;
+                    continue;
+                }
+
+                if (in_array($var_name, ['$_GET', '$_POST', '$_REQUEST'], true)) {
+                    $has_direct_superglobal = true;
+                    break;
+                }
+
+                $has_unsafe_var = true;
+            }
+        }
+
+        if ($has_prepare) {
+            return;
+        }
+
+        if ($has_direct_superglobal || (($has_concat || $has_interpolated_var) && $has_unsafe_var)) {
             $counters['taint_sinks_found']++;
             $findings[] = [
                 'type'        => 'unprepared_sql_query',
@@ -823,7 +944,7 @@ class SiteBehavioralAnalyzer {
                 'method'      => '$wpdb->' . $method_name,
                 'evidence'    => sprintf(
                     /* translators: %s: method name */
-                    __('Raw SQL query constructed via string concatenation with $wpdb->%s() without $wpdb->prepare().', 'webcare-pro-security'),
+                    __('Raw SQL query constructed with dynamic variable input in $wpdb->%s() without $wpdb->prepare().', 'webcare-pro-security'),
                     $method_name
                 ),
                 'severity'    => 'critical',
@@ -941,7 +1062,11 @@ class SiteBehavioralAnalyzer {
         $wp_partial_apis = [
             'check_admin_referer', 'wp_nonce_field', 'settings_fields', 'submit_button',
             'esc_html_e', 'esc_attr_e', 'esc_html__', 'esc_attr__', '__', '_e', '_x',
-            'get_header', 'get_footer', 'get_template_part', 'wp_kses_post', 'selected', 'checked',
+            'get_header', 'get_footer', 'get_sidebar', 'get_template_part', 'wp_kses_post',
+            'selected', 'checked', 'have_posts', 'the_post', 'the_title', 'the_content',
+            'the_permalink', 'get_theme_mod', 'wp_enqueue_script', 'wp_enqueue_style',
+            'wp_head', 'wp_footer', 'add_theme_support', 'register_sidebar', 'add_action',
+            'add_filter', 'wp_parse_args', 'is_admin', 'tgmpa',
         ];
         $has_inline_html = false;
         $has_wp_api      = false;
@@ -1585,33 +1710,6 @@ class SiteBehavioralAnalyzer {
     }
 
     /**
-     * Helper to check for string concatenation '.' operator within a window.
-     */
-    private static function has_string_concat_within(array $tokens, int $pos, int $window): bool {
-        $limit = min($pos + $window, count($tokens));
-        for ($i = $pos; $i < $limit; $i++) {
-            if ($tokens[$i] === '.') {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Helper to check for adjacent superglobals within a window.
-     */
-    private static function has_adjacent_superglobal(array $tokens, int $pos, int $window): bool {
-        $limit = min($pos + $window, count($tokens));
-        for ($i = $pos; $i < $limit; $i++) {
-            $t = $tokens[$i];
-            if (is_array($t) && $t[0] === T_VARIABLE && in_array($t[1], ['$_GET', '$_POST', '$_REQUEST'], true)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Check whether a specific function call argument contains dynamic concatenation (e.g. 'wp_ajax_' . $var).
      */
     private static function is_dynamic_hook_arg(array $tokens, int $pos, int $arg_number): bool {
@@ -1907,7 +2005,7 @@ class SiteBehavioralAnalyzer {
                     $filePath = wp_normalize_path($item->getPathname());
 
                     // Skip third-party vendor bundles, test suites, build artifacts & bundled SDKs
-                    if (preg_match('#/(?:node_modules|vendor|vendor_prefixed|freemius|\.git|\.github|cache|dist|tests|languages)/#i', $filePath)) {
+                    if (preg_match('#/(?:node_modules|vendor|vendor[-_]prefixed|lib/packages|external/mpdf|freemius|\.git|\.github|cache|dist|tests|languages)/#i', $filePath)) {
                         continue;
                     }
 

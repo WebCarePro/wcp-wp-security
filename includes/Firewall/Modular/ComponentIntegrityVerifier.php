@@ -138,6 +138,15 @@ class ComponentIntegrityVerifier {
         'really-simple-ssl'    => ['vendor' => 'Really Simple Plugins', 'domains' => ['really-simple-ssl.com']],
         'mailchimp-for-wp'     => ['vendor' => 'ibericode (MC4WP)', 'domains' => ['mc4wp.com']],
         'redirection'          => ['vendor' => 'John Godley (Redirection)', 'domains' => ['redirection.me']],
+        'ai-engine'            => ['vendor' => 'Meow Apps (Jordy Meow)', 'domains' => ['meowapps.com']],
+        'envato-market'        => ['vendor' => 'Envato', 'domains' => ['envato.com']],
+        'kirki'                => ['vendor' => 'Themeum (Kirki)', 'domains' => ['kirki.org', 'themeum.com']],
+        'premium-addons'       => ['vendor' => 'Leap13 (Premium Addons)', 'domains' => ['premiumaddons.com', 'leap13.com']],
+        'dk-pdf'               => ['vendor' => 'Dinamiko', 'domains' => ['dinamiko.com']],
+        'peters-login-redirect' => ['vendor' => 'LoginWP', 'domains' => ['loginwp.com']],
+        'users-customers-import-export' => ['vendor' => 'WebToffee', 'domains' => ['webtoffee.com']],
+        'checkout-field-editor' => ['vendor' => 'ThemeHigh', 'domains' => ['themehigh.com']],
+        'private-message-for-learndash' => ['vendor' => 'WisdmLabs (LearnDash Addon)', 'domains' => ['wisdmlabs.com', 'learndash.com']],
         'webcare-pro-security' => ['vendor' => 'WebCare Pro (Mir Alamin)', 'domains' => []],
     ];
 
@@ -232,8 +241,21 @@ class ComponentIntegrityVerifier {
             return $result;
         }
 
-        // 3. Check Known Vendor Catalog (Plugins/Addons or Themes + URI domains)
+        // 3. Check Known Vendor Catalog (Plugins/Addons or Themes + URI domains, including parent theme inheritance for child themes)
         $vendor_match = self::match_known_vendor($type, $slug, $comp['name'] ?? '', $meta);
+        if (!$vendor_match && $type === 'theme' && function_exists('wp_get_theme')) {
+            $theme_obj = wp_get_theme($slug);
+            $parent_slug = $theme_obj->exists() ? (string) $theme_obj->get_template() : '';
+            if ($parent_slug !== '' && $parent_slug !== $slug) {
+                $parent_match = self::match_known_vendor('theme', $parent_slug, $parent_slug, $meta);
+                if ($parent_match) {
+                    $vendor_match = [
+                        'vendor'   => $parent_match['vendor'],
+                        'evidence' => sprintf('Inherited from trusted parent theme "%s"', $parent_slug),
+                    ];
+                }
+            }
+        }
         if ($vendor_match) {
             $result['is_known_vendor'] = true;
             $result['vendor_name']     = $vendor_match['vendor'];
