@@ -39,12 +39,68 @@ class ModularFirewallSynthesizer {
      * @return array List of synthesized modular rule definitions
      */
     public static function synthesize_rules(array $inventory, array $endpoint_map, array $findings): array {
-        $rules = [];
-        $existing = self::get_active_rules();
+        $rules          = [];
+        $existing       = self::get_active_rules();
         $existing_by_id = [];
+        $custom_rules   = [];
+
         foreach ($existing as $r) {
             if (!empty($r['id'])) {
                 $existing_by_id[$r['id']] = $r;
+            }
+            if (!empty($r['is_custom'])) {
+                $custom_rules[] = $r;
+            }
+        }
+
+        // Build component lookup index by name
+        $component_map = [];
+        foreach ($inventory as $comp) {
+            if (is_array($comp) && !empty($comp['name'])) {
+                $component_map[$comp['name']] = $comp;
+            }
+        }
+
+        // 0. Synthesize MOD-TAMPER-* Rules for Modified/Injected Files in Official Plugins/Themes
+        foreach ($findings as $f) {
+            if (($f['type'] ?? '') === 'integrity_tamper_mismatch') {
+                $file = sanitize_text_field($f['file'] ?? '');
+                if (empty($file)) {
+                    continue;
+                }
+
+                $rule_id = 'MOD-TAMPER-' . strtoupper(substr(md5($file), 0, 8));
+                $prev    = $existing_by_id[$rule_id] ?? null;
+
+                $rules[] = self::enrich_synthesized_rule([
+                    'id'               => $rule_id,
+                    'category'         => 'tamper_guard',
+                    'title'            => sprintf(
+                        /* translators: %s: relative file path */
+                        __('Checksum Tamper / Unrecognized File Lock: %s', 'webcare-pro-security'),
+                        basename($file)
+                    ),
+                    'description'      => sprintf(
+                        /* translators: %s: file path */
+                        __('Immediately blocks direct HTTP access to "%s" because it failed official release checksum verification or is untracked inside an official extension.', 'webcare-pro-security'),
+                        $file
+                    ),
+                    'origin_component' => $f['component'] ?? 'Custom',
+                    'file'             => $file,
+                    'line'             => 1,
+                    'evidence'         => $f['evidence'] ?? '',
+                    'severity'         => 'critical',
+                    'recommended_mode' => 'enforce',
+                    'current_mode'     => $prev ? $prev['current_mode'] : 'enforce',
+                    'target_uri'       => $file,
+                    'target_param'     => '',
+                    'target_value'     => '',
+                    'http_methods'     => ['GET', 'POST', 'HEAD'],
+                    'rate_limit'       => 0,
+                    'block_uploads'    => true,
+                    'sync_cloudflare'  => true,
+                    'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
+                ], $f, $component_map);
             }
         }
 
@@ -59,7 +115,7 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-AJAX-' . strtoupper(substr(md5($action), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
-                $rules[] = [
+                $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'ajax_shield',
                     'title'            => sprintf(
@@ -87,7 +143,7 @@ class ModularFirewallSynthesizer {
                     'block_uploads'    => true,
                     'sync_cloudflare'  => true,
                     'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
-                ];
+                ], $f, $component_map);
             }
         }
 
@@ -102,7 +158,7 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-REST-' . strtoupper(substr(md5($route), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
-                $rules[] = [
+                $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'rest_guard',
                     'title'            => sprintf(
@@ -130,7 +186,7 @@ class ModularFirewallSynthesizer {
                     'block_uploads'    => false,
                     'sync_cloudflare'  => true,
                     'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
-                ];
+                ], $f, $component_map);
             }
         }
 
@@ -145,7 +201,7 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-ABSPATH-' . strtoupper(substr(md5($file), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
-                $rules[] = [
+                $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'abspath_lock',
                     'title'            => sprintf(
@@ -162,7 +218,7 @@ class ModularFirewallSynthesizer {
                     'file'             => $file,
                     'line'             => 1,
                     'evidence'         => $f['evidence'] ?? '',
-                    'severity'         => 'high',
+                    'severity'         => $f['severity'] ?? 'high',
                     'recommended_mode' => 'enforce',
                     'current_mode'     => $prev ? $prev['current_mode'] : 'enforce',
                     'target_uri'       => $file,
@@ -173,7 +229,7 @@ class ModularFirewallSynthesizer {
                     'block_uploads'    => true,
                     'sync_cloudflare'  => true,
                     'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
-                ];
+                ], $f, $component_map);
             }
         }
 
@@ -184,7 +240,7 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-UPLOAD-' . strtoupper(substr(md5($file . ':' . ($f['line'] ?? 1)), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
-                $rules[] = [
+                $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'upload_guard',
                     'title'            => sprintf(
@@ -212,7 +268,7 @@ class ModularFirewallSynthesizer {
                     'block_uploads'    => false, // inspected strictly rather than blocked
                     'sync_cloudflare'  => false,
                     'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
-                ];
+                ], $f, $component_map);
             }
         }
 
@@ -223,7 +279,7 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-EGRESS-' . strtoupper(substr(md5($file . ':' . ($f['line'] ?? 1)), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
-                $rules[] = [
+                $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'egress_lock',
                     'title'            => sprintf(
@@ -251,14 +307,95 @@ class ModularFirewallSynthesizer {
                     'block_uploads'    => false,
                     'sync_cloudflare'  => false,
                     'synthesized_at'   => $prev ? ($prev['synthesized_at'] ?? time()) : time(),
-                ];
+                ], $f, $component_map);
             }
+        }
+
+        // Re-append developer-created custom rules so behavioral re-scans never remove custom rules
+        foreach ($custom_rules as $cr) {
+            $rules[] = $cr;
         }
 
         // Save synthesized rules to option
         self::save_rules($rules);
 
         return $rules;
+    }
+
+    /**
+     * Enrich a synthesized rule with component origin, official checksum attestation,
+     * cryptographic file hashes, and false-positive risk indicator.
+     */
+    public static function enrich_synthesized_rule(array $rule, array $finding, array $component_map = []): array {
+        $comp_name = $rule['origin_component'] ?? '';
+        $comp      = $component_map[$comp_name] ?? [];
+
+        $origin_type       = $finding['origin_type'] ?? ($comp['origin_type'] ?? 'custom_unmanaged');
+        $is_official_wporg = !empty($finding['is_official_wporg']) || !empty($comp['is_official_wporg']);
+        $is_known_vendor   = !empty($finding['is_known_vendor']) || !empty($comp['is_known_vendor']);
+        $vendor_name       = $finding['vendor_name'] ?? ($comp['vendor_name'] ?? null);
+
+        $file_sha256       = $finding['file_sha256'] ?? null;
+        $file_md5          = $finding['file_md5'] ?? null;
+        $checksum_status   = $finding['checksum_status'] ?? 'unmanaged_custom';
+        $expected_checksum = $finding['expected_checksum'] ?? null;
+        $known_vendor_lib  = $finding['known_vendor_lib'] ?? null;
+
+        // Fallback live verification if finding didn't include hashes
+        if ($file_sha256 === null && !empty($rule['file']) && class_exists('\\WebCareProScanner\\Firewall\\Modular\\ComponentIntegrityVerifier')) {
+            $forensics = ComponentIntegrityVerifier::verify_file_forensics($rule['file'], $comp);
+            $file_sha256       = $forensics['file_sha256'];
+            $file_md5          = $forensics['file_md5'];
+            $checksum_status   = $forensics['checksum_status'];
+            $expected_checksum = $forensics['expected_checksum'];
+            $known_vendor_lib  = $forensics['known_vendor_lib'];
+        }
+
+        // Calculate diagnostic false-positive risk level for log analysts
+        $fp_risk = 'low';
+        $cat     = $rule['category'] ?? '';
+        if (in_array($checksum_status, ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true)) {
+            $fp_risk = 'very_low';
+            $provenance_note = __('ALERT: File failed official release checksum or is untracked inside an official extension.', 'webcare-pro-security');
+        } elseif ($checksum_status === 'authentic' || $checksum_status === 'self_verified') {
+            $provenance_note = __('File verified bit-for-bit against official release checksum manifest.', 'webcare-pro-security');
+            if ($cat === 'rest_guard') {
+                // Legitimate WP.org plugins occasionally register __return_true routes that validate tokens inside the callback
+                $fp_risk = 'medium';
+            }
+        } elseif ($checksum_status === 'known_vendor_hash_match') {
+            $fp_risk = 'medium';
+            $provenance_note = sprintf(
+                /* translators: %s: library name */
+                __('Matched 128-bit SHA-256 fingerprint of known upstream library: %s', 'webcare-pro-security'),
+                (string) $known_vendor_lib
+            );
+        } elseif ($is_known_vendor) {
+            $provenance_note = sprintf(
+                /* translators: %s: vendor name */
+                __('Commercial / verified vendor extension: %s', 'webcare-pro-security'),
+                (string) $vendor_name
+            );
+            if ($cat === 'rest_guard') {
+                $fp_risk = 'medium';
+            }
+        } else {
+            $provenance_note = __('Custom or unmanaged code — no official WordPress.org checksum manifest available.', 'webcare-pro-security');
+        }
+
+        $rule['component_origin_type'] = $origin_type;
+        $rule['is_official_wporg']     = $is_official_wporg;
+        $rule['is_known_vendor']       = $is_known_vendor;
+        $rule['vendor_name']           = $vendor_name;
+        $rule['file_sha256']           = $file_sha256;
+        $rule['file_md5']              = $file_md5;
+        $rule['checksum_status']       = $checksum_status;
+        $rule['expected_checksum']     = $expected_checksum;
+        $rule['known_vendor_lib']      = $known_vendor_lib;
+        $rule['false_positive_risk']   = $fp_risk;
+        $rule['provenance_note']       = $provenance_note;
+
+        return $rule;
     }
 
     /**
@@ -411,8 +548,8 @@ class ModularFirewallSynthesizer {
 
             $cat = $r['category'] ?? '';
 
-            // 1. Direct Script Locks
-            if ($cat === 'abspath_lock' && !empty($r['target_uri'])) {
+            // 1. Direct Script Locks & Checksum Tamper Guards
+            if (in_array($cat, ['abspath_lock', 'tamper_guard'], true) && !empty($r['target_uri'])) {
                 $compiled['direct_scripts_blocked'][] = strtolower(ltrim($r['target_uri'], '/\\'));
             }
 
@@ -470,8 +607,8 @@ class ModularFirewallSynthesizer {
 
             $cat = $r['category'] ?? '';
 
-            // Check Category: abspath_lock (Direct HTTP request to naked PHP script)
-            if ($cat === 'abspath_lock' && !empty($r['target_uri'])) {
+            // Check Category: abspath_lock / tamper_guard (Direct HTTP request to naked or modified PHP script)
+            if (in_array($cat, ['abspath_lock', 'tamper_guard'], true) && !empty($r['target_uri'])) {
                 $target_suffix = strtolower(ltrim($r['target_uri'], '/\\'));
                 $clean_uri     = strtolower(strtok($uri, '?'));
 
@@ -480,7 +617,9 @@ class ModularFirewallSynthesizer {
                         'blocked'  => ($mode === 'enforce'),
                         'rule_id'  => $r['id'],
                         'category' => $cat,
-                        'reason'   => sprintf('Direct HTTP access to standalone script "%s" blocked by Modular WAF Rule [%s].', basename($target_suffix), $r['id']),
+                        'reason'   => ($cat === 'tamper_guard')
+                            ? sprintf('Direct HTTP access to checksum-flagged script "%s" blocked by Modular WAF Rule [%s].', basename($target_suffix), $r['id'])
+                            : sprintf('Direct HTTP access to standalone script "%s" blocked by Modular WAF Rule [%s].', basename($target_suffix), $r['id']),
                         'severity' => $r['severity'] ?? 'high',
                         'mode'     => $mode,
                     ];

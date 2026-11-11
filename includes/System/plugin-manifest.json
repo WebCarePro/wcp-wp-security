@@ -1,6 +1,6 @@
 {
   "version": "2.11.0",
-  "generated_at": "2026-11-11T15:40:14.622Z",
+  "generated_at": "2026-11-11T16:10:11.168Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -88,12 +88,12 @@
       "size": 2520037
     },
     "build/modular-waf.asset.php": {
-      "sha256": "188fb2c845360adf1adc6fd5cd24fe7b9c55b4afb7f5ec12572450e82fff5801",
+      "sha256": "04b1ffab324f92a2a63fa9c7fb25959957d6faa2af807a2c7071264656356658",
       "size": 163
     },
     "build/modular-waf.js": {
-      "sha256": "e974f388727d38fb520d38104921b788d2dd106de3e7c0f1531c7e7313da0252",
-      "size": 41356
+      "sha256": "f926e08ea3ce900fefa3a07f17938cbb6e97f846d11d636b64b822f35b7e3057",
+      "size": 49846
     },
     "build/notifications.asset.php": {
       "sha256": "26fd5d86b280a62860944f5df1ca28281f56fb302d038602b125d62ffa25be3e",
@@ -168,8 +168,8 @@
       "size": 76481
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "672c6fc0fd313402a803d32ce1760388c1d68d419d3174845f6d7e0de752bd12",
-      "size": 669566
+      "sha256": "935dcc4991fd17f81eac51d4b903bf4784fd560ca45b57e61688f0509307866f",
+      "size": 683191
     },
     "includes/Auth/ApplicationPasswordSentinel.php": {
       "sha256": "754ad5f553ce557b95bd929084572474c6fb9177c5c31d9508d06a4d9564f1bd",
@@ -423,13 +423,17 @@
       "sha256": "d4160be0d3cf8a4a5028136e00bca09fc03a9b36322ac909e014d6774025ddcd",
       "size": 14127
     },
+    "includes/Firewall/Modular/ComponentIntegrityVerifier.php": {
+      "sha256": "ec30149d1f05ccb39db8ae360cb5b351c1a37c6d72e057a81af75dfbbd29423e",
+      "size": 47870
+    },
     "includes/Firewall/Modular/ModularFirewallSynthesizer.php": {
-      "sha256": "de0da9fe6c66d67b2e96a4b756d86ba59209d96324529778b6f83c9b8d330f38",
-      "size": 28251
+      "sha256": "4ef1cb8497d81932ccac438a6dbc1f61626499cb6dc2af39682ae197595da42e",
+      "size": 35910
     },
     "includes/Firewall/Modular/SiteBehavioralAnalyzer.php": {
-      "sha256": "cd249d85191c9d78120525698a58edb28ec081cadba67315fefe35d0127d3db8",
-      "size": 33250
+      "sha256": "c0d146cdcb2e1fef313d4198d3947160613268462dcb6ebb97c5e00858b84573",
+      "size": 40529
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "3e382f6069e09007ee63b17ab56645ac10d336a67cd8167b90e63dbd057e4003",

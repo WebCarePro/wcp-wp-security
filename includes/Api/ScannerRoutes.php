@@ -2822,30 +2822,30 @@ class ScannerRoutes {
     }
 
     /**
-     * Retrieve behavioral intelligence vault summary, component dossiers, and synthesized modular rules.
+     * Shared helper assembling enriched modular rules, component provenance/checksum dossiers,
+     * and trust summary telemetry without duplicating logic across status and export routes.
      *
-     * @param \WP_REST_Request $request
-     * @return \WP_REST_Response
+     * @param bool $deep_verify Whether to execute full disk & WP.org checksum verification.
+     * @return array
      */
-    public static function get_modular_waf_status(\WP_REST_Request $request) {
+    private static function build_modular_dossier_context(bool $deep_verify = false): array {
         $vault_mgr = '\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager';
         $synth     = '\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer';
         $analyzer  = '\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer';
+        $verifier  = '\\WebCareProScanner\\Firewall\\Modular\\ComponentIntegrityVerifier';
 
         $vault_summary = class_exists($vault_mgr) ? $vault_mgr::get_vault_summary() : null;
         $rules         = class_exists($synth) ? $synth::get_active_rules() : [];
         $raw_inv       = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_INVENTORY) ?: []) : [];
 
-        // If vault inventory shard is not yet written, discover live components as immediate baseline
         if (empty($raw_inv) && class_exists($analyzer) && method_exists($analyzer, 'discover_all_components')) {
-            $raw_inv = $analyzer::discover_all_components();
+            $raw_inv = $analyzer::discover_all_components($deep_verify);
         }
 
         $endpoint_map  = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_ENDPOINTS) ?: []) : [];
         $findings      = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_FINDINGS) ?: []) : [];
         $scan_progress = class_exists($analyzer) ? $analyzer::get_scan_progress() : null;
 
-        // Build quick lookup maps for enrichment
         $endpoint_counts = [];
         if (is_array($endpoint_map)) {
             foreach ($endpoint_map as $ep) {
@@ -2866,41 +2866,359 @@ class ScannerRoutes {
             }
         }
 
+        $rules_list  = is_array($rules) ? array_values($rules) : [];
         $rule_counts = [];
-        if (is_array($rules)) {
-            foreach ($rules as $rl) {
-                $comp_name = $rl['origin_component'] ?? ($rl['target_component'] ?? '');
-                if ($comp_name !== '' && ($rl['current_mode'] ?? 'off') !== 'off') {
-                    $rule_counts[$comp_name] = ($rule_counts[$comp_name] ?? 0) + 1;
-                }
+        foreach ($rules_list as $rl) {
+            $comp_name = $rl['origin_component'] ?? ($rl['target_component'] ?? '');
+            if ($comp_name !== '' && ($rl['current_mode'] ?? 'off') !== 'off') {
+                $rule_counts[$comp_name] = ($rule_counts[$comp_name] ?? 0) + 1;
             }
         }
 
-        // Convert associative array to indexed list with behavioral metrics
-        $inventory = [];
+        $inventory        = [];
+        $comp_by_name     = [];
+        $trust_summary    = [
+            'official_wporg_count'    => 0,
+            'known_vendor_count'      => 0,
+            'custom_unmanaged_count'  => 0,
+            'checksum_verified_count' => 0,
+            'tamper_alert_count'      => 0,
+            'outdated_count'          => 0,
+        ];
+
         if (is_array($raw_inv)) {
             foreach ($raw_inv as $comp) {
                 if (!is_array($comp)) {
                     continue;
                 }
+                // Always attach/refresh provenance & checksum status when missing or during deep verification
+                if (class_exists($verifier) && ($deep_verify || !isset($comp['origin_type']))) {
+                    $comp = array_merge($comp, $verifier::verify_component($comp, $deep_verify));
+                }
+
                 $name = $comp['name'] ?? ($comp['slug'] ?? '');
                 $comp['endpoints_count'] = $endpoint_counts[$name] ?? 0;
                 $comp['findings_count']  = $finding_counts[$name] ?? 0;
                 $comp['rules_count']     = $rule_counts[$name] ?? 0;
-                $inventory[]             = $comp;
+
+                if (!empty($comp['is_official_wporg'])) {
+                    $trust_summary['official_wporg_count']++;
+                } elseif (!empty($comp['is_known_vendor'])) {
+                    $trust_summary['known_vendor_count']++;
+                } else {
+                    $trust_summary['custom_unmanaged_count']++;
+                }
+
+                if (!empty($comp['checksum_verified'])) {
+                    $trust_summary['checksum_verified_count']++;
+                }
+                if (($comp['trust_tier'] ?? '') === 'tamper_alert') {
+                    $trust_summary['tamper_alert_count']++;
+                }
+                if (!empty($comp['update_available'])) {
+                    $trust_summary['outdated_count']++;
+                }
+
+                $inventory[] = $comp;
+                if ($name !== '') {
+                    $comp_by_name[$name] = $comp;
+                }
             }
         }
 
+        // Enrich rules that are missing provenance/hash metadata (e.g. from pre-upgrade scans or custom rules)
+        $findings_by_file = [];
+        if (is_array($findings)) {
+            foreach ($findings as $idx => $fd) {
+                if (!empty($fd['file'])) {
+                    $findings_by_file[$fd['file']] = $fd;
+                }
+            }
+        }
+
+        foreach ($rules_list as &$rl) {
+            if (!isset($rl['file_sha256']) || !isset($rl['checksum_status']) || $deep_verify) {
+                $matched_finding = !empty($rl['file']) ? ($findings_by_file[$rl['file']] ?? []) : [];
+                if (class_exists($synth) && method_exists($synth, 'enrich_synthesized_rule')) {
+                    $rl = $synth::enrich_synthesized_rule($rl, $matched_finding, $comp_by_name);
+                }
+            }
+        }
+        unset($rl);
+
+        return [
+            'vault_summary' => $vault_summary,
+            'rules'         => $rules_list,
+            'inventory'     => $inventory,
+            'comp_by_name'  => $comp_by_name,
+            'trust_summary' => $trust_summary,
+            'endpoint_map'  => is_array($endpoint_map) ? array_values($endpoint_map) : [],
+            'findings'      => is_array($findings) ? array_values($findings) : [],
+            'scan_progress' => $scan_progress,
+        ];
+    }
+
+    /**
+     * Build a deduplicated cryptographic hash index for all PHP files referenced by rules and findings.
+     */
+    private static function build_file_hash_index(array $rules, array $findings): array {
+        $verifier = '\\WebCareProScanner\\Firewall\\Modular\\ComponentIntegrityVerifier';
+        $index    = [];
+
+        foreach ($findings as $fd) {
+            $rel = $fd['file'] ?? '';
+            if ($rel === '') {
+                continue;
+            }
+            if (!isset($index[$rel])) {
+                $forensics = (!empty($fd['file_sha256']) && !empty($fd['file_md5']))
+                    ? [
+                        'file_sha256'       => $fd['file_sha256'],
+                        'file_md5'          => $fd['file_md5'],
+                        'file_size'         => $fd['file_size'] ?? 0,
+                        'file_mtime'        => $fd['file_mtime'] ?? null,
+                        'checksum_status'   => $fd['checksum_status'] ?? 'unmanaged_custom',
+                        'expected_checksum' => $fd['expected_checksum'] ?? null,
+                        'known_vendor_lib'  => $fd['known_vendor_lib'] ?? null,
+                    ]
+                    : (class_exists($verifier) ? $verifier::verify_file_forensics($rel) : []);
+
+                $index[$rel] = array_merge([
+                    'file'                => $rel,
+                    'component'           => $fd['component'] ?? '',
+                    'origin_type'         => $fd['origin_type'] ?? 'custom_unmanaged',
+                    'finding_types'       => [],
+                    'referenced_by_rules' => [],
+                ], $forensics);
+            }
+            if (!empty($fd['type']) && !in_array($fd['type'], $index[$rel]['finding_types'], true)) {
+                $index[$rel]['finding_types'][] = $fd['type'];
+            }
+        }
+
+        foreach ($rules as $rl) {
+            $rel = $rl['file'] ?? '';
+            if ($rel === '') {
+                continue;
+            }
+            if (!isset($index[$rel])) {
+                $forensics = class_exists($verifier) ? $verifier::verify_file_forensics($rel) : [];
+                $index[$rel] = array_merge([
+                    'file'                => $rel,
+                    'component'           => $rl['origin_component'] ?? '',
+                    'origin_type'         => $rl['component_origin_type'] ?? 'custom_unmanaged',
+                    'finding_types'       => [],
+                    'referenced_by_rules' => [],
+                ], $forensics);
+            }
+            if (!empty($rl['id']) && !in_array($rl['id'], $index[$rel]['referenced_by_rules'], true)) {
+                $index[$rel]['referenced_by_rules'][] = $rl['id'];
+            }
+        }
+
+        return $index;
+    }
+
+    /**
+     * Collect firewall & pre-boot log correlation telemetry for false-positive analysis.
+     * Pseudonymizes client IPs via keyed SHA-256 prefix so exported dossiers stay privacy-safe.
+     */
+    private static function build_modular_log_analysis_context(): array {
+        global $wpdb;
+
+        $salt        = function_exists('wp_salt') ? wp_salt('auth') : 'webcare_log_salt';
+        $hash_ip     = static fn(string $ip): string => $ip !== '' ? substr(hash('sha256', $salt . $ip), 0, 12) : '';
+        $records     = [];
+        $seen_ids    = [];
+        $hits_by_rule = [];
+        $hits_by_uri  = [];
+        $hits_by_act  = [];
+        $top_uas      = [];
+
+        $record_event = static function (array $row) use (&$records, &$seen_ids, &$hits_by_rule, &$hits_by_uri, &$hits_by_act, &$top_uas) {
+            $dedup_key = ($row['incident_id'] ?? '') . '|' . ($row['created_at'] ?? '') . '|' . ($row['request_uri'] ?? '');
+            if (isset($seen_ids[$dedup_key])) {
+                return;
+            }
+            $seen_ids[$dedup_key] = true;
+            $records[] = $row;
+
+            $rid = $row['rule_id'] ?: ($row['rule_category'] ?: 'UNKNOWN');
+            if (!isset($hits_by_rule[$rid])) {
+                $hits_by_rule[$rid] = [
+                    'count'          => 0,
+                    'last_seen'      => $row['created_at'] ?? '',
+                    'sample_uris'    => [],
+                    'methods'        => [],
+                    'actions'        => [],
+                ];
+            }
+            $hits_by_rule[$rid]['count']++;
+            $uri_clean = strtok((string) ($row['request_uri'] ?? '/'), '?') ?: '/';
+            if (count($hits_by_rule[$rid]['sample_uris']) < 5 && !in_array($row['request_uri'] ?? '', $hits_by_rule[$rid]['sample_uris'], true)) {
+                $hits_by_rule[$rid]['sample_uris'][] = $row['request_uri'] ?? '';
+            }
+            if (!empty($row['request_method']) && !in_array($row['request_method'], $hits_by_rule[$rid]['methods'], true)) {
+                $hits_by_rule[$rid]['methods'][] = $row['request_method'];
+            }
+            if (!empty($row['action_taken']) && !in_array($row['action_taken'], $hits_by_rule[$rid]['actions'], true)) {
+                $hits_by_rule[$rid]['actions'][] = $row['action_taken'];
+            }
+
+            $hits_by_uri[$uri_clean] = ($hits_by_uri[$uri_clean] ?? 0) + 1;
+            $act = $row['action_taken'] ?? 'unknown';
+            $hits_by_act[$act] = ($hits_by_act[$act] ?? 0) + 1;
+            if (!empty($row['user_agent'])) {
+                $ua = substr((string) $row['user_agent'], 0, 120);
+                $top_uas[$ua] = ($top_uas[$ua] ?? 0) + 1;
+            }
+        };
+
+        // 1. Query JSON WafFileLogger (last 30 days, modular & endpoint-relevant incidents)
+        if (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
+            $json_res = \WebCareProScanner\Firewall\WafFileLogger::query_logs(['range' => '30d'], 150, 0);
+            $items    = is_array($json_res['logs'] ?? null) ? $json_res['logs'] : [];
+            foreach ($items as $item) {
+                $rid   = (string) ($item['rule_id'] ?? '');
+                $rcat  = (string) ($item['rule_category'] ?? '');
+                $rdesc = (string) ($item['rule_description'] ?? '');
+                $ruri  = (string) ($item['request_uri'] ?? '');
+                $is_relevant = str_starts_with($rid, 'MOD-')
+                    || stripos($rcat, 'modular') !== false
+                    || str_contains($rdesc, 'MOD-')
+                    || str_contains($ruri, 'admin-ajax.php')
+                    || str_contains($ruri, '/wp-json/');
+
+                if ($is_relevant) {
+                    $record_event([
+                        'source'           => 'waf_file_logger',
+                        'incident_id'      => $item['incident_id'] ?? ($item['id'] ?? ''),
+                        'ip_hash'          => $hash_ip((string) ($item['ip_address'] ?? '')),
+                        'rule_id'          => $rid,
+                        'rule_name'        => $item['rule_name'] ?? '',
+                        'rule_category'    => $rcat,
+                        'rule_description' => $rdesc,
+                        'request_method'   => $item['request_method'] ?? 'GET',
+                        'request_uri'      => $ruri,
+                        'http_status_code' => $item['http_status_code'] ?? 403,
+                        'http_referer'     => $item['http_referer'] ?? null,
+                        'payload_sample'   => $item['payload_sample'] ?? '',
+                        'user_agent'       => $item['user_agent'] ?? '',
+                        'action_taken'     => $item['action_taken'] ?? '',
+                        'is_authenticated' => !empty($item['is_authenticated']),
+                        'user_role'        => $item['user_role'] ?? '',
+                        'created_at'       => $item['created_at_gmt'] ?? ($item['created_at'] ?? ''),
+                    ]);
+                }
+            }
+        }
+
+        // 2. Query SQL webcareproscan_firewall_logs table for modular & endpoint events
+        $firewall_logs_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $firewall_logs_table));
+        if ($table_exists === $firewall_logs_table) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    "SELECT id, incident_id, ip_address, request_uri, request_method, http_status_code, http_referer, rule_category, rule_description, payload_sample, user_agent, action_taken, created_at
+                     FROM `{$firewall_logs_table}`
+                     WHERE rule_category = %s OR rule_description LIKE %s OR request_uri LIKE %s OR request_uri LIKE %s
+                     ORDER BY id DESC
+                     LIMIT 100",
+                    'Modular Behavioral WAF',
+                    '%MOD-%',
+                    '%admin-ajax.php%',
+                    '%/wp-json/%'
+                ),
+                ARRAY_A
+            );
+            if (is_array($rows)) {
+                foreach ($rows as $r) {
+                    $extracted_id = '';
+                    if (preg_match('/\[(MOD-[A-Z0-9-]+)\]/', (string) ($r['rule_description'] ?? ''), $m)) {
+                        $extracted_id = $m[1];
+                    }
+                    $record_event([
+                        'source'           => 'sql_firewall_logs',
+                        'incident_id'      => $r['incident_id'] ?? ('sql_' . $r['id']),
+                        'ip_hash'          => $hash_ip((string) ($r['ip_address'] ?? '')),
+                        'rule_id'          => $extracted_id,
+                        'rule_name'        => '',
+                        'rule_category'    => $r['rule_category'] ?? '',
+                        'rule_description' => $r['rule_description'] ?? '',
+                        'request_method'   => $r['request_method'] ?? 'GET',
+                        'request_uri'      => $r['request_uri'] ?? '',
+                        'http_status_code' => intval($r['http_status_code'] ?? 403),
+                        'http_referer'     => $r['http_referer'] ?? null,
+                        'payload_sample'   => $r['payload_sample'] ?? '',
+                        'user_agent'       => $r['user_agent'] ?? '',
+                        'action_taken'     => $r['action_taken'] ?? '',
+                        'is_authenticated' => false,
+                        'user_role'        => '',
+                        'created_at'       => $r['created_at'] ?? '',
+                    ]);
+                }
+            }
+        }
+
+        // 3. Parse Pre-Boot Micro-WAF Fail2ban log tail for MOD-* events (masking raw IPs)
+        $preboot_mod_lines = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            $f2b_path = \WebCareProScanner\Firewall\MicroWafCompiler::get_fail2ban_log_path();
+            if ($f2b_path && file_exists($f2b_path) && is_readable($f2b_path)) {
+                $lines = @file($f2b_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                if (is_array($lines)) {
+                    $tail = array_slice($lines, -200);
+                    foreach (array_reverse($tail) as $line) {
+                        if (str_contains($line, 'MOD-')) {
+                            $masked = preg_replace_callback('/\b(?:\d{1,3}\.){3}\d{1,3}\b|[0-9a-fA-F:]{6,39}/', static function ($m) use ($hash_ip) {
+                                return 'iphash:' . $hash_ip($m[0]);
+                            }, $line);
+                            $preboot_mod_lines[] = $masked;
+                            if (count($preboot_mod_lines) >= 50) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        arsort($hits_by_uri);
+        arsort($top_uas);
+
+        return [
+            'total_events_analyzed' => count($records),
+            'hits_by_rule'          => $hits_by_rule,
+            'hits_by_action'        => $hits_by_act,
+            'top_target_uris'       => array_slice($hits_by_uri, 0, 30, true),
+            'top_user_agents'       => array_slice($top_uas, 0, 15, true),
+            'preboot_fail2ban_lines'=> $preboot_mod_lines,
+            'recent_log_records'    => array_slice($records, 0, 200),
+        ];
+    }
+
+    /**
+     * Retrieve behavioral intelligence vault summary, component dossiers, and synthesized modular rules.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function get_modular_waf_status(\WP_REST_Request $request) {
+        $ctx            = self::build_modular_dossier_context(false);
         $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
 
         return new \WP_REST_Response([
             'success'        => true,
-            'vault_summary'  => $vault_summary,
-            'rules'          => is_array($rules) ? array_values($rules) : [],
-            'inventory'      => $inventory,
-            'endpoint_map'   => is_array($endpoint_map) ? array_values($endpoint_map) : [],
-            'findings'       => is_array($findings) ? array_values($findings) : [],
-            'scan_progress'  => $scan_progress,
+            'vault_summary'  => $ctx['vault_summary'],
+            'rules'          => $ctx['rules'],
+            'inventory'      => $ctx['inventory'],
+            'trust_summary'  => $ctx['trust_summary'],
+            'endpoint_map'   => $ctx['endpoint_map'],
+            'findings'       => $ctx['findings'],
+            'scan_progress'  => $ctx['scan_progress'],
             'preload_active' => $preload_active,
         ], 200);
     }
@@ -3012,47 +3330,14 @@ class ScannerRoutes {
      * @return \WP_REST_Response
      */
     public static function export_modular_waf_bundle(\WP_REST_Request $request) {
-        global $wpdb;
+        $synth = '\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer';
 
-        $vault_mgr = '\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager';
-        $synth     = '\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer';
-        $analyzer  = '\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer';
+        $ctx        = self::build_modular_dossier_context(true);
+        $rules_list = $ctx['rules'];
+        $inventory  = $ctx['inventory'];
+        $findings   = $ctx['findings'];
+        $endpoints  = $ctx['endpoint_map'];
 
-        $vault_summary = class_exists($vault_mgr) ? $vault_mgr::get_vault_summary() : null;
-        $rules         = class_exists($synth) ? $synth::get_active_rules() : [];
-        $raw_inv       = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_INVENTORY) ?: []) : [];
-
-        if (empty($raw_inv) && class_exists($analyzer) && method_exists($analyzer, 'discover_all_components')) {
-            $raw_inv = $analyzer::discover_all_components();
-        }
-
-        $endpoint_map  = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_ENDPOINTS) ?: []) : [];
-        $findings      = class_exists($vault_mgr) ? ($vault_mgr::read_shard($vault_mgr::SHARD_FINDINGS) ?: []) : [];
-        $scan_progress = class_exists($analyzer) ? $analyzer::get_scan_progress() : null;
-
-        $rules_list = is_array($rules) ? array_values($rules) : [];
-
-        $endpoint_counts = [];
-        if (is_array($endpoint_map)) {
-            foreach ($endpoint_map as $ep) {
-                $comp_name = $ep['component'] ?? '';
-                if ($comp_name !== '') {
-                    $endpoint_counts[$comp_name] = ($endpoint_counts[$comp_name] ?? 0) + 1;
-                }
-            }
-        }
-
-        $finding_counts = [];
-        if (is_array($findings)) {
-            foreach ($findings as $fd) {
-                $comp_name = $fd['component'] ?? '';
-                if ($comp_name !== '') {
-                    $finding_counts[$comp_name] = ($finding_counts[$comp_name] ?? 0) + 1;
-                }
-            }
-        }
-
-        $rule_counts    = [];
         $enforced_count = 0;
         $monitor_count  = 0;
         $off_count      = 0;
@@ -3073,63 +3358,36 @@ class ScannerRoutes {
             }
             $cat = $rl['category'] ?? 'unknown';
             $by_category[$cat] = ($by_category[$cat] ?? 0) + 1;
-
-            $comp_name = $rl['origin_component'] ?? ($rl['target_component'] ?? '');
-            if ($comp_name !== '' && $mode !== 'off') {
-                $rule_counts[$comp_name] = ($rule_counts[$comp_name] ?? 0) + 1;
-            }
         }
 
-        $inventory = [];
-        if (is_array($raw_inv)) {
-            foreach ($raw_inv as $comp) {
-                if (!is_array($comp)) {
-                    continue;
-                }
-                $name = $comp['name'] ?? ($comp['slug'] ?? '');
-                $comp['endpoints_count'] = $endpoint_counts[$name] ?? 0;
-                $comp['findings_count']  = $finding_counts[$name] ?? 0;
-                $comp['rules_count']     = $rule_counts[$name] ?? 0;
-                $inventory[]             = $comp;
-            }
-        }
+        // Assemble deduplicated file cryptographic hash index & log correlation context
+        $file_hash_index      = self::build_file_hash_index($rules_list, $findings);
+        $log_analysis_context = self::build_modular_log_analysis_context();
 
-        $recent_modular_hits = [];
-        $firewall_logs_table = $wpdb->prefix . 'webcareproscan_firewall_logs';
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $firewall_logs_table));
-        if ($table_exists === $firewall_logs_table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            $recent_rows = $wpdb->get_results(
-                $wpdb->prepare(
-                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                    "SELECT id, incident_id, request_uri, request_method, http_status_code, rule_category, rule_description, action_taken, created_at
-                     FROM `{$firewall_logs_table}`
-                     WHERE rule_category = %s OR rule_description LIKE %s
-                     ORDER BY id DESC
-                     LIMIT 100",
-                    'Modular Behavioral WAF',
-                    '%MOD-%'
-                ),
-                ARRAY_A
-            );
-            if (is_array($recent_rows)) {
-                $recent_modular_hits = $recent_rows;
-            }
-        }
-
-        $active_theme   = wp_get_theme();
-        $site_host      = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'localhost';
+        // Collect compiled 0ms Pre-Boot Micro-WAF snapshot
         $preload_active = defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE;
+        $compiled_file  = class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')
+            ? \WebCareProScanner\Firewall\MicroWafCompiler::get_compiled_file_path()
+            : '';
+        $compiled_preload_waf = [
+            'preload_waf_active'  => $preload_active,
+            'compiled_file_exists'=> ($compiled_file && file_exists($compiled_file)),
+            'compiled_file_sha256'=> ($compiled_file && file_exists($compiled_file)) ? (@hash_file('sha256', $compiled_file) ?: null) : null,
+            'compiled_file_mtime' => ($compiled_file && file_exists($compiled_file)) ? gmdate('c', (int) @filemtime($compiled_file)) : null,
+            'compiled_rules'      => class_exists($synth) ? $synth::get_compiled_preload_rules() : [],
+        ];
+
+        $active_theme = wp_get_theme();
+        $site_host    = wp_parse_url(get_site_url(), PHP_URL_HOST) ?: 'localhost';
 
         $payload = [
-            'success'              => true,
-            'webcare_export_type'  => 'modular_waf_forensic_dossier',
-            'format_version'       => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0',
-            'exported_at'          => gmdate('c'),
-            'exported_timestamp'   => time(),
-            'author'               => 'Mir Alamin (WebCare Pro)',
-            'environment'          => [
+            'success'                     => true,
+            'webcare_export_type'         => 'modular_waf_forensic_dossier',
+            'format_version'              => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0',
+            'exported_at'                 => gmdate('c'),
+            'exported_timestamp'          => time(),
+            'author'                      => 'Mir Alamin (WebCare Pro)',
+            'environment'                 => [
                 'site_url'           => get_site_url(),
                 'home_url'           => get_home_url(),
                 'wordpress_version'  => $GLOBALS['wp_version'] ?? 'Unknown',
@@ -3145,7 +3403,7 @@ class ScannerRoutes {
                     'stylesheet' => $active_theme ? $active_theme->get_stylesheet() : '',
                 ],
             ],
-            'summary'              => [
+            'summary'                     => [
                 'total_rules'          => count($rules_list),
                 'enforced_rules'       => $enforced_count,
                 'monitored_rules'      => $monitor_count,
@@ -3153,18 +3411,23 @@ class ScannerRoutes {
                 'custom_rules'         => $custom_count,
                 'rules_by_category'    => $by_category,
                 'components_profiled'  => count($inventory),
-                'endpoints_mapped'     => is_array($endpoint_map) ? count($endpoint_map) : 0,
-                'ast_findings_count'   => is_array($findings) ? count($findings) : 0,
-                'recent_modular_hits'  => count($recent_modular_hits),
-                'vault_sealed'         => !empty($vault_summary),
+                'endpoints_mapped'     => count($endpoints),
+                'ast_findings_count'   => count($findings),
+                'unique_files_hashed'  => count($file_hash_index),
+                'recent_modular_hits'  => $log_analysis_context['total_events_analyzed'],
+                'vault_sealed'         => !empty($ctx['vault_summary']),
             ],
-            'rules'                 => $rules_list,
-            'component_inventory'   => $inventory,
-            'endpoint_behavior_map' => is_array($endpoint_map) ? array_values($endpoint_map) : [],
-            'ast_taint_findings'    => is_array($findings) ? array_values($findings) : [],
-            'recent_modular_hits'   => $recent_modular_hits,
-            'vault_summary'         => $vault_summary,
-            'scan_progress'         => $scan_progress,
+            'trust_and_integrity_summary' => $ctx['trust_summary'],
+            'rules'                       => $rules_list,
+            'component_inventory'         => $inventory,
+            'file_hash_index'             => $file_hash_index,
+            'compiled_preload_waf'        => $compiled_preload_waf,
+            'log_analysis_context'        => $log_analysis_context,
+            'endpoint_behavior_map'       => $endpoints,
+            'ast_taint_findings'          => $findings,
+            'recent_modular_hits'         => $log_analysis_context['recent_log_records'],
+            'vault_summary'               => $ctx['vault_summary'],
+            'scan_progress'               => $ctx['scan_progress'],
         ];
 
         $is_download = !empty($request->get_param('download'));

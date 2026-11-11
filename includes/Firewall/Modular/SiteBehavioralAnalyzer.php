@@ -37,8 +37,8 @@ class SiteBehavioralAnalyzer {
      * @return array Scan initialization summary
      */
     public static function start_scan(array $options = []): array {
-        // Build Component & File Inventory
-        $components = self::discover_all_components();
+        // Build Component & File Inventory with live official origin, vendor & checksum verification
+        $components = self::discover_all_components(true);
         $file_queue = self::build_file_queue($components);
 
         $session_id = 'scan_' . time() . '_' . wp_generate_password(6, false, false);
@@ -61,6 +61,7 @@ class SiteBehavioralAnalyzer {
                 'rest_routes_found'      => 0,
                 'permissive_rest_routes' => 0,
                 'missing_abspath_files'  => 0,
+                'tampered_files_found'   => 0,
                 'taint_sinks_found'      => 0,
                 'cve_vulnerabilities'    => 0,
                 'abandoned_components'   => 0,
@@ -311,16 +312,45 @@ class SiteBehavioralAnalyzer {
             return;
         }
 
-        $token_count = count($tokens);
+        $token_count    = count($tokens);
         $component_name = $file_info['component'] ?? 'WordPress Core/Custom';
         $component_type = $file_info['type'] ?? 'unknown';
         $rel_path       = $file_info['rel_path'] ?? basename($path);
 
-        // 1. Check for missing defined('ABSPATH') in standalone plugins/themes/uploads scripts
-        $has_abspath_guard = self::check_abspath_guard($tokens);
-        $has_superglobals = self::check_superglobals($tokens);
+        // Compute file cryptographic hashes & official checksum / vendor match status
+        $file_forensics = ComponentIntegrityVerifier::verify_file_forensics($path, $file_info);
+        $start_idx      = count($findings);
 
-        if (!$has_abspath_guard && $has_superglobals && in_array($component_type, ['plugin', 'theme', 'upload'], true)) {
+        // 0. Check official WordPress.org / Self-Defense checksum tampering or unknown injected PHP scripts
+        $chk_status = $file_forensics['checksum_status'] ?? 'unmanaged_custom';
+        if (in_array($chk_status, ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true)) {
+            $counters['tampered_files_found'] = ($counters['tampered_files_found'] ?? 0) + 1;
+            $is_unknown = ($chk_status === 'unknown_in_official' || $chk_status === 'self_untracked');
+            $findings[] = [
+                'type'        => 'integrity_tamper_mismatch',
+                'component'   => $component_name,
+                'type_label'  => $component_type,
+                'file'        => $rel_path,
+                'full_path'   => $path,
+                'line'        => 1,
+                'evidence'    => $is_unknown
+                    ? __('PHP file exists inside an official checksum-verified component directory but is NOT present in the official release manifest.', 'webcare-pro-security')
+                    : sprintf(
+                        /* translators: %1$s: expected hash, %2$s: actual hash */
+                        __('File checksum mismatch against official release manifest (Expected: %1$s, Actual: %2$s).', 'webcare-pro-security'),
+                        substr((string) ($file_forensics['expected_checksum'] ?? ''), 0, 12),
+                        substr((string) ($file_forensics['file_md5'] ?? $file_forensics['file_sha256'] ?? ''), 0, 12)
+                    ),
+                'severity'    => 'critical',
+            ];
+        }
+
+        // 1. Check for missing defined('ABSPATH') in standalone procedural plugins/themes/uploads scripts
+        $has_abspath_guard = self::check_abspath_guard($tokens);
+        $has_superglobals  = self::check_superglobals($tokens);
+        $is_pure_decl      = self::is_pure_declaration_file($tokens);
+
+        if (!$has_abspath_guard && $has_superglobals && !$is_pure_decl && empty($file_forensics['known_vendor_lib']) && in_array($component_type, ['plugin', 'theme', 'upload'], true)) {
             $counters['missing_abspath_files']++;
             $findings[] = [
                 'type'        => 'missing_abspath_script',
@@ -329,8 +359,8 @@ class SiteBehavioralAnalyzer {
                 'file'        => $rel_path,
                 'full_path'   => $path,
                 'line'        => 1,
-                'evidence'    => __('Direct-access PHP script reads superglobals without defined("ABSPATH") guard.', 'webcare-pro-security'),
-                'severity'    => 'high',
+                'evidence'    => __('Direct-access PHP script executes top-level code reading superglobals without defined("ABSPATH") guard.', 'webcare-pro-security'),
+                'severity'    => ($file_forensics['is_official_verified'] ?? false) ? 'medium' : 'high',
             ];
         }
 
@@ -398,6 +428,24 @@ class SiteBehavioralAnalyzer {
             if (is_array($token) && $token[0] === T_VARIABLE && $token[1] === '$wpdb') {
                 self::inspect_wpdb_sink($tokens, $i, $file_info, $findings, $counters);
             }
+        }
+
+        // Attach cryptographic file hashes, checksum status & component origin provenance to every finding discovered in this file
+        $end_idx = count($findings);
+        for ($f_idx = $start_idx; $f_idx < $end_idx; $f_idx++) {
+            $findings[$f_idx]['full_path']            = $path;
+            $findings[$f_idx]['file_sha256']          = $file_forensics['file_sha256'];
+            $findings[$f_idx]['file_md5']             = $file_forensics['file_md5'];
+            $findings[$f_idx]['file_size']            = $file_forensics['file_size'];
+            $findings[$f_idx]['file_mtime']           = $file_forensics['file_mtime'];
+            $findings[$f_idx]['checksum_status']      = $file_forensics['checksum_status'];
+            $findings[$f_idx]['expected_checksum']    = $file_forensics['expected_checksum'];
+            $findings[$f_idx]['known_vendor_lib']     = $file_forensics['known_vendor_lib'];
+            $findings[$f_idx]['is_official_verified'] = $file_forensics['is_official_verified'];
+            $findings[$f_idx]['origin_type']          = $file_info['origin_type'] ?? 'custom_unmanaged';
+            $findings[$f_idx]['is_official_wporg']    = !empty($file_info['is_official_wporg']);
+            $findings[$f_idx]['is_known_vendor']      = !empty($file_info['is_known_vendor']);
+            $findings[$f_idx]['vendor_name']          = $file_info['vendor_name'] ?? null;
         }
     }
 
@@ -467,17 +515,21 @@ class SiteBehavioralAnalyzer {
      * Inspect a register_rest_route(...) invocation.
      */
     private static function inspect_rest_route_call(array $tokens, int $pos, array $file_info, array &$endpoint_map, array &$findings, array &$counters): void {
-        $namespace = self::extract_string_arg($tokens, $pos, 1) ?: 'custom/v1';
-        $route     = self::extract_string_arg($tokens, $pos, 2) ?: '/';
-        $line      = is_array($tokens[$pos]) ? $tokens[$pos][2] : 1;
-        $component = $file_info['component'] ?? 'Custom';
-        $rel_path  = $file_info['rel_path'] ?? '';
+        $raw_namespace = self::extract_string_arg($tokens, $pos, 1);
+        $raw_route     = self::extract_string_arg($tokens, $pos, 2);
+        $namespace     = $raw_namespace ?: '[dynamic]';
+        $route         = $raw_route ?: '[dynamic]';
+        $line          = is_array($tokens[$pos]) ? $tokens[$pos][2] : 1;
+        $component     = $file_info['component'] ?? 'Custom';
+        $rel_path      = $file_info['rel_path'] ?? '';
 
         $counters['rest_routes_found']++;
 
         // Inspect adjacent tokens for '__return_true' permission callback
-        $full_route = '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/');
-        $is_permissive = self::has_token_string_within($tokens, $pos, 120, '__return_true');
+        $full_route = ($raw_namespace && $raw_route)
+            ? '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/')
+            : '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/');
+        $is_permissive   = self::has_token_string_within($tokens, $pos, 120, '__return_true');
         $has_post_method = self::has_token_string_within($tokens, $pos, 120, 'POST') ||
                            self::has_token_string_within($tokens, $pos, 120, 'CREATABLE') ||
                            self::has_token_string_within($tokens, $pos, 120, 'EDITABLE');
@@ -494,7 +546,8 @@ class SiteBehavioralAnalyzer {
             'is_creatable'  => $has_post_method,
         ];
 
-        if ($is_permissive && $has_post_method) {
+        // Only synthesize permissive REST route guards when literal route strings are resolved
+        if ($raw_namespace && $raw_route && $is_permissive && $has_post_method) {
             $counters['permissive_rest_routes']++;
             $findings[] = [
                 'type'        => 'permissive_rest_route',
@@ -536,11 +589,16 @@ class SiteBehavioralAnalyzer {
             return;
         }
 
-        $line = $method_token[2];
+        $line      = $method_token[2];
         $component = $file_info['component'] ?? 'Custom';
         $rel_path  = $file_info['rel_path'] ?? '';
 
-        // Check if adjacent arguments contain string concatenation (.) or inline variables without prepare
+        // Skip calls that invoke $wpdb->prepare(...) inside their argument window
+        if (self::has_token_string_within($tokens, $pos + 2, 35, 'prepare')) {
+            return;
+        }
+
+        // Check if adjacent arguments contain string concatenation (.) without prepare()
         if (self::has_string_concat_within($tokens, $pos + 2, 25)) {
             $counters['taint_sinks_found']++;
             $findings[] = [
@@ -560,17 +618,65 @@ class SiteBehavioralAnalyzer {
     }
 
     /**
-     * Check if tokens contain defined('ABSPATH') check.
+     * Check if tokens contain defined('ABSPATH') or WPINC guard (skipping comments/whitespace).
      */
     private static function check_abspath_guard(array $tokens): bool {
-        $limit = min(60, count($tokens));
-        for ($i = 0; $i < $limit; $i++) {
-            $t = $tokens[$i];
-            if (is_array($t) && in_array(strtolower($t[1]), ['abspath', 'wpinc'], true)) {
+        $non_trivial = 0;
+        foreach ($tokens as $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            if (in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_OPEN_TAG], true)) {
+                continue;
+            }
+            $non_trivial++;
+            $val = strtolower(trim($t[1], "'\""));
+            if ($val === 'abspath' || $val === 'wpinc') {
                 return true;
+            }
+            if ($non_trivial >= 150) {
+                break;
             }
         }
         return false;
+    }
+
+    /**
+     * Determine whether a PHP file only contains namespace/use/class/interface/trait/enum declarations
+     * (i.e. zero top-level procedural code that executes superglobals when invoked directly via HTTP).
+     */
+    private static function is_pure_declaration_file(array $tokens): bool {
+        $depth = 0;
+        $count = count($tokens);
+        $has_oop_declaration = false;
+
+        for ($i = 0; $i < $count; $i++) {
+            $t = $tokens[$i];
+            if ($t === '{') {
+                $depth++;
+                continue;
+            }
+            if ($t === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if (!is_array($t) || $depth > 0) {
+                continue;
+            }
+            if (in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_OPEN_TAG, T_CLOSE_TAG], true)) {
+                continue;
+            }
+            if (in_array($t[0], [T_CLASS, T_INTERFACE, T_TRAIT], true) || (defined('T_ENUM') && $t[0] === T_ENUM)) {
+                $has_oop_declaration = true;
+                continue;
+            }
+            if ($t[0] === T_VARIABLE && in_array($t[1], ['$_GET', '$_POST', '$_REQUEST', '$_FILES'], true)) {
+                // Top-level superglobal read at depth 0 means procedural HTTP entry script!
+                return false;
+            }
+        }
+
+        return $has_oop_declaration;
     }
 
     /**
@@ -693,11 +799,13 @@ class SiteBehavioralAnalyzer {
     }
 
     /**
-     * Discover all installed plugins, active themes, mu-plugins, and drop-ins.
+     * Discover all installed plugins, active themes, mu-plugins, and drop-ins,
+     * enriched with official WordPress.org origin, checksums, and known vendor attestation.
      *
+     * @param bool $deep_verify True during scans/exports to verify release checksums on disk.
      * @return array
      */
-    public static function discover_all_components(): array {
+    public static function discover_all_components(bool $deep_verify = false): array {
         $components = [];
 
         // 1. Plugins (Active & Inactive)
@@ -705,7 +813,7 @@ class SiteBehavioralAnalyzer {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
 
-        $all_plugins = function_exists('get_plugins') ? get_plugins() : [];
+        $all_plugins    = function_exists('get_plugins') ? get_plugins() : [];
         $active_plugins = get_option('active_plugins', []);
 
         foreach ($all_plugins as $plugin_file => $data) {
@@ -715,51 +823,56 @@ class SiteBehavioralAnalyzer {
             }
 
             $is_active = in_array($plugin_file, $active_plugins, true);
-            $components['plugin:' . $slug] = [
-                'type'         => 'plugin',
-                'slug'         => $slug,
-                'file'         => $plugin_file,
-                'name'         => $data['Name'] ?? $slug,
-                'version'      => $data['Version'] ?? '0.0.0',
-                'author'       => $data['Author'] ?? '',
-                'is_active'    => $is_active,
-                'path'         => WP_PLUGIN_DIR . '/' . $slug,
+            $comp = [
+                'type'      => 'plugin',
+                'slug'      => $slug,
+                'file'      => $plugin_file,
+                'name'      => $data['Name'] ?? $slug,
+                'version'   => $data['Version'] ?? '0.0.0',
+                'author'    => $data['Author'] ?? '',
+                'is_active' => $is_active,
+                'path'      => WP_PLUGIN_DIR . '/' . $slug,
             ];
+            $components['plugin:' . $slug] = array_merge($comp, ComponentIntegrityVerifier::verify_component($comp, $deep_verify));
         }
 
         // 2. Active Theme & Child Theme
         $theme = wp_get_theme();
         if ($theme->exists()) {
-            $components['theme:' . $theme->get_stylesheet()] = [
-                'type'         => 'theme',
-                'slug'         => $theme->get_stylesheet(),
-                'name'         => $theme->get('Name') ?: $theme->get_stylesheet(),
-                'version'      => $theme->get('Version') ?: '1.0.0',
-                'is_active'    => true,
-                'is_child'     => is_child_theme(),
-                'path'         => $theme->get_stylesheet_directory(),
+            $comp = [
+                'type'      => 'theme',
+                'slug'      => $theme->get_stylesheet(),
+                'name'      => $theme->get('Name') ?: $theme->get_stylesheet(),
+                'version'   => $theme->get('Version') ?: '1.0.0',
+                'author'    => $theme->get('Author') ?: '',
+                'is_active' => true,
+                'is_child'  => is_child_theme(),
+                'path'      => $theme->get_stylesheet_directory(),
             ];
+            $components['theme:' . $theme->get_stylesheet()] = array_merge($comp, ComponentIntegrityVerifier::verify_component($comp, $deep_verify));
 
             // Parent theme if child active
             if (is_child_theme()) {
                 $parent = $theme->parent();
                 if ($parent && $parent->exists()) {
-                    $components['theme:' . $parent->get_template()] = [
-                        'type'         => 'theme',
-                        'slug'         => $parent->get_template(),
-                        'name'         => $parent->get('Name') ?: $parent->get_template(),
-                        'version'      => $parent->get('Version') ?: '1.0.0',
-                        'is_active'    => true,
-                        'is_child'     => false,
-                        'path'         => $parent->get_template_directory(),
+                    $pcomp = [
+                        'type'      => 'theme',
+                        'slug'      => $parent->get_template(),
+                        'name'      => $parent->get('Name') ?: $parent->get_template(),
+                        'version'   => $parent->get('Version') ?: '1.0.0',
+                        'author'    => $parent->get('Author') ?: '',
+                        'is_active' => true,
+                        'is_child'  => false,
+                        'path'      => $parent->get_template_directory(),
                     ];
+                    $components['theme:' . $parent->get_template()] = array_merge($pcomp, ComponentIntegrityVerifier::verify_component($pcomp, $deep_verify));
                 }
             }
         }
 
         // 3. MU-Plugins
         if (defined('WPMU_PLUGIN_DIR') && is_dir(WPMU_PLUGIN_DIR)) {
-            $components['mu_plugins'] = [
+            $mu_comp = [
                 'type'      => 'mu_plugin',
                 'slug'      => 'mu-plugins',
                 'name'      => 'Must-Use Plugins',
@@ -767,6 +880,7 @@ class SiteBehavioralAnalyzer {
                 'is_active' => true,
                 'path'      => WPMU_PLUGIN_DIR,
             ];
+            $components['mu_plugins'] = array_merge($mu_comp, ComponentIntegrityVerifier::verify_component($mu_comp, $deep_verify));
         }
 
         return $components;
@@ -782,16 +896,30 @@ class SiteBehavioralAnalyzer {
         $queue = [];
 
         foreach ($components as $comp) {
+            // Skip self-plugin AST scanning when verified clean against plugin-manifest.json
+            if (($comp['slug'] ?? '') === 'webcare-pro-security' && !empty($comp['checksum_verified'])) {
+                continue;
+            }
+
+            $meta = [
+                'component'         => $comp['name'],
+                'slug'              => $comp['slug'] ?? '',
+                'version'           => $comp['version'] ?? '',
+                'type'              => $comp['type'],
+                'origin_type'       => $comp['origin_type'] ?? 'custom_unmanaged',
+                'is_official_wporg' => !empty($comp['is_official_wporg']),
+                'is_known_vendor'   => !empty($comp['is_known_vendor']),
+                'vendor_name'       => $comp['vendor_name'] ?? null,
+            ];
+
             $path = $comp['path'] ?? '';
             if (!is_dir($path)) {
                 // Single file plugin
                 if (file_exists($path . '.php')) {
-                    $queue[] = [
-                        'component' => $comp['name'],
-                        'type'      => $comp['type'],
-                        'path'      => $path . '.php',
-                        'rel_path'  => basename($path . '.php'),
-                    ];
+                    $queue[] = array_merge($meta, [
+                        'path'     => $path . '.php',
+                        'rel_path' => basename($path . '.php'),
+                    ]);
                 }
                 continue;
             }
@@ -809,17 +937,15 @@ class SiteBehavioralAnalyzer {
 
                     $filePath = wp_normalize_path($item->getPathname());
 
-                    // Skip vendor, node_modules, cache, dist directories
-                    if (preg_match('#/(?:node_modules|vendor|\.git|cache|dist|tests)/#i', $filePath)) {
+                    // Skip third-party vendor bundles, test suites, build artifacts & bundled SDKs
+                    if (preg_match('#/(?:node_modules|vendor|vendor_prefixed|freemius|\.git|\.github|cache|dist|tests|languages)/#i', $filePath)) {
                         continue;
                     }
 
-                    $queue[] = [
-                        'component' => $comp['name'],
-                        'type'      => $comp['type'],
-                        'path'      => $filePath,
-                        'rel_path'  => ltrim(str_replace(wp_normalize_path(WP_CONTENT_DIR), '', $filePath), '/\\'),
-                    ];
+                    $queue[] = array_merge($meta, [
+                        'path'     => $filePath,
+                        'rel_path' => ltrim(str_replace(wp_normalize_path(WP_CONTENT_DIR), '', $filePath), '/\\'),
+                    ]);
                 }
             } catch (\Throwable $e) {
                 continue;
