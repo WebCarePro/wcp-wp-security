@@ -36,13 +36,17 @@ class SettingsManager {
 
             // 3. AI Threat & Code Analysis Integration
             'ai_enabled'               => false,
-            'ai_provider'              => 'gemini', // gemini, openai, claude
+            'ai_provider'              => 'gemini', // gemini, openai, claude, deepseek, openrouter, wp_ai_connect
             'gemini_api_key'           => '',
             'gemini_model'             => 'gemini-3.5-flash-lite',
             'openai_api_key'           => '',
             'openai_model'             => 'gpt-6.1-sol',
             'claude_api_key'           => '',
             'claude_model'             => 'claude-sonnet-5-5',
+            'deepseek_api_key'         => '',
+            'deepseek_model'           => 'deepseek-chat',
+            'openrouter_api_key'       => '',
+            'openrouter_model'         => 'auto',
             'ai_temperature'           => 0.2,
             'ai_auto_analyze_critical' => false,
 
@@ -505,6 +509,8 @@ class SettingsManager {
             'openai_api_key',
             'gemini_api_key',
             'claude_api_key',
+            'deepseek_api_key',
+            'openrouter_api_key',
             'slack_webhook_url',
             'discord_webhook_url',
             'clickup_webhook_url',
@@ -526,6 +532,8 @@ class SettingsManager {
         $merged['has_openai_key']          = !empty($merged['openai_api_key']);
         $merged['has_gemini_key']          = !empty($merged['gemini_api_key']);
         $merged['has_claude_key']          = !empty($merged['claude_api_key']);
+        $merged['has_deepseek_key']        = !empty($merged['deepseek_api_key']);
+        $merged['has_openrouter_key']      = !empty($merged['openrouter_api_key']);
         $merged['has_cloudflare_key']      = !empty($merged['cloudflare_api_token']);
         $merged['has_slack_webhook']       = !empty($merged['slack_webhook_url']);
         $merged['has_discord_webhook']     = !empty($merged['discord_webhook_url']);
@@ -583,7 +591,7 @@ class SettingsManager {
 
         // 3. AI Threat Integration
         $clean['ai_enabled']               = !empty($merged['ai_enabled']);
-        $valid_ai = ['openai', 'gemini', 'claude', 'wp_ai_connect'];
+        $valid_ai = ['openai', 'gemini', 'claude', 'wp_ai_connect', 'deepseek', 'openrouter'];
         $clean['ai_provider']              = in_array($merged['ai_provider'] ?? '', $valid_ai, true) 
             ? $merged['ai_provider'] 
             : 'openai';
@@ -607,7 +615,7 @@ class SettingsManager {
         $clean['gemini_api_key'] = ($gemini_val === $old_gemini_val && !empty($current['gemini_api_key']))
             ? $current['gemini_api_key']
             : \WebCareProScanner\Security\SecretVault::encrypt($gemini_val);
-        $clean['gemini_model'] = sanitize_text_field($merged['gemini_model'] ?? 'gemini-3.8-flash');
+        $clean['gemini_model'] = sanitize_text_field($merged['gemini_model'] ?? 'gemini-3.5-flash-lite');
 
         $in_claude = trim($input['claude_api_key'] ?? '');
         $old_claude_val = \WebCareProScanner\Security\SecretVault::decrypt($current['claude_api_key'] ?? '');
@@ -618,6 +626,26 @@ class SettingsManager {
             ? $current['claude_api_key']
             : \WebCareProScanner\Security\SecretVault::encrypt($claude_val);
         $clean['claude_model'] = sanitize_text_field($merged['claude_model'] ?? 'claude-sonnet-5-5');
+
+        $in_deepseek = trim($input['deepseek_api_key'] ?? '');
+        $old_deepseek_val = \WebCareProScanner\Security\SecretVault::decrypt($current['deepseek_api_key'] ?? '');
+        $deepseek_val = ($in_deepseek === '' || $in_deepseek === '••••••••') 
+            ? $old_deepseek_val 
+            : sanitize_text_field($in_deepseek);
+        $clean['deepseek_api_key'] = ($deepseek_val === $old_deepseek_val && !empty($current['deepseek_api_key']))
+            ? $current['deepseek_api_key']
+            : \WebCareProScanner\Security\SecretVault::encrypt($deepseek_val);
+        $clean['deepseek_model'] = sanitize_text_field($merged['deepseek_model'] ?? 'deepseek-chat');
+
+        $in_openrouter = trim($input['openrouter_api_key'] ?? '');
+        $old_openrouter_val = \WebCareProScanner\Security\SecretVault::decrypt($current['openrouter_api_key'] ?? '');
+        $openrouter_val = ($in_openrouter === '' || $in_openrouter === '••••••••') 
+            ? $old_openrouter_val 
+            : sanitize_text_field($in_openrouter);
+        $clean['openrouter_api_key'] = ($openrouter_val === $old_openrouter_val && !empty($current['openrouter_api_key']))
+            ? $current['openrouter_api_key']
+            : \WebCareProScanner\Security\SecretVault::encrypt($openrouter_val);
+        $clean['openrouter_model'] = sanitize_text_field($merged['openrouter_model'] ?? 'auto');
 
         $clean['ai_temperature']           = max(0.0, min(1.0, floatval($merged['ai_temperature'] ?? 0.2)));
         $clean['ai_auto_analyze_critical'] = !empty($merged['ai_auto_analyze_critical']);
@@ -1228,6 +1256,8 @@ class SettingsManager {
             'openai_api_key',
             'gemini_api_key',
             'claude_api_key',
+            'deepseek_api_key',
+            'openrouter_api_key',
             'slack_webhook_url',
             'discord_webhook_url',
             'clickup_webhook_url',

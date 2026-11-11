@@ -2412,7 +2412,7 @@ class ScannerRoutes {
                 if (isset($adv['ai_enabled'])) {
                     $advanced_payload['ai_enabled'] = (bool) $adv['ai_enabled'];
                 }
-                if (!empty($adv['ai_provider']) && in_array($adv['ai_provider'], ['openai', 'gemini', 'claude', 'wp_ai_connect'], true)) {
+                if (!empty($adv['ai_provider']) && in_array($adv['ai_provider'], ['openai', 'gemini', 'claude', 'wp_ai_connect', 'deepseek', 'openrouter'], true)) {
                     $advanced_payload['ai_provider'] = $adv['ai_provider'];
                 }
                 if (!empty($adv['openai_api_key'])) {
@@ -2423,6 +2423,18 @@ class ScannerRoutes {
                 }
                 if (!empty($adv['claude_api_key'])) {
                     $advanced_payload['claude_api_key'] = sanitize_text_field($adv['claude_api_key']);
+                }
+                if (!empty($adv['deepseek_api_key'])) {
+                    $advanced_payload['deepseek_api_key'] = sanitize_text_field($adv['deepseek_api_key']);
+                }
+                if (!empty($adv['openai_model'])) {
+                    $advanced_payload['openai_model'] = sanitize_text_field($adv['openai_model']);
+                }
+                if (!empty($adv['gemini_model'])) {
+                    $advanced_payload['gemini_model'] = sanitize_text_field($adv['gemini_model']);
+                }
+                if (!empty($adv['claude_model'])) {
+                    $advanced_payload['claude_model'] = sanitize_text_field($adv['claude_model']);
                 }
 
                 // Trusted proxy IPs

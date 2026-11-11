@@ -1,6 +1,6 @@
 {
   "version": "2.11.0",
-  "generated_at": "2026-11-11T11:11:26.304Z",
+  "generated_at": "2026-11-11T11:35:39.572Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -128,12 +128,12 @@
       "size": 217790
     },
     "build/wizard.asset.php": {
-      "sha256": "4abb346788df96fce3a50b0a0222d0f1324d75dc8b4c329ed8caf6db102bdc7c",
+      "sha256": "e61659da45c1515ef83d80fca729045588a2ad3c2f771ae76c16d1b74e675f9e",
       "size": 163
     },
     "build/wizard.js": {
-      "sha256": "0d25c6f3a95fb7ecf9a8454aecea427d986706de3aa60de0d541b302fb0ac77d",
-      "size": 211493
+      "sha256": "367ec48dc56787e8b4bef9af8048818bc3549c62ca4d3c72be571bc4329bce27",
+      "size": 219358
     },
     "composer.json": {
       "sha256": "c8da82c3bdaa6143faa9a2afb4bf49271716218c26dd822743de68066b642f46",
@@ -160,8 +160,8 @@
       "size": 76481
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "a0cda6621d936970bef9fbbec8867dff469e50d08046e48c6435d225ddffde15",
-      "size": 638158
+      "sha256": "0b0bfe0209eeab07ea62c578fdbed879d731f3c4b5baece20c7e893a8f368e8e",
+      "size": 638872
     },
     "includes/Auth/ApplicationPasswordSentinel.php": {
       "sha256": "754ad5f553ce557b95bd929084572474c6fb9177c5c31d9508d06a4d9564f1bd",
@@ -720,8 +720,8 @@
       "size": 8084
     },
     "includes/System/AIService.php": {
-      "sha256": "d42e1bb1d2c7d01f8ceee48743e1ed91310b93d7e9de03f1badb6dfe14e4f269",
-      "size": 45822
+      "sha256": "d08116e8624d940e1c25cd620df47771efc4e18f101d34e7c8fc10806932621e",
+      "size": 52738
     },
     "includes/System/AuditLogger.php": {
       "sha256": "af5db04a8ff85888611141a90db76d7f40ed70b146573652af5c984763882a93",
@@ -744,8 +744,8 @@
       "size": 24882
     },
     "includes/System/SettingsManager.php": {
-      "sha256": "4088ff64b92d5f8ce78d59662eba3f88f40134568e9cbb0de8c9206f120c7c8d",
-      "size": 101615
+      "sha256": "ba33404e4b177530fba1e99de079922aa6719afa4575009f441aa2a0c7fd15d2",
+      "size": 103593
     },
     "includes/System/SystemReadinessChecker.php": {
       "sha256": "50515a4af5622d2e86858abbd9f26344f1a02e3f796684ea8e04c139a02403e6",

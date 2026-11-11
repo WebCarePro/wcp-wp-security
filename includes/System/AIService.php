@@ -98,10 +98,16 @@ class AIService {
         $model = '';
         if ($provider === 'gemini') {
             $api_key = !empty($data['api_key']) ? $data['api_key'] : ($settings['gemini_api_key'] ?? '');
-            $model = !empty($data['model']) ? $data['model'] : ($settings['gemini_model'] ?? 'gemini-3.8-flash');
+            $model = !empty($data['model']) ? $data['model'] : ($settings['gemini_model'] ?? 'gemini-3.5-flash-lite');
         } elseif ($provider === 'claude') {
             $api_key = !empty($data['api_key']) ? $data['api_key'] : ($settings['claude_api_key'] ?? '');
             $model = !empty($data['model']) ? $data['model'] : ($settings['claude_model'] ?? 'claude-sonnet-5-5');
+        } elseif ($provider === 'deepseek') {
+            $api_key = !empty($data['api_key']) ? $data['api_key'] : ($settings['deepseek_api_key'] ?? '');
+            $model = !empty($data['model']) ? $data['model'] : ($settings['deepseek_model'] ?? 'deepseek-chat');
+        } elseif ($provider === 'openrouter') {
+            $api_key = !empty($data['api_key']) ? $data['api_key'] : ($settings['openrouter_api_key'] ?? '');
+            $model = !empty($data['model']) ? $data['model'] : ($settings['openrouter_model'] ?? 'auto');
         } elseif ($provider === 'wp_ai_connect') {
             $api_key = '';
             $model = 'wp-native-ai';
@@ -523,6 +529,10 @@ class AIService {
             return self::call_gemini($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
         } elseif ($provider === 'claude') {
             return self::call_claude($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
+        } elseif ($provider === 'deepseek') {
+            return self::call_deepseek($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
+        } elseif ($provider === 'openrouter') {
+            return self::call_openrouter($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
         } else {
             return self::call_openai($api_key, $model, $system, $user, $temp, $max_tokens, $timeout);
         }
@@ -684,6 +694,103 @@ class AIService {
     }
 
     /**
+     * DeepSeek API Implementation (DeepSeek-V3, DeepSeek-R1)
+     */
+    private static function call_deepseek(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
+        // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
+        $url = 'https://api.deepseek.com/chat/completions';
+
+        $body = [
+            'model'       => $model ?: 'deepseek-chat',
+            'temperature' => $temp,
+            'max_tokens'  => $max_tokens,
+            'messages'    => [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+        ];
+
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
+        @set_time_limit(max(60, $timeout + 30));
+
+        $response = wp_remote_post($url, [
+            'timeout' => $timeout,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+            ],
+            'body'    => wp_json_encode($body),
+        ]);
+
+        if (is_wp_error($response)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('DeepSeek Request Failed: ' . esc_html($response->get_error_message()));
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $raw = wp_remote_retrieve_body($response);
+        $data = json_decode($raw, true);
+
+        if ($code !== 200) {
+            $err = $data['error']['message'] ?? "HTTP error {$code}";
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('DeepSeek Error: ' . esc_html($err));
+        }
+
+        return $data['choices'][0]['message']['content'] ?? '';
+    }
+
+    /**
+     * OpenRouter API Implementation
+     */
+    private static function call_openrouter(string $api_key, string $model, string $system, string $user, float $temp, int $max_tokens = 1200, int $timeout = 45): string {
+        // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- Multi-provider AI security assistant with proprietary prompts and direct user-supplied API keys
+        $url = 'https://openrouter.ai/api/v1/chat/completions';
+
+        $chosen_model = ($model && $model !== 'auto') ? $model : 'openrouter/auto';
+        $body = [
+            'model'       => $chosen_model,
+            'temperature' => $temp,
+            'max_tokens'  => $max_tokens,
+            'messages'    => [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+        ];
+
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
+        @set_time_limit(max(60, $timeout + 30));
+
+        $response = wp_remote_post($url, [
+            'timeout' => $timeout,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+                'HTTP-Referer'  => home_url(),
+                'X-Title'       => 'WebCare Pro Security',
+            ],
+            'body'    => wp_json_encode($body),
+        ]);
+
+        if (is_wp_error($response)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('OpenRouter Request Failed: ' . esc_html($response->get_error_message()));
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $raw = wp_remote_retrieve_body($response);
+        $data = json_decode($raw, true);
+
+        if ($code !== 200) {
+            $err = $data['error']['message'] ?? "HTTP error {$code}";
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \Exception('OpenRouter Error: ' . esc_html($err));
+        }
+
+        return $data['choices'][0]['message']['content'] ?? '';
+    }
+
+    /**
      * Get available model registry for all providers
      */
     public static function get_available_models(): array {
@@ -775,6 +882,51 @@ class AIService {
                         'name'        => 'Claude Haiku 5.5',
                         'badge'       => 'Haiku 5.5',
                         'description' => 'Ultra-Low Latency Response for Quick File Checks',
+                        'is_default'  => false,
+                    ],
+                ],
+            ],
+            'deepseek' => [
+                'current_default' => 'deepseek-chat',
+                'models' => [
+                    [
+                        'id'          => 'deepseek-chat',
+                        'name'        => 'DeepSeek-V3',
+                        'badge'       => 'V3',
+                        'description' => 'Cost-Effective High-Throughput Forensic Reasoning',
+                        'is_default'  => true,
+                    ],
+                    [
+                        'id'          => 'deepseek-reasoner',
+                        'name'        => 'DeepSeek-R1',
+                        'badge'       => 'R1 Reasoner',
+                        'description' => 'Deep Chain-of-Thought Malware De-obfuscation',
+                        'is_default'  => false,
+                    ],
+                ],
+            ],
+            'openrouter' => [
+                'current_default' => 'auto',
+                'models' => [
+                    [
+                        'id'          => 'auto',
+                        'name'        => 'OpenRouter Auto (Best Available)',
+                        'badge'       => 'Auto',
+                        'description' => 'Automatically routes to lowest-latency available model',
+                        'is_default'  => true,
+                    ],
+                    [
+                        'id'          => 'anthropic/claude-3.5-sonnet',
+                        'name'        => 'Claude 3.5 Sonnet',
+                        'badge'       => 'Sonnet',
+                        'description' => 'Via OpenRouter API Gateway',
+                        'is_default'  => false,
+                    ],
+                    [
+                        'id'          => 'openai/gpt-4o',
+                        'name'        => 'GPT-4o',
+                        'badge'       => 'GPT-4o',
+                        'description' => 'Via OpenRouter API Gateway',
                         'is_default'  => false,
                     ],
                 ],
