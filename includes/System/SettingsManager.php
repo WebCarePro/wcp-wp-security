@@ -117,7 +117,7 @@ class SettingsManager {
             'waf_blocked_ips'          => '',
             'waf_block_fake_bots'      => true,
             'waf_block_ai_scrapers'    => false,
-            'waf_dynamic_robots_ai'    => true,
+            'waf_dynamic_robots_ai'    => false,
             'waf_block_404_scanners'   => true, // Smart 404 scanner rate limiter
             'waf_404_threshold'        => 10,   // Max 404s before temporary ban (e.g. 10)
             'waf_404_window_seconds'   => 60,   // Rolling time window in seconds (default 60s)
