@@ -83,6 +83,17 @@ class ComponentIntegrityVerifier {
         'flying-press'         => ['vendor' => 'FlyingPress', 'domains' => ['flyingpress.com']],
         'sfwd-lms'             => ['vendor' => 'LearnDash / StellarWP', 'domains' => ['learndash.com', 'stellarwp.com']],
         'learndash'            => ['vendor' => 'LearnDash / StellarWP', 'domains' => ['learndash.com', 'stellarwp.com']],
+        'uncanny'              => ['vendor' => 'Uncanny Owl', 'domains' => ['uncannyowl.com']],
+        'tin-canny'            => ['vendor' => 'Uncanny Owl', 'domains' => ['uncannyowl.com']],
+        'ulgm'                 => ['vendor' => 'Uncanny Owl', 'domains' => ['uncannyowl.com']],
+        'gravityflow'          => ['vendor' => 'Gravity Flow (CosmicGiant)', 'domains' => ['gravityflow.io', 'cosmicgiant.com']],
+        'gamipress'            => ['vendor' => 'GamiPress', 'domains' => ['gamipress.com']],
+        'elementskit'          => ['vendor' => 'Wpmet (ElementsKit)', 'domains' => ['wpmet.com']],
+        'host-webfonts-local'  => ['vendor' => 'Daan.dev (OMGF)', 'domains' => ['daan.dev', 'ffwp.nl']],
+        'omgf'                 => ['vendor' => 'Daan.dev (OMGF)', 'domains' => ['daan.dev', 'ffwp.nl']],
+        'all-in-one-wp-migration' => ['vendor' => 'ServMask', 'domains' => ['servmask.com']],
+        'profile-builder'      => ['vendor' => 'Cozmoslabs', 'domains' => ['cozmoslabs.com']],
+        'edubin'               => ['vendor' => 'PixelCurve (Edubin)', 'domains' => ['thepixelcurve.com']],
         'memberpress'          => ['vendor' => 'Caseproof (MemberPress)', 'domains' => ['memberpress.com']],
         'lifterlms'            => ['vendor' => 'LifterLMS', 'domains' => ['lifterlms.com']],
         'paid-memberships-pro' => ['vendor' => 'Stranger Studios (PMPro)', 'domains' => ['paidmembershipspro.com']],
@@ -150,6 +161,7 @@ class ComponentIntegrityVerifier {
         'blocksy'       => ['vendor' => 'CreativeThemes (Blocksy)', 'domains' => ['creativethemes.com']],
         'genesis'       => ['vendor' => 'StudioPress (Genesis)', 'domains' => ['studiopress.com']],
         'salient'       => ['vendor' => 'ThemeNectar (Salient)', 'domains' => ['themenectar.com']],
+        'edubin'        => ['vendor' => 'PixelCurve (Edubin)', 'domains' => ['thepixelcurve.com']],
     ];
 
     /**
@@ -236,6 +248,13 @@ class ComponentIntegrityVerifier {
 
         // 5. Determine Final Origin Type & Trust Tier
         if ($result['is_official_wporg']) {
+            if (empty($result['vendor_name']) && !empty($comp['author'])) {
+                $clean_author = trim(sanitize_text_field(wp_strip_all_tags((string) $comp['author'])));
+                if ($clean_author !== '') {
+                    $result['vendor_name'] = $clean_author;
+                }
+            }
+
             if ($result['checksum_status'] === 'modified_files_detected' || $result['checksum_status'] === 'unknown_files_detected') {
                 $result['origin_type']  = 'official_wporg';
                 $result['origin_label'] = __('WordPress.org Official (Integrity Alert)', 'webcare-pro-security');

@@ -13253,10 +13253,14 @@ class ScannerRoutes {
         $origin_breakdown = [];
         $flag_stats = [
             'public_routes'               => (int) ($inventory['public_routes_count'] ?? 0),
+            'discovery_index_routes'      => (int) ($inventory['discovery_index_routes_count'] ?? 0),
+            'storefront_guarded_routes'   => (int) ($inventory['storefront_guarded_routes_count'] ?? 0),
             'unauth_write_routes'         => (int) ($inventory['unauth_post_routes'] ?? 0),
             'mixed_auth_protected_routes' => (int) ($inventory['mixed_auth_protected_routes'] ?? 0),
             'locked_routes'               => 0,
             'shielded_routes'             => 0,
+            'unguarded_nopriv_ajax'       => (int) ($inventory['unguarded_nopriv_ajax_count'] ?? 0),
+            'protected_nopriv_ajax'       => (int) ($inventory['protected_nopriv_ajax_count'] ?? 0),
             'shielded_ajax_nopriv'        => 0,
         ];
         foreach ($routes as $rt) {

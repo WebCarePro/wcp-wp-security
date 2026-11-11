@@ -243,13 +243,17 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-AJAX-' . strtoupper(substr(md5($action), 0, 8));
                 $prev    = $existing_by_id[$rule_id] ?? null;
 
-                $is_authentic_wporg = !empty($f['is_official_wporg'])
-                    && in_array($f['checksum_status'] ?? '', ['authentic', 'self_verified'], true);
+                $is_tampered = in_array($f['checksum_status'] ?? '', ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true);
+                $is_authentic_wporg = !$is_tampered && (
+                    (!empty($f['is_official_wporg']) && in_array($f['checksum_status'] ?? '', ['authentic', 'self_verified'], true))
+                    || (($f['checksum_status'] ?? '') === 'self_verified')
+                );
+                $is_trusted_vendor = !$is_tampered && !empty($f['is_known_vendor']);
                 $has_sink = array_key_exists('has_dangerous_sink', $f) ? !empty($f['has_dangerous_sink']) : true;
 
-                // Read-only or checksum-verified official WP.org callbacks recommend monitor instead of aggressive block
-                $rec_mode = ($is_authentic_wporg || !$has_sink) ? 'monitor' : 'enforce';
-                $sev      = (!$has_sink && $is_authentic_wporg) ? 'medium' : ($has_sink ? 'critical' : 'high');
+                // Read-only or checksum-verified / trusted vendor callbacks recommend monitor to avoid blocking legitimate features
+                $rec_mode = ($is_authentic_wporg || $is_trusted_vendor || !$has_sink) ? 'monitor' : 'enforce';
+                $sev      = (!$has_sink && ($is_authentic_wporg || $is_trusted_vendor)) ? 'medium' : ($has_sink && !$is_authentic_wporg && !$is_trusted_vendor ? 'critical' : 'high');
                 $cur_mode = $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : $rec_mode);
 
                 $rules[] = self::enrich_synthesized_rule([
@@ -294,7 +298,16 @@ class ModularFirewallSynthesizer {
                 }
 
                 $rule_id = 'MOD-REST-' . strtoupper(substr(md5($route), 0, 8));
-                $prev = $existing_by_id[$rule_id] ?? null;
+                $prev    = $existing_by_id[$rule_id] ?? null;
+
+                $is_tampered_rest = in_array($f['checksum_status'] ?? '', ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true);
+                $is_trusted_rest  = !$is_tampered_rest && (
+                    !empty($f['has_internal_guard'])
+                    || !empty($f['is_known_vendor'])
+                    || (!empty($f['is_official_wporg']) && in_array($f['checksum_status'] ?? '', ['authentic', 'self_verified'], true))
+                );
+                $rest_rec_mode = $is_trusted_rest ? 'monitor' : 'enforce';
+                $rest_sev      = $is_trusted_rest ? 'medium' : 'high';
 
                 $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
@@ -313,9 +326,9 @@ class ModularFirewallSynthesizer {
                     'file'             => $f['file'] ?? '',
                     'line'             => $f['line'] ?? 1,
                     'evidence'         => $f['evidence'] ?? '',
-                    'severity'            => 'high',
-                    'recommended_mode'    => 'enforce',
-                    'current_mode'        => $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : 'enforce'),
+                    'severity'            => $rest_sev,
+                    'recommended_mode'    => $rest_rec_mode,
+                    'current_mode'        => $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : $rest_rec_mode),
                     'target_uri'          => $route,
                     'target_param'        => '',
                     'target_value'        => '',

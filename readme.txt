@@ -218,6 +218,7 @@ To compile the React admin application from source:
 
 = 2.12.0 =
 * Plugin Check (PCP) Sandbox Authentication & RASP Hardening: Added original-table auth cookie verification (`get_original_table_prefix()`, `is_plugin_check_db_sandbox()`, `validate_cookie_against_original_tables()`), fixed `AUTH_COOKIE` scheme lookup, increased RASP stack inspection depth to 40 frames, and skipped seeding HoneyToken canary users/options inside temporary `*_pc_` compliance test sandboxes while keeping unauthenticated referer/action spoofing strictly blocked.
+* REST API & AJAX Attack Surface & Modular WAF False-Positive Tuning: Fixed Reflection handler ownership for inherited background queue subclasses, separated Core REST discovery indexes and Storefront/internal-guarded routes from unguarded write risks, added AST callback guard inspection and split multi-method `register_rest_route()` inspection blocks, expanded known vendor identification, and calibrated Modular WAF Monitor vs Enforce recommendations on verified/read-only endpoints.
 
 = 2.11.0 =
 * Production WAF Telemetry Learnings & False-Positive Hardening: Immunized standard RFC 8615 well-known endpoints (/.well-known/related-website-set.json, assetlinks.json, apple-app-site-association, acme-challenge, security.txt) from 404 attack counters, eliminating false-positive lockouts on modern mobile browsers.
