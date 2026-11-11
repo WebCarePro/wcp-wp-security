@@ -95,6 +95,10 @@ Built with a high-performance **React 18 + TypeScript** administrative single-pa
 85. [Egress & SSRF Firewall Legitimate Webhook Whitelisting & Caller Attribution](#85-egress--ssrf-firewall-legitimate-webhook-whitelisting--caller-attribution)
 86. [Zero-Day Redirect Hack Defense & .htaccess Vault Armor](#86-zero-day-redirect-hack-defense--htaccess-vault-armor)
 87. [Next-Gen Cryptographic Self-Defense & In-Memory Integrity Verification](#87-next-gen-cryptographic-self-defense--in-memory-integrity-verification)
+88. [Cloudflare Edge WAF "4 + 1" Smart Consolidation & Autonomous Auto-Sync System](#88-cloudflare-edge-waf-4--1-smart-consolidation--autonomous-auto-sync-system)
+89. [2026 Advanced Smart Rules Suite (Rules #48–#54) & In-Depth Perimeter Armor](#89-2026-advanced-smart-rules-suite-rules-4854--in-depth-perimeter-armor)
+90. [High-Traffic WooCommerce & E-Commerce Production Hardening](#90-high-traffic-woocommerce--e-commerce-production-hardening)
+91. [Production Telemetry Intelligence & Zero-False-Positive Refinements](#91-production-telemetry-intelligence--zero-false-positive-refinements)
 
 ---
 
@@ -1321,7 +1325,7 @@ Cloudflare's Free Plan allows a maximum of 5 Custom Firewall Rules. If a securit
   * Strictly caps WebCare-managed rules to `MAX_WEBCARE_SLOTS = 4` in `CloudflareSlotOptimizer.php`.
   * Dynamically calculates remaining slot budget via `min(4, max(0, 5 - count(user_rules)))`, ensuring user-defined dashboard rules are never overwritten or deleted.
 - **The 4 Unified Master Compound Rules:**
-  1. **Rule 1 (Action: BLOCK) — Zero-Day Perimeter, Malicious Sinks & Threat List:** Drops `/xmlrpc.php` abuse, script execution in `uploads/` and `upgrade/` (`.php`, `.phtml`, `.phar`, `.sh`), sensitive file probes (`wp-config.php`, `.env`, `.git`, `.htpasswd`, `debug.log`, backups), hostile HTTP methods (`TRACE`, `TRACK`, `DEBUG`), and Cloudflare Account IP Blocklist (`$webcare_threat_blocklist`).
+  1. **Rule 1 (Action: BLOCK) — Zero-Day Perimeter, Malicious Sinks & Threat List:** Drops script execution in `uploads/` and `upgrade/` (`.php`, `.phtml`, `.phar`, `.sh`), sensitive file probes (`wp-config.php`, `.env`, `.git`, `.htpasswd`, `debug.log`, backups), hostile HTTP methods (`TRACE`, `TRACK`, `DEBUG`), and Cloudflare Account IP Blocklist (`$webcare_threat_blocklist`), while routing `/xmlrpc.php` to the origin server so Jetpack's verified Automattic Smart Pass and local WAF defenses can inspect requests dynamically.
   2. **Rule 2 (Action: BLOCK) — StackGuard Inactive Plugin Lockdown & Stack-Scoped CVE Virtual Patches:** Automatically extracts deactivated plugins from `StackSnapshot->inactive_plugins` and drops bot probes targeting dormant directories (`starts_with(http.request.uri.path, "/wp-content/plugins/{slug}/")`), plus compiles high-priority CVE virtual patches with AST byte-budget truncation (<4,000 bytes).
   3. **Rule 3 (Action: MANAGED_CHALLENGE) — Adaptive Bot, Brute-Force & Under-Attack Velocity Shield:** Challenges automated bot crawlers targeting `/wp-login.php`, `/wp-register.php` (and WooCommerce `/my-account` if active), comment spam floods, and scraper user-agents (`sqlmap`, `wpscan`, `nuclei`, `nikto`). Features dynamic Origin Survival Mode escalation during attack surges.
   4. **Rule 4 (Action: BLOCK) — Deep SQLi, LFI & Reconnaissance Armor:** Terminates UNION SELECT, sleep/benchmark delays, information_schema, directory traversal (`../`, `..%2f`), remote function injection (`eval(`, `base64_decode`), and unauthenticated user enumeration. Features automatic false-positive exemption for WooCommerce Store API (`/wp-json/wc/store/`) when WooCommerce is active.
@@ -1332,6 +1336,49 @@ Cloudflare's Free Plan allows a maximum of 5 Custom Firewall Rules. If a securit
   * `DistributedVelocityShield` triggers Origin Survival Mode on carding or credential stuffing surges (>15 failures/min), dynamically expanding Rule 3 to challenge 100% of untrusted traffic to sensitive endpoints at Cloudflare Edge.
   * Auto-de-escalates back to baseline after 15 minutes of normal traffic.
   * Direct zero-latency attacker IP banning via Cloudflare's 50,000 Zone IP Access Rules (`/zones/{zone_id}/firewall/access_rules/rules`), which run outside the 5 Custom WAF rules slots and flush post-response via `fastcgi_finish_request()` in 0ms visitor latency.
+
+---
+
+## 89. 2026 Advanced Smart Rules Suite (Rules #48–#54) & In-Depth Perimeter Armor
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Modern cyber threats in 2026 don't just rely on basic password guessing. Attackers use sophisticated evasions like disguising attacks as URL query parameters (`?rest_route=`), submitting PHP array structures into login and password-reset forms to crash servers, exploiting hidden template render gadgets, manipulating modern WordPress block bindings, forging fake Stripe or PayPal payment webhook notifications, stealing private `.env` files and logs, or hiding webshells inside compressed `.svgz` image files. The WebCare Pro Smart Rules suite (Rules #48 through #54) brings specialized, pinpoint defense against each of these cutting-edge attack vectors, stopping intruders cold on their very first attempt without generating false alarms for legitimate users.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Smart Rule #48 (`?rest_route=` Query Smuggling & HTTP Method Override Guard):** Normalizes URI routing across both `MicroWafCompiler.php` and `FirewallEngine.php` so attackers cannot bypass `/wp-json/` rules via `?rest_route=` query parameters. Neutralizes unauthenticated HTTP method overrides (`_method=DELETE`, `_method=PUT`, `X-HTTP-Method-Override: PUT`, `X-Method-Override: PATCH`) and incorporates query-based REST user enumeration checks into Cloudflare Rule 4.
+- **Smart Rule #49 (Authentication Array Type-Confusion Trap):** Detects and aborts non-scalar array submissions (`user_login[]=admin`, `pwd[]=`, `rp_key[]=`, `key[]=`) targeting authentication and password-reset endpoints (`wp-login.php`, `action=rp`, `action=resetpass`, `/my-account`). Gated to non-administrative sessions to prevent PHP 8+ `TypeError` fatals and loose comparison auth bypasses without interfering with benign builder or translation arrays.
+- **Smart Rule #50 (Unauthenticated Shortcode & Callable Render Gadget Trap):** Intercepts unauthenticated calls to `admin-ajax.php` and REST endpoints passing `action=parse-media-shortcode` or serialized/JSON callable arrays (`["System", "exec"]`, `render_callback`) targeting known RCE gadget chains in third-party builders and plugins.
+- **Smart Rule #51 (WordPress 7.0+ Interactivity API & Block Bindings Shield):** Protects WordPress 6.5–7.0+ Interactivity API directives (`data-wp-init`, `data-wp-watch`, `data-wp-on--*`) against prototype pollution (`__proto__`, `constructor.prototype`), and uses `BlockDirectiveSanitizer.php` to intercept unauthorized block bindings targeting sensitive meta keys (`_application_passwords`, `wp_capabilities`, `_wc_stripe`, `_paypal`).
+- **Smart Rule #52 (Forged Payment Gateway Webhook Trap):** Deep packet inspection on incoming webhooks presenting `Stripe-Signature` or `PayPal-Transmission-Sig` headers from unauthenticated public IPs outside official gateway CIDRs and ASNs, immediately blocking and banning forged payment signals.
+- **Smart Rule #53 (Sensitive Log, `.env.*` & Byte-Range Exfiltration Instant Ban):** Catches unauthorized requests targeting `/wc-logs/`, `php_errorlog`, `.env.*`, `.svn/wc.db`, `auth.json`, and `Range: bytes=` partial exfiltration probes, escalating culprits directly to an instant 1st-hit 24h local and Cloudflare ban.
+- **Smart Rule #54 (Gzipped `.svgz` In-Memory Decompression & Polyglot Upload Trap):** Transparently decompresses `.svgz` streams in memory using `gzdecode()` on `\x1f\x8b` gzip signatures prior to SVG sanitization, escalating malicious polyglot, webshell, and executable uploads to immediate 24h bans.
+
+---
+
+## 90. High-Traffic WooCommerce & E-Commerce Production Hardening
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Running security on a busy online store is very different from securing a personal blog. When payments fail because a shopper mistyped their credit card, or when a payment gateway notifies your store in the background, a dumb firewall might accidentally ban Stripe or PayPal's servers, or lock out customers who are simply trying different promo codes. WebCare Pro Security includes specialized e-commerce hardening: it always attributes payment failures to the actual shopper rather than the payment gateway, allows customers to test multiple coupon codes with extra leeway for active cart sessions, protects modern block checkouts, and eliminates false alarms on customer order notes.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **Asynchronous Webhook Customer IP Extraction (`handle_woo_payment_failure()` & `DistributedVelocityShield`):** Resolves the authentic shopper's IP address directly from `$order->get_customer_ip_address()` when payment gateways (Stripe, PayPal, WooPayments, Klarna, Mollie, 3DS) report failed orders asynchronously, strictly safeguarding payment gateway servers from carding lockouts.
+- **Checkout Failure Velocity Deduplication:** Introduced per-request static memoization in `DistributedVelocityShield::record_checkout_failure()` and removed duplicate cross-calls from `FirewallEngine`, guaranteeing declined cards are counted exactly once toward velocity limits instead of 2x–4x double-counting.
+- **WooCommerce Block Checkout & Store API Protection:** Enforces Carding Lockout (Rule #38) on `/wc/store/v1/checkout`, Coupon Lockout (Rule #39) on `/wc/store/v1/cart/apply-coupon`, and Catalog Scraping Defense (Rule #42) on `/wc/store/v1/products` prior to safe route allowlisting, including sub-request inspection for `/wc/store/v1/batch`.
+- **Order Notes & Complex Passwords False-Positive Elimination:** Refactored `evaluate_rules()` XSS matching to require HTML tag context and JavaScript assignment markers, eliminating false alarms on benign checkout notes (e.g. "leave package on back porch") and masked sensitive password fields from payload regex checks.
+- **Tuned Coupon Velocity Shield with Cart Session Leniency:** Raised default failed coupon attempts from 5 to 8 in `SettingsManager.php`, granting shoppers with verified active cart cookies/sessions an additional 4 attempts (up to 12 attempts) before enforcing a 15-minute coupon lockout.
+
+---
+
+## 91. Production Telemetry Intelligence & Zero-False-Positive Refinements
+
+### 💡 Plain-English Overview (For Everyone & Non-Tech Users)
+Real-world production environments introduce edge cases: modern smartphones and browsers automatically probe for web integration files (like Google First-Party Sets and Apple App Associations), speed testing tools (like WebPageTest and Google Lighthouse) run automated mobile tests in rapid bursts, and WordPress administrative check tools (Plugin Check) spin up temporary testing sandboxes. Based on real-world log telemetry across high-traffic production websites, WebCare Pro Security incorporates intelligent exemptions for standard browser integration paths, protects synthetic speed audit tools from 404 lockouts, routes Jetpack XML-RPC requests cleanly, and immunizes test runners from false privilege alerts.
+
+### ⚙️ Deep Technical Details & Architecture (For Developers & Engineers)
+- **RFC 8615 Standard Well-Known Path Exemption (`track_404_request()`):** Automatically immunizes standard `/.well-known/*` paths (First-Party Sets `/.well-known/related-website-set.json`, Web App manifests `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`, ACME challenges `/.well-known/acme-challenge/`, `security.txt`) from 404 scanner attack counters, ensuring standard OS/browser integration queries never trigger lockouts.
+- **Synthetic Performance Audit Runner Immunity (`BotReconDefense::is_synthetic_performance_tool()`):** Identifies read-only synthetic audit user-agents (`PTST/`, `WebPageTest`, `Chrome-Lighthouse`, `Google-PageSpeed`, `PageSpeed`, `GTmetrix`, `SpeedCurve`, `PingdomTMS`) on `GET`/`HEAD` requests and exempts them from 404 rate-limiting during automated site diagnostics.
+- **Cloudflare Edge Rule 1 & Jetpack Smart Pass Integration:** Stripped `/xmlrpc.php` from Cloudflare Edge Rule 1 Wirefilter, routing XML-RPC traffic to the origin server where the Automattic Jetpack Smart Pass (`is_verified_jetpack_request()`) validates authentic synchronization from official Automattic CIDR subnets (`192.0.64.0/18`, `198.181.116.0/22`) while blocking unauthorized attacker probes.
+- **Plugin Check (PCP) Test Harness & Sandbox Immunity:** Added dynamic sandbox table prefix exemptions (`_pc_`), caller stack inspection (`Plugin_Check`, `Runtime_Environment`, `Amend_DB_Base_Prefix`), and immediate referer/action fast-paths across all 4 Runtime RASP hooks (`rasp_guard_critical_options`, `rasp_guard_user_role_assignment`, `rasp_guard_user_registration`, `rasp_guard_user_metadata_injection`), preventing test runners in wp-admin from triggering privilege violation logs.
 
 ---
 

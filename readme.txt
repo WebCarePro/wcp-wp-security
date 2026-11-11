@@ -47,7 +47,7 @@ No. The scanner is built with a memory-safe batching engine that processes files
 Standard WordPress plugins store sensitive credentials like webhook URLs and Cloudflare tokens in plaintext inside `wp_options`. WebCare Pro Security & Firewall encrypts all sensitive data at rest using pure AES-256-GCM AEAD encryption with 128-bit integrity tags. If your database is exported or leaked, attackers see only ciphertext.
 
 = Can I use Cloudflare Free Plan with this plugin? =
-Yes! WebCare Pro Security & Firewall provides 100% Free Plan compatible Cloudflare integration. It deploys 3 master compound rules, leaving 2 custom rule slots free for user rules, plus edge rate limiting and bi-directional auto-ban synchronization.
+Yes! WebCare Pro Security & Firewall provides 100% Free Plan compatible Cloudflare integration. It deploys 4 master compound rules, leaving 1 custom rule slot 100% free for site owner rules, plus edge rate limiting and bi-directional auto-ban synchronization.
 
 = Does this plugin phone home or collect telemetry? =
 No. WebCare Pro Security & Firewall contains zero tracking, zero telemetry, and zero analytics. All scans and security checks execute 100% locally on your server.
@@ -215,6 +215,34 @@ To compile the React admin application from source:
 4. Run `npm run package` to compile and package the release zip.
 
 == Changelog ==
+
+= 2.11.0 =
+* Production WAF Telemetry Learnings & False-Positive Hardening: Immunized standard RFC 8615 well-known endpoints (/.well-known/related-website-set.json, assetlinks.json, apple-app-site-association, acme-challenge, security.txt) from 404 attack counters, eliminating false-positive lockouts on modern mobile browsers.
+* Synthetic Performance Audit Tool Immunity: Added recognition for read-only synthetic audit runners (WebPageTest PTST/, Chrome-Lighthouse, Google-PageSpeed, GTmetrix, SpeedCurve, PingdomTMS) to exempt speed test bots from 404 rate-limiting during automated site diagnostics.
+* WooCommerce High-Traffic Production Hardening: Resolved customer IP addresses directly from $order records on asynchronous payment webhooks (Stripe, PayPal, Mollie, Klarna, 3DS) to safeguard payment gateways from carding lockouts, deduplicated checkout failure tracking, enforced Store API block checkout security, and tuned coupon velocity to 8 attempts with active cart session leniency (up to 12 attempts).
+* Context-Aware Customer Order Notes & Complex Passwords: Required HTML tag context and JavaScript assignment markers for XSS regex checks, preventing false alarms on benign checkout notes (e.g. "leave on back porch") and masking sensitive password strings.
+* Cloudflare Edge Rule 1 & Jetpack Smart Pass: Stripped /xmlrpc.php from Cloudflare Edge Rule 1 to route XML-RPC traffic to origin where verified Automattic Jetpack Smart Pass (192.0.64.0/18, 198.181.116.0/22) operates smoothly while blocking unauthorized brute-force attempts.
+* Plugin Check (PCP) Test Harness Immunity: Immunized Runtime RASP hooks against test runner sandboxes (wp_pc_ / wpm3_pc_) and ensured administrative referers and actions never trigger privilege alerts or self-IP bans during compliance audits.
+
+= 2.10.0 =
+* 2026 Advanced Smart Rules Suite (Rules #48–#54): Implemented specialized defense primitives across MicroWafCompiler and FirewallEngine.
+* Smart Rule #48: Normalized ?rest_route= query parameter routing and blocked unauthenticated HTTP method overrides (_method=DELETE, X-HTTP-Method-Override).
+* Smart Rule #49: Trapped authentication and password-reset PHP array type-confusion injections (user_login[]=, pwd[]=, key[]=) to prevent PHP 8+ TypeError crashes.
+* Smart Rule #50: Intercepted unauthenticated admin-ajax / REST shortcode parse requests and serialized callable gadgets (["System", "exec"]) targeting builder RCE chains.
+* Smart Rule #51: Protected WordPress 7.0+ Interactivity API directives (data-wp-init, data-wp-watch) against prototype pollution and sanitized block bindings targeting sensitive meta keys.
+* Smart Rule #52: Deep-packet inspection intercepting forged Stripe-Signature or PayPal-Transmission-Sig webhooks from public IPs outside official gateway CIDRs/ASNs.
+* Smart Rule #53: Sensitive log and configuration exfiltration shield (/wc-logs/, php_errorlog, .env.*, auth.json, Range: bytes= probes) with instant 1st-hit 24h bans.
+* Smart Rule #54: In-memory gzdecode() decompression on gzipped .svgz images prior to sanitization, escalating malicious polyglot and webshell uploads to immediate 24h bans.
+* Cloudflare Real-Time Auto-Ban Sync Persistence: Out-of-the-box auto-sync enablement with live UI state synchronization between Settings and Firewall views.
+* Structured 240-Character Forensic Cloudflare Notes: Formatted rich edge ban notes preserving incident ID, rule name, HTTP method, and TTL expiration.
+* Recursive Upload Flattening: Safe recursive normalization (depth <= 4, count <= 50) of nested multi-dimensional $_FILES form arrays with pre-flight inspection.
+
+= 2.9.0 =
+* Context-Adaptive Firewall (CAF 2.0): Fingerprints active plugins to put irrelevant rules to sleep (e.g., e-commerce rules sleep on standard blogs, page-builder rules sleep when builders are absent), minimizing CPU overhead.
+* ThreatScore First-Hit Critical Exploit Banning: Deterministic exploits (SQL Injection, PHP Code Injection, Path Traversal) trigger an immediate 85-point violation and 24-hour hard ban on hit #1, offloading IPs to Cloudflare Edge in zero visitor latency via fastcgi_finish_request().
+* Cloudflare Edge "4 + 1" Smart Consolidation: Consolidates enterprise edge defense into 4 master compound rules on Cloudflare Free Plan, leaving 1 custom rule slot 100% free for site owner rules.
+* Zero-Day Redirect Hack Defense & .htaccess Vault Armor: 5-vector synthetic canary probes (Mobile, Googlebot, External Referer) detecting cloaked redirects, paired with a 5-version rolling .htaccess rollback vault.
+* Next-Gen Cryptographic Self-Defense: Real-time SHA-256 integrity audits against an embedded 204-file cryptographic manifest, detecting modified, missing, or rogue files with 1-click self-repair.
 
 = 2.4.0 =
 * AI/MCP Agent Governance & Plaintext Key Vaulting (AiAgentInventoryScanner.php, SecretVault.php): Discovers autonomous agents, LLM integrations, and MCP tools across active plugins, registered REST namespaces, and option keys. Automatically flags exposed REST routes missing authorization callbacks and migrates plaintext API secrets (OpenAI, Anthropic, Gemini, MCP) into AES-256-GCM AEAD encrypted storage.

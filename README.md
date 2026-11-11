@@ -28,7 +28,7 @@
 **WebCare Pro Security & Firewall** is a modern, high-performance WordPress security, malware detection, and forensic auditing plugin engineered by **[Mir Alamin](https://www.upwork.com/freelancers/~0162afa9a578170c67)** ([WebCare Pro](https://webcarespro.com)). 
 
 > [!NOTE]
-> **Active Engineering & Senior Architecture (v2.9.0)**  
+> **Active Engineering & Senior Architecture (v2.11.0)**  
 > WebCare Pro Security & Firewall is actively developed and battle-tested by solo engineer **Mir Alamin**. Rapid architectural upgrades, engine hardening, and new security primitives are released continuously.
 
 Unlike heavy, bloated security plugins that degrade server performance with background overhead, WebCare Pro Security & Firewall combines **memory-safe PHP batch auditing engines** with a responsive **React 18 single-page administrative dashboard**. It provides deep insight into your file system, WordPress core integrity, plugin and theme source code, database tables, cron jobs, active administrative sessions, runtime memory hooks, and server configurations—giving developers, sysadmins, and site owners complete visibility and control over their WordPress security posture.
@@ -59,7 +59,7 @@ Unlike heavy, bloated security plugins that degrade server performance with back
 
 ## 🌟 Top Core Features & Architectural Highlights
 
-WebCare Pro Security & Firewall combines lightweight, memory-efficient PHP 8.3+ streaming engines with a modern React 18 single-page cockpit. While the plugin contains **87 specialized subsystems** (documented exhaustively in [features.md](features.md)), these 9 core pillars represent the heart of its enterprise defense model:
+WebCare Pro Security & Firewall combines lightweight, memory-efficient PHP 8.3+ streaming engines with a modern React 18 single-page cockpit. While the plugin contains **91 specialized subsystems** (documented exhaustively in [features.md](features.md)), these 12 core pillars represent the heart of its enterprise defense model:
 
 ### 1. 📊 Executive Cyber Command Center & React 18 SOC Cockpit
 - **Dynamic Security Health Score:** High-precision circular SVG meter displaying your live security posture (0–100%) and letter grade (A+ through F).
@@ -76,41 +76,65 @@ WebCare Pro Security & Firewall combines lightweight, memory-efficient PHP 8.3+ 
 - **Deterministic First-Hit Banning:** Critical exploits (SQL Injection, Code Injection, Path Traversal) trigger an immediate 85-point violation and 24-hour hard ban on hit #1.
 - **Pre-Calibrated Allowlist Library:** 33+ verified enterprise integrations (WooCommerce, Stripe, PayPal, Jetpack, Gutenberg, CRM webhooks) with zero false-positives.
 
-### 4. ☁️ Instant Zero-Latency Cloudflare Edge Defense (100% Free Plan)
-- **Edge Threat Interception:** Neutralizes automated botnets at Cloudflare’s Global Anycast Edge before requests ever reach your origin server or consume PHP workers.
-- **Zero-Latency Post-Response Push:** Flushes HTTP 403 responses to attackers instantly via `fastcgi_finish_request()` and offloads the attacker's IP to Cloudflare Edge in the background.
+### 4. 🧠 2026 Advanced Smart Rules Suite (Rules #48–#54) & Perimeter Armor
+- **Query Smuggling & Method Override Guard (Rule #48):** Normalizes `?rest_route=` query routing across WAF engines and blocks unauthenticated HTTP method overrides (`_method=DELETE`, `X-HTTP-Method-Override`).
+- **Auth Array Type-Confusion Trap (Rule #49):** Intercepts non-scalar array submissions (`user_login[]=admin`, `pwd[]=`, `key[]=`) to prevent PHP 8+ `TypeError` crashes and auth bypasses.
+- **Unauthenticated Gadget Chain Defense (Rule #50):** Detects unauthenticated shortcode parse requests and serialized callable gadgets (`["System", "exec"]`) targeting builder RCE chains.
+- **WordPress 7.0+ Interactivity & Block Bindings Shield (Rule #51):** Guards `data-wp-*` directives against prototype pollution and sanitizes block bindings to sensitive metadata.
+- **Payment Gateway Webhook Trap (Rule #52):** Deep-packet verification blocking forged `Stripe-Signature` or `PayPal-Transmission-Sig` webhooks originating outside official gateway CIDRs/ASNs.
+- **Sensitive Log & Exfiltration Instant Ban (Rule #53):** Instant 1st-hit 24h ban on probes targeting `/wc-logs/`, `php_errorlog`, `.env.*`, `.svn/wc.db`, `auth.json`, or `Range: bytes=` exfiltration.
+- **Decompressed `.svgz` Polyglot Upload Trap (Rule #54):** In-memory `gzdecode()` inspection stopping compressed webshells, XML entity bombs, and polyglot images before filesystem write.
+
+### 5. 🛒 High-Traffic WooCommerce Anti-Fraud & Store API Protection
+- **Asynchronous Webhook Customer IP Extraction:** Resolves authentic customer IPs directly from `$order` records during asynchronous webhook status updates (Stripe, PayPal, Mollie, Klarna, 3DS), guaranteeing gateway IPs are never locked out.
+- **Carding & Checkout Velocity Deduplication:** Deduplicates failed payment tracking per request, eliminating 2x–4x double-counting and false under-attack lockdowns.
+- **WooCommerce Block Checkout & Store API Security:** Protects `/wp-json/wc/store/v1/checkout`, `/apply-coupon`, and `/products` scraping with full batch request inspection.
+- **Tuned Coupon Velocity with Active Cart Leniency:** 8-attempt baseline with +4 extra attempts for genuine shoppers holding active cart cookies/sessions.
+- **Order Notes & Complex Passwords False-Positive Elimination:** Context-aware XSS matching that allows benign customer delivery notes (e.g., "leave on back porch") without triggering WAF blocks.
+
+### 6. ☁️ Cloudflare Edge WAF "4 + 1" Smart Consolidation (100% Free Plan)
+- **Zero-Resource Edge Protection:** Consolidates enterprise protection into exactly 4 Master Wirefilter Rules on Cloudflare's Free Plan, leaving 1 custom rule slot 100% free for site owner rules.
+- **Automattic Jetpack Smart Pass:** Intelligently routes `/xmlrpc.php` to origin so verified Automattic Jetpack sync works seamlessly while dropping malicious brute-force attempts.
+- **Zero-Latency Post-Response Push:** Flushes HTTP 403 responses instantly to attackers via `fastcgi_finish_request()` while offloading IP bans to Cloudflare Edge in the background.
 - **Bi-Directional Unban Sync:** Unbanning an IP locally in WordPress immediately purges matching Zone IP Access Rules and Account IP Lists on Cloudflare Edge.
 
-### 5. 🩹 1-Click Auto-Cure, Surgical Remediation & Rollback Vault
+### 7. 🪝 In-Memory RASP Hook Firewalls & Privilege Escalation Traps
+- **Core Option Tampering Guard:** Intercepts unauthenticated runtime tampering targeting `users_can_register`, `default_role`, `siteurl`, `home`, and `active_plugins`.
+- **Privilege Escalation Interceptor:** Immediately blocks unauthorized attempts to promote users to `administrator` or `editor` roles without `manage_options` capability.
+- **Unauthorized Admin Registration Trap:** Detects guest registration workflows attempting to birth accounts with administrative roles and forces demotion to subscriber.
+- **Direct User Meta Privilege Trap:** Traps raw SQL or REST metadata injections targeting `wp_capabilities`, `wp_user_level`, or `_application_passwords`.
+- **Test Harness Sandbox Immunity:** Full compatibility with WordPress Plugin Check (PCP) sandboxed execution, ensuring compliance tests never trigger false privilege alerts.
+
+### 8. 🩹 1-Click Auto-Cure, Surgical Remediation & Rollback Vault
 - **Official Release Mirrors:** Surgically restores altered core, plugin, and theme files back to clean, official WordPress.org code without reinstalling WordPress.
 - **Non-Destructive Webshell Stripping:** Neutralizes obfuscated code blocks and malicious headers while preserving legitimate file customizations with tokenizer syntax verification.
 - **Pre-Cure Safety Snapshots:** Generates timestamped Gzip backups in the WebCare Vault before any file remediation, enabling instant 1-click rollbacks.
 
-### 6. 🔐 Enterprise Cryptographic Secret Vault (AES-256-GCM AEAD)
+### 9. 🔐 Enterprise Cryptographic Secret Vault (AES-256-GCM AEAD)
 - **Zero Plaintext Credentials in Database:** All API tokens (Cloudflare, AI keys, webhooks, 2FA secrets) are encrypted at rest with military-grade AES-256-GCM AEAD encryption.
 - **Tamper-Evident Authentication Tags:** 128-bit authentication tags and unique 12-byte initialization vectors per record protect against bit-flipping and database dumps.
 - **Two-Phase Key Rotation:** Zero-downtime state machine for rotating master encryption keys with isolated `WEBCARE_VAULT_KEY` server environment variable support.
 
-### 7. 🤖 2026 AI-Era Threat Defense & Autonomous Ghost Canaries
+### 10. 🤖 2026 AI-Era Threat Defense & Autonomous Ghost Canaries
 - **Ghost Admin Canary User Tripwire:** Provisions a dormant, invisible `webcare_canary_admin` in `wp_users` with an impossible password hash to catch database dump leaks.
 - **Database Honey-Tokens:** Decoy options (`_webcareproscan_canary_*`) with fake API keys instantly ban any SQL-injection intruder who attempts to read them.
 - **AI Prompt-Injection & Jailbreak Guard:** Strips invisible Unicode steganography and ChatML/LLaMA delimiter escapes from comments, reviews, and WooCommerce order notes.
 - **AI SEO & GEO Shield:** Monitors `/llms.txt` feeds against cryptographic baselines and detects transparent CSS text cloaking and JSON-LD schema toll-fraud.
 
-### 8. 🔑 Zero-Trust Identity, WebAuthn Biometrics & Step-Up 2FA
+### 11. 🔑 Zero-Trust Identity, WebAuthn Biometrics & Step-Up 2FA
 - **W3C WebAuthn Passwordless Ceremony:** Native Windows Hello, Apple Touch ID/Face ID, Android Biometrics, and FIDO2 USB keys for 100% phishing-immune login.
 - **Pure PHP RFC 6238 TOTP 2FA:** High-security HMAC-SHA-512 and SHA-1 two-factor authentication compatible with Google Authenticator, 1Password, and YubiKey.
 - **REST Application Password Shield:** Mandatory Step-Up 2FA on `authorize-application.php` blocks 1-click token consent phishing traps.
 
-### 9. 🧠 Model Context Protocol (MCP) Agentic AI SecOps Automation
+### 12. 🧠 Model Context Protocol (MCP) Agentic AI SecOps Automation
 - **Native JSON-RPC 2.0 Surface:** Securely connect external AI developer agents (Claude Desktop, Cursor IDE, Antigravity) directly to WordPress security operations.
 - **Encrypted Bearer Authentication:** Secure AEAD-encrypted tokens, strict read-only default permissions, configurable rate limits, and an immutable 150-event ring-buffer execution log.
 
 ---
 
 > [!TIP]
-> ### 📖 Looking for the Complete 87-Engine Catalog?
-> WebCare Pro Security & Firewall includes over **87 specialized security engines, behavioral monitors, and forensic subsystems**.
+> ### 📖 Looking for the Complete 91-Engine Catalog?
+> WebCare Pro Security & Firewall includes over **91 specialized security engines, behavioral monitors, and forensic subsystems**.
 > 
 > 👉 **[Explore the Complete Features & Architecture Catalog in `features.md`](features.md)** for exhaustive dual-level documentation (plain-English summaries for site owners + deep technical architecture for systems engineers).
 ---
