@@ -30,6 +30,20 @@ class SiteBehavioralAnalyzer {
     const MAX_FILE_SIZE = 2097152; // 2MB
     const BATCH_TIME_LIMIT = 3.5;  // 3.5 seconds per batch to avoid HTTP/proxy timeouts
 
+    private const AUTH_NONCE_FUNCTIONS = [
+        'check_ajax_referer',
+        'check_admin_referer',
+        'wp_verify_nonce',
+        'verify_nonce',
+        'check_nonce',
+        'validate_nonce',
+        'wc_verify_nonce',
+        'acf_verify_ajax',
+        'acf_verify_nonce',
+        'gf_verify_nonce',
+        'wpforms_verify_nonce',
+    ];
+
     /**
      * Start or initialize a full behavioral intelligence scan session.
      *
@@ -358,11 +372,14 @@ class SiteBehavioralAnalyzer {
         }
 
         // 1. Check for missing defined('ABSPATH') in standalone procedural plugins/themes/uploads scripts
-        $has_abspath_guard = self::check_abspath_guard($tokens);
-        $has_superglobals  = self::check_superglobals($tokens);
-        $is_pure_decl      = self::is_pure_declaration_file($tokens);
+        $is_tampered_file   = in_array($chk_status, ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true);
+        $is_trusted_origin  = !$is_tampered_file && (!empty($file_info['is_official_wporg']) || !empty($file_info['is_known_vendor']) || !empty($file_forensics['is_official_verified']));
+        $has_abspath_guard  = self::check_abspath_guard($tokens);
+        $has_superglobals   = self::check_superglobals($tokens);
+        $is_pure_decl       = self::is_pure_declaration_file($tokens);
+        $is_safe_partial    = $is_trusted_origin && self::is_safe_wp_template_partial($tokens);
 
-        if (!$has_abspath_guard && $has_superglobals && !$is_pure_decl && empty($file_forensics['known_vendor_lib']) && in_array($component_type, ['plugin', 'theme', 'upload'], true)) {
+        if (!$has_abspath_guard && $has_superglobals && !$is_pure_decl && !$is_safe_partial && empty($file_forensics['known_vendor_lib']) && in_array($component_type, ['plugin', 'theme', 'upload'], true)) {
             $counters['missing_abspath_files']++;
             $findings[] = [
                 'type'        => 'missing_abspath_script',
@@ -414,9 +431,9 @@ class SiteBehavioralAnalyzer {
                     ];
                 }
 
-                // SSRF Sink inspection (wp_remote_get, curl_exec with dynamic $_GET/$_POST)
+                // SSRF Sink inspection (wp_remote_get/post/request with unvalidated dynamic URL in arg #1)
                 if (in_array($fn_name, ['wp_remote_get', 'wp_remote_post', 'wp_remote_request'], true)) {
-                    if (self::has_adjacent_superglobal($tokens, $i, 30)) {
+                    if (self::has_unvalidated_ssrf_url_arg($tokens, $i)) {
                         $counters['taint_sinks_found']++;
                         $findings[] = [
                             'type'        => 'ssrf_egress_sink',
@@ -468,7 +485,7 @@ class SiteBehavioralAnalyzer {
         $arg1 = self::extract_string_arg($tokens, $pos, 1);
         $arg2 = self::extract_string_arg($tokens, $pos, 2);
 
-        if (!$arg1) {
+        if (!$arg1 || self::is_dynamic_hook_arg($tokens, $pos, 1)) {
             return;
         }
 
@@ -478,10 +495,13 @@ class SiteBehavioralAnalyzer {
 
         // Match AJAX Hooks
         if (str_starts_with($arg1, 'wp_ajax_nopriv_') || str_starts_with($arg1, 'wp_ajax_') || str_starts_with($arg1, 'admin_post_nopriv_')) {
+            $action_slug = str_replace(['wp_ajax_nopriv_', 'wp_ajax_', 'admin_post_nopriv_'], '', $arg1);
+            if ($action_slug === '') {
+                return;
+            }
             $counters['ajax_hooks_found']++;
             $is_guest = str_starts_with($arg1, 'wp_ajax_nopriv_') || str_starts_with($arg1, 'admin_post_nopriv_');
-            $action_slug = str_replace(['wp_ajax_nopriv_', 'wp_ajax_', 'admin_post_nopriv_'], '', $arg1);
-            $cb_name     = $arg2 ?: self::extract_callback_name($tokens, $pos);
+            $cb_name  = $arg2 ?: self::extract_callback_name($tokens, $pos);
 
             // Inspect strictly inside the callback / closure scope rather than across the entire file
             $scope     = self::inspect_callback_scope($tokens, $cb_name, $pos);
@@ -587,10 +607,12 @@ class SiteBehavioralAnalyzer {
         $full_route      = '/' . ltrim($namespace, '/') . '/' . ltrim($route, '/');
         $call_end        = self::find_call_end_pos($tokens, $pos, 240);
         $blocks          = self::extract_rest_endpoint_blocks($tokens, $pos, $call_end);
-        $is_permissive   = false;
-        $has_post_method = false;
+        $is_permissive      = false;
+        $has_post_method    = false;
         $has_internal_guard = false;
-        $is_write_unauth = false;
+        $is_write_unauth    = false;
+        $write_scope_all    = true;
+        $write_has_sink     = false;
 
         foreach ($blocks as [$b_start, $b_end]) {
             $b_len       = max(1, $b_end - $b_start + 1);
@@ -612,16 +634,19 @@ class SiteBehavioralAnalyzer {
             }
 
             if ($b_perm_true && $b_has_write) {
-                // Check if the REST endpoint callback enforces nonce/cap/HMAC checks internally
-                $cb_name = self::extract_keyed_callback_name($tokens, $b_start, $b_end, 'callback');
-                if ($cb_name) {
-                    $cb_scope = self::inspect_callback_scope($tokens, $cb_name, $b_start);
-                    if (!empty($cb_scope['has_nonce']) || !empty($cb_scope['has_cap'])) {
-                        $has_internal_guard = true;
-                        continue;
-                    }
+                // Check if the REST endpoint callback enforces nonce/cap/HMAC checks or performs strictly read-only queries
+                $cb_scope = self::inspect_rest_block_callback_scope($tokens, $b_start, $b_end);
+                if (!empty($cb_scope['has_nonce']) || !empty($cb_scope['has_cap'])) {
+                    $has_internal_guard = true;
+                    continue;
                 }
                 $is_write_unauth = true;
+                if (empty($cb_scope['scope_found'])) {
+                    $write_scope_all = false;
+                    $write_has_sink  = true;
+                } elseif (!empty($cb_scope['has_dangerous_sink'])) {
+                    $write_has_sink = true;
+                }
             }
         }
 
@@ -642,6 +667,7 @@ class SiteBehavioralAnalyzer {
 
         // Only synthesize permissive REST route guards for non-intentional write endpoints resolved with literal routes
         if ($raw_namespace && $raw_route && $is_write_unauth && !$is_intentional) {
+            $is_read_only_rest = $write_scope_all && !$write_has_sink;
             $counters['permissive_rest_routes']++;
             $findings[] = [
                 'type'               => 'permissive_rest_route',
@@ -650,12 +676,14 @@ class SiteBehavioralAnalyzer {
                 'line'               => $line,
                 'route'              => $full_route,
                 'has_internal_guard' => $has_internal_guard,
+                'has_dangerous_sink' => $write_has_sink,
+                'scope_found'        => $write_scope_all,
                 'evidence'           => sprintf(
                     /* translators: %s: REST route */
                     __('REST API endpoint "%s" permits unauthenticated write access via "permission_callback => __return_true".', 'webcare-pro-security'),
                     $full_route
                 ),
-                'severity'           => 'high',
+                'severity'           => $is_read_only_rest ? 'medium' : 'high',
             ];
         }
     }
@@ -717,7 +745,44 @@ class SiteBehavioralAnalyzer {
      */
     private static function check_abspath_guard(array $tokens): bool {
         $non_trivial = 0;
-        foreach ($tokens as $t) {
+        $count       = count($tokens);
+        $depth       = 0;
+
+        for ($i = 0; $i < $count; $i++) {
+            $t = $tokens[$i];
+            if ($t === '{' || (is_array($t) && in_array($t[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true))) {
+                $depth++;
+                continue;
+            }
+            if ($t === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($t === '!' && $depth === 0) {
+                // Detect early abort pattern: !defined(...)/!class_exists(...)/!function_exists(...) followed closely by exit/die/return/wp_die
+                $saw_env_check = false;
+                $look_limit    = min($i + 35, $count);
+                for ($j = $i + 1; $j < $look_limit; $j++) {
+                    $lt = $tokens[$j];
+                    if (!is_array($lt)) {
+                        continue;
+                    }
+                    if (in_array($lt[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                        continue;
+                    }
+                    if (in_array($lt[0], [T_FUNCTION, T_CLASS, T_INTERFACE, T_TRAIT], true)) {
+                        break;
+                    }
+                    $lval = strtolower($lt[1]);
+                    if (!$saw_env_check && $lt[0] === T_STRING && in_array($lval, ['defined', 'class_exists', 'function_exists'], true)) {
+                        $saw_env_check = true;
+                        continue;
+                    }
+                    if ($saw_env_check && ($lt[0] === T_EXIT || $lt[0] === T_RETURN || ($lt[0] === T_STRING && $lval === 'wp_die'))) {
+                        return true;
+                    }
+                }
+            }
             if (!is_array($t)) {
                 continue;
             }
@@ -729,7 +794,7 @@ class SiteBehavioralAnalyzer {
             if ($val === 'abspath' || $val === 'wpinc') {
                 return true;
             }
-            if ($non_trivial >= 150) {
+            if ($non_trivial >= 250) {
                 break;
             }
         }
@@ -737,17 +802,17 @@ class SiteBehavioralAnalyzer {
     }
 
     /**
-     * Determine whether a PHP file only contains namespace/use/class/interface/trait/enum declarations
+     * Determine whether a PHP file only contains namespace/use/class/interface/trait/enum/function declarations
      * (i.e. zero top-level procedural code that executes superglobals when invoked directly via HTTP).
      */
     private static function is_pure_declaration_file(array $tokens): bool {
-        $depth = 0;
-        $count = count($tokens);
+        $depth               = 0;
+        $count               = count($tokens);
         $has_oop_declaration = false;
 
         for ($i = 0; $i < $count; $i++) {
             $t = $tokens[$i];
-            if ($t === '{') {
+            if ($t === '{' || (is_array($t) && in_array($t[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true))) {
                 $depth++;
                 continue;
             }
@@ -761,7 +826,7 @@ class SiteBehavioralAnalyzer {
             if (in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_OPEN_TAG, T_CLOSE_TAG], true)) {
                 continue;
             }
-            if (in_array($t[0], [T_CLASS, T_INTERFACE, T_TRAIT], true) || (defined('T_ENUM') && $t[0] === T_ENUM)) {
+            if (in_array($t[0], [T_CLASS, T_INTERFACE, T_TRAIT, T_FUNCTION], true) || (defined('T_ENUM') && $t[0] === T_ENUM)) {
                 $has_oop_declaration = true;
                 continue;
             }
@@ -772,6 +837,39 @@ class SiteBehavioralAnalyzer {
         }
 
         return $has_oop_declaration;
+    }
+
+    /**
+     * Detect read-only WordPress admin views or theme partial templates coupled to WP core APIs with zero dangerous sinks.
+     */
+    private static function is_safe_wp_template_partial(array $tokens): bool {
+        if (self::tokens_have_dangerous_sink($tokens)) {
+            return false;
+        }
+
+        $wp_partial_apis = [
+            'check_admin_referer', 'wp_nonce_field', 'settings_fields', 'submit_button',
+            'esc_html_e', 'esc_attr_e', 'esc_html__', 'esc_attr__', '__', '_e', '_x',
+            'get_header', 'get_footer', 'get_template_part', 'wp_kses_post', 'selected', 'checked',
+        ];
+        $has_inline_html = false;
+        $has_wp_api      = false;
+
+        foreach ($tokens as $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            if ($t[0] === T_INLINE_HTML && trim($t[1]) !== '') {
+                $has_inline_html = true;
+            } elseif ($t[0] === T_STRING && in_array(strtolower($t[1]), $wp_partial_apis, true)) {
+                $has_wp_api = true;
+            }
+            if ($has_inline_html && $has_wp_api) {
+                return true;
+            }
+        }
+
+        return $has_wp_api;
     }
 
     /**
@@ -824,6 +922,9 @@ class SiteBehavioralAnalyzer {
                 }
                 continue;
             }
+            if ($current_arg === 2 && is_array($t) && ($t[0] === T_FUNCTION || (defined('T_FN') && $t[0] === T_FN))) {
+                return null;
+            }
             if ($current_arg === 2 && is_array($t) && $t[0] === T_CONSTANT_ENCAPSED_STRING) {
                 $strings[] = trim($t[1], "'\"");
             }
@@ -856,9 +957,10 @@ class SiteBehavioralAnalyzer {
         $body_tokens = [];
 
         // 1. Check for inline closure / arrow function in argument #2 of add_action(...)
-        $paren_depth = 0;
-        $current_arg = 1;
-        for ($i = $hook_pos; $i < min($hook_pos + 120, $count); $i++) {
+        $paren_depth   = 0;
+        $bracket_depth = 0;
+        $current_arg   = 1;
+        for ($i = $hook_pos; $i < min($hook_pos + 200, $count); $i++) {
             $t = $tokens[$i];
             if ($t === '(') {
                 $paren_depth++;
@@ -871,7 +973,15 @@ class SiteBehavioralAnalyzer {
                 }
                 continue;
             }
-            if ($t === ',' && $paren_depth === 1) {
+            if ($t === '[') {
+                $bracket_depth++;
+                continue;
+            }
+            if ($t === ']') {
+                $bracket_depth = max(0, $bracket_depth - 1);
+                continue;
+            }
+            if ($t === ',' && $paren_depth === 1 && $bracket_depth === 0) {
                 $current_arg++;
                 if ($current_arg > 2) {
                     break;
@@ -928,12 +1038,78 @@ class SiteBehavioralAnalyzer {
             return $result;
         }
 
-        $result['scope_found']        = true;
-        $result['has_nonce']          = self::file_has_nonce_verification($body_tokens);
-        $result['has_cap']            = self::file_has_capability_check($body_tokens);
-        $result['has_dangerous_sink'] = self::scope_has_dangerous_sink($body_tokens);
+        return self::evaluate_scope_tokens($body_tokens);
+    }
 
-        return $result;
+    /**
+     * Evaluate security posture tokens within a scoped callback body (closure or named function).
+     */
+    private static function evaluate_scope_tokens(array $body_tokens): array {
+        return [
+            'has_nonce'          => self::file_has_nonce_verification($body_tokens),
+            'has_cap'            => self::file_has_capability_check($body_tokens),
+            'has_dangerous_sink' => self::scope_has_dangerous_sink($body_tokens),
+            'scope_found'        => true,
+        ];
+    }
+
+    /**
+     * Inspect either an inline closure or a named callback assigned to 'callback' inside a register_rest_route block.
+     */
+    private static function inspect_rest_block_callback_scope(array $tokens, int $b_start, int $b_end): array {
+        for ($i = $b_start; $i <= $b_end; $i++) {
+            $t = $tokens[$i];
+            if (!is_array($t) || $t[0] !== T_CONSTANT_ENCAPSED_STRING) {
+                continue;
+            }
+            if (strtolower(trim($t[1], "'\"")) !== 'callback') {
+                continue;
+            }
+            $j = $i + 1;
+            while ($j <= $b_end && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+                $j++;
+            }
+            if ($j <= $b_end && is_array($tokens[$j]) && $tokens[$j][0] === T_DOUBLE_ARROW) {
+                for ($k = $j + 1; $k <= min($j + 10, $b_end); $k++) {
+                    if ($tokens[$k] === ',' || $tokens[$k] === ')') {
+                        break;
+                    }
+                    if (is_array($tokens[$k]) && $tokens[$k][0] === T_FUNCTION) {
+                        $body = self::extract_braced_function_body($tokens, $k);
+                        if (!empty($body)) {
+                            return self::evaluate_scope_tokens($body);
+                        }
+                        break;
+                    }
+                    if (is_array($tokens[$k]) && defined('T_FN') && $tokens[$k][0] === T_FN) {
+                        $body = [];
+                        for ($m = $k; $m <= min($k + 150, $b_end); $m++) {
+                            if ($tokens[$m] === ',' || $tokens[$m] === ']' || $tokens[$m] === ')') {
+                                break;
+                            }
+                            $body[] = $tokens[$m];
+                        }
+                        if (!empty($body)) {
+                            return self::evaluate_scope_tokens($body);
+                        }
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+
+        $cb_name = self::extract_keyed_callback_name($tokens, $b_start, $b_end, 'callback');
+        if ($cb_name) {
+            return self::inspect_callback_scope($tokens, $cb_name, $b_start);
+        }
+
+        return [
+            'has_nonce'          => false,
+            'has_cap'            => false,
+            'has_dangerous_sink' => true,
+            'scope_found'        => false,
+        ];
     }
 
     /**
@@ -1101,6 +1277,9 @@ class SiteBehavioralAnalyzer {
                     if ($tokens[$k] === ',' || $tokens[$k] === ')') {
                         break;
                     }
+                    if (is_array($tokens[$k]) && ($tokens[$k][0] === T_FUNCTION || (defined('T_FN') && $tokens[$k][0] === T_FN))) {
+                        return null;
+                    }
                     if (is_array($tokens[$k]) && $tokens[$k][0] === T_CONSTANT_ENCAPSED_STRING) {
                         $strings[] = trim($tokens[$k][1], "'\"");
                     }
@@ -1126,7 +1305,6 @@ class SiteBehavioralAnalyzer {
      * @return string '' if none detected, or 'capability' / 'nonce' / 'signature'.
      */
     public static function tokens_have_auth_guard(array $tokens): string {
-        $nonce_targets = ['check_ajax_referer', 'check_admin_referer', 'wp_verify_nonce', 'verify_nonce', 'check_nonce', 'validate_nonce', 'wc_verify_nonce'];
         $cap_targets   = ['current_user_can', 'is_user_logged_in', 'user_can', 'auth_redirect', 'current_user_can_for_blog'];
         $sig_targets   = ['hash_hmac', 'hash_equals', 'openssl_verify', 'sodium_crypto_sign_verify_detached'];
 
@@ -1141,7 +1319,7 @@ class SiteBehavioralAnalyzer {
             $fn = strtolower($t[1]);
             if (in_array($fn, $cap_targets, true)) {
                 $found_cap = true;
-            } elseif (in_array($fn, $nonce_targets, true)) {
+            } elseif (in_array($fn, self::AUTH_NONCE_FUNCTIONS, true)) {
                 $found_nonce = true;
             } elseif (in_array($fn, $sig_targets, true)) {
                 $found_sig = true;
@@ -1210,8 +1388,9 @@ class SiteBehavioralAnalyzer {
             return true;
         }
         // Fallback when capability check also present alongside nonce in the same scope
+        $combined = array_merge(self::AUTH_NONCE_FUNCTIONS, ['hash_hmac', 'hash_equals']);
         foreach ($tokens as $t) {
-            if (is_array($t) && $t[0] === T_STRING && in_array(strtolower($t[1]), ['check_ajax_referer', 'check_admin_referer', 'wp_verify_nonce', 'verify_nonce', 'check_nonce', 'validate_nonce', 'wc_verify_nonce', 'hash_hmac', 'hash_equals'], true)) {
+            if (is_array($t) && $t[0] === T_STRING && in_array(strtolower($t[1]), $combined, true)) {
                 return true;
             }
         }
@@ -1339,6 +1518,120 @@ class SiteBehavioralAnalyzer {
             }
         }
         return false;
+    }
+
+    /**
+     * Check whether a specific function call argument contains dynamic concatenation (e.g. 'wp_ajax_' . $var).
+     */
+    private static function is_dynamic_hook_arg(array $tokens, int $pos, int $arg_number): bool {
+        $count         = count($tokens);
+        $current_arg   = 1;
+        $in_parens     = false;
+        $paren_depth   = 0;
+        $bracket_depth = 0;
+
+        for ($i = $pos; $i < min($pos + 80, $count); $i++) {
+            $t = $tokens[$i];
+            if ($t === '(') {
+                $paren_depth++;
+                $in_parens = true;
+                continue;
+            }
+            if ($t === ')') {
+                $paren_depth--;
+                if ($paren_depth <= 0) {
+                    break;
+                }
+                continue;
+            }
+            if ($t === '[') {
+                $bracket_depth++;
+                continue;
+            }
+            if ($t === ']') {
+                $bracket_depth = max(0, $bracket_depth - 1);
+                continue;
+            }
+            if ($t === ',' && $paren_depth === 1 && $bracket_depth === 0) {
+                $current_arg++;
+                if ($current_arg > $arg_number) {
+                    break;
+                }
+                continue;
+            }
+            if ($in_parens && $paren_depth === 1 && $bracket_depth === 0 && $current_arg === $arg_number && $t === '.') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Inspect argument #1 of wp_remote_get/post/request() for genuine SSRF risk.
+     * Ignores superglobals appearing only in arg #2 ($args) or query parameters appended to a hardcoded scheme+host URL.
+     */
+    private static function has_unvalidated_ssrf_url_arg(array $tokens, int $pos): bool {
+        $count         = count($tokens);
+        $in_parens     = false;
+        $paren_depth   = 0;
+        $bracket_depth = 0;
+        $first_token   = null;
+        $has_super     = false;
+
+        for ($i = $pos; $i < min($pos + 120, $count); $i++) {
+            $t = $tokens[$i];
+            if ($t === '(') {
+                $paren_depth++;
+                $in_parens = true;
+                continue;
+            }
+            if ($t === ')') {
+                $paren_depth--;
+                if ($paren_depth <= 0) {
+                    break;
+                }
+                continue;
+            }
+            if ($t === '[') {
+                $bracket_depth++;
+                continue;
+            }
+            if ($t === ']') {
+                $bracket_depth = max(0, $bracket_depth - 1);
+                continue;
+            }
+            if ($t === ',' && $paren_depth === 1 && $bracket_depth === 0) {
+                // End of URL argument #1
+                break;
+            }
+            if (!$in_parens) {
+                continue;
+            }
+            if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            if ($first_token === null) {
+                $first_token = $t;
+            }
+            if (is_array($t) && $t[0] === T_VARIABLE && in_array($t[1], ['$_GET', '$_POST', '$_REQUEST'], true)) {
+                $has_super = true;
+            }
+        }
+
+        if (!$has_super) {
+            return false;
+        }
+
+        // Fixed scheme + hardcoded domain followed by '/' or '?' guarantees outbound host cannot be pivoted by input
+        if (is_array($first_token) && $first_token[0] === T_CONSTANT_ENCAPSED_STRING) {
+            $literal = trim($first_token[1], "'\"");
+            if (preg_match('#^https?://[a-z0-9.-]+(?::\d+)?[/?]#i', $literal)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

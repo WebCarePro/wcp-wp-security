@@ -235,7 +235,7 @@ class ModularFirewallSynthesizer {
         // 1. Synthesize MOD-AJAX-* Rules for Unprotected Guest AJAX actions
         foreach ($findings as $f) {
             if (($f['type'] ?? '') === 'unprotected_guest_ajax') {
-                $action = sanitize_key($f['action'] ?? '');
+                $action = self::normalize_action_token((string) ($f['action'] ?? ''));
                 if (empty($action)) {
                     continue;
                 }
@@ -243,17 +243,13 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-AJAX-' . strtoupper(substr(md5($action), 0, 8));
                 $prev    = $existing_by_id[$rule_id] ?? null;
 
-                $is_tampered = in_array($f['checksum_status'] ?? '', ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true);
-                $is_authentic_wporg = !$is_tampered && (
-                    (!empty($f['is_official_wporg']) && in_array($f['checksum_status'] ?? '', ['authentic', 'self_verified'], true))
-                    || (($f['checksum_status'] ?? '') === 'self_verified')
-                );
-                $is_trusted_vendor = !$is_tampered && !empty($f['is_known_vendor']);
-                $has_sink = array_key_exists('has_dangerous_sink', $f) ? !empty($f['has_dangerous_sink']) : true;
+                $is_tampered       = self::is_tampered_finding($f);
+                $is_trusted_source = self::is_verified_non_tampered_finding($f);
+                $has_sink          = array_key_exists('has_dangerous_sink', $f) ? !empty($f['has_dangerous_sink']) : true;
 
                 // Read-only or checksum-verified / trusted vendor callbacks recommend monitor to avoid blocking legitimate features
-                $rec_mode = ($is_authentic_wporg || $is_trusted_vendor || !$has_sink) ? 'monitor' : 'enforce';
-                $sev      = (!$has_sink && ($is_authentic_wporg || $is_trusted_vendor)) ? 'medium' : ($has_sink && !$is_authentic_wporg && !$is_trusted_vendor ? 'critical' : 'high');
+                $rec_mode = ($is_trusted_source || !$has_sink) ? 'monitor' : 'enforce';
+                $sev      = (!$has_sink && $is_trusted_source) ? 'medium' : ($has_sink && !$is_trusted_source ? 'critical' : 'high');
                 $cur_mode = $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : $rec_mode);
 
                 $rules[] = self::enrich_synthesized_rule([
@@ -300,14 +296,14 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-REST-' . strtoupper(substr(md5($route), 0, 8));
                 $prev    = $existing_by_id[$rule_id] ?? null;
 
-                $is_tampered_rest = in_array($f['checksum_status'] ?? '', ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true);
-                $is_trusted_rest  = !$is_tampered_rest && (
+                $is_tampered_rest  = self::is_tampered_finding($f);
+                $is_read_only_rest = !$is_tampered_rest && array_key_exists('has_dangerous_sink', $f) && empty($f['has_dangerous_sink']) && !empty($f['scope_found']);
+                $is_trusted_rest   = !$is_tampered_rest && (
                     !empty($f['has_internal_guard'])
-                    || !empty($f['is_known_vendor'])
-                    || (!empty($f['is_official_wporg']) && in_array($f['checksum_status'] ?? '', ['authentic', 'self_verified'], true))
+                    || self::is_verified_non_tampered_finding($f)
                 );
-                $rest_rec_mode = $is_trusted_rest ? 'monitor' : 'enforce';
-                $rest_sev      = $is_trusted_rest ? 'medium' : 'high';
+                $rest_rec_mode = ($is_trusted_rest || $is_read_only_rest) ? 'monitor' : 'enforce';
+                $rest_sev      = ($is_trusted_rest || $is_read_only_rest) ? 'medium' : 'high';
 
                 $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
@@ -392,6 +388,10 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-UPLOAD-' . strtoupper(substr(md5($file . ':' . ($f['line'] ?? 1)), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
+                $is_trusted_upload = self::is_verified_non_tampered_finding($f);
+                $upload_rec_mode   = $is_trusted_upload ? 'monitor' : 'enforce';
+                $upload_sev        = $is_trusted_upload ? 'medium' : 'high';
+
                 $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'upload_guard',
@@ -409,9 +409,9 @@ class ModularFirewallSynthesizer {
                     'file'             => $file,
                     'line'             => $f['line'] ?? 1,
                     'evidence'         => $f['evidence'] ?? '',
-                    'severity'         => 'high',
-                    'recommended_mode' => 'enforce',
-                    'current_mode'     => $prev ? $prev['current_mode'] : 'enforce',
+                    'severity'         => $upload_sev,
+                    'recommended_mode' => $upload_rec_mode,
+                    'current_mode'     => $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : $upload_rec_mode),
                     'target_uri'       => $file,
                     'target_param'     => '',
                     'target_value'     => '',
@@ -431,6 +431,10 @@ class ModularFirewallSynthesizer {
                 $rule_id = 'MOD-EGRESS-' . strtoupper(substr(md5($file . ':' . ($f['line'] ?? 1)), 0, 8));
                 $prev = $existing_by_id[$rule_id] ?? null;
 
+                $is_trusted_egress = self::is_verified_non_tampered_finding($f);
+                $egress_rec_mode   = $is_trusted_egress ? 'monitor' : 'enforce';
+                $egress_sev        = $is_trusted_egress ? 'medium' : 'high';
+
                 $rules[] = self::enrich_synthesized_rule([
                     'id'               => $rule_id,
                     'category'         => 'egress_lock',
@@ -448,9 +452,9 @@ class ModularFirewallSynthesizer {
                     'file'             => $file,
                     'line'             => $f['line'] ?? 1,
                     'evidence'         => $f['evidence'] ?? '',
-                    'severity'         => 'high',
-                    'recommended_mode' => 'enforce',
-                    'current_mode'     => $prev ? $prev['current_mode'] : 'enforce',
+                    'severity'         => $egress_sev,
+                    'recommended_mode' => $egress_rec_mode,
+                    'current_mode'     => $prev ? $prev['current_mode'] : ($autopilot_on ? 'smart_learning' : $egress_rec_mode),
                     'target_uri'       => $file,
                     'target_param'     => 'url,webhook,feed,callback_url,endpoint',
                     'target_value'     => '',
@@ -969,7 +973,7 @@ class ModularFirewallSynthesizer {
 
         $clean_uri = strtolower((string) strtok($uri, '?'));
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of raw AJAX action token
-        $req_action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
+        $req_action = isset($_REQUEST['action']) ? self::normalize_action_token(sanitize_text_field(wp_unslash($_REQUEST['action']))) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST query route smuggling
         $rest_query = isset($_GET['rest_route']) ? strtolower(sanitize_text_field(wp_unslash($_GET['rest_route']))) : '';
         $payload_rx = '/(?:\bunion\s+all\s+select\b|\bselect\b.{1,40}\bfrom\b.{1,40}\bwp_users\b|sleep\s*\(\s*\d+\s*\)|benchmark\s*\(|<script\b|javascript:|wp_capabilities|administrator)/i';
@@ -1443,5 +1447,38 @@ class ModularFirewallSynthesizer {
             'total_lines'  => $total_lines,
             'snippet'      => $snippet,
         ];
+    }
+
+    /**
+     * Normalize an AJAX action token while preserving namespaced path slashes (e.g. "acf/fields/select/query").
+     */
+    private static function normalize_action_token(string $raw): string {
+        $clean = strtolower(sanitize_text_field($raw));
+        $norm  = preg_replace('/[^a-z0-9_\-\/]/', '', $clean);
+        return is_string($norm) ? trim($norm, '/') : '';
+    }
+
+    /**
+     * Determine whether a finding carries an integrity tamper status.
+     */
+    private static function is_tampered_finding(array $finding): bool {
+        return in_array($finding['checksum_status'] ?? '', ['modified', 'unknown_in_official', 'self_modified', 'self_untracked'], true);
+    }
+
+    /**
+     * Determine whether a finding belongs to an untampered official WordPress.org component or known vendor.
+     */
+    private static function is_verified_non_tampered_finding(array $finding): bool {
+        if (self::is_tampered_finding($finding)) {
+            return false;
+        }
+        if (!empty($finding['is_known_vendor'])) {
+            return true;
+        }
+        $chk = $finding['checksum_status'] ?? '';
+        if ($chk === 'self_verified') {
+            return true;
+        }
+        return !empty($finding['is_official_wporg']) && in_array($chk, ['authentic', 'self_verified'], true);
     }
 }
