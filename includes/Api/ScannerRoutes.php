@@ -1965,8 +1965,27 @@ class ScannerRoutes {
         }
 
         $waf_settings = get_option('webcareproscan_waf_settings', []);
+        if (!is_array($waf_settings)) {
+            $waf_settings = [];
+        }
+
         $current_whitelist = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
         $is_whitelisted = strpos($current_whitelist, $client_ip) !== false;
+
+        $ip_whitelist_entries = get_option('webcareproscan_ip_whitelist', []);
+        if (!is_array($ip_whitelist_entries)) {
+            $ip_whitelist_entries = [];
+        }
+        if (empty($ip_whitelist_entries) && !empty($current_whitelist)) {
+            $lines = array_filter(array_map('trim', explode("\n", $current_whitelist)));
+            foreach ($lines as $line) {
+                $ip_whitelist_entries[] = [
+                    'ip'         => $line,
+                    'label'      => __('Allowlisted Address', 'webcare-pro-security'),
+                    'created_at' => current_time('mysql'),
+                ];
+            }
+        }
 
         $uid = get_current_user_id();
         $support_code = '#WEBCARE-' . strtoupper(substr(md5((string) $uid . wp_salt('auth')), 0, 4));
@@ -1988,39 +2007,95 @@ class ScannerRoutes {
             ? \WebCareProScanner\Firewall\FirewallEngine::get_active_plugin_slugs()
             : [];
 
+        // Check if Cloudflare token is stored
+        $cf_token_saved = !empty($global_settings['has_cloudflare_key']) || !empty($global_settings['cloudflare_api_token']);
+        $cf_zone_id     = (string) ($global_settings['cloudflare_zone_id'] ?? get_option('webcareproscan_cf_zone_id', ''));
+        $cloudflare_status = [
+            'has_saved_token' => $cf_token_saved,
+            'zone_id'         => $cf_zone_id,
+            'is_active'       => $is_cloudflare,
+        ];
+
+        // Check Preload Micro-WAF status
+        $preload_waf_status = [
+            'is_active'        => defined('WEBCAREPRO_PRELOAD_WAF_ACTIVE') && WEBCAREPRO_PRELOAD_WAF_ACTIVE,
+            'is_compiled'      => false,
+            'auto_prepend_ini' => (string) ini_get('auto_prepend_file'),
+            'target_info'      => null,
+        ];
+        if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            $mw_stat = \WebCareProScanner\Firewall\MicroWafCompiler::get_status();
+            $preload_waf_status['is_compiled']      = !empty($mw_stat['is_compiled']);
+            $preload_waf_status['is_active']        = !empty($mw_stat['is_active']) || $preload_waf_status['is_active'];
+            $preload_waf_status['target_info']      = $mw_stat['target_info'] ?? null;
+            $preload_waf_status['auto_prepend_ini'] = $mw_stat['auto_prepend_ini'] ?? $preload_waf_status['auto_prepend_ini'];
+        }
+
+        // Outbound Egress status
+        $egress_status = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\OutboundEgressFirewall')) {
+            $egress_status = \WebCareProScanner\Firewall\OutboundEgressFirewall::get_status();
+        }
+
+        // Stack Profile & Capabilities
+        $stack_snapshot = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\AdaptiveFirewallAdvisor')) {
+            $advisor = new \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor();
+            $snapshot_obj = $advisor->get_stack_snapshot();
+            if (method_exists($snapshot_obj, 'to_array')) {
+                $stack_snapshot = $snapshot_obj->to_array();
+            }
+        }
+        $capability_profile = [];
+        if (class_exists('\\WebCareProScanner\\Advisor\\SiteCapabilityProfiler')) {
+            $capability_profile = \WebCareProScanner\Advisor\SiteCapabilityProfiler::profile();
+        }
+
+        $notification_settings = get_option('webcareproscan_notification_settings', []);
+        if (!is_array($notification_settings)) {
+            $notification_settings = [];
+        }
+
+        // Strip raw secrets before sending settings dictionary to frontend
+        $safe_settings = $global_settings;
+        unset(
+            $safe_settings['cloudflare_api_token'],
+            $safe_settings['ai_api_key'],
+            $safe_settings['openai_api_key'],
+            $safe_settings['gemini_api_key'],
+            $safe_settings['claude_api_key'],
+            $safe_settings['virus_total_api_key'],
+            $safe_settings['wpscan_api_key'],
+            $safe_settings['mcp_token']
+        );
+
         return new \WP_REST_Response([
-            'success'              => true,
-            'client_ip'            => $client_ip,
-            'is_whitelisted'       => $is_whitelisted,
-            'is_cloudflare_active' => $is_cloudflare,
-            'cf_ray'               => $cf_ray,
-            'admin_email'          => get_option('admin_email'),
-            'site_name'            => get_bloginfo('name'),
-            'site_domain'          => $site_host,
-            'root_domain'          => $root_domain,
-            'detected_archetype'   => $archetype,
-            'wizard_completed'     => (bool) get_option('webcareproscan_wizard_completed', false),
-            'support_code'         => $support_code,
-            'waf_settings'         => $waf_settings,
-            'server_info'          => $server_info,
-            'active_plugin_slugs'  => $active_plugin_slugs,
-            'scan_schedule'        => !empty($global_settings['schedule_enabled'])
+            'success'               => true,
+            'client_ip'             => $client_ip,
+            'is_whitelisted'        => $is_whitelisted,
+            'ip_whitelist'          => $ip_whitelist_entries,
+            'is_cloudflare_active'  => $is_cloudflare,
+            'cf_ray'                => $cf_ray,
+            'admin_email'           => get_option('admin_email'),
+            'site_name'             => get_bloginfo('name'),
+            'site_domain'           => $site_host,
+            'root_domain'           => $root_domain,
+            'detected_archetype'    => $archetype,
+            'wizard_completed'      => (bool) get_option('webcareproscan_wizard_completed', false),
+            'support_code'          => $support_code,
+            'waf_settings'          => $waf_settings,
+            'server_info'           => $server_info,
+            'active_plugin_slugs'   => $active_plugin_slugs,
+            'scan_schedule'         => !empty($global_settings['schedule_enabled'])
                 ? ($global_settings['schedule_frequency'] ?? 'daily')
                 : 'manual',
-            'settings'             => [
-                'schedule_enabled'             => !empty($global_settings['schedule_enabled']),
-                'schedule_frequency'           => $global_settings['schedule_frequency'] ?? 'daily',
-                'custom_scan_options'          => $global_settings['custom_scan_options'] ?? [],
-                'scan_batch_size'              => $global_settings['scan_batch_size'] ?? 50,
-                'scan_memory_safety_envelope'  => $global_settings['scan_memory_safety_envelope'] ?? 'balanced',
-                'scan_adaptive_throttling'     => $global_settings['scan_adaptive_throttling'] ?? true,
-                'scan_batch_delay_ms'          => $global_settings['scan_batch_delay_ms'] ?? 0,
-                'delete_data_on_uninstall'     => $global_settings['delete_data_on_uninstall'] ?? false,
-                'uninstall_drop_tables'        => $global_settings['uninstall_drop_tables'] ?? true,
-                'uninstall_delete_options'     => $global_settings['uninstall_delete_options'] ?? true,
-                'activity_log_settings'        => $global_settings['activity_log_settings'] ?? ['retention_days' => 30, 'tamper_webhook_url' => ''],
-                'waf_targeted_allowlist_rules' => $global_settings['waf_targeted_allowlist_rules'] ?? '[]',
-            ],
+            'cloudflare_status'     => $cloudflare_status,
+            'preload_waf'           => $preload_waf_status,
+            'egress_status'         => $egress_status,
+            'stack_snapshot'        => $stack_snapshot,
+            'capability_profile'    => $capability_profile,
+            'notification_settings' => $notification_settings,
+            'settings'              => $safe_settings,
         ], 200);
     }
 
@@ -2039,14 +2114,44 @@ class ScannerRoutes {
         }
 
         try {
-            // 1. Whitelist Owner IP
+            // 1. Whitelist Owner IP & Multi-IP/CIDR Entries
+            $whitelist_updated = false;
+            $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+            $existing_ips = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
+            $ip_lines = array_filter(array_map('trim', explode("\n", $existing_ips)));
+
             if (!empty($params['whitelist_ip'])) {
-                $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
-                $existing_ips = (string) get_option('webcareproscan_waf_whitelisted_ips', '');
-                if (strpos($existing_ips, $client_ip) === false) {
-                    $new_whitelist = trim($existing_ips . "\n" . $client_ip);
-                    update_option('webcareproscan_waf_whitelisted_ips', $new_whitelist);
+                if (!in_array($client_ip, $ip_lines, true)) {
+                    $ip_lines[] = $client_ip;
+                    $whitelist_updated = true;
                 }
+            }
+
+            $custom_whitelist = $request->get_param('ip_whitelist_entries');
+            if (is_array($custom_whitelist)) {
+                $sanitized_whitelist = [];
+                foreach ($custom_whitelist as $entry) {
+                    if (!is_array($entry) || empty($entry['ip'])) {
+                        continue;
+                    }
+                    $cand = sanitize_text_field((string) $entry['ip']);
+                    if (filter_var($cand, FILTER_VALIDATE_IP) || preg_match('/^[0-9a-fA-F:\.]+\/\d{1,3}$/', $cand)) {
+                        $sanitized_whitelist[] = [
+                            'ip'         => $cand,
+                            'label'      => sanitize_text_field((string) ($entry['label'] ?? __('Setup Studio Whitelist', 'webcare-pro-security'))),
+                            'created_at' => sanitize_text_field((string) ($entry['created_at'] ?? current_time('mysql'))),
+                        ];
+                        if (!in_array($cand, $ip_lines, true)) {
+                            $ip_lines[] = $cand;
+                            $whitelist_updated = true;
+                        }
+                    }
+                }
+                update_option('webcareproscan_ip_whitelist', $sanitized_whitelist);
+            }
+
+            if ($whitelist_updated) {
+                update_option('webcareproscan_waf_whitelisted_ips', implode("\n", array_unique($ip_lines)));
             }
 
             // 2. Archetype & Profile
@@ -2055,13 +2160,47 @@ class ScannerRoutes {
 
             // 3. Firewall Toggles & Archetype Smart Rules
             $waf_settings = get_option('webcareproscan_waf_settings', []);
+            if (!is_array($waf_settings)) {
+                $waf_settings = [];
+            }
             $firewall_payload = [];
 
             if (isset($params['firewall_settings']) && is_array($params['firewall_settings'])) {
                 $fs = $params['firewall_settings'];
-                foreach ($fs as $k => $v) {
-                    $clean_k = sanitize_key($k);
-                    $waf_settings[$clean_k] = (bool) $v;
+
+                $bool_waf_keys = [
+                    'waf_enabled', 'waf_learning_mode', 'waf_block_uploads_exec',
+                    'waf_enable_brute_force_shield', 'waf_enable_virtual_patching',
+                    'waf_block_bad_bots', 'waf_rasp_enabled', 'waf_allow_seo_bots',
+                    'waf_caf_block_inactive_plugins', 'waf_caf_lock_dormant_rest',
+                    'waf_caf_strict_guest_admin_ajax', 'waf_ecommerce_safe_mode',
+                    'waf_woo_carding_protection', 'waf_woo_coupon_protection',
+                    'waf_woo_registration_protection', 'waf_woo_cart_flood_protection',
+                    'waf_woo_scraping_protection', 'cf_auto_ban_sync', 'cf_ddos_protection_enabled',
+                    'waf_smart_rule_48', 'waf_smart_rule_49', 'waf_smart_rule_50',
+                    'waf_smart_rule_51', 'waf_smart_rule_52', 'waf_smart_rule_53', 'waf_smart_rule_54',
+                ];
+                foreach ($bool_waf_keys as $k) {
+                    if (isset($fs[$k])) {
+                        $waf_settings[$k] = (bool) $fs[$k];
+                    }
+                }
+
+                $int_waf_keys = [
+                    'waf_max_404_per_minute'            => [5, 200],
+                    'waf_lockout_duration_mins'         => [1, 10080],
+                    'waf_woo_carding_max_attempts'      => [2, 50],
+                    'waf_woo_carding_max_declines'      => [1, 25],
+                    'waf_woo_coupon_max_failures'       => [3, 50],
+                    'waf_woo_cart_max_adds_per_min'     => [5, 300],
+                    'waf_woo_reg_max_per_hour'          => [1, 100],
+                    'waf_woo_scraping_max_reqs_per_min' => [10, 600],
+                    'cf_ddos_threshold'                 => [20, 5000],
+                ];
+                foreach ($int_waf_keys as $k => $bounds) {
+                    if (isset($fs[$k])) {
+                        $waf_settings[$k] = max($bounds[0], min($bounds[1], (int) $fs[$k]));
+                    }
                 }
                 update_option('webcareproscan_waf_settings', $waf_settings);
 
@@ -2090,7 +2229,9 @@ class ScannerRoutes {
                 foreach ($fs as $k => $v) {
                     $clean_k = sanitize_key($k);
                     if (str_starts_with($clean_k, 'waf_') || str_starts_with($clean_k, 'form_') || str_starts_with($clean_k, 'login_')) {
-                        $firewall_payload[$clean_k] = (bool) $v;
+                        if (is_bool($v) || is_numeric($v)) {
+                            $firewall_payload[$clean_k] = $v;
+                        }
                     }
                 }
             }
@@ -2122,11 +2263,35 @@ class ScannerRoutes {
                 }
             }
 
-            if (!empty($firewall_payload) && class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
-                \WebCareProScanner\System\SettingsManager::save_settings($firewall_payload);
+            // 4. Outbound Egress Settings
+            if (isset($params['egress_settings']) && is_array($params['egress_settings'])) {
+                $es = $params['egress_settings'];
+                if (class_exists('\\WebCareProScanner\\Firewall\\OutboundEgressFirewall')) {
+                    $mode = sanitize_key($es['mode'] ?? 'monitor');
+                    if (!in_array($mode, ['disabled', 'monitor', 'enforce'], true)) {
+                        $mode = 'monitor';
+                    }
+                    $allowed_hosts = [];
+                    if (!empty($es['allowed_hosts'])) {
+                        $raw_hosts = is_array($es['allowed_hosts']) ? $es['allowed_hosts'] : explode("\n", (string) $es['allowed_hosts']);
+                        foreach ($raw_hosts as $h) {
+                            $cleaned = strtolower(trim(sanitize_text_field($h)));
+                            if (!empty($cleaned)) {
+                                $allowed_hosts[] = $cleaned;
+                            }
+                        }
+                    }
+                    \WebCareProScanner\Firewall\OutboundEgressFirewall::update_settings([
+                        'mode'                 => $mode,
+                        'block_ssrf_metadata'  => !empty($es['block_ssrf_metadata']),
+                        'block_exfil_webhooks' => !empty($es['block_exfil_webhooks']),
+                        'block_suspicious_tld' => !empty($es['block_suspicious_tld']),
+                        'allowed_hosts'        => $allowed_hosts,
+                    ]);
+                }
             }
 
-            // 4. Cloudflare Integration (if provided)
+            // 5. Cloudflare Integration (if provided)
             if (!empty($params['cloudflare']['api_token'])) {
                 $cf_token = sanitize_text_field($params['cloudflare']['api_token']);
                 $cf_zone  = !empty($params['cloudflare']['zone_id']) ? sanitize_text_field($params['cloudflare']['zone_id']) : '';
@@ -2139,89 +2304,186 @@ class ScannerRoutes {
                     }
                 }
 
-                if (!empty($cf_zone) && class_exists('\WebCareProScanner\System\SettingsManager')) {
-                    \WebCareProScanner\System\SettingsManager::save_settings([
-                        'cloudflare_enabled'        => true,
-                        'cloudflare_api_token'      => $cf_token,
-                        'cloudflare_zone_id'        => $cf_zone,
-                        'cloudflare_auto_sync_bans' => true,
-                    ]);
+                if (!empty($cf_zone)) {
+                    $firewall_payload['cloudflare_enabled']        = true;
+                    $firewall_payload['cloudflare_api_token']      = $cf_token;
+                    $firewall_payload['cloudflare_zone_id']        = $cf_zone;
+                    $firewall_payload['cloudflare_auto_sync_bans'] = true;
                 }
             }
 
-            // 5. Scheduled Scan Frequency & Advanced Engine Settings
-            if (class_exists('\WebCareProScanner\System\SettingsManager')) {
-                $advanced_payload = [];
+            // 6. Scheduled Scan Frequency & Advanced Engine Settings
+            $advanced_payload = $firewall_payload;
 
-                if (!empty($params['scan_schedule'])) {
-                    $freq = sanitize_key($params['scan_schedule']);
-                    if (in_array($freq, ['daily', 'weekly', 'manual'], true)) {
-                        $is_enabled = ($freq !== 'manual');
-                        $actual_freq = $is_enabled ? $freq : 'daily';
-                        $advanced_payload['schedule_enabled']   = $is_enabled;
-                        $advanced_payload['schedule_frequency'] = $actual_freq;
+            if (!empty($params['scan_schedule'])) {
+                $freq = sanitize_key($params['scan_schedule']);
+                if (in_array($freq, ['hourly', 'twicedaily', 'daily', 'weekly', 'manual'], true)) {
+                    $is_enabled = ($freq !== 'manual');
+                    $actual_freq = $is_enabled ? $freq : 'daily';
+                    $advanced_payload['schedule_enabled']   = $is_enabled;
+                    $advanced_payload['schedule_frequency'] = $actual_freq;
+                }
+            }
+
+            if (isset($params['custom_scan_options']) && is_array($params['custom_scan_options'])) {
+                $advanced_payload['custom_scan_options'] = $params['custom_scan_options'];
+            }
+
+            if (isset($params['scan_batch_size'])) {
+                $advanced_payload['scan_batch_size'] = max(10, min(500, intval($params['scan_batch_size'])));
+            }
+
+            if (isset($params['scan_memory_safety_envelope'])) {
+                $advanced_payload['scan_memory_safety_envelope'] = sanitize_key($params['scan_memory_safety_envelope']);
+            }
+
+            if (isset($params['scan_adaptive_throttling'])) {
+                $advanced_payload['scan_adaptive_throttling'] = (bool) $params['scan_adaptive_throttling'];
+            }
+
+            if (isset($params['scan_batch_delay_ms'])) {
+                $advanced_payload['scan_batch_delay_ms'] = max(0, min(2000, intval($params['scan_batch_delay_ms'])));
+            }
+
+            if (isset($params['delete_data_on_uninstall'])) {
+                $advanced_payload['delete_data_on_uninstall'] = (bool) $params['delete_data_on_uninstall'];
+            }
+
+            if (isset($params['uninstall_drop_tables'])) {
+                $advanced_payload['uninstall_drop_tables'] = (bool) $params['uninstall_drop_tables'];
+            }
+
+            if (isset($params['uninstall_delete_options'])) {
+                $advanced_payload['uninstall_delete_options'] = (bool) $params['uninstall_delete_options'];
+            }
+
+            if (isset($params['activity_log_settings']) && is_array($params['activity_log_settings'])) {
+                $advanced_payload['activity_log_settings'] = [
+                    'retention_days'     => max(7, min(365, intval($params['activity_log_settings']['retention_days'] ?? 30))),
+                    'tamper_webhook_url' => esc_url_raw($params['activity_log_settings']['tamper_webhook_url'] ?? ''),
+                ];
+            }
+
+            if (isset($params['waf_targeted_allowlist_rules'])) {
+                $advanced_payload['waf_targeted_allowlist_rules'] = is_string($params['waf_targeted_allowlist_rules'])
+                    ? $params['waf_targeted_allowlist_rules']
+                    : wp_json_encode($params['waf_targeted_allowlist_rules']);
+            }
+
+            // Advanced controls from Step 9, 10, 11, 13
+            if (isset($params['advanced_settings']) && is_array($params['advanced_settings'])) {
+                $adv = $params['advanced_settings'];
+                
+                // Login Hardening & 2FA
+                if (isset($adv['login_max_retries'])) {
+                    $advanced_payload['login_max_retries'] = max(2, min(50, intval($adv['login_max_retries'])));
+                }
+                if (isset($adv['login_lockout_duration'])) {
+                    $advanced_payload['login_lockout_duration'] = max(1, min(10080, intval($adv['login_lockout_duration'])));
+                }
+                if (isset($adv['auth_2fa_enabled'])) {
+                    $advanced_payload['auth_2fa_enabled'] = (bool) $adv['auth_2fa_enabled'];
+                }
+                if (isset($adv['auth_2fa_enforce_admins'])) {
+                    $advanced_payload['auth_2fa_enforce_admins'] = (bool) $adv['auth_2fa_enforce_admins'];
+                }
+                if (isset($adv['auth_2fa_policy_mode']) && in_array($adv['auth_2fa_policy_mode'], ['immediate', 'grace_period', 'remind_login'], true)) {
+                    $advanced_payload['auth_2fa_policy_mode'] = $adv['auth_2fa_policy_mode'];
+                }
+                if (isset($adv['auth_2fa_grace_days'])) {
+                    $advanced_payload['auth_2fa_grace_days'] = max(1, min(90, intval($adv['auth_2fa_grace_days'])));
+                }
+
+                // Password security & hardening
+                $direct_bools = [
+                    'waf_enforce_strong_passwords', 'waf_check_pwned_passwords',
+                    'disable_file_editing', 'hide_wp_version', 'block_user_enumeration',
+                    'header_hsts', 'header_nosniff', 'header_x_frame_options',
+                    'header_referrer_policy', 'header_permissions_policy',
+                    'auto_quarantine_critical', 'self_defense_watchdog_enabled'
+                ];
+                foreach ($direct_bools as $db_key) {
+                    if (isset($adv[$db_key])) {
+                        $advanced_payload[$db_key] = (bool) $adv[$db_key];
                     }
                 }
 
-                if (isset($params['custom_scan_options']) && is_array($params['custom_scan_options'])) {
-                    $advanced_payload['custom_scan_options'] = $params['custom_scan_options'];
+                // AI Copilot settings
+                if (isset($adv['ai_enabled'])) {
+                    $advanced_payload['ai_enabled'] = (bool) $adv['ai_enabled'];
+                }
+                if (!empty($adv['ai_provider']) && in_array($adv['ai_provider'], ['openai', 'gemini', 'claude', 'wp_ai_connect'], true)) {
+                    $advanced_payload['ai_provider'] = $adv['ai_provider'];
+                }
+                if (!empty($adv['openai_api_key'])) {
+                    $advanced_payload['openai_api_key'] = sanitize_text_field($adv['openai_api_key']);
+                }
+                if (!empty($adv['gemini_api_key'])) {
+                    $advanced_payload['gemini_api_key'] = sanitize_text_field($adv['gemini_api_key']);
+                }
+                if (!empty($adv['claude_api_key'])) {
+                    $advanced_payload['claude_api_key'] = sanitize_text_field($adv['claude_api_key']);
                 }
 
-                if (isset($params['scan_batch_size'])) {
-                    $advanced_payload['scan_batch_size'] = intval($params['scan_batch_size']);
+                // Trusted proxy IPs
+                if (!empty($adv['trusted_proxy_ips'])) {
+                    $advanced_payload['trusted_proxy_ips'] = sanitize_textarea_field($adv['trusted_proxy_ips']);
                 }
-
-                if (isset($params['scan_memory_safety_envelope'])) {
-                    $advanced_payload['scan_memory_safety_envelope'] = sanitize_key($params['scan_memory_safety_envelope']);
+                // Excluded paths & extensions
+                if (!empty($adv['excluded_paths'])) {
+                    $advanced_payload['excluded_paths'] = sanitize_textarea_field($adv['excluded_paths']);
                 }
-
-                if (isset($params['scan_adaptive_throttling'])) {
-                    $advanced_payload['scan_adaptive_throttling'] = (bool) $params['scan_adaptive_throttling'];
-                }
-
-                if (isset($params['scan_batch_delay_ms'])) {
-                    $advanced_payload['scan_batch_delay_ms'] = intval($params['scan_batch_delay_ms']);
-                }
-
-                if (isset($params['delete_data_on_uninstall'])) {
-                    $advanced_payload['delete_data_on_uninstall'] = (bool) $params['delete_data_on_uninstall'];
-                }
-
-                if (isset($params['uninstall_drop_tables'])) {
-                    $advanced_payload['uninstall_drop_tables'] = (bool) $params['uninstall_drop_tables'];
-                }
-
-                if (isset($params['uninstall_delete_options'])) {
-                    $advanced_payload['uninstall_delete_options'] = (bool) $params['uninstall_delete_options'];
-                }
-
-                if (isset($params['activity_log_settings']) && is_array($params['activity_log_settings'])) {
-                    $advanced_payload['activity_log_settings'] = $params['activity_log_settings'];
-                }
-
-                if (isset($params['waf_targeted_allowlist_rules'])) {
-                    $advanced_payload['waf_targeted_allowlist_rules'] = is_string($params['waf_targeted_allowlist_rules'])
-                        ? $params['waf_targeted_allowlist_rules']
-                        : wp_json_encode($params['waf_targeted_allowlist_rules']);
-                }
-
-                if (!empty($advanced_payload)) {
-                    \WebCareProScanner\System\SettingsManager::save_settings($advanced_payload);
+                if (!empty($adv['custom_extensions'])) {
+                    $advanced_payload['custom_extensions'] = sanitize_text_field($adv['custom_extensions']);
                 }
             }
 
-            // 6. Security Alert Notifications
+            // Save via SettingsManager
+            if (!empty($advanced_payload) && class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
+                \WebCareProScanner\System\SettingsManager::save_settings($advanced_payload);
+            }
+
+            // 7. Security Alert Notifications & Webhooks
             if (!empty($params['alerts'])) {
                 $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
                 $notif_settings = get_option('webcareproscan_notification_settings', []);
+                if (!is_array($notif_settings)) {
+                    $notif_settings = [];
+                }
                 $notif_settings['email_recipient'] = $alert_email;
                 $notif_settings['notify_critical'] = !empty($params['alerts']['notify_critical']);
                 $notif_settings['notify_logins']   = !empty($params['alerts']['notify_logins']);
                 $notif_settings['notify_panic']    = !empty($params['alerts']['notify_panic']);
                 update_option('webcareproscan_notification_settings', $notif_settings);
+
+                // Also save to SettingsManager for webhook dispatch
+                $webhook_updates = [
+                    'email_alerts_enabled' => true,
+                    'alert_emails'         => $alert_email,
+                ];
+                if (!empty($params['alerts']['slack_webhook_url'])) {
+                    $webhook_updates['slack_enabled']     = true;
+                    $webhook_updates['slack_webhook_url'] = esc_url_raw($params['alerts']['slack_webhook_url']);
+                }
+                if (!empty($params['alerts']['discord_webhook_url'])) {
+                    $webhook_updates['discord_enabled']     = true;
+                    $webhook_updates['discord_webhook_url'] = esc_url_raw($params['alerts']['discord_webhook_url']);
+                }
+                if (!empty($params['alerts']['generic_webhook_url'])) {
+                    $webhook_updates['generic_webhook_enabled'] = true;
+                    $webhook_updates['generic_webhook_url']     = esc_url_raw($params['alerts']['generic_webhook_url']);
+                }
+                if (class_exists('\\WebCareProScanner\\System\\SettingsManager')) {
+                    \WebCareProScanner\System\SettingsManager::save_settings($webhook_updates);
+                }
             }
 
-            // 7. Mark Wizard as Completed
+            // 8. Recompile Pre-Boot Micro-WAF Snapshot with all updated exemptions & rules
+            if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+                \WebCareProScanner\Firewall\MicroWafCompiler::compile();
+            }
+
+            // 9. Mark Wizard as Completed
             update_option('webcareproscan_wizard_completed', true);
         } finally {
             if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
@@ -2234,6 +2496,13 @@ class ScannerRoutes {
             $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
             $alert_email = sanitize_email($params['alerts']['email'] ?? get_option('admin_email'));
             $arch_label = ucfirst($archetype ?? 'business');
+            /* translators: 1: Site archetype profile label, 2: Client IP address, 3: Notification email */
+            $event_desc = sprintf(
+                __('Completed initial security onboarding setup with %1$s profile: enabled core firewall shields, whitelisted administrator IP (%2$s), and configured security alerts for %3$s.', 'webcare-pro-security'),
+                $arch_label,
+                $client_ip,
+                $alert_email
+            );
             \WebCareProScanner\System\WebCareActivityLogger::notice(
                 'onboarding_wizard_completed',
                 'settings',
@@ -2242,12 +2511,7 @@ class ScannerRoutes {
                     'whitelisted_ip'  => !empty($params['whitelist_ip']) ? $client_ip : null,
                     'alert_email'     => $alert_email,
                     'firewall_active' => true,
-                    'description'     => sprintf(
-                        'Completed initial security onboarding setup with %1$s profile: enabled core firewall shields, whitelisted administrator IP (%2$s), and configured security alerts for %3$s.',
-                        $arch_label,
-                        $client_ip,
-                        $alert_email
-                    ),
+                    'description'     => $event_desc,
                 ]
             );
         }
