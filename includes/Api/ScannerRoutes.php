@@ -2043,6 +2043,12 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/custom/reorder', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reorder_custom_modular_rules'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/modular-waf/rule/cloudflare-push', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'push_custom_rule_to_cloudflare'],
@@ -3518,15 +3524,132 @@ class ScannerRoutes {
     }
 
     /**
-     * Return Visual Rule Studio field catalog.
+     * Return Visual Rule Studio field catalog plus live installed plugins/themes, roles, and endpoints.
      */
     public static function get_modular_visual_fields(\WP_REST_Request $request) {
         $fields = class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')
             ? \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::get_field_catalog()
             : [];
+
+        $components = [];
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        if (function_exists('get_plugins')) {
+            $active_plugins = (array) get_option('active_plugins', []);
+            $mu_plugins     = function_exists('get_mu_plugins') ? get_mu_plugins() : [];
+            foreach (get_plugins() as $plugin_file => $pdata) {
+                $pfile_str     = (string) $plugin_file;
+                $is_dir_plugin = strpos($pfile_str, '/') !== false;
+                $slug          = sanitize_key($is_dir_plugin ? explode('/', $pfile_str)[0] : basename($pfile_str, '.php'));
+                if ($slug === '') {
+                    continue;
+                }
+                $components[] = [
+                    'slug'     => $slug,
+                    'name'     => html_entity_decode(wp_strip_all_tags((string) ($pdata['Name'] ?? $slug)), ENT_QUOTES, 'UTF-8'),
+                    'version'  => (string) ($pdata['Version'] ?? ''),
+                    'type'     => 'plugin',
+                    'status'   => in_array($plugin_file, $active_plugins, true) ? 'active' : 'inactive',
+                    'url_path' => $is_dir_plugin ? ('/wp-content/plugins/' . $slug . '/') : ('/wp-content/plugins/' . ltrim($pfile_str, '/')),
+                ];
+            }
+            foreach ((array) $mu_plugins as $mu_file => $mdata) {
+                $slug = sanitize_key(basename((string) $mu_file, '.php'));
+                if ($slug === '') {
+                    continue;
+                }
+                $components[] = [
+                    'slug'     => $slug,
+                    'name'     => html_entity_decode(wp_strip_all_tags((string) ($mdata['Name'] ?? $slug)), ENT_QUOTES, 'UTF-8'),
+                    'version'  => (string) ($mdata['Version'] ?? ''),
+                    'type'     => 'mu-plugin',
+                    'status'   => 'must-use',
+                    'url_path' => '/wp-content/mu-plugins/' . basename((string) $mu_file),
+                ];
+            }
+        }
+        if (function_exists('wp_get_themes')) {
+            $active_theme = get_stylesheet();
+            foreach (wp_get_themes() as $stylesheet => $theme_obj) {
+                $slug = sanitize_key((string) $stylesheet);
+                if ($slug === '') {
+                    continue;
+                }
+                $components[] = [
+                    'slug'     => $slug,
+                    'name'     => html_entity_decode(wp_strip_all_tags((string) $theme_obj->get('Name')), ENT_QUOTES, 'UTF-8'),
+                    'version'  => (string) $theme_obj->get('Version'),
+                    'type'     => 'theme',
+                    'status'   => ($stylesheet === $active_theme) ? 'active' : 'inactive',
+                    'url_path' => '/wp-content/themes/' . $slug . '/',
+                ];
+            }
+        }
+
+        usort($components, static function ($a, $b) {
+            $a_act = ($a['status'] === 'active' || $a['status'] === 'must-use') ? 0 : 1;
+            $b_act = ($b['status'] === 'active' || $b['status'] === 'must-use') ? 0 : 1;
+            if ($a_act !== $b_act) {
+                return $a_act <=> $b_act;
+            }
+            return strcasecmp((string) $a['name'], (string) $b['name']);
+        });
+
+        $roles = [];
+        if (function_exists('wp_roles')) {
+            $wp_r = wp_roles();
+            if ($wp_r && !empty($wp_r->role_names) && is_array($wp_r->role_names)) {
+                foreach ($wp_r->role_names as $r_slug => $r_label) {
+                    $roles[] = [
+                        'slug'  => sanitize_key((string) $r_slug),
+                        'label' => translate_user_role((string) $r_label),
+                    ];
+                }
+            }
+        }
+
+        $ajax_actions = [];
+        $rest_routes  = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager')) {
+            $ep_map = \WebCareProScanner\Firewall\Modular\BehavioralVaultManager::read_shard(\WebCareProScanner\Firewall\Modular\BehavioralVaultManager::SHARD_ENDPOINTS);
+            if (is_array($ep_map)) {
+                foreach (array_slice($ep_map, 0, 120) as $ep) {
+                    if (!is_array($ep)) {
+                        continue;
+                    }
+                    $ep_type = strtolower((string) ($ep['type'] ?? ''));
+                    if ($ep_type === 'ajax' && !empty($ep['action'])) {
+                        $ajax_actions[] = sanitize_text_field((string) $ep['action']);
+                    } elseif ($ep_type === 'rest' && !empty($ep['route'])) {
+                        $rest_routes[] = sanitize_text_field((string) $ep['route']);
+                    }
+                }
+            }
+        }
+
+        $custom_rules_count = 0;
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            foreach (\WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_active_rules() as $ar) {
+                if (!empty($ar['is_custom']) || ($ar['category'] ?? '') === 'custom') {
+                    $custom_rules_count++;
+                }
+            }
+        }
+
         return new \WP_REST_Response([
-            'success' => true,
-            'fields'  => $fields,
+            'success'              => true,
+            'fields'               => $fields,
+            'installed_components' => $components,
+            'roles'                => $roles,
+            'current_ip'           => class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
+                : '',
+            'discovered_endpoints' => [
+                'ajax_actions' => array_values(array_unique($ajax_actions)),
+                'rest_routes'  => array_values(array_unique($rest_routes)),
+            ],
+            'custom_rules_count'   => $custom_rules_count,
         ], 200);
     }
 
@@ -3569,20 +3692,39 @@ class ScannerRoutes {
     }
 
     /**
+     * Reorder custom modular firewall rules in priority sequence.
+     */
+    public static function reorder_custom_modular_rules(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Modular firewall synthesizer unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params      = $request->get_json_params() ?: [];
+        $ordered_ids = is_array($params['ordered_ids'] ?? null) ? $params['ordered_ids'] : [];
+        if (empty($ordered_ids)) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('ordered_ids array is required.', 'webcare-pro-security')], 400);
+        }
+        $res = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::reorder_custom_rules($ordered_ids);
+        return new \WP_REST_Response($res, 200);
+    }
+
+    /**
      * Parse an edited Wirefilter expression into structured visual condition groups.
      */
     public static function parse_wirefilter_expression(\WP_REST_Request $request) {
         if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')) {
-            return new \WP_REST_Response(['success' => false, 'conditions' => []], 200);
+            return new \WP_REST_Response(['success' => false, 'conditions' => [], 'group_logic' => 'OR'], 200);
         }
-        $params     = $request->get_json_params() ?: [];
-        $expr       = sanitize_text_field(wp_unslash((string) ($params['wirefilter_expr'] ?? '')));
-        $conditions = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::parse_wirefilter($expr);
+        $params      = $request->get_json_params() ?: [];
+        $expr        = sanitize_text_field(wp_unslash((string) ($params['wirefilter_expr'] ?? '')));
+        $tree        = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::parse_wirefilter_tree($expr);
+        $conditions  = $tree['conditions'];
+        $group_logic = $tree['group_logic'];
         return new \WP_REST_Response([
-            'success'    => true,
-            'conditions' => $conditions,
-            'wirefilter' => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_wirefilter($conditions),
-            'cf_edge'    => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_cloudflare_edge_wirefilter($conditions),
+            'success'     => true,
+            'conditions'  => $conditions,
+            'group_logic' => $group_logic,
+            'wirefilter'  => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_wirefilter($conditions, $group_logic),
+            'cf_edge'     => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_cloudflare_edge_wirefilter($conditions, $group_logic),
         ], 200);
     }
 

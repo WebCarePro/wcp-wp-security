@@ -31,6 +31,7 @@ class ModularFirewallSynthesizer {
     const OPTION_RULES         = 'webcareproscan_modular_waf_rules';
     const OPTION_AUTOPILOT     = 'webcareproscan_modular_autopilot';
     const OPTION_AUTOPILOT_OBS = 'webcareproscan_modular_autopilot_obs';
+    const OPTION_CUSTOM_SEQ    = 'webcareproscan_modular_custom_rule_seq';
 
     /**
      * Check whether Smart 48-Hour Auto-Pilot is enabled.
@@ -648,17 +649,96 @@ class ModularFirewallSynthesizer {
     public static function get_active_rules(): array {
         $saved = get_option(self::OPTION_RULES, null);
         if (is_array($saved)) {
-            return $saved;
+            return self::normalize_custom_rule_ordering($saved, false);
         }
 
         // Fallback to Vault Shard
         $from_shard = BehavioralVaultManager::read_shard(BehavioralVaultManager::SHARD_RULES);
         if (is_array($from_shard)) {
-            update_option(self::OPTION_RULES, $from_shard, false);
-            return $from_shard;
+            $normalized = self::normalize_custom_rule_ordering($from_shard, false);
+            update_option(self::OPTION_RULES, $normalized, false);
+            return $normalized;
         }
 
         return [];
+    }
+
+    /**
+     * Allocate next unique monotonic numeric ID (#1, #2, #3...) for custom rules.
+     */
+    private static function allocate_custom_rule_number(array $existing_rules = []): int {
+        $seq = (int) get_option(self::OPTION_CUSTOM_SEQ, 0);
+        foreach ($existing_rules as $r) {
+            if (!empty($r['rule_number'])) {
+                $seq = max($seq, (int) $r['rule_number']);
+            }
+        }
+        $next = $seq + 1;
+        update_option(self::OPTION_CUSTOM_SEQ, $next, false);
+        return $next;
+    }
+
+    /**
+     * Normalize custom rule ordering so custom rules always evaluate before baseline rules in ascending `priority` (1..N)
+     * and every custom rule holds an immutable sequential `rule_number` ID.
+     */
+    private static function normalize_custom_rule_ordering(array $rules, bool $persist_seq = true): array {
+        $custom     = [];
+        $baseline   = [];
+        $max_num    = (int) get_option(self::OPTION_CUSTOM_SEQ, 0);
+        $seq_bumped = false;
+
+        foreach ($rules as $idx => $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            if (!empty($r['is_custom']) || ($r['category'] ?? '') === 'custom') {
+                if (!empty($r['rule_number'])) {
+                    $max_num = max($max_num, (int) $r['rule_number']);
+                }
+                $custom[] = ['idx' => $idx, 'rule' => $r];
+            } else {
+                $baseline[] = $r;
+            }
+        }
+
+        if (empty($custom)) {
+            return $baseline;
+        }
+
+        // Assign unique numeric IDs to any legacy custom rules missing one
+        foreach ($custom as &$item) {
+            if (empty($item['rule']['rule_number'])) {
+                $max_num++;
+                $item['rule']['rule_number'] = $max_num;
+                $seq_bumped = true;
+            }
+        }
+        unset($item);
+
+        if ($persist_seq && $seq_bumped) {
+            update_option(self::OPTION_CUSTOM_SEQ, $max_num, false);
+        }
+
+        // Stable sort by priority ascending (rules with unset priority preserve creation/list order at end)
+        usort($custom, static function ($a, $b) {
+            $pa = isset($a['rule']['priority']) && intval($a['rule']['priority']) > 0 ? intval($a['rule']['priority']) : (100000 + $a['idx']);
+            $pb = isset($b['rule']['priority']) && intval($b['rule']['priority']) > 0 ? intval($b['rule']['priority']) : (100000 + $b['idx']);
+            if ($pa === $pb) {
+                return $a['idx'] <=> $b['idx'];
+            }
+            return $pa <=> $pb;
+        });
+
+        $normalized_custom = [];
+        $pos = 1;
+        foreach ($custom as $item) {
+            $r             = $item['rule'];
+            $r['priority'] = $pos++;
+            $normalized_custom[] = $r;
+        }
+
+        return array_merge($normalized_custom, $baseline);
     }
 
     /**
@@ -668,6 +748,7 @@ class ModularFirewallSynthesizer {
      * @return bool
      */
     public static function save_rules(array $rules): bool {
+        $rules   = self::normalize_custom_rule_ordering($rules, true);
         $updated = update_option(self::OPTION_RULES, $rules, false);
 
         // Also sync to vault shard
@@ -810,14 +891,18 @@ class ModularFirewallSynthesizer {
                 $sync_cf     = !empty($r['sync_cloudflare']);
                 $ban_ttl     = isset($r['ban_ttl']) ? max(0, (int) $r['ban_ttl']) : (($sync_cf || $action_type === 'block_and_ban') ? 86400 : 0);
 
-                // Visual condition tree rules: compile stateless HTTP/Network trees directly into pre-boot Micro-WAF
+                // Visual condition tree rules: compile stateless HTTP/Network trees directly into pre-boot Micro-WAF (block & allow in priority order)
                 if (!empty($r['conditions']) && is_array($r['conditions']) && class_exists(VisualRuleExpressionEngine::class)) {
-                    if (in_array($action_type, ['', 'block', 'block_and_ban'], true) && VisualRuleExpressionEngine::is_stateless_preload_eligible($r['conditions'])) {
+                    if (in_array($action_type, ['', 'block', 'block_and_ban', 'allow'], true) && VisualRuleExpressionEngine::is_stateless_preload_eligible($r['conditions'])) {
                         $compiled['visual_rules_enforced'][] = [
                             'rule_id'         => (string) ($r['id'] ?? 'MOD-CUSTOM'),
+                            'rule_number'     => (int) ($r['rule_number'] ?? 0),
+                            'priority'        => (int) ($r['priority'] ?? 0),
                             'title'           => (string) ($r['title'] ?? ''),
                             'action_type'     => $action_type !== '' ? $action_type : 'block',
+                            'group_logic'     => strtoupper((string) ($r['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR',
                             'conditions'      => $r['conditions'],
+                            'exempt_rules'    => is_array($r['exempt_rules'] ?? null) ? $r['exempt_rules'] : [],
                             'sync_cloudflare' => $sync_cf,
                             'ban_ttl'         => $action_type === 'block_and_ban' && $ban_ttl <= 0 ? 86400 : $ban_ttl,
                         ];
@@ -1122,7 +1207,8 @@ class ModularFirewallSynthesizer {
                         $visual_ctx = \WebCareProScanner\Contracts\RequestContext::from_globals();
                     }
                     if ($visual_ctx !== null) {
-                        $matched_custom = VisualRuleExpressionEngine::evaluate_groups($r['conditions'], $visual_ctx);
+                        $grp_logic      = strtoupper((string) ($r['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';
+                        $matched_custom = VisualRuleExpressionEngine::evaluate_groups($r['conditions'], $visual_ctx, $grp_logic);
                     }
                 } else {
                     $target_uri_l = strtolower(trim((string) ($r['target_uri'] ?? '')));
@@ -1457,12 +1543,16 @@ class ModularFirewallSynthesizer {
         $rules        = self::get_active_rules();
         $edit_index   = null;
         $existing_ts  = time();
+        $existing_num = 0;
+        $existing_pri = 0;
 
         if ($incoming_id !== '') {
             foreach ($rules as $idx => $existing_rule) {
                 if (($existing_rule['id'] ?? '') === $incoming_id && !empty($existing_rule['is_custom'])) {
-                    $edit_index  = $idx;
-                    $existing_ts = (int) ($existing_rule['synthesized_at'] ?? time());
+                    $edit_index   = $idx;
+                    $existing_ts  = (int) ($existing_rule['synthesized_at'] ?? time());
+                    $existing_num = (int) ($existing_rule['rule_number'] ?? 0);
+                    $existing_pri = (int) ($existing_rule['priority'] ?? 0);
                     break;
                 }
             }
@@ -1475,6 +1565,7 @@ class ModularFirewallSynthesizer {
         }
 
         $rule_id      = ($edit_index !== null) ? $incoming_id : ('MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false)));
+        $rule_number  = ($existing_num > 0) ? $existing_num : self::allocate_custom_rule_number($rules);
         $raw_mode     = isset($data['current_mode']) ? sanitize_key($data['current_mode']) : 'enforce';
         $valid_actions = ['block', 'block_and_ban', 'rate_limit', 'payload_inspect', 'challenge_pow', 'monitor', 'allow'];
         $rate_limit   = max(0, intval($data['rate_limit'] ?? 0));
@@ -1488,16 +1579,19 @@ class ModularFirewallSynthesizer {
             $raw_mode = 'monitor';
         }
 
-        $conditions = [];
+        $group_logic = strtoupper(trim((string) ($data['group_logic'] ?? 'OR'))) === 'AND' ? 'AND' : 'OR';
+        $conditions  = [];
         if (class_exists(VisualRuleExpressionEngine::class)) {
             if (!empty($data['conditions']) && is_array($data['conditions'])) {
                 $conditions = VisualRuleExpressionEngine::sanitize_condition_groups($data['conditions']);
             } elseif (!empty($data['wirefilter_expr']) && is_string($data['wirefilter_expr'])) {
-                $conditions = VisualRuleExpressionEngine::parse_wirefilter(sanitize_text_field(wp_unslash($data['wirefilter_expr'])));
+                $parsed      = VisualRuleExpressionEngine::parse_wirefilter_tree(sanitize_text_field(wp_unslash($data['wirefilter_expr'])));
+                $conditions  = $parsed['conditions'];
+                $group_logic = $parsed['group_logic'];
             }
         }
         $wirefilter_expr = class_exists(VisualRuleExpressionEngine::class) && !empty($conditions)
-            ? VisualRuleExpressionEngine::to_wirefilter($conditions)
+            ? VisualRuleExpressionEngine::to_wirefilter($conditions, $group_logic)
             : (isset($data['wirefilter_expr']) ? sanitize_text_field(wp_unslash($data['wirefilter_expr'])) : '');
 
         $immediate = !empty($data['immediate_block'])
@@ -1525,6 +1619,8 @@ class ModularFirewallSynthesizer {
 
         $rule = [
             'id'               => $rule_id,
+            'rule_number'      => $rule_number,
+            'priority'         => $existing_pri > 0 ? $existing_pri : 1,
             'category'         => $category,
             'action_type'      => $raw_action,
             'title'            => $title,
@@ -1545,6 +1641,7 @@ class ModularFirewallSynthesizer {
             'ban_ttl'          => $ban_ttl,
             'block_uploads'    => !empty($data['block_uploads']),
             'sync_cloudflare'  => $sync_cf,
+            'group_logic'      => $group_logic,
             'conditions'       => $conditions,
             'wirefilter_expr'  => $wirefilter_expr,
             'exempt_rules'     => $exempt_rules,
@@ -1553,28 +1650,124 @@ class ModularFirewallSynthesizer {
             'updated_at'       => time(),
         ];
 
-        if ($edit_index !== null) {
-            $rules[$edit_index] = $rule;
-        } else {
-            $rules[] = $rule;
+        // Position custom rule according to Cloudflare-style placement selector ('first' | 'last' | 'custom')
+        $placement      = sanitize_key((string) ($data['placement'] ?? ($edit_index !== null ? 'keep' : 'last')));
+        $order_position = isset($data['order_position']) ? max(1, intval($data['order_position'])) : 0;
+
+        $custom_list   = [];
+        $baseline_list = [];
+        foreach ($rules as $existing_r) {
+            if (($existing_r['id'] ?? '') === $rule_id && $edit_index !== null) {
+                continue;
+            }
+            if (!empty($existing_r['is_custom']) || ($existing_r['category'] ?? '') === 'custom') {
+                $custom_list[] = $existing_r;
+            } else {
+                $baseline_list[] = $existing_r;
+            }
         }
-        self::save_rules($rules);
+
+        if ($placement === 'first') {
+            array_unshift($custom_list, $rule);
+        } elseif ($placement === 'custom' && $order_position > 0) {
+            $insert_idx = min(count($custom_list), max(0, $order_position - 1));
+            array_splice($custom_list, $insert_idx, 0, [$rule]);
+        } elseif ($placement === 'keep' && $existing_pri > 0) {
+            $insert_idx = min(count($custom_list), max(0, $existing_pri - 1));
+            array_splice($custom_list, $insert_idx, 0, [$rule]);
+        } else {
+            $custom_list[] = $rule;
+        }
+
+        foreach ($custom_list as $p_idx => &$c_item) {
+            $c_item['priority'] = $p_idx + 1;
+        }
+        unset($c_item);
+        $rule['priority'] = 1;
+        foreach ($custom_list as $c_item) {
+            if (($c_item['id'] ?? '') === $rule_id) {
+                $rule['priority'] = (int) ($c_item['priority'] ?? 1);
+                break;
+            }
+        }
+
+        self::save_rules(array_merge($custom_list, $baseline_list));
 
         return [
             'success' => true,
             'updated' => ($edit_index !== null),
             'message' => ($edit_index !== null)
                 ? sprintf(
-                    /* translators: %s: rule ID */
-                    __('Custom modular rule "%s" updated successfully.', 'webcare-pro-security'),
-                    $rule_id
+                    /* translators: 1: numeric rule ID, 2: rule code, 3: order position */
+                    __('Custom rule ID #%1$d (%2$s) updated at Order #%3$d.', 'webcare-pro-security'),
+                    $rule_number,
+                    $rule_id,
+                    $rule['priority']
                 )
                 : sprintf(
-                    /* translators: %s: rule ID */
-                    __('Custom modular rule "%s" created successfully.', 'webcare-pro-security'),
-                    $rule_id
+                    /* translators: 1: numeric rule ID, 2: rule code, 3: order position */
+                    __('Custom rule ID #%1$d (%2$s) created at Order #%3$d.', 'webcare-pro-security'),
+                    $rule_number,
+                    $rule_id,
+                    $rule['priority']
                 ),
             'rule'    => $rule,
+        ];
+    }
+
+    /**
+     * Reorder custom modular firewall rules in explicit execution priority sequence and recompile Micro-WAF.
+     *
+     * @param string[] $ordered_ids Ordered list of custom rule IDs (highest priority first)
+     * @return array
+     */
+    public static function reorder_custom_rules(array $ordered_ids): array {
+        $clean_ids = array_values(array_unique(array_filter(array_map('sanitize_text_field', $ordered_ids))));
+        $rules     = self::get_active_rules();
+
+        $custom_by_id = [];
+        $baseline     = [];
+        foreach ($rules as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            if (!empty($r['is_custom']) || ($r['category'] ?? '') === 'custom') {
+                $custom_by_id[(string) ($r['id'] ?? '')] = $r;
+            } else {
+                $baseline[] = $r;
+            }
+        }
+
+        $reordered = [];
+        foreach ($clean_ids as $cid) {
+            if (isset($custom_by_id[$cid])) {
+                $reordered[] = $custom_by_id[$cid];
+                unset($custom_by_id[$cid]);
+            }
+        }
+        // Preserve any custom rules not included in the client payload cleanly at the tail
+        foreach ($custom_by_id as $remaining_rule) {
+            $reordered[] = $remaining_rule;
+        }
+
+        foreach ($reordered as $idx => &$cr) {
+            $cr['priority']   = $idx + 1;
+            $cr['updated_at'] = time();
+        }
+        unset($cr);
+
+        $merged = array_merge($reordered, $baseline);
+        self::save_rules($merged);
+
+        return [
+            'success'      => true,
+            'message'      => sprintf(
+                /* translators: %d: number of custom rules ordered */
+                __('Saved execution priority order for %d custom firewall rule(s) and recompiled Pre-Boot Micro-WAF.', 'webcare-pro-security'),
+                count($reordered)
+            ),
+            'custom_count' => count($reordered),
+            'rules'        => self::get_active_rules(),
         ];
     }
 

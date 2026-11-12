@@ -126,8 +126,9 @@ class VisualRuleExpressionEngine {
             }
 
             if (!empty($clean_rules)) {
+                $grp_logic = strtoupper(trim((string) ($group['logic'] ?? 'AND'))) === 'OR' ? 'OR' : 'AND';
                 $clean_groups[] = [
-                    'logic' => 'AND',
+                    'logic' => $grp_logic,
                     'rules' => $clean_rules,
                 ];
             }
@@ -170,35 +171,51 @@ class VisualRuleExpressionEngine {
     }
 
     /**
-     * Evaluate OR-of-ANDs condition groups against a normalized RequestContext.
+     * Evaluate multi-group AND/OR condition tree against a normalized RequestContext.
      *
      * @param array<int, array<string, mixed>> $groups
      * @param RequestContext $ctx
+     * @param string $group_logic 'OR' (default) or 'AND'
      * @return bool
      */
-    public static function evaluate_groups(array $groups, RequestContext $ctx): bool {
+    public static function evaluate_groups(array $groups, RequestContext $ctx, string $group_logic = 'OR'): bool {
         if (empty($groups)) {
             return false;
         }
+
+        $top_and   = (strtoupper(trim($group_logic)) === 'AND');
+        $evaluated = 0;
 
         foreach ($groups as $group) {
             $rules = $group['rules'] ?? [];
             if (empty($rules) || !is_array($rules)) {
                 continue;
             }
-            $all_and_match = true;
+            $evaluated++;
+            $grp_or      = (strtoupper(trim((string) ($group['logic'] ?? 'AND'))) === 'OR');
+            $group_match = !$grp_or;
+
             foreach ($rules as $cond) {
-                if (!self::evaluate_single_condition($cond, $ctx)) {
-                    $all_and_match = false;
+                $hit = self::evaluate_single_condition($cond, $ctx);
+                if ($grp_or && $hit) {
+                    $group_match = true;
+                    break;
+                }
+                if (!$grp_or && !$hit) {
+                    $group_match = false;
                     break;
                 }
             }
-            if ($all_and_match) {
+
+            if ($top_and && !$group_match) {
+                return false;
+            }
+            if (!$top_and && $group_match) {
                 return true;
             }
         }
 
-        return false;
+        return $top_and && $evaluated > 0;
     }
 
     /**
@@ -434,10 +451,19 @@ class VisualRuleExpressionEngine {
      * Render full Wirefilter expression representing the structured condition groups.
      *
      * @param array<int, array<string, mixed>> $groups
+     * @param string $group_logic 'OR' (default) or 'AND'
      * @return string
      */
-    public static function to_wirefilter(array $groups): string {
+    public static function to_wirefilter(array $groups, string $group_logic = 'OR'): string {
         $group_strs = [];
+        $valid_cnt  = 0;
+        foreach ($groups as $grp) {
+            if (!empty($grp['rules']) && is_array($grp['rules'])) {
+                $valid_cnt++;
+            }
+        }
+        $top_join = (strtoupper(trim($group_logic)) === 'AND') ? ' and ' : ' or ';
+
         foreach ($groups as $grp) {
             $clauses = [];
             foreach (($grp['rules'] ?? []) as $cond) {
@@ -447,22 +473,25 @@ class VisualRuleExpressionEngine {
                 }
             }
             if (!empty($clauses)) {
-                $joined = implode(' and ', $clauses);
-                $group_strs[] = count($groups) > 1 ? "({$joined})" : $joined;
+                $grp_join = (strtoupper(trim((string) ($grp['logic'] ?? 'AND'))) === 'OR') ? ' or ' : ' and ';
+                $joined   = implode($grp_join, $clauses);
+                $group_strs[] = ($valid_cnt > 1 && count($clauses) > 1) ? "({$joined})" : $joined;
             }
         }
-        return implode(' or ', $group_strs);
+        return implode($top_join, $group_strs);
     }
 
     /**
      * Convert a condition tree into a strictly Cloudflare-Edge-compatible Wirefilter expression.
      *
      * @param array<int, array<string, mixed>> $groups
+     * @param string $group_logic 'OR' (default) or 'AND'
      * @return array{expression: string, partial: bool, skipped_fields: string[]}
      */
-    public static function to_cloudflare_edge_wirefilter(array $groups): array {
+    public static function to_cloudflare_edge_wirefilter(array $groups, string $group_logic = 'OR'): array {
         $edge_groups    = [];
         $skipped_fields = [];
+        $top_join       = (strtoupper(trim($group_logic)) === 'AND') ? ' and ' : ' or ';
 
         foreach ($groups as $grp) {
             $clauses = [];
@@ -478,14 +507,19 @@ class VisualRuleExpressionEngine {
                 $skipped_fields[] = $f;
             }
             if (!empty($clauses)) {
-                $joined        = implode(' and ', $clauses);
-                $edge_groups[] = count($groups) > 1 ? "({$joined})" : $joined;
+                $grp_join      = (strtoupper(trim((string) ($grp['logic'] ?? 'AND'))) === 'OR') ? ' or ' : ' and ';
+                $joined        = implode($grp_join, $clauses);
+                $edge_groups[] = count($clauses) > 1 ? "({$joined})" : $joined;
             }
+        }
+
+        if (count($edge_groups) === 1 && substr($edge_groups[0], 0, 1) === '(' && substr($edge_groups[0], -1) === ')') {
+            $edge_groups[0] = substr($edge_groups[0], 1, -1);
         }
 
         $skipped_fields = array_values(array_unique(array_filter($skipped_fields)));
         return [
-            'expression'     => implode(' or ', $edge_groups),
+            'expression'     => implode($top_join, $edge_groups),
             'partial'        => !empty($skipped_fields),
             'skipped_fields' => $skipped_fields,
         ];
@@ -560,42 +594,86 @@ class VisualRuleExpressionEngine {
     }
 
     /**
-     * Parse a simple Wirefilter expression back into structured OR-of-ANDs condition groups.
-     * Supports parenthesized `(a and b) or (c)` blocks, `not` prefixes, `starts_with()`, `ends_with()`, and `in {...}`.
+     * Parse a Wirefilter expression into structured condition groups plus top-level group join logic ('OR' | 'AND').
      *
      * @param string $expr
-     * @return array<int, array<string, mixed>>
+     * @return array{conditions: array<int, array<string, mixed>>, group_logic: string}
      */
-    public static function parse_wirefilter(string $expr): array {
+    public static function parse_wirefilter_tree(string $expr): array {
         $expr = trim($expr);
         if ($expr === '') {
-            return [];
+            return ['conditions' => [], 'group_logic' => 'OR'];
         }
 
-        // Split top-level OR groups respecting parentheses and quotes
-        $or_parts = self::split_top_level($expr, 'or');
-        $groups   = [];
+        $or_parts    = self::split_top_level($expr, 'or');
+        $and_parts   = self::split_top_level($expr, 'and');
+        $group_logic = 'OR';
+        $raw_groups  = [];
 
-        foreach ($or_parts as $part) {
+        if (count($or_parts) > 1) {
+            $group_logic = 'OR';
+            $raw_groups  = $or_parts;
+        } elseif (count($and_parts) > 1) {
+            // Check whether any top-level AND part contains a parenthesized OR expression: (a or b) and (c or d)
+            $has_inner_or = false;
+            foreach ($and_parts as $ap) {
+                $inner = trim($ap);
+                if (substr($inner, 0, 1) === '(' && substr($inner, -1) === ')') {
+                    $inner = trim(substr($inner, 1, -1));
+                }
+                if (count(self::split_top_level($inner, 'or')) > 1) {
+                    $has_inner_or = true;
+                    break;
+                }
+            }
+            if ($has_inner_or) {
+                $group_logic = 'AND';
+                $raw_groups  = $and_parts;
+            } else {
+                $raw_groups = [$expr];
+            }
+        } else {
+            $raw_groups = [$expr];
+        }
+
+        $groups = [];
+        foreach ($raw_groups as $part) {
             $part = trim($part);
             if (substr($part, 0, 1) === '(' && substr($part, -1) === ')') {
                 $part = trim(substr($part, 1, -1));
             }
-            $and_parts = self::split_top_level($part, 'and');
+            $inner_or  = self::split_top_level($part, 'or');
+            $inner_and = self::split_top_level($part, 'and');
+            $grp_op    = (count($inner_or) > 1 && count($inner_and) <= 1) ? 'OR' : 'AND';
+            $clauses   = ($grp_op === 'OR') ? $inner_or : $inner_and;
             $rules     = [];
 
-            foreach ($and_parts as $clause) {
+            foreach ($clauses as $clause) {
                 $parsed = self::parse_single_wirefilter_clause(trim($clause));
                 if ($parsed !== null) {
                     $rules[] = $parsed;
                 }
             }
             if (!empty($rules)) {
-                $groups[] = ['logic' => 'AND', 'rules' => $rules];
+                $groups[] = ['logic' => $grp_op, 'rules' => $rules];
             }
         }
 
-        return self::sanitize_condition_groups($groups);
+        return [
+            'conditions'  => self::sanitize_condition_groups($groups),
+            'group_logic' => $group_logic,
+        ];
+    }
+
+    /**
+     * Parse a simple Wirefilter expression back into structured condition groups.
+     *
+     * @param string $expr
+     * @return array<int, array<string, mixed>>
+     */
+    public static function parse_wirefilter(string $expr): array {
+        $tree = self::parse_wirefilter_tree($expr);
+        return $tree['conditions'];
     }
 
     /**
@@ -727,12 +805,15 @@ class VisualRuleExpressionEngine {
      * @return array<string, mixed>
      */
     public static function simulate_against_recent_logs(array $rule_data, int $limit = 500): array {
-        $limit = max(10, min(1000, $limit));
-        $groups = [];
+        $limit       = max(10, min(1000, $limit));
+        $group_logic = strtoupper(trim((string) ($rule_data['group_logic'] ?? 'OR'))) === 'AND' ? 'AND' : 'OR';
+        $groups      = [];
         if (!empty($rule_data['conditions']) && is_array($rule_data['conditions'])) {
             $groups = self::sanitize_condition_groups($rule_data['conditions']);
         } elseif (!empty($rule_data['wirefilter_expr'])) {
-            $groups = self::parse_wirefilter((string) $rule_data['wirefilter_expr']);
+            $parsed      = self::parse_wirefilter_tree((string) $rule_data['wirefilter_expr']);
+            $groups      = $parsed['conditions'];
+            $group_logic = $parsed['group_logic'];
         }
 
         $res = class_exists(WafFileLogger::class)
@@ -759,7 +840,7 @@ class VisualRuleExpressionEngine {
             $hit = false;
 
             if (!empty($groups)) {
-                $hit = self::evaluate_groups($groups, $ctx);
+                $hit = self::evaluate_groups($groups, $ctx, $group_logic);
             } elseif ($target_uri_l !== '' || $target_param !== '') {
                 $uri_m = ($target_uri_l === '')
                     || strpos($ctx->cleanUri, $target_uri_l) !== false
@@ -804,8 +885,8 @@ class VisualRuleExpressionEngine {
             'logged_in_hits' => $logged_in_hits,
             'guest_hits'     => $guest_hits,
             'samples'        => $matched_samples,
-            'wirefilter'     => self::to_wirefilter($groups),
-            'cf_edge'        => self::to_cloudflare_edge_wirefilter($groups),
+            'wirefilter'     => self::to_wirefilter($groups, $group_logic),
+            'cf_edge'        => self::to_cloudflare_edge_wirefilter($groups, $group_logic),
         ];
     }
 
@@ -868,13 +949,14 @@ class VisualRuleExpressionEngine {
             ];
         }
 
-        $settings = SettingsManager::get_settings();
-        $zone_id  = (string) ($settings['cloudflare_zone_id'] ?? '');
-        $rule_id  = sanitize_text_field((string) ($rule_data['id'] ?? ('MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false)))));
-        $title    = sanitize_text_field((string) ($rule_data['title'] ?? 'Custom Visual Rule'));
-        $groups   = self::sanitize_condition_groups($rule_data['conditions'] ?? []);
-        $cf_conv  = !empty($groups)
-            ? self::to_cloudflare_edge_wirefilter($groups)
+        $settings    = SettingsManager::get_settings();
+        $zone_id     = (string) ($settings['cloudflare_zone_id'] ?? '');
+        $rule_id     = sanitize_text_field((string) ($rule_data['id'] ?? ('MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false)))));
+        $title       = sanitize_text_field((string) ($rule_data['title'] ?? 'Custom Visual Rule'));
+        $group_logic = strtoupper(trim((string) ($rule_data['group_logic'] ?? 'OR'))) === 'AND' ? 'AND' : 'OR';
+        $groups      = self::sanitize_condition_groups($rule_data['conditions'] ?? []);
+        $cf_conv     = !empty($groups)
+            ? self::to_cloudflare_edge_wirefilter($groups, $group_logic)
             : [
                 'expression'     => trim((string) ($rule_data['wirefilter_expr'] ?? '')),
                 'partial'        => false,
