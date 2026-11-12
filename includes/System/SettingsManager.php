@@ -1265,6 +1265,10 @@ class SettingsManager {
             ) {
                 \WebCareProScanner\Firewall\MicroWafCompiler::compile();
             }
+            if (!empty(array_intersect(array_keys($diff), ['cloudflare_enabled', 'cloudflare_api_token', 'cloudflare_zone_id']))) {
+                delete_transient('webcareproscan_cf_zone_meta_' . md5((string) ($current['cloudflare_zone_id'] ?? '')));
+                delete_transient('webcareproscan_cf_zone_meta_' . md5((string) ($clean['cloudflare_zone_id'] ?? '')));
+            }
         }
 
         return self::get_settings();

@@ -3646,6 +3646,34 @@ class ScannerRoutes {
             }
         }
 
+        $cf_settings   = class_exists('\\WebCareProScanner\\System\\SettingsManager')
+            ? \WebCareProScanner\System\SettingsManager::get_settings()
+            : [];
+        $cf_enabled    = !empty($cf_settings['cloudflare_enabled']);
+        $cf_configured = $cf_enabled
+            && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
+            && \WebCareProScanner\Cloudflare\CloudflareService::is_configured();
+        $cf_proxied    = !empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
+        $cf_zone_id    = (string) ($cf_settings['cloudflare_zone_id'] ?? '');
+        $cf_zone_name  = '';
+        $cf_connected  = false;
+        if ($cf_configured && $cf_zone_id !== '') {
+            $cf_cache_key = 'webcareproscan_cf_zone_meta_' . md5($cf_zone_id);
+            $cached_zone  = get_transient($cf_cache_key);
+            if (is_array($cached_zone)) {
+                $cf_connected = !empty($cached_zone['connected']);
+                $cf_zone_name = (string) ($cached_zone['zone_name'] ?? '');
+            } else {
+                $verify       = \WebCareProScanner\Cloudflare\CloudflareService::verify_zone($cf_zone_id);
+                $cf_connected = !empty($verify['success']);
+                $cf_zone_name = (string) ($verify['zone_name'] ?? '');
+                set_transient($cf_cache_key, [
+                    'connected' => $cf_connected,
+                    'zone_name' => $cf_zone_name,
+                ], 180);
+            }
+        }
+
         return new \WP_REST_Response([
             'success'               => true,
             'fields'                => $fields,
@@ -3660,6 +3688,13 @@ class ScannerRoutes {
             ],
             'custom_rules_count'    => $custom_rules_count,
             'existing_custom_rules' => $existing_custom_rules,
+            'cloudflare_status'     => [
+                'enabled'    => $cf_enabled,
+                'configured' => $cf_configured,
+                'connected'  => $cf_connected,
+                'proxied'    => $cf_proxied,
+                'zone_name'  => $cf_zone_name,
+            ],
         ], 200);
     }
 

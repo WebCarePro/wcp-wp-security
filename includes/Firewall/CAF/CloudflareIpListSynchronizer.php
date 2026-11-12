@@ -112,7 +112,7 @@ class CloudflareIpListSynchronizer {
         }
 
         $settings = SettingsManager::get_settings();
-        if (empty($settings['cloudflare_api_token']) || empty($settings['cloudflare_zone_id'])) {
+        if (empty($settings['cloudflare_enabled']) || empty($settings['cloudflare_api_token']) || empty($settings['cloudflare_zone_id'])) {
             return;
         }
 
