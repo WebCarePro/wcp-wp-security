@@ -930,55 +930,11 @@ class FirewallEngine {
             }
         }
 
-        // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
-        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-            \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
-        }
-
-        // Adaptive Rate Limiter & Token-Bucket Throttling
-        if (class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
-            \WebCareProScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
-        }
-
-        // WebCrypto Proof-of-Work (PoW) Enforced Suspicious IP Sentinel
-        $pow_ips = get_option('webcare_pow_enforced_ips', []);
-        if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
-            if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
-                \WebCareProScanner\Firewall\BotReconDefense::verify_or_challenge_client();
-            }
-        }
-
-        // HTTP/2 & HTTP/3 Pseudo-Header and Client-Hint Anomaly Sentinel (CAF Phase 3)
-        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
-            $h2_anomaly = \WebCareProScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
-            if ($h2_anomaly !== null) {
-                // Record threat score increment for header anomaly (+15)
-                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
-                    \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
-                }
-
-                // Only hard-block malformed uppercase HTTP/2 pseudo-headers (or when strict HTTP/2 blocking is explicitly enabled)
-                if (($h2_anomaly['anomaly'] ?? '') === 'uppercase_pseudo_header' || !empty($settings['waf_block_http2_anomalies'])) {
-                    $rule_triggered = [
-                        'id'          => 'BOT-H2-HEADER-ANOMALY',
-                        'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
-                        'category'    => 'Protocol Anomaly Defense',
-                        'description' => $h2_anomaly['description'],
-                        'match_type'  => 'Header Anomaly',
-                        'match_value' => $h2_anomaly['anomaly'],
-                        'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
-                    ];
-                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                }
-            }
-        }
-
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
-        $is_drill_request = !empty($_GET['webcare_drill_token']) || !empty($_POST['webcare_drill_token']) || !empty($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN']);
-
         // Safe Bypass for Verified Authenticated Administrators and Page Builder Sessions
         // (Prevents false-positive blocks when managing comments, posts, plugins, or editing pages via Elementor/Divi/Gutenberg)
         // Red Team Drill Exception: Never bypass when drill token is present
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
+        $is_drill_request = !empty($_GET['webcare_drill_token']) || !empty($_POST['webcare_drill_token']) || !empty($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN']);
         if (!$is_drill_request && self::is_authenticated_administrator()) {
             $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/webcare-pro-security/') !== false);
             if ($is_admin_path) {
@@ -987,6 +943,7 @@ class FirewallEngine {
         }
 
         // Modular Intelligence Firewall & Visual Rule Studio Runtime Enforcement
+        // Evaluated ahead of rate-limiter/PoW gates so explicit Custom & Visual rules return exact configured verdicts immediately.
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
             $modular_violation = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::evaluate_runtime_modular_rules();
             if ($modular_violation !== null) {
@@ -1028,6 +985,53 @@ class FirewallEngine {
                     } else {
                         self::log_incident($rule_triggered, 'detected');
                     }
+                }
+            }
+        }
+
+        // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+            \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
+        }
+
+        // Adaptive Rate Limiter & Token-Bucket Throttling
+        if (class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
+            \WebCareProScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
+        }
+
+        // WebCrypto Proof-of-Work (PoW) Enforced Suspicious IP Sentinel
+        $pow_ips = get_option('webcare_pow_enforced_ips', []);
+        if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
+            $pow_exp = (int) ($pow_ips[$client_ip]['expires_at'] ?? 0);
+            if ($pow_exp > 0 && time() > $pow_exp) {
+                unset($pow_ips[$client_ip]);
+                update_option('webcare_pow_enforced_ips', $pow_ips, false);
+            } elseif (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+                \WebCareProScanner\Firewall\BotReconDefense::verify_or_challenge_client();
+            }
+        }
+
+        // HTTP/2 & HTTP/3 Pseudo-Header and Client-Hint Anomaly Sentinel (CAF Phase 3)
+        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+            $h2_anomaly = \WebCareProScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
+            if ($h2_anomaly !== null) {
+                // Record threat score increment for header anomaly (+15)
+                if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+                    \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::record_event($client_ip, 'header_anomaly', 15.0);
+                }
+
+                // Only hard-block malformed uppercase HTTP/2 pseudo-headers (or when strict HTTP/2 blocking is explicitly enabled)
+                if (($h2_anomaly['anomaly'] ?? '') === 'uppercase_pseudo_header' || !empty($settings['waf_block_http2_anomalies'])) {
+                    $rule_triggered = [
+                        'id'          => 'BOT-H2-HEADER-ANOMALY',
+                        'name'        => 'HTTP/2 Header / Client-Hint Anomaly',
+                        'category'    => 'Protocol Anomaly Defense',
+                        'description' => $h2_anomaly['description'],
+                        'match_type'  => 'Header Anomaly',
+                        'match_value' => $h2_anomaly['anomaly'],
+                        'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                    ];
+                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
                 }
             }
         }
@@ -6911,7 +6915,7 @@ class FirewallEngine {
             $full_bypass = $whitelist_ctx['full_bypass'];
             $rule_bypass = !empty($whitelist_ctx['rule_bypass']);
 
-            // Critical Exploit Categories that Pre-Auth (unauthenticated) traffic can NEVER bypass on global mode
+            // Critical Exploit Categories & Explicit Custom Rules that Pre-Auth (unauthenticated) traffic can NEVER bypass on global mode
             $critical_exploit_categories = [
                 'SQL Injection',
                 'PHP Code Injection',
@@ -6920,9 +6924,19 @@ class FirewallEngine {
                 'Execution Armor',
                 'AI & Agent Defense',
                 'Virtual Patch',
+                'Next-Gen SQL RASP Defense',
+                'Next-Gen Response DLP',
+                'Modern API & GraphQL Shield',
+                'AI Agent Kill-Chain Defense',
             ];
-            $rule_cat = $rule['category'] ?? '';
-            $is_critical_exploit = in_array($rule_cat, $critical_exploit_categories, true);
+            $rule_id_check = (string) ($rule['id'] ?? '');
+            $rule_cat      = (string) ($rule['category'] ?? '');
+            $is_critical_exploit = in_array($rule_cat, $critical_exploit_categories, true)
+                || strpos($rule_id_check, 'MOD-CUSTOM-') === 0
+                || strpos($rule_id_check, 'WAF-SQL-RASP-') === 0
+                || strpos($rule_id_check, 'WAF-DLP-') === 0
+                || strpos($rule_id_check, 'WAF-GRAPHQL-') === 0
+                || $rule_id_check === 'WAF-AI-AGENT-KILLCHAIN';
 
             // If granted specific rule/category exemption, OR
             // if full bypass is permitted (verified authenticated admin session), OR

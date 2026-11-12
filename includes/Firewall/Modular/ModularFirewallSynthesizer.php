@@ -1049,22 +1049,37 @@ class ModularFirewallSynthesizer {
             ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
             : '127.0.0.1';
 
-        // 1. Whitelist & Admin Safety Check
+        // 1. Tiered Context-Aware Whitelist & Admin Safety Check
+        $fw_settings = class_exists('\\WebCareProScanner\\System\\SettingsManager')
+            ? \WebCareProScanner\System\SettingsManager::get_settings()
+            : [];
+        $wl_ctx = ['is_whitelisted' => false, 'full_bypass' => false, 'rule_bypass' => false];
+        $is_fw_admin = false;
         if (class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')) {
-            if (\WebCareProScanner\Firewall\FirewallEngine::is_ip_whitelisted($ip)) {
+            $wl_ctx = \WebCareProScanner\Firewall\FirewallEngine::check_ip_whitelist_context($ip, $fw_settings);
+            if (!empty($wl_ctx['full_bypass'])) {
                 return null;
             }
+            $is_fw_admin = \WebCareProScanner\Firewall\FirewallEngine::is_authenticated_administrator();
         }
         $is_logged_in = function_exists('is_user_logged_in') && is_user_logged_in();
-        $is_admin     = $is_logged_in && function_exists('current_user_can') && current_user_can('manage_options');
+        $is_admin     = $is_fw_admin || ($is_logged_in && function_exists('current_user_can') && current_user_can('manage_options'));
         if ($is_admin) {
+            return null;
+        }
+
+        $clean_uri = strtolower((string) strtok($uri, '?'));
+        if (
+            strpos($clean_uri, 'wp-cron.php') !== false
+            && class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            && \WebCareProScanner\Firewall\FirewallEngine::is_server_origin_or_loopback($ip)
+        ) {
             return null;
         }
 
         $is_rescue_paused = class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')
             && \WebCareProScanner\Firewall\RescueAssistantManager::is_strict_paused();
 
-        $clean_uri = strtolower((string) strtok($uri, '?'));
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of raw AJAX action token
         $req_action = isset($_REQUEST['action']) ? self::normalize_action_token(sanitize_text_field(wp_unslash($_REQUEST['action']))) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST query route smuggling
