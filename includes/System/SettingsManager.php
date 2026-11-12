@@ -1246,6 +1246,25 @@ class SettingsManager {
                     );
                 }
             }
+
+            // Recompile Preload Micro-WAF when whitelist, blocklist, or WAF operating mode changes
+            $preload_sync_keys = [
+                'waf_enabled',
+                'waf_mode',
+                'waf_whitelisted_ips',
+                'waf_whitelisted_urls',
+                'waf_whitelist_require_admin',
+                'waf_blocked_ips',
+                'waf_block_threat_intel_ips',
+                'waf_trusted_proxies',
+            ];
+            if (
+                !empty(array_intersect(array_keys($diff), $preload_sync_keys))
+                && class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')
+                && file_exists(\WebCareProScanner\Firewall\MicroWafCompiler::get_compiled_file_path())
+            ) {
+                \WebCareProScanner\Firewall\MicroWafCompiler::compile();
+            }
         }
 
         return self::get_settings();

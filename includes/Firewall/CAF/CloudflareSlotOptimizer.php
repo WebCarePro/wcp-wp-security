@@ -33,6 +33,8 @@ class CloudflareSlotOptimizer {
     public const WEBCARE_RULE_TAG           = '[WebCare Pro Security]';
     public const WEBCARE_LEGACY_TAG         = '[WebCare Pro Security & Firewall]';
     public const WEBCARE_CAF_LEGACY_PREFIX  = '[WEBCARE-CAF:';
+    public const WEBCARE_VISUAL_PREFIX      = '[WebCare-WAF]';
+    public const WEBCARE_VISUAL_MARKER      = '[WEBCARE-MOD-VISUAL:';
 
     /**
      * Fetch existing rules from Cloudflare Zone Custom Rulesets entrypoint.
@@ -75,6 +77,17 @@ class CloudflareSlotOptimizer {
     }
 
     /**
+     * Check if a rule description belongs to Visual Rule Studio Edge Sync.
+     *
+     * @param string $description
+     * @return bool
+     */
+    public function is_visual_custom_rule(string $description): bool {
+        return str_starts_with($description, self::WEBCARE_VISUAL_PREFIX)
+            || str_contains($description, self::WEBCARE_VISUAL_MARKER);
+    }
+
+    /**
      * Check if a rule description indicates a WebCare-managed rule.
      *
      * @param string $description
@@ -86,6 +99,7 @@ class CloudflareSlotOptimizer {
             || str_starts_with($description, self::WEBCARE_RULE_TAG)
             || str_starts_with($description, self::WEBCARE_LEGACY_TAG)
             || str_starts_with($description, self::WEBCARE_CAF_LEGACY_PREFIX)
+            || $this->is_visual_custom_rule($description)
             || str_contains($description, 'webcareproscan_compound_');
     }
 
@@ -219,25 +233,29 @@ class CloudflareSlotOptimizer {
             ];
         }
 
-        // 1. Fetch existing rules to preserve user-defined custom rules
+        // 1. Fetch existing rules to preserve both Visual Rule Studio rules and user-defined custom rules
         $existing_rules = $this->get_zone_rules($zone_id);
-        $user_rules = [];
+        $visual_rules   = [];
+        $user_rules     = [];
 
         foreach ($existing_rules as $rule) {
             $desc = (string) ($rule['description'] ?? '');
-            if (!$this->is_webcare_rule($desc)) {
+            if ($this->is_visual_custom_rule($desc)) {
+                $visual_rules[] = $rule;
+            } elseif (!$this->is_webcare_rule($desc)) {
                 $user_rules[] = $rule;
             }
         }
 
-        // 2. Calculate slot budget (max 4 WebCare slots, preserving 1 slot for owner + all existing user rules)
-        $slot_budget = (int) min(self::MAX_WEBCARE_SLOTS, max(0, 5 - count($user_rules)));
+        // 2. Calculate slot budget (max 4 WebCare CAF slots, preserving existing Visual Rules, user rules & owner safety margin)
+        $slot_budget = (int) min(self::MAX_WEBCARE_SLOTS, max(0, 5 - count($user_rules) - count($visual_rules)));
         if ($slot_budget === 0) {
             return [
-                'success'     => false,
-                'message'     => __('All 5 Cloudflare Free Plan custom rules are occupied by user-defined rules. WebCare cannot deploy edge rules without overwriting custom rules.', 'webcare-pro-security'),
-                'user_rules'  => count($user_rules),
-                'slot_budget' => 0,
+                'success'      => false,
+                'message'      => __('All 5 Cloudflare Free Plan custom rules are occupied by Visual / user-defined rules. WebCare CAF will not overwrite existing rules.', 'webcare-pro-security'),
+                'user_rules'   => count($user_rules),
+                'visual_rules' => count($visual_rules),
+                'slot_budget'  => 0,
             ];
         }
 
@@ -263,8 +281,8 @@ class CloudflareSlotOptimizer {
             $slot_budget
         );
 
-        // 6. Merge WebCare Rules + preserved user rules (WebCare Rules placed at top priority)
-        $final_rules = array_merge($webcare_rules, $user_rules);
+        // 6. Merge Visual Studio Rules + WebCare CAF Rules + preserved user rules (Visual & WebCare Rules placed at top priority)
+        $final_rules = array_merge($visual_rules, $webcare_rules, $user_rules);
 
         $payload = [
             'rules' => $final_rules,

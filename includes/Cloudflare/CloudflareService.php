@@ -20,6 +20,25 @@ class CloudflareService {
     const WEBCARE_LEGACY_RULE_TAG = '[WebCare Pro Security & Firewall]';
 
     /**
+     * Check if a Cloudflare Edge rule description belongs to Visual Rule Studio Edge Sync.
+     */
+    private static function is_visual_studio_rule_desc(string $desc): bool {
+        return str_starts_with($desc, '[WebCare-WAF]') || strpos($desc, '[WEBCARE-MOD-VISUAL:') !== false;
+    }
+
+    /**
+     * Check if a Cloudflare Edge rule description belongs to WebCare core/CAF Edge rules.
+     */
+    private static function is_core_webcare_rule_desc(string $desc): bool {
+        return (
+            strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
+            strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
+            strpos($desc, '[WebCare Pro]') !== false ||
+            strpos($desc, '[WEBCARE-CAF:') !== false
+        );
+    }
+
+    /**
      * Send authenticated HTTP request to Cloudflare API
      *
      * @param string $endpoint
@@ -585,14 +604,20 @@ class CloudflareService {
         $definitions = self::get_rule_definitions();
 
         foreach ($rules as $r) {
-            $desc = $r['description'] ?? '';
-            $is_webcare = (
-                strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
-                strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
-                strpos($desc, '[WebCare Pro]') !== false ||
-                strpos($desc, '[WEBCARE-CAF:') !== false
-            );
+            $desc = (string) ($r['description'] ?? '');
+            $is_webcare = self::is_core_webcare_rule_desc($desc) || self::is_visual_studio_rule_desc($desc);
             if (!$is_webcare) {
+                continue;
+            }
+            if (self::is_visual_studio_rule_desc($desc) && preg_match('/\[WEBCARE-MOD-VISUAL:([^\]]+)\]/', $desc, $vm)) {
+                $vkey = 'visual_custom_' . strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '_', $vm[1]));
+                $deployed[$vkey] = [
+                    'id'          => $r['id'] ?? '',
+                    'enabled'     => !empty($r['enabled']),
+                    'action'      => $r['action'] ?? 'block',
+                    'description' => $desc,
+                    'last_synced' => current_time('mysql'),
+                ];
                 continue;
             }
             foreach ($definitions as $key => $def) {
@@ -682,27 +707,27 @@ class CloudflareService {
 
         if (!empty($res['success']) && !empty($res['result']['rules'])) {
             foreach ($res['result']['rules'] as $rule) {
-                $desc = $rule['description'] ?? '';
-                $is_webcare = (
-                    strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
-                    strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
-                    strpos($desc, '[WebCare Pro]') !== false ||
-                    strpos($desc, '[WEBCARE-CAF:') !== false
-                );
+                $desc = (string) ($rule['description'] ?? '');
+                $is_visual  = self::is_visual_studio_rule_desc($desc);
+                $is_webcare = self::is_core_webcare_rule_desc($desc) || $is_visual;
 
                 if ($is_webcare) {
                     $matched_key = '';
-                    foreach ($definitions as $k => $def) {
-                        if (
-                            strpos($desc, $def['title']) !== false ||
-                            (isset($def['id']) && strpos($desc, $def['id']) !== false) ||
-                            ($k === 'compound_perimeter' && strpos($desc, 'Rule 1') !== false) ||
-                            ($k === 'compound_stackguard' && (strpos($desc, 'Rule 2') !== false || strpos($desc, 'StackGuard') !== false || strpos($desc, 'compound_exploits') !== false)) ||
-                            ($k === 'compound_login_bot' && (strpos($desc, 'Rule 3') !== false || strpos($desc, 'Login') !== false)) ||
-                            ($k === 'compound_sqli_lfi' && (strpos($desc, 'Rule 4') !== false || strpos($desc, 'Deep SQL') !== false || strpos($desc, 'compound_sqli') !== false))
-                        ) {
-                            $matched_key = $k;
-                            break;
+                    if ($is_visual && preg_match('/\[WEBCARE-MOD-VISUAL:([^\]]+)\]/', $desc, $vm)) {
+                        $matched_key = 'visual_custom_' . strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '_', $vm[1]));
+                    } else {
+                        foreach ($definitions as $k => $def) {
+                            if (
+                                strpos($desc, $def['title']) !== false ||
+                                (isset($def['id']) && strpos($desc, $def['id']) !== false) ||
+                                ($k === 'compound_perimeter' && strpos($desc, 'Rule 1') !== false) ||
+                                ($k === 'compound_stackguard' && (strpos($desc, 'Rule 2') !== false || strpos($desc, 'StackGuard') !== false || strpos($desc, 'compound_exploits') !== false)) ||
+                                ($k === 'compound_login_bot' && (strpos($desc, 'Rule 3') !== false || strpos($desc, 'Login') !== false)) ||
+                                ($k === 'compound_sqli_lfi' && (strpos($desc, 'Rule 4') !== false || strpos($desc, 'Deep SQL') !== false || strpos($desc, 'compound_sqli') !== false))
+                            ) {
+                                $matched_key = $k;
+                                break;
+                            }
                         }
                     }
                     $webcare_rules[] = [
@@ -861,19 +886,13 @@ class CloudflareService {
 
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
-                $desc = $rule['description'] ?? '';
-                // Keep rules that do not belong to WebCare
-                $is_webcare = (
-                    strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
-                    strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
-                    strpos($desc, '[WebCare Pro]') !== false ||
-                    strpos($desc, '[WEBCARE-CAF:') !== false
-                );
-                if (!$is_webcare) {
+                $desc = (string) ($rule['description'] ?? '');
+                // Always preserve non-WebCare user rules and pushed Visual Rule Studio rules
+                if (!self::is_core_webcare_rule_desc($desc)) {
                     $preserved_rules[] = $rule;
                     continue;
                 }
-                // For WebCare Rules: keep all OTHER WebCare Rules, exclude only this target rule (which we will re-add if enable is true)
+                // For Core WebCare Rules: keep all OTHER Core WebCare Rules, exclude only this target rule (which we will re-add if enable is true)
                 if (strpos($desc, $target_title) === false && (empty($target_def['id']) || strpos($desc, $target_def['id']) === false)) {
                     $preserved_rules[] = $rule;
                 }
@@ -966,15 +985,9 @@ class CloudflareService {
 
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
-                $desc = $rule['description'] ?? '';
-                // Keep rules that do not belong to WebCare
-                $is_webcare = (
-                    strpos($desc, self::WEBCARE_RULE_TAG) !== false ||
-                    strpos($desc, self::WEBCARE_LEGACY_RULE_TAG) !== false ||
-                    strpos($desc, '[WebCare Pro]') !== false ||
-                    strpos($desc, '[WEBCARE-CAF:') !== false
-                );
-                if (!$is_webcare) {
+                $desc = (string) ($rule['description'] ?? '');
+                // Keep non-WebCare user rules and Visual Rule Studio rules
+                if (!self::is_core_webcare_rule_desc($desc)) {
                     $preserved_rules[] = $rule;
                 }
             }

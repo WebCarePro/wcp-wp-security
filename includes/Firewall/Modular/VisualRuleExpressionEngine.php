@@ -339,9 +339,15 @@ class VisualRuleExpressionEngine {
                 break;
             case 'ip.geoip.country':
                 $subject = strtoupper($ctx->country);
+                if ($subject === '') {
+                    return false;
+                }
                 break;
             case 'ip.geoip.asnum':
                 $subject = $ctx->asn;
+                if ($subject === '') {
+                    return false;
+                }
                 break;
             case 'wp.plugin.target_slug':
                 $subject = $ctx->targetSlug;
@@ -982,7 +988,9 @@ class VisualRuleExpressionEngine {
         $cf_action = $action_map[sanitize_key((string) ($rule_data['action_type'] ?? 'block'))] ?? 'block';
 
         $existing_res    = CloudflareService::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
-        $preserved_rules = [];
+        $visual_rules    = [];
+        $other_rules     = [];
+        $webcare_rules   = [];
         $tag_marker      = self::CF_VISUAL_TAG_PREFIX . $rule_id . ']';
 
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules']) && is_array($existing_res['result']['rules'])) {
@@ -991,7 +999,17 @@ class VisualRuleExpressionEngine {
                 if (strpos($desc, $tag_marker) !== false) {
                     continue;
                 }
-                $preserved_rules[] = $r;
+                if (str_starts_with($desc, '[WebCare-WAF]') || strpos($desc, self::CF_VISUAL_TAG_PREFIX) !== false) {
+                    $visual_rules[] = $r;
+                } elseif (
+                    strpos($desc, '[WebCare Pro') !== false ||
+                    strpos($desc, '[WEBCARE-CAF:') !== false ||
+                    strpos($desc, 'webcareproscan_compound_') !== false
+                ) {
+                    $webcare_rules[] = $r;
+                } else {
+                    $other_rules[] = $r;
+                }
             }
         }
 
@@ -1004,7 +1022,8 @@ class VisualRuleExpressionEngine {
         if ($cf_action === 'skip') {
             $new_cf_rule['action_parameters'] = ['ruleset' => 'current'];
         }
-        $preserved_rules[] = $new_cf_rule;
+        $visual_rules[] = $new_cf_rule;
+        $preserved_rules = array_merge($visual_rules, $webcare_rules, $other_rules);
 
         $put_res = CloudflareService::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint", 'PUT', [
             'rules' => $preserved_rules,

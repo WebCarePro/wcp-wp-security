@@ -1247,7 +1247,23 @@ class ModularFirewallSynthesizer {
                     if ($act === 'allow') {
                         $ex = is_array($r['exempt_rules'] ?? null) ? $r['exempt_rules'] : [];
                         if (empty($ex)) {
-                            $exempt_all = true;
+                            if ($mode === 'enforce' && !$is_rescue_paused) {
+                                return [
+                                    'rule_id'      => $r['id'],
+                                    'category'     => $r['category'] ?? 'custom',
+                                    'action_type'  => 'allow',
+                                    'blocked'      => false,
+                                    'reason'       => sprintf('Allowed by Custom Visual Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                                    'severity'     => 'info',
+                                    'exempt_rules' => [],
+                                ];
+                            }
+                            return self::build_violation(
+                                $r,
+                                sprintf('Dry-run Allow match for Custom Visual Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                                false,
+                                'info'
+                            );
                         } else {
                             $exempt_ids = array_values(array_unique(array_merge($exempt_ids, $ex)));
                         }

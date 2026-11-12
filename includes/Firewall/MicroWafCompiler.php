@@ -228,6 +228,32 @@ class MicroWafCompiler {
             }
         }
 
+        $waf_preload_enforced = !empty($settings['waf_enabled']) && (($settings['waf_mode'] ?? 'enabled') === 'enabled');
+        $wl_require_admin     = isset($settings['waf_whitelist_require_admin']) ? !empty($settings['waf_whitelist_require_admin']) : true;
+
+        $whitelisted_ips = [];
+        $raw_wl_ips = !empty($settings['waf_whitelisted_ips']) ? (string) $settings['waf_whitelisted_ips'] : '';
+        if ($raw_wl_ips !== '') {
+            foreach (explode("\n", str_replace("\r", '', $raw_wl_ips)) as $wl_line) {
+                $wl_ip = trim($wl_line);
+                if ($wl_ip !== '' && !str_starts_with($wl_ip, '#')) {
+                    $whitelisted_ips[] = $wl_ip;
+                }
+            }
+        }
+
+        $whitelisted_urls = [];
+        $raw_wl_urls = !empty($settings['waf_whitelisted_urls']) ? (string) $settings['waf_whitelisted_urls'] : '';
+        if ($raw_wl_urls !== '') {
+            foreach (explode("\n", str_replace("\r", '', $raw_wl_urls)) as $u_line) {
+                $u_clean = trim($u_line);
+                if ($u_clean !== '' && !str_starts_with($u_clean, '#')) {
+                    $u_path = (string) wp_parse_url($u_clean, PHP_URL_PATH);
+                    $whitelisted_urls[] = strtolower($u_path !== '' ? $u_path : $u_clean);
+                }
+            }
+        }
+
         $code = self::generate_standalone_code(
             $blocked_ips,
             $compiled_signatures,
@@ -237,7 +263,11 @@ class MicroWafCompiler {
             $htaccess_path,
             $emergency_vault,
             $htaccess_mtime,
-            array_values(array_unique($trusted_proxies))
+            array_values(array_unique($trusted_proxies)),
+            $waf_preload_enforced,
+            array_values(array_unique($whitelisted_ips)),
+            $wl_require_admin,
+            array_values(array_unique($whitelisted_urls))
         );
 
         // Write compiled file atomically
@@ -295,14 +325,24 @@ class MicroWafCompiler {
         string $htaccess_path = '',
         string $emergency_vault = '',
         int $expected_htaccess_mtime = 0,
-        array $trusted_proxies = []
+        array $trusted_proxies = [],
+        bool $waf_preload_enforced = true,
+        array $whitelisted_ips = [],
+        bool $wl_require_admin = true,
+        array $whitelisted_urls = []
     ): string {
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $ips_export = var_export($blocked_ips, true);
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
+        $wl_ips_export = var_export($whitelisted_ips, true);
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
+        $wl_urls_export = var_export($whitelisted_urls, true);
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $sigs_export = var_export($signatures, true);
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static trusted proxy CIDRs for OPcache.
         $proxies_export = var_export($trusted_proxies, true);
+        $waf_preload_bool_str = $waf_preload_enforced ? 'true' : 'false';
+        $wl_req_admin_bool_str = $wl_require_admin ? 'true' : 'false';
         $fail2ban_escaped = addslashes($fail2ban_log);
         $bypass_escaped = addslashes($bypass_token);
         $htaccess_escaped = addslashes($htaccess_path);
@@ -335,6 +375,10 @@ class MicroWafCompiler {
         $out .= "    (function() {\n";
         $out .= "        \$fail2ban_log = '{$fail2ban_escaped}';\n";
         $out .= "        \$blocked_ips = " . $ips_export . ";\n";
+        $out .= "        \$whitelisted_ips = " . $wl_ips_export . ";\n";
+        $out .= "        \$whitelisted_urls = " . $wl_urls_export . ";\n";
+        $out .= "        \$wl_require_admin = {$wl_req_admin_bool_str};\n";
+        $out .= "        \$waf_preload_enforced = {$waf_preload_bool_str};\n";
         $out .= "        \$trusted_proxies = " . $proxies_export . ";\n";
         $out .= "        \$signatures  = " . $sigs_export . ";\n\n";
 
@@ -424,6 +468,23 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "        }\n\n";
 
+        $out .= "        if (!\$waf_preload_enforced) {\n";
+        $out .= "            return;\n";
+        $out .= "        }\n\n";
+
+        $out .= "        \$mod_has_login_cookie = false;\n";
+        $out .= "        if (!empty(\$_COOKIE)) {\n";
+        $out .= "            foreach (array_keys(\$_COOKIE) as \$ck) {\n";
+        $out .= "                if (strpos((string) \$ck, 'wordpress_logged_in_') === 0) {\n";
+        $out .= "                    \$mod_has_login_cookie = true;\n";
+        $out .= "                    break;\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        if (!empty(\$whitelisted_ips) && \$webcare_match_ip_list(\$ip, \$whitelisted_ips) && (!\$wl_require_admin || \$mod_has_login_cookie)) {\n";
+        $out .= "            return;\n";
+        $out .= "        }\n\n";
+
         $out .= "        // 2. Fast IP & CIDR match (never block verified proxy CIDRs)\n";
         $out .= "        \$ip_is_trusted_proxy = \$webcare_match_ip_list(\$ip, \$cf_cidrs) || \$webcare_match_ip_list(\$ip, \$trusted_proxies);\n";
         $out .= "        \$ip_blocked = !\$ip_is_trusted_proxy && \$webcare_match_ip_list(\$ip, \$blocked_ips);\n\n";
@@ -432,10 +493,158 @@ class MicroWafCompiler {
         $out .= "            webcare_micro_waf_block(\$ip, 'IP-BLOCKLIST', 'Connecting IP is present in WebCare Blacklist / Threat Intel', \$fail2ban_log);\n";
         $out .= "        }\n\n";
 
-        $out .= "        // 3. Inspect URI and Query String for high-confidence attack vectors\n";
+        $out .= "        // 3. Inspect URI and Query String & Global URL Allowlist parity\n";
         $out .= "        \$uri = isset(\$_SERVER['REQUEST_URI']) ? (string) \$_SERVER['REQUEST_URI'] : '';\n";
         $out .= "        \$query = isset(\$_SERVER['QUERY_STRING']) ? (string) \$_SERVER['QUERY_STRING'] : '';\n";
-        $out .= "        \$target_text = urldecode(\$uri . ' ' . \$query);\n\n";
+        $out .= "        \$target_text = urldecode(\$uri . ' ' . \$query);\n";
+        $out .= "        \$mod_clean_uri = strtolower(strtok(\$uri, '?'));\n";
+        $out .= "        \$mod_rest_q = isset(\$_GET['rest_route']) && is_string(\$_GET['rest_route']) ? strtolower(trim((string) \$_GET['rest_route'])) : '';\n";
+        $out .= "        \$mod_req_method = isset(\$_SERVER['REQUEST_METHOD']) ? strtoupper((string) \$_SERVER['REQUEST_METHOD']) : 'GET';\n";
+        $out .= "        if (!empty(\$whitelisted_urls)) {\n";
+        $out .= "            \$wl_req_path = strtolower((string) (@parse_url(\$uri, PHP_URL_PATH) ?: \$mod_clean_uri));\n";
+        $out .= "            foreach (\$whitelisted_urls as \$wl_u) {\n";
+        $out .= "                \$wl_trim = rtrim(\$wl_u, '/');\n";
+        $out .= "                if (strtolower(\$uri) === \$wl_u || \$wl_req_path === \$wl_u || (\$wl_trim !== '' && (\$wl_req_path === \$wl_trim || strpos(\$wl_req_path, \$wl_trim . '/') === 0))) {\n";
+        $out .= "                    return;\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n\n";
+
+        // 4. Visual Custom Rules & Modular Intelligence Pre-Boot Setup
+        $mod_compiled = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
+            ? \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_compiled_preload_rules()
+            : ['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => [], 'custom_rules_enforced' => [], 'visual_rules_enforced' => []];
+        $modular_json_escaped = addcslashes((string) wp_json_encode($mod_compiled), "\\'");
+
+        $out .= "        \$mod_rescue_paused = false;\n";
+        $out .= "        foreach ([__DIR__ . '/.rescue_pause_until', dirname(__DIR__) . '/.rescue_pause_until'] as \$rp_file) {\n";
+        $out .= "            if (file_exists(\$rp_file) && (int) trim((string) @file_get_contents(\$rp_file)) > time()) {\n";
+        $out .= "                \$mod_rescue_paused = true;\n";
+        $out .= "                break;\n";
+        $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        \$mod_trusted = [];\n";
+        $out .= "        foreach ([__DIR__ . '/.rescue_allow.json', dirname(__DIR__) . '/.rescue_allow.json'] as \$ra_file) {\n";
+        $out .= "            if (file_exists(\$ra_file)) {\n";
+        $out .= "                \$mod_trusted = json_decode((string) @file_get_contents(\$ra_file), true) ?: [];\n";
+        $out .= "                break;\n";
+        $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
+        $out .= "        \$vis_exempt_ids = [];\n";
+        $out .= "        if (!\$mod_rescue_paused && !\$mod_has_login_cookie && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
+        $out .= "            \$trusted_visual = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
+        $out .= "            \$vis_q_pos = strpos(\$uri, '?');\n";
+        $out .= "            \$vis_query = \$vis_q_pos === false ? '' : substr(\$uri, \$vis_q_pos + 1);\n";
+        $out .= "            \$vis_rest  = \$mod_rest_q !== '' ? '/' . ltrim(\$mod_rest_q, '/') : (((\$rp = strpos(\$mod_clean_uri, '/wp-json')) !== false) ? '/' . ltrim(substr(\$mod_clean_uri, \$rp + 8), '/') : '');\n";
+        $out .= "            \$vis_ajax  = isset(\$_REQUEST['action']) && is_string(\$_REQUEST['action']) ? strtolower(trim((string) \$_REQUEST['action'])) : '';\n";
+        $out .= "            \$vis_ua    = (string) (\$_SERVER['HTTP_USER_AGENT'] ?? '');\n";
+        $out .= "            \$vis_ref   = (string) (\$_SERVER['HTTP_REFERER'] ?? '');\n";
+        $out .= "            \$vis_ck    = (string) (\$_SERVER['HTTP_COOKIE'] ?? '');\n";
+        $out .= "            \$vis_cc    = strtoupper((string) (\$_SERVER['HTTP_CF_IPCOUNTRY'] ?? ''));\n";
+        $out .= "            \$vis_asn   = ltrim(strtoupper((string) (\$_SERVER['HTTP_CF_IPASN'] ?? '')), 'AS');\n";
+        $out .= "            \$vis_exts  = [];\n";
+        $out .= "            if (!empty(\$_FILES) && is_array(\$_FILES)) {\n";
+        $out .= "                foreach (\$_FILES as \$vf) {\n";
+        $out .= "                    \$vnames = is_array(\$vf['name'] ?? null) ? \$vf['name'] : [(\$vf['name'] ?? '')];\n";
+        $out .= "                    foreach (\$vnames as \$vn) { if (is_string(\$vn) && \$vn !== '') { \$ve = strtolower(pathinfo(\$vn, PATHINFO_EXTENSION)); if (\$ve !== '') { \$vis_exts[] = \$ve; } } }\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "            \$vis_match_op = static function(string \$s, string \$op, string \$w): bool {\n";
+        $out .= "                \$sl = strtolower(\$s); \$wl = strtolower(trim(\$w));\n";
+        $out .= "                if (\$op === 'eq') return \$sl === \$wl;\n";
+        $out .= "                if (\$op === 'ne') return \$sl !== \$wl;\n";
+        $out .= "                if (\$op === 'contains') return \$wl !== '' && strpos(\$sl, \$wl) !== false;\n";
+        $out .= "                if (\$op === 'not_contains') return \$wl === '' || strpos(\$sl, \$wl) === false;\n";
+        $out .= "                if (\$op === 'starts_with') return \$wl !== '' && strpos(\$sl, \$wl) === 0;\n";
+        $out .= "                if (\$op === 'ends_with') return \$wl !== '' && substr(\$sl, -strlen(\$wl)) === \$wl;\n";
+        $out .= "                if (\$op === 'matches_regex') return \$w !== '' && @preg_match('~' . str_replace('~', '\\\\~', \$w) . '~i', \$s) === 1;\n";
+        $out .= "                if (\$op === 'in' || \$op === 'not_in') {\n";
+        $out .= "                    \$arr = array_map('strtolower', array_filter(preg_split('/[\\s,{}]+/', \$w, -1, PREG_SPLIT_NO_EMPTY) ?: []));\n";
+        $out .= "                    \$in  = in_array(\$sl, \$arr, true);\n";
+        $out .= "                    return \$op === 'in' ? \$in : !\$in;\n";
+        $out .= "                }\n";
+        $out .= "                return false;\n";
+        $out .= "            };\n";
+        $out .= "            \$vis_cidr_fn = static function(string \$cip, string \$cidr): bool {\n";
+        $out .= "                \$cidr = trim(\$cidr);\n";
+        $out .= "                if (strpos(\$cidr, '/') === false) return strtolower(trim(\$cip)) === strtolower(\$cidr);\n";
+        $out .= "                [\$sub, \$bits] = explode('/', \$cidr, 2);\n";
+        $out .= "                \$ib = @inet_pton(trim(\$cip)); \$sb = @inet_pton(trim(\$sub));\n";
+        $out .= "                if (\$ib === false || \$sb === false || strlen(\$ib) !== strlen(\$sb)) return false;\n";
+        $out .= "                \$b = max(0, min(strlen(\$ib) * 8, (int) \$bits)); \$f = intdiv(\$b, 8); \$r = \$b % 8;\n";
+        $out .= "                if (\$f > 0 && substr(\$ib, 0, \$f) !== substr(\$sb, 0, \$f)) return false;\n";
+        $out .= "                if (\$r > 0) { \$m = (~((1 << (8 - \$r)) - 1)) & 0xFF; if ((ord(\$ib[\$f]) & \$m) !== (ord(\$sb[\$f]) & \$m)) return false; }\n";
+        $out .= "                return true;\n";
+        $out .= "            };\n";
+        $out .= "            foreach (\$mod_rules['visual_rules_enforced'] as \$v_rule) {\n";
+        $out .= "                \$v_id = (string) (\$v_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
+        $out .= "                if (in_array(\$v_id, \$trusted_visual, true) || in_array(\$v_id, \$vis_exempt_ids, true)) continue;\n";
+        $out .= "                \$v_action  = (string) (\$v_rule['action_type'] ?? 'block');\n";
+        $out .= "                \$v_gl      = strtoupper((string) (\$v_rule['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';\n";
+        $out .= "                \$v_grps    = (array) (\$v_rule['conditions'] ?? []);\n";
+        $out .= "                \$v_matched = (\$v_gl === 'AND' && !empty(\$v_grps));\n";
+        $out .= "                foreach (\$v_grps as \$v_grp) {\n";
+        $out .= "                    \$v_rules_in = (array) (\$v_grp['rules'] ?? []);\n";
+        $out .= "                    if (empty(\$v_rules_in)) continue;\n";
+        $out .= "                    \$v_op  = strtoupper((string) (\$v_grp['logic'] ?? 'AND')) === 'OR' ? 'OR' : 'AND';\n";
+        $out .= "                    \$v_all = (\$v_op === 'AND');\n";
+        $out .= "                    foreach (\$v_rules_in as \$vc) {\n";
+        $out .= "                        \$vf = (string) (\$vc['field'] ?? ''); \$vk = (string) (\$vc['key'] ?? ''); \$vo = (string) (\$vc['op'] ?? 'eq'); \$vw = (string) (\$vc['value'] ?? '');\n";
+        $out .= "                        \$vc_ok = false;\n";
+        $out .= "                        if (\$vf === 'http.headers') {\n";
+        $out .= "                            \$hk = 'HTTP_' . strtoupper(str_replace('-', '_', \$vk));\n";
+        $out .= "                            \$ex = (\$vk !== '' && isset(\$_SERVER[\$hk]));\n";
+        $out .= "                            \$vc_ok = (\$vo === 'exists') ? \$ex : ((\$vo === 'not_exists') ? !\$ex : (\$ex && \$vis_match_op((string) \$_SERVER[\$hk], \$vo, \$vw)));\n";
+        $out .= "                        } elseif (\$vf === 'http.request.params') {\n";
+        $out .= "                            \$ex = (\$vk !== '' && isset(\$_REQUEST[\$vk]));\n";
+        $out .= "                            \$vc_ok = (\$vo === 'exists') ? \$ex : ((\$vo === 'not_exists') ? !\$ex : (\$vo === 'is_array' ? (\$ex && is_array(\$_REQUEST[\$vk])) : (\$ex && \$vis_match_op(is_array(\$_REQUEST[\$vk]) ? (string) json_encode(\$_REQUEST[\$vk]) : (string) \$_REQUEST[\$vk], \$vo, \$vw))));\n";
+        $out .= "                        } elseif (\$vf === 'http.upload.extension') {\n";
+        $out .= "                            foreach (\$vis_exts as \$ve) { if (\$vis_match_op(\$ve, \$vo, \$vw)) { \$vc_ok = true; break; } }\n";
+        $out .= "                        } elseif (\$vf === 'ip.src') {\n";
+        $out .= "                            if (\$vo === 'eq' || \$vo === 'ne') { \$vc_ok = (\$vo === 'eq') ? (strtolower(\$ip) === strtolower(trim(\$vw))) : (strtolower(\$ip) !== strtolower(trim(\$vw))); }\n";
+        $out .= "                            else { \$cs = array_filter(preg_split('/[\\s,{}]+/', \$vw, -1, PREG_SPLIT_NO_EMPTY) ?: []); \$in_c = false; foreach (\$cs as \$ci) { if (\$vis_cidr_fn(\$ip, \$ci)) { \$in_c = true; break; } } \$vc_ok = (\$vo === 'not_in_cidr') ? !\$in_c : \$in_c; }\n";
+        $out .= "                        } else {\n";
+        $out .= "                            \$subj = '';\n";
+        $out .= "                            if (\$vf === 'http.request.uri.path') \$subj = \$mod_clean_uri;\n";
+        $out .= "                            elseif (\$vf === 'http.request.uri.query') \$subj = \$vis_query;\n";
+        $out .= "                            elseif (\$vf === 'http.request.method') \$subj = \$mod_req_method;\n";
+        $out .= "                            elseif (\$vf === 'http.user_agent') \$subj = \$vis_ua;\n";
+        $out .= "                            elseif (\$vf === 'http.referer') \$subj = \$vis_ref;\n";
+        $out .= "                            elseif (\$vf === 'http.cookie') \$subj = \$vis_ck;\n";
+        $out .= "                            elseif (\$vf === 'ip.geoip.country') \$subj = \$vis_cc;\n";
+        $out .= "                            elseif (\$vf === 'ip.geoip.asnum') \$subj = \$vis_asn;\n";
+        $out .= "                            elseif (\$vf === 'wp.ajax.action') \$subj = \$vis_ajax;\n";
+        $out .= "                            elseif (\$vf === 'wp.rest.route') \$subj = \$vis_rest;\n";
+        $out .= "                            if ((\$vf === 'ip.geoip.country' || \$vf === 'ip.geoip.asnum') && \$subj === '') { \$vc_ok = false; }\n";
+        $out .= "                            else { \$vc_ok = \$vis_match_op(\$subj, \$vo, \$vw); }\n";
+        $out .= "                        }\n";
+        $out .= "                        if (\$v_op === 'OR' && \$vc_ok) { \$v_all = true; break; }\n";
+        $out .= "                        if (\$v_op === 'AND' && !\$vc_ok) { \$v_all = false; break; }\n";
+        $out .= "                    }\n";
+        $out .= "                    if (\$v_gl === 'AND' && !\$v_all) { \$v_matched = false; break; }\n";
+        $out .= "                    if (\$v_gl === 'OR' && \$v_all) { \$v_matched = true; break; }\n";
+        $out .= "                }\n";
+        $out .= "                if (\$v_matched) {\n";
+        $out .= "                    if (\$v_action === 'allow') {\n";
+        $out .= "                        \$v_ex = is_array(\$v_rule['exempt_rules'] ?? null) ? \$v_rule['exempt_rules'] : [];\n";
+        $out .= "                        if (empty(\$v_ex)) { return; }\n";
+        $out .= "                        foreach (\$v_ex as \$vei) { \$vis_exempt_ids[] = (string) \$vei; }\n";
+        $out .= "                        continue;\n";
+        $out .= "                    }\n";
+        $out .= "                    \$v_reason = 'Blocked on first match by Visual Rule (' . \$v_id . ')';\n";
+        $out .= "                    if (!empty(\$v_rule['sync_cloudflare']) || !empty(\$v_rule['ban_ttl'])) {\n";
+        $out .= "                        \$ban_q_file = __DIR__ . '/.preload_ban_queue.json';\n";
+        $out .= "                        \$ban_q = file_exists(\$ban_q_file) ? (json_decode((string) @file_get_contents(\$ban_q_file), true) ?: []) : [];\n";
+        $out .= "                        if (is_array(\$ban_q) && count(\$ban_q) < 200) {\n";
+        $out .= "                            \$ban_q[\$ip . '|' . \$v_id] = ['ip' => \$ip, 'rule_id' => \$v_id, 'reason' => \$v_reason, 'ban_ttl' => (int) (\$v_rule['ban_ttl'] ?? 86400), 'sync_cloudflare' => !empty(\$v_rule['sync_cloudflare']), 'ts' => time()];\n";
+        $out .= "                            @file_put_contents(\$ban_q_file, json_encode(\$ban_q), LOCK_EX);\n";
+        $out .= "                        }\n";
+        $out .= "                    }\n";
+        $out .= "                    webcare_micro_waf_block(\$ip, \$v_id, \$v_reason, \$fail2ban_log);\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n\n";
 
         // 4. Context-Adaptive Firewall (CAF) Preload Enforcement
         $caf_compiled_path = self::get_caf_compiled_file_path();
@@ -535,42 +744,10 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "        }\n\n";
 
-        // 5. Modular Intelligence Firewall Pre-Boot Lockdown
-        $mod_compiled = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
-            ? \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_compiled_preload_rules()
-            : ['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => [], 'custom_rules_enforced' => []];
-        $modular_json_escaped = addcslashes((string) wp_json_encode($mod_compiled), "\\'");
-
+        // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Visual rules already evaluated & allow-exemptions recorded above)
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
-        $out .= "        \$mod_rescue_paused = false;\n";
-        $out .= "        foreach ([__DIR__ . '/.rescue_pause_until', dirname(__DIR__) . '/.rescue_pause_until'] as \$rp_file) {\n";
-        $out .= "            if (file_exists(\$rp_file) && (int) trim((string) @file_get_contents(\$rp_file)) > time()) {\n";
-        $out .= "                \$mod_rescue_paused = true;\n";
-        $out .= "                break;\n";
-        $out .= "            }\n";
-        $out .= "        }\n";
-        $out .= "        \$mod_trusted = [];\n";
-        $out .= "        foreach ([__DIR__ . '/.rescue_allow.json', dirname(__DIR__) . '/.rescue_allow.json'] as \$ra_file) {\n";
-        $out .= "            if (file_exists(\$ra_file)) {\n";
-        $out .= "                \$mod_trusted = json_decode((string) @file_get_contents(\$ra_file), true) ?: [];\n";
-        $out .= "                break;\n";
-        $out .= "            }\n";
-        $out .= "        }\n";
-        $out .= "        \$mod_has_login_cookie = false;\n";
-        $out .= "        if (!empty(\$_COOKIE)) {\n";
-        $out .= "            foreach (array_keys(\$_COOKIE) as \$ck) {\n";
-        $out .= "                if (strpos((string) \$ck, 'wordpress_logged_in_') === 0) {\n";
-        $out .= "                    \$mod_has_login_cookie = true;\n";
-        $out .= "                    break;\n";
-        $out .= "                }\n";
-        $out .= "            }\n";
-        $out .= "        }\n";
-        $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
-        $out .= "        \$mod_clean_uri = strtolower(strtok(\$uri, '?'));\n";
-        $out .= "        \$mod_rest_q = isset(\$_GET['rest_route']) && is_string(\$_GET['rest_route']) ? strtolower(trim((string) \$_GET['rest_route'])) : '';\n";
-        $out .= "        \$mod_req_method = isset(\$_SERVER['REQUEST_METHOD']) ? strtoupper((string) \$_SERVER['REQUEST_METHOD']) : 'GET';\n";
         $out .= "        if (!\$mod_rescue_paused) {\n";
-        $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
+        $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked']) && !in_array('MOD-ABSPATH-LOCKED', \$vis_exempt_ids, true)) {\n";
         $out .= "                \$clean_script_uri = ltrim(\$mod_clean_uri, '/\\\\');\n";
         $out .= "                foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
         $out .= "                    if (str_ends_with(\$clean_script_uri, \$b_script)) {\n";
@@ -583,7 +760,7 @@ class MicroWafCompiler {
         $out .= "                \$trusted_custom = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
         $out .= "                foreach (\$mod_rules['custom_rules_enforced'] as \$c_rule) {\n";
         $out .= "                    \$c_id = (string) (\$c_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
-        $out .= "                    if (in_array(\$c_id, \$trusted_custom, true)) {\n";
+        $out .= "                    if (in_array(\$c_id, \$trusted_custom, true) || in_array(\$c_id, \$vis_exempt_ids, true)) {\n";
         $out .= "                        continue;\n";
         $out .= "                    }\n";
         $out .= "                    \$c_uri = strtolower(trim((string) (\$c_rule['target_uri'] ?? '')));\n";
@@ -625,126 +802,12 @@ class MicroWafCompiler {
         $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
-        $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
-        $out .= "                \$trusted_visual = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
-        $out .= "                \$vis_q_pos = strpos(\$uri, '?');\n";
-        $out .= "                \$vis_query = \$vis_q_pos === false ? '' : substr(\$uri, \$vis_q_pos + 1);\n";
-        $out .= "                \$vis_rest  = \$mod_rest_q !== '' ? '/' . ltrim(\$mod_rest_q, '/') : (((\$rp = strpos(\$mod_clean_uri, '/wp-json')) !== false) ? '/' . ltrim(substr(\$mod_clean_uri, \$rp + 8), '/') : '');\n";
-        $out .= "                \$vis_ajax  = isset(\$_REQUEST['action']) && is_string(\$_REQUEST['action']) ? strtolower(trim((string) \$_REQUEST['action'])) : '';\n";
-        $out .= "                \$vis_ua    = (string) (\$_SERVER['HTTP_USER_AGENT'] ?? '');\n";
-        $out .= "                \$vis_ref   = (string) (\$_SERVER['HTTP_REFERER'] ?? '');\n";
-        $out .= "                \$vis_ck    = (string) (\$_SERVER['HTTP_COOKIE'] ?? '');\n";
-        $out .= "                \$vis_cc    = strtoupper((string) (\$_SERVER['HTTP_CF_IPCOUNTRY'] ?? ''));\n";
-        $out .= "                \$vis_asn   = ltrim(strtoupper((string) (\$_SERVER['HTTP_CF_IPASN'] ?? '')), 'AS');\n";
-        $out .= "                \$vis_exts  = [];\n";
-        $out .= "                if (!empty(\$_FILES) && is_array(\$_FILES)) {\n";
-        $out .= "                    foreach (\$_FILES as \$vf) {\n";
-        $out .= "                        \$vnames = is_array(\$vf['name'] ?? null) ? \$vf['name'] : [(\$vf['name'] ?? '')];\n";
-        $out .= "                        foreach (\$vnames as \$vn) { if (is_string(\$vn) && \$vn !== '') { \$ve = strtolower(pathinfo(\$vn, PATHINFO_EXTENSION)); if (\$ve !== '') { \$vis_exts[] = \$ve; } } }\n";
-        $out .= "                    }\n";
-        $out .= "                }\n";
-        $out .= "                \$vis_match_op = static function(string \$s, string \$op, string \$w): bool {\n";
-        $out .= "                    \$sl = strtolower(\$s); \$wl = strtolower(trim(\$w));\n";
-        $out .= "                    if (\$op === 'eq') return \$sl === \$wl;\n";
-        $out .= "                    if (\$op === 'ne') return \$sl !== \$wl;\n";
-        $out .= "                    if (\$op === 'contains') return \$wl !== '' && strpos(\$sl, \$wl) !== false;\n";
-        $out .= "                    if (\$op === 'not_contains') return \$wl === '' || strpos(\$sl, \$wl) === false;\n";
-        $out .= "                    if (\$op === 'starts_with') return \$wl !== '' && strpos(\$sl, \$wl) === 0;\n";
-        $out .= "                    if (\$op === 'ends_with') return \$wl !== '' && substr(\$sl, -strlen(\$wl)) === \$wl;\n";
-        $out .= "                    if (\$op === 'matches_regex') return \$w !== '' && @preg_match('~' . str_replace('~', '\\\\~', \$w) . '~i', \$s) === 1;\n";
-        $out .= "                    if (\$op === 'in' || \$op === 'not_in') {\n";
-        $out .= "                        \$arr = array_map('strtolower', array_filter(preg_split('/[\\s,{}]+/', \$w, -1, PREG_SPLIT_NO_EMPTY) ?: []));\n";
-        $out .= "                        \$in  = in_array(\$sl, \$arr, true);\n";
-        $out .= "                        return \$op === 'in' ? \$in : !\$in;\n";
-        $out .= "                    }\n";
-        $out .= "                    return false;\n";
-        $out .= "                };\n";
-        $out .= "                \$vis_cidr_fn = static function(string \$cip, string \$cidr): bool {\n";
-        $out .= "                    \$cidr = trim(\$cidr);\n";
-        $out .= "                    if (strpos(\$cidr, '/') === false) return strtolower(trim(\$cip)) === strtolower(\$cidr);\n";
-        $out .= "                    [\$sub, \$bits] = explode('/', \$cidr, 2);\n";
-        $out .= "                    \$ib = @inet_pton(trim(\$cip)); \$sb = @inet_pton(trim(\$sub));\n";
-        $out .= "                    if (\$ib === false || \$sb === false || strlen(\$ib) !== strlen(\$sb)) return false;\n";
-        $out .= "                    \$b = max(0, min(strlen(\$ib) * 8, (int) \$bits)); \$f = intdiv(\$b, 8); \$r = \$b % 8;\n";
-        $out .= "                    if (\$f > 0 && substr(\$ib, 0, \$f) !== substr(\$sb, 0, \$f)) return false;\n";
-        $out .= "                    if (\$r > 0) { \$m = (~((1 << (8 - \$r)) - 1)) & 0xFF; if ((ord(\$ib[\$f]) & \$m) !== (ord(\$sb[\$f]) & \$m)) return false; }\n";
-        $out .= "                    return true;\n";
-        $out .= "                };\n";
-        $out .= "                \$vis_exempt_all = false;\n";
-        $out .= "                \$vis_exempt_ids = [];\n";
-        $out .= "                foreach (\$mod_rules['visual_rules_enforced'] as \$v_rule) {\n";
-        $out .= "                    \$v_id = (string) (\$v_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
-        $out .= "                    if (\$vis_exempt_all || in_array(\$v_id, \$trusted_visual, true) || in_array(\$v_id, \$vis_exempt_ids, true)) continue;\n";
-        $out .= "                    \$v_action  = (string) (\$v_rule['action_type'] ?? 'block');\n";
-        $out .= "                    \$v_gl      = strtoupper((string) (\$v_rule['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';\n";
-        $out .= "                    \$v_grps    = (array) (\$v_rule['conditions'] ?? []);\n";
-        $out .= "                    \$v_matched = (\$v_gl === 'AND' && !empty(\$v_grps));\n";
-        $out .= "                    foreach (\$v_grps as \$v_grp) {\n";
-        $out .= "                        \$v_rules_in = (array) (\$v_grp['rules'] ?? []);\n";
-        $out .= "                        if (empty(\$v_rules_in)) continue;\n";
-        $out .= "                        \$v_op  = strtoupper((string) (\$v_grp['logic'] ?? 'AND')) === 'OR' ? 'OR' : 'AND';\n";
-        $out .= "                        \$v_all = (\$v_op === 'AND');\n";
-        $out .= "                        foreach (\$v_rules_in as \$vc) {\n";
-        $out .= "                            \$vf = (string) (\$vc['field'] ?? ''); \$vk = (string) (\$vc['key'] ?? ''); \$vo = (string) (\$vc['op'] ?? 'eq'); \$vw = (string) (\$vc['value'] ?? '');\n";
-        $out .= "                            \$vc_ok = false;\n";
-        $out .= "                            if (\$vf === 'http.headers') {\n";
-        $out .= "                                \$hk = 'HTTP_' . strtoupper(str_replace('-', '_', \$vk));\n";
-        $out .= "                                \$ex = (\$vk !== '' && isset(\$_SERVER[\$hk]));\n";
-        $out .= "                                \$vc_ok = (\$vo === 'exists') ? \$ex : ((\$vo === 'not_exists') ? !\$ex : (\$ex && \$vis_match_op((string) \$_SERVER[\$hk], \$vo, \$vw)));\n";
-        $out .= "                            } elseif (\$vf === 'http.request.params') {\n";
-        $out .= "                                \$ex = (\$vk !== '' && isset(\$_REQUEST[\$vk]));\n";
-        $out .= "                                \$vc_ok = (\$vo === 'exists') ? \$ex : ((\$vo === 'not_exists') ? !\$ex : (\$vo === 'is_array' ? (\$ex && is_array(\$_REQUEST[\$vk])) : (\$ex && \$vis_match_op(is_array(\$_REQUEST[\$vk]) ? (string) json_encode(\$_REQUEST[\$vk]) : (string) \$_REQUEST[\$vk], \$vo, \$vw))));\n";
-        $out .= "                            } elseif (\$vf === 'http.upload.extension') {\n";
-        $out .= "                                foreach (\$vis_exts as \$ve) { if (\$vis_match_op(\$ve, \$vo, \$vw)) { \$vc_ok = true; break; } }\n";
-        $out .= "                            } elseif (\$vf === 'ip.src') {\n";
-        $out .= "                                if (\$vo === 'eq' || \$vo === 'ne') { \$vc_ok = (\$vo === 'eq') ? (strtolower(\$ip) === strtolower(trim(\$vw))) : (strtolower(\$ip) !== strtolower(trim(\$vw))); }\n";
-        $out .= "                                else { \$cs = array_filter(preg_split('/[\\s,{}]+/', \$vw, -1, PREG_SPLIT_NO_EMPTY) ?: []); \$in_c = false; foreach (\$cs as \$ci) { if (\$vis_cidr_fn(\$ip, \$ci)) { \$in_c = true; break; } } \$vc_ok = (\$vo === 'not_in_cidr') ? !\$in_c : \$in_c; }\n";
-        $out .= "                            } else {\n";
-        $out .= "                                \$subj = '';\n";
-        $out .= "                                if (\$vf === 'http.request.uri.path') \$subj = \$mod_clean_uri;\n";
-        $out .= "                                elseif (\$vf === 'http.request.uri.query') \$subj = \$vis_query;\n";
-        $out .= "                                elseif (\$vf === 'http.request.method') \$subj = \$mod_req_method;\n";
-        $out .= "                                elseif (\$vf === 'http.user_agent') \$subj = \$vis_ua;\n";
-        $out .= "                                elseif (\$vf === 'http.referer') \$subj = \$vis_ref;\n";
-        $out .= "                                elseif (\$vf === 'http.cookie') \$subj = \$vis_ck;\n";
-        $out .= "                                elseif (\$vf === 'ip.geoip.country') \$subj = \$vis_cc;\n";
-        $out .= "                                elseif (\$vf === 'ip.geoip.asnum') \$subj = \$vis_asn;\n";
-        $out .= "                                elseif (\$vf === 'wp.ajax.action') \$subj = \$vis_ajax;\n";
-        $out .= "                                elseif (\$vf === 'wp.rest.route') \$subj = \$vis_rest;\n";
-        $out .= "                                \$vc_ok = \$vis_match_op(\$subj, \$vo, \$vw);\n";
-        $out .= "                            }\n";
-        $out .= "                            if (\$v_op === 'OR' && \$vc_ok) { \$v_all = true; break; }\n";
-        $out .= "                            if (\$v_op === 'AND' && !\$vc_ok) { \$v_all = false; break; }\n";
-        $out .= "                        }\n";
-        $out .= "                        if (\$v_gl === 'AND' && !\$v_all) { \$v_matched = false; break; }\n";
-        $out .= "                        if (\$v_gl === 'OR' && \$v_all) { \$v_matched = true; break; }\n";
-        $out .= "                    }\n";
-        $out .= "                    if (\$v_matched) {\n";
-        $out .= "                        if (\$v_action === 'allow') {\n";
-        $out .= "                            \$v_ex = is_array(\$v_rule['exempt_rules'] ?? null) ? \$v_rule['exempt_rules'] : [];\n";
-        $out .= "                            if (empty(\$v_ex)) { \$vis_exempt_all = true; break; }\n";
-        $out .= "                            foreach (\$v_ex as \$vei) { \$vis_exempt_ids[] = (string) \$vei; }\n";
-        $out .= "                            continue;\n";
-        $out .= "                        }\n";
-        $out .= "                        \$v_reason = 'Blocked on first match by Visual Rule (' . \$v_id . ')';\n";
-        $out .= "                        if (!empty(\$v_rule['sync_cloudflare']) || !empty(\$v_rule['ban_ttl'])) {\n";
-        $out .= "                            \$ban_q_file = __DIR__ . '/.preload_ban_queue.json';\n";
-        $out .= "                            \$ban_q = file_exists(\$ban_q_file) ? (json_decode((string) @file_get_contents(\$ban_q_file), true) ?: []) : [];\n";
-        $out .= "                            if (is_array(\$ban_q) && count(\$ban_q) < 200) {\n";
-        $out .= "                                \$ban_q[\$ip . '|' . \$v_id] = ['ip' => \$ip, 'rule_id' => \$v_id, 'reason' => \$v_reason, 'ban_ttl' => (int) (\$v_rule['ban_ttl'] ?? 86400), 'sync_cloudflare' => !empty(\$v_rule['sync_cloudflare']), 'ts' => time()];\n";
-        $out .= "                                @file_put_contents(\$ban_q_file, json_encode(\$ban_q), LOCK_EX);\n";
-        $out .= "                            }\n";
-        $out .= "                        }\n";
-        $out .= "                        webcare_micro_waf_block(\$ip, \$v_id, \$v_reason, \$fail2ban_log);\n";
-        $out .= "                    }\n";
-        $out .= "                }\n";
-        $out .= "            }\n";
         $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['ajax_actions_enforced']) && strpos(\$mod_clean_uri, 'admin-ajax.php') !== false) {\n";
         $out .= "                \$ajax_act = isset(\$_REQUEST['action']) ? strtolower(trim((string) \$_REQUEST['action'])) : '';\n";
         $out .= "                \$trusted_ajax = is_array(\$mod_trusted['ajax_actions'] ?? null) ? \$mod_trusted['ajax_actions'] : [];\n";
         $out .= "                if (!empty(\$ajax_act) && !in_array(\$ajax_act, \$trusted_ajax, true) && isset(\$mod_rules['ajax_actions_enforced'][\$ajax_act])) {\n";
         $out .= "                    \$mod_spec = \$mod_rules['ajax_actions_enforced'][\$ajax_act];\n";
-        $out .= "                    if (!empty(\$mod_spec['block_uploads']) && !empty(\$_FILES)) {\n";
+        $out .= "                    if (!in_array((string) (\$mod_spec['rule_id'] ?? ''), \$vis_exempt_ids, true) && !empty(\$mod_spec['block_uploads']) && !empty(\$_FILES)) {\n";
         $out .= "                        webcare_micro_waf_block(\$ip, \$mod_spec['rule_id'], 'File uploads prohibited on guest AJAX action (' . htmlspecialchars(\$ajax_act, ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
         $out .= "                    }\n";
         $out .= "                }\n";
@@ -753,6 +816,8 @@ class MicroWafCompiler {
         $out .= "                \$rest_q = \$mod_rest_q;\n";
         $out .= "                \$trusted_routes = is_array(\$mod_trusted['rest_routes'] ?? null) ? \$mod_trusted['rest_routes'] : [];\n";
         $out .= "                foreach (\$mod_rules['rest_routes_enforced'] as \$r_route => \$r_spec) {\n";
+        $out .= "                    \$r_rid = (string) (\$r_spec['rule_id'] ?? 'MOD-REST-GUARD');\n";
+        $out .= "                    if (in_array(\$r_rid, \$vis_exempt_ids, true)) { continue; }\n";
         $out .= "                    \$r_route_lc = strtolower(rtrim((string) \$r_route, '/'));\n";
         $out .= "                    if (\$r_route_lc === '' || in_array(\$r_route_lc, \$trusted_routes, true)) {\n";
         $out .= "                        continue;\n";
@@ -761,7 +826,7 @@ class MicroWafCompiler {
         $out .= "                    if (\$matches_route) {\n";
         $out .= "                        \$r_methods = is_array(\$r_spec['methods'] ?? null) ? array_map('strtoupper', \$r_spec['methods']) : ['POST', 'PUT', 'DELETE'];\n";
         $out .= "                        if (empty(\$r_methods) || in_array(\$mod_req_method, \$r_methods, true)) {\n";
-        $out .= "                            webcare_micro_waf_block(\$ip, \$r_spec['rule_id'] ?? 'MOD-REST-GUARD', 'Unauthenticated ' . \$mod_req_method . ' request to permissive REST route (' . htmlspecialchars(\$r_route_lc, ENT_QUOTES, 'UTF-8') . ') blocked by Modular WAF', \$fail2ban_log);\n";
+        $out .= "                            webcare_micro_waf_block(\$ip, \$r_rid, 'Unauthenticated ' . \$mod_req_method . ' request to permissive REST route (' . htmlspecialchars(\$r_route_lc, ENT_QUOTES, 'UTF-8') . ') blocked by Modular WAF', \$fail2ban_log);\n";
         $out .= "                        }\n";
         $out .= "                    }\n";
         $out .= "                }\n";
@@ -769,6 +834,7 @@ class MicroWafCompiler {
         $out .= "        }\n\n";
 
         $out .= "        foreach (\$signatures as \$rule_id => \$sig) {\n";
+        $out .= "            if (in_array(\$rule_id, \$vis_exempt_ids, true)) { continue; }\n";
         $out .= "            if (preg_match(\$sig['pattern'], \$target_text)) {\n";
         $out .= "                webcare_micro_waf_block(\$ip, \$rule_id, \$sig['desc'], \$fail2ban_log);\n";
         $out .= "            }\n";
