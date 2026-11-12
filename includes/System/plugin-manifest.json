@@ -1,6 +1,6 @@
 {
   "version": "2.12.0",
-  "generated_at": "2026-11-12T05:16:58.574Z",
+  "generated_at": "2026-11-12T05:29:02.975Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -48,12 +48,12 @@
       "size": 291010
     },
     "build/cron-manager.asset.php": {
-      "sha256": "660e9c7ed2442337487a1a19e7dbcaed9a34b845ea2ffd7ffdf5e74db9873260",
+      "sha256": "87e965ebc4c3dc83057afc269bc5c3a7bdf02bc4db0b7622d9ea58dc42af7471",
       "size": 163
     },
     "build/cron-manager.js": {
-      "sha256": "68c624dfc4901c7662cca4e32db0f1c2a3860f7987a95d6571c36ec9e1a1e5b4",
-      "size": 138803
+      "sha256": "f12a308131cbf42dbb23eb6a1eac403a0931fef7b40e1f594633e02cc9efa596",
+      "size": 139609
     },
     "build/fim.asset.php": {
       "sha256": "79de7f2b33c8c3f1b550c4119460865785cb89c2abae27f4003ea4cca0e2bbe1",
