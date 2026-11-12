@@ -19,10 +19,10 @@ class FirewallEngine {
      */
     public static function generate_ref_code(): string {
         $charset = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+        $max_idx = strlen($charset) - 1;
         $ref_code = 'WEBCARE-';
-        $rand_bytes = wp_rand(0, 33554431); // 32^5
         for ($i = 0; $i < 4; $i++) {
-            $ref_code .= $charset[($rand_bytes >> ($i * 5)) & 31];
+            $ref_code .= $charset[wp_rand(0, $max_idx)];
         }
         return $ref_code;
     }
