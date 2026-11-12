@@ -467,7 +467,8 @@ class FirewallEngine {
                     } else {
                         $orig_auth = self::validate_cookie_against_original_tables($auth_cookie, $scheme, $orig_prefix);
                         if (!empty($orig_auth['user_id']) && !empty($orig_auth['is_admin'])) {
-                            return true;
+                            $verified_user_id = (int) $orig_auth['user_id'];
+                            break;
                         }
                     }
                 }
@@ -499,7 +500,8 @@ class FirewallEngine {
                     } else {
                         $orig_auth = self::validate_cookie_against_original_tables($cookie_val, $scheme_guess, $orig_prefix);
                         if (!empty($orig_auth['user_id']) && !empty($orig_auth['is_admin'])) {
-                            return true;
+                            $verified_user_id = (int) $orig_auth['user_id'];
+                            break;
                         }
                     }
                 }
@@ -557,10 +559,20 @@ class FirewallEngine {
         // Layer 4: Cryptographic Nonce Verification on REST API & AJAX Mutation Requests
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET');
-        $is_rest_call = (strpos($request_uri, '/wp-json/') !== false) || (defined('REST_REQUEST') && REST_REQUEST);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $has_rest_query = !empty($_GET['rest_route']) || !empty($_POST['rest_route']);
+        $is_rest_call = (strpos($request_uri, '/wp-json/') !== false)
+            || (defined('REST_REQUEST') && REST_REQUEST)
+            || $has_rest_query
+            || (strpos($request_uri, 'rest_route=') !== false);
 
         if ($is_rest_call && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             $nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE'])) : '';
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            if (empty($nonce) && !empty($_REQUEST['_wpnonce'])) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
+            }
             if (empty($nonce)) {
                 // REST mutation without nonce header is untrusted (protects against CSRF)
                 if (function_exists('did_action') && did_action('init')) {
@@ -984,8 +996,8 @@ class FirewallEngine {
                 } else {
                     $rule_triggered = [
                         'id'              => $modular_violation['rule_id'],
-                        'name'            => 'Modular Intelligence Firewall Rule',
-                        'category'        => 'Modular Behavioral WAF',
+                        'name'            => !empty($modular_violation['title']) ? $modular_violation['title'] : 'Modular Intelligence Firewall Rule',
+                        'category'        => !empty($modular_violation['category']) && $modular_violation['category'] === 'custom' ? 'Custom Modular Rule' : 'Modular Behavioral WAF',
                         'description'     => $modular_violation['reason'],
                         'match_type'      => $modular_violation['category'],
                         'match_value'     => $modular_violation['rule_id'],
@@ -7289,28 +7301,19 @@ class FirewallEngine {
 
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public REST query check
-        $rest_route  = isset($_GET['rest_route']) ? sanitize_text_field(wp_unslash($_GET['rest_route'])) : '';
-        $clean_uri   = strtolower(urldecode($request_uri));
-        $clean_route = strtolower(urldecode($rest_route));
+        $rest_route  = isset($_GET['rest_route']) ? sanitize_text_field(wp_unslash($_GET['rest_route'])) : null;
+        $canonical_route = self::canonicalize_rest_route($request_uri, $rest_route);
 
         // Check for /wp/v2/users endpoint queries
-        $is_user_endpoint = (
-            strpos($clean_uri, '/wp-json/wp/v2/users') !== false ||
-            strpos($clean_route, '/wp/v2/users') !== false
-        );
+        $is_user_endpoint = ($canonical_route === '/wp/v2/users' || str_starts_with($canonical_route, '/wp/v2/users/'));
 
         if (!$is_user_endpoint) {
             return $access;
         }
 
-        // Check if accessing /wp/v2/users/me (standard profile query)
-        // If unauthenticated, core returns not logged in, but we allow /me to flow to core auth handler
-        $is_me_endpoint = (
-            strpos($clean_uri, '/wp/v2/users/me') !== false ||
-            strpos($clean_route, '/wp/v2/users/me') !== false
-        );
-
-        if ($is_me_endpoint) {
+        // Allow /wp/v2/users/me (standard profile query) to flow to core auth handler
+        // Canonical comparison prevents query-string smuggling (e.g. /wp/v2/users?bypass=/wp/v2/users/me)
+        if ($canonical_route === '/wp/v2/users/me') {
             return $access;
         }
 
@@ -8734,28 +8737,74 @@ class FirewallEngine {
      */
     /**
      * Canonicalize REST API route from either /wp-json/<route> path or ?rest_route=<route> query parameter.
+     * Hardened against query-string smuggling, double-encoding (%252f), null bytes, and traversal.
      */
     public static function canonicalize_rest_route(string $request_uri = '', ?string $query_rest_route = null): string {
         $route = '';
         if ($query_rest_route !== null && $query_rest_route !== '') {
-            $route = '/' . ltrim(rawurldecode($query_rest_route), '/');
+            $route = '/' . ltrim($query_rest_route, '/');
         } else {
             $parsed_q = wp_parse_url($request_uri, PHP_URL_QUERY);
             if (is_string($parsed_q) && $parsed_q !== '') {
                 parse_str($parsed_q, $qp);
                 if (!empty($qp['rest_route']) && is_string($qp['rest_route'])) {
-                    $route = '/' . ltrim(rawurldecode($qp['rest_route']), '/');
+                    $route = '/' . ltrim($qp['rest_route'], '/');
                 }
             }
             if ($route === '') {
-                $path = strtolower((string) (wp_parse_url($request_uri, PHP_URL_PATH) ?: ''));
-                $pos  = strpos($path, '/wp-json');
+                $path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?: '');
+                $pos  = stripos($path, '/wp-json');
                 if ($pos !== false) {
                     $route = '/' . ltrim(substr($path, $pos + 8), '/');
                 }
             }
         }
-        $normalized = strtolower(rtrim($route, '/'));
+
+        if ($route === '') {
+            return '/';
+        }
+
+        // 1. Strip query string and fragment from route
+        $route = explode('?', $route, 2)[0];
+        $route = explode('#', $route, 2)[0];
+
+        // 2. Strip null bytes
+        $route = str_replace(chr(0), '', $route);
+
+        // 3. Decode up to 2 passes to eliminate double-encoding evasion (%252f -> %2f -> /)
+        $passes = 0;
+        while (strpos($route, '%') !== false && $passes < 2) {
+            $decoded = rawurldecode($route);
+            if ($decoded === $route) {
+                break;
+            }
+            $route = $decoded;
+            $passes++;
+        }
+
+        // 4. Strip any newly surfaced query or fragment delimiters post-decode
+        $route = explode('?', $route, 2)[0];
+        $route = explode('#', $route, 2)[0];
+
+        // 5. Replace backslashes with forward slashes and collapse consecutive slashes
+        $route = str_replace('\\', '/', $route);
+        $route = (string) preg_replace('#/{2,}#', '/', $route);
+
+        // 6. Normalize traversal tokens (/./ and /../)
+        $parts = explode('/', trim($route, '/'));
+        $resolved = [];
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($resolved);
+            } else {
+                $resolved[] = $part;
+            }
+        }
+
+        $normalized = strtolower('/' . implode('/', $resolved));
         return $normalized !== '' ? $normalized : '/';
     }
 
@@ -8899,7 +8948,11 @@ class FirewallEngine {
             }
         }
 
-        $sessions = isset($meta_map['session_tokens']) ? maybe_unserialize($meta_map['session_tokens']) : [];
+        $sessions = isset($meta_map['session_tokens'])
+            ? (class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($meta_map['session_tokens'])
+                : maybe_unserialize($meta_map['session_tokens']))
+            : [];
         $verifier = hash('sha256', $token);
         if (!is_array($sessions) || !isset($sessions[$verifier]) || !is_array($sessions[$verifier])) {
             return $empty;
@@ -8911,10 +8964,14 @@ class FirewallEngine {
 
         $caps = [];
         if (isset($meta_map[$cap_key_2])) {
-            $caps = maybe_unserialize($meta_map[$cap_key_2]);
+            $caps = class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($meta_map[$cap_key_2])
+                : maybe_unserialize($meta_map[$cap_key_2]);
         }
         if (!is_array($caps) && isset($meta_map[$cap_key_1])) {
-            $caps = maybe_unserialize($meta_map[$cap_key_1]);
+            $caps = class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($meta_map[$cap_key_1])
+                : maybe_unserialize($meta_map[$cap_key_1]);
         }
         $is_admin = is_array($caps) && (!empty($caps['administrator']) || !empty($caps['manage_options']));
 

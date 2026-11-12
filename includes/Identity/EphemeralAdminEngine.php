@@ -164,7 +164,9 @@ class EphemeralAdminEngine {
         $found_id = 0;
         if (!empty($admin_candidates)) {
             foreach ($admin_candidates as $cand) {
-                $caps = maybe_unserialize($cand->meta_value);
+                $caps = class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                    ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($cand->meta_value)
+                    : maybe_unserialize($cand->meta_value);
                 if (is_array($caps) && !empty($caps['administrator'])) {
                     $found_id = (int) $cand->ID;
                     break;

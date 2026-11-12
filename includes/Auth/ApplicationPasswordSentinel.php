@@ -520,7 +520,9 @@ class ApplicationPasswordSentinel {
                     continue;
                 }
 
-                $meta_items = maybe_unserialize($row->meta_value);
+                $meta_items = class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                    ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($row->meta_value)
+                    : maybe_unserialize($row->meta_value);
                 if (!is_array($meta_items)) {
                     continue;
                 }

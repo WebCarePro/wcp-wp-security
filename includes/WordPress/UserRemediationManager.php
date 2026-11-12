@@ -535,7 +535,9 @@ class UserRemediationManager {
         $roles = [];
         foreach ($meta as $m) {
             if (isset($m['meta_key']) && str_ends_with($m['meta_key'], 'capabilities')) {
-                $caps = maybe_unserialize($m['meta_value'] ?? '');
+                $caps = class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                    ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($m['meta_value'] ?? '')
+                    : maybe_unserialize($m['meta_value'] ?? '');
                 if (is_array($caps)) {
                     $roles = array_keys(array_filter($caps));
                 }

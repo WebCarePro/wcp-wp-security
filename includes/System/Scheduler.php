@@ -56,11 +56,12 @@ class Scheduler {
             return false;
         }
 
-        // Strict Policy: Only proceed if administrator explicitly enabled the event in Notification Center
+        // Strict Policy: Only proceed if administrator explicitly enabled the event in Notification Center,
+        // or if explicitly forced via manual "Run Now" in Cron Control Center
         $is_email_on = \WebCareProScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'email');
         $is_webhook_on = \WebCareProScanner\Notifications\NotificationDispatcher::is_event_enabled('weekly_peace_of_mind_digest', 'webhook');
 
-        if (!$is_email_on && !$is_webhook_on) {
+        if (!$force && !$is_email_on && !$is_webhook_on) {
             // Silently abort if disabled by user (the default state)
             return false;
         }
@@ -68,7 +69,7 @@ class Scheduler {
         $telemetry = \WebCareProScanner\Reports\WeeklyDigestEngine::compile_weekly_telemetry();
         $email_html = \WebCareProScanner\Reports\WeeklyDigestEngine::render_email_html($telemetry);
 
-        \WebCareProScanner\Notifications\NotificationDispatcher::trigger('weekly_peace_of_mind_digest', [
+        $payload = [
             /* translators: %s: site name */
             'title'     => sprintf(__('Your Site Had a Safe Week • %s', 'webcare-pro-security'), $telemetry['site_name']),
             /* translators: 1: total blocked threats, 2: bot logins stopped, 3: verified files count */
@@ -76,7 +77,13 @@ class Scheduler {
             'severity'  => 'info',
             'html_body' => $email_html,
             'details'   => $telemetry,
-        ]);
+        ];
+
+        if ($force && !$is_email_on && !$is_webhook_on) {
+            $payload['force_email'] = true;
+        }
+
+        \WebCareProScanner\Notifications\NotificationDispatcher::trigger('weekly_peace_of_mind_digest', $payload);
 
         return true;
     }

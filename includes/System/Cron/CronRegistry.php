@@ -355,7 +355,13 @@ class CronRegistry {
      */
     public static function get_task(string $hook): ?array {
         $tasks = self::get_tasks();
-        return $tasks[$hook] ?? null;
+        if (isset($tasks[$hook])) {
+            return $tasks[$hook];
+        }
+        if ($hook === 'webcareproscan_modular_scan_cron_step') {
+            return $tasks['webcareproscan_modular_ast_step'] ?? null;
+        }
+        return null;
     }
 
     /**
@@ -368,7 +374,10 @@ class CronRegistry {
             array_unique(
                 array_merge(
                     array_keys(self::get_tasks()),
-                    ['webcareproscan_scheduled_scan_cron']
+                    [
+                        'webcareproscan_scheduled_scan_cron',
+                        'webcareproscan_modular_scan_cron_step',
+                    ]
                 )
             )
         );

@@ -227,9 +227,14 @@ class CronControlCenter {
 
         $delay = $first_delay ?? (int) ($task['default_delay'] ?? 300);
         if ($hook === Scheduler::DIGEST_HOOK) {
-            $first_run = $desired_recurrence === 'weekly'
-                ? (strtotime('next monday 08:00:00') ?: (time() + 3600))
-                : (strtotime('tomorrow 08:00:00') ?: (time() + 3600));
+            $tz = function_exists('wp_timezone') ? wp_timezone() : new \DateTimeZone('UTC');
+            $dt_target = $desired_recurrence === 'weekly' ? 'next monday 08:00:00' : 'tomorrow 08:00:00';
+            try {
+                $dt = new \DateTime($dt_target, $tz);
+                $first_run = $dt->getTimestamp();
+            } catch (\Exception $e) {
+                $first_run = time() + 3600;
+            }
         } else {
             $first_run = time() + max(15, $delay);
         }

@@ -19,6 +19,18 @@ class CronExecutionLogger {
     public const MAX_RETAINED_ROWS = 2000;
 
     /**
+     * Active running task context for graceful PHP fatal / timeout shutdown interception.
+     *
+     * @var array{log_id:int,task_id:string,hook:string,trigger_source:string,started_micro:float}|null
+     */
+    private static ?array $active_running_context = null;
+
+    /**
+     * Whether shutdown interception handler has been registered.
+     */
+    private static bool $shutdown_registered = false;
+
+    /**
      * Get the qualified execution logs table name.
      *
      * @return string
@@ -74,7 +86,22 @@ class CronExecutionLogger {
             ['%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s']
         );
 
-        return $inserted ? (int) $wpdb->insert_id : 0;
+        $log_id = $inserted ? (int) $wpdb->insert_id : 0;
+        if ($log_id > 0) {
+            self::$active_running_context = [
+                'log_id'         => $log_id,
+                'task_id'        => $task_id,
+                'hook'           => $hook,
+                'trigger_source' => $trigger_source,
+                'started_micro'  => microtime(true),
+            ];
+            if (!self::$shutdown_registered) {
+                self::$shutdown_registered = true;
+                register_shutdown_function([__CLASS__, 'handle_fatal_shutdown']);
+            }
+        }
+
+        return $log_id;
     }
 
     /**
@@ -169,10 +196,81 @@ class CronExecutionLogger {
             );
         }
 
+        self::$active_running_context = null;
+
         // Occasional automatic pruning (1 in 25 writes) to prevent unbounded growth
         if (wp_rand(1, 25) === 1) {
             self::prune_old_logs();
         }
+    }
+
+    /**
+     * Shutdown handler: catches unhandled PHP fatal errors or timeouts and finalizes orphaned 'running' rows.
+     */
+    public static function handle_fatal_shutdown(): void {
+        if (empty(self::$active_running_context)) {
+            return;
+        }
+
+        $last_error = error_get_last();
+        $fatal_types = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+
+        if ($last_error && in_array($last_error['type'], $fatal_types, true)) {
+            $ctx = self::$active_running_context;
+            self::$active_running_context = null;
+
+            $error_desc = sprintf(
+                'PHP Fatal Error [%d]: %s in %s on line %d',
+                $last_error['type'],
+                $last_error['message'],
+                $last_error['file'],
+                $last_error['line']
+            );
+
+            self::finish_run(
+                (int) $ctx['log_id'],
+                (string) $ctx['task_id'],
+                (string) $ctx['hook'],
+                (string) $ctx['trigger_source'],
+                'failed',
+                (float) $ctx['started_micro'],
+                __('Execution interrupted by unhandled PHP fatal error or timeout.', 'webcare-pro-security'),
+                [
+                    'fatal'   => true,
+                    'type'    => $last_error['type'],
+                    'message' => $last_error['message'],
+                    'file'    => $last_error['file'],
+                    'line'    => $last_error['line'],
+                ],
+                $error_desc
+            );
+        }
+    }
+
+    /**
+     * Self-healing: recover orphaned 'running' rows older than 15 minutes by marking them as timed out.
+     *
+     * @return int Number of recovered rows
+     */
+    public static function recover_orphaned_running_rows(): int {
+        global $wpdb;
+        self::ensure_table_exists();
+        $table = self::get_table_name();
+        $stale_cutoff = gmdate('Y-m-d H:i:s', time() - 900); // 15 minutes ago
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $affected = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE %i SET status = 'failed', summary = %s, error_message = %s, completed_at = %s WHERE status = 'running' AND created_at_gmt < %s",
+                $table,
+                __('Execution terminated abruptly or timed out.', 'webcare-pro-security'),
+                __('Task did not complete within the maximum runtime threshold; terminated by crash guard.', 'webcare-pro-security'),
+                current_time('mysql'),
+                $stale_cutoff
+            )
+        );
+
+        return is_numeric($affected) ? (int) $affected : 0;
     }
 
     /**
@@ -193,6 +291,7 @@ class CronExecutionLogger {
     public static function get_24h_stats(): array {
         global $wpdb;
         self::ensure_table_exists();
+        self::recover_orphaned_running_rows();
 
         $table  = self::get_table_name();
         $cutoff = gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS);
@@ -239,6 +338,7 @@ class CronExecutionLogger {
     public static function query_logs(array $filters = []): array {
         global $wpdb;
         self::ensure_table_exists();
+        self::recover_orphaned_running_rows();
 
         $table    = self::get_table_name();
         $hook     = sanitize_text_field((string) ($filters['hook'] ?? ''));

@@ -26,9 +26,10 @@ if (!defined('ABSPATH')) {
 
 class SiteBehavioralAnalyzer {
 
-    const OPTION_STATE     = 'webcareproscan_modular_scan_state';
-    const CRON_STEP_HOOK   = 'webcareproscan_modular_scan_cron_step';
-    const TRANSIENT_LOCK   = 'webcareproscan_modular_scan_lock';
+    const OPTION_STATE          = 'webcareproscan_modular_scan_state';
+    const CRON_STEP_HOOK        = 'webcareproscan_modular_ast_step';
+    const LEGACY_CRON_STEP_HOOK = 'webcareproscan_modular_scan_cron_step';
+    const TRANSIENT_LOCK        = 'webcareproscan_modular_scan_lock';
     const MAX_FILE_SIZE    = 2097152; // 2MB
     const BATCH_TIME_LIMIT = 2.8;     // 2.8 seconds per batch to maximize throughput safely under proxy/FPM timeouts
 
@@ -343,6 +344,9 @@ class SiteBehavioralAnalyzer {
         while ($ts) {
             wp_unschedule_event($ts, self::CRON_STEP_HOOK);
             $ts = wp_next_scheduled(self::CRON_STEP_HOOK);
+        }
+        if (wp_next_scheduled(self::LEGACY_CRON_STEP_HOOK)) {
+            wp_clear_scheduled_hook(self::LEGACY_CRON_STEP_HOOK);
         }
     }
 

@@ -713,12 +713,12 @@ class NotificationDispatcher {
         ];
 
         // 2. Dispatch Email Channel
-        if (!empty($event_cfg['email'])) {
+        if (!empty($event_cfg['email']) || !empty($payload['force_email'])) {
             $results['email'] = self::dispatch_email($full_payload);
         }
 
         // 3. Dispatch Webhook Channel
-        if (!empty($event_cfg['webhook'])) {
+        if (!empty($event_cfg['webhook']) || !empty($payload['force_webhook'])) {
             $results['webhook'] = self::dispatch_webhooks($full_payload);
         }
 

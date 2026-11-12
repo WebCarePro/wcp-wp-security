@@ -739,7 +739,9 @@ class WebAuthnManager {
         ) ?: [];
 
         foreach ($rows as $row) {
-            $creds = maybe_unserialize($row['meta_value']);
+            $creds = class_exists('\\WebCareProScanner\\Database\\SerializedDataScanner')
+                ? \WebCareProScanner\Database\SerializedDataScanner::safe_unserialize($row['meta_value'])
+                : maybe_unserialize($row['meta_value']);
             if (is_array($creds)) {
                 foreach ($creds as $cred) {
                     if (isset($cred['credential_id']) && self::credential_ids_match((string) $cred['credential_id'], $credential_id)) {

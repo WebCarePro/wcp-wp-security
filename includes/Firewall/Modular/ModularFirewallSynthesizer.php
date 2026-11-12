@@ -1103,6 +1103,7 @@ class ModularFirewallSynthesizer {
         return [
             'blocked'         => $should_block,
             'rule_id'         => (string) ($rule['id'] ?? ''),
+            'title'           => (string) ($rule['title'] ?? ''),
             'category'        => (string) ($rule['category'] ?? 'custom'),
             'action_type'     => $action_type,
             'reason'          => $reason,
@@ -1170,6 +1171,27 @@ class ModularFirewallSynthesizer {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST query route smuggling
         $rest_query = isset($_GET['rest_route']) ? strtolower(sanitize_text_field(wp_unslash($_GET['rest_route']))) : '';
         $payload_rx = '/(?:\bunion\s+all\s+select\b|\bselect\b.{1,40}\bfrom\b.{1,40}\bwp_users\b|sleep\s*\(\s*\d+\s*\)|benchmark\s*\(|<script\b|javascript:|wp_capabilities|administrator)/i';
+
+        // Read raw body once for REST JSON / API payloads up to 64KB
+        $raw_body = '';
+        if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $raw_body = (string) @file_get_contents('php://input', false, null, 0, 65536);
+        }
+        $raw_json_data = null;
+        $content_type  = isset($_SERVER['CONTENT_TYPE']) ? sanitize_text_field(wp_unslash($_SERVER['CONTENT_TYPE'])) : '';
+        if ($raw_body !== '' && ($raw_body[0] === '{' || $raw_body[0] === '[' || str_contains($content_type, 'application/json'))) {
+            $raw_json_data = json_decode($raw_body, true);
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Pre-dispatch runtime WAF payload inspection
+        $raw_payload = wp_json_encode($_REQUEST) ?: '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-dispatch runtime WAF file payload inspection
+        $files_payload = !empty($_FILES) ? (wp_json_encode($_FILES) ?: '') : '';
+        $has_malicious_payload = (bool) (
+            preg_match($payload_rx, $raw_payload)
+            || ($raw_body !== '' && preg_match($payload_rx, $raw_body))
+            || ($files_payload !== '' && preg_match($payload_rx, $files_payload))
+        );
+
         $visual_ctx = null;
         $exempt_all = false;
         $exempt_ids = [];
@@ -1230,6 +1252,9 @@ class ModularFirewallSynthesizer {
                     if ($tp !== '') {
                         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch custom Modular WAF rule inspection
                         $pv = isset($_REQUEST[$tp]) && is_string($_REQUEST[$tp]) ? strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$tp])))) : '';
+                        if ($pv === '' && is_array($raw_json_data) && isset($raw_json_data[$tp])) {
+                            $pv = strtolower(trim(sanitize_text_field((string) $raw_json_data[$tp])));
+                        }
                         $param_match = !empty($r['target_value'])
                             ? ($pv === strtolower(trim((string) $r['target_value'])))
                             : ($pv !== '');
@@ -1296,9 +1321,8 @@ class ModularFirewallSynthesizer {
                             $should_block
                         );
                     }
-                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch payload inspection for custom modular rule
-                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
-                    if (preg_match($payload_rx, $raw_payload)) {
+                    // Pre-dispatch payload inspection for custom modular rule (inspects $_REQUEST, JSON input body, and $_FILES)
+                    if ($has_malicious_payload) {
                         return self::build_violation(
                             $r,
                             sprintf('Suspicious payload blocked by custom Modular WAF Rule [%s].', $r['id']),
@@ -1353,9 +1377,7 @@ class ModularFirewallSynthesizer {
                     }
 
                     // B. Inspect parameters for SQLi / XSS / Privilege Escalation payloads on unprotected guest AJAX
-                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of incoming AJAX payload signatures
-                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
-                    if (preg_match($payload_rx, $raw_payload)) {
+                    if ($has_malicious_payload) {
                         return self::build_violation(
                             $r,
                             sprintf('Malicious SQLi/XSS/PrivEsc payload intercepted on unprotected guest AJAX action "%s" [%s].', $req_action, $r['id']),
@@ -1388,9 +1410,7 @@ class ModularFirewallSynthesizer {
                     if (empty($methods) || in_array($method, $methods, true)) {
                         if ($is_smart) {
                             // In 48h Smart Learning mode, permit clean requests while enforcing SQLi/XSS & rate limits
-                            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST payload
-                            $raw_payload = wp_json_encode($_REQUEST) ?: '';
-                            if (preg_match($payload_rx, $raw_payload)) {
+                            if ($has_malicious_payload) {
                                 return self::build_violation(
                                     $r,
                                     sprintf('Malicious payload intercepted on REST route "%s" [%s].', $target_route, $r['id']),

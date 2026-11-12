@@ -96,26 +96,31 @@ class RestApiInventory {
             return $result;
         }
 
-        $raw_uri = isset($_SERVER['REQUEST_URI']) ? strtolower(esc_url_raw(wp_unslash($_SERVER['REQUEST_URI']))) : '';
+        $raw_uri = isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $rest_route = isset($_GET['rest_route']) ? strtolower(sanitize_text_field(wp_unslash($_GET['rest_route']))) : '';
+        $rest_route = isset($_GET['rest_route']) ? sanitize_text_field(wp_unslash($_GET['rest_route'])) : null;
+        $canonical_route = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::canonicalize_rest_route($raw_uri, $rest_route)
+            : '/' . ltrim(explode('?', (string) ($rest_route ?: wp_parse_url($raw_uri, PHP_URL_PATH)), 2)[0], '/');
 
-        $is_user_enum = str_contains($raw_uri, '/wp/v2/users') || str_contains($rest_route, '/wp/v2/users');
+        $is_user_enum = ($canonical_route === '/wp/v2/users' || str_starts_with($canonical_route, '/wp/v2/users/'));
 
         // Allow /wp/v2/users/me through to standard core authentication error handler
-        if ($is_user_enum && (str_contains($raw_uri, '/wp/v2/users/me') || str_contains($rest_route, '/wp/v2/users/me'))) {
+        // Canonical comparison prevents query-string smuggling (e.g. /wp/v2/users?bypass=/wp/v2/users/me)
+        if ($is_user_enum && $canonical_route === '/wp/v2/users/me') {
             return $result;
         }
 
         // Check if user enumeration is being smuggled inside a REST batch request
-        if (!$is_user_enum && (str_contains($raw_uri, '/batch') || str_contains($rest_route, '/batch'))) {
+        if (!$is_user_enum && ($canonical_route === '/batch' || $canonical_route === '/batch/v1' || str_starts_with($canonical_route, '/batch/'))) {
             $raw_input = @file_get_contents('php://input');
             if (!empty($raw_input)) {
                 $batch_data = json_decode($raw_input, true);
                 if (is_array($batch_data) && !empty($batch_data['requests']) && is_array($batch_data['requests'])) {
                     foreach ($batch_data['requests'] as $req) {
-                        $path = strtolower($req['path'] ?? '');
-                        if (str_contains($path, '/wp/v2/users') && !str_contains($path, '/wp/v2/users/me')) {
+                        $raw_path = strtolower(trim((string) ($req['path'] ?? '')));
+                        $path_clean = '/' . ltrim(explode('?', $raw_path, 2)[0], '/');
+                        if (($path_clean === '/wp/v2/users' || str_starts_with($path_clean, '/wp/v2/users/')) && $path_clean !== '/wp/v2/users/me') {
                             $is_user_enum = true;
                             break;
                         }
@@ -151,11 +156,18 @@ class RestApiInventory {
         }
 
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $rest_route = isset($_GET['rest_route']) ? sanitize_text_field(wp_unslash($_GET['rest_route'])) : null;
+        $canonical_route = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::canonicalize_rest_route($raw_uri, $rest_route)
+            : '/' . ltrim(explode('?', (string) ($rest_route ?: wp_parse_url($raw_uri, PHP_URL_PATH)), 2)[0], '/');
+
         $settings = self::get_settings();
         $whitelist = $settings['whitelisted_namespaces'] ?? ['webcare-pro-security/v1'];
 
         foreach ($whitelist as $allowed_ns) {
-            if (!empty($allowed_ns) && str_contains($raw_uri, '/' . trim($allowed_ns, '/') . '/')) {
+            $clean_ns = '/' . trim(strtolower($allowed_ns), '/');
+            if ($clean_ns !== '/' && ($canonical_route === $clean_ns || str_starts_with($canonical_route, $clean_ns . '/'))) {
                 return $result;
             }
         }
