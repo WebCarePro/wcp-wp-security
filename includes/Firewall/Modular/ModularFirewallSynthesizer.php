@@ -706,7 +706,14 @@ class ModularFirewallSynthesizer {
                     $r['learning_started_at'] = time();
                 }
                 if (isset($params['rate_limit'])) {
-                    $r['rate_limit'] = max(0, intval($params['rate_limit']));
+                    $r['rate_limit']      = max(0, intval($params['rate_limit']));
+                    $r['immediate_block'] = ($r['rate_limit'] <= 0);
+                }
+                if (isset($params['immediate_block'])) {
+                    $r['immediate_block'] = !empty($params['immediate_block']);
+                }
+                if (isset($params['ban_ttl'])) {
+                    $r['ban_ttl'] = max(0, min(2592000, intval($params['ban_ttl'])));
                 }
                 if (isset($params['sync_cloudflare'])) {
                     $r['sync_cloudflare'] = !empty($params['sync_cloudflare']);
@@ -784,6 +791,7 @@ class ModularFirewallSynthesizer {
             'direct_scripts_blocked' => [],
             'ajax_actions_enforced'  => [],
             'rest_routes_enforced'   => [],
+            'custom_rules_enforced'  => [],
         ];
 
         foreach ($rules as $r) {
@@ -792,6 +800,39 @@ class ModularFirewallSynthesizer {
             }
 
             $cat = $r['category'] ?? '';
+
+            // 0. Custom Developer-Defined Stateless Rules (MOD-CUSTOM-*)
+            if (!empty($r['is_custom']) || $cat === 'custom') {
+                $t_uri   = strtolower(trim((string) ($r['target_uri'] ?? '')));
+                $t_param = !empty($r['target_param'])
+                    ? sanitize_key((string) $r['target_param'])
+                    : (($cat === 'ajax_shield' && !empty($r['target_value'])) ? 'action' : '');
+                if ($t_uri === '' && $t_param === '') {
+                    continue;
+                }
+                $rate_lim  = max(0, intval($r['rate_limit'] ?? 0));
+                $immediate = !empty($r['immediate_block']) || $rate_lim <= 0;
+                $sync_cf   = !empty($r['sync_cloudflare']);
+                $ban_ttl   = isset($r['ban_ttl']) ? max(0, (int) $r['ban_ttl']) : ($sync_cf ? 86400 : 0);
+
+                $compiled['custom_rules_enforced'][] = [
+                    'rule_id'         => (string) ($r['id'] ?? 'MOD-CUSTOM'),
+                    'category'        => (string) $cat,
+                    'title'           => (string) ($r['title'] ?? ''),
+                    'target_uri'      => $t_uri,
+                    'target_param'    => $t_param,
+                    'target_value'    => strtolower(trim((string) ($r['target_value'] ?? ''))),
+                    'methods'         => is_array($r['http_methods'] ?? null)
+                        ? array_values(array_filter(array_map('strtoupper', $r['http_methods'])))
+                        : [],
+                    'rate_limit'      => $rate_lim,
+                    'immediate_block' => $immediate,
+                    'block_uploads'   => !empty($r['block_uploads']),
+                    'sync_cloudflare' => $sync_cf,
+                    'ban_ttl'         => $ban_ttl,
+                ];
+                continue;
+            }
 
             // 1. Direct Script Locks & Checksum Tamper Guards
             if (in_array($cat, ['abspath_lock', 'tamper_guard'], true) && !empty($r['target_uri'])) {
@@ -937,6 +978,33 @@ class ModularFirewallSynthesizer {
     }
 
     /**
+     * Build a normalized Modular WAF violation payload carrying Cloudflare sync and ban TTL metadata.
+     *
+     * @param array  $rule
+     * @param string $reason
+     * @param bool   $should_block
+     * @param string $severity_fallback
+     * @return array
+     */
+    private static function build_violation(array $rule, string $reason, bool $should_block, string $severity_fallback = 'high'): array {
+        $sync_cf = !empty($rule['sync_cloudflare']);
+        $ban_ttl = isset($rule['ban_ttl'])
+            ? max(0, (int) $rule['ban_ttl'])
+            : ($sync_cf ? 86400 : 0);
+
+        return [
+            'blocked'         => $should_block,
+            'rule_id'         => (string) ($rule['id'] ?? ''),
+            'category'        => (string) ($rule['category'] ?? 'custom'),
+            'reason'          => $reason,
+            'severity'        => (string) ($rule['severity'] ?? $severity_fallback),
+            'mode'            => (string) ($rule['current_mode'] ?? 'enforce'),
+            'sync_cloudflare' => $sync_cf,
+            'ban_ttl'         => $ban_ttl,
+        ];
+    }
+
+    /**
      * Evaluate incoming request against active Modular Rules at WordPress Runtime.
      * Covers all 6 synthesized categories plus custom rules & MOD-CVE virtual shields,
      * honors Rescue Mode 15-minute pauses and permanent trusted-action exemptions,
@@ -998,20 +1066,82 @@ class ModularFirewallSynthesizer {
             $is_smart     = ($mode === 'smart_learning');
             $methods      = is_array($r['http_methods'] ?? null) ? array_map('strtoupper', $r['http_methods']) : [];
 
+            // Custom Developer-Defined Modular Rule (MOD-CUSTOM-*)
+            // Evaluated before synthesized categories so custom rules with ajax_shield/rest_guard/abspath_lock
+            // categories honor immediate_block, custom params, and sync_cloudflare/ban_ttl deterministically.
+            if (!empty($r['is_custom']) || $cat === 'custom') {
+                $target_uri_l = strtolower(trim((string) ($r['target_uri'] ?? '')));
+                $tp           = !empty($r['target_param'])
+                    ? sanitize_key((string) $r['target_param'])
+                    : (($cat === 'ajax_shield' && !empty($r['target_value'])) ? 'action' : '');
+
+                if ($target_uri_l === '' && $tp === '') {
+                    continue;
+                }
+
+                $norm_rest_q = $rest_query !== '' ? '/wp-json/' . ltrim($rest_query, '/') : '';
+                $uri_match = ($target_uri_l === '')
+                    || str_contains($clean_uri, $target_uri_l)
+                    || ($rest_query !== '' && (str_contains($rest_query, $target_uri_l) || str_contains($norm_rest_q, $target_uri_l)));
+                $method_match = empty($methods) || in_array($method, $methods, true);
+                $param_match  = true;
+
+                if ($tp !== '') {
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch custom Modular WAF rule inspection
+                    $pv = isset($_REQUEST[$tp]) && is_string($_REQUEST[$tp]) ? strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$tp])))) : '';
+                    $param_match = !empty($r['target_value'])
+                        ? ($pv === strtolower(trim((string) $r['target_value'])))
+                        : ($pv !== '');
+                }
+
+                if ($uri_match && $method_match && $param_match) {
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-dispatch upload inspection for custom modular rule
+                    if (!empty($r['block_uploads']) && !empty($_FILES)) {
+                        return self::build_violation(
+                            $r,
+                            sprintf('File upload blocked on protected custom endpoint [%s].', $r['id']),
+                            $should_block
+                        );
+                    }
+                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch payload inspection for custom modular rule
+                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
+                    if (preg_match($payload_rx, $raw_payload)) {
+                        return self::build_violation(
+                            $r,
+                            sprintf('Suspicious payload blocked by custom Modular WAF Rule [%s].', $r['id']),
+                            $should_block
+                        );
+                    }
+                    $limit = intval($r['rate_limit'] ?? 0);
+                    if (!empty($r['immediate_block']) || $limit <= 0) {
+                        return self::build_violation(
+                            $r,
+                            sprintf('Blocked by Custom Modular WAF Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                            $should_block
+                        );
+                    }
+                    if (self::is_modular_rate_limited($r['id'], $ip, $limit)) {
+                        return self::build_violation(
+                            $r,
+                            sprintf('Rate limit (%d req/min) exceeded on custom protected endpoint [%s].', $limit, $r['id']),
+                            $should_block
+                        );
+                    }
+                }
+                continue;
+            }
+
             // Category 1: abspath_lock / tamper_guard (Direct HTTP request to standalone or checksum-modified PHP script)
             if (in_array($cat, ['abspath_lock', 'tamper_guard'], true) && !empty($r['target_uri'])) {
                 $target_suffix = strtolower(ltrim((string) $r['target_uri'], '/\\'));
                 if ($target_suffix !== '' && str_ends_with($clean_uri, $target_suffix)) {
-                    return [
-                        'blocked'  => $should_block,
-                        'rule_id'  => $r['id'],
-                        'category' => $cat,
-                        'reason'   => ($cat === 'tamper_guard')
+                    return self::build_violation(
+                        $r,
+                        ($cat === 'tamper_guard')
                             ? sprintf('Direct HTTP access to checksum-flagged script "%s" blocked by Modular WAF Rule [%s].', basename($target_suffix), $r['id'])
                             : sprintf('Direct HTTP access to standalone script "%s" blocked by Modular WAF Rule [%s].', basename($target_suffix), $r['id']),
-                        'severity' => $r['severity'] ?? 'high',
-                        'mode'     => $mode,
-                    ];
+                        $should_block
+                    );
                 }
             }
 
@@ -1021,41 +1151,35 @@ class ModularFirewallSynthesizer {
                     // A. Block unauthorized multipart file uploads on guest AJAX
                     // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection blocking multipart uploads on unprotected guest AJAX actions
                     if (!empty($r['block_uploads']) && !empty($_FILES)) {
-                        return [
-                            'blocked'  => ($should_block || ($is_smart && !$is_rescue_paused)),
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('File upload prohibited on guest AJAX action "%s" by Modular WAF Rule [%s].', $req_action, $r['id']),
-                            'severity' => 'critical',
-                            'mode'     => $mode,
-                        ];
+                        return self::build_violation(
+                            $r,
+                            sprintf('File upload prohibited on guest AJAX action "%s" by Modular WAF Rule [%s].', $req_action, $r['id']),
+                            ($should_block || ($is_smart && !$is_rescue_paused)),
+                            'critical'
+                        );
                     }
 
                     // B. Inspect parameters for SQLi / XSS / Privilege Escalation payloads on unprotected guest AJAX
                     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of incoming AJAX payload signatures
                     $raw_payload = wp_json_encode($_REQUEST) ?: '';
                     if (preg_match($payload_rx, $raw_payload)) {
-                        return [
-                            'blocked'  => ($should_block || ($is_smart && !$is_rescue_paused)),
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('Malicious SQLi/XSS/PrivEsc payload intercepted on unprotected guest AJAX action "%s" [%s].', $req_action, $r['id']),
-                            'severity' => 'critical',
-                            'mode'     => $mode,
-                        ];
+                        return self::build_violation(
+                            $r,
+                            sprintf('Malicious SQLi/XSS/PrivEsc payload intercepted on unprotected guest AJAX action "%s" [%s].', $req_action, $r['id']),
+                            ($should_block || ($is_smart && !$is_rescue_paused)),
+                            'critical'
+                        );
                     }
 
                     // C. Enforce per-IP velocity rate limit if configured
                     $limit = intval($r['rate_limit'] ?? 0);
                     if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
-                        return [
-                            'blocked'  => ($should_block || ($is_smart && !$is_rescue_paused)),
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('Rate limit (%d req/min) exceeded on guest AJAX action "%s" [%s].', $limit, $req_action, $r['id']),
-                            'severity' => 'high',
-                            'mode'     => $mode,
-                        ];
+                        return self::build_violation(
+                            $r,
+                            sprintf('Rate limit (%d req/min) exceeded on guest AJAX action "%s" [%s].', $limit, $req_action, $r['id']),
+                            ($should_block || ($is_smart && !$is_rescue_paused)),
+                            'high'
+                        );
                     }
 
                     if ($is_smart) {
@@ -1074,36 +1198,29 @@ class ModularFirewallSynthesizer {
                             // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST payload
                             $raw_payload = wp_json_encode($_REQUEST) ?: '';
                             if (preg_match($payload_rx, $raw_payload)) {
-                                return [
-                                    'blocked'  => !$is_rescue_paused,
-                                    'rule_id'  => $r['id'],
-                                    'category' => $cat,
-                                    'reason'   => sprintf('Malicious payload intercepted on REST route "%s" [%s].', $target_route, $r['id']),
-                                    'severity' => 'critical',
-                                    'mode'     => $mode,
-                                ];
+                                return self::build_violation(
+                                    $r,
+                                    sprintf('Malicious payload intercepted on REST route "%s" [%s].', $target_route, $r['id']),
+                                    !$is_rescue_paused,
+                                    'critical'
+                                );
                             }
                             $limit = intval($r['rate_limit'] ?? 0);
                             if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
-                                return [
-                                    'blocked'  => !$is_rescue_paused,
-                                    'rule_id'  => $r['id'],
-                                    'category' => $cat,
-                                    'reason'   => sprintf('Rate limit (%d req/min) exceeded on REST route "%s" [%s].', $limit, $target_route, $r['id']),
-                                    'severity' => 'high',
-                                    'mode'     => $mode,
-                                ];
+                                return self::build_violation(
+                                    $r,
+                                    sprintf('Rate limit (%d req/min) exceeded on REST route "%s" [%s].', $limit, $target_route, $r['id']),
+                                    !$is_rescue_paused,
+                                    'high'
+                                );
                             }
                             self::record_autopilot_benign_hit($r['id']);
                         } else {
-                            return [
-                                'blocked'  => $should_block,
-                                'rule_id'  => $r['id'],
-                                'category' => $cat,
-                                'reason'   => sprintf('Unauthenticated %s mutation on permissive REST route "%s" blocked by Modular WAF Rule [%s].', $method, $target_route, $r['id']),
-                                'severity' => $r['severity'] ?? 'high',
-                                'mode'     => $mode,
-                            ];
+                            return self::build_violation(
+                                $r,
+                                sprintf('Unauthenticated %s mutation on permissive REST route "%s" blocked by Modular WAF Rule [%s].', $method, $target_route, $r['id']),
+                                $should_block
+                            );
                         }
                     }
                 }
@@ -1119,27 +1236,23 @@ class ModularFirewallSynthesizer {
                     foreach ($names as $idx => $fname) {
                         $fname_l = strtolower((string) $fname);
                         if (preg_match('/\.(?:php\d*|phtml|phar|pgif|htaccess|user\.ini|sh|pl|py|cgi|asp|aspx)\b/i', $fname_l)) {
-                            return [
-                                'blocked'  => $should_block,
-                                'rule_id'  => $r['id'],
-                                'category' => $cat,
-                                'reason'   => sprintf('Dangerous executable upload filename "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
-                                'severity' => 'critical',
-                                'mode'     => $mode,
-                            ];
+                            return self::build_violation(
+                                $r,
+                                sprintf('Dangerous executable upload filename "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
+                                $should_block,
+                                'critical'
+                            );
                         }
                         $tmp_f = (string) ($tmp_arr[$idx] ?? '');
                         if ($tmp_f !== '' && is_uploaded_file($tmp_f)) {
                             $head = (string) @file_get_contents($tmp_f, false, null, 0, 4096);
                             if (preg_match('/<\?(?:php|=)|__HALT_COMPILER\s*\(\s*\)/i', $head)) {
-                                return [
-                                    'blocked'  => $should_block,
-                                    'rule_id'  => $r['id'],
-                                    'category' => $cat,
-                                    'reason'   => sprintf('Embedded PHP/PHAR payload inside uploaded file "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
-                                    'severity' => 'critical',
-                                    'mode'     => $mode,
-                                ];
+                                return self::build_violation(
+                                    $r,
+                                    sprintf('Embedded PHP/PHAR payload inside uploaded file "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
+                                    $should_block,
+                                    'critical'
+                                );
                             }
                         }
                     }
@@ -1155,66 +1268,13 @@ class ModularFirewallSynthesizer {
                         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch SSRF inspection on untrusted URL query/body parameters
                         $val = strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$pk]))));
                         if (preg_match('#^(?:file|gopher|dict|ftp|ldap|tftp)://|(?:\b169\.254\.169\.254\b|\b127\.\d+\.\d+\.\d+\b|\blocalhost\b|\b0\.0\.0\.0\b|\[::1\]|\bmetadata\.google\.internal\b)#i', $val)) {
-                            return [
-                                'blocked'  => $should_block,
-                                'rule_id'  => $r['id'],
-                                'category' => $cat,
-                                'reason'   => sprintf('SSRF target in parameter "%s" blocked by Modular Egress Lock [%s].', $pk, $r['id']),
-                                'severity' => 'critical',
-                                'mode'     => $mode,
-                            ];
+                            return self::build_violation(
+                                $r,
+                                sprintf('SSRF target in parameter "%s" blocked by Modular Egress Lock [%s].', $pk, $r['id']),
+                                $should_block,
+                                'critical'
+                            );
                         }
-                    }
-                }
-            }
-
-            // Category 6: Custom developer-defined modular rule (MOD-CUSTOM-*)
-            if (!empty($r['is_custom']) || $cat === 'custom') {
-                $uri_match    = empty($r['target_uri']) || str_contains($clean_uri, strtolower((string) $r['target_uri']));
-                $method_match = empty($methods) || in_array($method, $methods, true);
-                $param_match  = true;
-                if (!empty($r['target_param'])) {
-                    $tp = sanitize_key($r['target_param']);
-                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch custom Modular WAF rule inspection
-                    $pv = isset($_REQUEST[$tp]) && is_string($_REQUEST[$tp]) ? strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$tp])))) : '';
-                    $param_match = !empty($r['target_value'])
-                        ? ($pv === strtolower(trim((string) $r['target_value'])))
-                        : ($pv !== '');
-                }
-                if ($uri_match && $method_match && $param_match) {
-                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-dispatch upload inspection for custom modular rule
-                    if (!empty($r['block_uploads']) && !empty($_FILES)) {
-                        return [
-                            'blocked'  => $should_block,
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('File upload blocked on protected custom endpoint [%s].', $r['id']),
-                            'severity' => $r['severity'] ?? 'high',
-                            'mode'     => $mode,
-                        ];
-                    }
-                    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch payload inspection for custom modular rule
-                    $raw_payload = wp_json_encode($_REQUEST) ?: '';
-                    if (preg_match($payload_rx, $raw_payload)) {
-                        return [
-                            'blocked'  => $should_block,
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('Suspicious payload blocked by custom Modular WAF Rule [%s].', $r['id']),
-                            'severity' => $r['severity'] ?? 'high',
-                            'mode'     => $mode,
-                        ];
-                    }
-                    $limit = intval($r['rate_limit'] ?? 0);
-                    if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
-                        return [
-                            'blocked'  => $should_block,
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('Rate limit (%d req/min) exceeded on custom protected endpoint [%s].', $limit, $r['id']),
-                            'severity' => $r['severity'] ?? 'high',
-                            'mode'     => $mode,
-                        ];
                     }
                 }
             }
@@ -1235,14 +1295,12 @@ class ModularFirewallSynthesizer {
                             $names = is_array($file_item['name'] ?? null) ? $file_item['name'] : [($file_item['name'] ?? '')];
                             foreach ($names as $fname) {
                                 if (preg_match('/\.(?:php\d*|phtml|phar|sh|pl|py|cgi)\b/i', (string) $fname)) {
-                                    return [
-                                        'blocked'  => $should_block,
-                                        'rule_id'  => $r['id'],
-                                        'category' => $cat,
-                                        'reason'   => sprintf('Exploit upload targeting component "%s" blocked by Virtual CVE Shield [%s].', $slug_dash, $r['id']),
-                                        'severity' => 'critical',
-                                        'mode'     => $mode,
-                                    ];
+                                    return self::build_violation(
+                                        $r,
+                                        sprintf('Exploit upload targeting component "%s" blocked by Virtual CVE Shield [%s].', $slug_dash, $r['id']),
+                                        $should_block,
+                                        'critical'
+                                    );
                                 }
                             }
                         }
@@ -1251,26 +1309,22 @@ class ModularFirewallSynthesizer {
                     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch virtual CVE shield inspecting SQLi/LFI/Object-Injection vectors
                     $raw_payload = wp_json_encode($_REQUEST) ?: '';
                     if (preg_match('/(?:\.\.\/|\.\.\\\\|%2e%2e|O:\d+:"[a-zA-Z0-9_\\\\]+"\s*:|\bunion\s+all\s+select\b|sleep\s*\(\s*\d+\s*\)|<script\b|wp_capabilities)/i', $raw_payload)) {
-                        return [
-                            'blocked'  => $should_block,
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('Vulnerability exploit vector targeting outdated/vulnerable component "%s" blocked by Virtual CVE Shield [%s].', $slug_dash, $r['id']),
-                            'severity' => 'critical',
-                            'mode'     => $mode,
-                        ];
+                        return self::build_violation(
+                            $r,
+                            sprintf('Vulnerability exploit vector targeting outdated/vulnerable component "%s" blocked by Virtual CVE Shield [%s].', $slug_dash, $r['id']),
+                            $should_block,
+                            'critical'
+                        );
                     }
 
                     $limit = intval($r['rate_limit'] ?? 0);
                     if ($limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
-                        return [
-                            'blocked'  => $should_block,
-                            'rule_id'  => $r['id'],
-                            'category' => $cat,
-                            'reason'   => sprintf('Excessive automated probing (%d req/min) on vulnerable component "%s" throttled by [%s].', $limit, $slug_dash, $r['id']),
-                            'severity' => 'high',
-                            'mode'     => $mode,
-                        ];
+                        return self::build_violation(
+                            $r,
+                            sprintf('Excessive automated probing (%d req/min) on vulnerable component "%s" throttled by [%s].', $limit, $slug_dash, $r['id']),
+                            $should_block,
+                            'high'
+                        );
                     }
                 }
             }
@@ -1307,10 +1361,23 @@ class ModularFirewallSynthesizer {
             ];
         }
 
-        $category = isset($data['category']) ? sanitize_key($data['category']) : 'custom';
-        $rule_id  = 'MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false));
-
-        $raw_mode = isset($data['current_mode']) ? sanitize_key($data['current_mode']) : 'enforce';
+        $category     = isset($data['category']) ? sanitize_key($data['category']) : 'custom';
+        $rule_id      = 'MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false));
+        $raw_mode     = isset($data['current_mode']) ? sanitize_key($data['current_mode']) : 'enforce';
+        $rate_limit   = max(0, intval($data['rate_limit'] ?? 0));
+        $immediate    = !empty($data['immediate_block']) || $rate_limit <= 0;
+        $sync_cf      = !empty($data['sync_cloudflare']);
+        $ban_ttl      = isset($data['ban_ttl'])
+            ? max(0, min(2592000, intval($data['ban_ttl'])))
+            : ($sync_cf ? 86400 : 0);
+        $target_val   = isset($data['target_value']) ? sanitize_text_field(wp_unslash($data['target_value'])) : '';
+        $target_param = isset($data['target_param']) ? sanitize_key($data['target_param']) : '';
+        if ($target_param === '' && $category === 'ajax_shield' && $target_val !== '') {
+            $target_param = 'action';
+        }
+        $methods = is_array($data['http_methods'] ?? null)
+            ? array_values(array_filter(array_map(static fn($m) => strtoupper(sanitize_text_field((string) $m)), $data['http_methods'])))
+            : ['POST', 'GET'];
 
         $rule = [
             'id'               => $rule_id,
@@ -1325,12 +1392,14 @@ class ModularFirewallSynthesizer {
             'recommended_mode' => 'enforce',
             'current_mode'     => in_array($raw_mode, ['enforce', 'smart_learning', 'monitor', 'off'], true) ? $raw_mode : 'enforce',
             'target_uri'       => isset($data['target_uri']) ? sanitize_text_field(wp_unslash($data['target_uri'])) : '',
-            'target_param'     => isset($data['target_param']) ? sanitize_key($data['target_param']) : '',
-            'target_value'     => isset($data['target_value']) ? sanitize_text_field(wp_unslash($data['target_value'])) : '',
-            'http_methods'     => is_array($data['http_methods'] ?? null) ? array_map('sanitize_text_field', $data['http_methods']) : ['POST', 'GET'],
-            'rate_limit'       => max(0, intval($data['rate_limit'] ?? 15)),
+            'target_param'     => $target_param,
+            'target_value'     => $target_val,
+            'http_methods'     => $methods,
+            'rate_limit'       => $rate_limit,
+            'immediate_block'  => $immediate,
+            'ban_ttl'          => $ban_ttl,
             'block_uploads'    => !empty($data['block_uploads']),
-            'sync_cloudflare'  => !empty($data['sync_cloudflare']),
+            'sync_cloudflare'  => $sync_cf,
             'is_custom'        => true,
             'synthesized_at'   => time(),
         ];

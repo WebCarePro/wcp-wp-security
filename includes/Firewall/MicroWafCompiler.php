@@ -538,7 +538,7 @@ class MicroWafCompiler {
         // 5. Modular Intelligence Firewall Pre-Boot Lockdown
         $mod_compiled = class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')
             ? \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_compiled_preload_rules()
-            : ['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => []];
+            : ['direct_scripts_blocked' => [], 'ajax_actions_enforced' => [], 'rest_routes_enforced' => [], 'custom_rules_enforced' => []];
         $modular_json_escaped = addcslashes((string) wp_json_encode($mod_compiled), "\\'");
 
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
@@ -567,6 +567,7 @@ class MicroWafCompiler {
         $out .= "        }\n";
         $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
         $out .= "        \$mod_clean_uri = strtolower(strtok(\$uri, '?'));\n";
+        $out .= "        \$mod_rest_q = isset(\$_GET['rest_route']) && is_string(\$_GET['rest_route']) ? strtolower(trim((string) \$_GET['rest_route'])) : '';\n";
         $out .= "        \$mod_req_method = isset(\$_SERVER['REQUEST_METHOD']) ? strtoupper((string) \$_SERVER['REQUEST_METHOD']) : 'GET';\n";
         $out .= "        if (!\$mod_rescue_paused) {\n";
         $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
@@ -574,6 +575,53 @@ class MicroWafCompiler {
         $out .= "                foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
         $out .= "                    if (str_ends_with(\$clean_script_uri, \$b_script)) {\n";
         $out .= "                        webcare_micro_waf_block(\$ip, 'MOD-ABSPATH-LOCKED', 'Direct HTTP execution of standalone script prohibited by Modular WAF', \$fail2ban_log);\n";
+        $out .= "                    }\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['custom_rules_enforced'])) {\n";
+        $out .= "                \$mod_payload_rx = '/(?:\\\\bunion\\\\s+all\\\\s+select\\\\b|\\\\bselect\\\\b.{1,40}\\\\bfrom\\\\b.{1,40}\\\\bwp_users\\\\b|sleep\\\\s*\\\\(\\\\s*\\\\d+\\\\s*\\\\)|benchmark\\\\s*\\\\(|<script\\\\b|javascript:|wp_capabilities|administrator)/i';\n";
+        $out .= "                \$trusted_custom = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
+        $out .= "                foreach (\$mod_rules['custom_rules_enforced'] as \$c_rule) {\n";
+        $out .= "                    \$c_id = (string) (\$c_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
+        $out .= "                    if (in_array(\$c_id, \$trusted_custom, true)) {\n";
+        $out .= "                        continue;\n";
+        $out .= "                    }\n";
+        $out .= "                    \$c_uri = strtolower(trim((string) (\$c_rule['target_uri'] ?? '')));\n";
+        $out .= "                    \$c_param = strtolower(trim((string) (\$c_rule['target_param'] ?? '')));\n";
+        $out .= "                    \$c_val = strtolower(trim((string) (\$c_rule['target_value'] ?? '')));\n";
+        $out .= "                    if (\$c_uri === '' && \$c_param === '') { continue; }\n";
+        $out .= "                    \$c_rest_norm = (\$mod_rest_q !== '') ? '/wp-json/' . ltrim(\$mod_rest_q, '/') : '';\n";
+        $out .= "                    \$c_uri_match = (\$c_uri === '') || (strpos(\$mod_clean_uri, \$c_uri) !== false) || (\$mod_rest_q !== '' && (strpos(\$mod_rest_q, \$c_uri) !== false || strpos(\$c_rest_norm, \$c_uri) !== false));\n";
+        $out .= "                    \$c_methods = is_array(\$c_rule['methods'] ?? null) ? array_map('strtoupper', \$c_rule['methods']) : [];\n";
+        $out .= "                    \$c_method_match = empty(\$c_methods) || in_array(\$mod_req_method, \$c_methods, true);\n";
+        $out .= "                    \$c_param_match = true;\n";
+        $out .= "                    if (\$c_param !== '') {\n";
+        $out .= "                        \$c_pv = isset(\$_REQUEST[\$c_param]) && is_string(\$_REQUEST[\$c_param]) ? strtolower(trim((string) \$_REQUEST[\$c_param])) : '';\n";
+        $out .= "                        \$c_param_match = (\$c_val !== '') ? (\$c_pv === \$c_val) : (\$c_pv !== '');\n";
+        $out .= "                    }\n";
+        $out .= "                    if (\$c_uri_match && \$c_method_match && \$c_param_match) {\n";
+        $out .= "                        \$c_hit_reason = '';\n";
+        $out .= "                        if (!empty(\$c_rule['block_uploads']) && !empty(\$_FILES)) {\n";
+        $out .= "                            \$c_hit_reason = 'File upload blocked on protected custom endpoint (' . \$c_id . ')';\n";
+        $out .= "                        } elseif (!empty(\$c_rule['immediate_block']) || ((int) (\$c_rule['rate_limit'] ?? 0) <= 0)) {\n";
+        $out .= "                            \$c_hit_reason = 'Blocked on first match by Custom Modular Rule (' . \$c_id . ')';\n";
+        $out .= "                        } elseif (preg_match(\$mod_payload_rx, (string) json_encode(\$_REQUEST))) {\n";
+        $out .= "                            \$c_hit_reason = 'Suspicious payload blocked by Custom Modular Rule (' . \$c_id . ')';\n";
+        $out .= "                        }\n";
+        $out .= "                        if (\$c_hit_reason !== '') {\n";
+        $out .= "                            if (!empty(\$c_rule['sync_cloudflare']) || !empty(\$c_rule['ban_ttl'])) {\n";
+        $out .= "                                \$ban_q_file = __DIR__ . '/.preload_ban_queue.json';\n";
+        $out .= "                                \$ban_q = file_exists(\$ban_q_file) ? (json_decode((string) @file_get_contents(\$ban_q_file), true) ?: []) : [];\n";
+        $out .= "                                if (is_array(\$ban_q) && count(\$ban_q) < 200) {\n";
+        $out .= "                                    \$ban_q[\$ip . '|' . \$c_id] = [\n";
+        $out .= "                                        'ip' => \$ip, 'rule_id' => \$c_id, 'reason' => \$c_hit_reason,\n";
+        $out .= "                                        'ban_ttl' => (int) (\$c_rule['ban_ttl'] ?? 86400), 'sync_cloudflare' => !empty(\$c_rule['sync_cloudflare']), 'ts' => time(),\n";
+        $out .= "                                    ];\n";
+        $out .= "                                    @file_put_contents(\$ban_q_file, json_encode(\$ban_q), LOCK_EX);\n";
+        $out .= "                                }\n";
+        $out .= "                            }\n";
+        $out .= "                            webcare_micro_waf_block(\$ip, \$c_id, \$c_hit_reason, \$fail2ban_log);\n";
+        $out .= "                        }\n";
         $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
@@ -588,7 +636,7 @@ class MicroWafCompiler {
         $out .= "                }\n";
         $out .= "            }\n";
         $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['rest_routes_enforced'])) {\n";
-        $out .= "                \$rest_q = isset(\$_GET['rest_route']) ? strtolower((string) \$_GET['rest_route']) : '';\n";
+        $out .= "                \$rest_q = \$mod_rest_q;\n";
         $out .= "                \$trusted_routes = is_array(\$mod_trusted['rest_routes'] ?? null) ? \$mod_trusted['rest_routes'] : [];\n";
         $out .= "                foreach (\$mod_rules['rest_routes_enforced'] as \$r_route => \$r_spec) {\n";
         $out .= "                    \$r_route_lc = strtolower(rtrim((string) \$r_route, '/'));\n";

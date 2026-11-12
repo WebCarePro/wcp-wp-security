@@ -42,6 +42,9 @@ class FirewallEngine {
         // Protect XML-RPC early if enabled
         add_action('init', [__CLASS__, 'check_xmlrpc_guard'], 0);
 
+        // Flush Preload Micro-WAF custom rule ban intents queued prior to WordPress boot
+        add_action('init', [__CLASS__, 'flush_preload_ban_queue'], 5);
+
         // Smart 404 Scanner Rate Limiter & Reconnaissance Shield (Priority 999: Allow redirection plugins & template logic to process first)
         add_action('template_redirect', [__CLASS__, 'track_404_request'], 999);
 
@@ -988,13 +991,15 @@ class FirewallEngine {
             $modular_violation = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::evaluate_runtime_modular_rules();
             if ($modular_violation !== null) {
                 $rule_triggered = [
-                    'id'          => $modular_violation['rule_id'],
-                    'name'        => 'Modular Intelligence Firewall Rule',
-                    'category'    => 'Modular Behavioral WAF',
-                    'description' => $modular_violation['reason'],
-                    'match_type'  => $modular_violation['category'],
-                    'match_value' => $modular_violation['rule_id'],
-                    'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                    'id'              => $modular_violation['rule_id'],
+                    'name'            => 'Modular Intelligence Firewall Rule',
+                    'category'        => 'Modular Behavioral WAF',
+                    'description'     => $modular_violation['reason'],
+                    'match_type'      => $modular_violation['category'],
+                    'match_value'     => $modular_violation['rule_id'],
+                    'payload'         => "Client IP: {$client_ip} URI: {$request_uri}",
+                    'sync_cloudflare' => !empty($modular_violation['sync_cloudflare']),
+                    'ban_ttl'         => (int) ($modular_violation['ban_ttl'] ?? 0),
                 ];
                 if ($modular_violation['blocked']) {
                     self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
@@ -4390,7 +4395,8 @@ class FirewallEngine {
         ?string $rule_name = null,
         ?string $rule_category = null,
         ?string $incident_id = null,
-        ?string $admin_user = null
+        ?string $admin_user = null,
+        bool $sync_cloudflare = true
     ): bool {
         $ip = trim($ip);
         if (!filter_var($ip, FILTER_VALIDATE_IP) && strpos($ip, '/') === false) {
@@ -4455,7 +4461,7 @@ class FirewallEngine {
         ]);
 
         // Context-Adaptive Firewall (CAF Phase 2): Queue IP ban for Cloudflare Edge synchronization
-        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
+        if ($sync_cloudflare && class_exists('\\WebCareProScanner\\Firewall\\CAF\\CloudflareIpListSynchronizer')) {
             $forensic_note = self::build_forensic_cf_note(
                 !empty($reason) ? $reason : 'Blocked by security firewall policy',
                 $rule_id,
@@ -6950,16 +6956,24 @@ class FirewallEngine {
             || str_contains($rule_id_str, 'AUTH-TYPE-CONFUSION')
             || str_contains($rule_id_str, 'REST-METHOD-SMUGGLE');
 
-        if ($is_instant_ban_exploit) {
-            $ban_reason = sprintf('[%s] %s', $rule_id_str ?: $rule_cat, $rule['description'] ?? 'Critical WAF exploit intercepted');
+        $rule_ban_ttl       = max(0, (int) ($rule['ban_ttl'] ?? 0));
+        $has_explicit_sync  = array_key_exists('sync_cloudflare', $rule);
+        $rule_sync_cf       = $has_explicit_sync ? !empty($rule['sync_cloudflare']) : true;
+        $wants_custom_ban   = !empty($rule['sync_cloudflare']) || $rule_ban_ttl > 0;
+
+        if ($is_instant_ban_exploit || $wants_custom_ban) {
+            $effective_ban_ttl = $rule_ban_ttl > 0 ? $rule_ban_ttl : 86400;
+            $ban_reason        = sprintf('[%s] %s', $rule_id_str ?: $rule_cat, $rule['description'] ?? 'Critical WAF exploit intercepted');
             self::add_blocked_ip(
                 $client_ip,
                 $ban_reason,
-                86400,
+                $effective_ban_ttl,
                 $rule_id_str ?: 'WAF-CRITICAL',
                 $rule['name'] ?? $rule_cat,
                 $rule_cat,
-                $incident_id
+                $incident_id,
+                null,
+                $rule_sync_cf
             );
         } elseif (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             // Skip ThreatScoreTracker accumulation when genuine crawlers follow on-page links (?add-to-cart= or /wp-login.php) with GET/HEAD
@@ -9413,5 +9427,67 @@ class FirewallEngine {
         }
 
         return $extracted;
+    }
+
+    /**
+     * Flush any IP ban intents queued by Preload Micro-WAF custom rules before WordPress booted.
+     *
+     * Runs with a zero-overhead file_exists() check and deletes the queue atomically after processing.
+     *
+     * @return int Number of queued IP bans processed
+     */
+    public static function flush_preload_ban_queue(): int {
+        if (!class_exists(__NAMESPACE__ . '\MicroWafCompiler')) {
+            return 0;
+        }
+
+        $queue_file = trailingslashit(MicroWafCompiler::get_compiled_dir()) . '.preload_ban_queue.json';
+        if (!file_exists($queue_file)) {
+            return 0;
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local compiled WAF queue file read before deletion
+        $raw = @file_get_contents($queue_file);
+        wp_delete_file($queue_file);
+
+        if (!is_string($raw) || $raw === '') {
+            return 0;
+        }
+
+        $items = json_decode($raw, true);
+        if (!is_array($items) || empty($items)) {
+            return 0;
+        }
+
+        $processed = 0;
+        foreach ($items as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $ip = sanitize_text_field((string) ($entry['ip'] ?? ''));
+            if (!filter_var($ip, FILTER_VALIDATE_IP) || self::is_server_origin_or_loopback($ip)) {
+                continue;
+            }
+            $rule_id = sanitize_text_field((string) ($entry['rule_id'] ?? 'MOD-CUSTOM'));
+            $reason = sanitize_text_field((string) ($entry['reason'] ?? 'Preload Micro-WAF Custom Rule Violation'));
+            $ban_ttl = isset($entry['ban_ttl']) ? (int) $entry['ban_ttl'] : 86400;
+            $effective_ttl = $ban_ttl > 0 ? $ban_ttl : 86400;
+            $sync_cf = !empty($entry['sync_cloudflare']);
+
+            self::add_blocked_ip(
+                $ip,
+                $reason,
+                $effective_ttl,
+                $rule_id,
+                'Preload Micro-WAF Custom Rule',
+                'Modular Behavioral WAF',
+                null,
+                null,
+                $sync_cf
+            );
+            $processed++;
+        }
+
+        return $processed;
     }
 }
