@@ -2061,6 +2061,18 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/parse-ai', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'parse_ai_rule_payload'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/ai-generate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'ai_generate_visual_rule'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/modules/ecosystem', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_modules_ecosystem'],
@@ -3524,178 +3536,48 @@ class ScannerRoutes {
     }
 
     /**
-     * Return Visual Rule Studio field catalog plus live installed plugins/themes, roles, and endpoints.
+     * Return Visual Rule Studio field catalog plus live installed plugins/themes, roles, endpoints, AI & MCP status.
      */
     public static function get_modular_visual_fields(\WP_REST_Request $request) {
-        $fields = class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')
-            ? \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::get_field_catalog()
-            : [];
+        $ctx = class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')
+            ? \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::get_site_context_data()
+            : [
+                'fields'                => [],
+                'installed_components'  => [],
+                'roles'                 => [],
+                'current_ip'            => '',
+                'discovered_endpoints'  => ['ajax_actions' => [], 'rest_routes' => []],
+                'custom_rules_count'    => 0,
+                'existing_custom_rules' => [],
+                'cloudflare_status'     => ['enabled' => false, 'configured' => false, 'connected' => false, 'proxied' => false, 'zone_name' => ''],
+            ];
 
-        $components = [];
-        if (!function_exists('get_plugins')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
-        if (function_exists('get_plugins')) {
-            $active_plugins = (array) get_option('active_plugins', []);
-            $mu_plugins     = function_exists('get_mu_plugins') ? get_mu_plugins() : [];
-            foreach (get_plugins() as $plugin_file => $pdata) {
-                $pfile_str     = (string) $plugin_file;
-                $is_dir_plugin = strpos($pfile_str, '/') !== false;
-                $slug          = sanitize_key($is_dir_plugin ? explode('/', $pfile_str)[0] : basename($pfile_str, '.php'));
-                if ($slug === '') {
-                    continue;
-                }
-                $components[] = [
-                    'slug'     => $slug,
-                    'name'     => html_entity_decode(wp_strip_all_tags((string) ($pdata['Name'] ?? $slug)), ENT_QUOTES, 'UTF-8'),
-                    'version'  => (string) ($pdata['Version'] ?? ''),
-                    'type'     => 'plugin',
-                    'status'   => in_array($plugin_file, $active_plugins, true) ? 'active' : 'inactive',
-                    'url_path' => $is_dir_plugin ? ('/wp-content/plugins/' . $slug . '/') : ('/wp-content/plugins/' . ltrim($pfile_str, '/')),
-                ];
-            }
-            foreach ((array) $mu_plugins as $mu_file => $mdata) {
-                $slug = sanitize_key(basename((string) $mu_file, '.php'));
-                if ($slug === '') {
-                    continue;
-                }
-                $components[] = [
-                    'slug'     => $slug,
-                    'name'     => html_entity_decode(wp_strip_all_tags((string) ($mdata['Name'] ?? $slug)), ENT_QUOTES, 'UTF-8'),
-                    'version'  => (string) ($mdata['Version'] ?? ''),
-                    'type'     => 'mu-plugin',
-                    'status'   => 'must-use',
-                    'url_path' => '/wp-content/mu-plugins/' . basename((string) $mu_file),
-                ];
-            }
-        }
-        if (function_exists('wp_get_themes')) {
-            $active_theme = get_stylesheet();
-            foreach (wp_get_themes() as $stylesheet => $theme_obj) {
-                $slug = sanitize_key((string) $stylesheet);
-                if ($slug === '') {
-                    continue;
-                }
-                $components[] = [
-                    'slug'     => $slug,
-                    'name'     => html_entity_decode(wp_strip_all_tags((string) $theme_obj->get('Name')), ENT_QUOTES, 'UTF-8'),
-                    'version'  => (string) $theme_obj->get('Version'),
-                    'type'     => 'theme',
-                    'status'   => ($stylesheet === $active_theme) ? 'active' : 'inactive',
-                    'url_path' => '/wp-content/themes/' . $slug . '/',
-                ];
-            }
-        }
+        $ai_creds = class_exists('\\WebCareProScanner\\System\\AIService')
+            ? \WebCareProScanner\System\AIService::resolve_active_credentials()
+            : ['configured' => false, 'provider' => 'gemini', 'model' => ''];
 
-        usort($components, static function ($a, $b) {
-            $a_act = ($a['status'] === 'active' || $a['status'] === 'must-use') ? 0 : 1;
-            $b_act = ($b['status'] === 'active' || $b['status'] === 'must-use') ? 0 : 1;
-            if ($a_act !== $b_act) {
-                return $a_act <=> $b_act;
-            }
-            return strcasecmp((string) $a['name'], (string) $b['name']);
-        });
-
-        $roles = [];
-        if (function_exists('wp_roles')) {
-            $wp_r = wp_roles();
-            if ($wp_r && !empty($wp_r->role_names) && is_array($wp_r->role_names)) {
-                foreach ($wp_r->role_names as $r_slug => $r_label) {
-                    $roles[] = [
-                        'slug'  => sanitize_key((string) $r_slug),
-                        'label' => translate_user_role((string) $r_label),
-                    ];
-                }
-            }
-        }
-
-        $ajax_actions = [];
-        $rest_routes  = [];
-        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager')) {
-            $ep_map = \WebCareProScanner\Firewall\Modular\BehavioralVaultManager::read_shard(\WebCareProScanner\Firewall\Modular\BehavioralVaultManager::SHARD_ENDPOINTS);
-            if (is_array($ep_map)) {
-                foreach (array_slice($ep_map, 0, 120) as $ep) {
-                    if (!is_array($ep)) {
-                        continue;
-                    }
-                    $ep_type = strtolower((string) ($ep['type'] ?? ''));
-                    if ($ep_type === 'ajax' && !empty($ep['action'])) {
-                        $ajax_actions[] = sanitize_text_field((string) $ep['action']);
-                    } elseif ($ep_type === 'rest' && !empty($ep['route'])) {
-                        $rest_routes[] = sanitize_text_field((string) $ep['route']);
-                    }
-                }
-            }
-        }
-
-        $custom_rules_count    = 0;
-        $existing_custom_rules = [];
-        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
-            foreach (\WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_active_rules() as $ar) {
-                if (!empty($ar['is_custom']) || ($ar['category'] ?? '') === 'custom') {
-                    $custom_rules_count++;
-                    $existing_custom_rules[] = [
-                        'id'           => (string) ($ar['id'] ?? ''),
-                        'rule_number'  => (int) ($ar['rule_number'] ?? $custom_rules_count),
-                        'priority'     => (int) ($ar['priority'] ?? $custom_rules_count),
-                        'title'        => (string) ($ar['title'] ?? ($ar['id'] ?? 'Custom Rule')),
-                        'action_type'  => (string) ($ar['action_type'] ?? 'block'),
-                        'current_mode' => (string) ($ar['current_mode'] ?? 'enforce'),
-                    ];
-                }
-            }
-        }
-
-        $cf_settings   = class_exists('\\WebCareProScanner\\System\\SettingsManager')
+        $mcp_settings = class_exists('\\WebCareProScanner\\System\\SettingsManager')
             ? \WebCareProScanner\System\SettingsManager::get_settings()
             : [];
-        $cf_enabled    = !empty($cf_settings['cloudflare_enabled']);
-        $cf_configured = $cf_enabled
-            && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
-            && \WebCareProScanner\Cloudflare\CloudflareService::is_configured();
-        $cf_proxied    = !empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
-        $cf_zone_id    = (string) ($cf_settings['cloudflare_zone_id'] ?? '');
-        $cf_zone_name  = '';
-        $cf_connected  = false;
-        if ($cf_configured && $cf_zone_id !== '') {
-            $cf_cache_key = 'webcareproscan_cf_zone_meta_' . md5($cf_zone_id);
-            $cached_zone  = get_transient($cf_cache_key);
-            if (is_array($cached_zone)) {
-                $cf_connected = !empty($cached_zone['connected']);
-                $cf_zone_name = (string) ($cached_zone['zone_name'] ?? '');
-            } else {
-                $verify       = \WebCareProScanner\Cloudflare\CloudflareService::verify_zone($cf_zone_id);
-                $cf_connected = !empty($verify['success']);
-                $cf_zone_name = (string) ($verify['zone_name'] ?? '');
-                set_transient($cf_cache_key, [
-                    'connected' => $cf_connected,
-                    'zone_name' => $cf_zone_name,
-                ], 180);
-            }
+        $mcp_tools_count = 0;
+        if (class_exists('\\WebCareProScanner\\Core\\Modules\\ModularWafModule')) {
+            $mod_instance    = new \WebCareProScanner\Core\Modules\ModularWafModule();
+            $mcp_tools_count = count($mod_instance->get_mcp_tools());
         }
 
-        return new \WP_REST_Response([
-            'success'               => true,
-            'fields'                => $fields,
-            'installed_components'  => $components,
-            'roles'                 => $roles,
-            'current_ip'            => class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
-                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
-                : '',
-            'discovered_endpoints'  => [
-                'ajax_actions' => array_values(array_unique($ajax_actions)),
-                'rest_routes'  => array_values(array_unique($rest_routes)),
-            ],
-            'custom_rules_count'    => $custom_rules_count,
-            'existing_custom_rules' => $existing_custom_rules,
-            'cloudflare_status'     => [
-                'enabled'    => $cf_enabled,
-                'configured' => $cf_configured,
-                'connected'  => $cf_connected,
-                'proxied'    => $cf_proxied,
-                'zone_name'  => $cf_zone_name,
-            ],
-        ], 200);
+        $ctx['success']   = true;
+        $ctx['ai_status'] = [
+            'configured' => !empty($ai_creds['configured']),
+            'provider'   => (string) ($ai_creds['provider'] ?? 'gemini'),
+            'model'      => (string) ($ai_creds['model'] ?? ''),
+        ];
+        $ctx['mcp_status'] = [
+            'enabled'         => !empty($mcp_settings['mcp_enabled']),
+            'scope'           => (string) ($mcp_settings['mcp_permission_scope'] ?? 'read_only'),
+            'modular_tools'   => $mcp_tools_count,
+        ];
+
+        return new \WP_REST_Response($ctx, 200);
     }
 
     /**
@@ -3760,17 +3642,67 @@ class ScannerRoutes {
             return new \WP_REST_Response(['success' => false, 'conditions' => [], 'group_logic' => 'OR'], 200);
         }
         $params      = $request->get_json_params() ?: [];
-        $expr        = sanitize_text_field(wp_unslash((string) ($params['wirefilter_expr'] ?? '')));
+        $expr        = (string) ($params['wirefilter_expr'] ?? '');
         $tree        = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::parse_wirefilter_tree($expr);
         $conditions  = $tree['conditions'];
         $group_logic = $tree['group_logic'];
+        $unparsed    = $tree['unparsed_clauses'] ?? [];
+        $wf          = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_wirefilter($conditions, $group_logic);
+        $warnings    = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::lint_rule_safety($conditions, $wf, $unparsed);
         return new \WP_REST_Response([
-            'success'     => true,
-            'conditions'  => $conditions,
-            'group_logic' => $group_logic,
-            'wirefilter'  => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_wirefilter($conditions, $group_logic),
-            'cf_edge'     => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_cloudflare_edge_wirefilter($conditions, $group_logic),
+            'success'          => !empty($conditions),
+            'conditions'       => $conditions,
+            'group_logic'      => $group_logic,
+            'wirefilter'       => $wf,
+            'cf_edge'          => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_cloudflare_edge_wirefilter($conditions, $group_logic),
+            'warnings'         => $warnings,
+            'unparsed_clauses' => $unparsed,
         ], 200);
+    }
+
+    /**
+     * Parse pasted AI rule output (JSON rule bundle, fenced Wirefilter block, or raw Wirefilter)
+     * into Visual Builder fields with safety diagnostics.
+     */
+    public static function parse_ai_rule_payload(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Visual expression engine unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params    = $request->get_json_params() ?: [];
+        $raw_input = (string) ($params['raw_input'] ?? ($params['wirefilter_expr'] ?? ''));
+        $parsed    = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::parse_ai_rule_payload($raw_input);
+        return new \WP_REST_Response($parsed, 200);
+    }
+
+    /**
+     * Generate a Visual Firewall Rule using the configured AIService provider and site context.
+     */
+    public static function ai_generate_visual_rule(\WP_REST_Request $request) {
+        if (
+            !class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')
+            || !class_exists('\\WebCareProScanner\\System\\AIService')
+        ) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('AI generator subsystem unavailable.', 'webcare-pro-security')], 500);
+        }
+
+        $params = $request->get_json_params() ?: [];
+        $goal   = sanitize_textarea_field(wp_unslash((string) ($params['goal'] ?? '')));
+        if (trim($goal) === '') {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Please describe what firewall rule you want AI to create.', 'webcare-pro-security')], 400);
+        }
+
+        $prompt = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::build_ai_markdown_prompt($goal);
+        $system = 'You are a WordPress WAF Rule Architect. Output ONLY a single valid JSON object inside ```json ... ``` matching the requested schema (title, description, expression, action_type, ban_ttl, block_uploads, placement) using strictly the provided field IDs and operators.';
+        $res    = \WebCareProScanner\System\AIService::generate_text_completion($system, $prompt, 0.15, 900, 45);
+        if (empty($res['success'])) {
+            return new \WP_REST_Response($res, 200);
+        }
+
+        $parsed             = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::parse_ai_rule_payload((string) ($res['text'] ?? ''));
+        $parsed['provider'] = $res['provider'] ?? '';
+        $parsed['model']    = $res['model'] ?? '';
+        $parsed['raw_ai']   = (string) ($res['text'] ?? '');
+        return new \WP_REST_Response($parsed, 200);
     }
 
     /**

@@ -603,12 +603,12 @@ class VisualRuleExpressionEngine {
      * Parse a Wirefilter expression into structured condition groups plus top-level group join logic ('OR' | 'AND').
      *
      * @param string $expr
-     * @return array{conditions: array<int, array<string, mixed>>, group_logic: string}
+     * @return array{conditions: array<int, array<string, mixed>>, group_logic: string, unparsed_clauses: string[]}
      */
     public static function parse_wirefilter_tree(string $expr): array {
-        $expr = trim($expr);
+        $expr = self::strip_code_fences($expr);
         if ($expr === '') {
-            return ['conditions' => [], 'group_logic' => 'OR'];
+            return ['conditions' => [], 'group_logic' => 'OR', 'unparsed_clauses' => []];
         }
 
         $or_parts    = self::split_top_level($expr, 'or');
@@ -620,7 +620,6 @@ class VisualRuleExpressionEngine {
             $group_logic = 'OR';
             $raw_groups  = $or_parts;
         } elseif (count($and_parts) > 1) {
-            // Check whether any top-level AND part contains a parenthesized OR expression: (a or b) and (c or d)
             $has_inner_or = false;
             foreach ($and_parts as $ap) {
                 $inner = trim($ap);
@@ -642,7 +641,8 @@ class VisualRuleExpressionEngine {
             $raw_groups = [$expr];
         }
 
-        $groups = [];
+        $groups           = [];
+        $unparsed_clauses = [];
         foreach ($raw_groups as $part) {
             $part = trim($part);
             if (substr($part, 0, 1) === '(' && substr($part, -1) === ')') {
@@ -655,9 +655,15 @@ class VisualRuleExpressionEngine {
             $rules     = [];
 
             foreach ($clauses as $clause) {
-                $parsed = self::parse_single_wirefilter_clause(trim($clause));
+                $trimmed_clause = trim($clause);
+                if ($trimmed_clause === '') {
+                    continue;
+                }
+                $parsed = self::parse_single_wirefilter_clause($trimmed_clause);
                 if ($parsed !== null) {
                     $rules[] = $parsed;
+                } else {
+                    $unparsed_clauses[] = $trimmed_clause;
                 }
             }
             if (!empty($rules)) {
@@ -666,9 +672,31 @@ class VisualRuleExpressionEngine {
         }
 
         return [
-            'conditions'  => self::sanitize_condition_groups($groups),
-            'group_logic' => $group_logic,
+            'conditions'       => self::sanitize_condition_groups($groups),
+            'group_logic'      => $group_logic,
+            'unparsed_clauses' => $unparsed_clauses,
         ];
+    }
+
+    /**
+     * Strip surrounding Markdown code fences / backticks / comment lines cleanly.
+     */
+    private static function strip_code_fences(string $raw): string {
+        $text = trim($raw);
+        if (preg_match('/```(?:[a-z0-9_-]+)?\s*\R([\s\S]*?)\R```/i', $text, $m)) {
+            $text = trim($m[1]);
+        }
+        $text = trim($text, " \t\n\r\0\x0B`");
+        $lines = preg_split('/\R/', $text) ?: [];
+        $kept  = [];
+        foreach ($lines as $ln) {
+            $t = trim($ln);
+            if ($t === '' || str_starts_with($t, '#') || str_starts_with($t, '//')) {
+                continue;
+            }
+            $kept[] = $t;
+        }
+        return trim(implode(' ', $kept));
     }
 
     /**
@@ -686,11 +714,19 @@ class VisualRuleExpressionEngine {
      * Parse a single Wirefilter predicate into ['field', 'key', 'op', 'value'].
      */
     private static function parse_single_wirefilter_clause(string $clause): ?array {
+        // Strip balanced outer parens if not preceded by `not`
+        while (preg_match('/^\((.+)\)$/', $clause, $pm) && !preg_match('/^not\s*\(/i', $clause)) {
+            $clause = trim($pm[1]);
+        }
+
         $negated = false;
-        if (preg_match('/^not\s+\((.+)\)$/i', $clause, $m)) {
+        if (preg_match('/^not\s*\((.+)\)$/i', $clause, $m)) {
             $negated = true;
             $clause  = trim($m[1]);
-        } elseif (preg_match('/^not\s+([a-z0-9_.]+)$/i', $clause, $m)) {
+        } elseif (preg_match('/^not\s+(.+)$/i', $clause, $m)) {
+            $negated = true;
+            $clause  = trim($m[1]);
+        } elseif (preg_match('/^!\s*(.+)$/', $clause, $m)) {
             $negated = true;
             $clause  = trim($m[1]);
         }
@@ -704,19 +740,38 @@ class VisualRuleExpressionEngine {
             ];
         }
 
+        // Boolean equality variants: wp.user.is_logged_in eq false / == true
+        if (preg_match('/^(wp\.user\.is_logged_in|wp\.woo\.has_cart_session)\s+(eq|==|ne|!=)\s+(true|false|1|0|"true"|"false")$/i', $clause, $m)) {
+            $want_true = in_array(strtolower(trim($m[3], '"')), ['true', '1'], true);
+            $is_ne     = in_array(strtolower($m[2]), ['ne', '!='], true);
+            $final_true = ($negated xor $is_ne) ? !$want_true : $want_true;
+            return [
+                'field' => strtolower($m[1]),
+                'key'   => '',
+                'op'    => $final_true ? 'is_true' : 'is_false',
+                'value' => '',
+            ];
+        }
+
         // starts_with(field, "val") / ends_with(field, "val")
-        if (preg_match('/^(starts_with|ends_with)\(\s*([a-z0-9_.\[\]"\'-]+)\s*,\s*"([^"]*)"\s*\)$/i', $clause, $m)) {
+        if (!$negated && preg_match('/^(starts_with|ends_with)\(\s*([a-z0-9_.\[\]"\'-]+)\s*,\s*"([^"]*)"\s*\)$/i', $clause, $m)) {
             [$field, $key] = self::extract_field_and_key($m[2]);
             return ['field' => $field, 'key' => $key, 'op' => strtolower($m[1]), 'value' => $m[3]];
         }
 
-        // field in {"a" "b"}
+        // Infix starts_with / ends_with: field starts_with "val"
+        if (!$negated && preg_match('/^([a-z0-9_.\[\]"\'-]+)\s+(starts_with|ends_with)\s+"((?:[^"\\\\]|\\\\.)*)"$/i', $clause, $m)) {
+            [$field, $key] = self::extract_field_and_key($m[1]);
+            return ['field' => $field, 'key' => $key, 'op' => strtolower($m[2]), 'value' => stripcslashes($m[3])];
+        }
+
+        // field in {"a" "b"} or {"a", "b"}
         if (preg_match('/^([a-z0-9_.\[\]"\'-]+)\s+in\s+\{([^}]*)\}$/i', $clause, $m)) {
             [$field, $key] = self::extract_field_and_key($m[1]);
             $vals = preg_replace('/["\']/', '', trim($m[2]));
-            $vals = preg_replace('/\s+/', ', ', (string) $vals);
+            $vals = preg_replace('/[\s,]+/', ', ', (string) $vals);
             $op = ($field === 'ip.src') ? ($negated ? 'not_in_cidr' : 'in_cidr') : ($negated ? 'not_in' : 'in');
-            return ['field' => $field, 'key' => $key, 'op' => $op, 'value' => (string) $vals];
+            return ['field' => $field, 'key' => $key, 'op' => $op, 'value' => trim((string) $vals, ', ')];
         }
 
         // field exists
@@ -725,15 +780,32 @@ class VisualRuleExpressionEngine {
             return ['field' => $field, 'key' => $key, 'op' => $negated ? 'not_exists' : 'exists', 'value' => ''];
         }
 
-        // field op "value"
-        if (preg_match('/^([a-z0-9_.\[\]"\'-]+)\s+(eq|ne|contains|matches)\s+"((?:[^"\\\\]|\\\\.)*)"$/i', $clause, $m)) {
+        // field is_array
+        if (preg_match('/^([a-z0-9_.\[\]"\'-]+)\s+is_array$/i', $clause, $m)) {
             [$field, $key] = self::extract_field_and_key($m[1]);
-            $op = strtolower($m[2]);
-            if ($op === 'matches') {
-                $op = 'matches_regex';
-            }
-            if ($negated && $op === 'contains') {
-                $op = 'not_contains';
+            return ['field' => $field, 'key' => $key, 'op' => 'is_array', 'value' => ''];
+        }
+
+        // field not contains "value" or field not_contains "value"
+        if (preg_match('/^([a-z0-9_.\[\]"\'-]+)\s+(?:not\s+contains|not_contains)\s+"((?:[^"\\\\]|\\\\.)*)"$/i', $clause, $m)) {
+            [$field, $key] = self::extract_field_and_key($m[1]);
+            return ['field' => $field, 'key' => $key, 'op' => $negated ? 'contains' : 'not_contains', 'value' => stripcslashes($m[2])];
+        }
+
+        // field op "value" (supports eq, ==, ne, !=, contains, matches, matches_regex)
+        if (preg_match('/^([a-z0-9_.\[\]"\'-]+)\s+(eq|==|ne|!=|contains|matches|matches_regex)\s+"((?:[^"\\\\]|\\\\.)*)"$/i', $clause, $m)) {
+            [$field, $key] = self::extract_field_and_key($m[1]);
+            $raw_op = strtolower($m[2]);
+            $op_map = ['==' => 'eq', '!=' => 'ne', 'matches' => 'matches_regex'];
+            $op     = $op_map[$raw_op] ?? $raw_op;
+            if ($negated) {
+                if ($op === 'contains') {
+                    $op = 'not_contains';
+                } elseif ($op === 'eq') {
+                    $op = 'ne';
+                } elseif ($op === 'ne') {
+                    $op = 'eq';
+                }
             }
             return ['field' => $field, 'key' => $key, 'op' => $op, 'value' => stripcslashes($m[3])];
         }
@@ -1047,5 +1119,405 @@ class VisualRuleExpressionEngine {
             'partial'        => $cf_conv['partial'],
             'skipped_fields' => $cf_conv['skipped_fields'],
         ];
+    }
+
+    /**
+     * Collect normalized Visual Rule Studio context (fields, installed plugins/themes, roles, endpoints, custom rules, Cloudflare status).
+     * Shared across REST routes, MCP tools, and AI prompt generators.
+     *
+     * @return array<string, mixed>
+     */
+    public static function get_site_context_data(): array {
+        $fields     = self::get_field_catalog();
+        $components = [];
+
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        if (function_exists('get_plugins')) {
+            $active_plugins = (array) get_option('active_plugins', []);
+            $mu_plugins     = function_exists('get_mu_plugins') ? get_mu_plugins() : [];
+            foreach (get_plugins() as $plugin_file => $pdata) {
+                $pfile_str     = (string) $plugin_file;
+                $is_dir_plugin = strpos($pfile_str, '/') !== false;
+                $slug          = sanitize_key($is_dir_plugin ? explode('/', $pfile_str)[0] : basename($pfile_str, '.php'));
+                if ($slug === '') {
+                    continue;
+                }
+                $components[] = [
+                    'slug'     => $slug,
+                    'name'     => html_entity_decode(wp_strip_all_tags((string) ($pdata['Name'] ?? $slug)), ENT_QUOTES, 'UTF-8'),
+                    'version'  => (string) ($pdata['Version'] ?? ''),
+                    'type'     => 'plugin',
+                    'status'   => in_array($plugin_file, $active_plugins, true) ? 'active' : 'inactive',
+                    'url_path' => $is_dir_plugin ? ('/wp-content/plugins/' . $slug . '/') : ('/wp-content/plugins/' . ltrim($pfile_str, '/')),
+                ];
+            }
+            foreach ((array) $mu_plugins as $mu_file => $mdata) {
+                $slug = sanitize_key(basename((string) $mu_file, '.php'));
+                if ($slug === '') {
+                    continue;
+                }
+                $components[] = [
+                    'slug'     => $slug,
+                    'name'     => html_entity_decode(wp_strip_all_tags((string) ($mdata['Name'] ?? $slug)), ENT_QUOTES, 'UTF-8'),
+                    'version'  => (string) ($mdata['Version'] ?? ''),
+                    'type'     => 'mu-plugin',
+                    'status'   => 'must-use',
+                    'url_path' => '/wp-content/mu-plugins/' . basename((string) $mu_file),
+                ];
+            }
+        }
+        if (function_exists('wp_get_themes')) {
+            $active_theme = get_stylesheet();
+            foreach (wp_get_themes() as $stylesheet => $theme_obj) {
+                $slug = sanitize_key((string) $stylesheet);
+                if ($slug === '') {
+                    continue;
+                }
+                $components[] = [
+                    'slug'     => $slug,
+                    'name'     => html_entity_decode(wp_strip_all_tags((string) $theme_obj->get('Name')), ENT_QUOTES, 'UTF-8'),
+                    'version'  => (string) $theme_obj->get('Version'),
+                    'type'     => 'theme',
+                    'status'   => ($stylesheet === $active_theme) ? 'active' : 'inactive',
+                    'url_path' => '/wp-content/themes/' . $slug . '/',
+                ];
+            }
+        }
+
+        usort($components, static function ($a, $b) {
+            $a_act = ($a['status'] === 'active' || $a['status'] === 'must-use') ? 0 : 1;
+            $b_act = ($b['status'] === 'active' || $b['status'] === 'must-use') ? 0 : 1;
+            if ($a_act !== $b_act) {
+                return $a_act <=> $b_act;
+            }
+            return strcasecmp((string) $a['name'], (string) $b['name']);
+        });
+
+        $roles = [];
+        if (function_exists('wp_roles')) {
+            $wp_r = wp_roles();
+            if ($wp_r && !empty($wp_r->role_names) && is_array($wp_r->role_names)) {
+                foreach ($wp_r->role_names as $r_slug => $r_label) {
+                    $roles[] = [
+                        'slug'  => sanitize_key((string) $r_slug),
+                        'label' => translate_user_role((string) $r_label),
+                    ];
+                }
+            }
+        }
+
+        $ajax_actions = [];
+        $rest_routes  = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\BehavioralVaultManager')) {
+            $ep_map = BehavioralVaultManager::read_shard(BehavioralVaultManager::SHARD_ENDPOINTS);
+            if (is_array($ep_map)) {
+                foreach (array_slice($ep_map, 0, 120) as $ep) {
+                    if (!is_array($ep)) {
+                        continue;
+                    }
+                    $ep_type = strtolower((string) ($ep['type'] ?? ''));
+                    if ($ep_type === 'ajax' && !empty($ep['action'])) {
+                        $ajax_actions[] = sanitize_text_field((string) $ep['action']);
+                    } elseif ($ep_type === 'rest' && !empty($ep['route'])) {
+                        $rest_routes[] = sanitize_text_field((string) $ep['route']);
+                    }
+                }
+            }
+        }
+
+        $existing_custom_rules = [];
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            $idx = 0;
+            foreach (ModularFirewallSynthesizer::get_active_rules() as $ar) {
+                if (!empty($ar['is_custom']) || ($ar['category'] ?? '') === 'custom') {
+                    $idx++;
+                    $existing_custom_rules[] = [
+                        'id'           => (string) ($ar['id'] ?? ''),
+                        'rule_number'  => (int) ($ar['rule_number'] ?? $idx),
+                        'priority'     => (int) ($ar['priority'] ?? $idx),
+                        'title'        => (string) ($ar['title'] ?? ($ar['id'] ?? 'Custom Rule')),
+                        'action_type'  => (string) ($ar['action_type'] ?? 'block'),
+                        'current_mode' => (string) ($ar['current_mode'] ?? 'enforce'),
+                    ];
+                }
+            }
+        }
+
+        $cf_settings   = SettingsManager::get_settings();
+        $cf_enabled    = !empty($cf_settings['cloudflare_enabled']);
+        $cf_configured = $cf_enabled
+            && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
+            && CloudflareService::is_configured();
+        $cf_proxied    = !empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
+        $cf_zone_id    = (string) ($cf_settings['cloudflare_zone_id'] ?? '');
+        $cf_zone_name  = '';
+        $cf_connected  = false;
+        if ($cf_configured && $cf_zone_id !== '') {
+            $cf_cache_key = 'webcareproscan_cf_zone_meta_' . md5($cf_zone_id);
+            $cached_zone  = get_transient($cf_cache_key);
+            if (is_array($cached_zone)) {
+                $cf_connected = !empty($cached_zone['connected']);
+                $cf_zone_name = (string) ($cached_zone['zone_name'] ?? '');
+            } else {
+                $verify       = CloudflareService::verify_zone($cf_zone_id);
+                $cf_connected = !empty($verify['success']);
+                $cf_zone_name = (string) ($verify['zone_name'] ?? '');
+                set_transient($cf_cache_key, [
+                    'connected' => $cf_connected,
+                    'zone_name' => $cf_zone_name,
+                ], 180);
+            }
+        }
+
+        return [
+            'fields'                => $fields,
+            'installed_components'  => $components,
+            'roles'                 => $roles,
+            'current_ip'            => class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+                ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
+                : '',
+            'discovered_endpoints'  => [
+                'ajax_actions' => array_values(array_unique($ajax_actions)),
+                'rest_routes'  => array_values(array_unique($rest_routes)),
+            ],
+            'custom_rules_count'    => count($existing_custom_rules),
+            'existing_custom_rules' => $existing_custom_rules,
+            'cloudflare_status'     => [
+                'enabled'    => $cf_enabled,
+                'configured' => $cf_configured,
+                'connected'  => $cf_connected,
+                'proxied'    => $cf_proxied,
+                'zone_name'  => $cf_zone_name,
+            ],
+        ];
+    }
+
+    /**
+     * Build a site-aware Markdown AI prompt for ChatGPT, Gemini, Claude, or built-in AIService.
+     */
+    public static function build_ai_markdown_prompt(string $goal = ''): string {
+        $ctx   = self::get_site_context_data();
+        $lines = [
+            '# WebCare Pro Visual Firewall Rule Generator',
+            '',
+            'Generate a valid **WebCare Pro Wirefilter Expression** (or complete Rule JSON) compatible with this WordPress site\'s local origin firewall.',
+            '',
+            '## Security Requirements from User',
+            $goal !== '' ? trim($goal) : '[Describe what traffic to block, challenge, rate-limit, monitor, or allow here]',
+            '',
+            '## Site Environment & Guardrails',
+            '- WordPress Home: `' . home_url('/') . '`',
+            '- Cloudflare Proxied Traffic (`CF-IPCountry` / `CF-IPASN` available): ' . (!empty($ctx['cloudflare_status']['proxied']) ? 'YES' : 'NO (Avoid `ip.geoip.country` / `ip.geoip.asnum` unless Cloudflare proxy is active)'),
+            '- NEVER block `/wp-admin/` or `/wp-json/webcare-pro-security/` unless guarding with `not wp.user.is_logged_in`.',
+            '',
+            '## Allowed Fields & Operators',
+        ];
+
+        foreach ($ctx['fields'] as $f) {
+            $ops = implode(', ', (array) ($f['ops'] ?? []));
+            $lines[] = '- `' . $f['id'] . '` (' . $f['label'] . '): `' . $ops . '`';
+        }
+
+        if (!empty($ctx['installed_components'])) {
+            $lines[] = '';
+            $lines[] = '## Installed Plugins & Themes on This Site';
+            foreach (array_slice($ctx['installed_components'], 0, 35) as $comp) {
+                $lines[] = '- `' . $comp['slug'] . '` (' . $comp['status'] . ', v' . ($comp['version'] ?: '0') . ') -> `' . $comp['url_path'] . '`';
+            }
+        }
+
+        if (!empty($ctx['roles'])) {
+            $role_slugs = array_map(static fn($r) => '`' . $r['slug'] . '`', $ctx['roles']);
+            $lines[] = '';
+            $lines[] = '## WordPress Roles';
+            $lines[] = implode(', ', $role_slugs);
+        }
+
+        if (!empty($ctx['existing_custom_rules'])) {
+            $lines[] = '';
+            $lines[] = '## Existing Custom Rules (Do Not Duplicate)';
+            foreach (array_slice($ctx['existing_custom_rules'], 0, 20) as $er) {
+                $lines[] = '- Order #' . $er['priority'] . ' (ID #' . $er['rule_number'] . '): ' . $er['title'] . ' [' . $er['action_type'] . ']';
+            }
+        }
+
+        $lines = array_merge($lines, [
+            '',
+            '## Output Format (Choose ONE)',
+            'Return either a single ```wirefilter expression block OR a complete ```json rule object:',
+            '```json',
+            '{',
+            '  "title": "Short rule title",',
+            '  "description": "Why this rule exists",',
+            '  "expression": "(http.request.uri.path contains \\"/wp-content/plugins/example/\\" and not wp.user.is_logged_in)",',
+            '  "action_type": "block",',
+            '  "ban_ttl": 86400,',
+            '  "block_uploads": true,',
+            '  "placement": "last"',
+            '}',
+            '```',
+            'Valid `action_type` values: `block`, `block_and_ban`, `rate_limit`, `challenge_pow`, `payload_inspect`, `monitor`, `allow`.',
+        ]);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Parse raw AI output (JSON rule bundle, fenced Wirefilter block, or raw expression),
+     * validate fields/operators, and emit plain-English safety lint warnings.
+     *
+     * @param string $raw_input
+     * @return array<string, mixed>
+     */
+    public static function parse_ai_rule_payload(string $raw_input): array {
+        $trimmed = trim($raw_input);
+        if ($trimmed === '') {
+            return [
+                'success'          => false,
+                'format'           => 'empty',
+                'rule_meta'        => [],
+                'conditions'       => [],
+                'group_logic'      => 'OR',
+                'wirefilter'       => '',
+                'warnings'         => [],
+                'unparsed_clauses' => [],
+                'message'          => __('Please paste a Wirefilter expression or AI JSON rule first.', 'webcare-pro-security'),
+            ];
+        }
+
+        $format    = 'wirefilter';
+        $rule_meta = [];
+        $expr_text = $trimmed;
+
+        // Try extracting fenced JSON or raw JSON object from conversational Markdown output
+        $json_candidate = $trimmed;
+        if (preg_match('/```json\s*\R([\s\S]*?)\R```/i', $trimmed, $jm)) {
+            $json_candidate = trim($jm[1]);
+        } elseif (preg_match('/\{[\s\S]*"(?:expression|wirefilter_expr|conditions)"[\s\S]*\}/i', $trimmed, $jm)) {
+            $json_candidate = trim($jm[0]);
+        }
+
+        $decoded = json_decode($json_candidate, true);
+        if (is_array($decoded) && (isset($decoded['expression']) || isset($decoded['wirefilter_expr']) || isset($decoded['conditions']))) {
+            $format = 'json';
+            $valid_actions = ['block', 'block_and_ban', 'rate_limit', 'payload_inspect', 'challenge_pow', 'monitor', 'allow'];
+            if (!empty($decoded['title'])) {
+                $rule_meta['title'] = sanitize_text_field((string) $decoded['title']);
+            }
+            if (!empty($decoded['description'])) {
+                $rule_meta['description'] = sanitize_textarea_field((string) $decoded['description']);
+            }
+            if (!empty($decoded['action_type']) && in_array(sanitize_key((string) $decoded['action_type']), $valid_actions, true)) {
+                $rule_meta['action_type'] = sanitize_key((string) $decoded['action_type']);
+            }
+            if (isset($decoded['ban_ttl'])) {
+                $rule_meta['ban_ttl'] = max(0, min(2592000, intval($decoded['ban_ttl'])));
+            }
+            if (isset($decoded['rate_limit'])) {
+                $rule_meta['rate_limit'] = max(1, min(600, intval($decoded['rate_limit'])));
+            }
+            if (isset($decoded['block_uploads'])) {
+                $rule_meta['block_uploads'] = !empty($decoded['block_uploads']);
+            }
+            if (!empty($decoded['placement']) && in_array($decoded['placement'], ['first', 'last', 'custom'], true)) {
+                $rule_meta['placement'] = $decoded['placement'];
+            }
+            if (!empty($decoded['conditions']) && is_array($decoded['conditions'])) {
+                $gl         = strtoupper((string) ($decoded['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';
+                $conditions = self::sanitize_condition_groups($decoded['conditions']);
+                $wf         = self::to_wirefilter($conditions, $gl);
+                $warnings   = self::lint_rule_safety($conditions, $wf, []);
+                return [
+                    'success'          => !empty($conditions),
+                    'format'           => 'json',
+                    'rule_meta'        => $rule_meta,
+                    'conditions'       => $conditions,
+                    'group_logic'      => $gl,
+                    'wirefilter'       => $wf,
+                    'warnings'         => $warnings,
+                    'unparsed_clauses' => [],
+                    'message'          => !empty($conditions)
+                        ? __('AI JSON rule parsed and loaded into Visual Builder.', 'webcare-pro-security')
+                        : __('JSON rule lacked valid conditions.', 'webcare-pro-security'),
+                ];
+            }
+            $expr_text = (string) ($decoded['expression'] ?? ($decoded['wirefilter_expr'] ?? ''));
+        } elseif (preg_match('/```(?:wirefilter|text|txt)?\s*\R([\s\S]*?)\R```/i', $trimmed, $wm)) {
+            $expr_text = trim($wm[1]);
+        }
+
+        $tree       = self::parse_wirefilter_tree($expr_text);
+        $conditions = $tree['conditions'];
+        $gl         = $tree['group_logic'];
+        $unparsed   = $tree['unparsed_clauses'] ?? [];
+        $wf         = self::to_wirefilter($conditions, $gl);
+        $warnings   = self::lint_rule_safety($conditions, $wf, $unparsed);
+
+        return [
+            'success'          => !empty($conditions),
+            'format'           => $format,
+            'rule_meta'        => $rule_meta,
+            'conditions'       => $conditions,
+            'group_logic'      => $gl,
+            'wirefilter'       => $wf !== '' ? $wf : self::strip_code_fences($expr_text),
+            'warnings'         => $warnings,
+            'unparsed_clauses' => $unparsed,
+            'message'          => !empty($conditions)
+                ? __('Expression parsed cleanly into Visual Builder conditions.', 'webcare-pro-security')
+                : __('Could not recognize any valid fields in the pasted expression. Check field names against the 18 supported fields.', 'webcare-pro-security'),
+        ];
+    }
+
+    /**
+     * Evaluate structured condition groups for admin lockout risks or missing proxy dependencies.
+     *
+     * @param array<int, array<string, mixed>> $conditions
+     * @param string $wirefilter
+     * @param string[] $unparsed
+     * @return string[]
+     */
+    public static function lint_rule_safety(array $conditions, string $wirefilter, array $unparsed = []): array {
+        $warnings         = [];
+        $has_geo          = false;
+        $has_admin_guard  = false;
+        $touches_wp_admin = false;
+        $cf_proxied       = !empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']);
+
+        foreach ($conditions as $grp) {
+            foreach (($grp['rules'] ?? []) as $r) {
+                $f = (string) ($r['field'] ?? '');
+                $v = strtolower((string) ($r['value'] ?? ''));
+                if ($f === 'ip.geoip.country' || $f === 'ip.geoip.asnum') {
+                    $has_geo = true;
+                }
+                if (($f === 'wp.user.is_logged_in' && ($r['op'] ?? '') === 'is_false') || ($f === 'wp.user.role' && ($r['op'] ?? '') === 'not_has' && strpos($v, 'administrator') !== false)) {
+                    $has_admin_guard = true;
+                }
+                if ($f === 'http.request.uri.path' && (strpos($v, 'wp-admin') !== false || strpos($v, 'wp-login') !== false)) {
+                    $touches_wp_admin = true;
+                }
+            }
+        }
+
+        if ($has_geo && !$cf_proxied) {
+            $warnings[] = __('Cloudflare GeoIP headers (CF-IPCountry / CF-IPASN) are not active on this server request; Country/ASN rules will stay inert until proxied through Cloudflare.', 'webcare-pro-security');
+        }
+        if ($touches_wp_admin && !$has_admin_guard) {
+            $warnings[] = __('Rule references /wp-admin or /wp-login without `not wp.user.is_logged_in` — consider excluding logged-in users to prevent self-lockout.', 'webcare-pro-security');
+        }
+        if (!empty($unparsed)) {
+            $warnings[] = sprintf(
+                /* translators: %s: unparsed expression clause(s) */
+                __('Skipped unrecognized clause(s): %s', 'webcare-pro-security'),
+                implode('; ', array_slice($unparsed, 0, 3))
+            );
+        }
+        if ($wirefilter !== '' && strlen($wirefilter) > 4000) {
+            $warnings[] = __('Expression exceeds 4,000 characters; consider simplifying clauses.', 'webcare-pro-security');
+        }
+
+        return $warnings;
     }
 }

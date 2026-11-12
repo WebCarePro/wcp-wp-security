@@ -100,6 +100,13 @@ class MCPAgentService {
         if ($tool === 'webcareproscan_run_security_drill') {
             return 'allowed';
         }
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mt) {
+                if (($mt['name'] ?? '') === $tool && empty($mt['isMutating'])) {
+                    return 'allowed';
+                }
+            }
+        }
 
         // Deterministic Sandboxing: All mutating and state-altering tools require human confirmation by default
         return 'confirmation_required';

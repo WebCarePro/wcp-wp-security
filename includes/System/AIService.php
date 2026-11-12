@@ -1055,4 +1055,98 @@ class AIService {
             'updated_at'  => current_time('mysql'),
         ];
     }
+
+    /**
+     * Resolve currently configured AI provider, API key, and model without leaking secrets.
+     *
+     * @return array{configured: bool, provider: string, model: string, api_key: string}
+     */
+    public static function resolve_active_credentials(): array {
+        $settings = SettingsManager::get_settings();
+        $provider = (string) ($settings['ai_provider'] ?? 'gemini');
+        $key_map  = [
+            'gemini'     => ['gemini_api_key', 'gemini_model', 'gemini-3.5-flash-lite'],
+            'claude'     => ['claude_api_key', 'claude_model', 'claude-sonnet-5-5'],
+            'deepseek'   => ['deepseek_api_key', 'deepseek_model', 'deepseek-chat'],
+            'openrouter' => ['openrouter_api_key', 'openrouter_model', 'auto'],
+            'openai'     => ['openai_api_key', 'openai_model', 'gpt-6.1-sol'],
+        ];
+
+        $api_key = '';
+        $model   = 'wp-native-ai';
+        if ($provider === 'wp_ai_connect') {
+            $ai_status = self::get_ai_connect_status();
+            return [
+                'configured' => !empty($ai_status['is_available']),
+                'provider'   => 'wp_ai_connect',
+                'model'      => (string) ($ai_status['engine_slug'] ?? 'wp-native-ai'),
+                'api_key'    => '',
+            ];
+        }
+
+        if (!isset($key_map[$provider])) {
+            $provider = 'openai';
+        }
+        [$k_field, $m_field, $m_def] = $key_map[$provider];
+        $api_key = (string) ($settings[$k_field] ?? '');
+        $model   = (string) ($settings[$m_field] ?? $m_def);
+
+        if ($api_key === '') {
+            $ai_status = self::get_ai_connect_status();
+            if (!empty($ai_status['is_available'])) {
+                return [
+                    'configured' => true,
+                    'provider'   => 'wp_ai_connect',
+                    'model'      => (string) ($ai_status['engine_slug'] ?? 'wp-native-ai'),
+                    'api_key'    => '',
+                ];
+            }
+        }
+
+        return [
+            'configured' => ($api_key !== ''),
+            'provider'   => $provider,
+            'model'      => $model,
+            'api_key'    => $api_key,
+        ];
+    }
+
+    /**
+     * Execute a generic system/user prompt against the configured AI provider.
+     *
+     * @return array{success: bool, text?: string, provider?: string, model?: string, message?: string}
+     */
+    public static function generate_text_completion(string $system, string $user, float $temp = 0.15, int $max_tokens = 1200, int $timeout = 45): array {
+        $creds = self::resolve_active_credentials();
+        if (empty($creds['configured'])) {
+            return [
+                'success' => false,
+                'message' => __('No AI Provider API key is configured. Please set one in Settings → AI Copilot or use the Copy Markdown Prompt button.', 'webcare-pro-security'),
+            ];
+        }
+
+        try {
+            $raw_text = self::call_provider(
+                $creds['provider'],
+                $creds['api_key'],
+                $creds['model'],
+                $system,
+                $user,
+                $temp,
+                $max_tokens,
+                $timeout
+            );
+            return [
+                'success'  => true,
+                'text'     => $raw_text,
+                'provider' => $creds['provider'],
+                'model'    => $creds['model'],
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
 }
