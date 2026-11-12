@@ -8966,35 +8966,45 @@ class ScannerRoutes {
      * Customer Lockout Finder: Look up blocked customer by 6-digit Support Code (#WEBCARE-XXXX) or IP address
      */
     public static function lookup_customer_lockout(\WP_REST_Request $request) {
-        $query = strtoupper(trim($request->get_param('code') ?? ''));
+        $raw_param = preg_replace('/\s+/', '', trim((string) ($request->get_param('code') ?? '')));
+        $query = strtoupper((string) $raw_param);
         if (empty($query)) {
             return new \WP_Error('missing_code', __('Support Code or IP address is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        // Clean code formatting: allow #WEBCARE-492A, WEBCARE-492A, or 492A
+        // Clean code formatting: allow #WEBCARE-492A, WEBCARE-492A, 492A, or WEBCARE-2C912D79 / 2C912D79
         $clean_code = ltrim($query, '#');
-        if (!str_starts_with($clean_code, 'WEBCARE-') && strlen($clean_code) === 4) {
-            $clean_code = 'WEBCARE-' . $clean_code;
+        if (!str_starts_with($clean_code, 'WEBCARE-') && !filter_var($clean_code, FILTER_VALIDATE_IP)) {
+            if (preg_match('/^[A-Z0-9]{4}$/', $clean_code) || preg_match('/^[A-F0-9]{8}$/', $clean_code)) {
+                $clean_code = 'WEBCARE-' . $clean_code;
+            }
         }
 
-        // 1. Try finding by support reference code
+        // 1. Try finding by support reference code or indexed incident ID transient
         $data = get_transient('webcareproscan_lockout_' . $clean_code);
 
         // 2. Fallback: Try finding by IP address if user entered an IP
-        if (!$data && filter_var($query, FILTER_VALIDATE_IP)) {
-            $data = get_transient('webcareproscan_lockout_ip_' . md5($query));
+        if (!$data && filter_var($clean_code, FILTER_VALIDATE_IP)) {
+            $data = get_transient('webcareproscan_lockout_ip_' . md5($clean_code));
         }
 
-        // 3. Fallback: Search recent filesystem logs if transient expired
+        // 3. Fallback: Search recent filesystem logs (last 30 days) using normalized clean code
         if (!$data && class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
             $file_query = \WebCareProScanner\Firewall\WafFileLogger::query_logs([
-                'search' => $query,
-                'action' => 'blocked',
-            ], 1);
-            if (!empty($file_query['logs'][0])) {
+                'search' => $clean_code,
+                'action' => 'all',
+                'range'  => '30days',
+            ], 5);
+            if (!empty($file_query['logs'])) {
                 $top = $file_query['logs'][0];
+                foreach ($file_query['logs'] as $candidate_log) {
+                    if (($candidate_log['action_taken'] ?? '') === 'blocked') {
+                        $top = $candidate_log;
+                        break;
+                    }
+                }
                 $data = [
-                    'ref_code'       => $query,
+                    'ref_code'       => !empty($top['ref_code']) ? $top['ref_code'] : $clean_code,
                     'incident_id'    => $top['incident_id'] ?? 'WEBCARE-LOG',
                     'client_ip'      => $top['ip_address'] ?? '',
                     'rule_id'        => $top['rule_id'] ?? 'WAF-BLOCK',
@@ -9002,8 +9012,8 @@ class ScannerRoutes {
                     'rule_category'  => $top['rule_category'] ?? 'Security Shield',
                     'description'    => $top['rule_description'] ?? 'Automated defense rule triggered.',
                     'request_uri'    => $top['request_uri'] ?? '/',
-                    'timestamp'      => strtotime($top['timestamp'] ?? 'now'),
-                    'formatted_time' => $top['timestamp'] ?? gmdate('Y-m-d H:i:s \U\T\C'),
+                    'timestamp'      => strtotime($top['created_at'] ?? ($top['timestamp'] ?? 'now')),
+                    'formatted_time' => $top['created_at_gmt'] ?? ($top['created_at'] ?? gmdate('Y-m-d H:i:s \U\T\C')),
                 ];
             }
         }
@@ -9020,7 +9030,7 @@ class ScannerRoutes {
                         'SELECT incident_id, ip_address, rule_category, rule_description, request_uri, created_at FROM %i WHERE incident_id = %s OR ip_address = %s ORDER BY id DESC LIMIT 1',
                         $fw_table,
                         $clean_code,
-                        $query
+                        $clean_code
                     ),
                     ARRAY_A
                 );
@@ -9067,6 +9077,7 @@ class ScannerRoutes {
             'friendly_reason' => $friendly_reason,
             'client_ip'       => $data['client_ip'],
             'ref_code'        => $data['ref_code'],
+            'incident_id'     => $data['incident_id'] ?? '',
             'formatted_time'  => $data['formatted_time'],
         ]);
     }
@@ -9080,15 +9091,17 @@ class ScannerRoutes {
         $code = sanitize_text_field(trim($params['code'] ?? ''));
 
         if (empty($ip) && !empty($code)) {
-            $clean_code = ltrim($code, '#');
-            if (!str_starts_with($clean_code, 'WEBCARE-') && strlen($clean_code) === 4) {
-                $clean_code = 'WEBCARE-' . $clean_code;
+            $clean_code = ltrim(strtoupper((string) preg_replace('/\s+/', '', $code)), '#');
+            if (!str_starts_with($clean_code, 'WEBCARE-') && !filter_var($clean_code, FILTER_VALIDATE_IP)) {
+                if (preg_match('/^[A-Z0-9]{4}$/', $clean_code) || preg_match('/^[A-F0-9]{8}$/', $clean_code)) {
+                    $clean_code = 'WEBCARE-' . $clean_code;
+                }
             }
             $t = get_transient('webcareproscan_lockout_' . $clean_code);
             if (!empty($t['client_ip'])) {
                 $ip = $t['client_ip'];
             } elseif (class_exists('\\WebCareProScanner\\Firewall\\WafFileLogger')) {
-                $fq = \WebCareProScanner\Firewall\WafFileLogger::query_logs(['search' => $clean_code, 'action' => 'blocked'], 1);
+                $fq = \WebCareProScanner\Firewall\WafFileLogger::query_logs(['search' => $clean_code, 'action' => 'all', 'range' => '30days'], 1);
                 if (!empty($fq['logs'][0]['ip_address'])) {
                     $ip = (string) $fq['logs'][0]['ip_address'];
                 }

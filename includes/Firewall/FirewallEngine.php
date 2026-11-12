@@ -12,6 +12,20 @@ class FirewallEngine {
     private static $connecting_peer_ip = null;
     private static $detected_environment = null;
     private static $last_incident_id = null;
+    private static $last_ref_code = null;
+
+    /**
+     * Generate a short, unambiguous Customer Support Reference Code (#WEBCARE-XXXX).
+     */
+    public static function generate_ref_code(): string {
+        $charset = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+        $ref_code = 'WEBCARE-';
+        $rand_bytes = wp_rand(0, 33554431); // 32^5
+        for ($i = 0; $i < 4; $i++) {
+            $ref_code .= $charset[($rand_bytes >> ($i * 5)) & 31];
+        }
+        return $ref_code;
+    }
 
     /**
      * Bootstrap the Firewall
@@ -3480,6 +3494,13 @@ class FirewallEngine {
         }
         self::$last_incident_id = $incident_id;
 
+        if ($action === 'blocked' && empty($rule['ref_code'])) {
+            $rule['ref_code'] = self::generate_ref_code();
+        }
+        if (!empty($rule['ref_code'])) {
+            self::$last_ref_code = strtoupper(sanitize_text_field($rule['ref_code']));
+        }
+
         // Determine HTTP Status Code
         $status_code = 403;
         if ($action === 'detected' || $action === 'bypassed' || $action === 'allowed' || $action === 'monitored') {
@@ -3561,13 +3582,11 @@ class FirewallEngine {
             $incident_id = self::$last_incident_id ?: ('WEBCARE-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8)));
         }
 
-        // Generate friendly, unambiguous 6-character Customer Support Reference Code (Base32 Crockford-style)
-        $charset = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
-        $ref_code = 'WEBCARE-';
-        $rand_bytes = wp_rand(0, 33554431); // 32^5
-        for ($i = 0; $i < 4; $i++) {
-            $ref_code .= $charset[($rand_bytes >> ($i * 5)) & 31];
-        }
+        // Reuse ref_code already attached to log_incident() so WAF Logs and Support Code match 1:1
+        $ref_code = !empty($rule['ref_code'])
+            ? strtoupper(sanitize_text_field($rule['ref_code']))
+            : (!empty(self::$last_ref_code) ? self::$last_ref_code : self::generate_ref_code());
+        self::$last_ref_code = null;
 
         // Fast transient lookup for non-technical site owners to unblock paying customers in 1 click
         $transient_data = [
@@ -3583,6 +3602,9 @@ class FirewallEngine {
             'formatted_time'=> gmdate('Y-m-d H:i:s \U\T\C'),
         ];
         set_transient('webcareproscan_lockout_' . $ref_code, $transient_data, 2 * DAY_IN_SECONDS);
+        if (!empty($incident_id) && $incident_id !== $ref_code) {
+            set_transient('webcareproscan_lockout_' . $incident_id, $transient_data, 2 * DAY_IN_SECONDS);
+        }
         // Also index by md5(IP) for instant customer unblocking via IP search
         set_transient('webcareproscan_lockout_ip_' . md5($client_ip), $transient_data, 2 * DAY_IN_SECONDS);
 

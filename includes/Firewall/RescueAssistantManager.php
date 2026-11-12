@@ -681,10 +681,10 @@ class RescueAssistantManager {
         ]);
 
         // Quick Unblock Customer (#WEBCARE-XXXX) Popover Node
-        $unblock_form = '<div id="webcare-ab-unblock-box" class="webcare-ab-unblock-wrap" onclick="event.stopPropagation();">'
+        $unblock_form = '<div id="webcare-ab-unblock-box" class="webcare-ab-unblock-wrap">'
             . '<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#f8fafc;">' . esc_html__('Quick Unblock Customer (#WEBCARE-XXXX or IP)', 'webcare-pro-security') . '</div>'
             . '<div style="display:flex;gap:6px;align-items:center;">'
-            . '<input type="text" id="webcare-ab-code-input" placeholder="' . esc_attr__('#WEBCARE-492A or IP', 'webcare-pro-security') . '" style="width:170px;padding:4px 8px;border-radius:4px;border:1px solid #475569;background:#0f172a;color:#f8fafc;font-size:12px;height:28px;" />'
+            . '<input type="text" id="webcare-ab-code-input" autocomplete="off" placeholder="' . esc_attr__('#WEBCARE-492A or IP', 'webcare-pro-security') . '" style="width:170px;padding:4px 8px;border-radius:4px;border:1px solid #475569;background:#0f172a;color:#f8fafc;font-size:12px;height:28px;" />'
             . '<button type="button" id="webcare-ab-lookup-btn" style="padding:4px 10px;border-radius:4px;border:none;background:#4f46e5;color:#fff;font-size:11px;font-weight:700;cursor:pointer;height:28px;">' . esc_html__('Find', 'webcare-pro-security') . '</button>'
             . '</div>'
             . '<div id="webcare-ab-result" style="margin-top:8px;font-size:11px;line-height:1.4;color:#cbd5e1;white-space:normal;"></div>'
@@ -723,7 +723,9 @@ class RescueAssistantManager {
         wp_enqueue_style('webcare-admin-bar-rescue');
         wp_add_inline_style(
             'webcare-admin-bar-rescue',
-            '#wp-admin-bar-webcare-pro-bar-unblock .ab-item{height:auto!important;padding:10px 12px!important;min-width:265px!important;line-height:1.4!important;}'
+            '#wp-admin-bar-webcare-pro-bar-unblock .ab-item{height:auto!important;padding:10px 12px!important;min-width:275px!important;line-height:1.4!important;}'
+            . '#wp-admin-bar-webcare-pro-bar.webcare-ab-keep-open .ab-sub-wrapper,'
+            . '#wp-admin-bar-webcare-pro-bar:focus-within .ab-sub-wrapper{display:block!important;}'
         );
 
         wp_register_script('webcare-admin-bar-rescue', false, [], defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.11.0', true);
@@ -735,21 +737,26 @@ class RescueAssistantManager {
         ]);
 
         $js = '(function(){var cfg=' . $cfg . ';'
-            . 'document.addEventListener("click",function(e){'
-            . 'if(!e.target)return;'
-            . 'if(e.target.id==="webcare-ab-lookup-btn"){'
-            . 'e.preventDefault();e.stopPropagation();'
+            . 'function setKeepOpen(open){'
+            . 'var root=document.getElementById("wp-admin-bar-webcare-pro-bar");'
+            . 'if(!root)return;'
+            . 'if(open){root.classList.add("webcare-ab-keep-open","hover");}else{root.classList.remove("webcare-ab-keep-open");}'
+            . '}'
+            . 'function runLookup(){'
             . 'var inp=document.getElementById("webcare-ab-code-input");'
             . 'var out=document.getElementById("webcare-ab-result");'
-            . 'var q=(inp&&inp.value)?inp.value.trim():"";'
+            . 'if(!inp||!out)return;'
+            . 'setKeepOpen(true);'
+            . 'var q=(inp.value||"").trim();'
             . 'if(!q){out.textContent="Enter a #WEBCARE-XXXX code or IP address.";return;}'
             . 'out.textContent="Looking up block details...";'
-            . 'fetch(cfg.restRoot+"/firewall/customer/lookup-block?code="+encodeURIComponent(q),{headers:{"X-WP-Nonce":cfg.nonce}})'
+            . 'fetch(cfg.restRoot+"/firewall/customer/lookup-block?code="+encodeURIComponent(q),{headers:{"X-WP-Nonce":cfg.nonce},credentials:"same-origin"})'
             . '.then(function(r){return r.json();})'
             . '.then(function(d){'
             . 'out.textContent="";'
             . 'if(!d||!d.found){out.textContent=(d&&d.message)?d.message:"No matching block found.";return;}'
             . 'var info=document.createElement("div");info.style.marginBottom="6px";'
+            . 'if(d.ref_code){var rc=document.createElement("div");rc.style.cssText="color:#93c5fd;font-weight:700;margin-bottom:2px;";rc.textContent="Code: "+String(d.ref_code)+(d.incident_id&&d.incident_id!==d.ref_code?" ("+String(d.incident_id)+")":"");info.appendChild(rc);}'
             . 'var strong=document.createElement("strong");strong.textContent="IP: ";info.appendChild(strong);'
             . 'info.appendChild(document.createTextNode(String(d.client_ip||"")));'
             . 'info.appendChild(document.createElement("br"));'
@@ -763,11 +770,10 @@ class RescueAssistantManager {
             . 'out.appendChild(btn);'
             . '}).catch(function(){out.textContent="Lookup failed.";});'
             . '}'
-            . 'if(e.target.id==="webcare-ab-do-unblock"){'
-            . 'e.preventDefault();e.stopPropagation();'
-            . 'var btn=e.target;var out=document.getElementById("webcare-ab-result");'
+            . 'function runUnblock(btn){'
+            . 'var out=document.getElementById("webcare-ab-result");'
             . 'btn.disabled=true;btn.textContent="Unblocking...";'
-            . 'fetch(cfg.restRoot+"/firewall/customer/unblock",{method:"POST",headers:{"Content-Type":"application/json","X-WP-Nonce":cfg.nonce},body:JSON.stringify({ip:btn.getAttribute("data-ip"),code:btn.getAttribute("data-code")})})'
+            . 'fetch(cfg.restRoot+"/firewall/customer/unblock",{method:"POST",headers:{"Content-Type":"application/json","X-WP-Nonce":cfg.nonce},credentials:"same-origin",body:JSON.stringify({ip:btn.getAttribute("data-ip"),code:btn.getAttribute("data-code")})})'
             . '.then(function(r){return r.json();})'
             . '.then(function(d){'
             . 'out.textContent="";'
@@ -776,7 +782,29 @@ class RescueAssistantManager {
             . 'out.appendChild(ok);'
             . '}).catch(function(){out.textContent="Failed to unblock IP.";});'
             . '}'
-            . '});})();';
+            . 'function bindAdminBarSearch(){'
+            . 'var box=document.getElementById("webcare-ab-unblock-box");'
+            . 'if(!box||box.getAttribute("data-webcare-bound")==="1")return;'
+            . 'box.setAttribute("data-webcare-bound","1");'
+            . 'box.addEventListener("click",function(e){'
+            . 'var tgt=e.target;'
+            . 'if(tgt&&tgt.closest&&tgt.closest("#webcare-ab-lookup-btn")){e.preventDefault();e.stopPropagation();runLookup();return;}'
+            . 'if(tgt&&tgt.closest&&tgt.closest("#webcare-ab-do-unblock")){e.preventDefault();e.stopPropagation();runUnblock(tgt.closest("#webcare-ab-do-unblock"));return;}'
+            . 'e.stopPropagation();'
+            . 'setKeepOpen(true);'
+            . '});'
+            . 'var inp=document.getElementById("webcare-ab-code-input");'
+            . 'if(inp){'
+            . 'inp.addEventListener("focus",function(){setKeepOpen(true);});'
+            . 'inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();e.stopPropagation();runLookup();}});'
+            . '}'
+            . '}'
+            . 'if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bindAdminBarSearch);}else{bindAdminBarSearch();}'
+            . 'document.addEventListener("click",function(e){'
+            . 'var root=document.getElementById("wp-admin-bar-webcare-pro-bar");'
+            . 'if(root&&e.target&&!root.contains(e.target)){setKeepOpen(false);}'
+            . '});'
+            . '})();';
 
         wp_add_inline_script('webcare-admin-bar-rescue', $js);
     }

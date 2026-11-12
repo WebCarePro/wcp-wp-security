@@ -158,18 +158,22 @@ class WafFileLogger {
         }
 
         $category = sanitize_key($rule['category'] ?? 'general_defense');
+        $raw_uri_dedup = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
 
-        // Zero-SQL Deduplication Cache: prevent logging identical IP + Category within 60 seconds
-        // Exception: For rapid authentication failures or logins, use a short 3-second window or include username
-        $dedup_ttl = 60;
+        // Zero-SQL Deduplication Cache:
+        // Suppress rapid identical automated probes within 3 seconds while preserving distinct blocked Incident IDs / Ref Codes.
         if (strpos($category, 'auth') !== false) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Inspection of incoming authentication attempt parameter for deduplication keying
             $raw_log = isset($_POST['log']) ? sanitize_user(wp_unslash($_POST['log'])) : '';
             $dedup_username = !empty($rule['username']) ? sanitize_user($rule['username']) : $raw_log;
             $cache_key = 'webcare_dedup_' . md5($ip . '_' . $category . '_' . $dedup_username . '_' . ($rule['id'] ?? ''));
             $dedup_ttl = 3;
+        } elseif ($action === 'blocked') {
+            $cache_key = 'webcare_dedup_' . md5($ip . '_' . $category . '_' . ($rule['id'] ?? '') . '_' . $raw_uri_dedup);
+            $dedup_ttl = 2;
         } else {
-            $cache_key = 'webcare_dedup_' . md5($ip . '_' . $category);
+            $cache_key = 'webcare_dedup_' . md5($ip . '_' . $category . '_' . ($rule['id'] ?? ''));
+            $dedup_ttl = 30;
         }
 
         if (get_transient($cache_key)) {
@@ -230,6 +234,7 @@ class WafFileLogger {
         $incident_record = [
             'id'               => 'webcare_' . substr(md5(uniqid((string) wp_rand(), true)), 0, 12),
             'incident_id'      => sanitize_text_field($incident_id),
+            'ref_code'         => !empty($rule['ref_code']) ? strtoupper(sanitize_text_field($rule['ref_code'])) : null,
             'timestamp'        => time(),
             'created_at'       => current_time('mysql'),
             'created_at_gmt'   => gmdate('Y-m-d H:i:s'),
@@ -364,8 +369,32 @@ class WafFileLogger {
      * @return array
      */
     public static function query_logs(array $filters = [], int $limit = 50, int $offset = 0): array {
+        // Resolve Customer Support Reference Code / Incident transient aliases so searches like WEBCARE-ABTS
+        // also match linked incident_id records and remain discoverable even if a transient-only block occurred.
+        $lockout_transient = null;
+        if (!empty($filters['search']) && is_string($filters['search'])) {
+            $clean_search = ltrim(strtoupper((string) preg_replace('/\s+/', '', trim($filters['search']))), '#');
+            if ($clean_search !== '' && !str_starts_with($clean_search, 'WEBCARE-') && (preg_match('/^[A-Z0-9]{4}$/', $clean_search) || preg_match('/^[A-F0-9]{8}$/', $clean_search))) {
+                $clean_search = 'WEBCARE-' . $clean_search;
+            }
+            if (str_starts_with($clean_search, 'WEBCARE-') && function_exists('get_transient')) {
+                $t_data = get_transient('webcareproscan_lockout_' . $clean_search);
+                if (is_array($t_data) && !empty($t_data['client_ip'])) {
+                    $lockout_transient = $t_data;
+                    $aliases = [];
+                    if (!empty($t_data['ref_code'])) {
+                        $aliases[] = strtolower((string) $t_data['ref_code']);
+                    }
+                    if (!empty($t_data['incident_id'])) {
+                        $aliases[] = strtolower((string) $t_data['incident_id']);
+                    }
+                    $filters['_search_aliases'] = array_values(array_unique($aliases));
+                }
+            }
+        }
+
         $files_to_read = self::resolve_target_files($filters);
-        if (empty($files_to_read)) {
+        if (empty($files_to_read) && empty($lockout_transient)) {
             return [
                 'logs'            => [],
                 'total'           => 0,
@@ -411,6 +440,41 @@ class WafFileLogger {
 
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Stream resource cleanup
             fclose($handle);
+        }
+
+        // Fallback: if a Support Code transient exists (e.g. from a burst-deduped block page) and no disk log matched it,
+        // surface the transient telemetry record cleanly so searching WEBCARE-XXXX never returns "nothing found".
+        if (empty($all_matched) && is_array($lockout_transient)) {
+            $ts = (int) ($lockout_transient['timestamp'] ?? time());
+            $synthetic = [
+                'id'               => 'webcare_t_' . substr(md5(($lockout_transient['incident_id'] ?? '') . ($lockout_transient['ref_code'] ?? '')), 0, 10),
+                'incident_id'      => (string) ($lockout_transient['incident_id'] ?? 'WEBCARE-BLOCK'),
+                'ref_code'         => (string) ($lockout_transient['ref_code'] ?? ''),
+                'timestamp'        => $ts,
+                'created_at'       => gmdate('Y-m-d H:i:s', $ts),
+                'created_at_gmt'   => gmdate('Y-m-d H:i:s', $ts),
+                'ip_address'       => (string) ($lockout_transient['client_ip'] ?? ''),
+                'request_uri'      => (string) ($lockout_transient['request_uri'] ?? '/'),
+                'request_method'   => 'get',
+                'http_status_code' => 403,
+                'http_referer'     => null,
+                'rule_id'          => (string) ($lockout_transient['rule_id'] ?? 'WAF-BLOCK'),
+                'rule_name'        => (string) ($lockout_transient['rule_name'] ?? 'Security Shield'),
+                'rule_category'    => sanitize_key((string) ($lockout_transient['rule_category'] ?? 'general_defense')),
+                'rule_description' => (string) ($lockout_transient['description'] ?? 'Automated defense rule triggered.'),
+                'payload_sample'   => sprintf('Support Code: %s | Client IP: %s | URI: %s', (string) ($lockout_transient['ref_code'] ?? ''), (string) ($lockout_transient['client_ip'] ?? ''), (string) ($lockout_transient['request_uri'] ?? '/')),
+                'user_agent'       => '',
+                'action_taken'     => 'blocked',
+                'ban_reason'       => null,
+                'ban_source'       => null,
+                'matching_entry'   => null,
+                'user_id'          => 0,
+                'username'         => '',
+                'user_role'        => '',
+                'is_authenticated' => false,
+                'hostname'         => '',
+            ];
+            $all_matched[] = $synthetic;
         }
 
         $total = count($all_matched);
@@ -470,9 +534,13 @@ class WafFileLogger {
     private static function record_matches_filters(array $record, array $filters): bool {
         // Keyword Search
         if (!empty($filters['search'])) {
-            $needle = strtolower(trim($filters['search']));
+            $needle = ltrim(strtolower(trim((string) $filters['search'])), '#');
             $haystack = strtolower(
                 ($record['incident_id'] ?? '') . ' ' .
+                ($record['ref_code'] ?? '') . ' ' .
+                ($record['rule_id'] ?? '') . ' ' .
+                ($record['rule_name'] ?? '') . ' ' .
+                ($record['rule_category'] ?? '') . ' ' .
                 ($record['ip_address'] ?? '') . ' ' .
                 ($record['request_uri'] ?? '') . ' ' .
                 ($record['rule_description'] ?? '') . ' ' .
@@ -481,7 +549,16 @@ class WafFileLogger {
                 ($record['username'] ?? '') . ' ' .
                 ($record['http_referer'] ?? '')
             );
-            if (strpos($haystack, $needle) === false) {
+            $matched_search = ($needle === '' || strpos($haystack, $needle) !== false);
+            if (!$matched_search && !empty($filters['_search_aliases']) && is_array($filters['_search_aliases'])) {
+                foreach ($filters['_search_aliases'] as $alias) {
+                    if ($alias !== '' && strpos($haystack, $alias) !== false) {
+                        $matched_search = true;
+                        break;
+                    }
+                }
+            }
+            if (!$matched_search) {
                 return false;
             }
         }
