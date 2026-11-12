@@ -986,25 +986,93 @@ class FirewallEngine {
             }
         }
 
-        // Modular Intelligence Firewall Runtime Enforcement
+        // Modular Intelligence Firewall & Visual Rule Studio Runtime Enforcement
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
             $modular_violation = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::evaluate_runtime_modular_rules();
             if ($modular_violation !== null) {
-                $rule_triggered = [
-                    'id'              => $modular_violation['rule_id'],
-                    'name'            => 'Modular Intelligence Firewall Rule',
-                    'category'        => 'Modular Behavioral WAF',
-                    'description'     => $modular_violation['reason'],
-                    'match_type'      => $modular_violation['category'],
-                    'match_value'     => $modular_violation['rule_id'],
-                    'payload'         => "Client IP: {$client_ip} URI: {$request_uri}",
-                    'sync_cloudflare' => !empty($modular_violation['sync_cloudflare']),
-                    'ban_ttl'         => (int) ($modular_violation['ban_ttl'] ?? 0),
-                ];
-                if ($modular_violation['blocked']) {
-                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+                $mod_action = (string) ($modular_violation['action_type'] ?? '');
+                if ($mod_action === 'allow') {
+                    if (empty($modular_violation['exempt_rules'])) {
+                        return;
+                    }
+                } elseif ($mod_action === 'challenge_pow' && !empty($modular_violation['blocked']) && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+                    $ua_raw = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+                    if (!\WebCareProScanner\Firewall\BotReconDefense::has_valid_clearance_cookie($client_ip, $ua_raw)) {
+                        $rule_triggered = [
+                            'id'          => $modular_violation['rule_id'],
+                            'name'        => 'Visual Rule Studio PoW Challenge',
+                            'category'    => 'Modular Behavioral WAF',
+                            'description' => $modular_violation['reason'],
+                            'match_type'  => $modular_violation['category'],
+                            'match_value' => $modular_violation['rule_id'],
+                            'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                        ];
+                        self::log_incident($rule_triggered, 'challenged');
+                        \WebCareProScanner\Firewall\BotReconDefense::render_pow_challenge($client_ip, $modular_violation['reason']);
+                    }
                 } else {
-                    self::log_incident($rule_triggered, 'detected');
+                    $rule_triggered = [
+                        'id'              => $modular_violation['rule_id'],
+                        'name'            => 'Modular Intelligence Firewall Rule',
+                        'category'        => 'Modular Behavioral WAF',
+                        'description'     => $modular_violation['reason'],
+                        'match_type'      => $modular_violation['category'],
+                        'match_value'     => $modular_violation['rule_id'],
+                        'payload'         => "Client IP: {$client_ip} URI: {$request_uri}",
+                        'sync_cloudflare' => !empty($modular_violation['sync_cloudflare']),
+                        'ban_ttl'         => (int) ($modular_violation['ban_ttl'] ?? 0),
+                    ];
+                    if ($modular_violation['blocked']) {
+                        $http_code = ($mod_action === 'rate_limit') ? 429 : 403;
+                        self::handle_rule_violation($rule_triggered, $settings, $client_ip, $http_code);
+                    } else {
+                        self::log_incident($rule_triggered, 'detected');
+                    }
+                }
+            }
+        }
+
+        // Pluggable Module SDK & 2026-2027 Next-Gen WAF Sentinels Runtime Pipeline
+        if (
+            class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')
+            && class_exists('\\WebCareProScanner\\Contracts\\RequestContext')
+        ) {
+            $req_ctx = \WebCareProScanner\Contracts\RequestContext::from_globals();
+            $verdict = \WebCareProScanner\Core\ModuleRegistry::evaluate_runtime_waf($req_ctx, $settings);
+            if ($verdict !== null) {
+                if ($verdict->action === 'allow') {
+                    return;
+                }
+                if ($verdict->action === 'challenge_pow' && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+                    if (!\WebCareProScanner\Firewall\BotReconDefense::has_valid_clearance_cookie($client_ip, $req_ctx->userAgent)) {
+                        self::log_incident([
+                            'id'          => $verdict->ruleId,
+                            'name'        => $verdict->category,
+                            'category'    => $verdict->category,
+                            'description' => $verdict->reason,
+                            'match_type'  => $verdict->action,
+                            'match_value' => $verdict->ruleId,
+                            'payload'     => "Client IP: {$client_ip} URI: {$request_uri}",
+                        ], 'challenged');
+                        \WebCareProScanner\Firewall\BotReconDefense::render_pow_challenge($client_ip, $verdict->reason);
+                    }
+                } else {
+                    $ng_rule = [
+                        'id'              => $verdict->ruleId,
+                        'name'            => $verdict->category,
+                        'category'        => $verdict->category,
+                        'description'     => $verdict->reason,
+                        'match_type'      => $verdict->action,
+                        'match_value'     => $verdict->ruleId,
+                        'payload'         => "Client IP: {$client_ip} URI: {$request_uri}",
+                        'sync_cloudflare' => $verdict->syncCloudflare,
+                        'ban_ttl'         => $verdict->action === 'block_and_ban' ? max(60, $verdict->banTtl) : $verdict->banTtl,
+                    ];
+                    if (in_array($verdict->action, ['block', 'block_and_ban', 'rate_limit'], true)) {
+                        self::handle_rule_violation($ng_rule, $settings, $client_ip, $verdict->statusCode);
+                    } else {
+                        self::log_incident($ng_rule, 'detected');
+                    }
                 }
             }
         }

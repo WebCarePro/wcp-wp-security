@@ -152,6 +152,11 @@ class Plugin {
             \WebCareProScanner\Firewall\CAF\CloudflareIpListSynchronizer::register_cron();
         }
 
+        // Pluggable Micro-Kernel & Next-Gen Defense Modules
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            \WebCareProScanner\Core\ModuleRegistry::boot_all();
+        }
+
         add_action('rest_api_init', function () {
             ScannerRoutes::register();
         });

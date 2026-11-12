@@ -18,7 +18,7 @@ class SettingsManager {
      * Default configuration options
      */
     public static function get_defaults(): array {
-        return [
+        $defaults = [
             // 1. Schedule Scan Settings
             'schedule_enabled'         => false,
             'schedule_frequency'       => 'daily', // hourly, twicedaily, daily, weekly
@@ -276,6 +276,12 @@ class SettingsManager {
             'cron_task_schedules'                => [],
             'cron_log_retention_days'            => 30,
         ];
+
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            $defaults = array_merge($defaults, \WebCareProScanner\Core\ModuleRegistry::get_settings_defaults());
+        }
+
+        return $defaults;
     }
 
     /**
@@ -1123,6 +1129,10 @@ class SettingsManager {
         $clean['cron_task_schedules']     = $clean_schedules;
         $clean['cron_log_retention_days'] = max(7, min(365, intval($merged['cron_log_retention_days'] ?? 30)));
 
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            $clean = array_merge($clean, \WebCareProScanner\Core\ModuleRegistry::sanitize_module_settings($merged, $current, $input));
+        }
+
         // Reconcile email_digest_enabled with notification_events['weekly_peace_of_mind_digest'] by diffing against $current
         $old_digest_flag = !empty($current['email_digest_enabled']);
         $new_digest_flag = !empty($clean['email_digest_enabled']);
@@ -1296,6 +1306,13 @@ class SettingsManager {
 
         if (isset($map[$key])) {
             return $map[$key];
+        }
+
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            $mod_labels = \WebCareProScanner\Core\ModuleRegistry::get_setting_labels();
+            if (isset($mod_labels[$key])) {
+                return $mod_labels[$key];
+            }
         }
 
         $clean = str_replace(['waf_block_', 'waf_', 'threat_intel_', 'webcareproscan_'], '', $key);

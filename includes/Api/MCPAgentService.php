@@ -75,8 +75,17 @@ class MCPAgentService {
      */
     public static function get_tool_policy(string $tool): string {
         $scope = SettingsManager::get('mcp_permission_scope', 'read_only');
-        if ($scope === 'read_only' && in_array($tool, self::MUTATING_TOOLS, true)) {
-            return 'blocked';
+        if ($scope === 'read_only') {
+            if (in_array($tool, self::MUTATING_TOOLS, true)) {
+                return 'blocked';
+            }
+            if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+                foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mt) {
+                    if (($mt['name'] ?? '') === $tool && !empty($mt['isMutating'])) {
+                        return 'blocked';
+                    }
+                }
+            }
         }
 
         $matrix = SettingsManager::get('mcp_tool_matrix', []);
@@ -617,6 +626,27 @@ class MCPAgentService {
             ],
         ];
 
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mod_tool) {
+                $t_name = sanitize_text_field((string) ($mod_tool['name'] ?? ''));
+                if ($t_name === '') {
+                    continue;
+                }
+                $is_mut  = !empty($mod_tool['isMutating']);
+                $t_pol   = ($scope === 'read_only' && $is_mut) ? 'blocked' : self::get_tool_policy($t_name);
+                $tools[] = [
+                    'name'        => $t_name,
+                    'description' => sanitize_text_field((string) ($mod_tool['description'] ?? '')),
+                    'category'    => sanitize_key((string) ($mod_tool['category'] ?? ($is_mut ? 'mutating' : 'read'))),
+                    'isMutating'  => $is_mut,
+                    'policy'      => $t_pol,
+                    'inputSchema' => is_array($mod_tool['inputSchema'] ?? null)
+                        ? $mod_tool['inputSchema']
+                        : ['type' => 'object', 'properties' => new \stdClass()],
+                ];
+            }
+        }
+
         return [
             'scope'      => $scope,
             'isReadOnly' => ($scope === 'read_only'),
@@ -896,6 +926,13 @@ class MCPAgentService {
                 break;
 
             default:
+                if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+                    $mod_res = \WebCareProScanner\Core\ModuleRegistry::execute_mcp_tool($tool, $args);
+                    if (is_array($mod_res)) {
+                        $response = $mod_res;
+                        break;
+                    }
+                }
                 $response = [
                     'isError' => true,
                     'content' => [

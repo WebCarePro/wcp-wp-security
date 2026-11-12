@@ -2025,6 +2025,52 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/modular-waf/fields', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_modular_visual_fields'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/simulate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'simulate_custom_modular_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/custom/delete', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'delete_custom_modular_rule'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/cloudflare-push', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'push_custom_rule_to_cloudflare'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/rule/parse-wirefilter', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'parse_wirefilter_expression'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modules/ecosystem', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_modules_ecosystem'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modules/toggle', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'toggle_ecosystem_module'],
+            'permission_callback' => $permission,
+        ]);
+
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            \WebCareProScanner\Core\ModuleRegistry::register_rest_routes(self::NAMESPACE);
+        }
+
         // Rescue Assistant, 15m Test Mode & Daily Security Story
         register_rest_route(self::NAMESPACE, '/rescue/status', [
             'methods'             => 'GET',
@@ -3469,6 +3515,114 @@ class ScannerRoutes {
         $params = $request->get_json_params() ?: [];
         $result = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::create_custom_rule($params);
         return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Return Visual Rule Studio field catalog.
+     */
+    public static function get_modular_visual_fields(\WP_REST_Request $request) {
+        $fields = class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')
+            ? \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::get_field_catalog()
+            : [];
+        return new \WP_REST_Response([
+            'success' => true,
+            'fields'  => $fields,
+        ], 200);
+    }
+
+    /**
+     * Dry-run simulate a Visual/Custom rule against recent WafFileLogger history.
+     */
+    public static function simulate_custom_modular_rule(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Visual expression engine unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params = $request->get_json_params() ?: [];
+        $limit  = isset($params['limit']) ? intval($params['limit']) : 500;
+        $res    = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::simulate_against_recent_logs($params, $limit);
+        return new \WP_REST_Response($res, 200);
+    }
+
+    /**
+     * Delete a developer-defined custom rule.
+     */
+    public static function delete_custom_modular_rule(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $rule_id = sanitize_text_field((string) ($params['rule_id'] ?? ''));
+        if ($rule_id === '') {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Rule ID is required.', 'webcare-pro-security')], 400);
+        }
+        $res = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::delete_custom_rule($rule_id);
+        return new \WP_REST_Response($res, 200);
+    }
+
+    /**
+     * Push a Visual Rule's HTTP/Network Wirefilter expression directly to Cloudflare Edge Custom Ruleset.
+     */
+    public static function push_custom_rule_to_cloudflare(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Visual expression engine unavailable.', 'webcare-pro-security')], 500);
+        }
+        $params = $request->get_json_params() ?: [];
+        $res    = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::push_rule_to_cloudflare_edge($params);
+        return new \WP_REST_Response($res, 200);
+    }
+
+    /**
+     * Parse an edited Wirefilter expression into structured visual condition groups.
+     */
+    public static function parse_wirefilter_expression(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')) {
+            return new \WP_REST_Response(['success' => false, 'conditions' => []], 200);
+        }
+        $params     = $request->get_json_params() ?: [];
+        $expr       = sanitize_text_field(wp_unslash((string) ($params['wirefilter_expr'] ?? '')));
+        $conditions = \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::parse_wirefilter($expr);
+        return new \WP_REST_Response([
+            'success'    => true,
+            'conditions' => $conditions,
+            'wirefilter' => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_wirefilter($conditions),
+            'cf_edge'    => \WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine::to_cloudflare_edge_wirefilter($conditions),
+        ], 200);
+    }
+
+    /**
+     * Retrieve registered Module Ecosystem & Next-Gen Engines status.
+     */
+    public static function get_modules_ecosystem(\WP_REST_Request $request) {
+        $modules = class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')
+            ? \WebCareProScanner\Core\ModuleRegistry::get_ecosystem_status()
+            : [];
+        return new \WP_REST_Response([
+            'success' => true,
+            'modules' => $modules,
+        ], 200);
+    }
+
+    /**
+     * Toggle a pluggable module on/off via its declared SettingsManager enable_key.
+     */
+    public static function toggle_ecosystem_module(\WP_REST_Request $request) {
+        $params  = $request->get_json_params() ?: [];
+        $mod_id  = sanitize_key((string) ($params['module_id'] ?? ''));
+        $enabled = !empty($params['enabled']);
+        if ($mod_id === '' || !class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Module ID is required.', 'webcare-pro-security')], 400);
+        }
+        $mod = \WebCareProScanner\Core\ModuleRegistry::get_module($mod_id);
+        if (!$mod) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Module not found.', 'webcare-pro-security')], 404);
+        }
+        $manifest   = $mod->get_manifest();
+        $enable_key = (string) ($manifest['enable_key'] ?? '');
+        if ($enable_key === '') {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Core module is permanently active.', 'webcare-pro-security')], 400);
+        }
+        \WebCareProScanner\System\SettingsManager::save_settings([$enable_key => $enabled]);
+        return new \WP_REST_Response([
+            'success' => true,
+            'modules' => \WebCareProScanner\Core\ModuleRegistry::get_ecosystem_status(),
+        ], 200);
     }
 
     /**

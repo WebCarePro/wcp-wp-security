@@ -96,7 +96,7 @@ class CronRegistry {
      * @return array<string, array<string, mixed>>
      */
     public static function get_tasks(): array {
-        return [
+        $tasks = [
             'webcareproscan_scheduled_scan_event' => [
                 'id'                  => 'scheduled_scan',
                 'hook'                => 'webcareproscan_scheduled_scan_event',
@@ -336,6 +336,15 @@ class CronRegistry {
                 'default_delay'       => 0,
             ],
         ];
+
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            $mod_tasks = \WebCareProScanner\Core\ModuleRegistry::get_cron_tasks();
+            if (!empty($mod_tasks)) {
+                $tasks = array_merge($tasks, $mod_tasks);
+            }
+        }
+
+        return $tasks;
     }
 
     /**
